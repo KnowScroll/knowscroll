@@ -115,7 +115,8 @@ describe('room messages', () => {
   it('collapses a message from someone the reader blocked into a marker that keeps its place and shows no words', async () => {
     await show([text(1, ravi, 'hello'), { messageId: id(104), sequence: 2, status: 'blocked' }]);
     expect(screen.getByText('A message from someone you blocked')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Message options' })).not.toBeOnTheScreen();
+    // Only the message that is still shown has options (to report it); the marker has none.
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
   });
 
   it('keeps a blocked author’s words collapsed for a moderator, with a way to show them and still moderate', async () => {
@@ -134,6 +135,7 @@ describe('room messages', () => {
     expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
     expect(screen.queryByText('Ravi')).not.toBeOnTheScreen();
     // A moderator has options on every message; the collapsed one's are the second.
+    await fireEvent(screen.getByTestId('message-2'), 'hoverIn');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Message options' })[1]!);
     expect(moderator.onActions).toHaveBeenCalledWith(blockedByYou);
     // Shown for moderation on request, and put away again.
@@ -144,13 +146,54 @@ describe('room messages', () => {
     expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
   });
 
-  it('offers message options only where there is something to do: a card, or a moderator', async () => {
-    const member = await show([text(1, ravi, 'plain'), card]);
-    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
-    await fireEvent.press(screen.getByRole('button', { name: 'Message options' }));
+  it('offers message options only where there is something to do: a card, a moderator, or another person’s words to report', async () => {
+    const member = await show([text(1, ravi, 'plain'), card, text(5, asha, 'mine')]);
+    // Another person's plain message can be reported and their card can start a thread; your own has nothing to do.
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(2);
+    await fireEvent(screen.getByTestId('message-4'), 'hoverIn');
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Message options' })[1]!);
     expect(member.onActions).toHaveBeenCalledWith(card);
     await fireEvent.press(screen.getByTestId('start-thread'));
     expect(member.onStartThread).toHaveBeenCalledWith(card.messageId);
+  });
+
+  it('lets a member report an AI inhabitant’s message, which has no person to block', async () => {
+    const member = await show([skeptic]);
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
+    await fireEvent(screen.getByTestId('message-3'), 'longPress');
+    expect(member.onActions).toHaveBeenCalledWith(skeptic);
+  });
+
+  it('keeps ⋯ off the message until the pointer is over it or the control has focus, yet in the page for assistive tech', async () => {
+    // Your own words have no ⋯, so the card's is the only one.
+    await show([text(1, asha, 'mine'), card]);
+    const options = () => screen.getByRole('button', { name: 'Message options' });
+    const wrapper = () => screen.getByTestId('message-options-4');
+    expect(options()).toBeOnTheScreen();
+    expect(wrapper()).toHaveStyle({ opacity: 0 });
+    const line = screen.getByTestId('message-4');
+    await fireEvent(line, 'hoverIn');
+    expect(wrapper()).not.toHaveStyle({ opacity: 0 });
+    await fireEvent(line, 'hoverOut');
+    expect(wrapper()).toHaveStyle({ opacity: 0 });
+    // Tabbing to the control itself reveals it: focus is the button's, not the line's.
+    await fireEvent(options(), 'focus');
+    expect(wrapper()).not.toHaveStyle({ opacity: 0 });
+    await fireEvent(options(), 'blur');
+    expect(wrapper()).toHaveStyle({ opacity: 0 });
+  });
+
+  it('opens the same options with a long press on the message', async () => {
+    const plain = text(1, ravi, 'plain');
+    const member = await show([plain, card, text(5, asha, 'mine')]);
+    await fireEvent(screen.getByTestId('message-4'), 'longPress');
+    expect(member.onActions).toHaveBeenCalledWith(card);
+    // Another person's plain message can be reported, so it has the options too.
+    await fireEvent(screen.getByTestId('message-1'), 'longPress');
+    expect(member.onActions).toHaveBeenCalledWith(plain);
+    // Your own words have nothing to do.
+    await fireEvent(screen.getByTestId('message-5'), 'longPress');
+    expect(member.onActions).toHaveBeenCalledTimes(2);
   });
 
   it('gives a moderator the options on every message but never on a deleted account’s', async () => {
@@ -165,12 +208,24 @@ describe('room messages', () => {
     expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(2);
   });
 
-  it('decides the actions from the message and the role', () => {
-    expect(actionsFor(card, 'member')).toEqual({ canStartThread: true, canModerate: false });
-    expect(actionsFor(text(1, ravi, 'x'), 'moderator')).toEqual({ canStartThread: false, canModerate: true });
-    expect(actionsFor({ messageId: id(1), sequence: 1, status: 'unavailable' }, 'moderator')).toEqual({
+  it('decides the actions from the message, the role and whose message it is', () => {
+    expect(actionsFor(card, 'member', asha.personId)).toEqual({
+      canStartThread: true,
+      canModerate: false,
+      canReport: true,
+    });
+    expect(actionsFor(text(1, ravi, 'x'), 'moderator', asha.personId)).toEqual({
+      canStartThread: false,
+      canModerate: true,
+      canReport: true,
+    });
+    // Your own words and a marker have nothing to report.
+    expect(actionsFor(text(1, asha, 'x'), 'member', asha.personId).canReport).toBe(false);
+    expect(actionsFor({ messageId: id(1), sequence: 1, status: 'unavailable' }, 'moderator', asha.personId)).toEqual({
       canStartThread: false,
       canModerate: false,
+      canReport: false,
     });
+    expect(actionsFor(skeptic, 'member', asha.personId).canReport).toBe(true);
   });
 });

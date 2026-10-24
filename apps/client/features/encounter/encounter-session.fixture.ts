@@ -35,9 +35,11 @@ export function harness() {
   let activationFailure = false;
   let navigationStale = false;
   let actionFailure = false;
+  let feedbackFailure = false;
   let saved = false;
   let contextNotFound = false;
   let contextGate: Promise<void> | undefined;
+  let bufferedCount = 0;
   let outcomeStatus: 'ready' | 'pending' | 'exhausted' = 'ready';
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const batches: RecordingObservationBatchRequest[] = [];
@@ -50,7 +52,11 @@ export function harness() {
     decisionId: id(2),
     replayed: false,
     ...(outcomeStatus === 'ready'
-      ? { status: 'ready', offer: offer(selected), bufferedOffers: [] }
+      ? {
+          status: 'ready',
+          offer: offer(selected),
+          bufferedOffers: Array.from({ length: bufferedCount }, (_, index) => offer(selected + 10 + index)),
+        }
       : outcomeStatus === 'pending'
         ? { status: 'pending', reason: 'buffer_preparing' }
         : { status: 'exhausted', reason: 'no_eligible_content' }),
@@ -111,6 +117,9 @@ export function harness() {
       }
       if (path === '/v1/experience/activate') {
         if (activationFailure) throw new Error('Unknown activation outcome');
+        // The fixture activates whichever of the ranked offers the request names.
+        const picked = Number((body.target as { offerId: string }).offerId.slice(-12)) - 100;
+        if (picked !== selected) selected = picked;
         return json({
           commandId: body.commandId,
           sessionId: id(1),
@@ -152,6 +161,15 @@ export function harness() {
           path: '/media/fixture',
           expiresAt: '2099-10-20T18:00:00.000Z',
         });
+      if (path === '/v1/feedback/not-interested' || path === '/v1/feedback/not-interested/undo') {
+        if (feedbackFailure) throw new Error('Unknown feedback outcome');
+        return json({
+          commandId: body.commandId,
+          assetId: body.assetId,
+          ...(path.endsWith('/undo') ? {} : { expiresAt: '2026-11-07T12:00:00.000Z' }),
+          replayed: false,
+        });
+      }
       if (path === '/v1/actions') {
         if (actionFailure) throw new Error('Unknown action outcome');
         saved = body.kind === 'save';
@@ -209,6 +227,9 @@ export function harness() {
     setActionFailure: (value: boolean) => {
       actionFailure = value;
     },
+    setFeedbackFailure: (value: boolean) => {
+      feedbackFailure = value;
+    },
     setContextNotFound: (value: boolean) => {
       contextNotFound = value;
     },
@@ -220,6 +241,10 @@ export function harness() {
     },
     setOutcomeSession: (value: string) => {
       outcomeSessionId = value;
+    },
+    /** How many further offers a ready outcome carries beside the first. */
+    setBuffered: (value: number) => {
+      bufferedCount = value;
     },
     setOutcome: (value: typeof outcomeStatus) => {
       outcomeStatus = value;

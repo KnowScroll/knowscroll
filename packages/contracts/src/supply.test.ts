@@ -6,6 +6,8 @@ import {
   ContentRequestStatusSchema,
   CreateContentRequestSchema,
   ReadContentRequestSchema,
+  RetryContentRequestReceiptSchema,
+  RetryContentRequestSchema,
 } from './index.js';
 
 // Wire-only fixtures: no actual demand, admission, paid permission or personal activity.
@@ -49,6 +51,8 @@ const content = {
 const ready = { ...snapshot, status: 'ready', content };
 const cancel = { version: 'content-request-cancel.v1', commandId, requestId };
 const cancelReceipt = { ...receipt, version: 'content-request-cancel-receipt.v1', outcome: 'cancelled' };
+const retry = { version: 'content-request-retry.v1', commandId, requestId };
+const retryReceipt = { ...receipt, version: 'content-request-retry-receipt.v1', outcome: 'retrying' };
 
 describe('Supply prerequisite wire contracts', () => {
   it('declares a fresh topic ask with either format and optional exact encounter context', () => {
@@ -301,6 +305,8 @@ describe('Supply prerequisite wire contracts', () => {
       [ContentRequestStatusSchema, preparing],
       [CancelContentRequestSchema, cancel],
       [CancelContentRequestReceiptSchema, cancelReceipt],
+      [RetryContentRequestSchema, retry],
+      [RetryContentRequestReceiptSchema, retryReceipt],
     ] as const) {
       expect(schema.safeParse({ ...value, version: undefined }).success).toBe(false);
       expect(schema.safeParse({ ...value, version: 'legacy.v0' }).success).toBe(false);
@@ -323,5 +329,29 @@ describe('Supply prerequisite wire contracts', () => {
     expect(CancelContentRequestReceiptSchema.safeParse({ ...cancelReceipt, recordedAt: undefined }).success).toBe(
       false,
     );
+  });
+
+  it('declares retry as the same request again: own command, its ID and a closed set of outcomes', () => {
+    expect(RetryContentRequestSchema.parse(retry)).toEqual(retry);
+    for (const outcome of ['retrying', 'already_open', 'not_retryable']) {
+      const result = { ...retryReceipt, outcome };
+      expect(RetryContentRequestReceiptSchema.parse(result)).toEqual(result);
+      expect(RetryContentRequestReceiptSchema.parse({ ...result, replayed: true }).replayed).toBe(true);
+    }
+    for (const input of [
+      { ...retry, commandId: undefined },
+      { ...retry, requestId: undefined },
+      { ...retry, intent },
+      { ...retry, provider: 'minimax' },
+      { ...retry, force: true },
+    ])
+      expect(RetryContentRequestSchema.safeParse(input).success).toBe(false);
+    for (const result of [
+      { ...retryReceipt, outcome: 'ready' },
+      { ...retryReceipt, outcome: 'resent' },
+      { ...retryReceipt, status: 'preparing' },
+      { ...retryReceipt, newRequestId: requestId },
+    ])
+      expect(RetryContentRequestReceiptSchema.safeParse(result).success).toBe(false);
   });
 });

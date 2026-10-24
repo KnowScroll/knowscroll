@@ -156,7 +156,7 @@ export function InvitationView({
         </Text>
       </View>
       <Button label="Join this thread" variant="primary" fullWidth busy={state.responding} onPress={onJoin} />
-      <Button label="Not now" variant="ghost" fullWidth disabled={state.responding} onPress={onDecline} />
+      <Button label="Ignore" variant="default" fullWidth disabled={state.responding} onPress={onDecline} />
     </View>
   );
 }

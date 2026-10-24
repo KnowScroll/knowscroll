@@ -1,7 +1,13 @@
 import { sql } from 'kysely';
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { PublicPerson, ReadBlockedAmong, ReadFriendAccounts, ReadPublicPeople } from '../public.js';
+import type {
+  PublicPerson,
+  ReadBlockedAmong,
+  ReadFriendAccounts,
+  ReadPublicPeople,
+  ReadReportableMessage,
+} from '../public.js';
 
 interface PersonColumns {
   account_id: string;
@@ -68,4 +74,21 @@ export const readBlockedAmong: ReadBlockedAmong = async (scope, accountId, candi
     transactionOf(scope),
   );
   return new Set(rows.rows.map((row) => row.other));
+};
+
+/**
+ * A message of a conversation or content thread that the caller still takes part in (a member who has
+ * not left and has joined, not merely been invited). The friendship need not stand: a person who
+ * blocked someone keeps what that person sent them and can report it.
+ */
+export const readReportableMessage: ReadReportableMessage = async (scope, accountId, messageId) => {
+  const rows = await sql<{ author_account_id: string }>`
+    select message.author_account_id
+    from social.messages message
+    join social.conversation_members member
+      on member.conversation_id = message.conversation_id and member.account_id = ${accountId}::uuid
+    where message.message_id = ${messageId}::uuid and message.author_account_id is not null
+      and member.left_at is null and not member.pending`.execute(transactionOf(scope));
+  const row = rows.rows[0];
+  return row === undefined ? undefined : { authorAccountId: row.author_account_id };
 };

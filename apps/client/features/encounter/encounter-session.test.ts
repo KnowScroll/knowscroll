@@ -206,6 +206,70 @@ describe('actual encounter controller over CI transport fixtures', () => {
     },
   );
 
+  it('Somewhere new stops at the offers, activates nothing until one is picked, then opens that one (E08)', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.setOutcome('exhausted');
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'exhausted');
+      h.setOutcome('ready');
+      h.setBuffered(2);
+      expect(h.session.chooseDirection()).toBe(true);
+      await waitForPhase(h.session, 'ready_offer');
+      const choices = h.session.getState().choices!;
+      expect(choices).toHaveLength(3);
+      expect(commands(h, '/activate')).toHaveLength(1);
+      expect(h.session.canBack()).toBe(true);
+      h.session.pickDirection(choices[2]!.offerId);
+      await waitForPhase(h.session, 'active');
+      expect(commands(h, '/activate')).toHaveLength(2);
+      expect((commands(h, '/activate')[1]!.body.target as { offerId: string }).offerId).toBe(choices[2]!.offerId);
+      expect(h.session.getState().choices).toBeUndefined();
+      expect(h.session.getState().entry!.offer.offerId).toBe(choices[2]!.offerId);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('leaving the picker returns to the ending and activates nothing', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.setOutcome('exhausted');
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'exhausted');
+      h.setOutcome('ready');
+      h.setBuffered(1);
+      h.session.chooseDirection();
+      await waitForPhase(h.session, 'ready_offer');
+      expect(h.session.back()).toBe(true);
+      const state = h.session.getState();
+      expect(state.phase).toBe('exhausted');
+      expect(state.choices).toBeUndefined();
+      expect(commands(h, '/activate')).toHaveLength(1);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('with a single offer Somewhere new opens it at once', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.setOutcome('exhausted');
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'exhausted');
+      h.setOutcome('ready');
+      h.session.chooseDirection();
+      await waitForPhase(h.session, 'active');
+      expect(h.session.getState().choices).toBeUndefined();
+      expect(commands(h, '/activate')).toHaveLength(2);
+    } finally {
+      h.scope.end();
+    }
+  });
+
   it('rolls an unknown action back and retries its exact exposure-linked command', async () => {
     const h = harness();
     try {
@@ -452,6 +516,75 @@ describe('actual encounter controller over CI transport fixtures', () => {
         expect.arrayContaining(['scroll-document.v1', 'reel-document.v1']),
       );
       expect(JSON.stringify(input)).not.toMatch(/positionMs|blockId|offsetWithinBlock/);
+    } finally {
+      h.scope.end();
+    }
+  });
+});
+
+describe('Not interested from the encounter (P03, D-055)', () => {
+  it('saves first, closes the sheet, moves on, and Undo returns to the subject left behind', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      h.session.setOverlay(true);
+      await expect(h.session.notInterested()).resolves.toBe(true);
+      expect(h.session.getState().overlay).toBe(false);
+      expect(commands(h, '/not-interested')).toHaveLength(1);
+      expect(commands(h, '/not-interested')[0]!.body).toMatchObject({ assetId: first.offer.assetId });
+      await waitFor(() => expect(commands(h, '/navigate')).toHaveLength(1));
+      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({ mode: 'vertical', direction: 'next' });
+      await waitFor(() => expect(h.session.getState().entry?.exposureId).not.toBe(first.exposureId));
+      expect(h.session.feedback.getState().notInterested).toMatchObject({ status: 'acknowledged' });
+
+      await expect(h.session.undoNotInterested()).resolves.toBe(true);
+      expect(commands(h, '/not-interested/undo')).toHaveLength(1);
+      expect(commands(h, '/not-interested/undo')[0]!.body).toMatchObject({ assetId: first.offer.assetId });
+      expect(h.session.getState().entry?.exposureId).toBe(first.exposureId);
+      // Taking it back is not a new encounter: nothing was activated again.
+      expect(commands(h, '/activate')).toHaveLength(2);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('moves nothing and keeps the sheet open when the save is not confirmed, and Retry repeats the same command', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      h.setFeedbackFailure(true);
+      h.session.setOverlay(true);
+      await expect(h.session.notInterested()).resolves.toBe(false);
+      expect(h.session.getState().overlay).toBe(true);
+      expect(h.session.getState().entry?.exposureId).toBe(first.exposureId);
+      expect(commands(h, '/navigate')).toHaveLength(0);
+      expect(h.session.feedback.getState().notInterested).toMatchObject({ status: 'failed', step: 'mark' });
+
+      h.setFeedbackFailure(false);
+      await expect(h.session.retryNotInterested()).resolves.toBe(true);
+      const sent = commands(h, '/not-interested');
+      expect(sent).toHaveLength(2);
+      expect(sent[1]!.body.commandId).toBe(sent[0]!.body.commandId);
+      expect(h.session.getState().overlay).toBe(false);
+      await waitFor(() => expect(commands(h, '/navigate')).toHaveLength(1));
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('opens the report menu as its own overlay owner and a form directly from the ⋯ menu', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.session.openFeedback();
+      expect(h.session.getState()).toMatchObject({ overlay: true, overlayOwner: 'feedback', feedbackStart: 'menu' });
+      h.session.setOverlay(false);
+      h.session.openFeedback('abuse');
+      expect(h.session.getState()).toMatchObject({ overlay: true, overlayOwner: 'feedback', feedbackStart: 'abuse' });
+      h.session.setOverlay(false);
+      expect(h.session.getState()).toMatchObject({ overlay: false, overlayOwner: undefined, feedbackStart: undefined });
+      // Opening the menu or a form sends nothing: only Send does.
+      expect(h.calls.filter((call) => call.path.startsWith('/v1/feedback'))).toHaveLength(0);
     } finally {
       h.scope.end();
     }
@@ -1311,7 +1444,7 @@ it('region Open enters the existing activation/recorder engine; map Back capture
   const h = regionEncounter();
   let returned = 0;
   expect(
-    h.session.openRegion(h.card, () => {
+    h.session.openRegion(h.card, 'Deployment · Inference', () => {
       returned++;
     }),
   ).toBe(true);
@@ -1328,9 +1461,12 @@ it('region Open enters the existing activation/recorder engine; map Back capture
   });
   const suspend = jest.spyOn(entry.recorder, 'suspend');
   const before = h.calls.length;
+  // U04: the encounter a region card opened says where it came from, until the person has gone back.
+  expect(h.session.regionOriginOf(entry)).toBe('Deployment · Inference');
   expect(h.session.canBack()).toBe(true);
   expect(h.session.back()).toBe(true);
   expect(returned).toBe(1);
+  expect(h.session.regionOriginOf(entry)).toBeUndefined();
   expect(pause).toHaveBeenCalledTimes(1);
   expect(suspend).toHaveBeenCalledTimes(1);
   expect(entry.position).toEqual({ kind: 'reel', positionMs: 9876.125, playing: true, muted: false });
@@ -1352,7 +1488,7 @@ it('region Open enters the existing activation/recorder engine; map Back capture
 it('unknown region command retains exact A through an auth refusal, never auto-retries on focus and never adopts displayed B', async () => {
   const h = regionEncounter();
   h.fail('unknown');
-  h.session.openRegion(h.card, () => undefined);
+  h.session.openRegion(h.card, 'Deployment · Inference', () => undefined);
   await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
   h.session.setForeground(true);
   await Promise.resolve();
@@ -1363,7 +1499,11 @@ it('unknown region command retains exact A through an auth refusal, never auto-r
   expect(h.regionCalls).toHaveLength(2);
   expect(h.regionCalls[1]).toEqual(h.regionCalls[0]);
   expect(
-    h.session.openRegion({ ...h.card, encounter: { ...h.card.encounter, assetId: offer(1).assetId } }, () => undefined),
+    h.session.openRegion(
+      { ...h.card, encounter: { ...h.card.encounter, assetId: offer(1).assetId } },
+      'Deployment · Inference',
+      () => undefined,
+    ),
   ).toBe(false);
   h.fail(undefined);
   h.session.retry();
@@ -1380,7 +1520,7 @@ it.each(['asset', 'target', 'scope', 'capabilities'] as const)(
     const h = regionEncounter();
     h.wrong(wrong);
     h.session.setForeground(true);
-    h.session.openRegion(h.card, () => undefined);
+    h.session.openRegion(h.card, 'Deployment · Inference', () => undefined);
     await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
     expect(commands(h, '/activate')).toHaveLength(0);
     expect(h.session.getState().entry).toBeUndefined();
@@ -1397,7 +1537,7 @@ it('binds an existing region intent to the supplied session and retains its exac
     const previous = h.session.getState().entry!;
     const activations = commands(h, '/activate').length;
     h.wrong('session');
-    expect(h.session.openRegion(h.card, () => undefined)).toBe(true);
+    expect(h.session.openRegion(h.card, 'Deployment · Inference', () => undefined)).toBe(true);
     await waitFor(() => expect(h.session.getState().phase).toBe('offline'));
     expect(h.regionCalls[0]!.session).toEqual({ sessionId: id(1), expectedIntentRevision: 1 });
     expect(commands(h, '/activate')).toHaveLength(activations);
@@ -1421,7 +1561,7 @@ it('still returns to the map after the original region entry is evicted from bou
   const h = regionEncounter();
   let returned = 0;
   h.session.setForeground(true);
-  h.session.openRegion(h.card, () => {
+  h.session.openRegion(h.card, 'Deployment · Inference', () => {
     returned++;
   });
   await waitFor(() => expect(h.session.getState().phase).toBe('active'));

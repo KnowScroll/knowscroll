@@ -225,7 +225,8 @@ it requires actual same-scope writer closure/accounting and the exact published 
 revision and matching model provenance. Fixture/foreign/incomplete authority stays unknown. The
 same hook then admits the recipe's facet coverage (see Scroll coverage above).
 Historical reconciliation remains deferred until a separate completed-run attestation port exists. No title-derived
-concepts, Part 2/related edges, invented semantic variety or personal-activity-derived topics exist.
+concepts, invented semantic variety or personal-activity-derived topics exist. Part and related edges exist only
+where the library plan declares them (see "Library series and related moves").
 
 Discovery retrieves an indexed union of topic matches (max 40), text matches (max 30) and general
 eligible inventory (max 100), deduplicates to<=100 current admitted candidates before scoring and
@@ -251,6 +252,28 @@ and one immutable asset revision cannot acquire conflicting series identities. H
 versions remain retained; only explicit active links authorize continuation, never ordinal inference. Related edges cannot masquerade as series, format twins cannot masquerade as another
 explanation, and contradictory immutable link replay refuses. There are no runtime relationship
 fixtures. Missing authorized facts remain unknown/unavailable.
+
+### Library series and related moves
+
+Status: implemented, CI-tested against real PostgreSQL, browser-checked locally (D-059).
+
+`domain/library/continuity.ts` declares, by recipe key, the series of the library (ordered parts on one
+planet, each building on the one before) and the related perspectives. `content admit-continuity
+[--dry-run]` (`adapters/library-continuity.ts`, planning in `application/plan-library-continuity.ts`) resolves
+each key to the Scroll revision admitted now and calls `admitContinuity` under the fixed authority
+`library-plan.continuity.v1`. One transaction per series (its manifest and its previous/next links), one for
+all related moves. It writes `content.series_units` and `content.continuity_links` only.
+
+- A series with any part unpublished is skipped whole, because a series revision is a complete manifest.
+  A related move with an unpublished end is skipped. Both are listed in the result.
+- Idempotent: a link the store holds exactly (same target, relation and strength) is left alone, and link
+  ids are derived from their content, so a repeated or concurrent run is the same link, not a conflict.
+- A changed declaration, or a Scroll republished as a new revision, gets a new series revision (units
+  differ) and, in any slot now held by a different link, a replacement with a new id and the next link
+  revision. The old rows stay as inactive history; an older revision keeps its own links.
+- The API carries no series total, so a client shows "Part 2", never "Part 2 of 3".
+- Each source revision has one related slot (the active slot is unique per source and direction), so a
+  recipe is the source of at most one related move.
 
 Saved metadata joins<=100 exact references in one batch, preserves original revisions and reports
 available/corrected/withdrawn. Only corrected includes a different current revision; withdrawn or

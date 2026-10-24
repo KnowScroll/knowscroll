@@ -116,6 +116,38 @@ const panels = {
     },
   },
   universeChange: { cartographer: { status: 'unavailable', reason: 'view_missing' } },
+  safety: {
+    reports: {
+      status: 'available',
+      data: {
+        last24Hours: 2,
+        recent: [
+          {
+            reportId: '0199a000-0000-7000-8000-0000000000e1',
+            kind: 'abuse',
+            category: 'harassment',
+            targetKind: 'room_message',
+            assetId: null,
+            messageId: '0199a000-0000-7000-8000-0000000000e2',
+            roomId: '0199a000-0000-7000-8000-0000000000e3',
+            hasNote: true,
+            createdAt: '2026-10-24T09:30:00.000Z',
+          },
+          {
+            reportId: '0199a000-0000-7000-8000-0000000000e4',
+            kind: 'content_error',
+            category: 'out_of_date',
+            targetKind: 'asset',
+            assetId: '0199a000-0000-7000-8000-0000000000e5',
+            messageId: null,
+            roomId: null,
+            hasNote: false,
+            createdAt: '2026-10-24T08:00:00.000Z',
+          },
+        ],
+      },
+    },
+  },
   realtime: { delivery: unavailable },
   privacy: {
     operations: { status: 'available', data: { groups: [], failed: [] } },
@@ -213,7 +245,7 @@ const operatorAnswers = (path: string) => {
 };
 
 describe('the Operator screen', () => {
-  it('shows the six panels from the views, and says plainly where Tier 0 has no source', async () => {
+  it('shows the panels and the reports from the views, and says plainly where Tier 0 has no source', async () => {
     await mount(operatorAnswers);
     expect(await screen.findByRole('heading', { name: 'Operator' })).toBeOnTheScreen();
     for (const title of [
@@ -223,6 +255,7 @@ describe('the Operator screen', () => {
       '4 · Universe change',
       '5 · Realtime delivery',
       '6 · Privacy & diagnostics health',
+      '7 · Reports',
     ])
       expect(screen.getByRole('heading', { name: title })).toBeOnTheScreen();
     expect(screen.getByText('content.produce-scroll')).toBeOnTheScreen();
@@ -239,6 +272,18 @@ describe('the Operator screen', () => {
     expect(screen.getByLabelText('delivery, reconnect and relay: unavailable')).toBeOnTheScreen();
     expect(screen.getByText('Unavailable · the view is not installed')).toBeOnTheScreen();
     expect(await screen.findByText(/world local · 01234567/)).toBeOnTheScreen();
+  });
+
+  it('lists the reports by kind, reason and what they are about, saying only whether a note exists', async () => {
+    await mount(operatorAnswers);
+    expect(await screen.findByRole('heading', { name: '7 · Reports' })).toBeOnTheScreen();
+    expect(screen.getByText('2 in the last 24 hours')).toBeOnTheScreen();
+    expect(screen.getByText('harassment')).toBeOnTheScreen();
+    expect(screen.getByText('room message')).toBeOnTheScreen();
+    expect(screen.getByText('with a note')).toBeOnTheScreen();
+    expect(screen.getByText('out_of_date')).toBeOnTheScreen();
+    expect(screen.getByText('Reel or Scroll')).toBeOnTheScreen();
+    expect(screen.getByText('no note')).toBeOnTheScreen();
   });
 
   it('looks up a journey and shows its steps and the gap an unknown outcome leaves', async () => {

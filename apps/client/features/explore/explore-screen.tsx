@@ -9,6 +9,7 @@ import { Skeleton } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import type { EncounterEntry } from '../encounter/encounter-history';
+import { DirectionPicker } from '../encounter/direction-picker';
 import { EncounterEnding } from '../encounter/encounter-ending';
 import { EncounterSheets } from '../encounter/encounter-sheets';
 import { EncounterStateScreen } from '../encounter/encounter-states';
@@ -100,7 +101,8 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   };
   const entry = state.entry;
   const calm = state.phase === 'exhausted' && entry !== undefined && calmedEntry === entry;
-  const showSurface = entry !== undefined && SURFACE_PHASES.has(state.phase);
+  const choosing = state.choices !== undefined;
+  const showSurface = entry !== undefined && SURFACE_PHASES.has(state.phase) && !choosing;
   const opening = state.phase !== 'active';
   // The thread sits beside the encounter from 768 px up (V01, D01); the desktop Reel is a card (D01).
   const asideWidth = showSurface && railed ? asideWidthFor(windowWidth) : 0;
@@ -152,7 +154,13 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       testID="encounter-explore"
     >
       <View role="main" style={styles.main}>
-        {showSurface ? (
+        {state.choices ? (
+          <DirectionPicker
+            choices={state.choices}
+            onPick={(offerId) => session.pickDirection(offerId)}
+            onLeave={() => session.leaveChoices()}
+          />
+        ) : showSurface ? (
           <EncounterPage reading={entry.kind === 'scroll'}>
             <View style={styles.centered}>
               {entry.kind === 'reel' ? (
@@ -162,6 +170,7 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
                   session={session}
                   framed={framedReel}
                   areaWidth={windowWidth - railWidth(breakpoint) - asideWidth}
+                  back={backOrRoot}
                 >
                   {encounterView(framedReel)}
                   {openingNotice}

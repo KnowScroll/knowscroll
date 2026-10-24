@@ -4,7 +4,11 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { libraryRecipes, parseScrollTopic, planLibraryProduction } from '@knowscroll/backend/modules/content';
 import type { ProductionSend, ScrollTopic } from '@knowscroll/backend/modules/content';
-import { makeEnqueueScrollProduction, readLibraryStatus } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  admitLibraryContinuityUseCase,
+  makeEnqueueScrollProduction,
+  readLibraryStatus,
+} from '@knowscroll/backend/modules/content/nest-providers';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -114,6 +118,35 @@ export async function productionStatusCommand(
   } catch (error) {
     if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
     else logEvent('process.crashed', { reasonCode: 'production_status_failed', error });
+    return 1;
+  }
+}
+
+/**
+ * `content admit-continuity [--dry-run]`: admits the library plan's series (Part tabs) and related
+ * moves (Related tabs) between the Scrolls that are published, and lists what it skipped because an
+ * end is not published yet. Idempotent. Shared content only: no provider, no personal root.
+ */
+export async function admitContinuityCommand(
+  options: { readonly dryRun: boolean },
+  print: Print,
+  logEvent: LogEvent,
+): Promise<number> {
+  try {
+    const config = readContentOperatorConfig(process.env);
+    const database = createDatabase<Database>(config.database, {
+      onIdleClientError: (error) => logEvent('database.idle_client_error', { error }),
+    });
+    try {
+      const summary = await admitLibraryContinuityUseCase(database.db)(options);
+      print({ command: 'content admit-continuity', ...summary });
+      return 0;
+    } finally {
+      await database.close();
+    }
+  } catch (error) {
+    if (error instanceof ConfigurationError) logEvent('config.invalid', { problems: error.problems });
+    else logEvent('process.crashed', { reasonCode: 'admit_continuity_failed', error });
     return 1;
   }
 }

@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import type { ConversationContentProjection, ConversationMessage } from '@knowscroll/contracts';
 import type { OutgoingMessage } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
@@ -64,7 +65,73 @@ export function ContentCard({
   );
 }
 
-export function MessageBubble({ message, mine }: { readonly message: ConversationMessage; readonly mine: boolean }) {
+/**
+ * C02 and C04: the line between what the person had read and what arrived while their connection
+ * was lost. It is placed, never scrolled to, so a reader higher up keeps their place.
+ */
+export function AwayDivider() {
+  return (
+    <View style={styles.away} accessibilityLiveRegion="polite" testID="away-divider">
+      <View style={styles.awayRule} />
+      <Text variant="monoXs" color={content.ink2}>
+        WHILE YOU WERE AWAY
+      </Text>
+      <View style={styles.awayRule} />
+    </View>
+  );
+}
+
+/** The sequence of the first message under the divider, if the divider is drawn at all. */
+export function firstAwayMessage(
+  messages: readonly { readonly sequence: number }[],
+  awayAfterSequence: number | undefined,
+): number | undefined {
+  return awayAfterSequence === undefined
+    ? undefined
+    : messages.find((message) => message.sequence > awayAfterSequence)?.sequence;
+}
+
+/**
+ * A received message that can be reported (P03): a long-press (a held mouse button on the web) opens the
+ * report sheet, and a screen reader gets the same as a custom action. The web's right-click is left to the
+ * browser, so the text can still be copied. The conversation's own menu is the visible, keyboard route to
+ * report the person.
+ */
+function Reportable({
+  onReport,
+  style,
+  children,
+}: {
+  readonly onReport: (() => void) | undefined;
+  readonly style: ViewStyle | ViewStyle[];
+  readonly children: ReactNode;
+}) {
+  if (onReport === undefined) return <View style={style}>{children}</View>;
+  return (
+    <Pressable
+      onLongPress={onReport}
+      accessible={false}
+      accessibilityActions={[{ name: 'report', label: 'Report this message' }]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'report') onReport();
+      }}
+      style={style}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+export function MessageBubble({
+  message,
+  mine,
+  onReport,
+}: {
+  readonly message: ConversationMessage;
+  readonly mine: boolean;
+  /** Opens the report sheet for this message; given only for another person's message. */
+  readonly onReport?: () => void;
+}) {
   if (message.status === 'unavailable')
     return (
       <View style={[styles.bubble, styles.removed, mine ? styles.mine : styles.theirs]}>
@@ -75,16 +142,19 @@ export function MessageBubble({ message, mine }: { readonly message: Conversatio
     );
   if (message.body.kind === 'content')
     return (
-      <View style={mine ? styles.mine : styles.theirs}>
+      <Reportable onReport={onReport} style={mine ? styles.mine : styles.theirs}>
         <ContentCard card={message.body.content} note={message.body.note} />
-      </View>
+      </Reportable>
     );
   return (
-    <View style={[styles.bubble, mine ? styles.mineBubble : styles.theirBubble, mine ? styles.mine : styles.theirs]}>
+    <Reportable
+      onReport={onReport}
+      style={[styles.bubble, mine ? styles.mineBubble : styles.theirBubble, mine ? styles.mine : styles.theirs]}
+    >
       <Text variant="bodyS" color={mine ? content.onAccent : content.ink} selectable>
         {message.body.text}
       </Text>
-    </View>
+    </Reportable>
   );
 }
 
@@ -128,6 +198,8 @@ export function OutgoingBubble({
 }
 
 const styles = StyleSheet.create({
+  away: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], paddingVertical: spacing[2] },
+  awayRule: { flex: 1, height: borderWidth.hairline, backgroundColor: content.ink },
   bubble: { maxWidth: '82%', borderRadius: radius.panel, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end', gap: spacing[1] },
   theirs: { alignSelf: 'flex-start' },

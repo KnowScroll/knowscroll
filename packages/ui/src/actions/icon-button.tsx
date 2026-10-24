@@ -49,6 +49,9 @@ export interface IconButtonProps {
   /** Override the colour of the icon (for example cream on an ink surface). */
   readonly color?: string;
   readonly testID?: string;
+  /** The control gained or lost focus (for a screen that draws it only while it can be found by pointer or keyboard). */
+  readonly onFocus?: () => void;
+  readonly onBlur?: () => void;
 }
 
 export function IconButton({
@@ -63,6 +66,8 @@ export function IconButton({
   accessibilityHint,
   color,
   testID,
+  onFocus,
+  onBlur,
 }: IconButtonProps) {
   const look = looks[variant];
   const focus = useFocusRing(look.focus);
@@ -74,6 +79,14 @@ export function IconButton({
   return (
     <Pressable
       {...focus.props}
+      onFocus={() => {
+        focus.props.onFocus();
+        onFocus?.();
+      }}
+      onBlur={() => {
+        focus.props.onBlur();
+        onBlur?.();
+      }}
       {...toggleProps}
       testID={testID}
       onPress={inert ? undefined : onPress}

@@ -19,6 +19,7 @@ import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers'
 import { heartbeatRecorder, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { reportCases } from '../support/feedback.js';
 import { everyStoreSeeder } from '../support/every-store.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
@@ -65,6 +66,13 @@ const NOT_SEEDED = new Set([
 ]);
 
 type EraseAccountData = Parameters<typeof deleteAccountFor>[2]['eraseAccountData'];
+
+/** An abuse report about a person, as the client sends it from a conversation or a visit. */
+const abuseAboutPerson = (about: { readonly person: { readonly personId: string } }) => ({
+  commandId: randomUUID(),
+  category: 'harassment' as const,
+  target: { kind: 'person' as const, personId: about.person.personId },
+});
 
 describe('account deletion (real database)', () => {
   let database: TestDatabase<Database>;
@@ -377,6 +385,16 @@ describe('account deletion (real database)', () => {
       } finally {
         await rooms.close();
       }
+      // Reports: one the person sent, and one a friend sent about them.
+      const reports = reportCases(database.db);
+      expect(
+        (await reports.reportAbuse(erased.authority, abuseAboutPerson(buddy))).kind,
+        'a report the person sent',
+      ).toBe('received');
+      expect(
+        (await reports.reportAbuse(buddy.authority, abuseAboutPerson(erasedAsFriend))).kind,
+        'a report about the person',
+      ).toBe('received');
       expect(
         (
           await talk.talk.shares.create(erased.authority, {

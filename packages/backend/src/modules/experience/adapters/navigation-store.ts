@@ -156,6 +156,7 @@ export const bindOffer: NavigationPorts['bindOffer'] = async (scope, offerId, ex
     db,
   );
 };
+/** The assets the person has hidden for good. "Not interested" is separate: `readNotInterested`. */
 export const readHidden: NavigationPorts['readHidden'] = async (scope, ids) => {
   if (ids.length > 100 || new Set(ids).size !== ids.length) throw new Error('HIDE_QUERY_INVALID');
   if (!ids.length) return [];

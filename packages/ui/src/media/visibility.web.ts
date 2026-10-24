@@ -11,7 +11,9 @@ export function observeMediaVisibility(node: unknown, changed: (visible: boolean
   );
   if (node instanceof Element) observer.observe(node);
   document.addEventListener('visibilitychange', update);
-  update();
+  // The observer reports once it has measured the stage. Reporting "not visible" before that would
+  // cancel a resume owed from a closed sheet, so only a node that cannot be observed reports now.
+  if (!(node instanceof Element)) update();
   return () => {
     observer.disconnect();
     document.removeEventListener('visibilitychange', update);

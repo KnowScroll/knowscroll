@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createGestureArbitrator, type EncounterGestureMove } from './arbitration';
 
 /**
@@ -7,6 +7,12 @@ import { createGestureArbitrator, type EncounterGestureMove } from './arbitratio
  * to mount takes focus, so the next key press lands.
  */
 const FOCUS_HANDOVER_MS = 3000;
+/** A finger held still on the video this long opens the feedback menu (P03). */
+const LONG_PRESS_MS = 500;
+/** A pointer that moves further than this is a swipe, not a hold. */
+const HOLD_SLOP = 10;
+/** The contextmenu event a phone raises after its own long press must not open the menu a second time. */
+const MENU_DEBOUNCE_MS = 700;
 let focusHandoverUntil = 0;
 
 /** DOM pointer ownership lives only on the real video stage; player buttons/seek controls stay outside. */
@@ -14,11 +20,14 @@ export function ReelGestureStage({
   children,
   onMove,
   onToggle,
+  onMenu,
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: EncounterGestureMove) => void;
   /** Space on the focused stage plays or pauses, as the focused play button would. */
   readonly onToggle?: () => void;
+  /** The feedback menu (P03): right-click, Shift+F10 or the menu key, or a finger held on the video. */
+  readonly onMenu?: () => void;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -35,6 +44,23 @@ export function ReelGestureStage({
   }, []);
   const gesture = useRef<ReturnType<typeof createGestureArbitrator> | undefined>(undefined);
   const start = useRef({ x: 0, y: 0, pointerId: -1 });
+  // A finger held still on the video opens the menu; a phone's own long-press menu would answer twice.
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout> | undefined; openedAt: number }>({
+    timer: undefined,
+    openedAt: 0,
+  });
+  const release = () => {
+    clearTimeout(hold.current.timer);
+    hold.current.timer = undefined;
+  };
+  useEffect(() => release, []);
+  const openMenu = () => {
+    release();
+    if (onMenu === undefined || Date.now() - hold.current.openedAt < MENU_DEBOUNCE_MS) return;
+    hold.current.openedAt = Date.now();
+    gesture.current?.cancel();
+    onMenu();
+  };
   return (
     <div
       ref={stage}
@@ -43,6 +69,11 @@ export function ReelGestureStage({
       tabIndex={0}
       role="group"
       aria-label="Reel navigation"
+      onContextMenu={(event) => {
+        if (onMenu === undefined) return;
+        event.preventDefault();
+        openMenu();
+      }}
       onKeyDown={(event) => {
         // The stage and its own play/pause button are the "Reel navigation" focus stops; any other
         // control inside keeps its own keys.
@@ -50,6 +81,11 @@ export function ReelGestureStage({
         const onStage = target === event.currentTarget || target.hasAttribute('data-ks-playback-toggle');
         // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.
         if (!onStage || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (onMenu !== undefined && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
+          event.preventDefault();
+          openMenu();
+          return;
+        }
         if (event.key === ' ' && target === event.currentTarget && onToggle) {
           event.preventDefault();
           onToggle();
@@ -76,6 +112,8 @@ export function ReelGestureStage({
           return;
         }
         start.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+        release();
+        if (event.pointerType === 'touch') hold.current.timer = setTimeout(openMenu, LONG_PRESS_MS);
         // A control inside the stage owns its pointer, except the play/pause surface that fills the
         // whole stage: a drag across it is a swipe and a tap on it is a tap.
         const control =
@@ -87,6 +125,11 @@ export function ReelGestureStage({
       }}
       onPointerMove={(event) => {
         if (event.pointerId !== start.current.pointerId) return;
+        if (
+          Math.abs(event.clientX - start.current.x) > HOLD_SLOP ||
+          Math.abs(event.clientY - start.current.y) > HOLD_SLOP
+        )
+          release();
         const owner = gesture.current?.move(event.clientX - start.current.x, event.clientY - start.current.y);
         // Capture only once a swipe is recognised: a plain tap must still reach the play/pause
         // control under the pointer.
@@ -94,6 +137,7 @@ export function ReelGestureStage({
           event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerUp={(event) => {
+        release();
         if (event.pointerId !== start.current.pointerId) return;
         gesture.current?.move(event.clientX - start.current.x, event.clientY - start.current.y);
         const move = gesture.current?.release();
@@ -103,6 +147,7 @@ export function ReelGestureStage({
         if (move) onMove(move);
       }}
       onPointerCancel={() => {
+        release();
         gesture.current?.cancel();
         gesture.current = undefined;
       }}

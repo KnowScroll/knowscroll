@@ -11,6 +11,7 @@ import {
   type ReelPlaybackView,
   type ReelPositionHandle,
 } from '@knowscroll/ui';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { useReelPageStage } from '../reel/reel-page';
 import { continuationIntent, continuationLabel, continuationName } from './continuation-intent';
@@ -18,12 +19,17 @@ import { EncounterRail } from './encounter-actions';
 import { retainReelMuted, type EncounterEntry } from './encounter-history';
 import { useEncounterMetrics, type EncounterMetrics } from './encounter-metrics';
 import { EncounterNotices } from './encounter-notices';
+import { encounterOrigin } from './encounter-origin';
+import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterTopBar } from './encounter-top-bar';
 import type { EncounterGestureMove } from './gestures/arbitration';
 import { ReelGestureStage } from './gestures/reel-gesture-stage';
 
 type ReelEntry = Extract<EncounterEntry, { kind: 'reel' }>;
+
+/** What the action rail takes from the right edge, so notes drawn over the Reel stay out of its way. */
+const RAIL_CLEARANCE = 64;
 
 /** Room the edge tabs take beside the title and, on a short screen, beside the progress row. */
 const EDGE_TAB_WIDTH = 76;
@@ -97,6 +103,7 @@ function ReelChrome({
 }) {
   const metrics = useEncounterMetrics();
   const idle = state.phase !== 'active';
+  const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
   const progressBottom = metrics.bottom + spacing[2];
   const titleBottom = progressBottom + 44 + spacing[3];
   return (
@@ -109,6 +116,7 @@ function ReelChrome({
         pointerEvents="box-none"
       >
         {framed ? null : <EncounterTopBar entry={entry} session={session} surface="media" back={back} />}
+        {framed || origin === undefined ? null : <EncounterOriginChip origin={origin} onBack={back} />}
         <View style={styles.notices} pointerEvents="box-none">
           <EncounterNotices entry={entry} state={state} session={session} />
         </View>
@@ -155,7 +163,12 @@ function ReelChrome({
           onToggleMuted={playback.toggleMuted}
         />
       </View>
-      {hint === null ? null : <View style={[styles.hint, { bottom: metrics.bottom + spacing[4] }]}>{hint}</View>}
+      {hint === null ? null : (
+        // The hint keeps clear of the action rail, so on a 320 px phone it never covers Like, Save, Share or Ask (V01).
+        <View style={[styles.hint, { bottom: metrics.bottom + spacing[4], right: spacing[4] + RAIL_CLEARANCE }]}>
+          {hint}
+        </View>
+      )}
     </>
   );
 }
@@ -187,20 +200,22 @@ export function ReelEncounter({
 }) {
   const reelPosition = useRef<ReelPositionHandle>(null);
   const reelControls = useRef<ReelControls>(null);
+  const { preferences } = useDevicePreferences();
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
   const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
+  const onMenu = useCallback(() => session.openFeedback('menu'), [session]);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const pause = useCallback(() => reelPosition.current?.pause(), []);
   const visibility = useReelPageStage(scope, playable, pause);
   const renderStage = useCallback(
     (stage: ReactNode) => (
       <View ref={visibility.ref} onLayout={visibility.onLayout} style={styles.fill}>
-        <ReelGestureStage onMove={onMove} onToggle={() => reelControls.current?.toggle()}>
+        <ReelGestureStage onMove={onMove} onToggle={() => reelControls.current?.toggle()} onMenu={onMenu}>
           {stage}
         </ReelGestureStage>
       </View>
     ),
-    [onMove, visibility.ref, visibility.onLayout],
+    [onMove, onMenu, visibility.ref, visibility.onLayout],
   );
   const onMutedChange = useCallback(
     (muted: boolean) => {
@@ -234,7 +249,9 @@ export function ReelEncounter({
       controls={{ controlsRef: reelControls }}
       initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
       initialPlaying={entry.resumePlaying === true}
-      initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
+      initialMuted={
+        entry.muted ?? (entry.position?.kind === 'reel' && entry.position.muted ? true : !preferences.reelSound)
+      }
       onMutedChange={onMutedChange}
     >
       {(playback) => (

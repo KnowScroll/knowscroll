@@ -6,6 +6,7 @@ import { VisibilityController } from './http/visibility.controller.js';
 import { ConversationsController } from './http/conversations.controller.js';
 import { ThreadsController } from './http/threads.controller.js';
 import { RoomsController } from './http/rooms.controller.js';
+import { FeedbackController } from './http/feedback.controller.js';
 import { ScenariosController } from './http/scenarios.controller.js';
 import { ShareLandingController } from './http/share-landing.controller.js';
 import { RecordingController } from './http/recording.controller.js';
@@ -48,6 +49,7 @@ export const apiControllers = [
   ConversationsController,
   ThreadsController,
   RoomsController,
+  FeedbackController,
   ScenariosController,
   ShareLandingController,
   RegionEncounterController,

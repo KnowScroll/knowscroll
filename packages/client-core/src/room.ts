@@ -1,4 +1,4 @@
-import type { RoomListItem, RoomStation, RoomView } from '@knowscroll/contracts';
+import type { RoomListItem, RoomReports, RoomStation, RoomView } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { talkFailure } from './talk-failure';
 
@@ -17,6 +17,20 @@ export async function readRoomList(scope: AccountScope, newId: () => string): Pr
 export async function readRoomStations(scope: AccountScope, newId: () => string): Promise<readonly RoomStation[]> {
   const answer = await scope.api.rooms.stations({ version: VERSION, readId: newId() });
   return answer.stations;
+}
+
+/**
+ * The reports on this room's messages, for a moderator (D-055): which message, why and how often. Never who
+ * sent them or what they wrote. A failed request throws; `talkFailure` classifies it, and a person who is not
+ * a moderator of the room gets the same refusal as a room that is not there.
+ */
+export async function readRoomReports(
+  scope: AccountScope,
+  newId: () => string,
+  roomId: string,
+): Promise<RoomReports['reports']> {
+  const answer = await scope.api.rooms.reports({ version: VERSION, readId: newId(), roomId });
+  return answer.reports;
 }
 
 export type StartDiscussion =

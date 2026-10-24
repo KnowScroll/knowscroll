@@ -221,6 +221,13 @@ export interface DiscussionStore {
     lock: RoomLock,
     messageId: string,
   ): Promise<{ readonly discussionId: string; readonly message: MessageRow } | undefined>;
+  /** Where messages of this room sit: their discussion, its title and their number. Messages that are gone are absent. */
+  locate(
+    lock: RoomLock,
+    messageIds: readonly string[],
+  ): Promise<
+    ReadonlyMap<string, { readonly discussionId: string; readonly discussionTitle: string; readonly sequence: number }>
+  >;
   /** Hides or restores a message and gives it a fresh change number, so catch-up replaces the bubble. */
   setHidden(lock: RoomLock, discussionId: string, messageId: string, hiddenAt: Date | null): Promise<void>;
   saveSnippet(lock: RoomLock, messageId: string, anchor: StoredSnippetAnchor): Promise<void>;
@@ -378,6 +385,25 @@ export interface FriendLookup {
 export type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
 /** Everything the room use cases need. Built once by the composition root; nothing here is global. */
+/** One message of a room that people have reported, as its moderators may see it: why, how many times and when. */
+export interface RoomReportRow {
+  readonly messageId: string;
+  readonly categories: readonly string[];
+  /** How many different people reported it. */
+  readonly count: number;
+  readonly lastReportedAt: Date;
+}
+
+/**
+ * Port: the reports on messages of one room, newest first (D-055). It leaves out every report about the
+ * asking account's own words and never carries who reported, a note or the author. Who may ask is the
+ * Rooms module's check. Feedback implements it.
+ */
+export type ReadRoomReports = (
+  scope: PersonalScopeTx,
+  query: { readonly roomId: string; readonly excludingAccountId: string; readonly limit: number },
+) => Promise<readonly RoomReportRow[]>;
+
 export interface RoomPorts {
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
@@ -391,6 +417,8 @@ export interface RoomPorts {
   readonly readContent: ReadContent;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
+  /** Reports on the room's messages, for its moderators (D-055). */
+  readonly readReports: ReadRoomReports;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
   /** The caller's own map, to place stations beside the systems it holds. */

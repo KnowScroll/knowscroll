@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderStyle as borderStyleTokens, borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
+import { NotInterestedNotice } from '../feedback/not-interested-notice';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { unavailableCopy } from '../requests/request-copy';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
@@ -21,6 +23,7 @@ const FORMAT_WORD = { reel: 'Reel', scroll: 'Scroll' } as const;
  */
 function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; readonly session: EncounterSession }) {
   const state = useSyncExternalStore(session.requests.subscribe, session.requests.getState, session.requests.getState);
+  const { preferences } = useDevicePreferences();
   if (
     state.source?.exposureId !== entry.exposureId ||
     state.phase === 'draft' ||
@@ -31,7 +34,8 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
   const what = state.mode === 'topic' ? 'request' : FORMAT_WORD[state.mode];
   const dismissed = state.receipt !== undefined && state.dismissedRequestId === state.receipt.requestId;
   if (state.status?.status === 'ready') {
-    if (dismissed) return null;
+    // Notifications > Ready requests: off, the notice stays away; the request is still in Keep.
+    if (dismissed || !preferences.readyNotices) return null;
     return (
       <View role="status" style={styles.ready}>
         <View style={styles.readyBadge}>
@@ -82,6 +86,21 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
   );
 }
 
+/**
+ * E07: the Reel or Scroll the person asked for, once it is open ("Ready — the Scroll you asked
+ * for"). It stays with that encounter only and never switches anything by itself.
+ */
+function AskedForNotice({ entry, state }: Pick<Props, 'entry' | 'state'>) {
+  const askedFor = state.askedFor;
+  if (askedFor === undefined || askedFor.assetId !== entry.offer.assetId) return null;
+  return (
+    <View role="status" style={styles.askedFor} testID="encounter-asked-for">
+      <Icon name="check" size={18} color={content.ink} />
+      <Text variant="uiS">Ready — the {FORMAT_WORD[askedFor.kind]} you asked for</Text>
+    </View>
+  );
+}
+
 /** Save, Like and place-keeping outcomes that need a person, in plain words. Quiet when all is well. */
 function ActionNotices({ entry, state, session }: Props) {
   const removal = state.removal;
@@ -125,7 +144,13 @@ function ActionNotices({ entry, state, session }: Props) {
 export function EncounterNotices(props: Props) {
   return (
     <View style={styles.stack} pointerEvents="box-none">
+      <NotInterestedNotice
+        store={props.session.feedback}
+        onUndo={() => void props.session.undoNotInterested()}
+        onRetry={() => void props.session.retryNotInterested()}
+      />
       <RequestNotice entry={props.entry} session={props.session} />
+      <AskedForNotice entry={props.entry} state={props.state} />
       <ActionNotices {...props} />
     </View>
   );
@@ -159,6 +184,18 @@ const styles = StyleSheet.create({
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
     backgroundColor: content.paper,
+  },
+  askedFor: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    gap: spacing[2],
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
+    borderRadius: radius.pill,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    backgroundColor: content.fresh,
   },
   ready: {
     flexDirection: 'row',

@@ -16,6 +16,10 @@ API client, the hint socket and local stores) with the sign-in client, and the i
 | `src/sign-in-binding.ts` | `base64UrlOfBytes`, `base64UrlOfBase64`: the encodings of the native verifier and its S256 challenge (RFC 7636; the app's `platform/sign-in-binding.ts` keeps the verifier in the secure store) |
 | `src/account-scope-socket.ts` | `connectScopeSocket()`: Socket.IO on the API origin (native: the scope's bearer in `auth.token`; web: the same-origin cookie; both name the scope in `auth.scope`, and a `SCOPE_MISMATCH` refusal makes the manager reread the session), subscribed to the scope's universe; `scope_changed` above the highest revision seen, or `scope_resync`, invalidates the scope's queries; "io server disconnect" makes the manager recheck the session. While connected and visible (`context.visible`) it sends `presence_heartbeat` every 20 s; the server stores it only for a person who chose to show availability |
 | `src/visibility-session.ts` | `createVisibilitySession()`: F02. One command carries the whole page (audience, chosen friends, shared systems), changes made while a save is in flight fold into one following save, a failed save keeps the page and offers Retry, and a stale or refused one rereads what the server holds. Availability is its own command with its own revision |
+| `src/feedback-store.ts` | `feedbackFor()`: P03's state for the account scope, joining `feedback-undo.ts`, `feedback-queue.ts` and "Also block". Sign-out ends the timers and the queue |
+| `src/feedback-undo.ts` | `createUndoAcknowledgement()`: "Not interested" with its 8 s Undo (saving, acknowledged, undoing, failed; the command ID survives a retry) |
+| `src/feedback-queue.ts` | `createReportQueue()`: the reports kept for a connection (saved in the scope's storage, at most ten, sent again with the same command ID after 1, 2, 4 ... 60 s) |
+| `src/feedback-flow.ts` | `createReportFlow()`: the forms of P03 (menu, content error, abuse, sending, received, queued, failed), the command ID of one report, and "Also block". Holds nothing once the sheet closes |
 | `src/visit-session.ts` | `createVisitSession()`: U06. One list in memory, replaced by every read and dropped the moment a read says the visit is not available; rereads every 15 s while the screen is open; keeps the last list for two minutes without an answer, then drops it. Nothing is cached or persisted, and a visit is never evidence |
 | `src/availability-session.ts` | `createAvailabilitySession()`: friends' "Online" and "Recently active" for the Friends screen. Each word lives for the server's lease counted from when the read started and then stops, even with no further read; hidden, expired and unknown are the same silence |
 | `src/auth-client.ts` | `createAuthClient()`: the `/auth/*` routes as typed outcomes (`requested · invalid_address · rate_limited(retryAfter) · unavailable`, `signed_in · link_invalid · refused · unavailable`), never throwing; anything that is not the contract's answer counts as `unavailable` |
@@ -280,6 +284,12 @@ guarantee. Schema-validated UUID references compare case-insensitively without r
 values; command/read correlation IDs, opaque cursors and invite secrets remain exact. State is deeply frozen, ephemeral and independent for each scope object. No response,
 receipt, cursor or invite token is a query-cache payload, storage record, URL or log entry.
 
+`readGroups()` reads the first page of Blocked, Sent, Incoming and Friends one after another and keeps
+each in `state.groups`, ending on Friends so its paging stays live. A pair command may bind a row from any
+of those lists; every command clears them all, so an acknowledgement never supplies the new state.
+`showMore('incoming' | 'outgoing' | 'blocked')` adds the next page of that list in place (`state.moreOf` says which
+have one) without touching Friends' own page or cursors.
+
 `command(operation, draft)` adds one UUID and the contract version only after an explicit caller
 selection. Profile and invite changes require a current corresponding read. Friend requests bind
 the exact selected handle or resolved invite issuer; pair actions bind the selected pair/request
@@ -389,9 +399,15 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   `accepted`, `unconfirmed` (the retry reuses the command ID) or `not_sent`; `respond('join' | 'decline')` keeps one command
   ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
   episode or anything of another member.
-- `createExploreWithFriends(...)`: lists friends, creates the thread with one command ID per intent, and reports
+- `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
+- `invitationCardView`, `answerThreadInvitation(scope, thread, 'join' | 'decline', commandId)`: the invitation card in
+  Talk. Ignore is the same decline the thread screen sends: it ends the invitation for this person only.
+- `composerAddressees(people)`: "Ravi and Meera"; two people who share a first word get a last initial, or a handle.
+- Both conversation and content-thread state carry `awayAfterSequence`: set when a lost connection returned and
+  something arrived after the last message the person had, so the screen draws "While you were away" there. It only
+  places the divider and never moves the scroll.
 - `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
 - `overlayBlockState` (`scroll-state/snippet-overlay.ts`): the sender's block settings, shown without writing the reader's own.
 - The Talk fixture serves `threads/create` and the thread reads for tests; it is a labelled fixture.
@@ -401,7 +417,8 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
 Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests and a browser locally, not on dev.*
 
 - `createScenarioBoard({scope, thread, newId})`: `load` reads the thread's branch cards (every read is "ask again", so a
-  lost hint only delays an update); `remove` keeps one command ID per card revision, so a retry is the same command.
+  lost hint only delays an update; `state.opened` lists the branches whose Scroll this member opened, from their own history only);
+  `remove` keeps one command ID per card revision, so a retry is the same command.
 - `createScenarioComposer({scope, thread, newId})`: `begin` asks for directions (the ask keeps one command ID, so a lost
   answer cannot make two drafts), `refresh` looks at the draft while it is thinking, `choose` sends the one command that
   commissions (one ID per selection; a refusal is final, a lost answer is retried with the same ID), `retry`, `reset`.

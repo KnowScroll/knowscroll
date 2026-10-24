@@ -27,7 +27,7 @@ import type {
   StoredOffer,
 } from './navigation-ports.js';
 import { receipt } from './navigation-receipt.js';
-import { commandRegion, isRegionOpen, json, ref, refuse, same } from './navigation-support.js';
+import { commandRegion, isRegionOpen, json, readWithheld, ref, refuse, same } from './navigation-support.js';
 
 type Intent = NavigateExperienceRequest['intent'];
 type ExhaustedReason = Extract<NavigationOutcome, { status: 'exhausted' }>['reason'];
@@ -57,6 +57,10 @@ export interface Prepared {
     readonly hasMore: boolean;
   };
 }
+
+/** Whether the person named the target of this move. A ranked buffer is a subject move and never does. */
+export const namesTarget = (prepared: Prepared): boolean =>
+  prepared.ranking.kind === 'rank' && prepared.ranking.snapshot.intent.exactTarget !== undefined;
 
 /** The session, capabilities and (for a move) source content a command starts from. */
 interface Start {
@@ -368,7 +372,7 @@ async function retrieveContinuation(
   };
 }
 
-/** Reads Hide and prepared context for the retrieved candidates and builds the immutable ranking input. */
+/** Reads Hide, Not interested and prepared context for the retrieved candidates and builds the immutable ranking input. */
 async function rankingInput(
   p: NavigationPorts,
   scope: PersonalScopeTx,
@@ -378,7 +382,7 @@ async function rankingInput(
   assessments: SemanticAssessments | undefined,
 ): Promise<{ snapshot: ComposerSnapshot; truncated: boolean }> {
   const query = evidenceQueryFor(found.candidates, start.now.toISOString());
-  const hiddenAssetIds = await p.readHidden(scope, query.candidateAssetIds ?? []);
+  const hiddenAssetIds = await readWithheld(p, scope, query.candidateAssetIds ?? [], found.exact !== undefined);
   const evidence = await p.readPrepared(scope, query);
   const variantFormat = 'intent' in command && command.intent.mode === 'variant' ? command.intent.to : undefined;
   const mode: ComposerSnapshot['mode'] =

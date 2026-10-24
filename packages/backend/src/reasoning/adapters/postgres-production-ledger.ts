@@ -132,7 +132,22 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
       const production = await sql<{ requests: string; tokens: string }>`
         select ${attemptSpend} from reasoning.production_attempts
         where scope_id = ${scope.authority.scopeId} and budget_window = ${today}`.execute(trx);
-      return { global: spendOf(global.rows[0]), role: spendOf(role.rows[0]), scope: spendOf(production.rows[0]) };
+      const backgroundGlobal = await sql<{ requests: string; tokens: string }>`
+        select ${receiptSpend} from reasoning.usage_receipts where budget_window = ${today} and background`.execute(
+        trx,
+      );
+      const backgroundProduction = await sql<{ requests: string; tokens: string }>`
+        select ${receiptSpend} from reasoning.usage_receipts
+        where budget_window = ${today} and background and attempt_id in (
+          select id from reasoning.production_attempts
+          where scope_id = ${scope.authority.scopeId} and budget_window = ${today}
+        )`.execute(trx);
+      return {
+        global: spendOf(global.rows[0]),
+        role: spendOf(role.rows[0]),
+        scope: spendOf(production.rows[0]),
+        background: { global: spendOf(backgroundGlobal.rows[0]), scope: spendOf(backgroundProduction.rows[0]) },
+      };
     },
 
     async canStartRun(scope, roleId) {
@@ -182,6 +197,7 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
           model: reservation.model,
           budget_window: today,
           reserved_tokens: reservation.reservedTokens,
+          background: reservation.budgetClass === 'background',
         })
         .execute();
     },

@@ -21,6 +21,7 @@ import {
   madeToOrderKey,
   type ReadOrderAudience,
 } from '@knowscroll/backend/modules/content';
+import { READ_VISITED_ASSETS } from '@knowscroll/backend/modules/experience';
 import { READ_THREAD_STANDING, THREAD_GUEST } from '@knowscroll/backend/modules/social';
 import {
   makeCheckAssetAudience,
@@ -46,6 +47,7 @@ import { readShareableContent } from '../../../packages/backend/src/modules/cont
 import { makeReadOrderAudience } from '../../../packages/backend/src/modules/scenarios/application/audience.js';
 import { makeResolveBranches } from '../../../packages/backend/src/modules/scenarios/application/resolve.js';
 import { branchPoolStore } from '../../../packages/backend/src/modules/scenarios/adapters/postgres-store.js';
+import { readVisitedAssets } from '../../../packages/backend/src/modules/experience/adapters/visited-assets.js';
 import { makeReadThreadStanding } from '../../../packages/backend/src/modules/social/adapters/postgres-thread-guest.js';
 import { scenarioOrderProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import {
@@ -58,7 +60,7 @@ import { scenarioProviders, scenarioWorkerProviders } from '@knowscroll/backend/
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored, answerWith } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel, gate, protectedRequestsOf } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, gate, protectedRequestsOf, receiptClassesOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 import { buildRecursively } from '../support/providers.js';
@@ -73,7 +75,7 @@ import {
   type Friends,
   type Threads,
 } from '../support/talk.js';
-import { seedScroll } from '../support/thread-fixtures.js';
+import { activateFor, seedScroll } from '../support/thread-fixtures.js';
 
 const threadVersion = 'content-thread.v1' as const;
 const version = 'scenario.v1' as const;
@@ -192,6 +194,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         [HARNESS, fixtureHarness(database.db, { model: planner }).harness],
         [THREAD_GUEST, cases.guest],
         [READ_THREAD_STANDING, standing],
+        [READ_VISITED_ASSETS, readVisitedAssets],
         [READ_SHAREABLE_CONTENT, readShareableContent],
         [READ_SCROLL_SOURCE_PAGES, readScrollSourcePages],
         [RECORD_MADE_TO_ORDER_SCROLL, recordMadeToOrderScroll],
@@ -417,6 +420,11 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         new AbortController().signal,
       );
       expect(plannerCalls()).toBe(calls + 1);
+      // The member asked for it, so it counts against the whole allowance, never the background share.
+      expect((await receiptClassesOf(database.db, a.universeId)).at(-1)).toEqual({
+        role_id: 'scenarios.planner',
+        background: false,
+      });
       const ready = unwrap(await readDraft(a, aRef, started.draftId));
       expect(ready).toMatchObject({ status: 'ready', mode: 'options' });
       if (ready.status === 'ready') expect(ready.options.map((option) => option.optionId)).toEqual(['o1', 'o2']);
@@ -715,6 +723,28 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(await list(b, bRef)).toMatchObject({ status: 'unavailable' });
       expect(unwrap(await readDraft(b, bRef, draftId))).toMatchObject({ status: 'unavailable' });
       expect(await cards(a, aRef)).toHaveLength(1);
+    });
+
+    it('tells each member which branches they opened themselves, and never that someone else did', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      const made = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      const openedBy = async (who: Friend, thread: ContentThreadRef) => {
+        const found = await list(who, thread);
+        return found.status === 'ready' ? found.opened : undefined;
+      };
+      // Preparing: there is no Scroll to have opened yet.
+      expect(await openedBy(a, aRef)).toEqual([]);
+      await prepare(made.node.nodeId);
+      const assetId = (await cards(a, aRef))[0]?.content?.assetId ?? '';
+      expect(await openedBy(a, aRef)).toEqual([]);
+      await activateFor(database.db, a, assetId, 'scroll');
+      expect(await openedBy(a, aRef)).toEqual([made.node.nodeId]);
+      // Ravi opened nothing: Asha's visit is not in what he is told, and nothing on his card names it.
+      expect(await openedBy(b, bRef)).toEqual([]);
+      expect(JSON.stringify(await cards(b, bRef))).not.toMatch(/opened/i);
+      // Someone outside the thread learns nothing at all.
+      const stranger = await seedFriend(database.db, friends);
+      expect(await list(stranger, aRef)).toMatchObject({ status: 'unavailable' });
     });
 
     it('shows a branch to the members and to no one else', async () => {

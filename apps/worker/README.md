@@ -130,7 +130,9 @@ harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`).
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared
-database and pg-boss; no provider is called.
+database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
+plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
+shared database only (D-059).
 
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
@@ -151,8 +153,10 @@ for operator inspection; ordinary logs contain no Planner context or proposal te
 
 The `composer.prepare-buffer` consumer (#234) prepares the next vertical Explore move for an offer the
 person just activated and stores it for the next navigation (`modules/composer/README.md`). It reads the
-session, candidates and Hide in one short transaction, may ask Jev (`KS_JEV_ENABLED=1`) outside any
-transaction, then persists the ranking and replaces the person's buffer in a second one. A job for a
+session, candidates, Hide and the person's stored Jev assessments in one short transaction, may ask Jev
+(`KS_JEV_ENABLED=1`) outside any transaction, only about shortlisted candidates that have no stored
+assessment from the last 30 minutes (D-058), then adds what it paid for to the stored assessments, persists
+the ranking and replaces the person's buffer in a second one. A job for a
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 

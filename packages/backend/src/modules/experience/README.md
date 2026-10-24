@@ -421,3 +421,27 @@ caller's own `exposures` rows (`activated_at is not null`), and returns asset ID
 exposures, so a member's progress cannot reach another member. Opening a snippet or a thread creates no exposure; the
 Watch or Read the person presses does, through the ordinary open and activate commands. Clear removes the exposures,
 and with them the markers. *Implemented; runtime-verified locally.*
+
+## Not interested (#250, D-055)
+
+`POST /v1/feedback/not-interested` and `.../undo` (`NOT_INTERESTED_USE_CASES`, `setNotInterested` / `undoNotInterested`) keep one
+admitted asset out of the caller's offers for 14 days, or until Undo. Table `experience.not_interested` (0068): universe,
+epoch, asset, `marked_at`, `expires_at`; one row per asset, at most 500 per person (a write drops lapsed rows and the oldest
+past 500). Each command is one transaction under the personal root with a command receipt: an identical retry answers the
+stored outcome, another asset under the key is `COMMAND_KEY_REUSED`, a missing or withdrawn asset is `ASSET_NOT_FOUND` and
+writes nothing. Undo needs no asset check, and undoing what is not there still succeeds.
+
+Marking an asset that is already marked restarts the 14 days and keeps the earlier mark (`prior_marked_at`,
+`prior_expires_at`), so Undo of the second tap goes back to the first; when the first has lapsed, Undo removes the row.
+
+It is a routing constraint and nothing more, read apart from Hide. `readHidden` returns Hide only (and is what Personal
+Context and the Planner are given); `readNotInterested` returns the marked, unlapsed assets. They are combined by
+`readWithheld(…, namesTarget)` (`navigation-support.ts`) wherever Composer picks for the person: the ranking input of a
+navigation, the commit recheck, the region pin's first pick, and the buffer worker (`buffer-source.ts`: a buffer is a
+subject move). A prepared buffer that holds a marked asset drifts and is ranked again. **A move that names its target is
+never blocked by a mark**: Saved, a finished request's open, a `return` (with or without a session), a variant, a series or
+related link, and a pin opened on an encounter the person chose. Activating an offer that was issued rechecks Hide only.
+No action row, no observation, no job and no hint; Personal Context, the Planner and the Cartographer never read the
+table. Clear and full erasure delete the rows; the export lists the title and when it lapses.
+*Implemented; CI-verified against PostgreSQL; not yet run on dev.*
+

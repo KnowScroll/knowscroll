@@ -18,7 +18,8 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/visit/[handle]` | `app/visit/[handle].tsx` | U06: a friend's shared systems and planets, drawn with the Universe renderer under a visitor bar; one answer for every refusal; nothing kept after leaving (#241) | Visiting a friend |
 | `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: filters, one card per kept item (tile, format, title, where you left off), corrected and withdrawn items, a plain empty state, and a detail with Resume and Start from the top. Scoped, bounded paging; a visible Remove with a five-second Undo. | Keep |
 | `/account/requests`                            | `app/(tabs)/account/requests.tsx`             | E07 Your requests: the person's own asks with their state (requested, preparing, ready, couldn't prepare, cancelled), Open when ready, Cancel while preparing, "may be out of date" when a refresh fails (#239)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Requests                                              |
-| `/account`                                     | `app/(tabs)/account/`                         | P01, the account stack, reached from the avatar on every tab (D-006 c): signed in, the address, the person's sessions (coarse device names and last use; Sign out of one asks once; "Sign out of other devices"), the settings that exist and "Sign out" of this device; signed out, "Sign in" and the receipt of an account deletion asked for here; API unreachable, "Try again". Back names where it goes ("Back to Keep")                                                                                                                                                                                                                                                                   | Account                                               |
+| `/account`                                     | `app/(tabs)/account/`                         | P01, the account stack, reached from the avatar on every tab (D-006 c): signed in, the identity card (name, handle, address, Edit: the Friends profile), the person's sessions (coarse device names and last use; Sign out of one asks once; "Sign out of other devices"), the settings that exist and "Sign out" of this device; signed out, "Sign in" and the receipt of an account deletion asked for here; API unreachable, "Try again". Back names where it goes ("Back to Keep")                                                                                                                                                                                                                                                                   | Account                                               |
+| `/account/notifications`, `/account/accessibility` | `app/(tabs)/account/*.tsx` | P01 Notifications (the "Ready" notice over an encounter, on or off) and Accessibility & playback (motion, text size, Reels start with sound). Device preferences (D-057): applied at once, kept on this device in `platform/device-preferences-store`, above the account scope, so sign-out and a privacy clear leave them | Notifications · Accessibility & playback |
 | `/account/privacy`                             | `app/(tabs)/account/privacy/index.tsx`        | P02 hub (phones, tablets): recording, History & export, Clear exploration, privacy controls other slices add (`features/privacy/privacy-extensions.ts`), Delete account. D05 (desktops): the settings list and one card per control on this one page                                                                                                                                                                                                                                                                                                                                                                                                                                            | Privacy & history                                     |
 | `/account/privacy/shared-links`                | `app/(tabs)/account/privacy/shared-links.tsx` | P02 "Shared links" (phones, tablets): every live link with its title, audience and expiry, and Stop sharing; on desktops it is a card of the Privacy page and the address redirects there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Shared links                                          |
 | `/account/privacy/visibility` | `app/(tabs)/account/privacy/visibility.tsx` | P02 / F02 "Sharing & visibility" (phones, tablets): who may visit, which systems visitors see, and whether friends see the person as online; on desktops it is a card of the Privacy page and the address redirects there (#241) | Sharing & visibility |
@@ -158,6 +159,16 @@ share and request sheets), `encounter-notices.tsx` (request status and Save/Keep
 `encounter-ending.tsx` (E08) and `encounter-states.tsx` (opening, waiting, offline and the rest).
 They read the session; none of them owns navigation.
 
+Two small additions read what the session already knows. `encounter-origin.ts` and
+`encounter-origin-chip.tsx` draw the chip under a Scroll's top bar when it was opened by the format
+switch ("From the Reel at 0:31 · Back to Reel", E06): the offer's relation is `format_variant`, the
+entry before it is the other format of the same explanation, and the playhead is the one the Reel
+was parked at. The chip is Back. "Something different" on an ending calls `session.chooseDirection()`:
+when the discovery returns more than one offer the session stops with `state.choices` and
+`direction-picker.tsx` ("Somewhere new", E08) lists their titles and formats; nothing is activated, so
+nothing is recorded, until `pickDirection(offerId)`; Back, Esc or "Not now" returns to the ending.
+With one offer it opens at once.
+
 `encounter-history.ts` retains at most 20 entries in memory, including the same recorder and
 monotonic timebase. Park synchronously captures the actual article block/offset or SDK playhead,
 then pauses and suspends. Local Back restores a retained entry, paused, with no open/navigation/
@@ -228,7 +239,7 @@ Missing siblings remain unavailable in the format switch; the menu offers explic
 or Request Scroll actions. Existing ready siblings keep the normal navigation path.
 
 `features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
-real `supply.create/read/cancel` HTTP commands with the existing encounter capabilities. Private text
+real `supply.create/read/cancel/retry` HTTP commands with the existing encounter capabilities. Private text
 is bounded to 500 characters and is sent as a free-text ask: the server matches it to an exact
 catalogue topic or closes it as unsupported. Three explicit catalogue suggestions send their selected
 canonical intent, without interpreting private prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
@@ -240,16 +251,18 @@ current availability, fenced by scope/epoch/request revision. Polling runs at mo
 reads while the request panel is foreground, stops on terminal/close/scope end, and can be refreshed
 explicitly. Reopening reads current status. Ready never interrupts playback: Open rechecks status,
 then uses the existing exact-revision return/open/activation flow. Cancel affects only the caller's
-waiter according to server authority; closing is not cancellation. Scope end clears all draft,
-frozen command, source, receipt, status and timers. There is no production
-retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
+waiter according to server authority; closing is not cancellation. Try again after "Couldn't prepare" is
+`supply.retry{requestId}`: the same request goes back to preparing (a refusal to retry leaves it closed and says
+so), and an unconfirmed retry is sent again with its exact command. Scope end clears all draft,
+frozen command, source, receipt, status and timers. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
 
 `features/requests/requests-list-session.ts` is the memory-only session behind "Your requests"
 (`/account/requests`, E07). It reads `supply.list`, keeps the highest request revision it has seen of each
 ask, looks again every ten seconds while the list is visible and something is preparing, and keeps the last
 list marked out of date when a refresh fails. Cancel is the same command as in the request sheet, and an
-unconfirmed cancel is retried with its exact command ID. `RequestsList` and `useRequestsList` can be
+unconfirmed cancel is retried with its exact command ID. A closed "Couldn't prepare" row has Retry
+(`supply.retry`, the same request, same exact-command rule) and Ask differently. `RequestsList` and `useRequestsList` can be
 mounted anywhere; Keep's Requested view is meant to mount them. Closed-request copy lives in
 `request-copy.ts`: it says the request is closed and never names models, budgets or machinery.
 
@@ -285,8 +298,12 @@ float over it.
 - **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
   persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
   palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
-  the camera and opens its card with one encounter. Open goes through the real encounter engine and
-  Back returns to the same view with the card closed. The card offers Open and Close only: there is
+  the camera and opens its card with one encounter. Open goes through the real encounter engine; the
+  encounter carries a "From <region> · <planet>" chip that is Back (`encounterOrigin`, the same chip as
+  the format switch's), and Back, by button or chip, returns to the same view with the card closed. The
+  region left through its card then shows "<region> · you were here" and a ring (`universe-here-marker.ts`):
+  a private marker kept in the account scope's storage (purged with the scope, dropped after 14 days),
+  cleared when the person chooses that region again. The card offers Open and Close only: there is
   no read yet for more encounters from a region.
 - **Routes.** Only the Cartographer's routes (between planets of one system) are drawn: a dashed
   line with a 48 px target named "Route from A to B" in the system view, and a "Route to B" chip
@@ -595,4 +612,13 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   gathers what a thread does with its branches (asking, the map, opening one); `branch-sheets.tsx` holds its two overlays.
 - Not built: a discussion scoped to one branch, a position time in the way back, Resume on branch cards, a retry for a
   failed branch, the map's "opened" observation.
+
+## Feedback and report (#250, D-055)
+
+P03 is an overlay with no route of its own (`features/feedback/`, its README). The encounter's ⋯ and a long-press on a Reel
+open it as the `feedback` overlay owner (`session.openFeedback`); the conversation, a room's message options and the friend
+visit open it in a bottom sheet (`FeedbackSheet`). The state lives in client-core (`feedback-store.ts` per account scope:
+the timed Undo of "Not interested" and the reports kept for a connection; `feedback-flow.ts` per sheet: the forms). The
+Operator screen shows the newest reports as card 7 (ids and kinds only), and a room's moderators see the reported
+messages of their room under Moderator tools.
 

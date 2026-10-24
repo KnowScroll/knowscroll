@@ -11,6 +11,8 @@ import type {
   QueueRow,
   RefusedAnswerRow,
   ReelOrderRow,
+  ReportRow,
+  ReportsSummary,
   UsageSummary,
 } from '../domain/panels.js';
 import type { JourneyStore, PanelStore } from '../application/ports.js';
@@ -306,6 +308,37 @@ export function makePanelStore(db: Kysely<Database>): PanelStore {
             outcome: row.outcome,
             desiredRevision: row.desired_revision ?? 0,
             updatedAt: row.updated_at as Date,
+          })),
+        };
+      }),
+
+    reports: (limit) =>
+      pieceOf(async (): Promise<ReportsSummary> => {
+        const recent = await db
+          .selectFrom('ops.feedback_reports')
+          .selectAll()
+          .orderBy('created_at', 'desc')
+          .orderBy('report_id')
+          .limit(limit)
+          .execute();
+        const day = await db
+          .selectFrom('ops.feedback_reports')
+          .select((eb) => eb.fn.countAll().as('total'))
+          .where('created_at', '>', sql<Date>`now() - interval '24 hours'`)
+          .executeTakeFirstOrThrow();
+        return {
+          last24Hours: count(day.total),
+          recent: recent.map((row) => ({
+            reportId: text(row.report_id),
+            // The table's checks allow only these values.
+            kind: text(row.kind) as ReportRow['kind'],
+            category: text(row.category),
+            targetKind: text(row.target_kind) as ReportRow['targetKind'],
+            assetId: row.asset_id,
+            messageId: row.message_id,
+            roomId: row.room_id,
+            hasNote: row.has_note ?? false,
+            createdAt: row.created_at as Date,
           })),
         };
       }),

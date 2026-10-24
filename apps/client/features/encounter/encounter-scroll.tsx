@@ -8,6 +8,8 @@ import { EncounterStrip } from './encounter-actions';
 import type { EncounterEntry } from './encounter-history';
 import { useEncounterMetrics } from './encounter-metrics';
 import { EncounterNotices } from './encounter-notices';
+import { encounterOrigin } from './encounter-origin';
+import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterTopBar } from './encounter-top-bar';
 import { ScrollEnd } from './scroll-end';
@@ -42,6 +44,7 @@ export function ScrollEncounter({
   const metrics = useEncounterMetrics();
   const scrollPosition = useRef<ScrollPositionHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
+  const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
   const [underway, setUnderway] = useState(false);
   const endCard = useRef<ComponentRef<typeof View>>(null);
   const { height: windowHeight } = useWindowDimensions();
@@ -76,6 +79,11 @@ export function ScrollEncounter({
     <View style={styles.page}>
       <View style={[styles.top, { paddingTop: metrics.top, paddingHorizontal: metrics.side }]}>
         <EncounterTopBar entry={entry} session={session} surface="paper" back={back} />
+        {origin === undefined ? null : (
+          <View style={styles.origin}>
+            <EncounterOriginChip origin={origin} onBack={back} />
+          </View>
+        )}
       </View>
       <View style={styles.article}>
         <ActivatedScrollView
@@ -112,7 +120,8 @@ export function ScrollEncounter({
 
 const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, backgroundColor: content.paper },
-  top: { paddingBottom: spacing[2], backgroundColor: content.paper },
+  top: { paddingBottom: spacing[2], backgroundColor: content.paper, gap: spacing[2] },
+  origin: { alignItems: 'flex-start' },
   article: { flex: 1, minHeight: 0 },
   notices: { position: 'absolute', top: spacing[2] },
   floating: { position: 'absolute' },

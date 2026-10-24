@@ -11,7 +11,7 @@ import { dayKey, dayLabel, type ThreadController, type ThreadState } from '@know
 import type { ConversationMessage } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
-import { MessageBubble, OutgoingBubble } from './message-views';
+import { AwayDivider, firstAwayMessage, MessageBubble, OutgoingBubble } from './message-views';
 
 /** How close to the end still counts as "reading the latest" (px). */
 const NEAR_END = 80;
@@ -60,14 +60,17 @@ export interface MessageListProps {
   /** From `useFollowEnd`: the scroll view's ref and scroll handler. */
   readonly scrollRef: RefObject<ScrollViewInstance | null>;
   readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Reports another person's message. */
+  readonly onReport: (message: Extract<ConversationMessage, { status: 'available' }>) => void;
 }
 
 /** The messages by day, then the ones still being sent. "Sent" marks the person's latest message once nothing is pending. */
-export function MessageList({ state, controller, name, scrollRef, onScroll }: MessageListProps) {
+export function MessageList({ state, controller, name, scrollRef, onScroll, onReport }: MessageListProps) {
   const mineOf = (message: ConversationMessage) =>
     message.status === 'available' && message.author.personId !== state.peer?.personId;
   const lastMineSequence = [...state.messages].reverse().find(mineOf)?.sequence;
   const now = new Date();
+  const awayFrom = firstAwayMessage(state.messages, state.awayAfterSequence);
   return (
     <ScrollView
       ref={scrollRef}
@@ -100,7 +103,12 @@ export function MessageList({ state, controller, name, scrollRef, onScroll }: Me
             </Text>
             {group.items.map((message) => (
               <View key={message.sequence} role="listitem" style={styles.item}>
-                <MessageBubble message={message} mine={mineOf(message)} />
+                {message.sequence === awayFrom ? <AwayDivider /> : null}
+                <MessageBubble
+                  message={message}
+                  mine={mineOf(message)}
+                  {...(message.status === 'available' && !mineOf(message) ? { onReport: () => onReport(message) } : {})}
+                />
                 {message.sequence === lastMineSequence && state.outgoing.length === 0 ? (
                   <Text variant="monoXs" color={content.ink2} align="right">
                     Sent

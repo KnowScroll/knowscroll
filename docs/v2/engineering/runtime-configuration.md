@@ -112,6 +112,7 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_REASONING_GLOBAL_REQUESTS_PER_DAY`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY` | 300, 3,000,000 | daily caps (UTC day) for the whole process, counted from the minimal usage receipts |
 | `KS_REASONING_ROLE_REQUESTS_PER_DAY`, `KS_REASONING_ROLE_TOKENS_PER_DAY` | 200, 2,000,000 | default daily caps per role, across universes (a role may declare its own) |
 | `KS_REASONING_SCOPE_REQUESTS_PER_DAY`, `KS_REASONING_SCOPE_TOKENS_PER_DAY` | 60, 600,000 | daily caps per personal scope (one universe) |
+| `KS_REASONING_BACKGROUND_SHARE_PERCENT` | 50 (0–100) | the share, in whole percent, of the global cap and of each person's cap (requests and tokens) that background roles (Jev, Cartographer, Planner: they run because a person read or swiped) may use together. The rest is kept for what a person asks for: What-if, a room ask, request matching, Scroll production. A background role past its share is refused as `budget_exhausted` (`background_global` or `background_scope`) and falls back: Jev to the deterministic ranking, the Cartographer to the rules, the Planner to its next run. 0 switches background roles off; 100 keeps nothing back (D-058) |
 | `KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, `KS_REASONING_PRODUCTION_TOKENS_PER_DAY` | 200, 3,000,000 | daily caps for the nonpersonal production scope (`scroll-supply`) instead of the per-person caps: seeding the library takes about 70 writer requests and 1.4M tokens, and Create jobs add more. The global and role caps still apply, and the worker and the production operator commands both use these |
 | `KS_SCROLL_PRODUCTION_GENERATION` | 1 | the production scope generation the `content.produce-scroll` consumer works under; it must match the database root |
 | `KS_SUPPLY_CREATE_DAILY_CAP` | 20 in `local`, otherwise 0 | how many shared Scroll productions Quartermaster's Create may start per UTC day for people's asks (the worker commissions for an ask the resolver finds without a production; the API takes the request itself); 0 turns Create off, and a request for missing supply then closes as `budget_unavailable`. Set the same value on both processes (max 500) |
@@ -120,7 +121,8 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_REASONING_REQUEST_RETENTION_HOURS` | 48 (max 720) | how long the protected request bytes are kept before the scheduled purge deletes them |
 
 A reservation charges one request and `request bytes + max output tokens` tokens against all three
-caps; the provider's reported usage replaces the estimate at settlement. Details:
+caps (and, for a background role, against its share of the global and the person's cap); the provider's
+reported usage replaces the estimate at settlement. Details:
 `packages/backend/src/reasoning/README.md`.
 
 ## Worker operator (`node dist/operator.js reasoning …` in the `worker/` tree)
@@ -152,7 +154,8 @@ tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it o
 
 `produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends the `content.produce-scroll`
 jobs of recipes that need one, and `production-status [--only <keys>]` lists every recipe's standing.
-Neither calls a provider or needs a key. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
+Neither calls a provider or needs a key. `admit-continuity [--dry-run]` admits the library plan's series and
+related moves between published Scrolls (D-059); it also needs only `KS_WORLD` and `DATABASE_URL`. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
 [--resume]` runs one job directly and needs the worker's reasoning variables
 (`KS_REASONING_PROVIDER=minimax`, `MINIMAX_API_KEY`, `KS_REASONING_PRODUCTION_ENABLED=1`,
 `KS_SCROLL_PRODUCTION_GENERATION`, and the production caps). One JSON line on stdout, diagnostics on
@@ -186,4 +189,6 @@ caps, quota or failure-brake policy and does not grant permission to use the #23
 `KS_JEV_ENABLED` (worker, 0/1, default 0): enable Jev, the optional semantic assessment run by the
 Composer `composer.prepare-buffer` job on the shared reasoning harness. Set it to 1 on dev. It needs a
 configured reasoning provider; without one Jev is simply absent and buffers are still prepared. It does
-not change reasoning caps, quota or failure-brake policy.
+not change reasoning caps, quota or failure-brake policy. Jev is a background role: it spends only its
+share (`KS_REASONING_BACKGROUND_SHARE_PERCENT`), and it asks about a candidate at most once in 30 minutes
+per person and subject, and at most once per 10 minutes per subject (D-058).

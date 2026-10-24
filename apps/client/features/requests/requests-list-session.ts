@@ -1,5 +1,5 @@
 import { apiProblem, type AccountScope } from '@knowscroll/client-core';
-import type { CancelContentRequest, ContentRequestList } from '@knowscroll/contracts';
+import type { CancelContentRequest, ContentRequestList, RetryContentRequest } from '@knowscroll/contracts';
 
 export type ListedRequest = ContentRequestList['requests'][number];
 
@@ -11,6 +11,11 @@ export interface RequestsListState {
   readonly stale: boolean;
   /** The request whose cancel is being sent, or was sent and not confirmed (a retry reuses its command). */
   readonly cancelling?: { readonly requestId: string; readonly phase: 'sending' | 'unknown' };
+  /**
+   * The request whose retry is being sent, was sent and not confirmed (a retry reuses its command), or
+   * was answered "not retryable" or refused: it is unchanged, and the row says it cannot go again.
+   */
+  readonly retrying?: { readonly requestId: string; readonly phase: 'sending' | 'unknown' | 'not_retryable' };
 }
 
 /** How often a visible list looks again while something is still being prepared. */
@@ -32,6 +37,7 @@ export function createRequestsListSession(scope: AccountScope, newCommandId: () 
   let readSerial = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pendingCancel: CancelContentRequest | undefined;
+  let pendingRetry: RetryContentRequest | undefined;
   const listeners = new Set<() => void>();
   const valid = () => live && scope.active;
   const publish = (patch: Partial<RequestsListState>) => {
@@ -100,11 +106,45 @@ export function createRequestsListSession(scope: AccountScope, newCommandId: () 
     }
   }
 
+  async function runRetry() {
+    const command = pendingRetry;
+    if (!valid() || !command) return;
+    stopTimer();
+    publish({ retrying: { requestId: command.requestId, phase: 'sending' } });
+    try {
+      const receipt = await scope.api.supply.retry(command);
+      if (!valid()) return;
+      if (
+        receipt.commandId !== command.commandId ||
+        receipt.requestId !== command.requestId ||
+        receipt.privacyEpoch !== scope.account.privacyEpoch
+      )
+        throw new Error('retry_lineage');
+      pendingRetry = undefined;
+      publish({
+        retrying:
+          receipt.outcome === 'not_retryable' ? { requestId: command.requestId, phase: 'not_retryable' } : undefined,
+      });
+      await refresh();
+    } catch (error) {
+      if (!valid()) return;
+      const problem = apiProblem(error);
+      const refused = problem !== undefined && problem.status >= 400 && problem.status < 500;
+      // A refusal ends the command; anything else may have reached the server and is retried unchanged.
+      if (refused) pendingRetry = undefined;
+      publish({
+        retrying: { requestId: command.requestId, phase: refused ? 'not_retryable' : 'unknown' },
+      });
+      schedule();
+    }
+  }
+
   scope.onEnd?.(() => {
     live = false;
     readSerial += 1;
     stopTimer();
     pendingCancel = undefined;
+    pendingRetry = undefined;
     state = { ...initial(), phase: 'ended' };
     listeners.forEach((listener) => listener());
     listeners.clear();
@@ -131,6 +171,16 @@ export function createRequestsListSession(scope: AccountScope, newCommandId: () 
       if (pendingCancel?.requestId !== requestId)
         pendingCancel = { version: 'content-request-cancel.v1', commandId: newCommandId(), requestId };
       void runCancel();
+    },
+    /**
+     * Tries one request again that closed as "couldn't prepare" (`request.retry`): the same request, not a
+     * new one. Only one retry runs at a time; an unconfirmed one is sent again with the same command.
+     */
+    retry(requestId: string) {
+      if (!valid() || state.retrying?.phase === 'sending') return;
+      if (pendingRetry?.requestId !== requestId)
+        pendingRetry = { version: 'content-request-retry.v1', commandId: newCommandId(), requestId };
+      void runRetry();
     },
   };
 }

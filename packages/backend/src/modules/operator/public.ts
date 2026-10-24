@@ -27,6 +27,8 @@ export {
   type QueueRow,
   type RefusedAnswerRow,
   type ReelOrderRow,
+  type ReportRow,
+  type ReportsSummary,
   type Unavailable,
   type UsageSummary,
 } from './domain/panels.js';

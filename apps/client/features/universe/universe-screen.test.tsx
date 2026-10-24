@@ -266,9 +266,11 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   expect(mockNavigate).toHaveBeenCalledWith('/universe');
   expect(screen.queryByTestId('universe-region-card')).toBeNull();
   expect(screen.getByRole('button', { name: 'Back to CI planet 2' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: 'CI region 4, a region' }).props.accessibilityState).toMatchObject({
-    selected: true,
-  });
+  // U04: the pin left through its card says so, and is still the selected place.
+  expect(
+    screen.getByRole('button', { name: 'CI region 4 · you were here, a region' }).props.accessibilityState,
+  ).toMatchObject({ selected: true });
+  expect(screen.getAllByText('CI region 4 · you were here').length).toBeGreaterThan(0);
   await act(() => scope.end());
   await view.unmount();
 });

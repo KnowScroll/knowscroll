@@ -5,6 +5,7 @@ import {
   ConversationScopeSchema,
   ConversationTextSchema,
 } from './conversations.js';
+import { AbuseCategorySchema } from './feedback.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
 import { PublicPersonRefSchema } from './sharing.js';
 import { roomsPost } from './social-problems.js';
@@ -182,6 +183,7 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
   }),
 ]);
 export type RoomView = z.infer<typeof RoomViewSchema>;
+export type RoomReports = z.infer<typeof RoomReportsSchema>;
 
 // --- Membership -----------------------------------------------------------------------------
 
@@ -484,6 +486,39 @@ export const DiscussionPinAcceptanceSchema = z.strictObject({
   pinned: z.boolean(),
 });
 /** Removes a message from view, or restores it. The message keeps its place and number. */
+// --- Reports on room messages -----------------------------------------------------------------
+
+export const ReadRoomReportsSchema = z.strictObject({ version: Version, readId: UuidSchema, roomId: UuidSchema });
+
+/**
+ * What a room's moderators may see of reports (P03, D-055): which messages in their room were reported,
+ * why and when. Never who reported, what they wrote, or a report about the moderator's own message.
+ * Reading it creates nothing and tells nobody.
+ */
+export const RoomReportsSchema = z.strictObject({
+  version: Version,
+  scope: ConversationScopeSchema,
+  readId: UuidSchema,
+  roomId: UuidSchema,
+  /** Newest report first. */
+  reports: z
+    .array(
+      z.strictObject({
+        messageId: UuidSchema,
+        discussionId: UuidSchema,
+        discussionTitle: z.string().min(1).max(80),
+        /** The message's number in its discussion. */
+        sequence: Revision,
+        /** How many different people reported it. */
+        count: z.number().int().min(1),
+        categories: z.array(AbuseCategorySchema).min(1).max(7),
+        /** The start of the UTC day of the newest report: the day, never the time. */
+        lastReportedAt: z.iso.datetime(),
+      }),
+    )
+    .max(50),
+});
+
 export const HideRoomMessageSchema = z.strictObject({
   ...Command,
   roomId: UuidSchema,
@@ -726,6 +761,7 @@ export const roomsContract = {
   openSnippet: roomsPost('/v1/rooms/discussions/snippets/open', OpenRoomSnippetSchema, RoomSnippetOpeningSchema),
   pin: roomsPost('/v1/rooms/discussions/pin', PinDiscussionSchema, DiscussionPinAcceptanceSchema),
   hideMessage: roomsPost('/v1/rooms/discussions/hide', HideRoomMessageSchema, RoomMessageHidingAcceptanceSchema),
+  reports: roomsPost('/v1/rooms/reports', ReadRoomReportsSchema, RoomReportsSchema),
   askInhabitant: roomsPost('/v1/rooms/inhabitants/ask', AskInhabitantSchema, InhabitantAskAcceptanceSchema),
   stations: roomsPost('/v1/rooms/stations', ReadRoomStationsSchema, RoomStationsSchema),
   activities: roomsPost('/v1/rooms/activities/list', ReadActivitiesSchema, ActivityListSchema),

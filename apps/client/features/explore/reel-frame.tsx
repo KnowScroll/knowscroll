@@ -5,6 +5,8 @@ import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { EncounterRail } from '../encounter/encounter-actions';
 import type { EncounterEntry } from '../encounter/encounter-history';
 import type { EncounterSession, EncounterState } from '../encounter/encounter-session';
+import { encounterOrigin } from '../encounter/encounter-origin';
+import { EncounterOriginChip } from '../encounter/encounter-origin-chip';
 import { EncounterFormatSwitch } from '../encounter/encounter-top-bar';
 import { KeyboardMapSheet } from '../shell/keyboard-map';
 
@@ -63,6 +65,7 @@ export function ReelFrame({
   session,
   framed,
   areaWidth,
+  back,
   children,
 }: {
   readonly entry: EncounterEntry;
@@ -71,6 +74,8 @@ export function ReelFrame({
   readonly framed: boolean;
   /** Width of the column this frame fills: the window minus the rail and the thread aside. */
   readonly areaWidth: number;
+  /** The same Back the encounter's own button uses; the origin chip is Back. */
+  readonly back: () => void;
   /** The Reel itself, drawn `framed` or not to match. */
   readonly children: ReactNode;
 }) {
@@ -83,6 +88,7 @@ export function ReelFrame({
   );
   const columnWidth = Math.min(areaWidth - 2 * spacing[5], Math.max(cardWidth + RAIL_ROOM, TOP_ROW_MIN_WIDTH));
   const idle = state.phase !== 'active';
+  const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
   const [keysOpen, setKeysOpen] = useState(false);
   return (
     <View
@@ -101,6 +107,7 @@ export function ReelFrame({
           <EncounterFormatSwitch entry={entry} session={session} />
           <IconButton icon="more" label="More options" variant="paper" onPress={() => session.setOverlay(true)} />
           {entry.kind === 'reel' && entry.document.fixture ? <Tag label="Fixture video" variant="neutral" /> : null}
+          {origin ? <EncounterOriginChip origin={origin} onBack={back} /> : null}
         </View>
       ) : null}
       <View style={framed ? styles.middle : styles.fullMiddle}>

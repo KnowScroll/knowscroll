@@ -50,6 +50,60 @@ function ThreadRow({ entry }: { readonly entry: EncounterEntry }) {
 }
 
 /**
+ * E07: a move the feed could not make (nothing more is ready on this) is not the end of a thread. It
+ * says so plainly and offers real next steps, on paper rather than the ending's yellow.
+ */
+function NothingMoreReady({
+  state,
+  session,
+  onDone,
+}: {
+  readonly state: EncounterState;
+  readonly session: EncounterSession;
+  readonly onDone: () => void;
+}) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const metrics = useEncounterMetrics();
+  return (
+    <View testID="encounter-nothing-more" style={[styles.ground, styles.paperGround]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + spacing[8], paddingBottom: metrics.bottom + spacing[6] },
+        ]}
+      >
+        <View style={styles.plain}>
+          <CardHeading>You&apos;ve seen what&apos;s ready for now</CardHeading>
+          <Text variant="body">More may come later. Here are a few ways to keep going.</Text>
+          <RemovalNotice
+            removal={state.removal}
+            undo={() => session.undoRemoval()}
+            retry={() => session.retryRemoval()}
+          />
+          <View style={styles.actions}>
+            <Button
+              label="Another subject"
+              icon="arrowUp"
+              variant="primary"
+              onPress={() => session.chooseDirection()}
+            />
+            <Button
+              label="Something you kept"
+              icon="save"
+              role="link"
+              href="/saved"
+              onPress={() => router.navigate('/saved')}
+            />
+            <Button label="Done for now" variant="ghost" onPress={onDone} />
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
  * E08: a satisfying stop is a designed state. The way back is kept only when the person asks,
  * "Something different" opens a fresh subject, and "Done for now" leaves a calm Explore with no
  * autoplay. No streaks, counts or "you learned" wording.
@@ -84,6 +138,8 @@ export function EncounterEnding({
   const saved = entry.context.actions.saved;
   const kept = asked && saved;
   const series = entry.context.series;
+  if (state.outcome?.status === 'exhausted' && series === undefined)
+    return <NothingMoreReady state={state} session={session} onDone={onDone} />;
   return (
     <View testID="encounter-ending" style={styles.ground}>
       <ScrollView
@@ -144,7 +200,7 @@ export function EncounterEnding({
                     session.act('save');
                   }}
                 />
-                <Button label="Something different" icon="arrowUp" onPress={() => session.open({ kind: 'discover' })} />
+                <Button label="Something different" icon="arrowUp" onPress={() => session.chooseDirection()} />
                 <Button label="Done for now" variant="ghost" onPress={onDone} />
               </View>
             </>
@@ -157,6 +213,7 @@ export function EncounterEnding({
 
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: content.continue },
+  paperGround: { backgroundColor: content.paper },
   scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing[5] },
   card: {
     width: '100%',
@@ -170,6 +227,7 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
     boxShadow: elevation.heroInk,
   },
+  plain: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: spacing[4] },
   list: { gap: spacing[3] },
   thread: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   threadTitle: { flex: 1 },

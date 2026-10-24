@@ -3,11 +3,12 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { AccountScope, VisitSession, VisitState } from '@knowscroll/client-core';
+import type { AccountScope, FeedbackTarget, VisitSession, VisitState } from '@knowscroll/client-core';
 import { space, spacing } from '@knowscroll/design-tokens';
 import { Button, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
+import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { UniverseBackdrop } from '../universe/universe-backdrop';
 import { indexUniverse } from '../universe/universe-layout';
 import { UniverseSurface } from '../universe/universe-surface';
@@ -61,6 +62,7 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   const state = useSyncExternalStore(visit.subscribe, visit.getState, visit.getState);
   const mapState = useSyncExternalStore(map.subscribe, map.getState, map.getState);
   const [foreground, setForeground] = useState(false);
+  const [reporting, setReporting] = useState<FeedbackTarget>();
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle('light');
@@ -90,17 +92,32 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   if (state.status === 'loading' || state.status === 'ended') return <QuietGround label="Opening this universe" />;
   if (state.status === 'unavailable') return <Unavailable state={state} onLeave={leave} />;
   if (state.status === 'offline') return <Offline onRetry={() => void visit.read()} onLeave={leave} />;
+  const { owner } = state;
   return (
-    <UniverseSurface
-      session={map}
-      state={mapState}
-      index={index}
-      status={state.stale ? 'Last list shown' : undefined}
-      visitor={{
-        ownerName: state.owner.displayName,
-        bar: <VisitorBar ownerName={state.owner.displayName} onLeave={leave} />,
-      }}
-    />
+    <>
+      <UniverseSurface
+        session={map}
+        state={mapState}
+        index={index}
+        status={state.stale ? 'Last list shown' : undefined}
+        visitor={{
+          ownerName: owner.displayName,
+          bar: (
+            <VisitorBar
+              ownerName={owner.displayName}
+              onLeave={leave}
+              onReport={() =>
+                setReporting({
+                  kind: 'person',
+                  person: { personId: owner.personId, displayName: owner.displayName, handle: owner.handle },
+                })
+              }
+            />
+          ),
+        }}
+      />
+      <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
+    </>
   );
 }
 

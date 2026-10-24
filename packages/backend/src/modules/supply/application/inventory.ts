@@ -3,7 +3,7 @@ import type { CreateContentRequest } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { WAIT_LIMIT_MS } from './commission.js';
+import { WAIT_LIMIT_MS, waitStartOf } from './commission.js';
 import type { CanonicalBrief, SupplyPorts, Demand, Source } from './ports.js';
 
 export const sourceOf = (command: CreateContentRequest): Source | undefined =>
@@ -171,7 +171,7 @@ export async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand
   // dead-lettered, a worker that stayed down). The next write freezes the same outcome.
   if (
     (d.status === 'requested' || d.status === 'deferred' || d.status === 'matching') &&
-    p.now().getTime() - Date.parse(d.createdAt) >= WAIT_LIMIT_MS
+    p.now().getTime() - Date.parse(waitStartOf(d)) >= WAIT_LIMIT_MS
   )
     return ContentRequestStatusSchema.parse({
       ...base,

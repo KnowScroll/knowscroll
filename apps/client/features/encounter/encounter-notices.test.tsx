@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider } from '@knowscroll/ui';
+import { defaultDevicePreferences } from '../account/device-preferences';
+import { DevicePreferencesProvider } from '../../providers/device-preferences';
 import { unavailableCopy } from '../requests/request-copy';
 import type { RequestState } from '../requests/request-session';
 import { EncounterNotices } from './encounter-notices';
@@ -24,7 +26,16 @@ function fixture(patch: Partial<RequestState>) {
   };
   const dismissNotice = jest.fn();
   const requests = { subscribe: () => () => undefined, getState: () => state, dismissNotice, cancel: jest.fn() };
-  const session = { requests, openReadyRequest: jest.fn() } as unknown as EncounterSession;
+  // Nothing was marked "Not interested": that notice has its own tests.
+  const idle = { notInterested: { status: 'idle' }, queued: 0 };
+  const feedback = { subscribe: () => () => undefined, getState: () => idle };
+  const session = {
+    requests,
+    feedback,
+    openReadyRequest: jest.fn(),
+    undoNotInterested: jest.fn(),
+    retryNotInterested: jest.fn(),
+  } as unknown as EncounterSession;
   const entry = { exposureId: EXPOSURE, kind: 'reel' } as unknown as EncounterEntry;
   return { session, entry, dismissNotice };
 }
@@ -74,5 +85,61 @@ describe('request notices over an encounter', () => {
     expect(screen.getByText(/Ready: your Scroll of “Why long prompts cost more”/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Later' }));
     expect(f.dismissNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the ready notice away when Notifications turns it off, and still says a request is unavailable', async () => {
+    const off = (children: React.ReactNode) => (
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <DevicePreferencesProvider initial={{ ...defaultDevicePreferences, readyNotices: false }}>
+          {children}
+        </DevicePreferencesProvider>
+      </DisplayProvider>
+    );
+    const ready = fixture({
+      status: {
+        status: 'ready',
+        content: { metadata: { title: 'Why long prompts cost more' } },
+      } as RequestState['status'],
+    });
+    const view = await render(
+      off(
+        <EncounterNotices entry={ready.entry} state={{ phase: 'active' } as EncounterState} session={ready.session} />,
+      ),
+    );
+    expect(screen.queryByText(/Ready: your Scroll/)).toBeNull();
+    await view.unmount();
+    const closed = fixture({
+      status: { status: 'unavailable', reason: 'no_compatible_supply' } as RequestState['status'],
+    });
+    await render(
+      off(
+        <EncounterNotices
+          entry={closed.entry}
+          state={{ phase: 'active' } as EncounterState}
+          session={closed.session}
+        />,
+      ),
+    );
+    expect(screen.getByText(unavailableCopy.no_compatible_supply)).toBeOnTheScreen();
+  });
+
+  it('says the Scroll is the one that was asked for, only on that encounter', async () => {
+    const f = fixture({ status: undefined });
+    const entry = { ...f.entry, offer: { assetId: REQUEST } } as unknown as EncounterEntry;
+    const state = { phase: 'active', askedFor: { assetId: REQUEST, kind: 'scroll' } } as EncounterState;
+    const view = await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <EncounterNotices entry={entry} state={state} session={f.session} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('Ready — the Scroll you asked for')).toBeOnTheScreen();
+    await view.unmount();
+    const other = { ...f.entry, offer: { assetId: 'another-asset' } } as unknown as EncounterEntry;
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <EncounterNotices entry={other} state={state} session={f.session} />
+      </DisplayProvider>,
+    );
+    expect(screen.queryByText('Ready — the Scroll you asked for')).toBeNull();
   });
 });

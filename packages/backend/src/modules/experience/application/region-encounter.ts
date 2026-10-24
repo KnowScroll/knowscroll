@@ -9,6 +9,7 @@ import {
 } from '@knowscroll/contracts';
 import type { PersonalAuthority } from '../../identity/public.js';
 import type { NavigationPorts, NavigateEncounter } from './navigation-ports.js';
+import { readWithheld } from './navigation-support.js';
 
 export type RegionEncounterResult<T> =
   { readonly kind: 'accepted'; readonly value: T } | { readonly kind: 'refused'; readonly code: ProblemCode };
@@ -64,9 +65,11 @@ export function makeRegionEncounters(p: NavigationPorts, navigate: NavigateEncou
             capabilities: q.capabilities,
           });
           if (selection.kind !== 'read') return unavailable('unsupported_region');
-          const hidden = await p.readHidden(
+          const hidden = await readWithheld(
+            p,
             scope,
             selection.candidates.map((c) => c.encounter.assetId),
+            false,
           );
           const candidate = selection.candidates.find((c) => !hidden.includes(c.encounter.assetId));
           if (!candidate) return unavailable(selection.hasMore ? 'selection_unavailable' : 'no_eligible_content');

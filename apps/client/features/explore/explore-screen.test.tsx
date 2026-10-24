@@ -157,11 +157,11 @@ describe('Explore sheets', () => {
     try {
       await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
       expect(await screen.findByRole('button', { name: 'Send to a conversation' })).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: 'Copy link' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Copy link / Share elsewhere' })).toBeOnTheScreen();
       expect(h.session.getState().overlayOwner).toBe('share');
       await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
       expect(h.session.getState().overlay).toBe(false);
-      expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Copy link / Share elsewhere' })).toBeNull();
     } finally {
       await app.unmount();
       h.scope.end();
@@ -182,19 +182,36 @@ describe('Explore sheets', () => {
   });
 });
 
-describe('Explore ending (E08)', () => {
-  it('an exhausted direction is a designed stop with the way back, something different and done', async () => {
+describe('Explore ending (E08) and nothing more ready (E07)', () => {
+  it('a move with nothing more ready says so plainly (E07) and offers another subject, Keep and done', async () => {
     const { h, app } = await openExplore();
     try {
       await fireEvent.press(screen.getByRole('button', { name: 'Got it' }));
       h.setOutcome('exhausted');
       await act(() => h.session.navigate({ mode: 'vertical', direction: 'next' }));
-      expect(await screen.findByText('A good place to pause')).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: 'Keep a way back' })).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: 'Something different' })).toBeOnTheScreen();
+      expect(await screen.findByText("You've seen what's ready for now")).toBeOnTheScreen();
+      expect(screen.getByText('More may come later. Here are a few ways to keep going.')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Another subject' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('link', { name: 'Something you kept' }));
+      expect(mockNavigate).toHaveBeenCalledWith('/saved');
+      expect(screen.queryByRole('button', { name: 'Keep a way back' })).toBeNull();
       await fireEvent.press(screen.getByRole('button', { name: 'Done for now' }));
       expect(await screen.findByText('A good place to stop')).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: 'Find something new' })).toBeOnTheScreen();
+    } finally {
+      await app.unmount();
+      h.scope.end();
+    }
+  });
+
+  it('an explicit Done is the ending card with the way back, something different and done', async () => {
+    const { h, app } = await openExplore();
+    try {
+      await fireEvent.press(screen.getByRole('button', { name: 'Got it' }));
+      await act(() => h.session.done());
+      expect(await screen.findByText('A good place to pause')).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Keep a way back' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Something different' })).toBeOnTheScreen();
     } finally {
       await app.unmount();
       h.scope.end();

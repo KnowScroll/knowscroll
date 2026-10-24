@@ -1,5 +1,6 @@
-import { useState, type RefObject } from 'react';
+import { useState, type ReactNode, type RefObject } from 'react';
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -60,13 +61,22 @@ const titleOf = (card: ConversationContentProjection): string | undefined =>
 export interface MessageActions {
   readonly canStartThread: boolean;
   readonly canModerate: boolean;
+  /** Anyone can report a message that is not their own, an AI inhabitant's included (P03). */
+  readonly canReport: boolean;
 }
 
-export function actionsFor(message: RoomMessage, role: 'member' | 'moderator'): MessageActions {
+export function actionsFor(
+  message: RoomMessage,
+  role: 'member' | 'moderator',
+  ownPersonId: string | undefined,
+): MessageActions {
   const isCard = message.status === 'available' && message.body.kind === 'content';
+  const mine =
+    message.status === 'available' && message.author.kind === 'person' && message.author.personId === ownPersonId;
   return {
     canStartThread: isCard,
     canModerate: role === 'moderator' && (message.status === 'removed' || message.status === 'available'),
+    canReport: message.status === 'available' && !mine,
   };
 }
 
@@ -169,6 +179,53 @@ function Bubble({
         {body.text}
       </Text>
     </View>
+  );
+}
+
+/**
+ * One message and its ⋯ (R02). The ⋯ is not drawn until the pointer is over the message or the control
+ * itself has focus, and a long press anywhere on the message opens the same sheet, so a quiet discussion
+ * is not a column of buttons. It stays in the page, and keeps its touch, so keyboards, VoiceOver and
+ * TalkBack reach it (a pointer over the message reveals it before it can be clicked). Focus is the
+ * control's own: a Pressable around it would not hear a child's focus on the web.
+ */
+function MessageLine({
+  sequence,
+  children,
+  hasActions,
+  onActions,
+}: {
+  readonly sequence: number;
+  readonly children: ReactNode;
+  readonly hasActions: boolean;
+  readonly onActions: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const revealed = hovered || focused;
+  return (
+    <Pressable
+      accessible={false}
+      focusable={false}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      onLongPress={hasActions ? onActions : undefined}
+      style={styles.line}
+      testID={`message-${String(sequence)}`}
+    >
+      <View style={styles.lineBody}>{children}</View>
+      {hasActions ? (
+        <View style={revealed ? null : styles.hidden} testID={`message-options-${String(sequence)}`}>
+          <IconButton
+            icon="more"
+            label="Message options"
+            onPress={onActions}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -316,7 +373,7 @@ export function RoomMessages({
               {dayLabel(group.at, now)}
             </Text>
             {group.items.map((message) => {
-              const actions = actionsFor(message, role);
+              const actions = actionsFor(message, role, ownPersonId);
               const mine = mineOf(message);
               return (
                 <View key={message.sequence} role="listitem" style={styles.item}>
@@ -336,55 +393,54 @@ export function RoomMessages({
                       </Text>
                     )
                   ) : null}
-                  <View style={styles.line}>
-                    <View style={styles.lineBody}>
-                      {message.status === 'available' && collapsedOf(message) ? (
-                        <View style={styles.collapsed} testID="blocked-collapsed">
-                          <Marker words="A message from someone you blocked" mine={false} />
-                          <Button
-                            label="Show for moderation"
-                            size="sm"
-                            variant="ghost"
-                            onPress={() => toggleShown(message.messageId)}
-                            testID={`show-blocked-${message.messageId}`}
-                          />
-                        </View>
-                      ) : message.status === 'available' ? (
-                        <>
-                          <Bubble
-                            message={message}
-                            mine={mine}
-                            partOf={partOf}
-                            actions={actions}
-                            onOpenSnippet={onOpenSnippet}
-                            onStartThread={onStartThread}
-                          />
-                          {message.blockedByYou === true ? (
-                            <View style={styles.revealed}>
-                              <Text variant="metaS" color={content.ink2}>
-                                You blocked this person. Shown for moderation.
-                              </Text>
-                              <Button
-                                label="Hide again"
-                                size="sm"
-                                variant="ghost"
-                                onPress={() => toggleShown(message.messageId)}
-                              />
-                            </View>
-                          ) : null}
-                        </>
-                      ) : message.status === 'removed' ? (
-                        <Marker words="Message removed by the moderator" mine={false} />
-                      ) : message.status === 'blocked' ? (
+                  <MessageLine
+                    sequence={message.sequence}
+                    hasActions={actions.canStartThread || actions.canModerate || actions.canReport}
+                    onActions={() => onActions(message)}
+                  >
+                    {message.status === 'available' && collapsedOf(message) ? (
+                      <View style={styles.collapsed} testID="blocked-collapsed">
                         <Marker words="A message from someone you blocked" mine={false} />
-                      ) : (
-                        <Marker words="Message removed" mine={false} />
-                      )}
-                    </View>
-                    {actions.canStartThread || actions.canModerate ? (
-                      <IconButton icon="more" label="Message options" onPress={() => onActions(message)} />
-                    ) : null}
-                  </View>
+                        <Button
+                          label="Show for moderation"
+                          size="sm"
+                          variant="ghost"
+                          onPress={() => toggleShown(message.messageId)}
+                          testID={`show-blocked-${message.messageId}`}
+                        />
+                      </View>
+                    ) : message.status === 'available' ? (
+                      <>
+                        <Bubble
+                          message={message}
+                          mine={mine}
+                          partOf={partOf}
+                          actions={actions}
+                          onOpenSnippet={onOpenSnippet}
+                          onStartThread={onStartThread}
+                        />
+                        {message.blockedByYou === true ? (
+                          <View style={styles.revealed}>
+                            <Text variant="metaS" color={content.ink2}>
+                              You blocked this person. Shown for moderation.
+                            </Text>
+                            <Button
+                              label="Hide again"
+                              size="sm"
+                              variant="ghost"
+                              onPress={() => toggleShown(message.messageId)}
+                            />
+                          </View>
+                        ) : null}
+                      </>
+                    ) : message.status === 'removed' ? (
+                      <Marker words="Message removed by the moderator" mine={false} />
+                    ) : message.status === 'blocked' ? (
+                      <Marker words="A message from someone you blocked" mine={false} />
+                    ) : (
+                      <Marker words="Message removed" mine={false} />
+                    )}
+                  </MessageLine>
                   {message.status === 'available' && message.author.kind === 'ai' ? (
                     <Text variant="metaS" color={content.ink2}>
                       A suggestion. Nothing is made unless someone chooses it.
@@ -441,6 +497,7 @@ const styles = StyleSheet.create({
   item: { gap: spacing[1] },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   lineBody: { flex: 1 },
+  hidden: { opacity: 0 },
   collapsed: { gap: spacing[1], alignItems: 'flex-start' },
   revealed: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },

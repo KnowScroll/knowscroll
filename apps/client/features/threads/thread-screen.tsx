@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   TALK_QUERY_KEY,
+  composerAddressees,
   findThread,
   type AccountScope,
   type ContentThreadController,
@@ -163,6 +164,7 @@ function ReadyThread({
         onScroll={onScroll}
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
         branches={board.state.cards}
+        openedBranches={board.state.opened}
         onOpenBranch={branches.openBranch}
         onContinueBranch={branches.scenarios.continueBranch}
         onRemoveBranch={branches.scenarios.removeBranch}
@@ -171,12 +173,9 @@ function ReadyThread({
       />
       <AsksBar onAsk={branches.scenarios.askFromRoot} />
       <Composer
-        name={
-          state.participants
-            .filter((participant) => !participant.you)
-            .map((participant) => participant.person.displayName.split(' ')[0])
-            .join(' and ') || 'everyone'
-        }
+        name={composerAddressees(
+          state.participants.filter((participant) => !participant.you).map((participant) => participant.person),
+        )}
         value={draft}
         onChange={keepDraft}
         onSend={(text) => {

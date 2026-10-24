@@ -5,6 +5,8 @@ import type {
   ContentRequestList,
   CancelContentRequest,
   CancelContentRequestReceipt,
+  RetryContentRequest,
+  RetryContentRequestReceipt,
 } from '@knowscroll/contracts';
 import type {
   PersonalAuthority,
@@ -59,6 +61,10 @@ export interface Demand {
   readonly revision: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** When the latest retry began; the wait limit and poll slots count from it. Absent until a retry. */
+  readonly waitStartedAt?: string;
+  /** How many times the person asked to try this request again. */
+  readonly retries?: number;
   readonly brief?: CanonicalBrief;
   readonly workId?: string;
   /** `pending` until a `matching` ask has its match. */
@@ -105,6 +111,11 @@ export interface SupplyStore {
   /** The person's own asks that are still open (waiting to be matched or produced), which bound their poll jobs. */
   countOpenPersonDemands(scope: PersonalScopeTx): Promise<number>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
+  /**
+   * Reopens a request that closed as could-not-prepare (or that read as closed by its wait limit before
+   * anything froze it): same row, same ID, a new wait. Throws when the row is no longer in such a state.
+   */
+  reopen(scope: PersonalScopeTx, demand: Demand): Promise<void>;
   /** The person's own asks (not the Planner's), newest first. */
   listPersonDemands(scope: PersonalScopeTx, limit: number): Promise<readonly Demand[]>;
   /** The person's open planned demand (`deferred` or `ready`) for exactly this canonical brief, if any. */
@@ -146,6 +157,14 @@ export interface ResolveDelivery {
  * Advances one waiter: matches a free-text ask, waits for the production that serves it, then binds
  * the admitted content or closes the request honestly (D-037).
  */
+/**
+ * Asks to try a request again that could not be prepared: the same request, a new wait, once the
+ * day's and the open-request limits allow it. Replays keep the original outcome.
+ */
+export type RetryRequest = (
+  authority: PersonalAuthority,
+  command: RetryContentRequest,
+) => Promise<Result<RetryContentRequestReceipt>>;
 export type ResolveRequest = (job: ResolveSupplyJob, delivery?: ResolveDelivery) => Promise<void>;
 
 /** One missing-supply opportunity of an accepted Planner plan. */
@@ -213,7 +232,7 @@ export interface SupplyPorts {
       scope: PersonalScopeTx,
       operation: string,
       commandId: string,
-      command: CreateContentRequest | CancelContentRequest,
+      command: CreateContentRequest | CancelContentRequest | RetryContentRequest,
     ): Promise<
       | { readonly kind: 'new' }
       | { readonly kind: 'replay'; readonly outcome: unknown }
@@ -223,22 +242,22 @@ export interface SupplyPorts {
       scope: PersonalScopeTx,
       operation: string,
       commandId: string,
-      command: CreateContentRequest | CancelContentRequest,
+      command: CreateContentRequest | CancelContentRequest | RetryContentRequest,
     ): Promise<void>;
     complete(
       scope: PersonalScopeTx,
       commandId: string,
-      receipt: ContentRequestReceipt | CancelContentRequestReceipt,
+      receipt: ContentRequestReceipt | CancelContentRequestReceipt | RetryContentRequestReceipt,
     ): Promise<void>;
   };
   /**
    * Sends a resolver job for one waiter in the caller's transaction. A later poll names its slot, and a
-   * repeat of the same request and slot is a no-op.
+   * repeat of the same request, retry and slot is a no-op.
    */
   readonly enqueue: (
     scope: PersonalScopeTx,
     requestId: string,
-    options?: { readonly startAfter: Date; readonly slot: number },
+    options?: { readonly startAfter: Date; readonly slot: number; readonly attempt: number },
   ) => Promise<void>;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number, eventId: string) => Promise<void>;

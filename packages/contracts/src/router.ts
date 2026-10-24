@@ -1,4 +1,5 @@
 import { accountContract } from './account.js';
+import { feedbackContract } from './feedback.js';
 import { operatorContract } from './operator.js';
 import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
@@ -18,6 +19,7 @@ import { readEmergingUniverseContract, readGeographyContract, readUniverseDeltas
 import { mediaGrantContract } from './media.js';
 import {
   cancelContentRequestContract,
+  retryContentRequestContract,
   createContentRequestContract,
   listContentRequestsContract,
   readContentRequestContract,
@@ -49,6 +51,7 @@ export const apiContract: {
   health: typeof healthContract;
   account: typeof accountContract;
   operator: typeof operatorContract;
+  feedback: typeof feedbackContract;
   privacy: typeof privacyContract;
   recording: typeof recordingContract;
   keep: typeof keepContract & { remove: typeof removeKeepEntryContract };
@@ -73,6 +76,7 @@ export const apiContract: {
     read: typeof readContentRequestContract;
     list: typeof listContentRequestsContract;
     cancel: typeof cancelContentRequestContract;
+    retry: typeof retryContentRequestContract;
   };
   identity: {
     requestSignIn: typeof requestSignInContract;
@@ -101,6 +105,7 @@ export const apiContract: {
   health: healthContract,
   account: accountContract,
   operator: operatorContract,
+  feedback: feedbackContract,
   privacy: privacyContract,
   recording: recordingContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },
@@ -125,6 +130,7 @@ export const apiContract: {
     read: readContentRequestContract,
     list: listContentRequestsContract,
     cancel: cancelContentRequestContract,
+    retry: retryContentRequestContract,
   },
   identity: {
     requestSignIn: requestSignInContract,

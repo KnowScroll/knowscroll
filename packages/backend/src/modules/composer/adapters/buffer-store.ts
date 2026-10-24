@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PreparedBuffer } from '../domain/buffer.js';
+import { jevPoolStore } from './jev-pool-store.js';
 import type {
   PurgeExpiredComposerBuffer,
   ReadComposerBuffer,
@@ -107,6 +108,7 @@ const releaseComposerBuffer: ReleaseComposerBuffer = async (scope, decisionId, h
 };
 
 const purgeExpiredComposerBuffer: PurgeExpiredComposerBuffer = async (scope, now) => {
+  await jevPoolStore.purgeExpired(scope, now);
   const { universeId } = scope.authority;
   const db = transactionOf(scope);
   const at = now.toISOString();

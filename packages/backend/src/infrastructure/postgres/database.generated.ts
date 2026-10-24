@@ -54,6 +54,15 @@ export interface ComposerDecisions {
   universe_id: string;
 }
 
+export interface ComposerJevAssessments {
+  entries: Json;
+  model: string;
+  privacy_epoch: number;
+  role_version: string;
+  universe_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ContentAssetProvenance {
   asset_id: string;
   provenance: Json;
@@ -467,6 +476,16 @@ export interface ExperienceNavigationTransitions {
   universe_id: string;
 }
 
+export interface ExperienceNotInterested {
+  asset_id: string;
+  expires_at: Timestamp;
+  marked_at: Timestamp;
+  prior_expires_at: Timestamp | null;
+  prior_marked_at: Timestamp | null;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
 export interface ExperienceOfferActivations {
   exposure_id: string;
   offer_id: string;
@@ -594,6 +613,23 @@ export interface ExperienceSessions {
   intent_revision: number;
   privacy_epoch: number;
   universe_id: string;
+}
+
+export interface FeedbackReports {
+  anchor: Json | null;
+  asset_id: string | null;
+  asset_revision: number | null;
+  category: string;
+  created_at: Timestamp;
+  kind: string;
+  message_id: string | null;
+  note: string | null;
+  report_id: string;
+  reported_account_id: string | null;
+  reporter_account_id: string;
+  retain_until: Timestamp | null;
+  room_id: string | null;
+  target_kind: string;
 }
 
 export interface GeographyDeltas {
@@ -820,6 +856,19 @@ export interface OpsBusinessRuns {
   run_id: string | null;
   state: string | null;
   updated_at: Timestamp | null;
+}
+
+export interface OpsFeedbackReports {
+  asset_id: string | null;
+  asset_revision: number | null;
+  category: string | null;
+  created_at: Timestamp | null;
+  has_note: boolean | null;
+  kind: string | null;
+  message_id: string | null;
+  report_id: string | null;
+  room_id: string | null;
+  target_kind: string | null;
 }
 
 export interface OpsGeographyRuns {
@@ -1337,6 +1386,7 @@ export interface ReasoningProtectedRequests {
 
 export interface ReasoningUsageReceipts {
   attempt_id: string;
+  background: Generated<boolean>;
   budget_window: Timestamp;
   cached_tokens: number | null;
   conclusive_failure: Generated<boolean>;
@@ -1803,11 +1853,13 @@ export interface SupplyRequests {
   privacy_epoch: number;
   reason: string | null;
   request_revision: number;
+  retries: Generated<number>;
   revision: number;
   source_availability_revision: number | null;
   state: string;
   universe_id: string;
   updated_at: Timestamp;
+  wait_started_at: Timestamp | null;
   work_id: string | null;
 }
 
@@ -1831,6 +1883,7 @@ export interface SupplyWork {
 export interface DB {
   "composer.buffers": ComposerBuffers;
   "composer.decisions": ComposerDecisions;
+  "composer.jev_assessments": ComposerJevAssessments;
   "content.asset_provenance": ContentAssetProvenance;
   "content.asset_revisions": ContentAssetRevisions;
   "content.assets": ContentAssets;
@@ -1864,6 +1917,7 @@ export interface DB {
   "experience.encounter_lineage": ExperienceEncounterLineage;
   "experience.exposures": ExperienceExposures;
   "experience.navigation_transitions": ExperienceNavigationTransitions;
+  "experience.not_interested": ExperienceNotInterested;
   "experience.offer_activations": ExperienceOfferActivations;
   "experience.offer_region_constraints": ExperienceOfferRegionConstraints;
   "experience.offers": ExperienceOffers;
@@ -1875,6 +1929,7 @@ export interface DB {
   "experience.saved_items": ExperienceSavedItems;
   "experience.saved_places": ExperienceSavedPlaces;
   "experience.sessions": ExperienceSessions;
+  "feedback.reports": FeedbackReports;
   "geography.deltas": GeographyDeltas;
   "geography.objects": GeographyObjects;
   "geography.relations": GeographyRelations;
@@ -1892,6 +1947,7 @@ export interface DB {
   "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;
   "ops.business_runs": OpsBusinessRuns;
+  "ops.feedback_reports": OpsFeedbackReports;
   "ops.geography_runs": OpsGeographyRuns;
   "ops.jobs": OpsJobs;
   "ops.journey_events": OpsJourneyEvents;

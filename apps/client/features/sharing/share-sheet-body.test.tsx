@@ -30,7 +30,7 @@ const target = { assetId: id(40), assetRevision: 2 };
 function show(onClose: () => void) {
   return render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-      <ShareSheetBody target={target} title="The edge you can’t come back from" onClose={onClose} />
+      <ShareSheetBody target={target} title="The edge you can’t come back from" kind="reel" onClose={onClose} />
     </DisplayProvider>,
   );
 }
@@ -44,7 +44,7 @@ describe('ShareSheetBody', () => {
   it('asks a signed-out person to sign in instead of offering to share', async () => {
     await show(jest.fn());
     expect(screen.getByText('Sign in to share this.')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copy link / Share elsewhere' })).toBeNull();
     await screen.unmount();
   });
 

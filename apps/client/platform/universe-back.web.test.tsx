@@ -25,6 +25,7 @@ it('Back closes the panel before restoring a camera and unregisters; history car
     lastPlace: undefined,
     absent: false,
     selectedId: null,
+    youWereHere: null,
   };
   const listeners = new Set<() => void>();
   const publish = () => listeners.forEach((listener) => listener());

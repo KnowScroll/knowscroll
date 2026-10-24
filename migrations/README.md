@@ -178,3 +178,19 @@ after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.t
 earliest time that person's next Cartographer or Planner run may start. A settled run sets it, and the next run's wake
 waits for it. Nothing is backfilled or constrained, so an older process leaves it null (no wait). Apply with the new
 binary; the generated database types change by the same two lines.
+
+0065 adds `background` to `reasoning.usage_receipts` (#231, D-058): whether the role that made the attempt is a
+background role (Jev, Cartographer, Planner). Admission sums background receipts apart, so those roles stop at their
+share of the global and the personal daily caps. Additive with a default of false: an older writer leaves receipts
+counted as asked-for, which is the old behaviour. The three roles' receipts written so far are marked in the same
+migration. Apply with the new binary; the generated database types change by the same line.
+
+0066 adds `composer.jev_assessments` (#231, D-058): one row per person with their recent Jev assessments (at most 60,
+each used for 30 minutes), so a candidate judged lately is not sent to the model again. A disposable cache, never
+evidence. Erased with the person's other Composer stores. Nothing is backfilled; no earlier writer exists.
+
+0068 is Feedback (D-055): `experience.not_interested` (a short-lived routing constraint, universe-keyed; it keeps the mark it
+replaced so Undo of a second tap restores it), `feedback.reports` (account-keyed reports to the safety team; a report about
+a deleted account loses its pointer to the person and carries `retain_until`, 90 days after the deletion, for the
+`feedback.purge-reports` job) and the `ops.feedback_reports` view.
+Additive; no earlier writer. The queue `feedback.purge-reports` is registered by the migrate command with the others.

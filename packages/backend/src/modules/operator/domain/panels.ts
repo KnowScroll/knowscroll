@@ -114,7 +114,27 @@ export interface PrivacySummary {
   }[];
 }
 
-/** The six panels of the artboard. Pieces with no Tier 0 source are `unavailable`. */
+/** One report to the safety team: what it is about and when, never its note, its sender or the person reported. */
+export interface ReportRow {
+  readonly reportId: string;
+  readonly kind: 'content_error' | 'abuse';
+  readonly category: string;
+  readonly targetKind: 'asset' | 'message' | 'room_message' | 'person' | 'deleted_account';
+  readonly assetId: string | null;
+  readonly messageId: string | null;
+  readonly roomId: string | null;
+  readonly hasNote: boolean;
+  readonly createdAt: Date;
+}
+
+export interface ReportsSummary {
+  /** Reports received in the last 24 hours. */
+  readonly last24Hours: number;
+  /** The newest reports first. */
+  readonly recent: readonly ReportRow[];
+}
+
+/** The six panels of the artboard and the reports list. Pieces with no Tier 0 source are `unavailable`. */
 export interface OperatorPanels {
   readonly generatedAt: Date;
   readonly overview: {
@@ -132,6 +152,7 @@ export interface OperatorPanels {
     readonly usage: Piece<UsageSummary>;
   };
   readonly universeChange: { readonly cartographer: Piece<CartographerSummary> };
+  readonly safety: { readonly reports: Piece<ReportsSummary> };
   readonly realtime: { readonly delivery: Unavailable };
   readonly privacy: {
     readonly operations: Piece<PrivacySummary>;
@@ -150,6 +171,7 @@ export const RETENTION_QUEUES: readonly string[] = [
   'identity.recover-account-deletions',
   'reasoning.purge-expired-requests',
   'reasoning.sweep-dispatched-attempts',
+  'feedback.purge-reports',
   'scenes.expire-formation',
   'scenes.recover-formation',
 ];

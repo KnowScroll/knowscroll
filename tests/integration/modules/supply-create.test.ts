@@ -18,6 +18,7 @@ import {
   CREATE_CONTENT_REQUEST,
   LIST_CONTENT_REQUESTS,
   READ_CONTENT_REQUEST,
+  RETRY_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
   RESOLVE_CONTENT_REQUEST,
   resolveSupplyQueue,
@@ -25,6 +26,7 @@ import {
   type CreateRequest,
   type ListRequests,
   type ReadRequest,
+  type RetryRequest,
   type RecordPlannedDemand,
   type PlannedDemandInput,
   type ResolveRequest,
@@ -34,7 +36,7 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -56,6 +58,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
   let database: TestDatabase<Database>;
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
   let create: CreateRequest, read: ReadRequest, list: ListRequests, cancel: CancelRequest, resolve: ResolveRequest;
+  let retry: RetryRequest;
   let recordPlanned: RecordPlannedDemand;
   let production: ReturnType<typeof fixtureProductionWorker>;
   let matchModel: ReturnType<typeof fixtureModel>;
@@ -110,6 +113,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     read = get(READ_CONTENT_REQUEST);
     list = get(LIST_CONTENT_REQUESTS);
     cancel = get(CANCEL_CONTENT_REQUEST);
+    retry = get(RETRY_CONTENT_REQUEST);
     resolve = get(RESOLVE_CONTENT_REQUEST);
     recordPlanned = get(RECORD_PLANNED_DEMAND);
   }
@@ -345,6 +349,212 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const retry = await ask(again, catalogue('earth.tides', { facetId: 'earth.tides.forcing' }));
     expect(await status(again, retry)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
     expect(await produceJobs()).toHaveLength(jobsBefore);
+  });
+
+  describe('retrying a request that could not be prepared (E07)', () => {
+    const retryCommand = (requestId: string, commandId: string = randomUUID()) => ({
+      version: 'content-request-retry.v1' as const,
+      commandId,
+      requestId,
+    });
+    const rowOf = (requestId: string) =>
+      database.db
+        .selectFrom('supply.requests')
+        .select(['state', 'reason', 'retries', 'wait_started_at', 'created_at', 'request_revision'])
+        .where('id', '=', requestId)
+        .executeTakeFirstOrThrow();
+    const facet = () => catalogue('earth.tides', { facetId: 'earth.tides.forcing' });
+
+    it('reopens the same request and binds it when the next take publishes; a replay changes nothing', async () => {
+      let writerWorks = false;
+      await build({ writer: () => (writerWorks ? writerAnswer() : { kind: 'malformed' }) });
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected', take: 1 } });
+      await resolve(job(person, requestId));
+      const closed = await status(person, requestId);
+      expect(closed).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+
+      const command = retryCommand(requestId);
+      const first = await retry(person.authority, command);
+      expect(first).toMatchObject({ kind: 'ok', value: { outcome: 'retrying', requestId, replayed: false } });
+      const reopened = await status(person, requestId);
+      expect(reopened).toMatchObject({ status: 'preparing', requestId });
+      expect(reopened.requestRevision).toBeGreaterThan(closed.requestRevision);
+      expect(await rowOf(requestId)).toMatchObject({ state: 'requested', reason: null, retries: 1 });
+      expect((await queuedProduceJobs()).map((queued) => queued.take)).toContain(2);
+      expect(await resolverJobs(person)).not.toHaveLength(0);
+
+      const replay = await retry(person.authority, command);
+      expect(replay).toMatchObject({ kind: 'ok', value: { outcome: 'retrying', replayed: true } });
+      expect(await rowOf(requestId)).toMatchObject({ retries: 1 });
+
+      writerWorks = true;
+      expect(await publish('tides', 2)).toMatchObject({ result: { outcome: 'published', take: 2 } });
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({
+        status: 'ready',
+        requestId,
+        content: { assetId: TOPICS.tides.assetId },
+      });
+    });
+
+    it('says already_open for a request that is still preparing or ready, and changes nothing', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, catalogue('earth.seasons'));
+      expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'already_open' },
+      });
+      expect(await rowOf(requestId)).toMatchObject({ state: 'requested', retries: 0, wait_started_at: null });
+      await admit('earth.seasons');
+      const reuse = await ask(person, catalogue('earth.seasons'));
+      expect(await status(person, reuse)).toMatchObject({ status: 'ready' });
+      expect(await retry(person.authority, retryCommand(reuse))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'already_open' },
+      });
+    });
+
+    it('starts a new wait for a request the wait limit closed, so it is not closed again at once', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, catalogue('earth.seasons'));
+      await sql`update supply.requests set created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes' where id = ${requestId}`.execute(
+        database.db,
+      );
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'retrying' },
+      });
+      expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+      const row = await rowOf(requestId);
+      expect(row.wait_started_at!.getTime()).toBeGreaterThan(row.created_at.getTime());
+      // The resolver counts from the new wait: production is queued, so it waits and polls again.
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'preparing' });
+    });
+
+    it('never retries a free-text ask that was not matched: its attempt may have an outcome nobody saw', async () => {
+      await build();
+      const person = await seedPerson(database.db);
+      matchScript = () => ({ kind: 'gateway_timeout' });
+      const requestId = await ask(person, freeText('why is the sky blue'));
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'not_retryable' },
+      });
+      await resolve(job(person, requestId));
+      expect(matchModel.calls).toHaveLength(1);
+      expect(await rowOf(requestId)).toMatchObject({ state: 'unavailable', retries: 0 });
+    });
+
+    it('respects the day cap, the retry limit and other closures, leaving the request as it was', async () => {
+      await build({ cap: 1, writer: () => ({ kind: 'malformed' }) });
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      // The one production of the day is used: nothing can start, so the answer is not_retryable.
+      expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'not_retryable' },
+      });
+      expect(await rowOf(requestId)).toMatchObject({ state: 'unavailable', reason: 'could_not_prepare', retries: 0 });
+
+      await sql`update supply.requests set retries = 3 where id = ${requestId}`.execute(database.db);
+      expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'not_retryable' },
+      });
+
+      const cancelled = await ask(person, catalogue('earth.seasons'));
+      await cancel(person.authority, {
+        version: 'content-request-cancel.v1',
+        commandId: randomUUID(),
+        requestId: cancelled,
+      });
+      expect(await retry(person.authority, retryCommand(cancelled))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'not_retryable' },
+      });
+      const reel = await ask(person, catalogue('earth.seasons', { format: 'reel' }));
+      expect(await status(person, reel)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+      expect(await retry(person.authority, retryCommand(reel))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'not_retryable' },
+      });
+    });
+
+    it('refuses a retry while the person has the most open asks they may, without a receipt, and accepts the same command once one ends', async () => {
+      await build({ writer: () => ({ kind: 'malformed' }) });
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      const open: string[] = [];
+      for (let n = 0; n < 10; n += 1) open.push(await ask(person, freeText(`question number ${String(n)}`)));
+      const command = retryCommand(requestId);
+      expect(await retry(person.authority, command)).toEqual({ kind: 'refused', reason: 'too_many_open' });
+      expect(
+        await database.db
+          .selectFrom('receipts.personal_commands')
+          .select('command_id')
+          .where('command_id', '=', command.commandId)
+          .execute(),
+      ).toEqual([]);
+      expect(await rowOf(requestId)).toMatchObject({ state: 'unavailable', retries: 0 });
+      await cancel(person.authority, {
+        version: 'content-request-cancel.v1',
+        commandId: randomUUID(),
+        requestId: open[0]!,
+      });
+      expect(await retry(person.authority, command)).toMatchObject({ kind: 'ok', value: { outcome: 'retrying' } });
+    });
+
+    it('lets only one of two concurrent retries reopen the request: the other finds it open', async () => {
+      await build({ writer: () => ({ kind: 'malformed' }) });
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      const [first, second] = await Promise.all([
+        retry(person.authority, retryCommand(requestId)),
+        retry(person.authority, retryCommand(requestId)),
+      ]);
+      const outcomes = [first, second].map((result) => (result.kind === 'ok' ? result.value.outcome : result.reason));
+      expect(outcomes.sort()).toEqual(['already_open', 'retrying']);
+      // One reopening: one retry counted, one production take queued, one wait started.
+      expect(await rowOf(requestId)).toMatchObject({ state: 'requested', retries: 1 });
+      expect((await queuedProduceJobs()).filter((queued) => queued.take === 2)).toHaveLength(1);
+    });
+
+    it('answers another person and an unknown request the same way, and keeps the same command ID to its first input', async () => {
+      await build({ writer: () => ({ kind: 'malformed' }) });
+      const owner = await seedPerson(database.db);
+      const other = await seedPerson(database.db);
+      const requestId = await ask(owner, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(owner, requestId));
+      expect(await retry(other.authority, retryCommand(requestId))).toEqual({ kind: 'refused', reason: 'not_found' });
+      expect(await retry(owner.authority, retryCommand(randomUUID()))).toEqual({
+        kind: 'refused',
+        reason: 'not_found',
+      });
+      const commandId = randomUUID();
+      expect(await retry(owner.authority, retryCommand(requestId, commandId))).toMatchObject({
+        kind: 'ok',
+        value: { outcome: 'retrying' },
+      });
+      expect(await retry(owner.authority, retryCommand(randomUUID(), commandId))).toEqual({
+        kind: 'refused',
+        reason: 'command_key_reused',
+      });
+    });
   });
 
   it('prefers a recipe that has not run: a stopped recipe is skipped for a request about the whole topic', async () => {
@@ -818,6 +1028,10 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       expect(await produceJobs()).toHaveLength(1);
       // The model saw the person's words and the catalogue, and nothing of the shared work does.
       expect(matchModel.calls[0]!.request.user).toContain('why does the sea go in and out');
+      // The person asked in their own words, so matching counts against the whole allowance.
+      expect(await receiptClassesOf(database.db, person.universeId)).toEqual([
+        { role_id: 'supply.match-request', background: false },
+      ]);
       expect(JSON.stringify(await database.db.selectFrom('supply.work').selectAll().execute())).not.toContain('sea go');
       expect(
         await database.db

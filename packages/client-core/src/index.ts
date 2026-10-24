@@ -100,15 +100,21 @@ export {
   type ScenarioSelection,
 } from './scenarios';
 export {
+  answerThreadInvitation,
+  composerAddressees,
   describeThreadMessage,
   findThread,
+  invitationCardView,
   readThreadSummaries,
   threadRowView,
+  type InvitationAnswer,
+  type InvitationCardView,
   type ThreadRowView,
 } from './thread-inbox';
 export {
   createRoom,
   readRoomList,
+  readRoomReports,
   readRoomStations,
   type ModerateAction,
   type RoomController,
@@ -284,6 +290,9 @@ export type {
   FriendsCommandDraft,
   FriendsFilter,
   FriendsPage,
+  FriendsPair,
+  FriendsGroups,
+  ShowMoreFilter,
   FriendsCursor,
   FriendsFailure,
   FriendsReadState,
@@ -314,3 +323,27 @@ export {
 } from './account-sessions';
 export { createDataExportsSession, type DataExportsSession, type DataExportsState } from './data-exports';
 export { requestAccountDeletion, type AccountDeletionDeps, type AccountDeletionOutcome } from './account-deletion';
+export {
+  QUEUED_REPORT_LIMIT,
+  UNDO_WINDOW_MS,
+  createFeedbackStore,
+  feedbackFor,
+  type FeedbackState,
+  type FeedbackStore,
+  type FeedbackStoreOptions,
+  type NotInterestedState,
+  type NotInterestedStep,
+  type QueuedReport,
+  type ReportOutcome,
+} from './feedback-store';
+export {
+  createReportFlow,
+  reportedPersonOf,
+  type FeedbackTarget,
+  type ReportFlow,
+  type ReportFlowOptions,
+  type ReportFlowState,
+  type ReportKind,
+  type ReportStep,
+  type ReportedPerson,
+} from './feedback-flow';

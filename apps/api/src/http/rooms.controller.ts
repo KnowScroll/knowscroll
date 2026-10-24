@@ -151,6 +151,14 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.reports)
+  reportsRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.reports).handler(async ({ input }) =>
+      value(await this.useCases.reports(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.askInhabitant)
   askInhabitantRoute(@Req() request: Request) {
     return implement(apiContract.rooms.askInhabitant).handler(async ({ input }) =>

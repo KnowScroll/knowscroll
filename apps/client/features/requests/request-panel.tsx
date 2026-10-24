@@ -25,6 +25,11 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
   const [focused, setFocused] = useState(false);
   const editing = state.phase === 'draft';
   const status = state.status;
+  // The work failed, not the idea: the same ask can go again (E07 "Couldn't prepare"). Other closed
+  // reasons are permanent or capped (a Reel or variant ask, the daily cap), so pressing again only
+  // makes another closed request.
+  const couldBePreparedAgain =
+    state.phase === 'accepted' && status?.status === 'unavailable' && status.reason === 'could_not_prepare';
   return (
     <KeyboardAvoidingView
       style={styles.host}
@@ -48,7 +53,7 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
           </Text>
           <IconButton icon="close" label="Close request" onPress={onClose} />
         </View>
-        {state.mode === 'topic' ? (
+        {couldBePreparedAgain ? null : state.mode === 'topic' ? (
           <>
             <Text variant="ui" nativeID="request-text-label">
               What would you like now?
@@ -177,9 +182,47 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
           </>
         ) : null}
         {status?.status === 'unavailable' ? (
-          <View role="status">
+          <View role="status" style={styles.closed}>
+            <RequestStatusChip status={couldBePreparedAgain ? 'failed' : 'unavailable'} />
+            {couldBePreparedAgain ? (
+              <Text variant="displayL" heading={3}>
+                We couldn&apos;t prepare this one
+              </Text>
+            ) : null}
             <Text variant="body">{unavailableCopy[status.reason]}</Text>
           </View>
+        ) : null}
+        {couldBePreparedAgain && state.error === 'too_many_open' ? (
+          <View role="alert">
+            <Text variant="bodyS">
+              You have several requests still preparing. Let one finish, or cancel one in Your requests, then try again.
+            </Text>
+          </View>
+        ) : null}
+        {couldBePreparedAgain ? (
+          <>
+            {state.error === 'not_retryable' ? (
+              <View role="alert">
+                <Text variant="bodyS">This one can&apos;t be tried again. Asking another way may work.</Text>
+              </View>
+            ) : (
+              <Button label="Try again" variant="primary" onPress={() => session.tryAgain()} />
+            )}
+            {state.mode === 'topic' ? (
+              <Button
+                label="Ask differently"
+                variant={state.error === 'not_retryable' ? 'primary' : 'default'}
+                onPress={() => session.editAgain()}
+              />
+            ) : null}
+          </>
+        ) : null}
+        {state.phase === 'retrying' ? <Button label="Trying again" busy /> : null}
+        {state.phase === 'retry_unknown' ? (
+          <>
+            <Text variant="bodyS">Trying again wasn&apos;t confirmed. Your request is kept for retry.</Text>
+            <Button label="Retry trying again" onPress={() => session.retryTryAgain()} />
+          </>
         ) : null}
         {state.error === 'read' ? (
           <Text variant="bodyS">Availability couldn't be refreshed. The last shown state may be out of date.</Text>
@@ -203,7 +246,7 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
             <Button label="Retry cancellation" onPress={() => session.retryCancel()} />
           </>
         ) : null}
-        {state.receipt && state.phase === 'accepted' && status?.status !== 'cancelled' ? (
+        {state.receipt && state.phase === 'accepted' && (status?.status === 'preparing' || state.error === 'read') ? (
           <Button
             label="Refresh availability"
             disabled={state.reading}
@@ -213,7 +256,8 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
             }}
           />
         ) : null}
-        {(state.phase === 'accepted' && status && status.status !== 'preparing') || state.phase === 'refused' ? (
+        {(state.phase === 'accepted' && status && status.status !== 'preparing' && !couldBePreparedAgain) ||
+        state.phase === 'refused' ? (
           <Button label="Ask something else" onPress={() => session.startAgain()} />
         ) : null}
         <Text variant="meta">Closing keeps your request. Open a ready explanation when you choose.</Text>
@@ -261,6 +305,7 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  closed: { gap: spacing[2], alignItems: 'flex-start' },
   input: {
     minHeight: target.comfortable * 2,
     textAlignVertical: 'top',

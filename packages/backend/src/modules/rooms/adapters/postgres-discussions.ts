@@ -305,6 +305,23 @@ export const discussionStore: DiscussionStore = {
     return row === undefined ? undefined : messageOf(row);
   },
 
+  async locate(lock, messageIds) {
+    if (messageIds.length === 0) return new Map();
+    const rows = await trxOf(lock)
+      .selectFrom('rooms.messages as message')
+      .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
+      .select(['message.message_id', 'message.sequence', 'discussion.discussion_id', 'discussion.title'])
+      .where('discussion.room_id', '=', lock.roomId)
+      .where('message.message_id', 'in', [...messageIds])
+      .execute();
+    return new Map(
+      rows.map((row) => [
+        row.message_id,
+        { discussionId: row.discussion_id, discussionTitle: row.title, sequence: Number(row.sequence) },
+      ]),
+    );
+  },
+
   async messageInRoom(lock, messageId) {
     const row = await trxOf(lock)
       .selectFrom('rooms.messages as message')
