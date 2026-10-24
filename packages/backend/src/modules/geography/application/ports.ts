@@ -77,6 +77,8 @@ export interface GeographyState extends GeographyRevisions {
   readonly materialRevision: number;
   readonly publishedRevision: number;
   readonly activeRunId?: string;
+  /** The earliest the next run may start (`pacing.ts`); absent means no wait. */
+  readonly nextRunNotBefore?: string;
 }
 export interface GeographyView {
   readonly state: GeographyState;
@@ -140,7 +142,8 @@ export interface GeographyStore {
   header(scope: PersonalScopeTx, id: string): Promise<GeographyRunHeader | undefined>;
   accountingHeader(scope: PersonalScopeTx, id: string): Promise<GeographyAccountingHeader | undefined>;
   context(scope: RecordingScopeTx, id: string): Promise<GeographyContext | undefined>;
-  retire(scope: PersonalScopeTx, id: string): Promise<void>;
+  /** Ends a run nothing will resume; `outcome` says why (default: a revoked recording generation). */
+  retire(scope: PersonalScopeTx, id: string, outcome?: string): Promise<void>;
   /** Settles the exact claimed run the harness refused before admitting it, and releases its claim. */
   finishUnadmitted(
     scope: PersonalScopeTx,
@@ -175,10 +178,14 @@ export interface GeographyPorts {
   readonly newId: () => string;
   readonly now: () => Date;
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
+  /**
+   * Wakes a run. Without `delayed` the wake is immediate; `startAfter` alone delays the ordinary wake;
+   * with `expectedClaimId` it is the recovery wake bound to that claim.
+   */
   readonly enqueue: (
     scope: RecordingScopeTx,
     runId: string,
-    delayed?: { readonly expectedClaimId: string; readonly startAfter: Date },
+    delayed?: { readonly startAfter: Date; readonly expectedClaimId?: string },
   ) => Promise<boolean>;
   /** Necessary metadata cleanup only: current desired source may wake a revoked older header. */
   readonly enqueueRetirement: (scope: RecordingScopeTx, runId: string) => Promise<void>;

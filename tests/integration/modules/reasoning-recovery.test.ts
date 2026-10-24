@@ -7,6 +7,7 @@ import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { ReasoningRole } from '@knowscroll/backend/reasoning';
 import {
+  makeAttemptLedger,
   makeMiniMaxModelPort,
   reasoningOperatorFor,
   type AttemptLedger,
@@ -151,6 +152,109 @@ describe('reasoning recovery, charging and run rules (real database, fixture mod
       expect(await running).toMatchObject({ kind: 'proposed', reconciled: true });
       expect((await attemptsOf(db(), person.universeId))[0]).toMatchObject({ state: 'reconciled' });
       expect(model.calls).toHaveLength(1);
+    });
+  });
+
+  describe('a run a role left admitted (#231)', () => {
+    const runStates = async (person: FixturePerson) =>
+      (
+        await db()
+          .selectFrom('reasoning.business_runs')
+          .select(['id', 'state', 'fence'])
+          .where('universe_id', '=', person.universeId)
+          .execute()
+      ).map(({ state, fence }) => ({ state, fence }));
+    const refusedByBudget = async (person: FixturePerson, runId: string) => {
+      const { harness } = fixtureHarness(db(), {
+        model: fixtureModel(),
+        settings: withCaps({ scope: { requestsPerDay: 0, tokensPerDay: 0 } }),
+      });
+      expect(await propose(harness, person, { runId })).toMatchObject({ kind: 'budget_exhausted' });
+    };
+
+    it('is closed by the sweep once it has been idle long enough, and a run that is still fresh is left alone', async () => {
+      const person = await seedPerson(db());
+      const runId = randomUUID();
+      await refusedByBudget(person, runId);
+      // The shape seen on dev: admitted by the refused call, no attempt, nobody to close it.
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+      expect(await attemptsOf(db(), person.universeId)).toEqual([]);
+
+      expect(await operator().closeIdleRuns(3_600)).toBe(0);
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(await operator().closeIdleRuns(0)).toBeGreaterThanOrEqual(1);
+      expect(await runStates(person)).toEqual([{ state: 'cancelled', fence: 2 }]);
+      // The owner finds the run closed and starts another; it is not resurrected.
+      const { harness } = fixtureHarness(db(), { model: fixtureModel() });
+      expect(await propose(harness, person, { runId })).toEqual({ kind: 'refused', reason: 'run_closed' });
+      expect(await operator().closeIdleRuns(0)).toBe(0);
+    });
+
+    it('never closes a run whose attempt may still be in flight or unresolved', async () => {
+      const person = await seedPerson(db());
+      const model = fixtureModel();
+      await expect(propose(crashingAfterDispatch(model), person)).rejects.toThrow('simulated crash after dispatch');
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(await operator().closeIdleRuns(0)).toBe(0);
+      expect(await operator().sweepStaleDispatched(0)).toBeGreaterThanOrEqual(1);
+      expect((await attemptsOf(db(), person.universeId))[0]?.state).toBe('unknown');
+      expect(await operator().closeIdleRuns(0)).toBe(0);
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+    });
+
+    it('refuses to reserve an attempt under a run that was closed after it was admitted', async () => {
+      const person = await seedPerson(db());
+      const ledger = makeAttemptLedger(db());
+      const runId = randomUUID();
+      const descriptor = {
+        id: runId,
+        ownerModule: 'fixture',
+        purpose: 'fixture-echo',
+        roleId: echoRole.id,
+        roleVersion: echoRole.version,
+        policyVersion: 'fixture.v1',
+        provider: 'fixture',
+        model: 'fixture-model',
+        contextBundleRef: fixtureContext.bundleRef,
+        contextRefs: fixtureContext.items.map((item) => item.ref),
+      };
+      const body = new TextEncoder().encode('{}');
+      // The idle sweep takes no personal root lock, so it can close a run between admission and reservation.
+      await expect(
+        withScope()(systemAuthority(person.universeId), async (scope) => {
+          expect(await ledger.admitRun(scope, descriptor)).toMatchObject({ kind: 'admitted' });
+          expect(await ledger.closeRun(scope, { runId, state: 'cancelled' })).toBe('closed');
+          await ledger.reserve(scope, {
+            id: randomUUID(),
+            runId,
+            step: 'primary',
+            provider: descriptor.provider,
+            model: descriptor.model,
+            roleId: descriptor.roleId,
+            roleVersion: descriptor.roleVersion,
+            promptVersion: 'hp2',
+            requestHash: 'a'.repeat(64),
+            requestBody: body,
+            maxOutputTokens: 256,
+            reservedTokens: 300,
+            requestRetentionSeconds: 3_600,
+          });
+        }),
+      ).rejects.toThrow('Reasoning run is unavailable');
+      expect(await attemptsOf(db(), person.universeId)).toEqual([]);
+    });
+
+    it('waits for the idle time to pass after the latest attempt settled', async () => {
+      const person = await seedPerson(db());
+      const { harness } = fixtureHarness(db(), { model: fixtureModel() });
+      expect(await propose(harness, person)).toMatchObject({ kind: 'proposed' });
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+      expect(await operator().closeIdleRuns(3_600)).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(await operator().closeIdleRuns(0)).toBeGreaterThanOrEqual(1);
+      expect(await runStates(person)).toEqual([{ state: 'cancelled', fence: 2 }]);
     });
   });
 

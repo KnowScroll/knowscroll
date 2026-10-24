@@ -33,9 +33,10 @@ async function state(scope: Parameters<PlannerStore['state']>[0], includeIntent:
         accepted_revision: number;
         active_run_id: string | null;
         intent: unknown;
+        next_run_not_before: Date | null;
       }
     >`
- select desired_revision,material_revision,accepted_revision,active_run_id,
+ select desired_revision,material_revision,accepted_revision,active_run_id,next_run_not_before,
  desired_recording_generation as generation,desired_origin_kind as origin_kind,desired_origin_command_id as origin_command_id,desired_origin_source_revision as origin_source_revision,
  ${includeIntent ? sql`intent` : sql`null::jsonb`} as intent from planner.state where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(
       db,
@@ -50,6 +51,7 @@ async function state(scope: Parameters<PlannerStore['state']>[0], includeIntent:
     ...(row.active_run_id ? { activeRunId: row.active_run_id } : {}),
     ...(desiredSource ? { desiredSource } : {}),
     ...(row.intent ? { intent: IntentSchema.parse(row.intent) } : {}),
+    ...(row.next_run_not_before ? { nextRunNotBefore: row.next_run_not_before.toISOString() } : {}),
   };
 }
 export const plannerStore: PlannerStore = {
@@ -122,9 +124,9 @@ export const plannerStore: PlannerStore = {
   async writeState(scope, s: PlannerState) {
     const { db, u, e } = identity(scope),
       o = s.desiredSource;
-    await sql`insert into planner.state(universe_id,privacy_epoch,desired_revision,material_revision,accepted_revision,active_run_id,intent,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision)
-    values(${u}::uuid,${e},${s.desiredRevision},${s.materialRevision},${s.acceptedRevision},${s.activeRunId ?? null}::uuid,${s.intent ? JSON.stringify(s.intent) : null}::jsonb,${o?.generation ?? null},${o?.kind ?? null},${o?.kind === 'command' ? o.commandId : null}::uuid,${o?.kind === 'material' ? o.sourceRevision : null})
-    on conflict(universe_id,privacy_epoch) do update set desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,accepted_revision=excluded.accepted_revision,active_run_id=excluded.active_run_id,intent=coalesce(excluded.intent,planner.state.intent),desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision`.execute(
+    await sql`insert into planner.state(universe_id,privacy_epoch,desired_revision,material_revision,accepted_revision,active_run_id,intent,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision,next_run_not_before)
+    values(${u}::uuid,${e},${s.desiredRevision},${s.materialRevision},${s.acceptedRevision},${s.activeRunId ?? null}::uuid,${s.intent ? JSON.stringify(s.intent) : null}::jsonb,${o?.generation ?? null},${o?.kind ?? null},${o?.kind === 'command' ? o.commandId : null}::uuid,${o?.kind === 'material' ? o.sourceRevision : null},${s.nextRunNotBefore ?? null}::timestamptz)
+    on conflict(universe_id,privacy_epoch) do update set desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,accepted_revision=excluded.accepted_revision,active_run_id=excluded.active_run_id,intent=coalesce(excluded.intent,planner.state.intent),desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision,next_run_not_before=excluded.next_run_not_before`.execute(
       db,
     );
   },
