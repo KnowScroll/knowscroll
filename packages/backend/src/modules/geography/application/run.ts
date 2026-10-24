@@ -176,17 +176,20 @@ const PRE_ADMISSION_REFUSALS: ReadonlySet<string> = new Set<ProposeRefusal>([
   'request_too_large',
 ]);
 /**
- * Settles a run the harness refused before admitting it. Only actual zero-retained accounting may
- * settle the exact current claim here. There is no ledger run to apply under or close, so the rules
- * apply under the claim's own authority (same validation, revision check and transaction as any
- * apply); with nothing due the run is released. Either way the person's cartography is not held:
- * the next qualified encounter starts a new run.
+ * Settles the exact current claim of a run that has no open ledger run to apply under or close:
+ * the harness refused it before admitting it, a reading-triggered run with no place due that never
+ * went to the harness (`no_changes`), or a run whose ledger run was closed under it (`run_closed`).
+ * Only actual accounting with no live attempt may settle it (zero retained attempts, or for
+ * `run_closed` settled ones). The rules apply under the claim's own authority (same validation,
+ * revision check and transaction as any apply); with nothing due the run is released with `reason`
+ * as its outcome. Either way the person's cartography is not held: the next qualified encounter
+ * starts a new run.
  */
 async function settleUnadmitted(
   p: CartographerPorts,
   authority: Parameters<CartographerPorts['withScope']>[0],
   purpose: PersonalRecordingPurpose,
-  refusal: string,
+  reason: string,
 ) {
   await p.withScope(authority, async (scope) => {
     let eligible = false;
@@ -217,10 +220,10 @@ async function settleUnadmitted(
         recordingGeneration: h.generation,
       };
     });
-    // A closed ledger run may hold settled attempts; any other refusal needs none retained.
+    // A closed ledger run may hold settled attempts; any other end needs none retained.
     const nothingLive =
       result.kind === 'not_found' ||
-      (refusal === 'run_closed' && result.kind === 'accounted' && result.disposition === 'conclusive');
+      (reason === 'run_closed' && result.kind === 'accounted' && result.disposition === 'conclusive');
     if (!eligible || !nothingLive) return;
     const gate = await p.fenceRecording(scope, purpose.recordingGeneration);
     if (gate.kind !== 'recording') return;
@@ -228,7 +231,7 @@ async function settleUnadmitted(
     const rules = context && p.enabled() ? requiredChanges(context.facts) : undefined;
     let settlement: { status: 'accepted' | 'insufficient' | 'stale'; outcome: string } = {
       status: 'insufficient',
-      outcome: refusal,
+      outcome: reason,
     };
     if (context && rules?.operations.length) {
       const applied = await applyProposal(p, gate.scope, purpose.businessRunId, context, rules, () =>
@@ -245,6 +248,56 @@ async function settleUnadmitted(
     await p.store.writeState(scope, idle);
     if (context && updated.desiredRevision > context.desiredRevision)
       await ensureCartography(p, gate.scope, idle, true);
+  });
+}
+/**
+ * Ends a prepared run whose frozen context this code can no longer hash the way it was hashed when
+ * the run was claimed (the context layout changed in a deploy). The request it would send differs
+ * from anything the ledger recorded, so it can never go on, and left alone it would hold the
+ * person's scope for ever. When accounting shows no live attempt the run is retired
+ * (`stale/context_changed`) and a successor takes the reading that is waiting. Nothing was spent
+ * since the claim, so the successor is not paced. A run with an attempt in flight is left to the
+ * ledger's own recovery.
+ */
+async function retireUnreadableContext(
+  p: CartographerPorts,
+  authority: Parameters<CartographerPorts['withScope']>[0],
+  runId: string,
+) {
+  await p.withScope(authority, async (scope) => {
+    let generation: number | undefined;
+    const result = await p.harness.readPersonalRunAccounting(scope, runId, async (current, owner) => {
+      const h = await p.store.accountingHeader(current, runId);
+      if (
+        !h ||
+        !['queued', 'prepared'].includes(h.status) ||
+        !h.accountId ||
+        !same(h.accountId, owner.accountId) ||
+        h.generation === undefined ||
+        (h.claimUntil && Date.parse(h.claimUntil) > p.now().getTime()) ||
+        (await p.store.state(current)).activeRunId !== h.id ||
+        (await p.fenceRecording(current, h.generation)).kind !== 'recording'
+      )
+        return 'unavailable';
+      generation = h.generation;
+      return {
+        ownerModule: 'geography',
+        purpose: 'personal-cartographer',
+        accountId: owner.accountId,
+        privacyEpoch: owner.privacyEpoch,
+        recordingGeneration: h.generation,
+      };
+    });
+    const nothingLive =
+      result.kind === 'not_found' || (result.kind === 'accounted' && result.disposition === 'conclusive');
+    if (generation === undefined || !nothingLive) return;
+    const gate = await p.fenceRecording(scope, generation);
+    if (gate.kind !== 'recording') return;
+    await p.store.retire(scope, runId, 'context_changed');
+    const state = await p.store.state(scope),
+      idle = { ...state, activeRunId: undefined };
+    await p.store.writeState(scope, idle);
+    if (idle.desiredSource?.generation === gate.scope.generation) await ensureCartography(p, gate.scope, idle);
   });
 }
 /** What the harness returned for one Cartographer run, with the frozen run it belongs to. */
@@ -268,7 +321,14 @@ function planFor(
   outcome: ProposeOutcome<GeographyProposal>,
   facts: GeographyContext['facts'],
 ): FormationPlan | undefined {
-  if (outcome.kind === 'proposed') return reconcileWithRules(outcome.output, facts);
+  if (outcome.kind === 'proposed') {
+    const plan = reconcileWithRules(outcome.output, facts);
+    // An empty answer is the normal reply (D-052): the model adds nothing and code applies what is due.
+    // That is a valid proposal plus the rules, not the rules alone for lack of a usable answer.
+    return plan.source === 'rules' && outcome.output.operations.length === 0
+      ? { ...plan, source: 'model_with_rules' }
+      : plan;
+  }
   if (outcome.kind === 'unknown') return undefined;
   const proposal = requiredChanges(facts);
   return proposal.operations.length ? { proposal, source: 'rules' } : undefined;
@@ -414,7 +474,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         run.hasContext &&
         (hashes.contextSha256 !== run.contextSha256 || hashes.modelContextSha256 !== run.modelContextSha256)
       )
-        return undefined;
+        return { kind: 'context_unreadable' } as const;
       if (!(await p.ownerActive(scope))) return undefined;
       const claimed: GeographyRun = {
         ...consumed,
@@ -442,6 +502,10 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       return { kind: 'prepared', run: claimed, context, modelOptional } as const;
     });
     if (prepared.kind !== 'entered' || !prepared.value) return;
+    if (prepared.value.kind === 'context_unreadable') {
+      await retireUnreadableContext(p, authority, job.runId);
+      return;
+    }
     if (prepared.value.kind === 'revoked') {
       await retireRevoked(p, authority, job.runId, {
         generation: job.v === 2 ? (job.recordingGeneration ?? null) : null,

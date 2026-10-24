@@ -42,16 +42,20 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
 3. Formation is the rules' decision (D-038), so a model has something to choose only when a place is
    due. With none due, a reading-triggered run asks no model: it applies any activity change by the
    rules, or settles `insufficient/no_changes`, with no ledger run. An explicit request
-   (`REQUEST_CARTOGRAPHY`) always asks the model.
+   (`REQUEST_CARTOGRAPHY`) asks the model even then. That is a latent operator path: nothing in the
+   product calls it yet, and the mark is read from the person's latest desired source when the run is
+   claimed, so reading that arrives before the run starts overwrites it. Only a run's first claim can
+   skip the model.
    Otherwise the role `geography.cartographer` asks the model for a `cartographer-proposal.v1`. The
-   context lists the places the rules entitle as ready `due` operations; the model returns them,
-   may pick another canonical label, and may add a route. No model call happens inside a database
-   transaction.
+   context lists the places the rules entitle as ready `due` operations. Code applies all of them
+   whatever the model returns, so the model returns only what it adds: another canonical label for a
+   due place, a route, a label revision. An empty answer is the normal reply. No model call happens
+   inside a database transaction.
 4. Code picks what to apply (`planFor` in `application/run.ts`) and records it in the run's
    `outcome`:
    - `applied`: a valid proposal that already covers what the rules require;
    - `applied_with_rules`: a valid proposal plus every place or activity change the rules require
-     that it left out (`reconcileWithRules`);
+     that it left out (`reconcileWithRules`). An empty answer, the normal reply, lands here;
    - `applied_by_rules`: the rules alone (`requiredChanges`, canonical catalogue labels), when the
      model gave nothing usable (invalid output after one repair, provider failure, quota, budget,
      the role's failure brake), or when its proposal conflicts with the rules (two operations on one
@@ -171,6 +175,10 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 - A missing provider refuses before any model attempt exists. With nothing retained, the rules are
   applied or the run is released as `insufficient/provider_unavailable`; reading never strands.
   An unknown attempt is the only state that holds a run for an operator.
+- A run claimed before a deploy that changed the model-facing context (D-052 added the `due` items)
+  no longer hashes the way it was recorded and could never send. The next claim retires it
+  (`stale/context_changed`) when accounting shows no live attempt, and starts a successor. A run with
+  an attempt in flight is left to the ledger's recovery.
 
 ## Limits and degradation
 

@@ -462,8 +462,13 @@ async function claimRun(p: PlannerPorts, authority: Authority, payload: PlannerJ
   });
 }
 
-/** Refusals after which this run's ledger run can never send again; a new business run is the way on. */
-const LEDGER_RUN_UNUSABLE: ReadonlySet<string> = new Set(['run_closed', 'run_mismatch', 'attempts_exhausted']);
+/**
+ * Refusals, with the ledger run still open, after which it can never send again: it was admitted by
+ * another role version (`run_mismatch`) or has spent its attempts (`attempts_exhausted`). A new
+ * business run is the way on. `run_closed` is not here: the facade refuses to apply under a closed
+ * ledger run, so that case ends in `finishUnadmitted` instead.
+ */
+const LEDGER_RUN_UNUSABLE: ReadonlySet<string> = new Set(['run_mismatch', 'attempts_exhausted']);
 
 /** Why a run ends with no plan and no way to go on as it is, or undefined when it may still be tried. */
 function endedReason(outcome: ProposeOutcome<PlannerProposal>): string | undefined {

@@ -7,6 +7,7 @@ import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { ReasoningRole } from '@knowscroll/backend/reasoning';
 import {
+  makeAttemptLedger,
   makeMiniMaxModelPort,
   reasoningOperatorFor,
   type AttemptLedger,
@@ -201,6 +202,48 @@ describe('reasoning recovery, charging and run rules (real database, fixture mod
       expect((await attemptsOf(db(), person.universeId))[0]?.state).toBe('unknown');
       expect(await operator().closeIdleRuns(0)).toBe(0);
       expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+    });
+
+    it('refuses to reserve an attempt under a run that was closed after it was admitted', async () => {
+      const person = await seedPerson(db());
+      const ledger = makeAttemptLedger(db());
+      const runId = randomUUID();
+      const descriptor = {
+        id: runId,
+        ownerModule: 'fixture',
+        purpose: 'fixture-echo',
+        roleId: echoRole.id,
+        roleVersion: echoRole.version,
+        policyVersion: 'fixture.v1',
+        provider: 'fixture',
+        model: 'fixture-model',
+        contextBundleRef: fixtureContext.bundleRef,
+        contextRefs: fixtureContext.items.map((item) => item.ref),
+      };
+      const body = new TextEncoder().encode('{}');
+      // The idle sweep takes no personal root lock, so it can close a run between admission and reservation.
+      await expect(
+        withScope()(systemAuthority(person.universeId), async (scope) => {
+          expect(await ledger.admitRun(scope, descriptor)).toMatchObject({ kind: 'admitted' });
+          expect(await ledger.closeRun(scope, { runId, state: 'cancelled' })).toBe('closed');
+          await ledger.reserve(scope, {
+            id: randomUUID(),
+            runId,
+            step: 'primary',
+            provider: descriptor.provider,
+            model: descriptor.model,
+            roleId: descriptor.roleId,
+            roleVersion: descriptor.roleVersion,
+            promptVersion: 'hp2',
+            requestHash: 'a'.repeat(64),
+            requestBody: body,
+            maxOutputTokens: 256,
+            reservedTokens: 300,
+            requestRetentionSeconds: 3_600,
+          });
+        }),
+      ).rejects.toThrow('Reasoning run is unavailable');
+      expect(await attemptsOf(db(), person.universeId)).toEqual([]);
     });
 
     it('waits for the idle time to pass after the latest attempt settled', async () => {

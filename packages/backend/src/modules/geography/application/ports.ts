@@ -142,7 +142,8 @@ export interface GeographyStore {
   header(scope: PersonalScopeTx, id: string): Promise<GeographyRunHeader | undefined>;
   accountingHeader(scope: PersonalScopeTx, id: string): Promise<GeographyAccountingHeader | undefined>;
   context(scope: RecordingScopeTx, id: string): Promise<GeographyContext | undefined>;
-  retire(scope: PersonalScopeTx, id: string): Promise<void>;
+  /** Ends a run nothing will resume; `outcome` says why (default: a revoked recording generation). */
+  retire(scope: PersonalScopeTx, id: string, outcome?: string): Promise<void>;
   /** Settles the exact claimed run the harness refused before admitting it, and releases its claim. */
   finishUnadmitted(
     scope: PersonalScopeTx,

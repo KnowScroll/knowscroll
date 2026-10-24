@@ -143,6 +143,22 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     expect(await runOf(nothingDue.runId)).toMatchObject({ status: 'rejected', outcome: 'failed' });
     expect((await state(person)).activeRunId).toBeUndefined();
 
+    // A malformed answer is refused after its one repair, and the ledger run is cancelled, not completed.
+    const askedAgain = await world.request(person.authority, { commandId: randomUUID() });
+    if (askedAgain.kind !== 'accepted') throw new Error('CI request refused');
+    const malformed = await cartograph(person, () => garbage);
+    expect(malformed.runId).toBe(askedAgain.runId);
+    expect(malformed.model.calls).toHaveLength(2);
+    expect(await runOf(malformed.runId)).toMatchObject({ status: 'rejected', outcome: 'invalid_output' });
+    expect(
+      await database.db
+        .selectFrom('reasoning.business_runs')
+        .select('state')
+        .where('id', '=', malformed.runId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ state: 'cancelled' });
+    expect((await state(person)).activeRunId).toBeUndefined();
+
     await observe(person, await fixture(undefined, topic, [otherFacet]));
     const due = await cartograph(person, () => providerDown);
     expect(await placeKinds(person)).toEqual(['star', 'system']);

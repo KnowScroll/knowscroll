@@ -34,7 +34,7 @@ become one newer desired revision, not many jobs.
 Runs are paced (D-052). A settled run sets `planner.state.next_run_not_before` five minutes ahead
 (`domain/pacing.ts`), and the wake of the next run waits for it. Evidence that arrives meanwhile joins
 that pending run, which freezes its context when it starts. The first run after a quiet period starts at
-once. A request from the person is not paced: it starts a run at once when none is pending and otherwise joins the pending one.
+once. A request (`REQUEST_PLANNER`) is not paced: it starts a run at once when none is pending and otherwise joins the pending one. It is a latent operator path: nothing in the product calls it yet. A plain request accepted while a run works does not void that run's plan (only a new intent does); it gets a paced successor.
 
 A run that stopped does not end the person's Planner. New evidence puts a `blocked` run (disabled, no
 provider, quota, a refusal: nothing was sent) back in the queue by the same transition as an
@@ -173,7 +173,8 @@ Layout: `domain/proposal.ts` (schemas, `opportunityIssue`, `diversify`), `applic
 claims, recovery, generations, privacy and erasure with an authored fixture model.
 `planner.test.ts` also covers the churn rules: a plan accepted while more evidence arrived and one paced
 successor, a plan staled by a new intent, a budget-refused run ended with its ledger run closed, and a run
-whose ledger run was closed starting over with a new one.
+whose ledger run was closed starting over with a new one, and a plain request accepted mid-flight getting a paced
+successor.
 `tests/integration/modules/planner-loop.test.ts` covers the connected loop: a qualified encounter
 queues the run in the same transaction, the worker accepts a plan, Composer ranks with it and Supply
 holds the deferred demand, and a Clear removes it all and fences a stale delivery. Fixture replies are

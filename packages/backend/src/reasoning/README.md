@@ -376,7 +376,8 @@ reads on top, which may count a cached read twice if MiniMax's `input_tokens` al
 (an open question to check on the first real response on dev, `providers-and-secrets.md`).
 A refused admission leaves no reservation, but `admitRun` has already recorded the run, so a role that
 ends a run on `budget_exhausted` or `failure_brake` must close it (the Planner and the Cartographer
-do, D-052); the idle-run sweep closes any that is left. Measured on dev, a Cartographer call costs about
+do, D-052); the idle-run sweep closes any that is left. `reserve` refuses a run that is no longer `admitted`: the
+sweep takes no personal root lock, so it can close a run between admission and reservation. Measured on dev, a Cartographer call costs about
 10,000 tokens and a Planner call about 6,000, against the default per-person day of 60 requests and 600,000
 tokens; with the rules in D-052 a 30-minute reading session uses about 70,000.
 Erasing a universe deletes its attempts, which are what the **scope** cap counts, so a person who

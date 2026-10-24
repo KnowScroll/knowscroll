@@ -93,6 +93,13 @@ describe('what the Cartographer is asked', () => {
     expect(version).toBe('cartographer2');
   });
 
+  it('asks the model only for what it adds, because code applies every due operation anyway', () => {
+    const { instructions } = cartographerRole(twoUnits);
+    expect(instructions).toContain('Code applies all of them whatever you return, so do not repeat them');
+    expect(instructions).toContain('an empty operations array is a good answer');
+    expect(instructions).not.toContain('Return every due operation');
+  });
+
   it('hands over what the rules already entitle as ready operations, and nothing when nothing is due', () => {
     const due = dueItems(twoUnits).flatMap((item) => JSON.parse(item.text) as unknown[]);
     expect(due).toEqual(JSON.parse(JSON.stringify(requiredChanges(twoUnits.facts).operations)));

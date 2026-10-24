@@ -200,12 +200,15 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
       const universeId = scope.authority.universeId;
       const run = await trx
         .selectFrom('reasoning.business_runs')
-        .select('privacy_erased_at')
+        .select(['privacy_erased_at', 'state'])
         .where('universe_id', '=', universeId)
         .where('id', '=', reservation.runId)
         .forUpdate()
         .executeTakeFirst();
-      if (run === undefined || run.privacy_erased_at !== null) throw new Error('Reasoning run is unavailable');
+      // The idle sweep takes no personal root lock, so it can close a run between `admitRun` and here.
+      // An attempt reserved under a closed run would be an orphan; the next delivery finds `run_closed`.
+      if (run === undefined || run.privacy_erased_at !== null || run.state !== 'admitted')
+        throw new Error('Reasoning run is unavailable');
       await trx
         .insertInto('reasoning.external_attempts')
         .values({

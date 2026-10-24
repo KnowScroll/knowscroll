@@ -635,6 +635,39 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       await database.db.selectFrom('planner.runs').select('id').where('universe_id', '=', p.universeId).execute(),
     ).toHaveLength(2);
   });
+  it('accepts the plan of a run while a plain request arrives, then queues one paced successor for the request', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    let release!: (s: FixtureScenario) => void, started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<FixtureScenario>((resolve) => {
+      release = resolve;
+    });
+    const r = runner(p, () => {
+      started();
+      return { kind: 'hold', until: held };
+    });
+    const first = await state(p),
+      running = r.run(await job(p, first.active_run_id!), signal());
+    await entered;
+    const context = await frozen(p);
+    // A request without an intent changes nothing the plan was made for, but it asks for a newer run.
+    await request(p.authority, { commandId: randomUUID() });
+    expect((await state(p)).active_run_id).toBe(first.active_run_id);
+    release({ kind: 'success', text: JSON.stringify(answer(context)) });
+    expect(await running).toMatchObject({ kind: 'entered', value: { kind: 'accepted' } });
+    expect(await ledgerStates(p)).toEqual(['completed']);
+    const after = await state(p);
+    expect(after.active_run_id).not.toBeNull();
+    expect(after.active_run_id).not.toBe(first.active_run_id);
+    // The successor is paced like any other: it does not start until the interval has passed.
+    expect(await wakeStart(p, after.active_run_id!)).toBeGreaterThan(Date.now() + 4 * 60_000);
+    expect(
+      await database.db.selectFrom('planner.runs').select('id').where('universe_id', '=', p.universeId).execute(),
+    ).toHaveLength(2);
+  });
   it('ends a run that budget refuses: its ledger run is closed, not left admitted, and new reading starts another', async () => {
     const p = await seedPerson(database.db);
     await qualify(p);

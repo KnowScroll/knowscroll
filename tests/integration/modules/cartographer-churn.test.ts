@@ -136,6 +136,92 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
     expect((await state(person)).activeRunId).toBeUndefined();
   });
 
+  it('applies what is due when the model adds nothing, as a valid proposal plus the rules', async () => {
+    const { database, coherent, state, runner, job } = world;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const runId = (await state(person)).activeRunId!;
+    const run = runner(person, () => ({
+      kind: 'success',
+      text: JSON.stringify({ version: 'cartographer-proposal.v1', operations: [] }),
+    }));
+    await run.run(await job(person, runId), signal());
+    expect(run.model.calls).toHaveLength(1);
+    expect(await runsOf(person)).toEqual([{ id: runId, status: 'accepted', outcome: 'applied_with_rules' }]);
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+    expect(await ledgerOf(person)).toEqual(['completed']);
+  });
+
+  /** A run claimed by code whose context layout hashed differently, that died after the claim. */
+  async function frozenUnderOlderLayout(person: FixturePerson) {
+    const { base, state, runner, job } = world;
+    const runId = (await state(person)).activeRunId!;
+    const { ports } = runner(person);
+    const older = makeRunCartographer({
+      ...ports,
+      // Only the two context hashes differ, as if the model-facing context had another layout.
+      hash: (value) =>
+        base.hash(
+          typeof value === 'object' && value !== null && ('bundleRef' in value || 'factsSha256' in value)
+            ? { layout: 'before-due-items', value }
+            : value,
+        ),
+      harness: { ...ports.harness, proposePersonal: () => Promise.reject(new Error('CI crash after claim')) },
+    });
+    await expect(older(await job(person, runId), signal())).rejects.toThrow('CI crash after claim');
+    await world.database.db
+      .updateTable('geography.runs')
+      .set({ claim_until: sql<Date>`now() - interval '1 minute'` })
+      .where('universe_id', '=', person.universeId)
+      .where('id', '=', runId)
+      .execute();
+    return runId;
+  }
+
+  it('retires a run frozen under an older context hash and starts a successor, so it does not hold the scope', async () => {
+    const { database, coherent, state, runner, job } = world;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const runId = await frozenUnderOlderLayout(person);
+    expect(await runsOf(person)).toMatchObject([{ id: runId, status: 'prepared' }]);
+
+    const today = runner(person);
+    await today.run(await job(person, runId), signal());
+    expect(today.model.calls).toHaveLength(0);
+    expect(await ledgerOf(person)).toEqual([]);
+    const [retired, successor] = await runsOf(person);
+    expect(retired).toEqual({ id: runId, status: 'stale', outcome: 'context_changed' });
+    expect(successor).toMatchObject({ status: 'queued' });
+    expect((await state(person)).activeRunId).toBe(successor!.id);
+
+    // The successor is frozen by today's code and forms the places.
+    const next = runner(person);
+    await next.run(await job(person, successor!.id), signal());
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+  });
+
+  it('leaves a run frozen under an older context hash alone while accounting shows a live attempt', async () => {
+    const { database, coherent, state, runner, job } = world;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const runId = await frozenUnderOlderLayout(person);
+    const { ports } = runner(person);
+    await makeRunCartographer({
+      ...ports,
+      harness: {
+        ...ports.harness,
+        readPersonalRunAccounting: async (scope, id, readBinding) => {
+          const accounting = await ports.harness.readPersonalRunAccounting(scope, id, readBinding);
+          return accounting.kind === 'unavailable'
+            ? accounting
+            : { kind: 'accounted', disposition: 'unresolved', attempts: [] };
+        },
+      },
+    })(await job(person, runId), signal());
+    expect(await runsOf(person)).toMatchObject([{ id: runId, status: 'prepared' }]);
+    expect((await state(person)).activeRunId).toBe(runId);
+  });
+
   it('completes the ledger run of a valid answer that concludes nothing needs changing', async () => {
     const { database, fixture, observe, state, runner, job } = world;
     const person = await seedPerson(database.db);

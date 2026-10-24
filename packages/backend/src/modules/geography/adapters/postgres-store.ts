@@ -174,9 +174,9 @@ export const geographyStore: GeographyStore = {
       );
     if (result.rows.length !== 1) throw new Error('GEOGRAPHY_UNADMITTED_CLAIM_CHANGED');
   },
-  async retire(scope, id) {
+  async retire(scope, id, outcome = 'recording_revoked') {
     const { tx, u, e } = owner(scope);
-    await sql`update geography.runs set status='stale',outcome='recording_revoked',claim_id=null,claim_until=null,normal_wake_id=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status in('queued','prepared','blocked','unknown')`.execute(
+    await sql`update geography.runs set status='stale',outcome=${outcome},claim_id=null,claim_until=null,normal_wake_id=null,claim_wake_claim_id=null,updated_at=now() where universe_id=${u}::uuid and privacy_epoch=${e} and id=${id}::uuid and status in('queued','prepared','blocked','unknown')`.execute(
       tx,
     );
   },
