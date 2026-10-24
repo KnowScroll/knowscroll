@@ -18,7 +18,7 @@ const report = {
   sequence: 4,
   count: 2,
   categories: ['harassment', 'spam'],
-  lastReportedAt: '2026-10-24T09:30:00.000Z',
+  lastReportedAt: '2026-10-24T00:00:00.000Z',
 };
 
 async function show(reports: (input: unknown) => Promise<unknown>) {

@@ -18,6 +18,7 @@ const removed = [
 const stays = [
   'Reels and Scrolls KnowScroll made, which anyone can read.',
   'What other people wrote and kept. They see "Deleted account" where you were.',
+  'Reports other people sent about you or your messages stay for 90 days, no longer linked to your account. Reports you sent are removed.',
 ];
 
 /**
