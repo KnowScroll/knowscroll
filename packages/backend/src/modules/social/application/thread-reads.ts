@@ -13,6 +13,7 @@ import {
   type PublicPersonRef,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
+import type { SnippetResolution, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { isParticipant } from '../domain/threads.js';
@@ -20,7 +21,7 @@ import type { ContentRef, MessageRow } from './conversation-ports.js';
 import { DELETED_PERSON } from './deleted-person.js';
 import { refuse, threadEnvelope, type Result } from './ports.js';
 import { enterThread, threadRefOf } from './thread-gate.js';
-import type { ThreadMember, ThreadPorts } from './thread-ports.js';
+import type { ThreadLock, ThreadMember, ThreadPorts } from './thread-ports.js';
 import { participantsOf, threadEpisodes, viewThreadMessages } from './thread-view.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
@@ -49,6 +50,29 @@ function inviterOf(
 ): PublicPersonRef {
   const inviter = members.find((candidate) => candidate.accountId === (member.inviterAccountId ?? starterAccountId));
   return inviter?.person ?? DELETED_PERSON;
+}
+
+/** The title of the content's current revision, or nothing when it cannot be shown (withdrawn meanwhile). */
+async function currentTitle(p: ThreadPorts, lock: ThreadLock, location: ContentRef): Promise<string | undefined> {
+  const [card] = await p.conversations.cards(lock, [location]);
+  return card?.status === 'available' ? card.metadata.title : undefined;
+}
+
+/**
+ * The anchor to open, with the words the banner shows. They come from the stored snippet, which copied
+ * them from the exact revision the sender saw; a correction only moved where they are found.
+ */
+function openedAnchor(resolved: Extract<SnippetResolution, { status: 'ready' }>['anchor'], stored: StoredSnippetAnchor) {
+  if (resolved.kind === 'scroll_passage' && stored.kind === 'scroll_passage') return { ...resolved, quote: stored.quote };
+  if (resolved.kind === 'scroll_block' && stored.kind === 'scroll_block') {
+    const settings = resolved.snapshot === undefined ? undefined : stored.settings;
+    return {
+      ...resolved,
+      ...(stored.label === '' ? {} : { label: stored.label }),
+      ...(settings === undefined || settings.description === '' ? {} : { description: settings.description }),
+    };
+  }
+  return resolved;
 }
 
 /**
@@ -251,6 +275,7 @@ export function makeThreadReads(p: ThreadPorts) {
             ...(row.thread.name === null ? {} : { name: row.thread.name }),
             root: cardOf(row.thread.root),
             state: pending ? ('invited' as const) : ('joined' as const),
+            ownPersonId: row.own.person.personId,
             people: pending ? [row.inviter ?? DELETED_PERSON] : row.people,
             latestMessageSequence: pending ? 0 : row.thread.lastSequence,
             own: pending ? { readThroughSequence: 0, muted: row.own.muted } : own(row.own),
@@ -293,14 +318,18 @@ export function makeThreadReads(p: ThreadPorts) {
         if (!snippet) return unavailable();
         const resolution = await p.resolveSnippet(scope, snippet.target, snippet.anchor);
         if (resolution.status === 'unavailable') return unavailable();
+        const location = resolution.status === 'changed' ? resolution.current : resolution.content;
+        const title = await currentTitle(p, entered.lock, location);
+        if (title === undefined) return unavailable();
+        const content = { ...location, title };
         if (resolution.status === 'changed')
-          return ok(ThreadSnippetOpeningSchema.parse({ ...envelope, status: 'changed', current: resolution.current }));
+          return ok(ThreadSnippetOpeningSchema.parse({ ...envelope, status: 'changed', current: content }));
         return ok(
           ThreadSnippetOpeningSchema.parse({
             ...envelope,
             status: 'ready',
-            content: resolution.content,
-            anchor: resolution.anchor,
+            content,
+            anchor: openedAnchor(resolution.anchor, snippet.anchor),
             mapped: resolution.mapped,
             settingsReset: resolution.settingsReset,
           }),

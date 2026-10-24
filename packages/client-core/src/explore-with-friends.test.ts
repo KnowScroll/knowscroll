@@ -118,6 +118,7 @@ describe('Talk rows for threads', () => {
         metadata: { kind: 'reel', title: 'The edge', summary: '', language: 'en' },
       },
       state: 'joined',
+      ownPersonId: id(99),
       people: [person(1)],
       latestMessageSequence: 0,
       own: { readThroughSequence: 0, muted: false },
@@ -145,13 +146,13 @@ describe('Talk rows for threads', () => {
 
   it('shows the thread name, the last message and unread only for messages that are not the person’s own', () => {
     const theirs = summary({ name: 'Black holes', latestMessageSequence: 1, lastMessage: text(person(1), 'look') });
-    expect(threadRowView(theirs, id(99))).toMatchObject({
+    expect(threadRowView(theirs)).toMatchObject({
       title: 'Black holes',
       subtitle: 'Friend 1: look',
       unread: true,
     });
     const mine = summary({ latestMessageSequence: 1, lastMessage: text(person(99), 'hello') });
-    expect(threadRowView(mine, id(99))).toMatchObject({ subtitle: 'You: hello', unread: false });
+    expect(threadRowView(mine)).toMatchObject({ subtitle: 'You: hello', unread: false });
   });
 
   it('describes a snippet as a moment, a passage or a part', () => {

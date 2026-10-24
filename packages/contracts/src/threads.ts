@@ -393,6 +393,8 @@ export const ThreadSummarySchema = z.strictObject({
   root: ConversationContentProjectionSchema,
   /** Invited threads show who invited; joined threads show the people in them. */
   state: z.enum(['invited', 'joined']),
+  /** The caller's own public person ID, so a row can write "You" for their own last message. */
+  ownPersonId: UuidSchema,
   people: z
     .array(PublicPersonRefSchema)
     .min(1)
@@ -431,24 +433,35 @@ export const ResolvedSnippetAnchorSchema = z.discriminatedUnion('kind', [
     blockId: LocalId,
     start: z.number().int().min(0),
     end: z.number().int().min(1),
+    /** What the sender quoted; the passage was found again under the same words. */
+    quote: z.string().min(1).max(600),
   }),
-  z.strictObject({ kind: z.literal('scroll_block'), blockId: LocalId, snapshot: BlockStateSnapshot.optional() }),
+  z.strictObject({
+    kind: z.literal('scroll_block'),
+    blockId: LocalId,
+    snapshot: BlockStateSnapshot.optional(),
+    /** The block's own label and the settings in words, for the banner above the opened block. */
+    label: z.string().min(1).max(240).optional(),
+    description: z.string().max(400).optional(),
+  }),
 ]);
+const OpenedContent = z.strictObject({
+  kind: z.enum(['reel', 'scroll']),
+  assetId: UuidSchema,
+  assetRevision: Revision,
+  title: z.string().min(1).max(240),
+});
 export const ThreadSnippetOpeningSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
   z.strictObject({
     ...ScopedRead,
     status: z.literal('ready'),
-    content: z.strictObject({ kind: z.enum(['reel', 'scroll']), assetId: UuidSchema, assetRevision: Revision }),
+    content: OpenedContent,
     anchor: ResolvedSnippetAnchorSchema,
     mapped: z.boolean(),
     settingsReset: z.boolean(),
   }),
-  z.strictObject({
-    ...ScopedRead,
-    status: z.literal('changed'),
-    current: z.strictObject({ kind: z.enum(['reel', 'scroll']), assetId: UuidSchema, assetRevision: Revision }),
-  }),
+  z.strictObject({ ...ScopedRead, status: z.literal('changed'), current: OpenedContent }),
 ]);
 export type ThreadSnippetOpening = z.infer<typeof ThreadSnippetOpeningSchema>;
 

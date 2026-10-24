@@ -63,6 +63,7 @@ export {
 } from './content-thread';
 export {
   describeThreadMessage,
+  findThread,
   readThreadSummaries,
   threadRowView,
   type ThreadRowView,
@@ -144,6 +145,7 @@ export {
   type EarlierBlockState,
   type ScrollBlockKey,
   type ScrollBlockStateStore,
+  overlayBlockState,
 } from './scroll-state';
 export {
   createUniverseSceneSession,

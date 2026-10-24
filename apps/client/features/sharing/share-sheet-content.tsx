@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import type { ConversationContentRef, DirectConversationRef } from '@knowscroll/contracts';
+import type { ContentThreadRef, ConversationContentRef, DirectConversationRef } from '@knowscroll/contracts';
 import { spacing } from '@knowscroll/design-tokens';
+import { ExploreWithFriends } from './explore-with-friends';
 import { SendToFriend } from './send-to-friend';
 import { ShareMenu } from './share-menu';
 import { useShareSession } from './use-share-session';
@@ -19,16 +20,13 @@ export interface ShareSheetContentProps {
   readonly onClose: () => void;
   /** After "Sent": open the conversation. */
   readonly onOpenConversation: (conversation: DirectConversationRef) => void;
-  /**
-   * "Explore with friends" (a content thread with chosen friends). Offered only when the caller
-   * passes it, so the option appears with the slice that makes it work and never before.
-   */
-  readonly onExploreWithFriends?: () => void;
+  /** After "Thread created": open the thread. */
+  readonly onOpenThread: (thread: ContentThreadRef) => void;
 }
 
 /**
  * H01: the content of the share sheet, the same for a Reel and a Scroll. The menu offers "Send to a
- * conversation" (`SendToFriend`) and "Copy link", a public link that shows only the title and
+ * conversation" (`SendToFriend`), "Explore with friends" (`ExploreWithFriends`, a content thread) and "Copy link", a public link that shows only the title and
  * summary and can be stopped. "Sent" is shown only after the server's receipt, and copying a link
  * or opening the system share sheet never claims anyone received anything. Choosing, sending and
  * copying are not encounters and create no evidence.
@@ -38,9 +36,9 @@ export interface ShareSheetContentProps {
  * (D-006 k).
  */
 export function ShareSheetContent(props: ShareSheetContentProps) {
-  const { scope, title, onClose, onOpenConversation, onExploreWithFriends } = props;
+  const { scope, title, onClose, onOpenConversation, onOpenThread } = props;
   const { session, state } = useShareSession(scope, props.target, props.origin);
-  const [view, setView] = useState<'menu' | 'send'>('menu');
+  const [view, setView] = useState<'menu' | 'send' | 'explore'>('menu');
   return (
     <View style={styles.sheet}>
       {view === 'menu' ? (
@@ -49,8 +47,16 @@ export function ShareSheetContent(props: ShareSheetContentProps) {
           link={state.link}
           title={title}
           onSendToConversation={() => setView('send')}
-          onExploreWithFriends={onExploreWithFriends}
+          onExploreWithFriends={() => setView('explore')}
           onClose={onClose}
+        />
+      ) : view === 'explore' ? (
+        <ExploreWithFriends
+          scope={scope}
+          root={props.target}
+          onBack={() => setView('menu')}
+          onClose={onClose}
+          onOpenThread={onOpenThread}
         />
       ) : (
         <SendToFriend
