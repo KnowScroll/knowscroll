@@ -64,6 +64,9 @@ Block end it for both people without saying why.
 - **Leave** closes the conversation for both. The other person keeps the history, sees that it ended
   (`ended: true`) and cannot send.
 - **A conversation shows in Talk once it has a message.** `start` alone does not announce.
+- **The inbox reads consistently.** It lists conversations in one statement, then reads each one's last message by
+  the exact (conversation, sequence) pair that statement returned, so a message that commits in between can never
+  make a row say "N messages" and show message N+1. A cursor with a time no date can hold is treated as no cursor.
 - **Cursors** for the inbox (`kci1_`), history (`kch1_`) and changes (`kcc1_`) are base64url of a version, a
   number and an ID. They are positions only. Every read checks that the caller is a member.
 - **Deleted person.** When the other account is deleted, the friendship row goes and `conversations.pair_id`
@@ -125,7 +128,6 @@ their shared links without tokens. It names no other person.
 - A lost response: retry with the same command ID.
 - A lost hint: the next hint, a focus, or the 30 second poll reads `changes` from the cursor.
 - A stale friendship view: the command is refused as stale and the client rereads the pair.
-- Counter exhaustion refuses with `counter_exhausted` rather than wrapping.
 
 ## Related
 

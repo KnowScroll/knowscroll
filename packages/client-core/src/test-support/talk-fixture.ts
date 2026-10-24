@@ -4,7 +4,7 @@
  * server's rules that the clients depend on (gapless sequences, idempotent commands, cursors,
  * tombstones that replace a message) and nothing else. Never product data.
  */
-import { createAccountScope, memoryStore, type AccountScope } from './account-scope';
+import { createAccountScope, memoryStore, type AccountScope } from '../account-scope';
 
 export const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 export const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'talk@fixture.test' };

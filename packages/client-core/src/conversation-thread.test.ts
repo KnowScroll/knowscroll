@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createConversationThread } from './conversation-thread';
-import { conversation, peer, talkServer } from './talk-fixture';
+import type { ConversationMessage } from '@knowscroll/contracts';
+import { createConversationThread, mergeMessages } from './conversation-thread';
+import { conversation, peer, talkServer } from './test-support/talk-fixture';
 
 let counter = 0;
 const newId = () => `0199a000-0000-7000-8000-${(++counter + 5000).toString(16).padStart(12, '0')}`;
@@ -179,5 +180,34 @@ describe('conversation thread after the other account is deleted', () => {
     await thread.refresh();
     expect(thread.getState()).toMatchObject({ ended: true, peer: { displayName: 'Deleted account' } });
     expect(thread.getState().messages).toHaveLength(1);
+  });
+});
+
+describe('mergeMessages', () => {
+  const messageId = '0199a000-0000-7000-8000-0000000000aa';
+  const available = (sequence: number, body: string): ConversationMessage => ({
+    messageId,
+    sequence,
+    status: 'available',
+    author: peer,
+    recordedAt: '2026-10-24T08:00:00.000Z',
+    body: { kind: 'text', text: body },
+  });
+  const tombstone = (sequence: number): ConversationMessage => ({ messageId, sequence, status: 'unavailable' });
+
+  it('puts a tombstone in place of the message it replaces', () => {
+    expect(mergeMessages([available(1, 'delete me')], [tombstone(1)])).toEqual([tombstone(1)]);
+  });
+
+  it('never brings deleted text back from an older page that was fetched before the deletion', () => {
+    expect(mergeMessages([tombstone(1), available(2, 'stays')], [available(1, 'delete me')])).toEqual([
+      tombstone(1),
+      available(2, 'stays'),
+    ]);
+  });
+
+  it('orders by sequence and keeps one copy of a repeated message', () => {
+    const merged = mergeMessages([available(3, 'c'), available(1, 'a')], [available(2, 'b'), available(3, 'c')]);
+    expect(merged.map((message) => message.sequence)).toEqual([1, 2, 3]);
   });
 });

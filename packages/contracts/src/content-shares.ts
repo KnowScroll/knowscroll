@@ -111,8 +111,9 @@ export const OwnContentSharesSchema = z.strictObject({
     .max(50),
 });
 /** Sensitive JSON only; no token in ordinary API URLs/logs/errors/receipts/notices/storage.
- * The dedicated future /s/:token landing must isolate proxy/referrer/OG handling. It does not
- * join a conversation/thread or create any receipt/exposure merely by resolving a link. */
+ * The `/s/:token` landing page (rendered by the API; no script, no referrer, never cached or
+ * indexed) isolates proxy/referrer/OG handling. It does not join a conversation/thread or create
+ * any receipt/exposure merely by resolving a link. */
 export const ResolveContentShareSchema = z.strictObject({ ...Read, token: ContentShareTokenSchema });
 export const ResolvedContentShareSchema = z.discriminatedUnion('status', [
   // Indistinguishable unknown/expired/revoked/withdrawn/private-denied/block/membership loss.

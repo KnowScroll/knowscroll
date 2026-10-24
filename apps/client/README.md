@@ -361,15 +361,17 @@ Presence, visitor visibility and contacts upload are not implied. See
 
 ## Talk and sharing (#242, D-042)
 
-- `features/conversations/`: C01 (`conversations-screen.tsx`, `use-talk-inbox.ts`) and C02 (`conversation-screen.tsx`,
-  `use-conversation-thread.ts`, `message-views.tsx`, `composer.tsx`, `conversation-menu.tsx`). The logic is
+- `features/conversations/`: C01 (`conversations-screen.tsx`, `use-talk-inbox.ts`) and C02: `conversation-screen.tsx`
+  finds the conversation to open, `thread-view.tsx` is the open thread (notices, composer, options menu) around
+  `thread-header.tsx` and `message-list.tsx` (messages by day; it follows the end only for a reader who is there),
+  with `use-conversation-thread.ts`, `message-views.tsx`, `composer.tsx` and `conversation-menu.tsx`. The logic is
   `createConversationThread` in client-core: first a snapshot, then catch-up reads from a cursor. A message the
   person sends shows as sending, sent, "not confirmed" or "not sent", and a retry reuses the same command ID. The
   draft is kept in the account scope's storage.
 - `features/sharing/`: `share-sheet-body.tsx` is what a sheet container renders for H01: it needs only the exact
   asset revision, the title and a close callback. It reads the account scope and the API origin itself, and wraps
-  `share-sheet-content.tsx` (Send to a conversation: pick a friend, add a note; Copy link; Share elsewhere; Stop
-  sharing this link). The container, the encounter's sheet, owns the header, pauses playback while the sheet is
+  `share-sheet-content.tsx`, which switches between `share-menu.tsx` (Send to a conversation, Copy link, Share
+  elsewhere, Stop sharing this link) and `send-to-friend.tsx` (`friend-picker.tsx`, a note, Send, Retry). The container, the encounter's sheet, owns the header, pauses playback while the sheet is
   open, restores it in `onClose` and keeps the sheet out of Back history (D-006 k). After "Open chat" the body
   closes the sheet, then navigates through `platform/after-pending-back`: on the web the encounter removes its
   history marker with an asynchronous Back, and an address pushed before it lands would be popped again.

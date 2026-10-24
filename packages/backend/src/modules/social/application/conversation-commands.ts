@@ -63,33 +63,28 @@ export function makeConversationCommands(p: ConversationPorts) {
       decide(context: CommandContext): Promise<Result<Decision<A>>>;
     },
   ): Promise<Result<A>> {
-    try {
-      const result = await p.withScope(authority, async (scope): Promise<Result<A>> => {
-        const entered = await enterConversation(p, scope, spec.command.conversation);
-        if (!entered) return refuse('unavailable');
-        const key = {
-          commandId: spec.command.commandId,
-          operation: spec.operation,
-          outcomeVersion: 1,
-          requestHash: p.hash(spec.operation, { ...spec.request, actorPrivacyEpoch: scope.authority.privacyEpoch }),
-        };
-        const receiptScope = entered.lock ?? scope;
-        const receipt = await p.store.findReceipt(receiptScope, key);
-        if (receipt.kind === 'refused') return receipt;
-        if (receipt.kind === 'replay') return ok({ ...spec.acceptance.parse(receipt.outcome), replayed: true });
-        const decision = await spec.decide({ scope, entered, now: p.now() });
-        if (decision.kind === 'refused') return decision;
-        await p.store.beginReceipt(receiptScope, key);
-        const acceptance = await decision.value.write();
-        await p.conversations.announce(entered.reader, decision.value.announce, () => p.newId());
-        await p.store.receipt(receiptScope, key, acceptance);
-        return ok(acceptance);
-      });
-      return result.kind === 'entered' ? result.value : refuse('unavailable');
-    } catch (error) {
-      if (error instanceof Error && error.message === 'SOCIAL_COUNTER_EXHAUSTED') return refuse('counter_exhausted');
-      throw error;
-    }
+    const result = await p.withScope(authority, async (scope): Promise<Result<A>> => {
+      const entered = await enterConversation(p, scope, spec.command.conversation);
+      if (!entered) return refuse('unavailable');
+      const key = {
+        commandId: spec.command.commandId,
+        operation: spec.operation,
+        outcomeVersion: 1,
+        requestHash: p.hash(spec.operation, { ...spec.request, actorPrivacyEpoch: scope.authority.privacyEpoch }),
+      };
+      const receiptScope = entered.lock ?? scope;
+      const receipt = await p.store.findReceipt(receiptScope, key);
+      if (receipt.kind === 'refused') return receipt;
+      if (receipt.kind === 'replay') return ok({ ...spec.acceptance.parse(receipt.outcome), replayed: true });
+      const decision = await spec.decide({ scope, entered, now: p.now() });
+      if (decision.kind === 'refused') return decision;
+      await p.store.beginReceipt(receiptScope, key);
+      const acceptance = await decision.value.write();
+      await p.conversations.announce(entered.reader, decision.value.announce, () => p.newId());
+      await p.store.receipt(receiptScope, key, acceptance);
+      return ok(acceptance);
+    });
+    return result.kind === 'entered' ? result.value : refuse('unavailable');
   }
 
   const receiptBase = ({ scope, now }: CommandContext, commandId: string) => ({

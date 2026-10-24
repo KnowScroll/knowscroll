@@ -1,6 +1,6 @@
 /** Labelled fixtures for conversation and share-link tests: real use cases over the test database, no HTTP. */
 import { createHash, randomUUID } from 'node:crypto';
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type KyselyPlugin, type PluginTransformResultArgs, type UnknownRow } from 'kysely';
 import { expect } from 'vitest';
 import type { PublicPersonRef } from '@knowscroll/contracts';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -31,6 +31,26 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
       readContent: readShareableContent,
       readPublicContent: makeReadPublicContent(db),
     }),
+  };
+}
+
+/**
+ * A Kysely plugin that runs `action` once, right after the Talk inbox's first statement (the one that
+ * lists conversations) has returned its rows and before the next statement. It stands in for a
+ * message that commits in the middle of a read, which READ COMMITTED allows.
+ */
+export function afterInboxRows(action: () => Promise<void>): KyselyPlugin {
+  let fired = false;
+  return {
+    transformQuery: ({ node }) => node,
+    async transformResult({ result }: PluginTransformResultArgs) {
+      const listed = result.rows.some((row: UnknownRow) => 'own_membership_id' in row);
+      if (listed && !fired) {
+        fired = true;
+        await action();
+      }
+      return result;
+    },
   };
 }
 

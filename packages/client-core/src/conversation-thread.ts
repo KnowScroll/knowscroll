@@ -71,14 +71,21 @@ export interface ThreadOptions {
 const sortedBySequence = (messages: Iterable<ConversationMessage>) =>
   [...messages].sort((a, b) => a.sequence - b.sequence);
 
-/** Messages by sequence: a later version of a message (a tombstone) replaces the earlier one. */
+/**
+ * Messages by sequence. A tombstone is final: an older page fetched before a deletion must never
+ * bring the deleted text back, so an `available` copy never replaces an `unavailable` one. Any
+ * other later version replaces the earlier.
+ */
 export function mergeMessages(
   existing: readonly ConversationMessage[],
   incoming: readonly ConversationMessage[],
 ): readonly ConversationMessage[] {
   const bySequence = new Map<number, ConversationMessage>();
   for (const message of existing) bySequence.set(message.sequence, message);
-  for (const message of incoming) bySequence.set(message.sequence, message);
+  for (const message of incoming) {
+    if (bySequence.get(message.sequence)?.status === 'unavailable' && message.status === 'available') continue;
+    bySequence.set(message.sequence, message);
+  }
   return sortedBySequence(bySequence.values());
 }
 

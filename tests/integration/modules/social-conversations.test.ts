@@ -1,5 +1,6 @@
 /** Direct conversations over real PostgreSQL: delivery, access, idempotency, live hints and erasure. */
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DELETED_ACCOUNT_LABEL, type DirectConversationRef } from '@knowscroll/contracts';
@@ -10,6 +11,7 @@ import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-prov
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson } from '../support/fixtures.js';
 import {
+  afterInboxRows,
   befriend,
   consumptionRows,
   friendCommand,
@@ -49,6 +51,31 @@ describe('direct conversations (real PostgreSQL)', () => {
   afterAll(async () => {
     await database.drop();
   });
+
+  /** A text message committed directly into the tables, as a separate transaction (no use case, no locks). */
+  async function commitMessage(conversationId: string, authorAccountId: string, body: string): Promise<void> {
+    await database.db.transaction().execute(async (trx) => {
+      const counters = await trx
+        .updateTable('social.conversations')
+        .set({ last_sequence: sql`last_sequence + 1`, last_change_sequence: sql`last_change_sequence + 1` })
+        .where('conversation_id', '=', conversationId)
+        .returning(['last_sequence', 'last_change_sequence'])
+        .executeTakeFirstOrThrow();
+      await trx
+        .insertInto('social.messages')
+        .values({
+          conversation_id: conversationId,
+          sequence: counters.last_sequence,
+          change_sequence: counters.last_change_sequence,
+          message_id: randomUUID(),
+          command_id: randomUUID(),
+          author_account_id: authorAccountId,
+          recorded_at: clock.now,
+          body_text: body,
+        })
+        .execute();
+    });
+  }
 
   /** Both friends start; they get one conversation, each with their own membership reference. */
   async function begin(a: Friend, b: Friend) {
@@ -144,6 +171,45 @@ describe('direct conversations (real PostgreSQL)', () => {
       expect(secondPage.items[0]?.peer.personId).toBe(b.person.personId);
       expect(secondPage.continuation).toEqual({ kind: 'end' });
       expect(unwrap(await inbox(a, 1, 'kci1_not-a-position-at-all-x')).status).toBe('refresh_required');
+    });
+
+    it('lists one consistent last message even when a message commits between the inbox statements', async () => {
+      const { a, b } = await seedFriends(database.db, friendsOf);
+      const { aRef } = await begin(a, b);
+      unwrap(await send(a, aRef, text('first')));
+      // Through the API a send cannot interleave (the reader holds its own account row), so the
+      // second message is committed straight into the tables, on another connection, right after
+      // the inbox's first statement. The read must not depend on that lock.
+      const reader = talkCases(
+        database.db.withPlugin(afterInboxRows(() => commitMessage(aRef.conversationId, a.accountId, 'second'))),
+        clock,
+      ).talk.conversations;
+
+      const during = unwrap(await reader.inbox(b.authority, { version, readId: randomUUID(), limit: 50 }));
+      if (during.status !== 'ready') throw new Error('CI inbox');
+      expect(during.items[0]).toMatchObject({
+        latestMessageSequence: 1,
+        lastMessage: { sequence: 1, body: { kind: 'text', text: 'first' } },
+      });
+
+      const next = unwrap(await inbox(b));
+      if (next.status !== 'ready') throw new Error('CI inbox');
+      expect(next.items[0]).toMatchObject({
+        latestMessageSequence: 2,
+        lastMessage: { sequence: 2, body: { kind: 'text', text: 'second' } },
+      });
+    });
+
+    it('asks for a fresh start when an inbox cursor holds a time no date can hold', async () => {
+      const { a, b } = await seedFriends(database.db, friendsOf);
+      const { aRef } = await begin(a, b);
+      unwrap(await send(a, aRef, text('hello')));
+      // kci1_ + base64url(version 1, 8-byte time in ms, conversation UUID): a forged time past the Date range.
+      const forged = Buffer.alloc(25);
+      forged[0] = 1;
+      forged.writeBigUInt64BE(8_640_000_000_000_001n, 1);
+      Buffer.from(aRef.conversationId.replaceAll('-', ''), 'hex').copy(forged, 9);
+      expect(unwrap(await inbox(a, 1, `kci1_${forged.toString('base64url')}`)).status).toBe('refresh_required');
     });
 
     it('pages history oldest-last, stays gapless under concurrent sends, and catches up after a hint', async () => {

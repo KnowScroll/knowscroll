@@ -346,5 +346,5 @@ they end with the scope. *Implemented; exercised in browsers locally, not yet on
   `talk-format.ts` (`describeMessage`, `inboxRowView`, `listTime`, `dayLabel`).
 - `account-scope-socket.ts` subscribes to both `universe` and `inbox`, keeps the highest revision per kind and
   invalidates `scope.queryKey('talk')` (`TALK_QUERY_KEY`) on an inbox hint.
-- `@knowscroll/client-core/talk-fixture` is a labelled in-memory Talk server for tests (it can fail the next call
+- `@knowscroll/client-core/talk-fixture` (`src/test-support/talk-fixture.ts`) is a labelled in-memory Talk server for tests (it can fail the next call
   as network, unavailable, server or lost response). It never ships in a build.

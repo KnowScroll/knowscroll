@@ -112,7 +112,7 @@ const continuation = <T extends z.ZodType>(cursor: T) =>
     z.strictObject({ kind: z.literal('more'), cursor }),
   ]);
 
-/** A deliberate current accepted friend1:1 only. Future backend reuses the private pair aggregate
+/** A deliberate current accepted friend 1:1 only. The backend reuses the private pair aggregate
  * as the SOLE shared locking authority, with a separate opaque conversation ID. Never lock pair
  * root then another conversation root. Leave/withdrawal ends that participation; re-friending
  * cannot silently revive old membership or command authority. No group/thread/invite protocol. */
@@ -304,8 +304,9 @@ export const SendConversationMessageSchema = z.strictObject({
   body: SendConversationBodySchema,
 });
 /** Historical acceptance only. Keep the identical command/body after an unknown outcome, even
- * if a later retry is rejected; no replacement UUID or automatic ambiguous resend. The future
- * adapter atomically commits message+receipt+requiredpg-bosswork; notices carry IDs only.
+ * if a later retry is rejected; no replacement UUID or automatic ambiguous resend. The backend
+ * commits the message, its receipt and the members' inbox hints in one transaction; hints carry
+ * IDs only and are disposable.
  * Read/receipt replay rechecks current pair/membership/block/source authority first. */
 export const ConversationMessageAcceptanceSchema = z.strictObject({
   ...Receipt,
@@ -385,7 +386,7 @@ export const ConversationLeaveAcceptanceSchema = z.strictObject({
   conversation: DirectConversationRefSchema,
 });
 
-/** Declarations only. ReadId/scope/selector/cursor/limit echoes must match the actual initiating
+/** Served by the API's conversations controller. ReadId/scope/selector/cursor/limit echoes must match the actual initiating
  * scope and nonregressive watermark in consumers. Syntax proves neither authority nor delivery.
  * Inbox order is last visible message commit time DESC, conversationId ASC; no private peer
  * preference/presence event changes that order. Snapshot+catch-up cursor share one root transaction.

@@ -12,6 +12,7 @@ import type {
   ConversationReader,
   ConversationRow,
   ConversationStore,
+  InboxRow,
   MemberRow,
   MessageRow,
 } from '../application/conversation-ports.js';
@@ -263,123 +264,9 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
 
     async inbox(scope, accountId, query) {
       const trx = transactionOf(scope);
-      let select = trx
-        .selectFrom('social.conversation_members as own')
-        .innerJoin('social.conversations as c', 'c.conversation_id', 'own.conversation_id')
-        .leftJoin('social.pairs as pair', (join) =>
-          join.onRef('pair.pair_id', '=', 'c.pair_id').onRef('pair.accepted_lineage', '=', 'c.lineage'),
-        )
-        .leftJoin('social.conversation_members as peer', (join) =>
-          join.onRef('peer.conversation_id', '=', 'c.conversation_id').onRef('peer.account_id', '<>', 'own.account_id'),
-        )
-        .leftJoin('social.profiles as profile', 'profile.account_id', 'peer.account_id')
-        .leftJoin('identity.accounts as peer_account', 'peer_account.id', 'peer.account_id')
-        .leftJoin('identity.universes as peer_universe', 'peer_universe.account_id', 'peer.account_id')
-        .select([
-          'c.conversation_id',
-          'c.pair_id',
-          'c.lineage',
-          'c.last_sequence',
-          'c.last_change_sequence',
-          'c.last_activity_at',
-          'c.closed_at',
-          'own.account_id as own_account_id',
-          'own.membership_id as own_membership_id',
-          'own.membership_revision as own_membership_revision',
-          'own.read_through_sequence as own_read_through',
-          'own.muted as own_muted',
-          'own.left_at as own_left_at',
-          'peer.account_id as peer_account_id',
-          'peer.membership_id as peer_membership_id',
-          'peer.membership_revision as peer_membership_revision',
-          'peer.read_through_sequence as peer_read_through',
-          'peer.muted as peer_muted',
-          'peer.left_at as peer_left_at',
-          'profile.person_id',
-          'profile.handle',
-          'profile.display_name',
-        ])
-        .where('own.account_id', '=', accountId)
-        .where('own.left_at', 'is', null)
-        .where('c.last_sequence', '>', '0')
-        .where((eb) =>
-          eb.or([
-            // A conversation lives only while the friendship lineage it began under does, and
-            // while the other person is an active account...
-            eb.and([
-              eb('pair.pair_id', 'is not', null),
-              eb('profile.person_id', 'is not', null),
-              eb('peer_account.status', '=', 'active'),
-              eb('peer_universe.status', '=', 'active'),
-            ]),
-            // ...except that history stays readable, with "Deleted account" in the other
-            // person's place, after their account was deleted (their membership is gone).
-            eb.and([eb('peer.account_id', 'is', null), eb('c.pair_id', 'is', null)]),
-          ]),
-        );
-      if (query.after) {
-        const at = new Date(query.after.activityMs);
-        const id = query.after.conversationId;
-        select = select.where((eb) =>
-          eb.or([
-            eb('c.last_activity_at', '<', at),
-            eb.and([eb('c.last_activity_at', '=', at), eb('c.conversation_id', '>', id)]),
-          ]),
-        );
-      }
-      const rows = await select
-        .orderBy('c.last_activity_at', 'desc')
-        .orderBy('c.conversation_id', 'asc')
-        .limit(query.limit)
-        .execute();
-      if (rows.length === 0) return [];
-      const lastMessages = await trx
-        .selectFrom('social.messages as m')
-        .innerJoin('social.conversations as c', (join) =>
-          join.onRef('c.conversation_id', '=', 'm.conversation_id').onRef('c.last_sequence', '=', 'm.sequence'),
-        )
-        .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
-        .select(['m.conversation_id', ...MESSAGE_COLUMNS])
-        .where(
-          'm.conversation_id',
-          'in',
-          rows.map((row) => row.conversation_id),
-        )
-        .execute();
-      return rows.map((row) => ({
-        conversation: conversationOf(row),
-        own: memberOf({
-          account_id: row.own_account_id,
-          membership_id: row.own_membership_id,
-          membership_revision: row.own_membership_revision,
-          read_through_sequence: row.own_read_through,
-          muted: row.own_muted,
-          left_at: row.own_left_at,
-        }),
-        peer:
-          row.peer_account_id === null
-            ? undefined
-            : memberOf({
-                account_id: row.peer_account_id,
-                membership_id: row.peer_membership_id!,
-                membership_revision: row.peer_membership_revision!,
-                read_through_sequence: row.peer_read_through!,
-                muted: row.peer_muted!,
-                left_at: row.peer_left_at,
-              }),
-        peerPerson:
-          row.person_id === null
-            ? DELETED_PERSON
-            : PublicPersonRefSchema.parse({
-                kind: 'person',
-                personId: row.person_id,
-                handle: row.handle,
-                displayName: row.display_name,
-              }),
-        lastMessage: ((found) => found && messageOf(found))(
-          lastMessages.find((message) => message.conversation_id === row.conversation_id),
-        ),
-      }));
+      const rows = await selectInboxRows(trx, accountId, query);
+      const lastMessages = await selectLastMessages(trx, rows);
+      return rows.map((row) => inboxRowOf(row, lastMessages.get(row.conversation_id)));
     },
 
     async inboxRevision(scope, accountId) {
@@ -432,3 +319,141 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
     };
   }
 }
+
+type InboxQuery = Parameters<ConversationStore['inbox']>[2];
+
+/**
+ * One page of the caller's conversations, newest activity first, each with the other member and
+ * the other person's profile joined in. Hidden conversations are left out here (see the
+ * visibility condition), so a stranger and a missing conversation look the same.
+ */
+async function selectInboxRows(trx: Transaction<Database>, accountId: string, query: InboxQuery) {
+  let select = trx
+    .selectFrom('social.conversation_members as own')
+    .innerJoin('social.conversations as c', 'c.conversation_id', 'own.conversation_id')
+    .leftJoin('social.pairs as pair', (join) =>
+      join.onRef('pair.pair_id', '=', 'c.pair_id').onRef('pair.accepted_lineage', '=', 'c.lineage'),
+    )
+    .leftJoin('social.conversation_members as peer', (join) =>
+      join.onRef('peer.conversation_id', '=', 'c.conversation_id').onRef('peer.account_id', '<>', 'own.account_id'),
+    )
+    .leftJoin('social.profiles as profile', 'profile.account_id', 'peer.account_id')
+    .leftJoin('identity.accounts as peer_account', 'peer_account.id', 'peer.account_id')
+    .leftJoin('identity.universes as peer_universe', 'peer_universe.account_id', 'peer.account_id')
+    .select([
+      'c.conversation_id',
+      'c.pair_id',
+      'c.lineage',
+      'c.last_sequence',
+      'c.last_change_sequence',
+      'c.last_activity_at',
+      'c.closed_at',
+      'own.account_id as own_account_id',
+      'own.membership_id as own_membership_id',
+      'own.membership_revision as own_membership_revision',
+      'own.read_through_sequence as own_read_through',
+      'own.muted as own_muted',
+      'own.left_at as own_left_at',
+      'peer.account_id as peer_account_id',
+      'peer.membership_id as peer_membership_id',
+      'peer.membership_revision as peer_membership_revision',
+      'peer.read_through_sequence as peer_read_through',
+      'peer.muted as peer_muted',
+      'peer.left_at as peer_left_at',
+      'profile.person_id',
+      'profile.handle',
+      'profile.display_name',
+    ])
+    .where('own.account_id', '=', accountId)
+    .where('own.left_at', 'is', null)
+    .where('c.last_sequence', '>', '0')
+    .where((eb) =>
+      eb.or([
+        // A conversation lives only while the friendship lineage it began under does, and
+        // while the other person is an active account...
+        eb.and([
+          eb('pair.pair_id', 'is not', null),
+          eb('profile.person_id', 'is not', null),
+          eb('peer_account.status', '=', 'active'),
+          eb('peer_universe.status', '=', 'active'),
+        ]),
+        // ...except that history stays readable, with "Deleted account" in the other
+        // person's place, after their account was deleted (their membership is gone).
+        eb.and([eb('peer.account_id', 'is', null), eb('c.pair_id', 'is', null)]),
+      ]),
+    );
+  if (query.after) {
+    const at = new Date(query.after.activityMs);
+    const id = query.after.conversationId;
+    select = select.where((eb) =>
+      eb.or([
+        eb('c.last_activity_at', '<', at),
+        eb.and([eb('c.last_activity_at', '=', at), eb('c.conversation_id', '>', id)]),
+      ]),
+    );
+  }
+  return select.orderBy('c.last_activity_at', 'desc').orderBy('c.conversation_id', 'asc').limit(query.limit).execute();
+}
+
+type InboxJoinRow = Awaited<ReturnType<typeof selectInboxRows>>[number];
+
+/**
+ * The last message of each listed conversation, by the (conversation, sequence) pair the listing
+ * itself returned. The second statement of a READ COMMITTED read must not ask "what is last now":
+ * a message that committed in between would then disagree with the `last_sequence` already read.
+ */
+async function selectLastMessages(
+  trx: Transaction<Database>,
+  rows: readonly InboxJoinRow[],
+): Promise<ReadonlyMap<string, MessageRow>> {
+  if (rows.length === 0) return new Map();
+  const wanted = sql.join(rows.map((row) => sql`(${row.conversation_id}::uuid, ${row.last_sequence}::bigint)`));
+  const found = await trx
+    .selectFrom('social.messages as m')
+    .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
+    .select(['m.conversation_id', ...MESSAGE_COLUMNS])
+    .where(sql<boolean>`(m.conversation_id, m.sequence) in (${wanted})`)
+    .execute();
+  return new Map(found.map((row) => [row.conversation_id, messageOf(row)]));
+}
+
+const ownMemberOf = (row: InboxJoinRow): MemberRow =>
+  memberOf({
+    account_id: row.own_account_id,
+    membership_id: row.own_membership_id,
+    membership_revision: row.own_membership_revision,
+    read_through_sequence: row.own_read_through,
+    muted: row.own_muted,
+    left_at: row.own_left_at,
+  });
+
+/** The other member, or nothing once their membership is gone with their account. */
+const peerMemberOf = (row: InboxJoinRow): MemberRow | undefined =>
+  row.peer_account_id === null
+    ? undefined
+    : memberOf({
+        account_id: row.peer_account_id,
+        membership_id: row.peer_membership_id!,
+        membership_revision: row.peer_membership_revision!,
+        read_through_sequence: row.peer_read_through!,
+        muted: row.peer_muted!,
+        left_at: row.peer_left_at,
+      });
+
+const peerPersonOf = (row: InboxJoinRow) =>
+  row.person_id === null
+    ? DELETED_PERSON
+    : PublicPersonRefSchema.parse({
+        kind: 'person',
+        personId: row.person_id,
+        handle: row.handle,
+        displayName: row.display_name,
+      });
+
+const inboxRowOf = (row: InboxJoinRow, lastMessage: MessageRow | undefined): InboxRow => ({
+  conversation: conversationOf(row),
+  own: ownMemberOf(row),
+  peer: peerMemberOf(row),
+  peerPerson: peerPersonOf(row),
+  lastMessage,
+});

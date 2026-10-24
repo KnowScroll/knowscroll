@@ -7,7 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./query-client": "./src/query-client.ts",
-    "./talk-fixture": "./src/talk-fixture.ts"
+    "./talk-fixture": "./src/test-support/talk-fixture.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

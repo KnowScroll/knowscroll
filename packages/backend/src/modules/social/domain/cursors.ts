@@ -5,8 +5,9 @@
  * refused as stale. No key is involved, so cursors survive restarts and work across API instances.
  */
 
+import { UUID_BYTES, uuidFromBytes, uuidToBytes } from './uuid-bytes.js';
+
 const VERSION = 1;
-const UUID_BYTES = 16;
 
 export interface InboxPosition {
   /** Milliseconds since the epoch of the last conversation's activity time. */
@@ -24,17 +25,11 @@ export interface ChangesPosition {
   readonly afterChangeSequence: number;
 }
 
-const toBytes = (uuid: string) => Buffer.from(uuid.replaceAll('-', ''), 'hex');
-function fromBytes(bytes: Buffer): string {
-  const hex = bytes.toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 function encode(prefix: string, fields: { readonly number: number; readonly uuid: string }): string {
   const bytes = Buffer.alloc(1 + 8 + UUID_BYTES);
   bytes[0] = VERSION;
   bytes.writeBigUInt64BE(BigInt(fields.number), 1);
-  toBytes(fields.uuid).copy(bytes, 9);
+  uuidToBytes(fields.uuid).copy(bytes, 9);
   return `${prefix}_${bytes.toString('base64url')}`;
 }
 
@@ -47,14 +42,16 @@ function decode(prefix: string, token: string): { readonly number: number; reado
     return undefined;
   const number = Number(bytes.readBigUInt64BE(1));
   if (!Number.isSafeInteger(number)) return undefined;
-  return { number, uuid: fromBytes(bytes.subarray(9)) };
+  return { number, uuid: uuidFromBytes(bytes.subarray(9)) };
 }
 
 export const inboxCursor = {
   encode: (position: InboxPosition) => encode('kci1', { number: position.activityMs, uuid: position.conversationId }),
   decode(token: string): InboxPosition | undefined {
     const fields = decode('kci1', token);
-    return fields && { activityMs: fields.number, conversationId: fields.uuid };
+    // A time past the range of a Date cannot be queried; treat it as a position that does not exist.
+    if (!fields || !Number.isFinite(new Date(fields.number).getTime())) return undefined;
+    return { activityMs: fields.number, conversationId: fields.uuid };
   },
 };
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { blockFriend, findConversation, readInboxPage } from './talk-inbox';
-import { conversation, id, peer, talkServer } from './talk-fixture';
+import { conversation, id, peer, talkServer } from './test-support/talk-fixture';
 
 let counter = 0;
 const newId = () => `0199a000-0000-7000-8000-${(++counter + 7000).toString(16).padStart(12, '0')}`;

@@ -1,15 +1,10 @@
 import type { RosterCertificate, RosterCursorCodec } from '../application/ports.js';
+import { uuidFromBytes, uuidToBytes } from '../domain/uuid-bytes.js';
 
 const KINDS = ['friends', 'incoming', 'outgoing', 'blocked'] as const;
 const VERSION = 1;
 const SIZE = 1 + 1 + 1 + 16 + 16 + 4 + 8 + 16 + 8 + 8;
 const MAX_TRAVERSAL_MS = 5 * 60 * 1000;
-
-const toBytes = (uuid: string) => Buffer.from(uuid.replaceAll('-', ''), 'hex');
-function fromBytes(bytes: Buffer): string {
-  const hex = bytes.toString('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 /**
  * A stateless keyset cursor over one roster traversal: the filter, the roster's head revision, the
@@ -30,15 +25,15 @@ export function rosterCursorCodec(): RosterCursorCodec {
       bytes[offset++] = VERSION;
       bytes[offset++] = KINDS.indexOf(certificate.filter);
       bytes[offset++] = certificate.limit;
-      toBytes(certificate.accountId).copy(bytes, offset);
+      uuidToBytes(certificate.accountId).copy(bytes, offset);
       offset += 16;
-      toBytes(certificate.universeId).copy(bytes, offset);
+      uuidToBytes(certificate.universeId).copy(bytes, offset);
       offset += 16;
       bytes.writeUInt32BE(certificate.epoch, offset);
       offset += 4;
       bytes.writeBigUInt64BE(BigInt(certificate.revision), offset);
       offset += 8;
-      toBytes(certificate.after).copy(bytes, offset);
+      uuidToBytes(certificate.after).copy(bytes, offset);
       offset += 16;
       bytes.writeBigUInt64BE(BigInt(certificate.started), offset);
       offset += 8;
@@ -55,11 +50,11 @@ export function rosterCursorCodec(): RosterCursorCodec {
       const certificate: RosterCertificate = {
         filter,
         limit: bytes[2]!,
-        accountId: fromBytes(bytes.subarray(3, 19)),
-        universeId: fromBytes(bytes.subarray(19, 35)),
+        accountId: uuidFromBytes(bytes.subarray(3, 19)),
+        universeId: uuidFromBytes(bytes.subarray(19, 35)),
         epoch: bytes.readUInt32BE(35),
         revision: Number(bytes.readBigUInt64BE(39)),
-        after: fromBytes(bytes.subarray(47, 63)),
+        after: uuidFromBytes(bytes.subarray(47, 63)),
         started: Number(bytes.readBigUInt64BE(63)),
         until: Number(bytes.readBigUInt64BE(71)),
       };
