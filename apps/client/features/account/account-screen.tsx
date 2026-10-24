@@ -5,6 +5,9 @@ import { borderWidth, content, dimension, radius, spacing } from '@knowscroll/de
 import { Banner, Button, Icon, IconButton, StateBlock, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
+import { DeletionReceiptPanel } from './deletion-receipt-panel';
+import { SessionsList } from './sessions-list';
+import { SettingsLabel, SettingsRow } from './settings-parts';
 
 function PersonTile() {
   return (
@@ -41,60 +44,57 @@ export function previousTab(state: TabsState | undefined): string {
   return 'Explore';
 }
 
-/** Signed in: who, and the two ways out (this device, or every device). */
+/** Signed in: who, where, the settings that exist, and the way out of this device. */
 function SignedIn({ email }: { readonly email: string }) {
-  const { manager } = useAccountScope();
-  const router = useRouter();
-  const [busy, setBusy] = useState<'here' | 'everywhere' | undefined>(undefined);
+  const { state, manager } = useAccountScope();
+  const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const signOut = async (everywhere: boolean) => {
-    setBusy(everywhere ? 'everywhere' : 'here');
+  const signOut = async () => {
+    setBusy(true);
     setFailed(false);
-    const answer = await manager.signOut({ everywhere });
-    setBusy(undefined);
+    const answer = await manager.signOut();
+    setBusy(false);
     setFailed(answer === 'unavailable');
   };
   return (
     <View style={styles.signedIn}>
-      <Text variant="meta" color={content.ink2}>
-        Signed in as
-      </Text>
-      <Text variant="title" heading={2}>
-        {email}
-      </Text>
+      <View style={styles.identity}>
+        <View style={styles.avatar}>
+          <Text variant="title" style={styles.initial}>
+            {email.slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.who}>
+          <Text variant="meta" color={content.ink2}>
+            Signed in as
+          </Text>
+          <Text variant="bodyS" style={styles.address} numberOfLines={2}>
+            {email}
+          </Text>
+        </View>
+      </View>
+      {state.status === 'signed_in' ? <SessionsList scope={state.scope} /> : null}
+      <SettingsLabel>Settings</SettingsLabel>
+      <SettingsRow
+        title="Privacy & history"
+        description="Recording, export, clear exploration, delete"
+        href="/account/privacy"
+      />
       {failed ? (
         <Banner kind="offline" lead="Not signed out." message="We couldn't reach KnowScroll. Try again." />
       ) : null}
-      <Button
-        label="Privacy & history"
-        role="link"
-        href="/account/privacy"
-        variant="ghost"
-        onPress={() => router.push('/account/privacy')}
-      />
-      <Button
-        label="Sign out"
-        busyLabel="Signing out…"
-        busy={busy === 'here'}
-        disabled={busy === 'everywhere'}
-        onPress={() => void signOut(false)}
-      />
-      <Button
-        label="Sign out on every device"
-        busyLabel="Signing out…"
-        variant="ghost"
-        busy={busy === 'everywhere'}
-        disabled={busy === 'here'}
-        onPress={() => void signOut(true)}
-      />
+      <View style={styles.signOut}>
+        <Button label="Sign out" busyLabel="Signing out…" variant="ghost" busy={busy} onPress={() => void signOut()} />
+      </View>
     </View>
   );
 }
 
 /**
- * `/account`, reached from the avatar on every tab (D-006 c): who is signed in, and signing out
- * (here or everywhere); signed out, the way to sign in. P01's privacy and settings rows arrive
- * with the privacy work. Back names where it goes ("Back to Keep").
+ * `/account` (P01), reached from the avatar on every tab (D-006 c): who is signed in, where
+ * (sessions, each signed out with one question), the settings that exist, and signing out of this
+ * device; signed out, the way to sign in, and the receipt of an account deletion asked for here.
+ * Back names where it goes ("Back to Keep").
  */
 export function AccountScreen() {
   const router = useRouter();
@@ -128,24 +128,27 @@ export function AccountScreen() {
           actions={[{ label: 'Try again', onPress: () => void manager.refresh() }]}
         />
       ) : (
-        <StateBlock
-          illustration={<PersonTile />}
-          title={
-            state.status === 'signed_out' && state.reason === 'session_ended'
-              ? 'You were signed out'
-              : "You're not signed in"
-          }
-          body="Sign in with your email to keep what you save and grow your universe."
-          actions={[
-            {
-              label: 'Sign in',
-              role: 'link',
-              href: '/welcome',
-              variant: 'primary',
-              onPress: () => router.navigate('/welcome'),
-            },
-          ]}
-        />
+        <View style={styles.signedOut}>
+          <DeletionReceiptPanel />
+          <StateBlock
+            illustration={<PersonTile />}
+            title={
+              state.status === 'signed_out' && state.reason === 'session_ended'
+                ? 'You were signed out'
+                : "You're not signed in"
+            }
+            body="Sign in with your email to keep what you save and grow your universe."
+            actions={[
+              {
+                label: 'Sign in',
+                role: 'link',
+                href: '/welcome',
+                variant: 'primary',
+                onPress: () => router.navigate('/welcome'),
+              },
+            ]}
+          />
+        </View>
       )}
     </ScreenFrame>
   );
@@ -162,5 +165,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  signedIn: { gap: spacing[4], alignItems: 'flex-start' },
+  signedIn: { gap: spacing[1] },
+  signedOut: { gap: spacing[6] },
+  identity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+    padding: spacing[4],
+    marginBottom: spacing[2],
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderRadius: radius.lg,
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    backgroundColor: content.continue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  initial: { color: content.onContinue },
+  who: { flex: 1, minWidth: 0 },
+  address: { fontWeight: '700' },
+  signOut: { paddingTop: spacing[4], alignItems: 'flex-start' },
 });

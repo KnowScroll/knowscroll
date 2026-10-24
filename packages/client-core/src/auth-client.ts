@@ -1,10 +1,12 @@
 import {
+  AccountDeletionStatusSchema,
   PROBLEM_MEDIA_TYPE,
   PeekSignInResponseSchema,
   ProblemDetailsSchema,
   type ProblemDetails,
   RedeemSignInResponseSchema,
   SessionResponseSchema,
+  type AccountDeletionState,
   type RedeemSignInResponse,
   type SessionAccount,
   type SessionClient,
@@ -38,6 +40,16 @@ export type RedeemOutcome =
   | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
   /** Refused for another reason (account unavailable, a reused command ID); the code says which. */
   | { readonly kind: 'refused'; readonly code: string }
+  | { readonly kind: 'unavailable' };
+
+/**
+ * How an account deletion is going, asked with its receipt id and no session (deletion ends every
+ * session). `unknown`: the server has no such receipt (the request never arrived).
+ */
+export type DeletionReceiptOutcome =
+  | { readonly kind: 'state'; readonly state: AccountDeletionState }
+  | { readonly kind: 'unknown' }
+  | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
   | { readonly kind: 'unavailable' };
 
 export type SessionOutcome =
@@ -76,6 +88,13 @@ export interface AuthClient {
   signOut(options: { readonly everywhere: boolean }): Promise<'signed_out' | 'unavailable'>;
 }
 
+/** The two session-less `/auth/deletion` routes: how an account deletion is going, and asking again. */
+export interface DeletionReceiptClient {
+  readDeletion(receiptId: string): Promise<DeletionReceiptOutcome>;
+  /** Asks for the same deletion to be worked on again now. */
+  retryDeletion(receiptId: string): Promise<DeletionReceiptOutcome>;
+}
+
 export interface AuthClientOptions {
   readonly baseUrl: string;
   readonly fetch?: Fetch;
@@ -100,7 +119,16 @@ function retryAfter(response: Response): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-export function createAuthClient(options: AuthClientOptions): AuthClient {
+async function deletionOutcome(response: Response | undefined): Promise<DeletionReceiptOutcome> {
+  if (response === undefined) return { kind: 'unavailable' };
+  if (response.status === 404) return { kind: 'unknown' };
+  if (response.status === 429) return { kind: 'rate_limited', retryAfterSeconds: retryAfter(response) };
+  if (!response.ok) return { kind: 'unavailable' };
+  const parsed = AccountDeletionStatusSchema.safeParse(await response.json().catch(() => undefined));
+  return parsed.success ? { kind: 'state', state: parsed.data.state } : { kind: 'unavailable' };
+}
+
+export function createAuthClient(options: AuthClientOptions): AuthClient & DeletionReceiptClient {
   const fetchImplementation: Fetch = options.fetch ?? ((request, init) => globalThis.fetch(request, init));
   const timeoutMs = options.timeoutMs ?? 10_000;
 
@@ -189,6 +217,14 @@ export function createAuthClient(options: AuthClientOptions): AuthClient {
             expiresAt: parsed.data.expiresAt,
           }
         : { kind: 'unavailable' };
+    },
+
+    async readDeletion(receiptId) {
+      return deletionOutcome(await send('GET', `/auth/deletion/${encodeURIComponent(receiptId)}`));
+    },
+
+    async retryDeletion(receiptId) {
+      return deletionOutcome(await send('POST', '/auth/deletion/retry', { receiptId }));
     },
 
     async signOut({ everywhere }) {
