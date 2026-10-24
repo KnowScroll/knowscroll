@@ -793,6 +793,99 @@ export interface IdentityUniverses {
   status: Generated<string>;
 }
 
+export interface OpsBusinessRuns {
+  closed_at: Timestamp | null;
+  created_at: Timestamp | null;
+  model: string | null;
+  owner_module: string | null;
+  policy_version: string | null;
+  provider: string | null;
+  purpose: string | null;
+  redacted: boolean | null;
+  role_id: string | null;
+  role_version: string | null;
+  run_id: string | null;
+  state: string | null;
+  updated_at: Timestamp | null;
+}
+
+export interface OpsGeographyRuns {
+  created_at: Timestamp | null;
+  desired_revision: number | null;
+  outcome: string | null;
+  run_id: string | null;
+  status: string | null;
+  updated_at: Timestamp | null;
+}
+
+export interface OpsJobs {
+  completed_at: Timestamp | null;
+  created_at: Timestamp | null;
+  dead_letter_queue: string | null;
+  failure: string | null;
+  failure_class: string | null;
+  failure_code: string | null;
+  job_id: string | null;
+  keep_until: Timestamp | null;
+  priority: number | null;
+  queue: string | null;
+  retry_count: number | null;
+  retry_limit: number | null;
+  start_after: Timestamp | null;
+  started_at: Timestamp | null;
+  state: string | null;
+  waiting_seconds: Int8 | null;
+}
+
+export interface OpsJourneyEvents {
+  asset_id: string | null;
+  attempt_id: string | null;
+  code: string | null;
+  command_id: string | null;
+  count: Int8 | null;
+  decision_id: string | null;
+  ended_at: Timestamp | null;
+  exposure_id: string | null;
+  label: string | null;
+  offer_id: string | null;
+  production_run_id: string | null;
+  reasoning_run_id: string | null;
+  recipe_key: string | null;
+  reel_order_id: string | null;
+  request_id: string | null;
+  stage: string | null;
+  started_at: Timestamp | null;
+  state: string | null;
+  subject_id: string | null;
+  universe_id: string | null;
+  work_id: string | null;
+}
+
+export interface OpsModelAttempts {
+  attempt_id: string | null;
+  cached_tokens: number | null;
+  dispatched_at: Timestamp | null;
+  input_tokens: number | null;
+  model: string | null;
+  outcome_code: string | null;
+  output_tokens: number | null;
+  prompt_version: string | null;
+  provider: string | null;
+  reasoning_tokens: number | null;
+  redacted: boolean | null;
+  request_bytes: number | null;
+  reserved_at: Timestamp | null;
+  reserved_tokens: number | null;
+  role_id: string | null;
+  role_version: string | null;
+  run_id: string | null;
+  scope_kind: string | null;
+  settled_at: Timestamp | null;
+  state: string | null;
+  step: string | null;
+  written_off_at: Timestamp | null;
+}
+
 export interface OpsOperatorSignIns {
   account_created: boolean;
   account_id: string | null;
@@ -800,6 +893,100 @@ export interface OpsOperatorSignIns {
   issued_at: Generated<Timestamp>;
   operator_source: string;
   world: string;
+}
+
+export interface OpsPrivacyOperations {
+  attempts: number | null;
+  completed_at: Timestamp | null;
+  failure_code: string | null;
+  kind: string | null;
+  operation_id: string | null;
+  requested_at: Timestamp | null;
+  state: string | null;
+}
+
+export interface OpsProductionRuns {
+  asset_id: string | null;
+  asset_revision: number | null;
+  completed_at: Timestamp | null;
+  created_at: Timestamp | null;
+  model_attempts: Int8 | null;
+  policy_version: string | null;
+  production_run_id: string | null;
+  recipe_key: string | null;
+  refused_answers: Int8 | null;
+  state: string | null;
+  take: number | null;
+  target_revision: number | null;
+  writer_run_id: string | null;
+  writer_run_state: string | null;
+}
+
+export interface OpsQueueBacklog {
+  active: Int8 | null;
+  failed: Int8 | null;
+  last_completed_at: Timestamp | null;
+  oldest_waiting_seconds: Int8 | null;
+  queue: string | null;
+  ready: Int8 | null;
+  retrying: Int8 | null;
+  scheduled: Int8 | null;
+}
+
+export interface OpsRecentErrors {
+  code: string | null;
+  label: string | null;
+  occurred_at: Timestamp | null;
+  ref_id: string | null;
+  source: string | null;
+  state: string | null;
+}
+
+export interface OpsReelAttempts {
+  attempt_id: string | null;
+  ceiling_cents: number | null;
+  dispatched_at: Timestamp | null;
+  estimate_cents: number | null;
+  finished_at: Timestamp | null;
+  order_id: string | null;
+  outcome_code: string | null;
+  paid: boolean | null;
+  pool_state: string | null;
+  remote_cost_cents: number | null;
+  remote_outcome: string | null;
+  reserved_at: Timestamp | null;
+  settled_at: Timestamp | null;
+  state: string | null;
+  take: number | null;
+}
+
+export interface OpsReelOrders {
+  asset_id: string | null;
+  attempts: Int8 | null;
+  claimed_open_cents: Int8 | null;
+  created_at: Timestamp | null;
+  latest_attempt_state: string | null;
+  published_at: Timestamp | null;
+  recipe_key: string | null;
+  reel_order_id: string | null;
+  script_name: string | null;
+  settled_cents: Int8 | null;
+  until: string | null;
+}
+
+export interface OpsRejectedAnswers {
+  answer_chars: number | null;
+  answer_kind: string | null;
+  attempt_id: string | null;
+  expires_at: Timestamp | null;
+  issue_codes: string[] | null;
+  issue_count: number | null;
+  model: string | null;
+  reason: string | null;
+  recorded_at: Timestamp | null;
+  run_id: string | null;
+  step: string | null;
+  truncated: boolean | null;
 }
 
 export interface PersonalContextContributions {
@@ -1396,7 +1583,19 @@ export interface DB {
   "identity.sessions": IdentitySessions;
   "identity.sign_in_links": IdentitySignInLinks;
   "identity.universes": IdentityUniverses;
+  "ops.business_runs": OpsBusinessRuns;
+  "ops.geography_runs": OpsGeographyRuns;
+  "ops.jobs": OpsJobs;
+  "ops.journey_events": OpsJourneyEvents;
+  "ops.model_attempts": OpsModelAttempts;
   "ops.operator_sign_ins": OpsOperatorSignIns;
+  "ops.privacy_operations": OpsPrivacyOperations;
+  "ops.production_runs": OpsProductionRuns;
+  "ops.queue_backlog": OpsQueueBacklog;
+  "ops.recent_errors": OpsRecentErrors;
+  "ops.reel_attempts": OpsReelAttempts;
+  "ops.reel_orders": OpsReelOrders;
+  "ops.rejected_answers": OpsRejectedAnswers;
   "personal_context.contributions": PersonalContextContributions;
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
   "personal_context.coverage_references": PersonalContextCoverageReferences;

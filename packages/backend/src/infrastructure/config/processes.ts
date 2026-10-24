@@ -87,6 +87,11 @@ export interface ApiConfig extends ReleaseIdentity {
   /** How long a socket subscription's authorisation may be reused before it is rechecked. */
   readonly socketAuthorisationCacheMs: number;
   readonly identity: IdentitySettings;
+  /**
+   * Addresses (or one-`*` patterns) whose accounts may use the operator routes and the Operator
+   * screen (`KS_OPERATOR_ACCOUNTS`, D-044). Empty means nobody can.
+   */
+  readonly operatorAccounts: readonly string[];
   /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
@@ -271,7 +276,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
     ]),
   );
-  const [release, parsed, identity] = combineChecks(
+  const [release, parsed, identity, operatorAccounts] = combineChecks(
     checkReleaseIdentity(env),
     processCheck,
     checkIdentitySettings(
@@ -279,6 +284,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       { nodeEnv: env['NODE_ENV'] ?? 'development', world: env['KS_WORLD'] ?? '' },
       processCheck.ok ? processCheck.value.PORT : 0,
     ),
+    checkOperatorAccounts(env, env['KS_WORLD'] ?? ''),
   );
   crossChecks([
     [
@@ -301,6 +307,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     authAdapter: parsed.KS_AUTH_ADAPTER,
     socketAuthorisationCacheMs: parsed.KS_SOCKET_AUTH_CACHE_MS,
     identity,
+    operatorAccounts,
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
@@ -404,6 +411,30 @@ function checkIdentitySettings(
       nativeSignInBinding: binding === '1',
     },
   };
+}
+
+const MAX_OPERATOR_ACCOUNTS = 20;
+
+/**
+ * Who may use the operator routes (`KS_OPERATOR_ACCOUNTS`, D-044): a comma-separated list of
+ * addresses, each in the grammar of `KS_OPERATOR_SIGN_IN_PATTERN` (one address, at most one `*` in
+ * the local part, lower case). A pattern with `*` is accepted only in `OPERATOR_WORLDS`; live takes
+ * exact addresses only. Unset: on `dev` with operator sign-in enabled, the sign-in pattern (every
+ * disposable test account may look); everywhere else nobody.
+ */
+function checkOperatorAccounts(env: Environment, world: string): Checked<readonly string[]> {
+  const configured = env['KS_OPERATOR_ACCOUNTS'];
+  if (configured === undefined || configured === '') {
+    const pattern = env['KS_OPERATOR_SIGN_IN_PATTERN'];
+    const signInOnDev = world === 'dev' && env['KS_ALLOW_OPERATOR_SIGN_IN'] === '1' && pattern;
+    return { ok: true, value: signInOnDev ? [signInOnDev] : [] };
+  }
+  const entries = configured.split(',').map((entry) => entry.trim());
+  if (entries.length > MAX_OPERATOR_ACCOUNTS || entries.some((entry) => operatorAddressMatcher(entry) === undefined))
+    return { ok: false, problems: ['KS_OPERATOR_ACCOUNTS: invalid_format'] };
+  if (entries.some((entry) => entry.includes('*')) && !OPERATOR_WORLDS.includes(world))
+    return { ok: false, problems: ['KS_OPERATOR_ACCOUNTS: wildcard_refused_in_this_world'] };
+  return { ok: true, value: entries };
 }
 
 /**

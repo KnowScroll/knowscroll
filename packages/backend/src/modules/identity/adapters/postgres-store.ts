@@ -50,6 +50,18 @@ export async function readAccountUniverse(
     .executeTakeFirst();
 }
 
+/** Reads the address of an active account (read-only, no lock). One address per account. */
+export async function readAccountAddress(db: Kysely<Database>, accountId: string): Promise<string | undefined> {
+  const row = await db
+    .selectFrom('identity.email_addresses as email')
+    .innerJoin('identity.accounts as account', 'account.id', 'email.account_id')
+    .select('email.address')
+    .where('email.account_id', '=', accountId)
+    .where('account.status', '=', 'active')
+    .executeTakeFirst();
+  return row?.address;
+}
+
 /** Reads one universe's access state for its owner (read-only, no lock). */
 export async function readUniverseAccess(
   db: Kysely<Database>,
