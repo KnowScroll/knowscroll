@@ -7,14 +7,6 @@ export const scenarioOrderStore: ScenarioOrderStore = {
   async lockCommissioning(scope) {
     await sql`select pg_advisory_xact_lock(hashtextextended('supply.commissioning', 0))`.execute(transactionOf(scope));
   },
-  async exists(scope, orderId) {
-    const row = await transactionOf(scope)
-      .selectFrom('supply.scenario_orders')
-      .select('order_id')
-      .where('order_id', '=', orderId)
-      .executeTakeFirst();
-    return row !== undefined;
-  },
   async countSince(scope, since) {
     const row = await transactionOf(scope)
       .selectFrom('supply.scenario_orders')

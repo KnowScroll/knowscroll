@@ -18,6 +18,7 @@ import type { ScenarioCard, ScenarioKind, ThreadEpisode, ThreadMessage } from '@
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, IconButton, Text } from '@knowscroll/ui';
 import { BranchCard } from '../scenarios/branch-card';
+import type { AvailableMessage } from '../scenarios/message-step';
 import { SnippetCard } from './snippet-card';
 
 /** One thing in the thread's timeline: a message, or a branch card at the moment it was made. */
@@ -33,13 +34,11 @@ interface Group {
 
 /**
  * The messages with the branch cards among them, in the order they happened. A card goes where its
- * time falls; a tombstone has no time and stays after the message before it. Removed branches leave the
- * chat (their line is a small note, not a card).
+ * time falls; a tombstone has no time and stays after the message before it. A removed branch stays
+ * where it was as a quiet note, so the conversation around it still reads in order.
  */
 export function timeline(messages: readonly ThreadMessage[], cards: readonly ScenarioCard[]): Entry[] {
-  const waiting = cards
-    .filter((card) => card.status !== 'removed')
-    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  const waiting = [...cards].sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
   const entries: Entry[] = [];
   const placeBefore = (time: string | undefined) => {
     while (waiting[0] !== undefined && (time === undefined || waiting[0].createdAt <= time))
@@ -94,7 +93,7 @@ function Bubble({
   readonly partOf: (assetId: string) => string | undefined;
   readonly onOpenSnippet: (messageId: string) => void;
   /** Starts a What if… from this snippet (X01: the button on a snippet card). */
-  readonly onWhatIf: (message: Extract<ThreadMessage, { status: 'available' }>) => void;
+  readonly onWhatIf: (message: AvailableMessage) => void;
 }) {
   if (message.status === 'unavailable')
     return (
@@ -189,8 +188,8 @@ function MessageMenuButton({
   message,
   onOpen,
 }: {
-  readonly message: Extract<ThreadMessage, { status: 'available' }>;
-  readonly onOpen: (message: Extract<ThreadMessage, { status: 'available' }>) => void;
+  readonly message: AvailableMessage;
+  readonly onOpen: (message: AvailableMessage) => void;
 }) {
   return (
     <IconButton
@@ -219,9 +218,9 @@ export interface ThreadMessagesProps {
   /** Asks What if… from a branch that is ready: the new one continues it. */
   readonly onContinueBranch: (card: ScenarioCard) => void;
   /** The message menu: What if… and Another perspective from this message. */
-  readonly onMessageMenu: (message: Extract<ThreadMessage, { status: 'available' }>) => void;
+  readonly onMessageMenu: (message: AvailableMessage) => void;
   /** Starts a request from a message or a snippet card directly. */
-  readonly onAsk: (message: Extract<ThreadMessage, { status: 'available' }>, kind: ScenarioKind) => void;
+  readonly onAsk: (message: AvailableMessage, kind: ScenarioKind) => void;
 }
 
 /** The thread's messages by day with the author named above each other person's bubble, then what is still being sent. */

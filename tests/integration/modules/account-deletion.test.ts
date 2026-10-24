@@ -229,7 +229,6 @@ describe('account deletion (real database)', () => {
         kind: 'what_if',
         origin_kind: 'root',
         started_by_account_id: person.accountId,
-        request_text: 'Authored erasure-only words of a branch',
         title: 'Authored erasure-only branch',
         changes: JSON.stringify([{ subject: 'Fixture', statement: 'An authored erasure-only premise' }]),
         kept: '[]',
@@ -411,14 +410,20 @@ describe('account deletion (real database)', () => {
         buddyThreads.kind === 'ok' &&
           buddyThreads.value.items.map((item) => item.people.map((person) => person.displayName)),
       ).toEqual([[DELETED_ACCOUNT_LABEL]]);
-      // The branch they started stays for the thread, without their authorship or their words; their draft is gone.
+      // The branch they started stays for the thread, with its title and premises and without their authorship; their draft is gone.
       expect(
         await database.db
           .selectFrom('scenarios.nodes')
-          .select(['started_by_account_id', 'request_text', 'title'])
+          .select(['started_by_account_id', 'title', 'changes'])
           .where('thread_id', '=', scenarioThreadId)
           .execute(),
-      ).toEqual([{ started_by_account_id: null, request_text: null, title: 'Authored erasure-only branch' }]);
+      ).toEqual([
+        {
+          started_by_account_id: null,
+          title: 'Authored erasure-only branch',
+          changes: [{ subject: 'Fixture', statement: 'An authored erasure-only premise' }],
+        },
+      ]);
       expect(await countWhere('scenarios.drafts', 'thread_id', scenarioThreadId)).toBe(0);
       expect(
         await database.db

@@ -25,7 +25,6 @@ function world(caps: { perDay: number; perThread: number }, now = new Date('2026
       events.push('lock');
       return Promise.resolve();
     },
-    exists: (_, orderId) => Promise.resolve(rows.some((row) => row.orderId === orderId)),
     countSince: (_, since) => Promise.resolve(rows.filter((row) => row.createdAt >= since).length),
     countForThread: (_, threadId) => Promise.resolve(rows.filter((row) => row.threadId === threadId).length),
     insert: (_, row) => {
@@ -89,19 +88,5 @@ describe('Quartermaster scenario Create', () => {
       reason: 'thread_cap',
     });
     expect(await w.commission(scope, { threadId: 't2', order: order('n3') })).toMatchObject({ kind: 'commissioned' });
-  });
-
-  it('commissions an order the ledger already holds again without counting it twice', async () => {
-    const w = world({ perDay: 1, perThread: 1 });
-    await w.commission(scope, { threadId: 't1', order: order('n1') });
-    expect(await w.commission(scope, { threadId: 't1', order: order('n1') })).toEqual({
-      kind: 'commissioned',
-      recipe: 'order-n1',
-    });
-    expect(w.rows).toHaveLength(1);
-    expect(w.sent).toEqual([
-      ['order-n1', 1],
-      ['order-n1', 1],
-    ]);
   });
 });

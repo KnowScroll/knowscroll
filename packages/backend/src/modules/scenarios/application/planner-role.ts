@@ -24,6 +24,8 @@ const SAFE_HINTS: Readonly<Record<StepRefusal | 'direct_needs_one_option' | 'opt
   repeated_change: 'Two changes of one option name the same subject. Merge them into one change.',
   repeated_kept: 'Two kept entries of one option name the same subject. Merge them.',
   kept_contradicts_change: 'An option cannot keep the subject it changes. Remove it from "kept".',
+  kept_contradicts_premise:
+    'An option cannot keep a subject that an earlier branch assumes in other words. Leave it out of "kept", or keep it with exactly the earlier words.',
   too_many_assumptions:
     'The premises of the earlier branches plus this option exceed four assumptions. Change a subject that is already assumed instead of adding a new one.',
   direct_needs_one_option: 'Mode "direct" has exactly one option. Use "options" for two or three directions.',

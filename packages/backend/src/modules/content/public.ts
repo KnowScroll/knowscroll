@@ -15,7 +15,7 @@ import {
   type Framing,
   type ScrollDocument,
 } from '@knowscroll/scroll-model';
-import type { AccountAccess, PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
+import type { AccountAccess, PersonalAuthority, PersonalScopeTx, ReadOn } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
@@ -366,15 +366,28 @@ export type ReadScrollSourcePages = (scope: PersonalScopeTx, root: ContentRef) =
 export const READ_SCROLL_SOURCE_PAGES = Symbol('content.readScrollSourcePages');
 
 /**
- * Port the ordering module implements: may this caller open the Scroll it ordered? Content asks only
- * for assets that have an order, so everything else stays as public as it was. Read without a lock;
- * what changes later re-asks.
+ * Port the ordering module implements: which of these Scrolls it ordered may this caller open? Content
+ * asks only about assets that have an order, so everything else stays as public as it was. `on` is
+ * where to read: a check made inside a personal write reads on that scope's own transaction and never
+ * takes a second connection. Read without a lock; whatever changes later re-asks.
  */
-export type ReadOrderAudience = (authority: PersonalAuthority, assetId: string) => Promise<boolean>;
+export type ReadOrderAudience = (
+  on: ReadOn,
+  authority: PersonalAuthority,
+  assetIds: readonly string[],
+) => Promise<ReadonlySet<string>>;
 export const READ_ORDER_AUDIENCE = Symbol('content.readOrderAudience');
 
-/** May this caller open or read this asset: true for any asset that is not an order, the ordering module's answer for one that is. */
-export type CheckAssetAudience = (authority: PersonalAuthority, assetId: string) => Promise<boolean>;
+/**
+ * Which of these assets may this caller open, read, act on or see in a list: every asset that is not
+ * an order, and an ordered one only if the ordering module says so. Reads on `on` (see
+ * `ReadOrderAudience`). The answer is a subset of `assetIds`.
+ */
+export type CheckAssetAudience = (
+  on: ReadOn,
+  authority: PersonalAuthority,
+  assetIds: readonly string[],
+) => Promise<ReadonlySet<string>>;
 export const CHECK_ASSET_AUDIENCE = Symbol('content.checkAssetAudience');
 
 /** What a card or link shows of one exact revision: available, corrected (original ref kept) or unavailable. */

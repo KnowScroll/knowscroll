@@ -43,6 +43,33 @@ describe('framingOf', () => {
   });
 });
 
+describe('writerBrief with premises from earlier branches', () => {
+  const facts = {
+    title: 'And at twenty times the traffic?',
+    subjectTitle: 'What one answer costs to serve',
+    subjectSummary: 'Serving costs come from compute, memory and waiting.',
+  };
+  const below = { hypothetical: true, assumptions: [traffic, model] };
+
+  it('states a replaced premise once, in its new words, and lists what is inherited without repeating it', () => {
+    const twenty = { subject: 'Traffic', statement: 'Traffic is twenty times higher than in the original' };
+    const brief = writerBrief({ ...facts, step: stepOf({ kind: 'what_if', changes: [twenty], kept: [] }, below) });
+    expect(brief).toContain(`- ${twenty.statement}`);
+    expect(brief).not.toContain('ten times');
+    expect(brief.match(/same model serves/gu)).toHaveLength(1);
+  });
+
+  it('does not repeat an inherited premise as kept', () => {
+    const latency = { subject: 'Latency target', statement: 'Every answer arrives within the same target' };
+    const brief = writerBrief({
+      ...facts,
+      step: stepOf({ kind: 'what_if', changes: [latency], kept: [model] }, below),
+    });
+    expect(brief.match(/same model serves/gu)).toHaveLength(1);
+    expect(brief).not.toContain('KEPT THE SAME');
+  });
+});
+
 describe('writerBrief', () => {
   const facts = {
     title: 'What happens at ten times the traffic?',

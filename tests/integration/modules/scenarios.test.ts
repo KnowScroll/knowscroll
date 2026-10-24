@@ -10,7 +10,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { createDatabase, makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   READ_SCROLL_SOURCE_PAGES,
   READ_SHAREABLE_CONTENT,
@@ -26,7 +26,11 @@ import {
   readScrollSourcePages,
   recordMadeToOrderScroll,
 } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
-import { readDiscoveryCandidates } from '../../../packages/backend/src/modules/content/adapters/discovery-store.js';
+import {
+  readDiscoveryCandidates,
+  readSavedPageMetadata,
+} from '../../../packages/backend/src/modules/content/adapters/discovery-store.js';
+import { gateSavedPageMetadata } from '../../../packages/backend/src/modules/experience/adapters/audience-gate.js';
 import { readShareableContent } from '../../../packages/backend/src/modules/content/adapters/shareable-content.js';
 import { makeReadOrderAudience } from '../../../packages/backend/src/modules/scenarios/application/audience.js';
 import { makeResolveBranches } from '../../../packages/backend/src/modules/scenarios/application/resolve.js';
@@ -110,6 +114,8 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
   let plannerCalls = () => 0;
   let orderAudience: ReadOrderAudience;
   let standing: ReturnType<typeof makeReadThreadStanding>;
+  /** Where each thread-standing read ran: inside a transaction (`scope`) or on the pool. */
+  let standingReads: ('scope' | 'pool')[] = [];
   let announced: string[] = [];
   let sent: [string, number][] = [];
 
@@ -120,7 +126,11 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     friends = cases.friends;
     threads = cases.threads;
     talk = cases.talk;
-    standing = makeReadThreadStanding(database.db);
+    const standingOnPool = makeReadThreadStanding(database.db);
+    standing = (on, accountId, threadId) => {
+      standingReads.push('scope' in on ? 'scope' : 'pool');
+      return standingOnPool(on, accountId, threadId);
+    };
     orderAudience = makeReadOrderAudience(branchPoolStore(database.db), standing);
     content = await scrollUseCases(database, { orderAudience });
     production = fixtureProductionWorker(database, () => answerWith(fixtureAuthored('comparison')));
@@ -624,6 +634,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       try {
         const started = unwrap(await startDraft(b, bRef, root));
         const callsBefore = plannerCalls();
+        standingReads = [];
         const running = suggest(
           { v: 1, universeId: b.universeId, privacyEpoch: 1, draftId: started.draftId },
           new AbortController().signal,
@@ -640,6 +651,8 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
           .where('draft_id', '=', started.draftId)
           .executeTakeFirst();
         expect(row, 'the late answer was not stored, and the draft went with the place').toBeUndefined();
+        // The check of Ravi's place ran on the transaction that applies the answer, never on a second connection.
+        expect(standingReads).toEqual(['scope']);
         expect(unwrap(await readDraft(b, bRef, started.draftId))).toMatchObject({ status: 'unavailable' });
       } finally {
         plannerScript = previous;
@@ -894,7 +907,8 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(shared.kind === 'entered' ? shared.value[0] : undefined).toMatchObject({ status: 'unavailable' });
 
       const audience = makeCheckAssetAudience(database.db, orderAudience);
-      expect(await audience(a.authority, assetId)).toBe(true);
+      const mayRead = async (who: Friend, id: string) => (await audience({ pool: true }, who.authority, [id])).has(id);
+      expect(await mayRead(a, assetId)).toBe(true);
       unwrap(
         await scenarios.remove(a.authority, {
           version,
@@ -904,9 +918,165 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
           revision: card?.revision,
         }),
       );
-      expect(await audience(a.authority, assetId)).toBe(false);
+      expect(await mayRead(a, assetId)).toBe(false);
       // An ordinary asset is as public as it was.
-      expect(await audience(a.authority, randomUUID())).toBe(true);
+      expect(await mayRead(a, randomUUID())).toBe(true);
+    });
+  });
+
+  describe('who can reach a Scroll made for a thread by its ID', () => {
+    /** A branch Scroll, made and bound, and the one reference every action names. */
+    async function readyBranch() {
+      const thread = await begun();
+      const made = unwrap(await choose(thread.a, thread.aRef, await drafted(thread.a, thread.aRef, thread.root)));
+      await prepare(made.node.nodeId);
+      const assetId = (await cards(thread.a, thread.aRef))[0]?.content?.assetId ?? '';
+      return { ...thread, assetId, target: { assetId, assetRevision: 1 } };
+    }
+    const save = (who: Friend, target: { assetId: string; assetRevision: number }, kind: 'save' | 'unsave' = 'save') =>
+      content.applyAction(who.authority, { commandId: randomUUID(), kind, target });
+    const like = (who: Friend, target: { assetId: string; assetRevision: number }) =>
+      content.applyEncounterAction(who.authority, { commandId: randomUUID(), kind: 'like', target });
+    const savedOf = async (who: Friend) => {
+      const saved = await content.listSaved(who.authority, 10);
+      return saved.kind === 'read' ? saved.items : [];
+    };
+
+    it('lets a member save and like it, and shows it in their saved list with its title', async () => {
+      const { b, target } = await readyBranch();
+      expect(await save(b, target)).toMatchObject({ kind: 'applied' });
+      expect(await like(b, target)).toMatchObject({ kind: 'applied' });
+      const [entry] = await savedOf(b);
+      expect(entry).toMatchObject({ assetId: target.assetId, availability: 'available' });
+      expect(entry?.metadata?.title).toBeTruthy();
+      expect(entry?.metadata?.summary).toBeTruthy();
+    });
+
+    it('refuses to save or like it for anyone outside the thread, as if it were not there', async () => {
+      const { target } = await readyBranch();
+      const stranger = await seedFriend(database.db, friends);
+      expect(await save(stranger, target)).toEqual({ kind: 'refused', reason: 'asset_not_found' });
+      expect(await like(stranger, target)).toMatchObject({ kind: 'refused', code: 'ASSET_NOT_FOUND' });
+      expect(await savedOf(stranger)).toEqual([]);
+    });
+
+    it('closes it to a member who left: no new save or like, and the saved lists show it as gone', async () => {
+      const { b, bRef, target } = await readyBranch();
+      expect(await save(b, target)).toMatchObject({ kind: 'applied' });
+      unwrap(await threads.leave(b.authority, { version: threadVersion, commandId: randomUUID(), thread: bRef }));
+
+      expect(await like(b, target)).toMatchObject({ kind: 'refused', code: 'ASSET_NOT_FOUND' });
+      expect(await save(b, target)).toEqual({ kind: 'refused', reason: 'asset_not_found' });
+      // The saved list names it and says nothing of what it is.
+      const [entry] = await savedOf(b);
+      expect(entry).toMatchObject({ assetId: target.assetId, availability: 'withdrawn' });
+      expect(entry?.metadata).toBeUndefined();
+      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+      const page = await withScope(b.authority, (scope) =>
+        gateSavedPageMetadata(readSavedPageMetadata, audience)(scope, [target]),
+      );
+      expect(page.kind === 'entered' ? page.value[0] : undefined).toMatchObject({
+        availability: 'withdrawn',
+        kind: 'scroll',
+      });
+      expect(page.kind === 'entered' ? page.value[0] : undefined).not.toHaveProperty('metadata');
+      // They can still take it off their own list.
+      expect(await save(b, target, 'unsave')).toMatchObject({ kind: 'applied' });
+    });
+
+    it('asks for no second connection while a personal transaction is open: a pool of one still opens, acts and lists', async () => {
+      const { a, target } = await readyBranch();
+      const single = createDatabase<Database>(
+        { ...database.settings, poolMax: 1, applicationName: 'scenarios-pool-of-one' },
+        { onIdleClientError: () => undefined },
+      );
+      const small = await scrollUseCases(
+        { ...database, db: single.db },
+        { orderAudience: makeReadOrderAudience(branchPoolStore(single.db), makeReadThreadStanding(single.db)) },
+      );
+      // A check that took a second connection would wait for one forever: this fails it quickly instead.
+      const within = <T>(work: Promise<T>): Promise<T> =>
+        Promise.race([
+          work,
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('waited for a second connection')), 5_000).unref();
+          }),
+        ]);
+      try {
+        const opened = await within(
+          small.openExposure(a.authority, {
+            commandId: randomUUID(),
+            target: { kind: 'scroll', assetId: target.assetId },
+            origin: { kind: 'direct' },
+            capabilities: textCapabilities,
+          }),
+        );
+        expect(opened.kind).toBe('opened');
+        expect(
+          await within(small.applyAction(a.authority, { commandId: randomUUID(), kind: 'save', target })),
+        ).toMatchObject({
+          kind: 'applied',
+        });
+        expect(
+          await within(small.applyEncounterAction(a.authority, { commandId: randomUUID(), kind: 'like', target })),
+        ).toMatchObject({ kind: 'applied' });
+        expect(await within(small.listSaved(a.authority, 10))).toMatchObject({ kind: 'read' });
+        if (opened.kind !== 'opened') return;
+        expect((await within(small.readExposureDocument(a.authority, opened.outcome.exposureId))).kind).toBe(
+          'document',
+        );
+      } finally {
+        await small.close();
+        await single.close();
+      }
+    });
+  });
+
+  describe('premises that come down from earlier branches', () => {
+    it('refuses a kept line that disagrees with a premise an earlier branch holds, and keeps a replaced one in its new words', async () => {
+      const { a, aRef, root } = await begun();
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      await prepare(first.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      const parent = { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision };
+      const below = async () => {
+        const started = unwrap(await startDraft(a, aRef, root, { parent }));
+        return started.draftId;
+      };
+      const twenty = { subject: traffic.subject, statement: 'Traffic is twenty times higher than in the original' };
+      // "Traffic stays as it is" would sit beside "ten times higher": refused, nothing written.
+      const before = await counts();
+      expect(
+        await choose(a, aRef, await below(), {
+          kind: 'own',
+          changes: [latency],
+          kept: [{ subject: traffic.subject, statement: 'Traffic stays as it is today' }],
+        }),
+      ).toEqual({ kind: 'refused', code: 'invalid_input' });
+      expect(await counts()).toEqual(before);
+      // A change under the same subject replaces the premise: only the new words hold.
+      const replaced = unwrap(await choose(a, aRef, await below(), { kind: 'own', changes: [twenty], kept: [] }));
+      expect(replaced.node.assumptions.map((premise) => premise.statement)).toEqual([twenty.statement]);
+    });
+  });
+
+  describe('drafts a day', () => {
+    it('stops a member at twenty, counts only their own, and a refused one writes nothing', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      for (let n = 0; n < 20; n++) unwrap(await startDraft(a, aRef, root));
+      const before = await counts();
+      expect(await startDraft(a, aRef, root)).toEqual({ kind: 'refused', code: 'budget_unavailable' });
+      expect(await counts()).toEqual(before);
+      const asked = await database.db
+        .selectFrom('receipts.shared_commands')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('actor_account_id', '=', a.accountId)
+        .where('operation', '=', 'scenarios.draft')
+        .executeTakeFirstOrThrow();
+      expect(Number(asked.n)).toBe(20);
+      // Ravi has asked for none today.
+      expect(await startDraft(b, bRef, root)).toMatchObject({ kind: 'ok' });
     });
   });
 

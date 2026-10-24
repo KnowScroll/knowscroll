@@ -10,23 +10,18 @@ import {
   type ContentThreadController,
   type ContentThreadState,
 } from '@knowscroll/client-core';
-import type {
-  ContentThreadRef,
-  ReelDocument,
-  ScenarioCard,
-  ScenarioKind,
-  SendThreadBody,
-  ThreadMessage,
-} from '@knowscroll/contracts';
+import type { ContentThreadRef, ReelDocument, ScenarioCard, SendThreadBody } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Skeleton, StateBlock, type ReelPositionHandle } from '@knowscroll/ui';
+import { Banner, Skeleton, StateBlock, type ReelPositionHandle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
-import { ScenarioSheet, type ScenarioStart } from '../scenarios/scenario-sheet';
+import { AsksBar } from '../scenarios/asks-bar';
+import { ScenarioSheet } from '../scenarios/scenario-sheet';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
+import { useThreadScenarios } from '../scenarios/use-thread-scenarios';
 import { EpisodeNavigator } from './episode-navigator';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
@@ -71,21 +66,6 @@ function useOwnPlace(scope: AccountScope, threadId: string) {
   };
 }
 
-type AvailableMessage = Extract<ThreadMessage, { status: 'available' }>;
-
-/** What a message says, for the menu above it: its words, or what a snippet points at. */
-function previewOf(message: AvailableMessage): string {
-  if (message.body.kind === 'text') return message.body.text;
-  const { snippet, note } = message.body;
-  const points =
-    snippet.kind === 'reel_range'
-      ? 'A shared moment of the video'
-      : snippet.kind === 'scroll_passage'
-        ? `A shared passage${snippet.quote === undefined ? '' : `: “${snippet.quote}”`}`
-        : 'A shared part of the article';
-  return note === undefined ? points : `${points} · ${note}`;
-}
-
 /** What the person sees once the thread is read: episodes, encounter, messages, composer and sheets. */
 function ReadyThread({
   scope,
@@ -111,7 +91,6 @@ function ReadyThread({
   const [menu, setMenu] = useState(false);
   const [moment, setMoment] = useState<ShareableMoment>();
   const board = useScenarioBoard(scope, thread);
-  const [start, setStart] = useState<ScenarioStart>();
   const positionRef = useRef<ReelPositionHandle>(null);
   const {
     ref: scrollRef,
@@ -129,36 +108,15 @@ function ReadyThread({
   const series = state.sequence === 'series';
   const current = episodes.find((episode) => episode.assetId === place.selected) ?? episodes[0];
   const ownPersonId = state.participants.find((participant) => participant.you)?.person.personId;
-  const rootRevision = state.root?.target.assetRevision;
-  const askFromRoot = (kind: ScenarioKind) =>
-    rootRevision === undefined
-      ? undefined
-      : setStart({
-          kind,
-          origin: { kind: 'root' },
-          fromLabel: 'the whole thread',
-          parent: { kind: 'root', assetRevision: rootRevision },
-        });
-  /** From a message's menu (no kind yet: the sheet asks) or straight from a snippet card's What if…. */
-  const askFromMessage = (message: AvailableMessage, kind?: ScenarioKind) => {
-    if (rootRevision === undefined) return;
-    setStart({
-      ...(kind === undefined
-        ? { quote: { authorName: message.author.displayName, preview: previewOf(message) } }
-        : { kind }),
-      origin: { kind: 'message', messageId: message.messageId },
-      fromLabel:
-        message.body.kind === 'snippet' ? 'a shared moment or passage' : `${message.author.displayName}’s message`,
-      parent: { kind: 'root', assetRevision: rootRevision },
-    });
-  };
-  const continueBranch = (card: ScenarioCard) =>
-    setStart({
-      kind: 'what_if',
-      origin: { kind: 'root' },
-      fromLabel: 'this branch',
-      parent: { kind: 'node', nodeId: card.nodeId, revision: card.revision },
-    });
+  const scenarios = useThreadScenarios({
+    board: board.controller,
+    rootRevision: state.root?.target.assetRevision,
+    onBranchStarted: () => {
+      follow();
+      // The new card is below the fold: show it once the branches are read and laid out.
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 150);
+    },
+  });
   const openBranch = (card: ScenarioCard) => {
     if (card.content !== undefined) router.push(readInThreadHref(thread, card.content.assetId, { branch: true }));
   };
@@ -214,28 +172,12 @@ function ReadyThread({
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
         branches={board.state.cards}
         onOpenBranch={openBranch}
-        onContinueBranch={continueBranch}
-        onRemoveBranch={(card) => void board.controller.remove(card)}
-        onMessageMenu={askFromMessage}
-        onAsk={askFromMessage}
+        onContinueBranch={scenarios.continueBranch}
+        onRemoveBranch={scenarios.removeBranch}
+        onMessageMenu={scenarios.askFromMessage}
+        onAsk={scenarios.askFromMessage}
       />
-      <View style={styles.asks} accessibilityLabel="Explore other possibilities">
-        <Button
-          label="What if…"
-          size="sm"
-          variant="ghost"
-          icon="hypothetical"
-          onPress={() => askFromRoot('what_if')}
-          testID="ask-what-if"
-        />
-        <Button
-          label="Another perspective"
-          size="sm"
-          variant="ghost"
-          onPress={() => askFromRoot('perspective')}
-          testID="ask-perspective"
-        />
-      </View>
+      <AsksBar onAsk={scenarios.askFromRoot} />
       <Composer
         name={
           state.participants
@@ -268,17 +210,11 @@ function ReadyThread({
         />
       )}
       <ScenarioSheet
-        start={start}
+        start={scenarios.start}
         scope={scope}
         thread={thread}
-        onClose={() => setStart(undefined)}
-        onChosen={() => {
-          follow();
-          // The new card is below the fold: show it once the branches are read and laid out.
-          void board.controller.load().then(() => {
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 150);
-          });
-        }}
+        onClose={scenarios.close}
+        onChosen={scenarios.branchStarted}
       />
       <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />
       <OptionsSheet
@@ -464,15 +400,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
-  /** The two ways to ask, between the messages and the message box. */
-  asks: {
-    flexDirection: 'row',
-    gap: spacing[2],
-    flexWrap: 'wrap',
-    paddingHorizontal: layout.gutter,
-    paddingVertical: spacing[2],
-    backgroundColor: content.paper2,
-  },
   /** The episodes and the encounter keep the reading measure, centred, on wide screens (the multi-pane layout is D03). */
   column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
 });

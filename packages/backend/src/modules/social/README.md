@@ -158,7 +158,7 @@ The `scenarios` module (and later idea rooms) acts in a thread only through `THR
 `enter` and `enterAsMember` (the same membership and lineage checks a member's own command makes, then the thread's
 lock), `window` (the last messages, bounded, with the author reduced to "you" or "member"), `receipts` (find, begin,
 complete, keyed by the thread, so Clear does not forget them) and `announce` (the inbox hint). `READ_THREAD_STANDING` is a
-lock-free read of whether an account takes part now, for workers that recheck before applying a result;
+lock-free read of whether an account takes part now, for workers and audience checks that recheck before applying a result, on the connection they name (`ReadOn`);
 `ANNOUNCE_THREAD` tells every participant's inbox after a commit. None of them decides who may take part: that stays here.
 *Implemented.*
 

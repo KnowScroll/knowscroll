@@ -103,7 +103,7 @@ export function contentProviders() {
 }
 
 /** The audience of an order when no module claims it: nobody. */
-const denyOrderAudience: ReadOrderAudience = () => Promise.resolve(false);
+const denyOrderAudience: ReadOrderAudience = () => Promise.resolve(new Set());
 
 /**
  * Reads of Scrolls ordered from code that need the database handle: where an order's production

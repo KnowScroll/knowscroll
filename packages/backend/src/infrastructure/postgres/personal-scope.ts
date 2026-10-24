@@ -3,6 +3,7 @@ import type {
   AuthorityHolds,
   PersonalAuthority,
   PersonalScopeTx,
+  ReadOn,
   ResolvedScopeOutcome,
   RootResolution,
   RootResolutionTx,
@@ -277,6 +278,14 @@ export function transactionOf(scope: PersonalScopeTx): Transaction<Database> {
   const trx = openScopes.get(scope);
   if (trx === undefined) throw new ScopeClosedError('Personal scope used after its transaction ended');
   return trx;
+}
+
+/**
+ * The connection a `ReadOn` names: the open scope's transaction, or the pool. Adapters only. Reading
+ * on the transaction is how a check made inside a personal write avoids taking a second connection.
+ */
+export function readerOn(db: Kysely<Database>, on: ReadOn): Kysely<Database> {
+  return 'scope' in on ? transactionOf(on.scope) : db;
 }
 
 /**

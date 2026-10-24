@@ -19,6 +19,7 @@ export function cardOf(node: NodeRow, people: ReadonlyMap<string, PublicPersonRe
     kept: node.kept,
     ...(node.lens === undefined ? {} : { lens: node.lens }),
     hypothetical: node.hypothetical,
+    assumptions: node.assumptions,
     ...(startedBy === undefined ? {} : { startedBy }),
     status: node.status,
     revision: node.revision,

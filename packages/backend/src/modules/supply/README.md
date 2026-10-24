@@ -106,15 +106,17 @@ and does not match the catalogue. When a member chooses a direction, the scenari
 code-built order and `COMMISSION_SCENARIO_ORDER` runs inside the member's transaction, after the thread's lock:
 
 - it takes the commissioning lock (last in the lock order), so the day's count and the orders it admits agree;
-- an order it already holds is commissioned again without counting twice, so a retry never spends the day;
-- otherwise it refuses with `day_cap` when the world's UTC day is full (`KS_SUPPLY_SCENARIO_DAILY_CAP`, 0 turns
+- it refuses with `day_cap` when the world's UTC day is full (`KS_SUPPLY_SCENARIO_DAILY_CAP`, 0 turns
   it off) or `thread_cap` when the thread has had all the branches it may (`KS_SUPPLY_SCENARIO_THREAD_CAP`);
 - it records the order with Content (`RECORD_MADE_TO_ORDER_SCROLL`), writes a row in `supply.scenario_orders`
   (order and thread, no person and no words) and sends the production job for take 1 (same identity, so a
   repeat is never doubled).
 
 An order is its own work: never joined with another, never reused for another thread, not part of
-`supply.work` and not counted by the two Create caps above. The scenarios module's sweep sends later takes.
+`supply.work` and not counted by the two Create caps above. That is why it has its own ledger and does not
+go through ContentDemand's compatible-supply matching, which joins a request to supply for the same brief:
+the opposite of a Scroll made for one thread. The scenarios module makes one order per branch in the
+transaction that makes the branch, so a retry never gets here twice. The scenarios module's sweep sends later takes.
 *Implemented.*
 
 ## Tables, jobs and lock order

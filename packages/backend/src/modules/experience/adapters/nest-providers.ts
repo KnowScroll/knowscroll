@@ -41,6 +41,7 @@ import {
 } from '../../../infrastructure/receipts/index.js';
 import { makeActivateExposure } from '../application/activate-exposure.js';
 import { makeApplyAction } from '../application/apply-action.js';
+import { gateFindAsset, gateSavedMetadata, holdsOne } from './audience-gate.js';
 import { hydratedSaved } from './saved-store.js';
 import { makeApplyEncounterAction } from '../application/encounter-action.js';
 import { makeCommitAction, makeRecordLegacyAction, makeEnqueueActionEvidence, readChannels } from './action-store.js';
@@ -117,6 +118,7 @@ export function experienceProviders(
         READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         FIND_ASSET_FOR_ACTION,
+        CHECK_ASSET_AUDIENCE,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
       ],
       useFactory: (
@@ -125,11 +127,12 @@ export function experienceProviders(
         lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         findAsset: FindAssetForAction,
+        audience: CheckAssetAudience,
         effects?: ExperienceRecordingEffects,
       ) =>
         makeApplyEncounterAction({
           ...commandPorts(withExperienceScope(withScope, fenceOwn), lifecycle),
-          findAsset,
+          findAsset: gateFindAsset(findAsset, audience),
           readExposure: readExposureForEvidence,
           readChannels,
           commitAction: makeCommitAction(
@@ -149,6 +152,7 @@ export function experienceProviders(
         READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         FIND_ASSET_FOR_ACTION,
+        CHECK_ASSET_AUDIENCE,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
       ],
       useFactory: (
@@ -157,6 +161,7 @@ export function experienceProviders(
         lifecycle: ReadRecordingLifecycle,
         enqueueJob: EnqueueJob,
         findAsset: FindAssetForAction,
+        audience: CheckAssetAudience,
         effects?: ExperienceRecordingEffects,
       ) =>
         makeApplyAction({
@@ -165,7 +170,7 @@ export function experienceProviders(
           findReceipt: findPersonalReceipt,
           insertReceipt: insertPersonalReceipt,
           completeReceipt: (scope, commandId, outcome) => completePersonalReceipt(scope, commandId, outcome),
-          findAsset,
+          findAsset: gateFindAsset(findAsset, audience),
           readSavedReference: async (scope, id) => {
             const s = await readChannels(scope, id);
             return s.savedRevision === undefined ? undefined : { assetRevision: s.savedRevision };
@@ -186,8 +191,9 @@ export function experienceProviders(
     },
     {
       provide: LIST_SAVED,
-      inject: [tokens.withPersonalScope, READ_SAVED_METADATA],
-      useFactory: (withScope: WithPersonalScope, metadata: ReadSavedMetadata) => hydratedSaved(withScope, metadata),
+      inject: [tokens.withPersonalScope, READ_SAVED_METADATA, CHECK_ASSET_AUDIENCE],
+      useFactory: (withScope: WithPersonalScope, metadata: ReadSavedMetadata, audience: CheckAssetAudience) =>
+        hydratedSaved(withScope, gateSavedMetadata(metadata, audience)),
     },
     {
       provide: OPEN_EXPOSURE,
@@ -208,7 +214,7 @@ export function experienceProviders(
         makeOpenExposure({
           ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
           findOpenableAsset,
-          audienceHolds: audience,
+          audienceHolds: holdsOne(audience),
           insertExposure,
         }),
     },
@@ -262,7 +268,7 @@ export function experienceProviders(
         makeReadExposureDocument({
           readExposure: makeReadExposureForDocument(db),
           renderScroll,
-          audienceHolds: audience,
+          audienceHolds: holdsOne(audience),
         }),
     },
   ];

@@ -25,15 +25,12 @@ export interface BranchFacts {
  * `assumptions` is what holds after the step, so a deep branch states its whole premise.
  */
 export function framingOf(step: Step): BranchFraming {
-  if (step.hypothetical) {
-    // What an earlier branch already assumes is listed once, among the assumptions, never again as "kept".
-    const assumed = new Set(step.assumptions.map((assumption) => wordsKey(assumption.subject)));
+  if (step.hypothetical)
     return {
       kind: 'hypothetical',
       assumptions: step.assumptions.map((assumption) => assumption.statement),
-      kept: step.kept.filter((kept) => !assumed.has(wordsKey(kept.subject))).map((kept) => kept.statement),
+      kept: step.kept.map((assumption) => assumption.statement),
     };
-  }
   return { kind: 'perspective', lens: step.lens ?? '' };
 }
 

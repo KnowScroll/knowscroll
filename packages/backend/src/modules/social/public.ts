@@ -42,7 +42,7 @@ import type {
   PresencePreferenceAcceptanceSchema,
   VisitorWorldSnapshotSchema,
 } from '@knowscroll/contracts';
-import type { PersonalAuthority } from '../identity/public.js';
+import type { PersonalAuthority, ReadOn } from '../identity/public.js';
 import type { Operation } from './domain/friends.js';
 import type { Result } from './application/ports.js';
 /** Friends ports; live presence and visitor publication remain separate. */
@@ -216,8 +216,12 @@ export type { ThreadContextMessage, ThreadGuest, ThreadVisit, ThreadWindow } fro
 export type { ReceiptKey as ThreadReceiptKey } from './application/ports.js';
 export const THREAD_GUEST = Symbol('social.threadGuest');
 
-/** Whether the account takes part in the thread right now. A read with no lock; whatever acts on it rechecks. */
-export type ReadThreadStanding = (accountId: string, threadId: string) => Promise<boolean>;
+/**
+ * Whether the account takes part in the thread right now. A read with no lock; whatever acts on it
+ * rechecks. `on` is where it reads: a caller inside a personal write passes its scope and the read
+ * uses that transaction, never a second connection.
+ */
+export type ReadThreadStanding = (on: ReadOn, accountId: string, threadId: string) => Promise<boolean>;
 export const READ_THREAD_STANDING = Symbol('social.readThreadStanding');
 
 /** Tells every participant's inbox the thread changed, after a commit. A disposable hint; polling repairs a lost one. */

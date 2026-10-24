@@ -1,4 +1,4 @@
-import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx, ReadOn, WithPersonalScope } from '../../identity/public.js';
 import type { ReadScrollSourcePages, ReadShareableContent } from '../../content/public.js';
 import type { CommissionScenarioOrder } from '../../supply/public.js';
 import type { ThreadGuest } from '../../social/public.js';
@@ -53,9 +53,8 @@ export interface NodeRow {
   readonly parentNodeId?: string;
   readonly kind: ScenarioKind;
   readonly origin: Origin;
-  /** Absent once the starter's account was deleted, together with their words. */
+  /** Absent once the starter's account was deleted. */
   readonly startedByAccountId?: string;
-  readonly requestText?: string;
   readonly title: string;
   readonly lens?: string;
   readonly changes: readonly Assumption[];
@@ -122,8 +121,11 @@ export interface BranchPoolStore {
    * nothing changed.
    */
   settle(nodeId: string, settlement: Settlement, now: Date): Promise<{ readonly threadId: string } | undefined>;
-  /** The branch that holds this Scroll, if any. */
-  holderOfAsset(assetId: string): Promise<{ readonly threadId: string; readonly status: NodeStatus } | undefined>;
+  /** The branch that holds each of these Scrolls (by asset), where one does. Reads on `on`: a scope's own transaction, or the pool. */
+  holdersOfAssets(
+    on: ReadOn,
+    assetIds: readonly string[],
+  ): Promise<ReadonlyMap<string, { readonly threadId: string; readonly status: NodeStatus }>>;
 }
 
 /** What the planner's worker needs. */
@@ -134,7 +136,8 @@ export interface DraftWorkerPorts {
   /** Public metadata of the thread root: title and summary, to tell the planner and the writer what is being continued. */
   readonly readContent: ReadShareableContent;
   /** Whether the account takes part in the thread now: a read with no lock, for the worker's last check. */
-  readonly standing: (accountId: string, threadId: string) => Promise<boolean>;
+  /** Whether an account takes part in a thread now, read on `on` (a caller in a transaction passes its scope). */
+  readonly standing: (on: ReadOn, accountId: string, threadId: string) => Promise<boolean>;
   readonly now: () => Date;
 }
 

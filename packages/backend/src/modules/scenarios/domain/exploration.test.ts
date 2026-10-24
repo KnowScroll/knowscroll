@@ -100,6 +100,60 @@ describe('planStep (blueprint §14: A_child = ApplyChange(A_parent, RequestedCha
   });
 });
 
+describe('premises that come down from earlier branches', () => {
+  const below: ParentFacts = { hypothetical: true, assumptions: [traffic, model] };
+  const outcomeOf = (request: Parameters<typeof planStep>[1]) => planStep(below, request);
+
+  it('refuses to keep a subject an earlier branch assumes in other words', () => {
+    expect(
+      outcomeOf({
+        kind: 'what_if',
+        changes: [latency],
+        kept: [{ subject: 'Traffic', statement: 'Traffic stays as it is today' }],
+      }),
+    ).toEqual({ ok: false, refusal: 'kept_contradicts_premise' });
+    // The same subject in another spelling is the same subject.
+    expect(
+      outcomeOf({
+        kind: 'what_if',
+        changes: [latency],
+        kept: [{ subject: '  TRAFFIC ', statement: 'Traffic is the same as before' }],
+      }),
+    ).toEqual({ ok: false, refusal: 'kept_contradicts_premise' });
+  });
+
+  it('lists a kept line that restates an earlier premise once, among the assumptions, and not as kept', () => {
+    const outcome = outcomeOf({
+      kind: 'what_if',
+      changes: [latency],
+      kept: [{ subject: 'traffic', statement: 'TRAFFIC is ten times higher than in the original' }, model],
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    // The model premise is also inherited, so neither kept line is new.
+    expect(outcome.step.kept).toEqual([]);
+    expect(outcome.step.assumptions.map((premise) => premise.subject)).toEqual(['Traffic', 'Model', 'Latency target']);
+  });
+
+  it('keeps a kept line that names a subject nothing earlier assumes', () => {
+    const cost = { subject: 'Cost', statement: 'Each instance costs the same' };
+    const outcome = outcomeOf({ kind: 'what_if', changes: [latency], kept: [cost] });
+    expect(outcome).toMatchObject({ ok: true, step: { kept: [cost] } });
+  });
+
+  it('replaces an earlier premise when a change keeps its subject, and adds one when it does not', () => {
+    const twenty = { subject: 'Traffic', statement: 'Traffic is twenty times higher than in the original' };
+    const replaced = outcomeOf({ kind: 'what_if', changes: [twenty], kept: [] });
+    expect(replaced.ok && replaced.step.assumptions.map((premise) => premise.statement)).toEqual([
+      twenty.statement,
+      model.statement,
+    ]);
+    // The same words under a new subject do not replace "ten times": both would be asserted.
+    const added = outcomeOf({ kind: 'what_if', changes: [{ ...twenty, subject: 'Traffic is twenty' }], kept: [] });
+    expect(added.ok && added.step.assumptions).toHaveLength(3);
+  });
+});
+
 describe('meaningOf', () => {
   const key = (parent: string | null, request: Parameters<typeof planStep>[1]) => {
     const outcome = planStep(ROOT_PARENT, request);

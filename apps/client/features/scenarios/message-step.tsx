@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import type { ScenarioKind } from '@knowscroll/contracts';
+import type { ScenarioKind, ThreadMessage } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 
@@ -7,6 +7,23 @@ import { Button, Text } from '@knowscroll/ui';
 export interface MessageQuote {
   readonly authorName: string;
   readonly preview: string;
+}
+
+/** A message that has its words and its author: not a tombstone. */
+export type AvailableMessage = Extract<ThreadMessage, { status: 'available' }>;
+
+/** What a message says, for the menu above it: its words, or what a snippet points at. */
+export function quoteOf(message: AvailableMessage): MessageQuote {
+  const authorName = message.author.displayName;
+  if (message.body.kind === 'text') return { authorName, preview: message.body.text };
+  const { snippet, note } = message.body;
+  const points =
+    snippet.kind === 'reel_range'
+      ? 'A shared moment of the video'
+      : snippet.kind === 'scroll_passage'
+        ? `A shared passage${snippet.quote === undefined ? '' : `: “${snippet.quote}”`}`
+        : 'A shared part of the article';
+  return { authorName, preview: note === undefined ? points : `${points} · ${note}` };
 }
 
 /**

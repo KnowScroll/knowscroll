@@ -28,7 +28,12 @@ import {
   EXPERIENCE_RECORDING_EFFECTS,
 } from '@knowscroll/backend/modules/experience';
 import { composerBufferProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
-import { READ_SAVED_PAGE_METADATA, type ReadSavedPageMetadata } from '@knowscroll/backend/modules/content';
+import {
+  CHECK_ASSET_AUDIENCE,
+  READ_SAVED_PAGE_METADATA,
+  type CheckAssetAudience,
+  type ReadSavedPageMetadata,
+} from '@knowscroll/backend/modules/content';
 import type { WithPersonalScope } from '@knowscroll/backend/modules/identity';
 import { savedCursors } from '../http/saved-cursors.js';
 import { API_CONFIG, DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
@@ -53,17 +58,19 @@ export const experienceWiring: Provider[] = [
   },
   {
     provide: READ_SAVED_PAGE,
-    inject: [WITH_PERSONAL_SCOPE, FENCE_OWN_ACCOUNT, READ_SAVED_PAGE_METADATA, API_CONFIG],
+    inject: [WITH_PERSONAL_SCOPE, FENCE_OWN_ACCOUNT, READ_SAVED_PAGE_METADATA, CHECK_ASSET_AUDIENCE, API_CONFIG],
     useFactory: (
       withScope: WithPersonalScope,
       fenceOwn: FenceOwnAccount,
       metadata: ReadSavedPageMetadata,
+      audience: CheckAssetAudience,
       config: ApiConfig,
     ) =>
       savedPageUseCase({
         withScope,
         fenceOwn,
         metadata,
+        audience,
         codec: savedCursors(`${config.world}:${config.identity.publicOrigin}`),
       }),
   },

@@ -19,7 +19,6 @@ export type ScenarioOrderOutcome =
 export interface ScenarioOrderStore {
   /** Takes the lock that serialises Create decisions, so a day's count and the orders it admits agree. */
   lockCommissioning(scope: PersonalScopeTx): Promise<void>;
-  exists(scope: PersonalScopeTx, orderId: string): Promise<boolean>;
   countSince(scope: PersonalScopeTx, since: Date): Promise<number>;
   countForThread(scope: PersonalScopeTx, threadId: string): Promise<number>;
   insert(scope: PersonalScopeTx, order: { readonly orderId: string; readonly threadId: string }): Promise<void>;
@@ -40,9 +39,11 @@ export type CommissionScenarioOrder = (scope: PersonalScopeTx, input: ScenarioOr
 /**
  * Quartermaster's Create for a thread's chosen branch (blueprint §11, §14; D-049). The brief was built
  * by code from the validated node, so nothing here reads words or matches the order to anyone else's:
- * an order is its own work, never joined, never reused for another thread. Two caps bound the spend,
- * each counted from this ledger: the world's day, and the thread's life. An order the ledger already
- * holds is commissioned again without counting twice, so a retry cannot spend the day.
+ * an order is its own work, never joined, never reused for another thread. That is why it has its own
+ * ledger and does not go through ContentDemand's compatible-supply matching, which would join it to
+ * supply for the same brief, the opposite of a branch made for one thread. Two caps bound the spend,
+ * each counted from this ledger: the world's day, and the thread's life. The caller (`choose`) makes
+ * one order per branch in the transaction that makes the branch, so a retry never gets here twice.
  *
  * Authority: runs inside the caller's open personal scope, after the caller's gate and the thread's
  * lock. The commissioning lock follows them and is last in the lock order. No model call or network
@@ -51,15 +52,12 @@ export type CommissionScenarioOrder = (scope: PersonalScopeTx, input: ScenarioOr
 export function makeCommissionScenarioOrder(p: ScenarioOrderPorts): CommissionScenarioOrder {
   return async (scope, input) => {
     await p.store.lockCommissioning(scope);
-    const known = await p.store.exists(scope, input.order.orderId);
-    if (!known) {
-      const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
-      if ((await p.store.countSince(scope, startOfDay)) >= p.caps.perDay) return { kind: 'refused', reason: 'day_cap' };
-      if ((await p.store.countForThread(scope, input.threadId)) >= p.caps.perThread)
-        return { kind: 'refused', reason: 'thread_cap' };
-    }
+    const startOfDay = new Date(Math.floor(p.now().getTime() / UTC_DAY_MS) * UTC_DAY_MS);
+    if ((await p.store.countSince(scope, startOfDay)) >= p.caps.perDay) return { kind: 'refused', reason: 'day_cap' };
+    if ((await p.store.countForThread(scope, input.threadId)) >= p.caps.perThread)
+      return { kind: 'refused', reason: 'thread_cap' };
     const { recipe } = await p.recordOrder(scope, input.order);
-    if (!known) await p.store.insert(scope, { orderId: input.order.orderId, threadId: input.threadId });
+    await p.store.insert(scope, { orderId: input.order.orderId, threadId: input.threadId });
     await p.enqueueProduction(scope, recipe, 1);
     return { kind: 'commissioned', recipe };
   };

@@ -1,7 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { readerOn, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
 import { productionStanding, takeToSend, type ProductionJobState } from '../domain/library/serving.js';
 import { madeToOrderKey } from '../domain/order-key.js';
@@ -116,16 +116,21 @@ export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) 
 };
 
 /**
- * May this caller open or read this asset. An asset with no order is as public as it always was; one
- * with an order is open only to the audience the ordering module names, and to no one if none does.
+ * Which of these assets may this caller open or read. An asset with no order is as public as it always
+ * was; one with an order is open only to the audience the ordering module names, and to no one if none
+ * does. One query finds the orders; the ordering module is asked once for them all.
  */
 export function makeCheckAssetAudience(db: Kysely<Database>, readOrderAudience: ReadOrderAudience): CheckAssetAudience {
-  return async (authority, assetId) => {
-    const order = await db
+  return async (on, authority, assetIds) => {
+    if (assetIds.length === 0) return new Set();
+    const orders = await readerOn(db, on)
       .selectFrom('content.made_to_order_scrolls')
-      .select('recipe')
-      .where('asset_id', '=', assetId)
-      .executeTakeFirst();
-    return order === undefined ? true : readOrderAudience(authority, assetId);
+      .select('asset_id')
+      .where('asset_id', 'in', [...assetIds])
+      .execute();
+    const ordered = orders.map((order) => order.asset_id);
+    const held = ordered.length === 0 ? new Set<string>() : await readOrderAudience(on, authority, ordered);
+    const orderedSet = new Set(ordered);
+    return new Set(assetIds.filter((assetId) => !orderedSet.has(assetId) || held.has(assetId)));
   };
 }

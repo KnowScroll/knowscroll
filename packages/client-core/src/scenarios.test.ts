@@ -2,7 +2,14 @@ import { ORPCError } from '@orpc/client';
 import { describe, expect, it } from 'vitest';
 import { problemDetails, type ContentThreadRef, type ScenarioCard } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
-import { chipText, createScenarioBoard, createScenarioComposer, describeOption, subjectOfStatement } from './scenarios';
+import {
+  chipText,
+  createScenarioBoard,
+  createScenarioComposer,
+  describeOption,
+  ownSelection,
+  subjectOfStatement,
+} from './scenarios';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const thread: ContentThreadRef = { threadId: id(1), membershipId: id(2), membershipRevision: 1 };
@@ -25,6 +32,7 @@ const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
   changes: [traffic],
   kept: [],
   hypothetical: true,
+  assumptions: [traffic],
   status: 'preparing',
   revision: 1,
   createdAt: '2026-10-24T10:00:00.000Z',
@@ -228,5 +236,49 @@ describe('words', () => {
     expect(describeOption({ ...option, changes: [], kept: [], lens: 'the operator’s view' })).toBe(
       'Another perspective: the operator’s view.',
     );
+  });
+});
+
+describe('the member’s own request', () => {
+  const twenty = 'Traffic is twenty times higher than in the original';
+
+  it('keeps the subject of an edited suggestion, so it replaces the premise of that subject', () => {
+    expect(
+      ownSelection({
+        kind: 'what_if',
+        changes: [{ subject: 'Traffic', statement: `  ${twenty}  ` }],
+        kept: [],
+        lens: '',
+      }),
+    ).toEqual({ kind: 'own', changes: [{ subject: 'Traffic', statement: twenty }], kept: [] });
+  });
+
+  it('names a new line by its first words, so it adds a premise instead of replacing one', () => {
+    const selection = ownSelection({ kind: 'what_if', changes: [{ statement: twenty }], kept: [], lens: '' });
+    expect(selection?.changes).toEqual([{ subject: 'Traffic is twenty', statement: twenty }]);
+  });
+
+  it('drops lines too short to be a sentence, and is nothing until something changes', () => {
+    expect(ownSelection({ kind: 'what_if', changes: [{ statement: 'ok' }], kept: [], lens: '' })).toBeUndefined();
+    const selection = ownSelection({
+      kind: 'what_if',
+      changes: [{ statement: twenty }],
+      kept: [{ statement: '' }, { statement: 'The same model serves every request' }],
+      lens: 'ignored',
+    });
+    expect(selection?.kept).toEqual([{ subject: 'The same model', statement: 'The same model serves every request' }]);
+    expect(selection).not.toHaveProperty('lens');
+  });
+
+  it('takes only the lens for a perspective', () => {
+    expect(ownSelection({ kind: 'perspective', changes: [{ statement: twenty }], kept: [], lens: '  cost  ' })).toEqual(
+      {
+        kind: 'own',
+        changes: [],
+        kept: [],
+        lens: 'cost',
+      },
+    );
+    expect(ownSelection({ kind: 'perspective', changes: [], kept: [], lens: ' ' })).toBeUndefined();
   });
 });

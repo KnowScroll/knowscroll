@@ -10,10 +10,14 @@ evidence: asking, choosing, being shown a card and opening a branch's Scroll are
 real-world coverage for anyone.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL. **Runtime-verified** means
-used on a running system. This module is **implemented** and **runtime-verified locally**: on 24 Oct, in a browser over a local
-PostgreSQL, API and worker with the real `MiniMax-M3.1-Flash` model, two people in a thread on a generated Scroll made a
-What if, an Another perspective (from a message) and a What if on top of the first. Each became an admitted Scroll both
-people opened, with no coverage and no topic. It is not running on dev.
+used on a running system. This module is **implemented** and, for the flow, **runtime-verified locally**: on 24 Oct, in a
+browser over a local PostgreSQL, API and worker with the real `MiniMax-M3.1-Flash` model, two people in a thread on a
+generated Scroll made a What if, an Another perspective (from a message) and a What if on top of the first. Each became an
+admitted Scroll both people opened, with no coverage and no topic. The review changes that followed (the audience on every
+way in, reading on the caller's transaction, the premise rules) are covered by the integration tests below and were not
+driven in a browser. It is not running on dev.
+
+
 
 ## What a member can do
 
@@ -35,7 +39,10 @@ another node at a revision). The rules are pure, in `domain/`:
 
 - **What if**: one or two explicit changes and up to three things that stay the same. The premises that
   hold are the parent's plus these, at most four; a change to a subject the parent already assumes replaces
-  it. Hypothetical status is inherited by every descendant.
+  it. A kept line may not name a subject an earlier branch assumes in other words
+  (`kept_contradicts_premise`); one that restates it in the same words is listed once, among the
+  assumptions. The client lists what already holds and lets a changed line add a premise or say which one it
+  replaces; an edited suggestion keeps its subjects. Hypothetical status is inherited by every descendant.
 - **Another perspective**: a named lens, no change; the parent's premises and status are kept. A perspective
   on the unchanged root is not hypothetical.
 - `planStep` is the one rule that checks a proposed or a hand-written step, so anything the Planner proposes
@@ -64,29 +71,36 @@ another node at a revision). The rules are pure, in `domain/`:
    sends the next take of a rejected recipe (at most three), closes a branch that cannot be produced or is
    older than 30 minutes, and hints the thread's members.
 
-## Who may open a branch's Scroll
+## Who may reach a branch's Scroll
 
-Only members of its thread, checked at read time (`READ_ORDER_AUDIENCE` through Content's
-`CHECK_ASSET_AUDIENCE`, used by open and document reads). A member who leaves loses the Scroll. A removed
-branch's Scroll is closed to everyone. The Scroll is in no discovery lane, cannot be a share-link card, has
-no topic attribution and adds no coverage.
+Only members of its thread, checked at read time: `READ_ORDER_AUDIENCE` through Content's
+`CHECK_ASSET_AUDIENCE`, which Experience asks wherever an ID could reach a Scroll: open, document read,
+save, like and hide (`findAsset`), the saved list and the saved page. For anyone else the Scroll is as
+missing as an unknown ID, and a saved entry reads as withdrawn with no title or summary (it can still be
+removed). A member who leaves loses it everywhere. A removed branch's Scroll is closed to everyone. The
+Scroll is in no discovery lane, cannot be a share-link card, has no topic attribution and adds no coverage.
+
+Every one of these asks reads on `ReadOn`: inside a personal write it is that scope's own transaction, so
+a check never takes a second connection (the pool is 10 in the API and 5 in the worker; a second one per
+concurrent open would exhaust it). Only the lock-free document read, which holds no connection, asks on
+the pool.
 
 ## Tables, jobs and lock order
 
 | Store | Role | Clear | Account deletion |
 | --- | --- | --- | --- |
-| `scenarios.nodes` | The shared exploration of a thread: parent, kind, premises, lens, status, revision, bound asset | kept (a contribution, like a message) | author link and the member's words cleared; branch, premises and Scroll stay |
-| `scenarios.drafts` | A member's private request and the directions proposed | deleted | deleted |
+| `scenarios.nodes` | The shared exploration of a thread: parent, kind, title, premises, lens, status, revision, bound asset | kept | the link to the person (`started_by_account_id`) cleared. Title, premises (a premise may be the member's own typed sentence), order and Scroll stay, with no account ID |
+| `scenarios.drafts` | A member's private request text and the directions proposed | deleted | deleted |
 | `supply.scenario_orders` (Supply) | The ledger the two caps count; names no person | kept | kept (no person) |
-| `content.made_to_order_scrolls` (Content) | The code-built order of a branch's Scroll: recipe, brief, pages, kicker, framing | kept | kept (no person) |
-| `receipts.shared_commands` | Receipts of the thread's commands (`scenarios.draft`, `.choose`, `.remove`) | kept | kept |
+| `content.made_to_order_scrolls` (Content) | The code-built order of a branch's Scroll: recipe, brief (with the premises), pages, kicker, framing | kept | kept (no account ID) |
+| `receipts.shared_commands` | Receipts of the thread's commands (`scenarios.draft`, `.choose`, `.remove`) | kept | the person's own are deleted (`receiptsErasure`) |
 | `pgboss/scenarios.suggest-draft` | Draft IDs; 4 at a time, 670 s expiry, three retries | payloads deleted | payloads deleted |
 | `pgboss/scenarios.resolve-branches` | Cron, every minute | nothing personal | nothing personal |
 
 Lock order: personal root, the caller's own account gate (`fenceOwn`), the thread's root (`social_thread`),
 the draft and node rows, and last the commissioning lock of Quartermaster. The personal harness's close of a
 run takes the account gate itself, so applying a draft closes the run first and then checks standing with a
-read that takes no lock. No model call or network wait happens inside a transaction or on the HTTP path.
+read that takes no lock, on the same transaction. No model call or network wait happens inside a transaction or on the HTTP path.
 
 ## Entry points
 
@@ -108,12 +122,14 @@ budgets for the Planner.
 
 ## Verification
 
-- Unit: `domain/*.test.ts` (exploration, progress, brief), `application/planner-role.test.ts`.
-- Integration, real PostgreSQL: `tests/integration/modules/scenarios.test.ts` (26 tests: a draft starts no
-  production; choose is idempotent and commissions exactly one demand, also under concurrency; a removed
-  or left member blocks a late result; hypothetical inheritance; a perspective keeps its assumptions;
-  hypothetical Scrolls carry no coverage; audience; caps; the sweep; the Planner never sees a name),
-  `account-deletion.test.ts` (erasure).
+- Unit: `domain/*.test.ts` (exploration, premises that come down, progress, brief), `application/planner-role.test.ts`.
+- Integration, real PostgreSQL: `tests/integration/modules/scenarios.test.ts`: a draft starts no production; choose
+  is idempotent and commissions exactly one demand, also under concurrency; a removed or left member blocks a late
+  result (and the check ran on the applying transaction); hypothetical inheritance; a perspective keeps its
+  assumptions; a kept line that contradicts a premise is refused and a replaced premise holds in its new words;
+  hypothetical Scrolls carry no coverage; the audience on open, document read, save, like, and the saved lists
+  (a member who left, and a stranger); a pool of one still opens, acts and lists; twenty drafts a day; both
+  caps; the sweep; the Planner never sees a name. `account-deletion.test.ts` (erasure).
 - All of the above use a labelled fixture model and production worker.
 - Runtime, real model: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
   first take was rejected as `OUTPUT_SCHEMA_MISMATCH` and the sweep sent take 2, which published). Screenshots and numbers

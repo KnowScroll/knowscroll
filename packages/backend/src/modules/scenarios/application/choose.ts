@@ -19,11 +19,27 @@ function titleOf(step: Step): string {
   return text.length <= TITLE_CHARS ? text : `${text.slice(0, TITLE_CHARS - 1).trimEnd()}…`;
 }
 
+/** The request a choice stands for, with the direction's own title and explanation when it was one of the draft's. */
+interface Chosen {
+  readonly request: StepRequest;
+  readonly title?: string;
+  readonly explanation?: string;
+}
+
+/** Everything one new branch is made from. */
+interface NewBranch {
+  readonly scope: PersonalScopeTx;
+  readonly visit: ThreadVisit;
+  readonly draft: DraftRow;
+  readonly chosen: Chosen;
+  readonly step: Step;
+  readonly parent: { readonly nodeId?: string; readonly title?: string };
+  readonly semanticKey: string;
+  readonly commandId: string;
+}
+
 /** The step the member chose: one of the draft's stored directions by ID, or their own complete request. */
-function requestOf(
-  draft: DraftRow,
-  selection: Choice['selection'],
-): { readonly request: StepRequest; readonly title?: string; readonly explanation?: string } | undefined {
+function requestOf(draft: DraftRow, selection: Choice['selection']): Chosen | undefined {
   if (selection.kind === 'own')
     return { request: { kind: draft.kind, changes: selection.changes, kept: selection.kept, lens: selection.lens } };
   const option = draft.options?.find((candidate) => candidate.optionId === selection.optionId);
@@ -50,16 +66,8 @@ function requestOf(
  * commissioning lock. No model call or network wait happens here.
  */
 export function makeChoose(p: ScenarioPorts) {
-  async function newBranch(
-    scope: PersonalScopeTx,
-    visit: ThreadVisit,
-    draft: DraftRow,
-    chosen: NonNullable<ReturnType<typeof requestOf>>,
-    step: Step,
-    parent: { readonly nodeId?: string; readonly title?: string },
-    semanticKey: string,
-    commandId: string,
-  ): Promise<Result<NodeRow>> {
+  async function newBranch(input: NewBranch): Promise<Result<NodeRow>> {
+    const { scope, visit, draft, chosen, step, parent, semanticKey, commandId } = input;
     const [subject] = await p.readContent(scope, [visit.root]);
     if (subject?.status !== 'available') return refuse('unavailable');
     const pages = await p.readSourcePages(scope, visit.root);
@@ -94,7 +102,6 @@ export function makeChoose(p: ScenarioPorts) {
       kind: step.kind,
       origin: draft.origin,
       startedByAccountId: visit.self.accountId,
-      requestText: draft.requestText,
       title,
       ...(step.lens === undefined ? {} : { lens: step.lens }),
       changes: step.changes,
@@ -167,7 +174,16 @@ export function makeChoose(p: ScenarioPorts) {
         await p.store.chooseDraft(scope, draft.draftId, existing.nodeId);
         node = existing;
       } else {
-        const made = await newBranch(scope, visit, draft, chosen, planned.step, parent, semanticKey, command.commandId);
+        const made = await newBranch({
+          scope,
+          visit,
+          draft,
+          chosen,
+          step: planned.step,
+          parent,
+          semanticKey,
+          commandId: command.commandId,
+        });
         if (made.kind === 'refused') return made;
         node = made.value;
       }

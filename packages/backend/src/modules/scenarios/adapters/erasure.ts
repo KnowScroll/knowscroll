@@ -10,9 +10,12 @@ import { suggestDraftQueue } from '../events.js';
  * What the scenarios module keeps about a person (D-049). Both stores are keyed by account.
  * - **Drafts** are a member's private composer sessions: their words and the directions proposed for
  *   them. Selective Clear and every erasure delete them, and the queued job that would answer one.
- * - **Nodes** are the thread's shared exploration, a contribution like a message. Clear keeps them.
- *   Deleting an account keeps the branch and its Scroll for the others and removes the member's
- *   authorship and their words (`request_text`): the card then names nobody.
+ * - **Nodes** are the thread's shared exploration: a branch, its premises, its title and its Scroll.
+ *   Clear keeps them. Deleting an account clears only the link to the person (`started_by_account_id`):
+ *   the card then names nobody. What stays is what the others read: the title, the premises (which may
+ *   be the member's own typed sentences), the order's brief and framing and the Scroll. None of it
+ *   carries an account ID. Content that is a member's alone, their request in the composer, is a draft
+ *   and is deleted.
  */
 export const scenariosErasure = declareErasure({
   module: 'scenarios',
@@ -51,7 +54,7 @@ export const scenariosErasure = declareErasure({
       .executeTakeFirst();
     const nodes = await trx
       .updateTable('scenarios.nodes')
-      .set({ started_by_account_id: null, request_text: null })
+      .set({ started_by_account_id: null })
       .where('started_by_account_id', '=', scope.accountId)
       .executeTakeFirst();
     return {
@@ -75,7 +78,7 @@ export const scenariosErasure = declareErasure({
       };
     },
   },
-  /** The person's own requests, in their words, and what became of them. No IDs, no other person's request. */
+  /** The person's own requests and the branches they started, with their premises, and what became of them. No IDs, no other person's request. */
   export: (declaration) =>
     exportReading(
       declaration,
@@ -87,8 +90,16 @@ export const scenariosErasure = declareErasure({
           select created_at, kind, request_text, state from scenarios.drafts
           where requester_account_id = ${person.accountId}::uuid
           order by created_at desc, draft_id limit ${EXPORT_LIST_LIMIT + 1}`.execute(trx);
-        const branches = await sql<{ created_at: Date; kind: string; request_text: string | null; status: string }>`
-          select created_at, kind, request_text, status from scenarios.nodes
+        const branches = await sql<{
+          created_at: Date;
+          kind: string;
+          title: string;
+          lens: string | null;
+          changes: { statement: string }[];
+          kept: { statement: string }[];
+          status: string;
+        }>`
+          select created_at, kind, title, lens, changes, kept, status from scenarios.nodes
           where started_by_account_id = ${person.accountId}::uuid
           order by created_at desc, node_id limit ${EXPORT_LIST_LIMIT + 1}`.execute(trx);
         // A person who never used What if has no section: the file never names the module.
@@ -106,7 +117,10 @@ export const scenariosErasure = declareErasure({
             branches.rows.map((row) => ({
               startedAt: row.created_at.toISOString(),
               kind: row.kind,
-              ...(row.request_text === null ? {} : { words: row.request_text }),
+              title: row.title,
+              ...(row.lens === null ? {} : { lens: row.lens }),
+              changes: row.changes.map((change) => change.statement),
+              kept: row.kept.map((kept) => kept.statement),
               state: row.status,
             })),
           ),

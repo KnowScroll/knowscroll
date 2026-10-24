@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { sharedTransactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
+import { readerOn, sharedTransactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import type { ThreadGuestPorts } from '../application/thread-guest.js';
 import { canTakePart } from '../domain/threads.js';
 import type { AnnounceThread, ReadThreadStanding } from '../public.js';
@@ -25,8 +25,8 @@ export const sequenceOf: ThreadGuestPorts['sequenceOf'] = async (lock, messageId
  * deciding who may read something that belongs to the thread; whatever acts on the answer rechecks.
  */
 export function makeReadThreadStanding(db: Kysely<Database>): ReadThreadStanding {
-  return async (accountId, threadId) => {
-    const members = (await selectMembers(db, [threadId])).rows.map(memberOf);
+  return async (on, accountId, threadId) => {
+    const members = (await selectMembers(readerOn(db, on), [threadId])).rows.map(memberOf);
     const member = members.find((candidate) => candidate.accountId === accountId);
     return member !== undefined && canTakePart(member);
   };

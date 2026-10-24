@@ -41,7 +41,7 @@ export function makeReadExposureDocument(ports: ReadExposureDocumentPorts) {
     const read = await ports.readExposure(authority, exposureId);
     if (read.kind === 'refused') return { kind: 'refused', reason: read.reason };
     const { exposure } = read;
-    if (!(await ports.audienceHolds(authority, exposure.assetId)))
+    if (!(await ports.audienceHolds({ pool: true }, authority, exposure.assetId)))
       return { kind: 'refused', reason: 'exposure_not_found' };
     const rendered = await ports.renderScroll({
       assetId: exposure.assetId,

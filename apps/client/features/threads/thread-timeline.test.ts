@@ -19,6 +19,7 @@ const card = (n: number, createdAt: string, patch: Partial<ScenarioCard> = {}): 
   changes: [],
   kept: [],
   hypothetical: true,
+  assumptions: [],
   status: 'ready',
   revision: 1,
   createdAt,
@@ -44,12 +45,12 @@ describe('the thread timeline', () => {
     expect(names(entries)).toEqual(['message 1', 'branch 1', 'branch 2']);
   });
 
-  it('leaves a removed branch out of the chat and keeps a removed message where it was', () => {
+  it('keeps a removed branch where it was, as a note, and a removed message where it was', () => {
     const entries = timeline(
       [message(1, '2026-10-24T10:00:00.000Z'), { messageId: id(2), sequence: 2, status: 'unavailable' }],
       [card(1, '2026-10-24T09:00:00.000Z', { status: 'removed' }), card(2, '2026-10-24T10:30:00.000Z')],
     );
-    expect(names(entries)).toEqual(['message 1', 'message 2', 'branch 2']);
+    expect(names(entries)).toEqual(['branch 1', 'message 1', 'message 2', 'branch 2']);
   });
 
   it('does not change a branch card when it is read again with new words in the thread', () => {

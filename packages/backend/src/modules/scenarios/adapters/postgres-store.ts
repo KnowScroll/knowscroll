@@ -2,7 +2,7 @@ import { sql, type Kysely, type Selectable } from 'kysely';
 import { z } from 'zod';
 import { AssumptionSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
+import { readerOn, transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import type { BranchPoolStore, DraftRow, NodeRow, Origin, ScenarioStore } from '../application/ports.js';
 
 const Assumptions = z.array(AssumptionSchema);
@@ -53,7 +53,6 @@ const nodeOf = (row: NodeColumns): NodeRow => ({
   kind: row.kind === 'perspective' ? 'perspective' : 'what_if',
   origin: originOf(row.origin_kind, row.origin_message_id),
   ...(row.started_by_account_id === null ? {} : { startedByAccountId: row.started_by_account_id }),
-  ...(row.request_text === null ? {} : { requestText: row.request_text }),
   title: row.title,
   ...(row.lens === null ? {} : { lens: row.lens }),
   changes: Assumptions.parse(row.changes),
@@ -178,7 +177,6 @@ export const scenarioStore: ScenarioStore = {
         origin_kind: node.origin.kind,
         origin_message_id: node.origin.kind === 'root' ? null : node.origin.messageId,
         started_by_account_id: node.startedByAccountId ?? null,
-        request_text: node.requestText ?? null,
         title: node.title,
         lens: node.lens ?? null,
         changes: JSON.stringify(node.changes),
@@ -288,13 +286,20 @@ export function branchPoolStore(db: Kysely<Database>): BranchPoolStore {
       });
     },
 
-    async holderOfAsset(assetId) {
-      const row = await db
+    async holdersOfAssets(on, assetIds) {
+      if (assetIds.length === 0) return new Map();
+      const rows = await readerOn(db, on)
         .selectFrom('scenarios.nodes')
-        .select(['thread_id', 'status'])
-        .where('asset_id', '=', assetId)
-        .executeTakeFirst();
-      return row && { threadId: row.thread_id, status: row.status as NodeRow['status'] };
+        .select(['asset_id', 'thread_id', 'status'])
+        .where('asset_id', 'in', [...assetIds])
+        .execute();
+      return new Map(
+        rows.flatMap((row) =>
+          row.asset_id === null
+            ? []
+            : [[row.asset_id, { threadId: row.thread_id, status: row.status as NodeRow['status'] }] as const],
+        ),
+      );
     },
   };
 }

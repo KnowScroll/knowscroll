@@ -151,6 +151,8 @@ export const ScenarioCardSchema = z.strictObject({
   lens: plainText(3, 80).optional(),
   /** Every what-if, and everything below one, is hypothetical. A perspective on the real subject is not. */
   hypothetical: z.boolean(),
+  /** What holds after this branch: the premises a continuation of it inherits (at most four). */
+  assumptions: z.array(AssumptionSchema).max(4),
   startedBy: PublicPersonRefSchema.optional(),
   status: z.enum(['preparing', 'ready', 'failed', 'removed']),
   /** Moves when the card's state does; a draft from this card names it as its parent revision. */

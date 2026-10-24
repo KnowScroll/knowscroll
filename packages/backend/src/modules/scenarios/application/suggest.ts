@@ -109,7 +109,8 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
     // A choice made while the model thought, or an expiry, wins: the late answer is dropped.
     if (draft?.state !== 'thinking') return;
     // The member may have left while the model thought. Their draft goes with their place.
-    if (!(await p.standing(draft.requesterAccountId, draft.threadId))) return p.store.deleteDraft(scope, draftId);
+    if (!(await p.standing({ scope }, draft.requesterAccountId, draft.threadId)))
+      return p.store.deleteDraft(scope, draftId);
     await p.store.finishDraft(
       scope,
       draftId,

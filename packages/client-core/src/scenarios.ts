@@ -301,6 +301,41 @@ export function subjectOfStatement(statement: string): string {
   return subject.length >= 2 ? subject : 'This idea';
 }
 
+/**
+ * One line of the member's own request. `subject` is the one an edited suggestion already had, or the
+ * subject of the earlier premise this line replaces; a line without one adds a premise of its own.
+ */
+export interface OwnRow {
+  readonly statement: string;
+  readonly subject?: string | undefined;
+}
+
+const MIN_STATEMENT = 3;
+
+/**
+ * The member's complete request as the server takes it, or nothing while it is not complete: a what-if
+ * needs one sentence that changes something, a perspective needs a lens. A line keeps its subject when it
+ * has one (so it replaces the premise of that subject instead of standing beside it); a new line is named
+ * by its first words, and so adds a premise.
+ */
+export function ownSelection(request: {
+  readonly kind: ScenarioKind;
+  readonly changes: readonly OwnRow[];
+  readonly kept: readonly OwnRow[];
+  readonly lens: string;
+}): Extract<ScenarioSelection, { kind: 'own' }> | undefined {
+  if (request.kind === 'perspective') {
+    const lens = request.lens.trim();
+    return lens.length >= MIN_STATEMENT ? { kind: 'own', changes: [], kept: [], lens } : undefined;
+  }
+  const assumptions = (rows: readonly OwnRow[]): Assumption[] =>
+    rows
+      .map((row) => ({ subject: row.subject ?? subjectOfStatement(row.statement), statement: row.statement.trim() }))
+      .filter((row) => row.statement.length >= MIN_STATEMENT);
+  const changes = assumptions(request.changes);
+  return changes.length === 0 ? undefined : { kind: 'own', changes, kept: assumptions(request.kept) };
+}
+
 /** One assumption the way a chip says it: "Changed: traffic is ten times higher". */
 export const chipText = (prefix: 'Changed' | 'Kept', assumption: Assumption): string =>
   `${prefix}: ${assumption.statement.charAt(0).toLowerCase()}${assumption.statement.slice(1)}`;

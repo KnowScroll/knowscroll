@@ -31,7 +31,9 @@ import {
   APPLY_ENCOUNTER_ACTION,
   experienceProviders,
 } from '@knowscroll/backend/modules/experience/nest-providers';
+import { CHECK_ASSET_AUDIENCE } from '@knowscroll/backend/modules/content';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
+import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedAsset, seedPerson } from '../support/fixtures.js';
 import { experienceUseCases } from '../support/experience.js';
@@ -244,6 +246,7 @@ describe('Experience recording provenance and authority (Actions only)', () => {
         EFFECTS = Symbol('effects');
       const values = new Map<symbol, unknown>([
         [DB, database.db],
+        [CHECK_ASSET_AUDIENCE, openToEveryone],
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
         [READ_RECORDING_LIFECYCLE, readRecordingLifecycle],
         [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
@@ -430,6 +433,7 @@ describe('Experience recording provenance and authority (Actions only)', () => {
         EFFECTS = Symbol('effects');
       const values = new Map<symbol, unknown>([
         [DB, database.db],
+        [CHECK_ASSET_AUDIENCE, openToEveryone],
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
         [READ_RECORDING_LIFECYCLE, readRecordingLifecycle],
         [FENCE_OWN_ACCOUNT, own],

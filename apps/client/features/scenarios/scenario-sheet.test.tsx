@@ -25,6 +25,7 @@ const card: ScenarioCard = {
   changes: [traffic],
   kept: [model],
   hypothetical: true,
+  assumptions: [traffic],
   status: 'preparing',
   revision: 1,
   createdAt: '2026-10-24T10:00:00.000Z',
@@ -34,6 +35,7 @@ const start: ScenarioStart = {
   origin: { kind: 'root' },
   fromLabel: 'the whole thread',
   parent: { kind: 'root', assetRevision: 1 },
+  premises: [],
 };
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
@@ -61,13 +63,16 @@ function scopeOf(api: Api) {
   return { scope, calls, stored };
 }
 
-async function open(api: Api, callbacks: { onClose?: () => void; onChosen?: (card: ScenarioCard) => void } = {}) {
+async function open(
+  api: Api,
+  callbacks: { onClose?: () => void; onChosen?: (card: ScenarioCard) => void; start?: ScenarioStart } = {},
+) {
   const harness = scopeOf(api);
   const onChosen = callbacks.onChosen ?? jest.fn();
   await render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <ScenarioSheet
-        start={start}
+        start={callbacks.start ?? start}
         scope={harness.scope}
         thread={thread}
         onClose={callbacks.onClose ?? jest.fn()}
@@ -94,6 +99,7 @@ describe('the What if… sheet from a message', () => {
             fromLabel: 'Ravi’s message',
             quote: { authorName: 'Ravi', preview: 'What would change if the tilt were different?' },
             parent: { kind: 'root', assetRevision: 1 },
+            premises: [],
           }}
           scope={harness.scope}
           thread={thread}
@@ -175,7 +181,7 @@ describe('the What if… sheet', () => {
     expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
   });
 
-  it('turns an edited summary into the member’s own complete request', async () => {
+  it('keeps the subjects of an edited suggestion, so the edit replaces what it was and nothing beside it', async () => {
     const { calls } = await open({
       draft: () => Promise.resolve({ draftId: id(7) }),
       readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [option] }),
@@ -188,8 +194,58 @@ describe('the What if… sheet', () => {
     expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
     expect(calls.at(-1)?.input['selection']).toEqual({
       kind: 'own',
-      changes: [{ subject: 'Traffic is twenty', statement: 'Traffic is twenty times higher' }],
-      kept: [{ subject: 'The same model', statement: 'The same model serves every request' }],
+      changes: [{ subject: 'Traffic', statement: 'Traffic is twenty times higher' }],
+      kept: [{ subject: 'Model', statement: 'The same model serves every request' }],
+    });
+  });
+
+  describe('continuing a branch that already assumes something', () => {
+    const below: ScenarioStart = { ...start, premises: [traffic, model] };
+    const writeOwn = async (callbacks: Record<string, () => Promise<unknown>> = {}) => {
+      const opened = await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () => Promise.resolve({ status: 'failed', reason: 'could_not_suggest' }),
+          choose: () => Promise.resolve({ node: card, reused: false }),
+          ...callbacks,
+        },
+        { start: below },
+      );
+      await ask();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Write my own version' }));
+      return opened;
+    };
+
+    it('lists what already holds, and says that a new line adds a premise', async () => {
+      await writeOwn();
+      expect(screen.getByText('Already assumed from earlier branches')).toBeOnTheScreen();
+      expect(screen.getByText(`· ${traffic.statement}`)).toBeOnTheScreen();
+      expect(screen.getByText(/A line you add below is a new premise/)).toBeOnTheScreen();
+    });
+
+    it('adds a premise of its own unless the member says which one the line replaces', async () => {
+      const { calls } = await writeOwn();
+      await fireEvent.changeText(screen.getByLabelText('What changes 1'), 'Traffic is twenty times higher');
+      await fireEvent.press(screen.getByRole('button', { name: 'Explore' }));
+      expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+      expect(calls.at(-1)?.input['selection']).toEqual({
+        kind: 'own',
+        changes: [{ subject: 'Traffic is twenty', statement: 'Traffic is twenty times higher' }],
+        kept: [],
+      });
+    });
+
+    it('replaces the premise the member names, keeping its subject', async () => {
+      const { calls } = await writeOwn();
+      await fireEvent.changeText(screen.getByLabelText('What changes 1'), 'Traffic is twenty times higher');
+      await fireEvent.press(screen.getByText('Replaces: Traffic'));
+      await fireEvent.press(screen.getByRole('button', { name: 'Explore' }));
+      expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+      expect(calls.at(-1)?.input['selection']).toEqual({
+        kind: 'own',
+        changes: [{ subject: 'Traffic', statement: 'Traffic is twenty times higher' }],
+        kept: [],
+      });
     });
   });
 

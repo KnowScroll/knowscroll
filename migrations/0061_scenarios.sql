@@ -37,9 +37,8 @@ create table scenarios.nodes (
   kind text not null check (kind in ('what_if', 'perspective')),
   origin_kind text not null check (origin_kind in ('root', 'snippet', 'message')),
   origin_message_id uuid references social.messages(message_id) on delete restrict,
-  -- Null once the starter's account is deleted, together with request_text.
+  -- Null once the starter's account is deleted. The branch itself, its premises and its Scroll stay.
   started_by_account_id uuid references identity.accounts(id) on delete restrict,
-  request_text text check (char_length(request_text) between 1 and 500),
   title text not null check (char_length(title) between 1 and 120),
   lens text check (char_length(lens) between 3 and 80),
   changes jsonb not null check (jsonb_typeof(changes) = 'array' and jsonb_array_length(changes) <= 2),

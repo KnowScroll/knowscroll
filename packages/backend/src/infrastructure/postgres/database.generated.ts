@@ -1413,7 +1413,6 @@ export interface ScenariosNodes {
   origin_kind: string;
   origin_message_id: string | null;
   parent_node_id: string | null;
-  request_text: string | null;
   revision: number;
   semantic_key: string;
   started_by_account_id: string | null;

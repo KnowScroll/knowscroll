@@ -143,6 +143,7 @@ describe('what a draft and a branch show', () => {
       changes: [traffic],
       kept: [],
       hypothetical: true,
+      assumptions: [traffic],
       startedBy: person,
       status: 'preparing',
       revision: 1,

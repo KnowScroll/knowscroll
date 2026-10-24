@@ -35,6 +35,7 @@ export type StepRefusal =
   | 'repeated_change'
   | 'repeated_kept'
   | 'kept_contradicts_change'
+  | 'kept_contradicts_premise'
   | 'too_many_assumptions';
 
 /** A checked branch step: what it changes, keeps and names, and what holds after it. */
@@ -82,15 +83,38 @@ export function planStep(parent: ParentFacts, request: StepRequest): StepOutcome
   if (request.kept.length > MAX_KEPT) return { ok: false, refusal: 'too_many_kept' };
   if (repeatsSubject(request.changes)) return { ok: false, refusal: 'repeated_change' };
   if (repeatsSubject(request.kept)) return { ok: false, refusal: 'repeated_kept' };
-  const changed = new Set(request.changes.map((change) => wordsKey(change.subject)));
-  if (request.kept.some((kept) => changed.has(wordsKey(kept.subject))))
-    return { ok: false, refusal: 'kept_contradicts_change' };
+  const kept = keptBy(parent, request);
+  if (!kept.ok) return kept;
   const assumptions = applyChanges(parent.assumptions, request.changes);
   if (assumptions.length > MAX_ASSUMPTIONS) return { ok: false, refusal: 'too_many_assumptions' };
   return {
     ok: true,
-    step: { kind: 'what_if', changes: request.changes, kept: request.kept, assumptions, hypothetical: true },
+    step: { kind: 'what_if', changes: request.changes, kept: kept.items, assumptions, hypothetical: true },
   };
+}
+
+/**
+ * What a what-if really keeps. A kept subject may not be one this step changes, and may not be one an
+ * earlier branch already assumes in other words (the two would disagree in one Scroll). One that
+ * restates a premise that already holds, in the same words, adds nothing: it is listed once, among the
+ * assumptions, and dropped from `kept`.
+ */
+function keptBy(
+  parent: ParentFacts,
+  request: StepRequest,
+):
+  { readonly ok: true; readonly items: readonly Assumption[] } | { readonly ok: false; readonly refusal: StepRefusal } {
+  const changed = new Set(request.changes.map((change) => wordsKey(change.subject)));
+  const held = new Map(parent.assumptions.map((premise) => [wordsKey(premise.subject), wordsKey(premise.statement)]));
+  const items: Assumption[] = [];
+  for (const kept of request.kept) {
+    const subject = wordsKey(kept.subject);
+    if (changed.has(subject)) return { ok: false, refusal: 'kept_contradicts_change' };
+    const premise = held.get(subject);
+    if (premise === undefined) items.push(kept);
+    else if (premise !== wordsKey(kept.statement)) return { ok: false, refusal: 'kept_contradicts_premise' };
+  }
+  return { ok: true, items };
 }
 
 /**

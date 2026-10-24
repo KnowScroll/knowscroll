@@ -214,7 +214,7 @@ export async function scrollUseCases(
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
   // A Scroll ordered from code opens for no one unless a test names the audience that ordered it.
   const ORDER_AUDIENCE = Symbol('test.orderAudience');
-  values.set(ORDER_AUDIENCE, options.orderAudience ?? (() => Promise.resolve(false)));
+  values.set(ORDER_AUDIENCE, options.orderAudience ?? (() => Promise.resolve(new Set<string>())));
   values.set(
     CHECK_ASSET_AUDIENCE,
     buildFromProviders(
