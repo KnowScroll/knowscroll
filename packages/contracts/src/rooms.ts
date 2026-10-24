@@ -141,6 +141,7 @@ export const RoomListItemSchema = z.strictObject({
   room: RoomSummarySchema,
   standing: z.enum(['member', 'moderator', 'invited']),
 });
+export type RoomListItem = z.infer<typeof RoomListItemSchema>;
 export const RoomListSchema = z.strictObject({
   ...ScopedRead,
   status: z.literal('ready'),
@@ -330,6 +331,8 @@ export const RoomInhabitantStatusSchema = z.strictObject({
   blurb: z.string().min(1).max(80),
   ask: z.enum(['available', 'preparing', 'resting', 'paused']),
 });
+
+export type RoomInhabitantStatus = z.infer<typeof RoomInhabitantStatusSchema>;
 
 export const DiscussionViewSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),

@@ -66,26 +66,24 @@ describe('RoomsController', () => {
   });
 
   it.each([
-    ['invalid_input', 'INVALID_REQUEST', 400],
-    ['command_key_reused', 'COMMAND_KEY_REUSED', 409],
-    ['rate_limited', 'TOO_MANY_REQUESTS', 429],
-    ['unavailable', 'SHARING_UNAVAILABLE', problemDetails('SHARING_UNAVAILABLE').status],
-  ] as const)(
-    'answers a %s refusal with the closed Social problem %s and nothing else',
-    async (code, problem, status) => {
-      const send = vi.fn<RoomUseCases['send']>(() => refused(code));
-      const request = await admitted();
-      const failure = await call(controllerOver({ send }).sendRoute(request), {
-        version: 'rooms.v1' as const,
-        commandId,
-        roomId,
-        discussionId,
-        body: { kind: 'text' as const, text: 'hello' },
-      }).catch((error: unknown) => error as { code: string; status: number; data: Record<string, unknown> });
-      expect(failure).toMatchObject({ code: problem, status });
-      expect(Object.keys((failure as { data: Record<string, unknown> }).data).sort()).toEqual(
-        ['code', 'status', 'title', 'type'].sort(),
-      );
-    },
-  );
+    ['invalid_input', 'INVALID_REQUEST'],
+    ['command_key_reused', 'COMMAND_KEY_REUSED'],
+    ['rate_limited', 'TOO_MANY_REQUESTS'],
+    ['unavailable', 'SHARING_UNAVAILABLE'],
+  ] as const)('answers a %s refusal with the closed Social problem %s and nothing else', async (code, problem) => {
+    const status = problemDetails(problem).status;
+    const send = vi.fn<RoomUseCases['send']>(() => refused(code));
+    const request = await admitted();
+    const failure = await call(controllerOver({ send }).sendRoute(request), {
+      version: 'rooms.v1' as const,
+      commandId,
+      roomId,
+      discussionId,
+      body: { kind: 'text' as const, text: 'hello' },
+    }).catch((error: unknown) => error as { code: string; status: number; data: Record<string, unknown> });
+    expect(failure).toMatchObject({ code: problem, status });
+    expect(Object.keys((failure as { data: Record<string, unknown> }).data).sort()).toEqual(
+      ['code', 'status', 'title', 'type'].sort(),
+    );
+  });
 });
