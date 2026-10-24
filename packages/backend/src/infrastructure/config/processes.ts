@@ -96,6 +96,10 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
   readonly supplyPlannerCreateDailyCap: number;
+  /** Branches of threads Quartermaster may order per UTC day (D-049); 0 turns scenario Create off. */
+  readonly supplyScenarioDailyCap: number;
+  /** Branches one thread may have ordered over its life. */
+  readonly supplyScenarioThreadCap: number;
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -206,6 +210,16 @@ function supplyCreateDailyCap(configured: number | undefined, world: string): nu
  */
 const supplyPlannerCapVariable = z.coerce.number().int().min(0).max(500).default(5);
 
+/**
+ * `KS_SUPPLY_SCENARIO_DAILY_CAP`: how many branches of content threads (a what-if or another perspective,
+ * each one writer call and at most one repair) Quartermaster may order per UTC day. It is counted apart
+ * from every other Create cap. 0 turns scenario Create off. Default 20 in `local`, 0 in every other
+ * world (D-049).
+ */
+const supplyScenarioDailyCapVariable = z.coerce.number().int().min(0).max(500).optional();
+/** `KS_SUPPLY_SCENARIO_THREAD_CAP`: the branches one thread may have ordered in all. Default 6. */
+const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(6);
+
 const databaseVariables = {
   DATABASE_URL: PostgresUrlSchema,
   KS_DB_STATEMENT_TIMEOUT_MS: positiveInteger(15_000, 600_000),
@@ -259,6 +273,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SOCKET_AUTH_CACHE_MS: z.coerce.number().int().min(0).max(30_000).default(30_000),
       KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
+      KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
+      KS_SUPPLY_SCENARIO_THREAD_CAP: supplyScenarioThreadCapVariable,
     }),
     pick(env, [
       'DATABASE_URL',
@@ -274,6 +290,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SOCKET_AUTH_CACHE_MS',
       'KS_SUPPLY_CREATE_DAILY_CAP',
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
+      'KS_SUPPLY_SCENARIO_DAILY_CAP',
+      'KS_SUPPLY_SCENARIO_THREAD_CAP',
     ]),
   );
   const [release, parsed, identity, operatorAccounts] = combineChecks(
@@ -310,6 +328,8 @@ export function readApiConfig(env: Environment): ApiConfig {
     operatorAccounts,
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
+    supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
+    supplyScenarioThreadCap: parsed.KS_SUPPLY_SCENARIO_THREAD_CAP,
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }

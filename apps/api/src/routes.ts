@@ -5,6 +5,7 @@ import { SocialController } from './http/social.controller.js';
 import { VisibilityController } from './http/visibility.controller.js';
 import { ConversationsController } from './http/conversations.controller.js';
 import { ThreadsController } from './http/threads.controller.js';
+import { ScenariosController } from './http/scenarios.controller.js';
 import { ShareLandingController } from './http/share-landing.controller.js';
 import { RecordingController } from './http/recording.controller.js';
 import { FormationController } from './http/formation.controller.js';
@@ -45,6 +46,7 @@ export const apiControllers = [
   VisibilityController,
   ConversationsController,
   ThreadsController,
+  ScenariosController,
   ShareLandingController,
   RegionEncounterController,
   FormationController,

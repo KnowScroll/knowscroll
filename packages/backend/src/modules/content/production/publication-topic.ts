@@ -275,12 +275,17 @@ async function projectNewPublication(
  * locked writer-stage job and actual successful harness closure. Publication, topic attribution and
  * coverage share that transaction: any failure rolls the closure and domain writes back together. No
  * network, arbitrary reasoning SQL, caller-supplied closure proof or historical reconciliation.
+ *
+ * `attribution: 'none'` is a Scroll ordered from code (a hypothetical or a lens): it is published and
+ * closed like any other and then gets no topic and no coverage, by design (D-049), so a hypothetical
+ * can never grow a real-world planet.
  */
 export async function completeWriterPublication(
   scope: ProductionScopeTx,
   harness: ProductionReasoningHarness,
   jobId: string,
   writerRunId: string,
+  attribution: 'library' | 'none',
   publish: () => Promise<void>,
 ): Promise<boolean> {
   const tx = productionTransactionOf(scope);
@@ -299,6 +304,7 @@ export async function completeWriterPublication(
   if (accounting.kind !== 'accounted') return false;
   if ((await harness.closeProductionRun(scope, { runId: writerRunId, state: 'completed' })) !== 'closed') return false;
   await publish();
-  await projectNewPublication(tx, jobId, writerRunId, scope.authority.generation, accounting.attempts);
+  if (attribution === 'library')
+    await projectNewPublication(tx, jobId, writerRunId, scope.authority.generation, accounting.attempts);
   return true;
 }

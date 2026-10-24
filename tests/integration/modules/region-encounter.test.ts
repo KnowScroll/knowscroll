@@ -23,7 +23,12 @@ import {
   makeAdmitCoverage,
   makeCoverageAdmissionPorts,
 } from '@knowscroll/backend/modules/content/nest-providers';
-import { COVERAGE_POLICY, CONCEPT_CATALOGUE_VERSION, type CoverageCommand } from '@knowscroll/backend/modules/content';
+import {
+  CHECK_ASSET_AUDIENCE,
+  COVERAGE_POLICY,
+  CONCEPT_CATALOGUE_VERSION,
+  type CoverageCommand,
+} from '@knowscroll/backend/modules/content';
 import { composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { READ_OWN_REGION_CONSTRAINT } from '@knowscroll/backend/modules/geography';
@@ -40,6 +45,7 @@ import {
   accountAccessUseCases,
   identityScopeOwnerProviders,
 } from '@knowscroll/backend/modules/identity/nest-providers';
+import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource, baselineCapabilities } from '../support/scroll.js';
@@ -71,6 +77,7 @@ describe('current canonical Region navigation (real PostgreSQL, Actions only)', 
       [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [READ_COMPOSER_CONTEXT, c.readComposerContext],
+      [CHECK_ASSET_AUDIENCE, openToEveryone],
       ...contentProviders().map((x) => [x.provide, x.useValue] as const),
       ...composerProviders({ isOperator: () => false }).map((x) => [x.provide, x.useValue] as const),
       ...identityScopeOwnerProviders().map((x) => [x.provide, x.useValue] as const),

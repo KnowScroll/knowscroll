@@ -76,6 +76,12 @@ ks_v2_supply_create_daily_cap: { dev: 10 }
 # counted apart from people's requests and never exceeds the cap above, so a person's explicit ask is
 # not starved by the Planner. A world not listed gets the default of 5.
 ks_v2_supply_planner_create_daily_cap: { dev: 5 }
+# Branches of content threads (a what-if or another perspective, #244, D-049) that Quartermaster may
+# order per UTC day, per world (KS_SUPPLY_SCENARIO_DAILY_CAP), counted apart from the caps above. Each is
+# one writer call and at most one repair. A world not listed gets 0, which turns scenario Create off.
+ks_v2_supply_scenario_daily_cap: { dev: 6 }
+# The branches one thread may have ordered in all (KS_SUPPLY_SCENARIO_THREAD_CAP). A world not listed gets 6.
+ks_v2_supply_scenario_thread_cap: { dev: 6 }
 # Per-process memory for the v2 units, inside the world's slice (MemoryMax 1536M above).
 ks_v2_services:
   api: { memory_high: 600M, memory_max: 800M }

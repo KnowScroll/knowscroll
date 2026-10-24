@@ -11,6 +11,7 @@ import {
   identitySweepUseCase,
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
+import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedKeepFixture } from '../support/keep-fixture.js';
 import { everyStoreSeeder } from '../support/every-store.js';
@@ -42,7 +43,7 @@ describe('personal data export (real database)', () => {
     await database.drop();
   });
 
-  const exporting = (gather: Gather = exportCurrentPerson) =>
+  const exporting = (gather: Gather = (scope, person) => exportCurrentPerson(scope, person, openToEveryone)) =>
     dataExportFor(database.db, boss, { gather, lockTimeoutMs: 5_000 });
   const social = () => {
     const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 5_000 });

@@ -23,6 +23,8 @@ export interface ProduceScrollResult {
     | 'unknown'
     | 'in_progress'
     | 'scope_refused'
+    /** The key is neither a library recipe nor a stored order; nothing was started. */
+    | 'unknown_recipe'
     | 'paused'
     /** A take above 1 was asked for before every earlier take was rejected; nothing was started. */
     | 'take_refused'

@@ -24,11 +24,18 @@ import {
   makeWithPersonalScope,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { RENDER_SCROLL, type ImportEditorialScroll, type RenderScroll } from '@knowscroll/backend/modules/content';
+import {
+  CHECK_ASSET_AUDIENCE,
+  RENDER_SCROLL,
+  type ImportEditorialScroll,
+  type ReadOrderAudience,
+  type RenderScroll,
+} from '@knowscroll/backend/modules/content';
 import {
   contentProviders,
   contentRenderProviders,
   importEditorialScrollUseCase,
+  madeToOrderProviders,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   READ_PREPARED_ACTIVITY,
@@ -144,6 +151,8 @@ export async function scrollUseCases(
     /** Serves worker-prepared buffers and requests the next one on activation, like the API. */
     readonly buffers?: true;
     readonly activityDerived?: ActivityDerivedEffect;
+    /** Who may open a Scroll ordered from code, as the module that orders it decides. */
+    readonly orderAudience?: ReadOrderAudience;
     readonly activityMaterialChange?: (
       scope: RecordingScopeTx,
       input: { readonly sourceRevision: number; readonly recordingGeneration: number },
@@ -203,6 +212,17 @@ export async function scrollUseCases(
     ),
   ]);
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
+  // A Scroll ordered from code opens for no one unless a test names the audience that ordered it.
+  const ORDER_AUDIENCE = Symbol('test.orderAudience');
+  values.set(ORDER_AUDIENCE, options.orderAudience ?? (() => Promise.resolve(new Set<string>())));
+  values.set(
+    CHECK_ASSET_AUDIENCE,
+    buildFromProviders(
+      madeToOrderProviders({ database: DATABASE, orderAudience: ORDER_AUDIENCE }),
+      CHECK_ASSET_AUDIENCE,
+      values,
+    ),
+  );
   const composer = composerProviders({ isOperator: () => false });
   for (const p of composer) values.set(p.provide, p.useValue);
   const bufferProviders = options.buffers ? composerBufferProviders({ enqueueJob: ENQUEUE }) : [];

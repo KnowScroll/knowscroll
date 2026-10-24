@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sql, type Transaction } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import { PublicPersonRefSchema, type PublicPersonRef } from '@knowscroll/contracts';
 import { BlockStateSnapshot } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
@@ -53,7 +53,7 @@ const memberStands = sql<boolean>`(
   )
 )`;
 
-interface MemberColumns {
+export interface MemberColumns {
   account_id: string;
   universe_id: string;
   membership_id: string;
@@ -77,7 +77,7 @@ const personOf = (row: Pick<MemberColumns, 'person_id' | 'handle' | 'display_nam
     displayName: row.display_name,
   });
 
-const memberOf = (row: MemberColumns): ThreadMember => ({
+export const memberOf = (row: MemberColumns): ThreadMember => ({
   accountId: row.account_id,
   universeId: row.universe_id,
   person: personOf(row),
@@ -92,7 +92,7 @@ const memberOf = (row: MemberColumns): ThreadMember => ({
 });
 
 /** The member rows of the given threads with profile, universe and standing; every column is read, none decides access. */
-function selectMembers(trx: Transaction<Database>, threadIds: readonly string[]) {
+export function selectMembers(trx: Kysely<Database>, threadIds: readonly string[]) {
   return sql<MemberColumns & { conversation_id: string }>`
     select member.conversation_id, member.account_id, universe.id as universe_id, member.membership_id,
       member.membership_revision, member.pending, member.left_at, ${memberStands} as stands,

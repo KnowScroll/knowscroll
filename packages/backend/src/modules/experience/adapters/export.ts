@@ -2,7 +2,11 @@ import { sql } from 'kysely';
 import { EXPORT_LIST_LIMIT, boundedSection, type ModuleExport } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 
+/** What an export says of content the person may no longer reach: it was theirs to do, not to read. */
+export const UNREACHABLE_TITLE = 'Withdrawn';
+
 interface SavedRow {
+  readonly asset_id: string;
   readonly title: string;
   readonly format: string;
   readonly saved_at: Date;
@@ -34,12 +38,12 @@ export function readablePlace(row: Pick<SavedRow, 'place_kind' | 'position_ms' |
 }
 
 /** What the person did with content, in words they know: titles and times, never IDs or revisions. */
-export const experienceExportRead: ModuleExport['read'] = async (scope) => {
+export const experienceExportRead: ModuleExport['read'] = async (scope, person) => {
   const trx = transactionOf(scope);
   const universeId = scope.authority.universeId;
   const limit = EXPORT_LIST_LIMIT + 1;
   const saved = await sql<SavedRow>`
-    select revision.title, asset.kind as format, item.saved_at,
+    select item.asset_id, revision.title, asset.kind as format, item.saved_at,
       place.position ->> 'kind' as place_kind,
       case when place.position ->> 'kind' = 'reel' then (place.position ->> 'positionMs')::float8 end as position_ms,
       case when jsonb_typeof(revision.reading_facts -> 'blocks') = 'array' then
@@ -57,41 +61,53 @@ export const experienceExportRead: ModuleExport['read'] = async (scope) => {
     where item.universe_id = ${universeId}::uuid
     order by item.saved_at desc, item.saved_entry_id
     limit ${limit}`.execute(trx);
-  const encounters = await sql<{ title: string; format: string; opened_at: Date; activated_at: Date | null }>`
-    select revision.title, exposure.kind as format, exposure.opened_at, exposure.activated_at
+  const encounters = await sql<{
+    asset_id: string;
+    title: string;
+    format: string;
+    opened_at: Date;
+    activated_at: Date | null;
+  }>`
+    select exposure.asset_id, revision.title, exposure.kind as format, exposure.opened_at, exposure.activated_at
     from experience.exposures exposure
     join content.asset_revisions revision
       on revision.asset_id = exposure.asset_id and revision.revision = exposure.asset_revision
     where exposure.universe_id = ${universeId}::uuid
     order by exposure.opened_at desc, exposure.id
     limit ${limit}`.execute(trx);
-  const reactions = await sql<{ title: string; action: string; created_at: Date }>`
-    select revision.title, action.kind as action, action.created_at
+  const reactions = await sql<{ asset_id: string; title: string; action: string; created_at: Date }>`
+    select action.asset_id, revision.title, action.kind as action, action.created_at
     from experience.actions action
     join content.asset_revisions revision
       on revision.asset_id = action.asset_id and revision.revision = action.asset_revision
     where action.universe_id = ${universeId}::uuid
     order by action.created_at desc, action.id
     limit ${limit}`.execute(trx);
+  // A Scroll made for a thread the person has left (or never was in) keeps no title, place or part in their file.
+  const reachable = await person.reach([
+    ...new Set([...saved.rows, ...encounters.rows, ...reactions.rows].map((row) => row.asset_id)),
+  ]);
+  const titleOf = (row: { readonly asset_id: string; readonly title: string }) =>
+    reachable.has(row.asset_id) ? row.title : UNREACHABLE_TITLE;
   return {
     saved: boundedSection(
       saved.rows.map((row) => ({
-        title: row.title,
+        title: titleOf(row),
         format: row.format,
         savedAt: row.saved_at.toISOString(),
-        place: readablePlace(row),
+        place: reachable.has(row.asset_id) ? readablePlace(row) : null,
       })),
     ),
     encounters: boundedSection(
       encounters.rows.map((row) => ({
-        title: row.title,
+        title: titleOf(row),
         format: row.format,
         openedAt: row.opened_at.toISOString(),
         started: row.activated_at !== null,
       })),
     ),
     reactions: boundedSection(
-      reactions.rows.map((row) => ({ title: row.title, action: row.action, at: row.created_at.toISOString() })),
+      reactions.rows.map((row) => ({ title: titleOf(row), action: row.action, at: row.created_at.toISOString() })),
     ),
   };
 };
