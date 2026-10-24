@@ -31,7 +31,5 @@ export {
   type ReasoningCap,
   type ReasoningSettings,
   type WorkerConfig,
-  type CutroomCommissioningSettings,
-  type CutroomReceivingSettings,
   type WorkerOperatorConfig,
 } from './processes.js';

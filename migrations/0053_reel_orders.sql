@@ -14,6 +14,31 @@
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
+-- The connected-commissioning tables (0030, 0031, 0033, 0036, 0039) were built for a path that
+-- never ran: no world, dev included, holds a row in any of them, and the code that wrote them is
+-- gone (D-041). Their triggers go with them; the trigger functions are dropped by name.
+-- squawk-ignore ban-drop-table
+drop table if exists
+  content.cutroom_receive_receipts, content.cutroom_receiving_state,
+  reasoning.cutroom_settlement_receipts, reasoning.cutroom_settlements, reasoning.cutroom_financial_reports,
+  reasoning.cutroom_maintenance, content.cutroom_publications,
+  content.cutroom_chain_documents, content.cutroom_chain_snapshots,
+  reasoning.cutroom_accounting_intents, reasoning.cutroom_observations, reasoning.cutroom_execution,
+  content.cutroom_reviews, content.cutroom_corpus,
+  reasoning.cutroom_pool_operations, reasoning.cutroom_requests, reasoning.cutroom_attempts,
+  content.reel_commissions, reasoning.cutroom_scopes
+  cascade;
+-- squawk-ignore ban-drop-function
+drop function if exists
+  content.cutroom_receiving_state_guard(), content.cutroom_receive_guard(), content.cutroom_receive_identity(),
+  reasoning.cutroom_settlement_complete(), content.cutroom_publication_complete(), reasoning.cutroom_maintenance_guard(),
+  reasoning.cutroom_settlement_identity(), reasoning.cutroom_financial_identity(), reasoning.cutroom_financial_guard(),
+  reasoning.cutroom_settlement_guard(), content.cutroom_publication_identity(),
+  content.cutroom_chain_complete(), content.cutroom_chain_immutable(),
+  content.cutroom_review_guard(), reasoning.cutroom_execution_immutable(),
+  reasoning.cutroom_operation_guard(), reasoning.cutroom_request_guard(), reasoning.cutroom_attempt_guard(),
+  content.reel_commission_guard();
+
 -- The business run. Its identity is the digest of the script's wire content, the same in every
 -- world: editing a script is a new order, ordering it again is the same one.
 create table content.reel_orders (

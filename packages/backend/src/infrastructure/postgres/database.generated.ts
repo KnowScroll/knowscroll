@@ -117,102 +117,6 @@ export interface ContentCoverageRevisions {
   status: string;
 }
 
-export interface ContentCutroomChainDocuments {
-  body_utf8: string;
-  byte_length: number;
-  kind: string;
-  run_ordinal: number;
-  sha256: string;
-  snapshot_id: string;
-}
-
-export interface ContentCutroomChainSnapshots {
-  attempt_id: string;
-  business_run_id: string;
-  document_count: number;
-  engine_actual_cents: Int8;
-  header_utf8: string;
-  id: string;
-  observation_id: string;
-  over_ceiling: boolean;
-  projection_version: string;
-  sealed_validation_time_ms: Int8;
-  snapshot_ordinal: number;
-  snapshot_sha256: string;
-  total_document_bytes: number;
-  video_kind: string;
-  world_id: string;
-}
-
-export interface ContentCutroomCorpus {
-  bridge_sha256: string;
-  generated_reel_id: string;
-  original_argument_sha256: string | null;
-  original_template_sha256: string | null;
-  record_sha256: string;
-  record_utf8: string;
-  source_namespace: string;
-}
-
-export interface ContentCutroomPublications {
-  asset_id: string;
-  asset_revision: number;
-  attempt_id: string;
-  business_run_id: string;
-  created_at: Generated<Timestamp>;
-  final_run_id: string;
-  id: string;
-  media_id: string;
-  publication_sha256: string;
-  publication_utf8: string;
-  snapshot_id: string;
-  snapshot_sha256: string;
-  world_id: string;
-}
-
-export interface ContentCutroomReceiveReceipts {
-  admitted_at: Timestamp | null;
-  asset_id: string | null;
-  asset_revision: number | null;
-  deliveries: Generated<number>;
-  generation: number;
-  handoff_id: string;
-  hard_deadline: Timestamp;
-  lease_id: string | null;
-  lease_until: Timestamp | null;
-  media_id: string | null;
-  next_at: Generated<Timestamp>;
-  origin_publication_id: string;
-  origin_world: string;
-  original_claimed_at: Timestamp;
-  payload_sha256: string;
-  payload_utf8: string;
-  receipt_id: string | null;
-  receipt_sha256: string | null;
-  receipt_utf8: string | null;
-  recoveries: Generated<number>;
-  state: Generated<string>;
-  world_id: string;
-}
-
-export interface ContentCutroomReceivingState {
-  enabled: Generated<boolean>;
-  generation: number;
-  world_id: string;
-}
-
-export interface ContentCutroomReviews {
-  bridge_sha256: string;
-  business_run_id: string;
-  corpus_sha256: string;
-  human_evidence_ref: string;
-  packet_utf8: string;
-  review_sha256: string;
-  revoked_at: Timestamp | null;
-  template_sha256: string;
-  world_id: string;
-}
-
 export interface ContentDiscoveryRevisions {
   asset_id: string;
   asset_revision: number;
@@ -265,24 +169,6 @@ export interface ContentReelAttempts {
   settled_at: Timestamp | null;
   state: Generated<string>;
   take: number;
-}
-
-export interface ContentReelCommissions {
-  approval_ref: string;
-  attempt_id: string | null;
-  business_run_id: string;
-  ceiling_cents: number;
-  command_sha256: string;
-  evidence_sha256: string;
-  generation: number;
-  package_sha256: string;
-  package_utf8: string;
-  policy_version: string;
-  request_id: string;
-  request_sha256: string;
-  script_sha256: string;
-  take: number;
-  world_id: string;
 }
 
 export interface ContentReelImports {
@@ -1086,158 +972,6 @@ export interface ReasoningBusinessRuns {
   updated_at: Generated<Timestamp>;
 }
 
-export interface ReasoningCutroomAccountingIntents {
-  attempt_id: string;
-  observation_id: string;
-  state: Generated<string>;
-}
-
-export interface ReasoningCutroomAttempts {
-  approval_ref: string;
-  binding_id: string | null;
-  bound_at: Timestamp | null;
-  business_run_id: string;
-  ceiling_cents: number;
-  claimed_at: Timestamp | null;
-  contract_version: number;
-  dispatch_intent_at: Timestamp | null;
-  evidence_sha256: string;
-  expires_at: Timestamp;
-  fence: Generated<number>;
-  generation: number;
-  grant_ref: string;
-  id: string;
-  policy_version: string;
-  pool_state: Generated<string>;
-  principal_name: string;
-  principal_oid: string;
-  request_bytes: number;
-  request_id: string;
-  request_sha256: string;
-  script_sha256: string;
-  state: Generated<string>;
-  take: number;
-  until: string;
-  world_id: string;
-}
-
-export interface ReasoningCutroomExecution {
-  attempt_id: string;
-  available_cents: number;
-  binding_id: string;
-  bound_at: Timestamp;
-  business_run_id: string;
-  claimed_at: Timestamp;
-  corpus_sha256: string;
-  dispatch_id: string;
-  fence: number;
-  follow_until: Timestamp;
-  funds_evidence_sha256: string;
-  human_evidence_ref: string;
-  preflight_expires_at: Timestamp;
-  preflight_observed_at: Timestamp;
-  profile_sha256: string;
-  request_sha256: string;
-  review_sha256: string;
-  sole_writer_evidence_sha256: string;
-  world_id: string;
-}
-
-export interface ReasoningCutroomFinancialReports {
-  actual_cents: Int8;
-  attempt_id: string;
-  business_run_id: string;
-  evidence_ref: string;
-  evidence_sha256: string;
-  final_run_id: string;
-  hold_evidence_id: string | null;
-  hold_next_at: Timestamp | null;
-  hold_recoveries: Generated<number>;
-  hold_state: Generated<string>;
-  id: string;
-  outcome: string;
-  report_utf8: string;
-  snapshot_id: string;
-  world_id: string;
-}
-
-export interface ReasoningCutroomMaintenance {
-  attempt_id: string;
-  business_run_id: string;
-  deliveries: Generated<number>;
-  lease_id: string | null;
-  lease_until: Timestamp | null;
-  next_at: Generated<Timestamp>;
-  recovered_at: Timestamp | null;
-  recoveries: Generated<number>;
-  stopped_at: Timestamp | null;
-  world_id: string;
-}
-
-export interface ReasoningCutroomObservations {
-  attempt_id: string;
-  evidence_sha256: string;
-  id: string;
-  observed_generation: number;
-  outcome: string;
-  projection_sha256: string;
-  request_id: string;
-  run_id: string | null;
-}
-
-export interface ReasoningCutroomPoolOperations {
-  attempt_id: string;
-  fence: number;
-  id: string;
-  kind: string;
-  operation_version: number;
-  state: Generated<string>;
-}
-
-export interface ReasoningCutroomRequests {
-  attempt_id: string;
-  byte_length: number;
-  contract_version: number;
-  created_at: Timestamp;
-  expires_at: Timestamp;
-  purged_at: Timestamp | null;
-  request_sha256: string;
-  request_utf8: string | null;
-}
-
-export interface ReasoningCutroomScopes {
-  enabled: Generated<boolean>;
-  generation: number;
-  world_id: string;
-}
-
-export interface ReasoningCutroomSettlementReceipts {
-  confirmed_at: Generated<Timestamp>;
-  pool_evidence_id: string;
-  receipt_sha256: string;
-  receipt_utf8: string;
-  settlement_id: string;
-}
-
-export interface ReasoningCutroomSettlements {
-  actual_cents: Int8;
-  attempt_id: string;
-  binding_id: string;
-  bound_at: Timestamp;
-  business_run_id: string;
-  claimed_at: Timestamp;
-  evidence_ref: string;
-  evidence_sha256: string;
-  final_run_id: string;
-  financial_report_id: string;
-  id: string;
-  publication_id: string;
-  snapshot_id: string;
-  snapshot_sha256: string;
-  state: Generated<string>;
-  world_id: string;
-}
-
 export interface ReasoningExternalAttempts {
   budget_window: Timestamp | null;
   cached_tokens: number | null;
@@ -1577,18 +1311,10 @@ export interface DB {
   "content.continuity_links": ContentContinuityLinks;
   "content.coverage_heads": ContentCoverageHeads;
   "content.coverage_revisions": ContentCoverageRevisions;
-  "content.cutroom_chain_documents": ContentCutroomChainDocuments;
-  "content.cutroom_chain_snapshots": ContentCutroomChainSnapshots;
-  "content.cutroom_corpus": ContentCutroomCorpus;
-  "content.cutroom_publications": ContentCutroomPublications;
-  "content.cutroom_receive_receipts": ContentCutroomReceiveReceipts;
-  "content.cutroom_receiving_state": ContentCutroomReceivingState;
-  "content.cutroom_reviews": ContentCutroomReviews;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
   "content.reel_attempts": ContentReelAttempts;
-  "content.reel_commissions": ContentReelCommissions;
   "content.reel_imports": ContentReelImports;
   "content.reel_orders": ContentReelOrders;
   "content.region_bindings": ContentRegionBindings;
@@ -1652,17 +1378,6 @@ export interface DB {
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
   "reasoning.business_runs": ReasoningBusinessRuns;
-  "reasoning.cutroom_accounting_intents": ReasoningCutroomAccountingIntents;
-  "reasoning.cutroom_attempts": ReasoningCutroomAttempts;
-  "reasoning.cutroom_execution": ReasoningCutroomExecution;
-  "reasoning.cutroom_financial_reports": ReasoningCutroomFinancialReports;
-  "reasoning.cutroom_maintenance": ReasoningCutroomMaintenance;
-  "reasoning.cutroom_observations": ReasoningCutroomObservations;
-  "reasoning.cutroom_pool_operations": ReasoningCutroomPoolOperations;
-  "reasoning.cutroom_requests": ReasoningCutroomRequests;
-  "reasoning.cutroom_scopes": ReasoningCutroomScopes;
-  "reasoning.cutroom_settlement_receipts": ReasoningCutroomSettlementReceipts;
-  "reasoning.cutroom_settlements": ReasoningCutroomSettlements;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;
   "reasoning.production_rejected_answers": ReasoningProductionRejectedAnswers;

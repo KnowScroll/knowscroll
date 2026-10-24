@@ -254,6 +254,10 @@ delivery ever comes back (a crash after dispatch). An answer that arrives for an
 is recorded as `reconciled`; for a `written_off` attempt only its usage is recorded (on the
 receipt) and the answer is never applied.
 
+Cutroom is not a reasoning role. Its Reel orders keep a ledger of the same states in Content
+(`content.reel_attempts`), because a Reel request is a content production request with its own
+budget in the shared pool, not a model call.
+
 ## One `propose`, step by step (`application/execute-attempt.ts`)
 
 1. **Ledger inspection** (shared engine; personal adapters first acquire their fresh gated root): an attempt of a run admitted at another privacy epoch is refused
@@ -447,137 +451,6 @@ reason is selected. Content can retain both primary and repair identities and pr
 without reaching reasoning SQL or its private payload stores. Usage comes from the retained receipt,
 including late usage reported after write-off; the attempt's state and identity remain unchanged.
 
-## Cutroom contract prerequisite (#240)
-
-`CutroomExecution` declares a future closed cents execution boundary; it is not implemented,
-registered or enabled. Reasoning owns its protected bytes, attempts and uncertain dispatch;
-Content owns the commission business run, script/research, approval and publication/remote chain.
-`decideCutroomDelivery` and `canTransitionCutroomAttempt` reuse the existing attempt rules without
-changing any model role, scope, token budget, ledger or generation. They are pure ledger advice,
-not permission to send. An accepted POST is distinct from completed remote production.
-
-`CutroomOwnerCapability` has no public constructor. Parsed approval references cannot manufacture
-it: a later trusted owner-verification boundary must bind exact script/request hashes and run,
-recheck the grant and live fal preflight, and confirm the actual pool claim before durable intent.
-D018 permits <=200c new v2 liability and <=75c per Reel; this declaration allocates neither.
-The shared pool is the sole money record and is in another database: world/pool writes need durable
-reconciliation, not a claimed atomic transaction. Unknown liability stays held; even lookup404 plus
-ready=true cannot justify a resend. Original request identity survives engine auto-resume observations.
-An HTTP refused/conflict response alone cannot prove the original request was never accepted or
-charged. It cannot release an unknown original claim or authorize another POST/new attempt; the
-original liability remains held pending conclusive reconciliation. Caller resume remains outside this seam. Unverified chain cost semantics block final settlement;
-actual cost is never clamped to an estimate or ceiling. Future capability/ports require implementation,
-persistence, authority and provider-specific conformance review before any consumer or paid use.
-
-## Durable Cutroom B foundation (#240, migration0030)
-
-`cutroomBFor` is an explicit optional factory, default disabled with an empty trusted
-owner-approval registry. No root is seeded, no principal/ACL/grant is installed,
-and no app/worker/HTTP consumer, schedule, provider POST/GET, fal preflight, media,
-publication or Supply binding is added. The complete `CutroomExecution` declaration
-remains unimplemented. B returns explicit pending/held metadata, never dispatch
-permission or a fabricated pool reservation. Parsed approval refs and the shared
-GitHub account are not human script approval.
-
-Reasoning owns shared `cutroom_scopes`, `cutroom_attempts`, protected
-`cutroom_requests` and immutable `cutroom_pool_operations`. Content owns immutable
-public `reel_commissions` and its attempt reference. Pool0003 alone owns cents;
-world rows contain exact identity/expectation and acknowledgement, no money balance.
-Personal Clear/Reset/erasers do not delete these shared public business/liability
-records. No personal input or model role/attempt pipeline is accepted.
-
-Lock order is Cutroom world root -> Content business through its public lock port
--> Reasoning attempt/request/operation. `CutroomScopeTx` is backed by a private live
-transaction map; forged/closed/deserialized scopes fail. All callbacks share the
-same marked READ COMMITTED transaction, including IDs-only pg-boss enqueue through
-`enqueue-cutroom`. New claims recheck enabled/generation and the exact composition
-registry after waiting. Recovery may inspect existing liabilities under a disabled
-current root but cannot authorize a new claim. No normal root is created here.
-
-One admitted take1..999 and exact canonical UTF-8 request are persisted once. Both
-application and SQL verify SHA-256, byte length, wire1 and the unchanged100000-byte
-bound. Proposed protected retention is30days. Business replay checks its immutable
-original command hash before compilation. Expiry never regenerates/replaces an
-attempt or reconstructs bytes from Content. Purge is explicitly invoked/bounded1..100,
-removes only payload bytes and retains hashes, IDs, fences and pool liability. It
-uses unchanged `canTransitionCutroomAttempt` for reserved -> not_sent; dispatched/
-unknown liabilities remain held. There is no model purge behavior change.
-
-A claim intention and required recovery job commit before a separate pool connection.
-Lost world COMMIT acknowledgement stops that external action. Pool access uses only
-v2 APIs and verifies pinned SESSION login/OID plus grant/world/request/full script
-SHA/take/until/body SHA/ordered_by/ceiling/approval. Server binding UUID, claimed_at
-and bound_at start null and are pinned once from an exact authoritative read.
-Bigint status values are parsed without clamping; foreign/unbound/conflicting,
-revoked/terminal/accounting-held/unknown responses park the same candidate. No legacy
-next_take, conflict adoption, silent increment or second allowance exists. Lost pool
-or local acknowledgement recovers only the same intention/tuple by exact read;
-missing rows,404,ready,refusal,timeout or expiry do not prove zero cost.
-
-Release requires locked irreversible not_sent/no-dispatch-intent proof and a committed
-exact release intention/fence. Only after acknowledged world commit does Reasoning
-mint an ephemeral runtime-proven permit; the pool adapter consumes it once and binds
-it to the exact real claim receipt. Serialized/stale/forged permits fail. Routine0003
-has no release ACL: permission refusal stays held/needs_operator. No source grant or
-principal is added; disposable genuine-login fixtures alone simulate that future
-right. Expiry racing an in-flight claim cannot release an unobserved liability.
-All pool connections, status/read/claim/release operations reject marked transactions.
-The composition caller must use a bounded dedicated pool connection.
-
-The new queue `reasoning.cutroom-pool` declares only world/generation/attempt/operation
-IDs, no request bytes, script/evidence, personal scope or approval capability. No
-consumer/scheduler is installed. Actual owner approvals, pool provisioning/installation,
-future C dispatch/reconciliation and D chain/media/publication require separate review.
-Actions fixtures use separate disposable world/pool databases, real pg-boss and
-unmixed LOGIN roles. The optional legacy ACL role is fixture-renamed to prevent
-parallel old tests sharing role ownership; v2 SQL is unchanged. Fixtures are not
-live billing, commissioning, human approval or runtime proof.
-
-## Cutroom C1 execution/review foundation (#240)
-
-This unmounted, disabled-by-default slice adds immutable dispatch-intent and allowlisted remote-observation metadata, plus pending accounting work. It uses the existing attempt state machine and B ledger; no transport, fal balance adapter, verified chain/cost validator, pool settlement, worker consumer, human-approval mint, publication or Supply completion exists here. A trusted composition must provide an exact fresh preflight registry and Content's live human/corpus review callback. Neither references nor stored rows prove those operational facts. No normal application supplies them.
-
-The dispatch path locks root, exact Content business, then retained attempt/request. Current generation, review, receipt and protected bytes must agree. Intent, reserved-to-dispatched transition and IDs-only follow job commit together. The ephemeral single-use permit exists only after COMMIT acknowledgement and expires with the preflight. Lost acknowledgement returns no permit; later delivery uses unchanged decideOnDelivery to mark unknown, never resend. C1 has no permit consumer that sends a request.
-
-A separate opaque accounting capability locks the current root, exact business and retained attempt, including disabled roots/old generations. Its private live-map transaction expires with the callback and cannot be used by B's byte/claim/dispatch adapters. It exposes only immutable pool identity and fences, never protected request bytes. Strict allowlisted observations remain unvalidated, and their immutable pending intent plus fixed accounting-queue job commit in that same transaction. They provide no cost attestation or permission to release/settle money. Forged, closed or mismatched scopes refuse. All future pool/network access must remain outside marked transactions; pool is the sole cents authority. Personal erasure does not erase these public business/liability records. Migration0031 seeds no root, approval, corpus or role.
-
-## Read-only Cutroom preparation (#240 D1)
-
-`makeWithCutroomPreparationScope` is a separate, unmounted/default-disabled factory.
-It runs a real marked PostgreSQL REPEATABLE READ, READ ONLY transaction with fixed5s
-statement/lock bounds. The existing world root is the first metadata read: missing or
-mismatched generation refuses; disabled roots are allowed. No root is seeded/enabled.
-`rootEnabledAtSnapshot` describes that consistent snapshot, never admission authority.
-A separate private live map expires before the transaction returns; copied/serialized,
-forged and closed scopes fail. It cannot supply B, accounting, protected-request,
-dispatch-intent, personal or enqueue capabilities. Network/nested transactions remain
-refused by the existing transaction marker. Read-only mode is server-enforced for
-protected tables, not a promise that PostgreSQL performs no internal disk writes.
-
-This capability obtains public script/corpus metadata for a concrete human review
-packet before any business/attempt/claim exists. It never reserves novelty, approves
-a script or proves current funds/profile/corpus completeness. A concurrent change may
-make the returned packet stale; unchanged locked C1 admission and execution recheck
-must validate current generation/approval/corpus again. No normal worker/API/operator,
-registry seed, corpus reader/import, transport, pool grant or paid operation is bound.
-
-### Durable Content chain evidence handoff (#240)
-
-The optional Content snapshot factory can read immutable C1 execution metadata and verify an exact
-observation/pending-intent binding through the existing live accounting scope. These methods expose
-no protected bytes, B scope, permit or pool operation. Receipt timestamps remain canonical UTC text
-with six fractional digits. `recordObservationInScope` reuses the old generic wrapper's validation,
-identity check, observation/intent and fixed IDs-only pg-boss enqueue in the caller's SAME transaction;
-there is no nested transaction or second outbox. The original `recordObservation` behavior is unchanged.
-
-For the new complete-snapshot path only, `evidenceSha256` is the canonical sealed snapshot digest.
-The raw-body aggregate remains a separately named Content header field. The unique observation maps
-to one immutable Content snapshot, allowing the existing accounting job to find retained evidence.
-Replay/capacity checks occur before observation writes; a later failure throws through the scope and
-rolls snapshot, observation, pending intent and job back together. Neither cost completeness nor video
-classification settles money, changes AttemptState/pool state or releases the whole held ceiling.
-No normal consumer/transport/approval/root is installed; all factories remain explicit and disabled.
-
 ### Selective Clear accounting ownership (#345)
 
 `clearReasoning` is an opt-in owner port. Capture locks the personal run/attempt/receipt chain and
@@ -593,50 +466,7 @@ captured identities, in run → attempt → receipt lock order. It preserves unr
 global/role receipts. Terminal links remain through their UTC window, then only those exact old IDs
 and orphaned marked parent runs may be pruned. The normal ledger still owns settlement, write-off,
 late usage and brakes; Clear neither refunds nor increases caps. A later delivered answer remains
-redacted under the #337 marker checks. No production/Cutroom/pool row is read or changed here.
-
-Connected Cutroom commissioning (#240) reuses the B ledger, C1 immutable intent/one-use permit,
-0033 chain snapshots and pg-boss. No additional attempt engine, monetary balance or outbox is
-introduced. New claims require the reviewed installed `pool_v2_record_evidence` function body,
-actual SESSION name/OID/world and EXECUTE ACL. The canonical definition-hash query uses
-`search_path=pg_catalog,public,pg_temp`; missing/unreviewed function or privilege refuses paid
-progress. Existing public `read_order` validates world before its exact missing-identity refusal
-is accepted for a pre-claim read probe. Private pool helper privileges are never granted.
-
-The new stable financial report is immutable and snapshot-bound (maximum32 per attempt).
-Evidence-only recording and eventual publication settlement use the same exact outcome/actual/
-final-run/report digest/reference/receipt tuple. Only an exact still-pending evidence row may
-confirm an active hold; satisfied evidence cannot masquerade as a hold. Reporting retained old
-liability remains allowed after grant disable/retire. Reports above the ceiling are never clipped
-or settled merely to annotate evidence. The full claim remains open. A capped32-ID read cannot
-prove absence: an unobservable returned ID stays blocked, while honest evidence remains committed.
-Unknown pool/COMMIT acknowledgement replays the same exact operation.
-
-Maintenance is finite:2880 total ordinary delivery leases, the existing immutable follow deadline,
-three recovery waves per operation,15-minute cooldown,25 roots per delivery, read26 and one durable
-strictly advancing ID-cursor continuation committed before per-root work. Busy/live heads do not
-starve the tail after restart. Per-operation locks are250ms with2s maintenance statements; cursor
-passes have a captured immutable UUID ceiling and no tail self-wake. Overlapping cron passes may
-repeat bounded discovery; only identical live continuation pages are deduplicated. UUID bounds do
-not claim a historical membership snapshot. No HTTP status/read drives recovery.
-
-Completed GET maintenance never reopens. A contradictory late snapshot can create its own narrow
-pending evidence marker with up tothree cooled recovery waves, even after normal settlement. It
-cannot change the immutable old report/settlement, erase a public asset, claim, POST or release.
-A verified hold clears its due marker; completed reports have no endless wakeups. New commands,
-reports, receipts and maintenance tables are in `reasoningCutroomStores`; IDs-only queues are in
-its non-row inventory. Real personal dependencies still require the ordinary erasure registry.
-
-## Confirmed normal-settlement export for CF62 (#373)
-
-`CutroomConfirmedSettlementReader.readConfirmed` is a narrow readonly preparation-scope port.
-It joins the actual normal settlement, immutable receipt, report, retained attempt and dispatch;
-checks exact receipt UUID/six-fractional timestamp/request/report identity, complete OWN costs and
-current confirmed state; and refuses contradictory report evidence. Evidence-only pending/recorded
-holds do not qualify. The consumer receives only immutable sanitized report/receipt metadata and
-digests, not a pool principal, connection or settlement capability. Its server-enforced readonly
-repeatable-read transaction cannot write jobs or financial rows. Existing claim/hold/settle/release
-behaviour is unchanged. Receiving itself never imports this financial adapter or opens a pool.
+redacted under the #337 marker checks. No production or pool row is read or changed here.
 
 ## Personal recording foundation (#381, forward schema dependency)
 

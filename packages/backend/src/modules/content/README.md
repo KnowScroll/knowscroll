@@ -108,6 +108,8 @@ leaves it), and nothing here records who read what.
 | `content.asset_provenance`                              | `0010_content_asset_revisions`             | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them                            | None: shared content       |
 | `content.scroll_production_runs`                        | `0015_scroll_production`, key shape `0045` | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port                                                                                                                  | None: shared public supply |
 | `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                    | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
+| `content.reel_orders` / `content.reel_attempts` | `0053_reel_orders` | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom" | None: shared public |
+| `content.media_objects` / `content.reel_imports` | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision | None: shared content |
 
 A revision’s document, provenance and identity are never updated; a content change is a new revision, and anything that rests on one (an exposure,
 a saved item) keeps pointing at exactly the bytes it presented.
@@ -152,8 +154,8 @@ The worker operator `content import-cutroom-reel --run <uuid> --script <name>` i
 three D-005 approved runs (greenhouse, seasons-v5, tides-v4). Their original script/approval snapshots
 and coordinator-read media digest/size pins are kept under `approved/`; frozen root `content/` is never
 read or edited. `legacy-cutroom-<script>` is the shared explanation identity of Reel and future Scroll
-siblings. GET-only loopback reads use the actual pinned upstream parsers, compiled to JS at build;
-no commissioning, resume, cancel, model, quota, money or provider adapter exists here.
+siblings. GET-only loopback reads use the actual pinned upstream parsers, compiled to JS at build.
+This importer spends nothing; new Reels are ordered through the Reel commands below.
 
 Import validates terminal/run/request identities, every chosen/used engine check and shot/degradation
 coverage. Cutroom places up to three pictures; other shots can be text-to-video and need no chosen
@@ -323,76 +325,60 @@ kind is an invariant failure; no placeholder kind is fabricated. Legacy
 port, never Content tables directly. No renderer, document admission, peer state,
 encounter, activity or provider work results from these list reads.
 
-#240 connected Cutroom source adds an explicitly selected commissioning port, not a consumer
-HTTP route. `makeCommissioning` binds the compiled command to one complete corpus review and
-individual human approval in the same B transaction as reservation, business binding and required
-maintenance/job. The worker's trusted root file supplies the actual external approval/profile/funds
-records; a parsed script, Git identity or PR never creates that authority. All gates default off.
-
-Verified publication is separate from the old0014 three-script importer, which is unchanged.
-Fresh fixed GETs must match every retained terminal tip projection. The adapter opens only the
-canonical regular engine render file, stages content-addressed bytes, checks the real H264/AAC
-20–60 second9:16/24fps/faststart profile and fsyncs before a final current-root/review check.
-Publication, immutable asset/revision/provenance and exact Reasoning settlement command/job commit
-together. The owning0016 trigger projects discovery once. This creates no encounter or personal
-learning evidence. Public script/asset provenance is bounded and contains no raw provider paths,
-URLs, free-form reasons or credentials.
-
-`contentCutroomStores` and its non-row manifest declare the actual shared-public ownership and
-retention. Schema inventory checks all Cutroom tables, direct/transitive personal dependencies,
-and populated full/selective erasure preservation; no account/universe dependency is exempted by
-naming. New rows reference immutable world/business/attempt/snapshot/asset records and preserve
-all personal erasure semantics. Failed shared staging is discarded; an already committed but
-unreferenced media object remains retained shared data for explicit reviewed operator cleanup; this
-source ships no automatic orphan GC and personal erasure never removes it.
-
-Cross-world CF62 zero-cost receive is **unimplemented**. Ordering-world C1 and the publication
-receipt cannot authorize a second world to import another world's output or settle its original
-claim. A separately reviewed provenance handoff/receiver remains required; no0c receive receipt
-or runtime completeness is claimed by this source.
-
 ### Region candidate projection (U04)
 
 `content.region_bindings` is a shared derived lookup owned by Content, maintained atomically by the coverage-head trigger for admission, correction and retraction. The `(topic_id, facet_id, asset_id, asset_revision)` key supports an exact canonical Region query with 100 hydrated candidates and one key-only lookahead; an explicitly displayed asset is looked up directly. Each result independently revalidates current admitted Scroll revision, complete canonical mapping/document/provenance and render capabilities. There is no topic-label, global-pool or model fallback. Generated Scrolls reach this lookup through the recipe coverage admitted at publication.
 
 `contentRegionStores` concretely inventories this shared projection: at most 16 bindings per mapping head, retained with immutable coverage history, no account/universe dependency, preserved by full and selective personal erasure. It is not personal state or admission authority. Up to three actual decision candidates are fenced under current Content asset/head SHARE locks through the personal commit.
 
-## CF62 zero-cost receiving (#373, source)
+## Reels from Cutroom (#240, D-041)
 
-`makeCommissionReceiveExport` exports one eligible current commissioned publication through a
-server-enforced readonly repeatable-read origin snapshot and Reasoning's narrow confirmed normal
-settlement port. Pending/held/evidence-only/contradictory accounting, revoked review, withdrawn or
-corrected assets refuse. Source commit/artifact are trusted composition inputs requiring separate
-Root release verification; schema version is also checked against the actual migrated database.
-The export neither settles nor transfers bytes. Its external SHA256 covers the exact bounded
-UTF8 payload; there is no self-digest field. The UUID is stable for origin publication and target.
+Status: **implemented**, exercised against a labelled fake Cutroom and a disposable pool in CI.
+**Not yet runtime-verified**: no real order has been placed through it. The operator runbook is
+`docs/v2/operations/cutroom-and-spend.md`.
 
-Receiving has its own default-disabled `content.cutroom_receiving_state` root and expiring
-ReceiveScope capability, disjoint from paid, accounting, preparation and personal scopes. An
-independently reviewed Root-file registry binds the exact payload to target world/generation and
-a short current-policy/nonwithdrawal window. Root reads and filesystem/probe waits happen outside
-transactions. Enabled/generation, lease, original deadline and attestation are checked after waits.
-Changing current admission authority requires a receiving-root generation change; a file replacement
-alone cannot atomically revoke a transaction already holding that root.
+A Reel script is a JSON file in `approved/reels/`, approved in Git and shipped with the release. It
+names the library recipe whose Scroll is its twin, and every claim rests on that Scroll at one
+revision. The worker's `reel` operator commands (`apps/worker/src/reel-operator.ts`) take it from
+there:
 
-Stage commits the immutable handoff with required fixed pg-boss work. The worker reads only target
-staging, verifies exact bytes and actual H264/AAC Reel profile, fsyncs the content-addressed object,
-then commits normal immutable asset/revision/media/provenance and an exact admission receipt. The
-existing0016 trigger owns discovery. There is no fake `reel_imports`, local paid business, attempt,
-pool principal, settlement or release. Normal media/Keep adapters resolve exactly one immutable
-legacy import, commissioned publication or admitted receive receipt; commissioned/received media
-must also match retained original SHA/bytes. Ambiguous sources refuse.
+| Command | What it does | Spends money |
+| --- | --- | --- |
+| `reel check` | The product's own script checks and the repetition rule, offline | No |
+| `reel order --until plan` | A rehearsal: Cutroom plans the Reel and says what it would cost | No |
+| `reel order --until video` | Claims the ceiling in the shared pool, then sends one request | Up to the ceiling |
+| `reel follow` | Reads Cutroom's runs, records how the request ended, settles the claim, publishes the Reel | No |
+| `reel receive` | Publishes a Reel another world already paid for | No |
+| `reel status`, `reel write-off`, `reel settle` | Read the state, give up an uncertain attempt, close a held claim | No |
 
-The hard deadline is conservatively bound to the immutable original claim time plus720 elapsed
-hours, so re-export, collection and new Root windows cannot renew it. Root may revalidate the SAME
-pending body; admitted replay returns its historical receipt without changing assets or later
-content status. Recovery is bounded25+1 fixed-ceiling keyset discovery; continuation commits before
-operation locks, at most three15-minute-cooled recovery wakes, bounded deliveries/leases and no
-paid fallback. Exhaustion remains held for explicit operator reconciliation. Personal erasure
-preserves the closed shared-public inventory and target public bytes. Staging originals and
-unreferenced committed objects require explicit operator cleanup; no garbage collector is shipped.
+How it keeps its promises:
 
-Fixtures are authored, labelled, disposable PostgreSQL/media/installed-process evidence only.
-Fixture receiving additionally requires test composition and an actual fixture database name.
-Actual cross-world export/transfer, original individual HUMAN/corpus approval and fresh Root
-nonwithdrawal verification remain separate operational prerequisites; source/CI does not grant them.
+- **Claim before order.** A paid attempt cannot leave `reserved` without a pool claim; the table's own
+  check refuses it. The pool counts the whole ceiling until the request is settled at its real cost.
+- **One send, never a resend.** The exact bytes are stored before sending and a dispatch intent is
+  committed first. A POST whose outcome is unknown is only looked up by request id; a run that exists is
+  adopted, and nothing is ever sent twice. A retry is a new take, which is a new request id.
+- **Settle once, at the real cost.** A request is finished only when its last run has finished and
+  Cutroom is not continuing it; the cost is the sum over the chain (an original and at most one
+  automatic continuation). A completed Reel is published first and settled after, so an import that
+  fails keeps its claim open at the whole ceiling.
+- **Receive costs nothing.** The second world rebuilds the request from the same script, checks it byte
+  for byte against the pool's record, and publishes the same Reel. It never claims, sends or settles.
+- **The twin.** The Reel is admitted with the Scroll's explanation unit and planet, so Explore offers the
+  format switch between them. It carries the engine's own record, labelled "engine-attested, not
+  independent".
+
+Layers: `domain/reel/` holds the pure rules (script checks, fingerprints, request compiler, chain fold
+and record check); `application/reel/` the use cases and their ports; `adapters/reel/` the ledger, pool,
+Cutroom HTTP client, media install and publication. Tables: `content.reel_orders`,
+`content.reel_attempts`, `content.reel_imports`, `content.media_objects`. There are no jobs and no
+notices: every step is an operator command. Lock order: none is held across a call; each ledger move is
+one statement, and publication takes the per-asset advisory lock. Erasure: shared public, preserved
+(`contentReelStores`, checked against the real schema).
+
+Failure and recovery: every command can be run again. A crash after the claim resumes at the dispatch;
+after the intent, the attempt is reconciled by lookup; after the POST, `follow` continues. Anything that
+is not ready (Cutroom down, the pool unreachable, the video not readable yet, the Scroll not published
+here yet) is reported with a code and changes nothing.
+
+Related: `docs/v2/decisions.md` D-041, `docs/v2/carried-forward-facts.md` CF-60 to CF-66, `ops/pool/README.md`.

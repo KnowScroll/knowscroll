@@ -4,7 +4,9 @@ import { RECIPES } from '../../domain/library/index.js';
 import { checkReelScript } from '../../domain/reel/check.js';
 import { findRepetition, reelFingerprints } from '../../domain/reel/fingerprint.js';
 import { LEGACY_REELS_ON_RECORD } from '../../domain/reel/legacy-corpus.js';
+import { compileReelRequest } from '../../domain/reel/request.js';
 import { reelScripts } from './scripts.js';
+import { wireSchema } from './wire.js';
 
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
 const scripts = [...reelScripts.entries()];
@@ -50,4 +52,17 @@ describe('the shipped Reel scripts', () => {
       expect(script.approval.approvedBy).toContain('delegated by owner, D-030');
     }
   });
+
+  it.each(scripts)(
+    '%s compiles to a request Cutroom’s own pinned schema accepts, rehearsal and order alike',
+    async (_name, script) => {
+      const schema = await wireSchema('request', 'SubmitRequest');
+      for (const until of ['plan', 'video'] as const) {
+        const request = compileReelRequest(script, { until, take: 1, ceilingCents: 75 }, sha256);
+        const parsed = schema.safeParse(JSON.parse(request.requestUtf8));
+        expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+        expect(Buffer.byteLength(request.requestUtf8)).toBeLessThan(10_000);
+      }
+    },
+  );
 });

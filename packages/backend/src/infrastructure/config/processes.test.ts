@@ -6,6 +6,7 @@ import {
   readOperatorConfig,
   readWorkerConfig,
   readWorkerOperatorConfig,
+  readReelOperatorConfig,
   readScrollProductionOperatorConfig,
 } from './index.js';
 
@@ -490,82 +491,41 @@ describe('process configuration', () => {
   });
 });
 
-describe('connected Cutroom worker activation is explicit and default-deny', () => {
+describe('the Reel operator commands read the pool from the world’s own database settings', () => {
   const inputs = {
     DATABASE_URL: secretUrl,
     KS_WORLD: 'dev',
-    KS_CUTROOM_COMMISSIONING_ENABLED: '1',
-    KS_CUTROOM_APPROVAL_PACKET: '/etc/knowscroll/cutroom/approved.json',
-    KS_CUTROOM_ORIGIN: 'http://127.0.0.1:7800',
-    KS_CUTROOM_ARTIFACT_ROOT: '/srv/cutroom/runs',
-    KS_CUTROOM_MEDIA_ROOT: '/srv/knowscroll/media',
-    KS_CUTROOM_EVIDENCE_FUNCTION_SHA256: 'a'.repeat(64),
-    KS_CUTROOM_POOL_DATABASE_URL: secretUrl,
+    KS_MEDIA_ROOT: '/srv/knowscroll/dev/media-v2',
+    KS_CUTROOM_ORIGIN: 'http://127.0.0.1:8797',
+    KS_CUTROOM_ARTIFACT_ROOT: '/srv/knowscroll/cutroom-pool/artifacts',
   };
-  it('has no implicit activation or pool credential when configuration is absent', () => {
-    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).cutroom;
-    expect(disabled.enabled).toBe(false);
-    expect(disabled.poolDatabase).toBeUndefined();
-    expect(readWorkerConfig(inputs).cutroom).toMatchObject({
-      enabled: true,
-      packetPath: '/etc/knowscroll/cutroom/approved.json',
-      poolDatabase: { poolMax: 1 },
-    });
-  });
-  it('requires every explicit dependency, restricts worlds/origin and redacts errors', () => {
-    for (const key of [
-      'KS_CUTROOM_APPROVAL_PACKET',
-      'KS_CUTROOM_ORIGIN',
-      'KS_CUTROOM_ARTIFACT_ROOT',
-      'KS_CUTROOM_MEDIA_ROOT',
-      'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
-      'KS_CUTROOM_POOL_DATABASE_URL',
-    ]) {
-      const env = { ...inputs, [key]: undefined };
-      const error = configurationError(() => readWorkerConfig(env));
-      expect(error.problems.join(' ')).not.toContain('hunter2');
-    }
-    expect(() => readWorkerConfig({ ...inputs, KS_WORLD: 'local' })).toThrow();
-    for (const origin of [
-      'http://remote.example',
-      'https://127.0.0.1',
-      'http://user:secret@127.0.0.1',
-      'http://127.0.0.1/?key=secret',
-    ])
-      expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_ORIGIN: origin })).toThrow();
-    expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_APPROVAL_PACKET: '/tmp/untrusted.json' })).toThrow();
-  });
-});
 
-describe('CF62 receiving is separately default-deny and has no financial configuration dependency', () => {
-  const input = {
-    DATABASE_URL: secretUrl,
-    KS_WORLD: 'stage',
-    KS_CUTROOM_RECEIVING_ENABLED: '1',
-    KS_CUTROOM_RECEIVING_PACKET: '/etc/knowscroll/receiving/approved.json',
-    KS_CUTROOM_RECEIVING_STAGING_ROOT: '/srv/knowscroll/receive-staging',
-    KS_CUTROOM_RECEIVING_MEDIA_ROOT: '/srv/knowscroll/media',
-  };
-  it('keeps commissioning/provider disabled when receiving alone is configured', () => {
-    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
-    expect(disabled.receiving?.enabled).toBe(false);
-    const config = readWorkerConfig(input);
-    expect(config.receiving).toMatchObject({ enabled: true, ffprobePath: '/usr/bin/ffprobe' });
-    expect(config.cutroom.enabled).toBe(false);
-    expect(config.cutroom.poolDatabase).toBeUndefined();
-    expect(config.reasoning.provider).toBe('none');
+  it('points the world’s role and password at knowscroll_pool unless a pool URL is given', () => {
+    const config = readReelOperatorConfig(inputs);
+    expect(config).toMatchObject({
+      world: 'dev',
+      mediaRoot: '/srv/knowscroll/dev/media-v2',
+      cutroomOrigin: 'http://127.0.0.1:8797',
+      ffprobePath: '/usr/bin/ffprobe',
+    });
+    const pool = new URL(config.poolUrl);
+    expect(pool.pathname).toBe('/knowscroll_pool');
+    expect(pool.username).toBe('ks_api');
+    expect(pool.hostname).toBe('127.0.0.1');
+    const explicit = 'postgres://pool_user:other@127.0.0.1:5432/another_pool';
+    expect(readReelOperatorConfig({ ...inputs, KS_POOL_DATABASE_URL: explicit }).poolUrl).toBe(explicit);
   });
-  it('refuses absent trusted roots, unsupported worlds and untrusted packet paths without values in errors', () => {
-    for (const key of [
-      'KS_CUTROOM_RECEIVING_PACKET',
-      'KS_CUTROOM_RECEIVING_STAGING_ROOT',
-      'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
-    ]) {
-      const error = configurationError(() => readWorkerConfig({ ...input, [key]: undefined }));
-      expect(error.problems.join(' ')).not.toContain('hunter2');
-    }
-    for (const world of ['local', 'ci', 'live'])
-      expect(() => readWorkerConfig({ ...input, KS_WORLD: world })).toThrow();
-    expect(() => readWorkerConfig({ ...input, KS_CUTROOM_RECEIVING_PACKET: '/tmp/approval.json' })).toThrow();
+
+  it('refuses a live world, a Cutroom that is not on loopback and a pool that is not a Postgres URL, naming no value', () => {
+    expect(configurationError(() => readReelOperatorConfig({ ...inputs, KS_WORLD: 'live' })).problems).toContain(
+      'KS_WORLD: operator_command_refused_in_this_world',
+    );
+    for (const origin of ['http://remote.example', 'https://127.0.0.1', 'http://user:secret@127.0.0.1'])
+      expect(() => readReelOperatorConfig({ ...inputs, KS_CUTROOM_ORIGIN: origin })).toThrow();
+    const error = configurationError(() => readReelOperatorConfig({ ...inputs, KS_POOL_DATABASE_URL: 'mysql://x' }));
+    expect(error.problems).toEqual(['KS_POOL_DATABASE_URL: must_be_a_postgres_url']);
+    expect(
+      configurationError(() => readReelOperatorConfig({ ...inputs, KS_MEDIA_ROOT: undefined })).problems.join(' '),
+    ).not.toContain('hunter2');
   });
 });

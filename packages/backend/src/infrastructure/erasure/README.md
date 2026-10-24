@@ -56,8 +56,8 @@ has no `pgboss/<queue>` store declared.
 
 Not in the registry: `identity.accounts` and `identity.universes` (the personal roots; account
 deletion is their lifecycle) and shared tables. A shared table has none of the links above, and each
-shared family keeps its own inventory and test that proves it: the Cutroom stores
-(`contentCutroomStores`, `reasoningCutroomStores`) and the Region projection
+shared family keeps its own inventory and test that proves it: the Reel order stores
+(`contentReelStores`) and the Region projection
 (`contentRegionStores`) survive both erasers by design.
 
 ## Recording witness

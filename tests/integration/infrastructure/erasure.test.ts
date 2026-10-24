@@ -914,30 +914,24 @@ describe('the erasure registry (real database)', () => {
   });
 });
 
-import { contentCutroomStores } from '@knowscroll/backend/modules/content/nest-providers';
-import { reasoningCutroomStores } from '@knowscroll/backend/reasoning/nest-providers';
-describe('closed Cutroom shared-public store inventory (real schema)', () => {
+import { contentReelStores } from '@knowscroll/backend/modules/content/nest-providers';
+describe('Reel order stores (real schema)', () => {
   let world: TestDatabase<Database>;
   beforeAll(async () => {
-    world = await createTestDatabase<Database>('cutroom_inventory');
+    world = await createTestDatabase<Database>('reel_inventory');
   });
   afterAll(async () => {
     await world.drop();
   });
-  it('requires every actual Cutroom table and rejects any direct/transitive personal dependency', async () => {
-    const declarations = [...contentCutroomStores, ...reasoningCutroomStores].map((x) => x.table).sort();
+  it('declares every actual Reel table and proves none depends on an account or universe, directly or through a key', async () => {
+    const declarations = contentReelStores.map((store) => store.table).sort();
     const actual = (
       await sql<{
         name: string;
       }>`select n.nspname||'.'||c.relname name from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace
-    where c.relkind='r' and n.nspname in ('content','reasoning') and (c.relname like 'cutroom_%' or c.relname='reel_commissions') order by 1`.execute(
-        world.db,
-      )
-    ).rows.map((x) => x.name);
+    where c.relkind='r' and n.nspname='content' and c.relname like 'reel\_%' order by 1`.execute(world.db)
+    ).rows.map((row) => row.name);
     expect(actual).toEqual(declarations);
-    expect(new Set(declarations).size).toBe(19);
-    expect(declarations).toContain('content.cutroom_receiving_state');
-    expect(declarations).toContain('content.cutroom_receive_receipts');
     for (const table of declarations) {
       const dependencies = (
         await sql<{ name: string }>`with recursive owned(oid) as (

@@ -1,5 +1,3 @@
-import type { CutroomBusinessLock } from '../../../reasoning/public.js';
-import { postgresCommissionStore } from './postgres-commission-store.js';
 import { lockKeepPositionTarget } from './keep-position-target.js';
 import { LOCK_KEEP_POSITION_TARGET } from '../public.js';
 import { lockCurrentEncounters } from './current-encounters.js';
@@ -133,41 +131,9 @@ export {
 
 export { lockKeepPositionTarget } from './keep-position-target.js';
 
-export { makeCommission } from '../production/commission.js';
-export { postgresCommissionStore };
-/** Optional public-business lock adapter, used only by explicit Cutroom B composition. */
-export const lockCommissionBusiness: CutroomBusinessLock = async (scope, id) =>
-  (await postgresCommissionStore.lock(scope, id)) !== undefined;
-
-/** C1 optional/default-deny review assembly; no normal provider or trusted corpus/approval seed. */
-export { makeCommissionReview } from '../production/commission-review.js';
-export { postgresCommissionReview } from './postgres-commission-review.js';
-
-/** Optional GET-only collector assembly; no normal resource/worker binding. */
-export { makeCutroomChainCollector } from './cutroom/chain-reader.js';
-
-/** Optional evidence-only chain durability assembly; no normal resource/worker binding. */
-export { makeCutroomChainSnapshotCollector } from './cutroom/chain-reader.js';
-export { makeCommissionChainSnapshots } from '../production/commission-chain-store.js';
-export { postgresCommissionChainStore } from './postgres-commission-chain.js';
-
 export { readSavedPageMetadata } from './discovery-store.js';
-
-/** Connected commissioning: source gates stay off unless the operator supplies every real dependency. */
-export { makeCommissioning } from '../production/commissioning.js';
-export { makeCommissionedReelImporter } from './import-commissioned-reel.js';
-export { makeCutroomSubmitClient } from './cutroom/submit-client.js';
-export { makeReelCorpusImporter } from './reel-corpus-import.js';
-export { contentCutroomStores, contentCutroomNonRowStores } from './cutroom-store-inventory.js';
-
-export { financialReportOfSnapshot } from '../production/commission-publication.js';
-export { makeCommissionMedia } from './cutroom/commission-media.js';
-
-export { makeCommissionPreparation } from '../production/commission-review.js';
-export { makeCommissionReceive } from '../production/commission-receive.js';
-export { postgresCommissionReceive, postgresCommissionReceiveOrigin } from './postgres-commission-receive.js';
-export { makeReceiveMedia } from './cutroom/receive-media.js';
 
 /** The operator's Reel commands over real adapters (#240, D-041). */
 export { checkShippedReelScript, composeReelOperator, type ReelSettings } from './reel/compose.js';
+export { contentReelStores } from './reel/stores.js';
 export type { ReelOperator } from '../application/reel/operator.js';

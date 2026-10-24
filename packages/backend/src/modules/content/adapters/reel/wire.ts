@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-type WireFile = 'responses' | 'record' | 'ready';
+type WireFile = 'request' | 'responses' | 'record' | 'ready';
 const cache = new Map<string, Promise<z.ZodType>>();
 
 /**
