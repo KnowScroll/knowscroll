@@ -14,6 +14,7 @@ import {
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { changesCursor, historyCursor, inboxCursor } from '../domain/cursors.js';
+import { DELETED_PERSON } from '../domain/deleted-person.js';
 import { enterConversation, refOf } from './conversation-gate.js';
 import type { ConversationPorts, InboxRow, MessageRow } from './conversation-ports.js';
 import { viewMessages } from './message-view.js';
@@ -109,18 +110,18 @@ export function makeConversationReads(p: ConversationPorts) {
         if (!entered) return ok(DirectConversationSnapshotSchema.parse({ ...envelope, status: 'unavailable' }));
         const { conversation } = entered;
         const rows = (
-          await p.conversations.messages(entered.lock, conversation.conversationId, { limit: query.limit })
+          await p.conversations.messages(entered.reader, conversation.conversationId, { limit: query.limit })
         ).toReversed();
         return ok(
           DirectConversationSnapshotSchema.parse({
             ...envelope,
             status: 'ready',
             conversation: refOf(entered),
-            peer: await peerOf(p, scope, entered.peer.accountId),
+            peer: await peerOf(p, scope, entered.peer?.accountId),
             own: own(entered.own),
             ...(conversation.closed ? { ended: true } : {}),
             latestMessageSequence: conversation.lastSequence,
-            messages: await viewMessages(p, entered.lock, rows),
+            messages: await viewMessages(p, entered.reader, rows),
             limit: query.limit,
             history: olderThan(rows, conversation.conversationId),
             catchUpCursor: changesCursor.encode({
@@ -155,7 +156,7 @@ export function makeConversationReads(p: ConversationPorts) {
             }),
           );
         const rows = (
-          await p.conversations.messages(entered.lock, position.conversationId, {
+          await p.conversations.messages(entered.reader, position.conversationId, {
             before: position.beforeSequence,
             limit: query.limit,
           })
@@ -167,7 +168,7 @@ export function makeConversationReads(p: ConversationPorts) {
             conversation: refOf(entered),
             limit: query.limit,
             requestCursor: query.cursor,
-            messages: await viewMessages(p, entered.lock, rows),
+            messages: await viewMessages(p, entered.reader, rows),
             continuation: olderThan(rows, position.conversationId),
           }),
         );
@@ -204,11 +205,11 @@ export function makeConversationReads(p: ConversationPorts) {
               requestCursor: query.cursor,
             }),
           );
-        const rows = await p.conversations.messages(entered.lock, conversation.conversationId, {
+        const rows = await p.conversations.messages(entered.reader, conversation.conversationId, {
           after: position.afterChangeSequence,
           limit: query.limit,
         });
-        const views = await viewMessages(p, entered.lock, rows);
+        const views = await viewMessages(p, entered.reader, rows);
         const changes = rows.map((row, index) => ({ changeSequence: row.changeSequence, message: views[index]! }));
         const through = conversation.lastChangeSequence;
         const last = changes.at(-1)?.changeSequence ?? position.afterChangeSequence;
@@ -252,7 +253,7 @@ export function makeConversationReads(p: ConversationPorts) {
         const entered = await enterConversation(p, scope, query.conversation);
         if (!entered) return unavailable();
         const message = await p.conversations.messageOfCommand(
-          entered.lock,
+          entered.reader,
           entered.conversation.conversationId,
           entered.owner.accountId,
           query.selector.commandId,
@@ -295,7 +296,8 @@ function olderThan(rows: readonly MessageRow[], conversationId: string) {
     : { kind: 'end' as const };
 }
 
-async function peerOf(p: ConversationPorts, scope: PersonalScopeTx, accountId: string) {
+async function peerOf(p: ConversationPorts, scope: PersonalScopeTx, accountId: string | undefined) {
+  if (accountId === undefined) return DELETED_PERSON;
   const profile = await p.store.profile(scope, { accountId });
   if (!profile) throw new Error('SOCIAL_PROFILE_MISSING');
   return profile.person;

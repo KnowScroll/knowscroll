@@ -28,7 +28,7 @@ const shareOf = (row: {
   revokedAt: row.revoked_at === null ? null : new Date(row.revoked_at),
 });
 
-/** Postgres share-link rows (migration 0054). Only a token's hash is ever stored or compared. */
+/** Postgres share-link rows (migration 0056). Only a token's hash is ever stored or compared. */
 export function shareStore(
   db: Kysely<Database>,
   readContent: ReadContent,

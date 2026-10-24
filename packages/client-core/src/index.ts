@@ -35,6 +35,7 @@ export {
 } from './account-scope-manager';
 export { TALK_QUERY_KEY, connectScopeSocket, type SocketContext } from './account-scope-socket';
 export { talkFailure, type TalkFailure } from './talk-failure';
+export { blockFriend, findConversation, readInboxPage, type InboxPage } from './talk-inbox';
 export {
   createConversationThread,
   mergeMessages,
@@ -44,7 +45,7 @@ export {
   type ThreadOptions,
   type ThreadState,
 } from './conversation-thread';
-export { describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
+export { dayKey, dayLabel, describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
 export {
   createShareSession,
   createSharedLinksSession,

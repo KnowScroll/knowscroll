@@ -1470,7 +1470,7 @@ export interface SocialConversations {
   last_change_sequence: Generated<Int8>;
   last_sequence: Generated<Int8>;
   lineage: string;
-  pair_id: string;
+  pair_id: string | null;
 }
 
 export interface SocialInboxHeads {

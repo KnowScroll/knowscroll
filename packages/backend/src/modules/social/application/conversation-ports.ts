@@ -12,7 +12,8 @@ export interface ContentRef {
 
 export interface ConversationRow {
   readonly conversationId: string;
-  readonly pairId: string;
+  /** Null once the friendship's pair row went with a deleted account; the conversation is then closed. */
+  readonly pairId: string | null;
   /** The friendship lineage the conversation belongs to; it lives only as long as that lineage. */
   readonly lineage: string;
   readonly lastSequence: number;
@@ -46,18 +47,28 @@ export interface MessageRow {
 
 /** The caller's own membership, found before any lock so the peer's account can be gated first. */
 export interface OwnMembership {
-  readonly pairId: string;
-  readonly peerAccountId: string;
+  readonly pairId: string | null;
+  /** The other person's account; undefined when it was deleted and its membership removed. */
+  readonly peerAccountId: string | undefined;
   readonly own: MemberRow;
 }
+
+/**
+ * Where a conversation's rows are read and its own member row changed: under the friendship's pair
+ * lock, or, when the other person's account is gone and there is no friendship to lock, in the
+ * person's own scope.
+ */
+export type ConversationReader = PairLock | PersonalScopeTx;
 
 export interface Conversation {
   readonly conversation: ConversationRow;
   readonly own: MemberRow;
-  readonly peer: MemberRow;
+  /** Undefined once the other person's account was deleted. */
+  readonly peer: MemberRow | undefined;
 }
 
 export interface InboxRow extends Conversation {
+  /** The other person, or "Deleted account" in their place. */
   readonly peerPerson: PublicPersonRef;
   readonly lastMessage: MessageRow | undefined;
 }
@@ -85,8 +96,8 @@ export interface InboxChange {
 export interface ConversationStore {
   /** The caller's membership in this conversation, whether or not it is still open. */
   ownMembership(scope: PersonalScopeTx, accountId: string, conversationId: string): Promise<OwnMembership | undefined>;
-  /** Both members of a conversation of the locked pair. */
-  load(lock: PairLock, conversationId: string, ownAccountId: string): Promise<Conversation | undefined>;
+  /** The conversation and its members, as seen from the caller's own account. */
+  load(reader: ConversationReader, conversationId: string, ownAccountId: string): Promise<Conversation | undefined>;
   /** The open conversation of a friendship lineage, if one exists. */
   findOpen(lock: PairLock, lineage: string, ownAccountId: string): Promise<Conversation | undefined>;
   create(
@@ -105,25 +116,30 @@ export interface ConversationStore {
    */
   append(lock: PairLock, conversationId: string, message: NewMessage): Promise<Counters>;
   messages(
-    lock: PairLock,
+    reader: ConversationReader,
     conversationId: string,
     query: { readonly before?: number; readonly after?: number; readonly limit: number },
   ): Promise<readonly MessageRow[]>;
   messageOfCommand(
-    lock: PairLock,
+    reader: ConversationReader,
     conversationId: string,
     authorAccountId: string,
     commandId: string,
   ): Promise<MessageRow | undefined>;
-  setReadThrough(lock: PairLock, conversationId: string, accountId: string, sequence: number): Promise<void>;
-  setMuted(lock: PairLock, conversationId: string, accountId: string, muted: boolean): Promise<void>;
+  setReadThrough(
+    reader: ConversationReader,
+    conversationId: string,
+    accountId: string,
+    sequence: number,
+  ): Promise<void>;
+  setMuted(reader: ConversationReader, conversationId: string, accountId: string, muted: boolean): Promise<void>;
   /** Ends the caller's membership and closes the conversation. */
-  leave(lock: PairLock, conversationId: string, accountId: string, now: Date): Promise<void>;
+  leave(reader: ConversationReader, conversationId: string, accountId: string, now: Date): Promise<void>;
   /**
    * Bumps each account's inbox revision (in canonical account order, inside the pair lock) and sends
    * the live hint after commit. Returns nothing: hints carry only IDs and the new revision.
    */
-  announce(lock: PairLock, changes: readonly InboxChange[], newEventId: () => string): Promise<void>;
+  announce(reader: ConversationReader, changes: readonly InboxChange[], newEventId: () => string): Promise<void>;
   /** Open conversations with at least one message, newest activity first. */
   inbox(
     scope: PersonalScopeTx,
@@ -135,7 +151,7 @@ export interface ConversationStore {
   ): Promise<readonly InboxRow[]>;
   inboxRevision(scope: PersonalScopeTx, accountId: string): Promise<number>;
   /** Cards for content refs, read inside the open scope's transaction. */
-  cards(scope: PersonalScopeTx | PairLock, refs: readonly ContentRef[]): Promise<readonly ContentCard[]>;
+  cards(reader: ConversationReader, refs: readonly ContentRef[]): Promise<readonly ContentCard[]>;
 }
 
 export interface Counters {

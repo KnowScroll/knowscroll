@@ -1,0 +1,84 @@
+import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
+import type { AccountScope } from '@knowscroll/client-core';
+import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
+import { Banner, Button, Tag, Text } from '@knowscroll/ui';
+import { useSharedLinks } from './use-share-session';
+
+const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+/**
+ * "Links you've shared" (P02): every public link the person made and has not stopped, with a way
+ * to stop each. A stopped link answers "no longer available" to everyone; copies already pasted
+ * elsewhere cannot be recalled, and the panel says so. Mount it inside the privacy screen.
+ */
+export function SharedLinksPanel({ scope }: { readonly scope: AccountScope }) {
+  const { session, state } = useSharedLinks(scope);
+  useEffect(() => {
+    void session.refresh();
+  }, [session]);
+  return (
+    <View style={styles.panel}>
+      <Text variant="title" heading={2}>
+        Links you’ve shared
+      </Text>
+      <Text variant="meta" color={content.ink2}>
+        Stopping a link makes it say “no longer available” for everyone. Copies already pasted elsewhere can’t be
+        recalled.
+      </Text>
+      {state.status === 'failed' ? (
+        <Banner kind="error" lead="Couldn’t load your links." message="Check your connection and try again." />
+      ) : null}
+      {state.status === 'ready' && state.items.length === 0 ? (
+        <Text variant="bodyS">You haven’t shared any links. A link you copy from a Reel or Scroll appears here.</Text>
+      ) : null}
+      {state.items.map((item) => {
+        const metadata =
+          item.content.status === 'available'
+            ? item.content.metadata
+            : item.content.status === 'corrected'
+              ? item.content.current.metadata
+              : undefined;
+        return (
+          <View key={item.shareId} style={styles.row}>
+            <View style={styles.rowText}>
+              {metadata === undefined ? null : (
+                <Tag variant="neutral" label={metadata.kind === 'reel' ? 'Reel' : 'Scroll'} />
+              )}
+              <Text variant="bodyS" numberOfLines={2}>
+                {metadata?.title ?? 'No longer available'}
+              </Text>
+              <Text variant="meta" color={content.ink2}>
+                Shared {dateOf(item.createdAt)} · works until {dateOf(item.expiresAt)}
+              </Text>
+            </View>
+            <Button
+              label="Stop sharing"
+              size="sm"
+              variant="ghost"
+              busy={state.stopping === item.shareId}
+              busyLabel="Stopping"
+              disabled={state.stopping !== undefined}
+              onPress={() => void session.stop(item.shareId)}
+            />
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  panel: { gap: spacing[3] },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    padding: spacing[3],
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderRadius: radius.card,
+    backgroundColor: content.paper,
+  },
+  rowText: { flex: 1, gap: spacing[1], alignItems: 'flex-start' },
+});

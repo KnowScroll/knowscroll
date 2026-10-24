@@ -2,12 +2,14 @@ import { sql, type Transaction } from 'kysely';
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { notifyInboxChanged } from '../../../infrastructure/notices/index.js';
 import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { DELETED_PERSON } from '../domain/deleted-person.js';
+import { bumpInboxHeads } from './inbox-heads.js';
 import type {
   ContentCard,
   ContentRef,
   Conversation,
+  ConversationReader,
   ConversationRow,
   ConversationStore,
   MemberRow,
@@ -17,8 +19,8 @@ import type { PairLock } from '../application/ports.js';
 
 type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
-const trxOf = (scope: PairLock | Parameters<typeof transactionOf>[0]): Transaction<Database> =>
-  'shared' in scope ? sharedTransactionOf(scope.shared) : transactionOf(scope);
+const trxOf = (reader: ConversationReader): Transaction<Database> =>
+  'shared' in reader ? sharedTransactionOf(reader.shared) : transactionOf(reader);
 
 const memberOf = (row: {
   account_id: string;
@@ -38,7 +40,7 @@ const memberOf = (row: {
 
 const conversationOf = (row: {
   conversation_id: string;
-  pair_id: string;
+  pair_id: string | null;
   lineage: string;
   last_sequence: string;
   last_change_sequence: string;
@@ -104,14 +106,14 @@ const MESSAGE_COLUMNS = [
   'p.display_name',
 ] as const;
 
-/** Postgres conversation rows (migration 0054). The use cases decide who may read or write; this only runs queries. */
+/** Postgres conversation rows (migration 0056). The use cases decide who may read or write; this only runs queries. */
 export function conversationStore(readContent: ReadContent): ConversationStore {
   return {
     async ownMembership(scope, accountId, conversationId) {
       const rows = await transactionOf(scope)
         .selectFrom('social.conversation_members as m')
         .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
-        .innerJoin('social.conversation_members as pm', (join) =>
+        .leftJoin('social.conversation_members as pm', (join) =>
           join.onRef('pm.conversation_id', '=', 'm.conversation_id').onRef('pm.account_id', '<>', 'm.account_id'),
         )
         .select([
@@ -128,11 +130,11 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         .where('m.account_id', '=', accountId)
         .execute();
       const row = rows[0];
-      return row && { pairId: row.pair_id, peerAccountId: row.peer_account_id, own: memberOf(row) };
+      return row && { pairId: row.pair_id, peerAccountId: row.peer_account_id ?? undefined, own: memberOf(row) };
     },
 
-    async load(lock, conversationId, ownAccountId) {
-      return loadConversation(lock, { conversationId, ownAccountId });
+    async load(reader, conversationId, ownAccountId) {
+      return loadConversation(reader, { conversationId, ownAccountId });
     },
 
     async findOpen(lock, lineage, ownAccountId) {
@@ -196,8 +198,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       return { sequence, changeSequence };
     },
 
-    async messages(lock, conversationId, query) {
-      let select = trxOf(lock)
+    async messages(reader, conversationId, query) {
+      let select = trxOf(reader)
         .selectFrom('social.messages as m')
         .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
         .select([...MESSAGE_COLUMNS])
@@ -211,8 +213,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       return (await select.limit(query.limit).execute()).map(messageOf);
     },
 
-    async messageOfCommand(lock, conversationId, authorAccountId, commandId) {
-      const row = await trxOf(lock)
+    async messageOfCommand(reader, conversationId, authorAccountId, commandId) {
+      const row = await trxOf(reader)
         .selectFrom('social.messages as m')
         .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
         .select([...MESSAGE_COLUMNS])
@@ -223,8 +225,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       return row && messageOf(row);
     },
 
-    async setReadThrough(lock, conversationId, accountId, sequence) {
-      await trxOf(lock)
+    async setReadThrough(reader, conversationId, accountId, sequence) {
+      await trxOf(reader)
         .updateTable('social.conversation_members')
         .set({ read_through_sequence: sequence })
         .where('conversation_id', '=', conversationId)
@@ -232,8 +234,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         .execute();
     },
 
-    async setMuted(lock, conversationId, accountId, muted) {
-      await trxOf(lock)
+    async setMuted(reader, conversationId, accountId, muted) {
+      await trxOf(reader)
         .updateTable('social.conversation_members')
         .set({ muted })
         .where('conversation_id', '=', conversationId)
@@ -241,8 +243,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         .execute();
     },
 
-    async leave(lock, conversationId, accountId, now) {
-      const trx = trxOf(lock);
+    async leave(reader, conversationId, accountId, now) {
+      const trx = trxOf(reader);
       await trx
         .updateTable('social.conversation_members')
         .set({ left_at: now })
@@ -256,26 +258,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         .execute();
     },
 
-    async announce(lock, changes, newEventId) {
-      const trx = trxOf(lock);
-      // Canonical account order keeps two concurrent conversations from taking heads crosswise.
-      for (const change of [...changes].sort((a, b) => (a.accountId < b.accountId ? -1 : 1))) {
-        const head = await trx
-          .insertInto('social.inbox_heads')
-          .values({ account_id: change.accountId, revision: 1 })
-          .onConflict((conflict) =>
-            conflict
-              .column('account_id')
-              .doUpdateSet((eb) => ({ revision: eb('social.inbox_heads.revision', '+', 1) })),
-          )
-          .returning('revision')
-          .executeTakeFirstOrThrow();
-        await notifyInboxChanged(trx, {
-          universeId: change.universeId,
-          revision: Number(head.revision),
-          eventId: newEventId(),
-        });
-      }
+    async announce(reader, changes, newEventId) {
+      await bumpInboxHeads(trxOf(reader), changes, newEventId);
     },
 
     async inbox(scope, accountId, query) {
@@ -283,16 +267,15 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       let select = trx
         .selectFrom('social.conversation_members as own')
         .innerJoin('social.conversations as c', 'c.conversation_id', 'own.conversation_id')
-        // A conversation lives only while the friendship lineage it began under does.
-        .innerJoin('social.pairs as pair', (join) =>
+        .leftJoin('social.pairs as pair', (join) =>
           join.onRef('pair.pair_id', '=', 'c.pair_id').onRef('pair.accepted_lineage', '=', 'c.lineage'),
         )
-        .innerJoin('social.conversation_members as peer', (join) =>
+        .leftJoin('social.conversation_members as peer', (join) =>
           join.onRef('peer.conversation_id', '=', 'c.conversation_id').onRef('peer.account_id', '<>', 'own.account_id'),
         )
-        .innerJoin('social.profiles as profile', 'profile.account_id', 'peer.account_id')
-        .innerJoin('identity.accounts as peer_account', 'peer_account.id', 'peer.account_id')
-        .innerJoin('identity.universes as peer_universe', 'peer_universe.account_id', 'peer.account_id')
+        .leftJoin('social.profiles as profile', 'profile.account_id', 'peer.account_id')
+        .leftJoin('identity.accounts as peer_account', 'peer_account.id', 'peer.account_id')
+        .leftJoin('identity.universes as peer_universe', 'peer_universe.account_id', 'peer.account_id')
         .select([
           'c.conversation_id',
           'c.pair_id',
@@ -320,8 +303,21 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         .where('own.account_id', '=', accountId)
         .where('own.left_at', 'is', null)
         .where('c.last_sequence', '>', '0')
-        .where('peer_account.status', '=', 'active')
-        .where('peer_universe.status', '=', 'active');
+        .where((eb) =>
+          eb.or([
+            // A conversation lives only while the friendship lineage it began under does, and
+            // while the other person is an active account...
+            eb.and([
+              eb('pair.pair_id', 'is not', null),
+              eb('profile.person_id', 'is not', null),
+              eb('peer_account.status', '=', 'active'),
+              eb('peer_universe.status', '=', 'active'),
+            ]),
+            // ...except that history stays readable, with "Deleted account" in the other
+            // person's place, after their account was deleted (their membership is gone).
+            eb.and([eb('peer.account_id', 'is', null), eb('c.pair_id', 'is', null)]),
+          ]),
+        );
       if (query.after) {
         const at = new Date(query.after.activityMs);
         const id = query.after.conversationId;
@@ -361,20 +357,26 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
           muted: row.own_muted,
           left_at: row.own_left_at,
         }),
-        peer: memberOf({
-          account_id: row.peer_account_id,
-          membership_id: row.peer_membership_id,
-          membership_revision: row.peer_membership_revision,
-          read_through_sequence: row.peer_read_through,
-          muted: row.peer_muted,
-          left_at: row.peer_left_at,
-        }),
-        peerPerson: PublicPersonRefSchema.parse({
-          kind: 'person',
-          personId: row.person_id,
-          handle: row.handle,
-          displayName: row.display_name,
-        }),
+        peer:
+          row.peer_account_id === null
+            ? undefined
+            : memberOf({
+                account_id: row.peer_account_id,
+                membership_id: row.peer_membership_id!,
+                membership_revision: row.peer_membership_revision!,
+                read_through_sequence: row.peer_read_through!,
+                muted: row.peer_muted!,
+                left_at: row.peer_left_at,
+              }),
+        peerPerson:
+          row.person_id === null
+            ? DELETED_PERSON
+            : PublicPersonRefSchema.parse({
+                kind: 'person',
+                personId: row.person_id,
+                handle: row.handle,
+                displayName: row.display_name,
+              }),
         lastMessage: ((found) => found && messageOf(found))(
           lastMessages.find((message) => message.conversation_id === row.conversation_id),
         ),
@@ -394,10 +396,10 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
   };
 
   async function loadConversation(
-    lock: PairLock,
+    reader: ConversationReader,
     by: { readonly ownAccountId: string } & ({ conversationId: string } | { lineage: string }),
   ): Promise<Conversation | undefined> {
-    let select = trxOf(lock)
+    let select = trxOf(reader)
       .selectFrom('social.conversations as c')
       .select([
         'c.conversation_id',
@@ -407,22 +409,27 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         'c.last_change_sequence',
         'c.last_activity_at',
         'c.closed_at',
-      ])
-      .where('c.pair_id', '=', lock.pair.id);
+      ]);
+    // Under a pair lock only that friendship's conversations are in reach.
+    if ('shared' in reader) select = select.where('c.pair_id', '=', reader.pair.id);
     select =
       'conversationId' in by
         ? select.where('c.conversation_id', '=', by.conversationId)
         : select.where('c.lineage', '=', by.lineage).where('c.closed_at', 'is', null);
     const conversation = await select.executeTakeFirst();
     if (!conversation) return undefined;
-    const members = await trxOf(lock)
+    const members = await trxOf(reader)
       .selectFrom('social.conversation_members')
       .selectAll()
       .where('conversation_id', '=', conversation.conversation_id)
       .execute();
     const own = members.find((member) => member.account_id === by.ownAccountId);
+    if (!own) return undefined;
     const peer = members.find((member) => member.account_id !== by.ownAccountId);
-    if (!own || !peer) return undefined;
-    return { conversation: conversationOf(conversation), own: memberOf(own), peer: memberOf(peer) };
+    return {
+      conversation: conversationOf(conversation),
+      own: memberOf(own),
+      peer: peer === undefined ? undefined : memberOf(peer),
+    };
   }
 }

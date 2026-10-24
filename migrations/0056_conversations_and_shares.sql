@@ -12,10 +12,12 @@
 -- a block cannot interleave. Inbox heads are bumped in canonical account order inside that lock.
 -- Growth: one conversation per friendship lineage; messages grow with use (text at most 2000
 -- characters); one inbox head per account; a handful of share links per account.
--- Retention: kept until the account is deleted. Clear keeps all of it, because conversations and
--- links are explicit communication, not exploration history. Account deletion tombstones the
--- author's messages in place (author, body and note removed, change sequence advanced), ends the
--- memberships and revokes the links.
+-- Retention: kept until an account is deleted. Clear keeps all of it, because conversations and
+-- links are explicit communication, not exploration history. Deleting an account turns its messages
+-- into tombstones in place (author, body and note removed, change sequence advanced), removes its
+-- membership, inbox head and links, and leaves the other person's conversation closed and
+-- readable: the pair row goes with the account, so pair_id is set to null and the survivor sees
+-- "Deleted account" in its place (D-043).
 -- Rollout: additive. No earlier writer exists for these tables.
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
@@ -24,7 +26,7 @@ set local statement_timeout = '60s';
 -- leaves, closed_at is set and the conversation accepts no new messages; a later start makes a new one.
 create table social.conversations (
   conversation_id uuid primary key,
-  pair_id uuid not null references social.pairs(pair_id) on delete restrict,
+  pair_id uuid references social.pairs(pair_id) on delete set null,
   lineage uuid not null,
   last_sequence bigint not null default 0 check (last_sequence between 0 and 9007199254740991),
   last_change_sequence bigint not null default 0 check (last_change_sequence between 0 and 9007199254740991),

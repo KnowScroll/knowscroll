@@ -44,3 +44,17 @@ export function listTime(at: Date, now: Date, locale?: string): string {
   if (days < 7) return at.toLocaleDateString(locale, { weekday: 'short' });
   return at.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
+
+/** The divider above a day's messages: "Today", "Yesterday", else the date. */
+export function dayLabel(at: Date, now: Date, locale?: string): string {
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return at.toLocaleDateString(locale, { day: 'numeric', month: 'short', ...(days > 300 ? { year: 'numeric' } : {}) });
+}
+
+/** The day a message belongs to, in the reader's own time zone, as a stable key for grouping. */
+export function dayKey(at: Date): string {
+  return `${String(at.getFullYear())}-${String(at.getMonth())}-${String(at.getDate())}`;
+}

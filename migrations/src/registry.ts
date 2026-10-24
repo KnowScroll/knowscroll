@@ -80,7 +80,7 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     sha256: 'ed8656fe555082e5e8c8bd98b11edb1dd7959ba330cd6f1f273f788833016805',
   },
   {
-    name: '0054_conversations_and_shares',
-    sha256: '3d09a9dc41d31f26221e5aa5b9a8f121d27e83abc0aaabefc6141895b150d75d',
+    name: '0056_conversations_and_shares',
+    sha256: 'd8d2dbfe2ec960a3e67b14d7511ffb22d73f80ded457382e78ef038d6d1d53a4',
   },
 ];

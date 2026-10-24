@@ -90,11 +90,11 @@ describe('navigation shell', () => {
     expect(app.getPathname()).toBe('/explore');
   });
 
-  it('renders no control whose backend does not exist yet on Talk', async () => {
+  it('offers on Talk only controls whose destination exists', async () => {
     await renderApp('/conversations');
 
     expect(await screen.findByRole('link', { name: 'Share something' })).toBeOnTheScreen();
-    expect(screen.queryByText('Invite a friend')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Invite a friend' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'New message' })).toBeNull();
   });
 

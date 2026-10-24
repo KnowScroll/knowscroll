@@ -418,6 +418,7 @@ export const conversationsContract = {
 };
 export type DirectConversationRef = z.infer<typeof DirectConversationRefSchema>;
 export type ConversationContentRef = z.infer<typeof ConversationContentRefSchema>;
+export type ConversationContentProjection = z.infer<typeof ConversationContentProjectionSchema>;
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 export type DirectConversationSummary = z.infer<typeof DirectConversationSummarySchema>;
 export type SendConversationMessage = z.infer<typeof SendConversationMessageSchema>;

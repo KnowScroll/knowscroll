@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DirectConversationSummary } from '@knowscroll/contracts';
-import { describeMessage, inboxRowView, listTime } from './talk-format';
+import { dayKey, dayLabel, describeMessage, inboxRowView, listTime } from './talk-format';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const peer = { kind: 'person' as const, personId: id(1), handle: 'ravi', displayName: 'Ravi' };
@@ -79,5 +79,18 @@ describe('list times', () => {
     expect(listTime(new Date(2026, 9, 23, 23, 59), now, 'en-GB')).toBe('Yesterday');
     expect(listTime(new Date(2026, 9, 20, 9, 40), now, 'en-GB')).toBe('Tue');
     expect(listTime(new Date(2026, 9, 1, 9, 40), now, 'en-GB')).toBe('1 Oct');
+  });
+});
+
+describe('day dividers', () => {
+  const now = new Date(2026, 9, 24, 12, 0);
+  it('say Today and Yesterday, then the date', () => {
+    expect(dayLabel(new Date(2026, 9, 24, 0, 5), now, 'en-GB')).toBe('Today');
+    expect(dayLabel(new Date(2026, 9, 23, 23, 59), now, 'en-GB')).toBe('Yesterday');
+    expect(dayLabel(new Date(2026, 9, 12, 9, 40), now, 'en-GB')).toBe('12 Oct');
+  });
+  it('group by calendar day in the reader’s own time zone', () => {
+    expect(dayKey(new Date(2026, 9, 24, 0, 1))).toBe(dayKey(new Date(2026, 9, 24, 23, 59)));
+    expect(dayKey(new Date(2026, 9, 24, 12))).not.toBe(dayKey(new Date(2026, 9, 25, 12)));
   });
 });

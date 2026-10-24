@@ -265,6 +265,27 @@ export function talkServer() {
           snapshotRevision: 1,
           items: [{ state: 'friends', peer, pairRevision: 3, availability: { state: 'unknown' } }],
         };
+      case '/v1/social/pairs/read':
+        return {
+          version: 'sharing.v1',
+          scope: scopeEnvelope,
+          status: 'available',
+          pair: { state: 'friends', peer, pairRevision: 3, availability: { state: 'unknown' } },
+        };
+      case '/v1/social/friends/block':
+        closed = true;
+        return {
+          version: 'sharing.v1',
+          scope: scopeEnvelope,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'friend.block',
+          peerPersonId: body['peerPersonId'],
+          basePairRevision: body['expectedPairRevision'],
+          acceptedPairRevision: Number(body['expectedPairRevision']) + 1,
+        };
       case '/v1/social/content-shares/create': {
         const key = `share:${String(body['commandId'])}`;
         const replay = commands.get(key) as { acceptance: Body } | undefined;

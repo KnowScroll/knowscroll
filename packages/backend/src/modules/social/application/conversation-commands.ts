@@ -33,12 +33,14 @@ interface CommandContext {
   readonly now: Date;
 }
 
-const both = (entered: EnteredConversation): readonly InboxChange[] => [
-  { accountId: entered.owner.accountId, universeId: entered.owner.universeId },
-  { accountId: entered.peerAccess.accountId, universeId: entered.peerAccess.universeId },
-];
 const ownInbox = (entered: EnteredConversation): readonly InboxChange[] => [
   { accountId: entered.owner.accountId, universeId: entered.owner.universeId },
+];
+const both = (entered: EnteredConversation): readonly InboxChange[] => [
+  ...ownInbox(entered),
+  ...(entered.peerAccess === undefined
+    ? []
+    : [{ accountId: entered.peerAccess.accountId, universeId: entered.peerAccess.universeId }]),
 ];
 
 /**
@@ -71,15 +73,16 @@ export function makeConversationCommands(p: ConversationPorts) {
           outcomeVersion: 1,
           requestHash: p.hash(spec.operation, { ...spec.request, actorPrivacyEpoch: scope.authority.privacyEpoch }),
         };
-        const receipt = await p.store.findReceipt(entered.lock, key);
+        const receiptScope = entered.lock ?? scope;
+        const receipt = await p.store.findReceipt(receiptScope, key);
         if (receipt.kind === 'refused') return receipt;
         if (receipt.kind === 'replay') return ok({ ...spec.acceptance.parse(receipt.outcome), replayed: true });
         const decision = await spec.decide({ scope, entered, now: p.now() });
         if (decision.kind === 'refused') return decision;
-        await p.store.beginReceipt(entered.lock, key);
+        await p.store.beginReceipt(receiptScope, key);
         const acceptance = await decision.value.write();
-        await p.conversations.announce(entered.lock, decision.value.announce, () => p.newId());
-        await p.store.receipt(entered.lock, key, acceptance);
+        await p.conversations.announce(entered.reader, decision.value.announce, () => p.newId());
+        await p.store.receipt(receiptScope, key, acceptance);
         return ok(acceptance);
       });
       return result.kind === 'entered' ? result.value : refuse('unavailable');
@@ -171,16 +174,17 @@ export function makeConversationCommands(p: ConversationPorts) {
         acceptance: ConversationMessageAcceptanceSchema,
         async decide(context) {
           const { entered, now } = context;
-          if (entered.conversation.closed) return refuse('unavailable');
+          const { lock } = entered;
+          if (lock === undefined || entered.conversation.closed) return refuse('unavailable');
           const body = command.body;
           if (body.kind === 'content') {
-            const [card] = await p.conversations.cards(entered.lock, [body.target]);
+            const [card] = await p.conversations.cards(lock, [body.target]);
             if (!card || card.status === 'unavailable') return refuse('unavailable');
           }
           return ok({
             write: async () => {
               const messageId = p.newId();
-              const stored = await p.conversations.append(entered.lock, entered.conversation.conversationId, {
+              const stored = await p.conversations.append(lock, entered.conversation.conversationId, {
                 messageId,
                 commandId: command.commandId,
                 authorAccountId: entered.owner.accountId,
@@ -231,7 +235,7 @@ export function makeConversationCommands(p: ConversationPorts) {
               write: async () => {
                 if (moved)
                   await p.conversations.setReadThrough(
-                    entered.lock,
+                    entered.reader,
                     entered.conversation.conversationId,
                     entered.owner.accountId,
                     accepted,
@@ -272,7 +276,7 @@ export function makeConversationCommands(p: ConversationPorts) {
               write: async () => {
                 if (changed)
                   await p.conversations.setMuted(
-                    entered.lock,
+                    entered.reader,
                     entered.conversation.conversationId,
                     entered.owner.accountId,
                     command.muted,
@@ -313,7 +317,7 @@ export function makeConversationCommands(p: ConversationPorts) {
             ok({
               write: async () => {
                 await p.conversations.leave(
-                  entered.lock,
+                  entered.reader,
                   entered.conversation.conversationId,
                   entered.owner.accountId,
                   now,
