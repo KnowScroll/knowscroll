@@ -193,7 +193,10 @@ class ContentThreadSession {
 
   /** The divider patch for messages read right after a lost connection came back. */
   private returned(messages: readonly ThreadMessage[]): Partial<ContentThreadState> {
-    const away = this.state.offline ? awayAfter(this.lostAfter, messages) : undefined;
+    const ownId = this.state.participants.find((participant) => participant.you)?.person.personId;
+    const isOwn = (message: ThreadMessage) =>
+      message.status === 'available' && ownId !== undefined && message.author.personId === ownId;
+    const away = this.state.offline ? awayAfter(this.lostAfter, messages, isOwn) : undefined;
     this.lostAfter = undefined;
     return away === undefined ? {} : { awayAfterSequence: away };
   }

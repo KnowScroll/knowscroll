@@ -140,7 +140,6 @@ function SignedInTalk({ scope, desktop }: { readonly scope: AccountScope; readon
     <ScreenFrame
       tone="paper"
       title="Talk"
-      showAccount={false}
       bodyOffset={listed ? spacing[3] : dimension.stateOffsetPhone.talk}
       trailing={listed ? <NewTalkButton /> : undefined}
     >

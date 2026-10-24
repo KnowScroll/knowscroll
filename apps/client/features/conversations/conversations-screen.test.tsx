@@ -132,11 +132,14 @@ describe('Talk inbox (labelled in-memory server)', () => {
     await mount(empty);
     await screen.findByText('No conversations yet');
     expect(screen.queryByRole('button', { name: 'New conversation' })).toBeNull();
+    // The account stays reachable from every tab header (D-006 c), with or without New.
+    expect(screen.getByRole('link', { name: 'Account and settings' })).toBeOnTheScreen();
     await finish(empty);
     const server = talkServer();
     server.peerSays('hello');
     await mount(server);
     await fireEvent.press(await screen.findByRole('button', { name: 'New conversation' }));
+    expect(screen.getByRole('link', { name: 'Account and settings' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Invite a friend' }));
     expect(mockPush).toHaveBeenCalledWith('/friends');
     await finish(server);

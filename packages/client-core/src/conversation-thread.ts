@@ -151,7 +151,10 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
 
   /** The divider patch for messages read right after a lost connection came back. */
   function returned(messages: readonly ConversationMessage[]): Partial<ThreadState> {
-    const away = state.offline ? awayAfter(lostAfter, messages) : undefined;
+    const peerId = state.peer?.personId;
+    const isOwn = (message: ConversationMessage) =>
+      message.status === 'available' && peerId !== undefined && message.author.personId !== peerId;
+    const away = state.offline ? awayAfter(lostAfter, messages, isOwn) : undefined;
     lostAfter = undefined;
     return away === undefined ? {} : { awayAfterSequence: away };
   }

@@ -19,7 +19,7 @@ export interface ScreenFrameProps {
   readonly leading?: ReactNode;
   /** The account avatar in the header (D-006 c). On desktops it lives in the rail instead. */
   readonly showAccount?: boolean;
-  /** A screen's own header action (Talk's New), drawn in place of the account avatar. */
+  /** A screen's own header action (Talk's New), drawn beside the account avatar, never in its place (D-006 c). */
   readonly trailing?: ReactNode;
   /** Decoration behind everything (the universe's glow and stars). */
   readonly backdrop?: ReactNode;
@@ -73,16 +73,23 @@ export function ScreenFrame({
     }, [tone]),
   );
 
+  const account = accountInHeader ? (
+    <AccountButton
+      onPress={() => router.navigate('/account')}
+      href="/account"
+      surface={tone === 'space' ? 'dark' : 'light'}
+      {...(initial === undefined ? {} : { initial })}
+    />
+  ) : undefined;
   const headerAction =
-    trailing ??
-    (accountInHeader ? (
-      <AccountButton
-        onPress={() => router.navigate('/account')}
-        href="/account"
-        surface={tone === 'space' ? 'dark' : 'light'}
-        {...(initial === undefined ? {} : { initial })}
-      />
-    ) : undefined);
+    trailing !== undefined && account !== undefined ? (
+      <View style={styles.actions}>
+        {trailing}
+        {account}
+      </View>
+    ) : (
+      (trailing ?? account)
+    );
   const gutter = gutterFor(breakpoint);
   return (
     <View testID={testID} style={[styles.ground, { backgroundColor: tone === 'space' ? space.s0 : content.paper }]}>
@@ -122,6 +129,7 @@ const placements = StyleSheet.create({
 
 const styles = StyleSheet.create({
   ground: { flex: 1 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   content: { flexGrow: 1 },
   body: { flex: 1 },
 });
