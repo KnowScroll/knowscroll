@@ -1,5 +1,6 @@
 import type { PersonalAuthority, PersonalScopeTx, ReadOn, WithPersonalScope } from '../../identity/public.js';
 import type { ReadScrollSourcePages, ReadShareableContent } from '../../content/public.js';
+import type { ReadVisitedAssets } from '../../experience/public.js';
 import type { CommissionScenarioOrder } from '../../supply/public.js';
 import type { ThreadGuest } from '../../social/public.js';
 import type { Assumption, StepChange } from '../domain/assumptions.js';
@@ -152,6 +153,8 @@ export interface DraftWorkerPorts {
 export interface ScenarioPorts extends DraftWorkerPorts {
   readonly readSourcePages: ReadScrollSourcePages;
   readonly commission: CommissionScenarioOrder;
+  /** Which of these Scrolls the caller has opened: their own exposures only ("Opened by you"). */
+  readonly readVisited: ReadVisitedAssets;
   /** Sends the planner's job in the caller's transaction (once per draft). */
   readonly enqueueSuggest: (scope: PersonalScopeTx, job: { readonly draftId: string }) => Promise<void>;
   readonly hash: (operation: string, input: unknown) => string;

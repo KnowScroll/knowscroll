@@ -675,6 +675,11 @@ On dev in 24 hours Jev made 408 runs, the Cartographer 239, the Planner 36, What
 - **Measured.** CI (fixture model): 100 activations on one subject make 1 Jev call. Local, real `MiniMax-M3.1-Flash`, one disposable person, 12 activations over 12 explanations on one subject: 12 calls and about 15,900 tokens before, 1 call and 1,469 tokens after. Each preparation waited 2 to 9 seconds for its call before; after the first (4 seconds) none waited.
 - **Limits.** A person who reads heavily reaches their background share in a day and then gets the deterministic ranking and the rules. The share is a ceiling for background roles, not a minimum for them. Entries of an old role version are not reused after a deploy that changes Jev's instructions, so the first preparation after one asks again.
 
+## D-056 · 2026-10-24 · Speculative is a status tag; "Opened by you" is the caller's own list (#250, fidelity round 2)
+
+- **Speculative joins Hypothetical and Corrected as a status label (amends D-006 a and D-049, which said a speculative premise is words, not a label).** X02 draws a "Speculative" tag on a what-if the Planner flagged and the member confirmed. The card shows it in place of "Hypothetical" (a speculative branch is hypothetical, and the card's spoken name still says so), and keeps the line "Speculative scenario · not established science". Nothing else is labelled.
+- **"Opened by you" comes from the caller's own exposures.** The scenario list answers `opened`: the node IDs whose Scroll the caller activated, read through `ReadVisitedAssets` (the caller's own history at their current epoch, the same read that marks a thread's visited episodes). A card never carries it and no member's list names another member's visit, so a visit of someone else cannot be learned from the list. A branch that is still preparing has no Scroll and is never in it.
+
 ## D-059 · 2026-10-24 · The library plan declares series and related moves; an operator command admits them (#232)
 
 Explore's Part tabs and dashed Related tabs never appeared on dev because the 54 library Scrolls had no `content.series_units` or `content.continuity_links`, and nothing produced them. The content model already supports both (`admitContinuity`); what was missing was a source of truth and a way to admit it.

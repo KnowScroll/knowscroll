@@ -5,7 +5,7 @@ import {
   ScenarioListSchema,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
-import type { PersonalAuthority } from '../../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { cardOf } from './cards.js';
 import { envelope, ok, refuse, type DraftRow, type NodeRow, type Result, type ScenarioPorts } from './ports.js';
 
@@ -34,6 +34,16 @@ function suggestionsOf(drafts: readonly DraftRow[], nodes: readonly NodeRow[]) {
 }
 
 /**
+ * The branches whose Scroll the caller has opened, by node. It reads the caller's own exposures at their
+ * current epoch and nothing of anyone else's, so no member can learn from a card that another opened it.
+ */
+async function openedByCaller(p: ScenarioPorts, scope: PersonalScopeTx, nodes: readonly NodeRow[]): Promise<string[]> {
+  const ready = nodes.filter((node) => node.status === 'ready');
+  const visited = await p.readVisited(scope, [...new Set(ready.map((node) => node.assetId))]);
+  return ready.filter((node) => visited.has(node.assetId)).map((node) => node.nodeId);
+}
+
+/**
  * The thread's branches as cards, oldest first. Membership is checked on every read, so a member
  * who left, or was never in the thread, gets `unavailable` and nothing about the branches. A card
  * names who started a branch only while that person still takes part; it never names where anyone is.
@@ -50,12 +60,14 @@ export function makeListScenarios(p: ScenarioPorts) {
       const people = new Map(visit.participants.map((participant) => [participant.accountId, participant.person]));
       const nodes = await p.store.listNodes(scope, visit.threadId);
       const drafts = await p.store.listOpenDrafts(scope, visit.self.accountId, visit.threadId, p.now());
+      const shown = nodes.slice(-MAX_SCENARIO_CARDS);
       return ok(
         ScenarioListSchema.parse({
           ...base,
           status: 'ready',
-          cards: nodes.slice(-MAX_SCENARIO_CARDS).map((node) => cardOf(node, people)),
+          cards: shown.map((node) => cardOf(node, people)),
           suggestions: suggestionsOf(drafts, nodes),
+          opened: await openedByCaller(p, scope, shown),
         }),
       );
     });

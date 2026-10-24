@@ -244,6 +244,11 @@ export const ScenarioListSchema = z.discriminatedUnion('status', [
     cards: z.array(ScenarioCardSchema).max(MAX_SCENARIO_CARDS),
     /** The caller's own, never anyone else's. */
     suggestions: z.array(ScenarioSuggestionSchema).max(MAX_SCENARIO_SUGGESTIONS),
+    /**
+     * The branches whose Scroll this caller has opened ("Opened by you"), by card. The server derives it from the
+     * caller's own exposures and answers it to the caller alone: a card never says that anyone else opened it.
+     */
+    opened: z.array(UuidSchema).max(MAX_SCENARIO_CARDS),
   }),
 ]);
 export type ScenarioList = z.infer<typeof ScenarioListSchema>;

@@ -86,14 +86,20 @@ describe('the thread’s branches', () => {
       version: 'scenario.v1',
       cards: [card()],
       suggestions: [],
+      opened: [id(9)],
     };
     const board = createScenarioBoard({ scope: scopeOf({ list: () => Promise.resolve(answer) }), thread, newId });
     expect(board.getState().phase).toBe('loading');
     await board.load();
-    expect(board.getState()).toMatchObject({ phase: 'ready', offline: false, cards: [{ nodeId: id(9) }] });
+    expect(board.getState()).toMatchObject({
+      phase: 'ready',
+      offline: false,
+      cards: [{ nodeId: id(9) }],
+      opened: [id(9)],
+    });
     answer = { status: 'unavailable', scope, readId: id(1), version: 'scenario.v1' };
     await board.load();
-    expect(board.getState()).toMatchObject({ phase: 'unavailable', cards: [] });
+    expect(board.getState()).toMatchObject({ phase: 'unavailable', cards: [], opened: [] });
   });
 
   it('keeps what it has and says so when a later read does not arrive', async () => {
@@ -110,6 +116,7 @@ describe('the thread’s branches', () => {
                 version: 'scenario.v1',
                 cards: [card()],
                 suggestions: [],
+                opened: [],
               }),
       }),
       thread,
@@ -132,6 +139,7 @@ describe('the thread’s branches', () => {
           version: 'scenario.v1',
           cards: [card()],
           suggestions: [],
+          opened: [],
         }),
       remove: () => (removed++ === 0 ? Promise.reject(new Error('network')) : Promise.resolve({ revision: 2 })),
     });

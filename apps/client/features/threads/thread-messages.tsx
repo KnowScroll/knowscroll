@@ -214,6 +214,8 @@ export interface ThreadMessagesProps {
   readonly onOpenSnippet: (messageId: string) => void;
   /** The thread's branches, shown as cards among the messages (X02). */
   readonly branches: readonly ScenarioCard[];
+  /** The branches this member opened, by node: their own history. */
+  readonly openedBranches: readonly string[];
   readonly onOpenBranch: (card: ScenarioCard) => void;
   readonly onRemoveBranch: (card: ScenarioCard) => void;
   /** Asks What if… from a branch that is ready: the new one continues it. */
@@ -234,6 +236,7 @@ export function ThreadMessages({
   onScroll,
   onOpenSnippet,
   branches,
+  openedBranches,
   onOpenBranch,
   onRemoveBranch,
   onContinueBranch,
@@ -284,6 +287,7 @@ export function ThreadMessages({
                   <BranchCard
                     card={entry.card}
                     starterIsYou={entry.card.startedBy?.personId === ownPersonId}
+                    openedByYou={openedBranches.includes(entry.card.nodeId)}
                     startedLine={startedLine(entry.card, state.messages)}
                     onOpen={onOpenBranch}
                     onRemove={onRemoveBranch}
