@@ -193,32 +193,39 @@ choice. Disposed players never receive a late unmute or resume. The encounter ow
 sound choice only for that exact entry, including a park with unavailable SDK position; scope end,
 eviction or a new encounter ends that preference. It is not part of durable resume storage.
 This is a player prerequisite only: navigation/Back integration and real native/browser acceptance
-remain separate work. Share overlay playback restoration is not implemented by this seam.
+remain separate work. Playback restoration after a sheet is `initialPlaying`, below.
 
 
-`ReelPlayer.renderStage` optionally wraps only the video and noninteractive poster in an app-owned
-navigation surface. Its returned element must fill the supplied stage. Play/Retry and seek controls
-remain outside that wrapper, so encounter navigation never has to inspect private button nodes or
-capture their gestures. The default keeps the existing direct-player layout. This hook adds no player,
-source, grant, position or recorder lifecycle; the app owns axis/edge/child arbitration. SDK stand-in
-CI verifies the stage/control boundary and source/playhead continuity across wrapper rerenders;
-actual full-stage gestures and decoding require consumer browser/native evidence.
+`ReelPlayer.renderStage` optionally wraps only the video and its play surface in an app-owned
+navigation surface. Its returned element must fill the supplied stage. The screen's chrome (switch,
+actions, title, progress, edge tabs) is passed as `children` and drawn over the stage, outside that
+wrapper, so encounter navigation never has to inspect private button nodes or capture their gestures.
+This hook adds no player, source, grant, position or recorder lifecycle; the app owns axis/edge/child
+arbitration. SDK stand-in CI verifies the stage/chrome boundary and source/playhead continuity across
+wrapper rerenders; actual full-stage gestures and decoding require consumer browser/native evidence.
 
-### Responsive Reel geometry
+`initialPlaying` (mount-only) is for one case: the Reel was playing under a sheet that has just
+closed (D-006 k), so it plays on once its source is restored and the stage is visible, and again if the
+screen becomes active after that. The encounter sets it from `resumePlaying` and never for Back, a trail
+jump or a tab detour, which return paused.
 
-Related: #359.
+Play and pause are one stage-wide button (a Play disc while paused, Retry after a failure). A screen
+that draws its own compact controls (a thread's inline player) turns that off and must then pass
+`controlsRef`: `tapToToggle: false` without it does not type-check, so a player cannot be left
+unplayable. `ReelControls` gives that screen `toggle()` (play, pause or Retry, exactly as tapping the
+stage would) and `seekBy(seconds)` (clamped to the Reel); it creates no source, grant or recorder event
+beyond what the same action would.
 
-ReelPlayer sizes only its video stage from the measured frame width (portrait ratio, capped 480px,
-minimum 160px until a smaller measured page budget is supplied); scrolling consumers cap it at
-half their actual viewport. Playback controls have their own natural height below it. Its page consumer must
-provide reachable vertical overflow for captions/actions/navigation. The frame no longer assumes a
-whole-window minus 300px space budget. Layout changes do not replace the SDK player/source or reset
-sound/playhead. renderStage still receives video/poster only; app continuation buttons are siblings
-of the gesture responder inside the measured stage, never over the playback controls. FormatSwitch
-bounds its full state labels to the parent width and permits wrapping while preserving 44px targets.
+### Reel geometry
 
-Web visibility observes the video stage itself, excluding the wrapping controls from its half-visible
-threshold. A short-page height cap changes geometry only; the SDK/source/playhead remain mounted.
+Related: #234, #359.
+
+`ReelPlayer` fills its parent: the stage and the chrome layer are both absolute-filled inside a frame
+with `flex: 1`. It measures nothing for its own height. A screen that wants a smaller player (a thread)
+gives the player's parent a height; Explore gives it the whole screen, or a column of at most 480 px on
+a wide display. Layout changes never replace the SDK player/source or reset sound/playhead. Web
+visibility observes the video stage itself. `FormatSwitch` bounds its full state labels to the parent
+width and permits wrapping while preserving 44 px targets.
 
 ### RowLink
 

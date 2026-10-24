@@ -7,18 +7,21 @@ import { ReelEncounter } from './reel-encounter';
 // player view, the recorder and route focus are stand-ins: no playback or backend is claimed.
 let mockFocused = true;
 jest.mock('expo-router', () => ({ useIsFocused: () => mockFocused }));
-const mockViewProps = jest.fn<void, [{ active: boolean; tapToToggle?: boolean }]>();
+const mockViewProps = jest.fn<
+  void,
+  [{ active: boolean; controls?: { tapToToggle?: boolean; controlsRef: unknown } }]
+>();
 const mockToggle = jest.fn();
 const mockSeekBy = jest.fn();
 const mockToggleMuted = jest.fn();
 jest.mock('../reel/activated-reel-view', () => ({
   ActivatedReelView: (props: {
     active: boolean;
-    controlsRef?: { current: unknown };
+    controls?: { controlsRef: { current: unknown } };
     children?: (playback: unknown) => unknown;
   }) => {
     mockViewProps(props);
-    if (props.controlsRef) props.controlsRef.current = { toggle: mockToggle, seekBy: mockSeekBy };
+    if (props.controls) props.controls.controlsRef.current = { toggle: mockToggle, seekBy: mockSeekBy };
     return props.children?.({
       positionMs: 0,
       durationMs: 20000,
@@ -167,7 +170,7 @@ describe('a Reel played inside a thread or a snippet viewer', () => {
     await render(encounter(scope));
     await fireEvent.press(screen.getByRole('button', { name: 'Watch' }));
     await waitFor(() => expect(lastActive()).toBe(true));
-    expect(mockViewProps.mock.calls.at(-1)?.[0].tapToToggle).toBe(false);
+    expect(mockViewProps.mock.calls.at(-1)?.[0].controls?.tapToToggle).toBe(false);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Back 10s' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Play' }));

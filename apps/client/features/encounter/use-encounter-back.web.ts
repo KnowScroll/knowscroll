@@ -29,6 +29,8 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
       const pop = () => {
         if (ignored.current) {
           ignored.current = false;
+          // State may have changed while the marker was being removed (an overlay opened again).
+          sync();
           return;
         }
         // Back closes an overlay first or restores one retained entry, synchronously, without API work.

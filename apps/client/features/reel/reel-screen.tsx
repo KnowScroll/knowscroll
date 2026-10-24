@@ -237,15 +237,7 @@ function ReadyReel({
               <IconButton icon="back" label="Back" variant="onMedia" onPress={goBack} />
               <View style={styles.spacer} pointerEvents="none" />
               {document.fixture ? <Tag label="Fixture video" variant="onDark" /> : null}
-              <FormatSwitch
-                selected="reel"
-                availability={siblings.availability}
-                showIcons
-                onSelect={(to) => {
-                  const assetId = siblings.assetIds[to];
-                  if (assetId !== undefined) router.push(`/${to}/${assetId}`);
-                }}
-              />
+              <FormatSwitch selected="reel" availability={siblings.availability} showIcons onSelect={siblings.select} />
             </View>
             <RemovalNotice removal={removalState} undo={() => removal.undo()} retry={() => removal.retry()} />
             {saveFailed ? <Banner kind="info" lead="Couldn't save." message="Try Save again." /> : null}

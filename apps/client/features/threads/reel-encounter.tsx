@@ -227,8 +227,7 @@ export function ReelEncounter({
           active={playing}
           positionRef={handle}
           initialPositionMs={moment?.startMs}
-          controlsRef={controlsRef}
-          tapToToggle={false}
+          controls={{ tapToToggle: false, controlsRef }}
         >
           {(playback) => <CompactControls playback={playback} controls={controlsRef} />}
         </ActivatedReelView>

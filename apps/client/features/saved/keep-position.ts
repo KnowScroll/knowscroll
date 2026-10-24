@@ -30,6 +30,7 @@ export function positionLine(
   const saved = serverPositionOf(place, item);
   if (saved?.kind === 'reel' && saved.positionMs >= 1000) return `Paused at ${formatClock(saved.positionMs)}`;
   if (saved?.kind === 'scroll') return 'Your place is kept';
+  if (place?.status === 'loading') return 'Checking your place…';
   if (place?.status === 'unavailable') return "Couldn't check your place";
   if (place?.status === 'ready' && place.snapshot?.status === 'not_saved') return 'No longer in Keep';
   if (place?.status === 'ready' && place.snapshot?.status === 'saved_unavailable')

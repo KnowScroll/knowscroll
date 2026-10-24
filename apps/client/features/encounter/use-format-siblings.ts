@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import type { AccountScope } from '@knowscroll/client-core';
 import type { FormatAvailability } from '@knowscroll/ui';
@@ -11,6 +12,7 @@ type Format = 'reel' | 'scroll';
  * Explore's, and creates no exposure.
  */
 export function useFormatSiblings(scope: AccountScope, exposureId: string, current: Format) {
+  const router = useRouter();
   const context = useQuery({
     queryKey: scope.queryKey('encounter', 'context', exposureId),
     queryFn: () => scope.api.experience.exposureContext({ exposureId }),
@@ -24,5 +26,10 @@ export function useFormatSiblings(scope: AccountScope, exposureId: string, curre
     if (variant.status === 'ready') assetIds[variant.kind] = variant.assetId;
   }
   availability[current] = 'ready';
-  return { availability, assetIds };
+  /** Opens the twin when it exists. A direct route has no request flow, so a missing one does nothing. */
+  const select = (to: Format) => {
+    const assetId = assetIds[to];
+    if (assetId !== undefined) router.push(`/${to}/${assetId}`);
+  };
+  return { availability, select };
 }

@@ -59,7 +59,6 @@ function playbackStatus(status: VideoPlayer['status'], playing: boolean): Playba
   return status === 'error' ? 'error' : status === 'readyToPlay' ? 'ready' : playing ? 'buffering' : 'loading';
 }
 
-/** What the screen needs to draw the progress row and sound control over the video. */
 /** Playback commands for a screen that draws its own compact controls (a thread's inline player). */
 export interface ReelControls {
   /** Play, pause, or Retry after a failure: exactly what tapping the stage does. */
@@ -68,6 +67,7 @@ export interface ReelControls {
   seekBy(seconds: number): void;
 }
 
+/** What the screen needs to draw the progress row and sound control over the video. */
 export interface ReelPlaybackView {
   readonly positionMs: number;
   readonly durationMs: number;
@@ -78,7 +78,16 @@ export interface ReelPlaybackView {
   readonly toggleMuted: () => void;
 }
 
-export interface ReelPlayerProps {
+/**
+ * Who plays and pauses. By default the whole stage is one play/pause button. A screen that draws
+ * its own controls turns that off and must then pass `controlsRef`, so a player is never left
+ * without a way to play.
+ */
+export type ReelPlayerControlProps =
+  | { readonly tapToToggle?: true; readonly controlsRef?: Ref<ReelControls> }
+  | { readonly tapToToggle: false; readonly controlsRef: Ref<ReelControls> };
+
+export interface ReelPlayerBaseProps {
   readonly title: string;
   /** Screen chrome drawn over the full-bleed stage (top bar, actions, title, progress). It sits
    * outside the stage wrapper, so it never takes part in the stage's swipe arbitration. */
@@ -97,10 +106,6 @@ export interface ReelPlayerProps {
   /** Explicit sound changes only; never called for the temporary source-replacement mute. */
   readonly onMutedChange?: (muted: boolean) => void;
   readonly positionRef?: Ref<ReelPositionHandle>;
-  /** For screens that draw their own play, seek and sound controls. */
-  readonly controlsRef?: Ref<ReelControls>;
-  /** The whole stage is one play/pause button by default; false leaves the controls to the screen. */
-  readonly tapToToggle?: boolean;
   /** Wrap only the noninteractive video/poster stage. Playback controls remain outside.
    * Return a flex-filling element and preserve the supplied stage; own gesture policy in the app.
    */
@@ -116,6 +121,8 @@ export interface ReelPlayerProps {
   readonly onDiscontinuity: () => void;
   readonly registerEnd: (stop: () => void) => () => void;
 }
+
+export type ReelPlayerProps = ReelPlayerBaseProps & ReelPlayerControlProps;
 /** Draws the screen's chrome from the current playback view. */
 function PlaybackSlot({
   playback,
@@ -270,6 +277,9 @@ export function ReelPlayer({
       playbackIntent.current = false;
       pausePlayback(player);
       onDiscontinuity();
+    } else if (playbackIntent.current && visible.current && installedSource.current?.restored) {
+      // A resume owed from a closed sheet (initialPlaying) when the screen becomes active again.
+      player.play();
     }
   }, [active, player, onDiscontinuity]);
   useEffect(() => {

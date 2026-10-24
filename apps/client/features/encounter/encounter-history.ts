@@ -114,6 +114,12 @@ export function createEncounterHistory(
     entry.surface = undefined;
     entry.resumePlaying = false;
   };
+  /** Back and a trail jump restore an entry paused, whatever it was doing when it was left (E01: no sound after a detour). */
+  const returnPaused = (entry: EncounterEntry) => {
+    entry.restored = true;
+    entry.resumePlaying = false;
+    if (entry.position?.kind === 'reel') entry.position = { ...entry.position, playing: false };
+  };
   const endEntry = (entry: EncounterEntry) => {
     if (entry.disposed) return;
     entry.disposed = true;
@@ -148,7 +154,7 @@ export function createEncounterHistory(
       if (ended || !scope.active || cursor <= 0) return false;
       park();
       cursor -= 1;
-      entries[cursor]!.restored = true;
+      returnPaused(entries[cursor]!);
       return true;
     },
     restore(exposureId: string) {
@@ -156,7 +162,7 @@ export function createEncounterHistory(
       if (ended || !scope.active || index < 0 || index >= cursor) return false;
       park();
       cursor = index;
-      entries[cursor]!.restored = true;
+      returnPaused(entries[cursor]!);
       return true;
     },
     end() {

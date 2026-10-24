@@ -41,6 +41,7 @@ export {
   ReelPlayer,
   type ReelControls,
   type ReelLocalPosition,
+  type ReelPlayerControlProps,
   type ReelPlaybackStatus,
   type ReelPlaybackView,
   type ReelPlayerProps,

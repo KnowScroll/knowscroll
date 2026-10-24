@@ -1,7 +1,7 @@
 import { useCallback, type ReactNode, type Ref } from 'react';
 import type { AccountScope, ReelRecorder } from '@knowscroll/client-core';
 import type { ReelDocument } from '@knowscroll/contracts';
-import { ReelPlayer, type ReelControls, type ReelPlayerProps, type ReelPositionHandle } from '@knowscroll/ui';
+import { ReelPlayer, type ReelPlayerControlProps, type ReelPlayerProps, type ReelPositionHandle } from '@knowscroll/ui';
 
 /** Grants remain in memory and renew against this same activated exposure. */
 export function ActivatedReelView({
@@ -15,8 +15,7 @@ export function ActivatedReelView({
   initialPlaying,
   onMutedChange,
   positionRef,
-  controlsRef,
-  tapToToggle,
+  controls,
   retainedGrant,
   renderStage,
   children,
@@ -34,8 +33,8 @@ export function ActivatedReelView({
   readonly initialPlaying?: boolean;
   readonly onMutedChange?: (muted: boolean) => void;
   readonly positionRef?: Ref<ReelPositionHandle>;
-  readonly controlsRef?: Ref<ReelControls>;
-  readonly tapToToggle?: boolean;
+  /** Leave play and pause to the screen: `{ tapToToggle: false, controlsRef }`. */
+  readonly controls?: ReelPlayerControlProps;
   readonly retainedGrant?: {
     active(): boolean;
     get(): { path: string; expiresAt: string } | undefined;
@@ -69,8 +68,7 @@ export function ActivatedReelView({
       initialPlaying={initialPlaying}
       onMutedChange={onMutedChange}
       positionRef={positionRef}
-      controlsRef={controlsRef}
-      tapToToggle={tapToToggle}
+      {...controls}
       onSample={sample}
       onDiscontinuity={discontinuity}
       registerEnd={registerEnd}

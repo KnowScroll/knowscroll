@@ -1,7 +1,8 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderStyle as borderStyleTokens, borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
+import { unavailableCopy } from '../requests/request-copy';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
@@ -20,7 +21,6 @@ const FORMAT_WORD = { reel: 'Reel', scroll: 'Scroll' } as const;
  */
 function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; readonly session: EncounterSession }) {
   const state = useSyncExternalStore(session.requests.subscribe, session.requests.getState, session.requests.getState);
-  const [dismissed, setDismissed] = useState<string>();
   if (
     state.source?.exposureId !== entry.exposureId ||
     state.phase === 'draft' ||
@@ -29,8 +29,9 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
   )
     return null;
   const what = state.mode === 'topic' ? 'request' : FORMAT_WORD[state.mode];
+  const dismissed = state.receipt !== undefined && state.dismissedRequestId === state.receipt.requestId;
   if (state.status?.status === 'ready') {
-    if (dismissed === state.receipt?.requestId) return null;
+    if (dismissed) return null;
     return (
       <View role="status" style={styles.ready}>
         <View style={styles.readyBadge}>
@@ -41,7 +42,7 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
             Ready: your {what} of “{state.status.content.metadata.title}”.
           </Text>
           <View style={styles.row}>
-            <Button label="Later" size="sm" onPress={() => setDismissed(state.receipt?.requestId)} />
+            <Button label="Later" size="sm" onPress={() => session.requests.dismissNotice()} />
             <Button
               label="Open"
               size="sm"
@@ -55,7 +56,17 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
       </View>
     );
   }
-  if (state.status?.status === 'unavailable') return null;
+  if (state.status?.status === 'unavailable') {
+    if (dismissed) return null;
+    return (
+      <View role="status" style={styles.unavailable}>
+        <Text variant="uiS" style={styles.chipText}>
+          {unavailableCopy[state.status.reason]}
+        </Text>
+        <Button label="Dismiss" size="sm" variant="ghost" onPress={() => session.requests.dismissNotice()} />
+      </View>
+    );
+  }
   return (
     <View style={styles.chip}>
       <PendingStripe />
@@ -138,6 +149,17 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   chipText: { flexShrink: 1 },
+  unavailable: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing[2],
+    padding: spacing[3],
+    borderRadius: radius.card,
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    backgroundColor: content.paper,
+  },
   ready: {
     flexDirection: 'row',
     gap: spacing[3],

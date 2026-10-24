@@ -103,7 +103,7 @@ exclude Reels, even though this controller has a working Reel player.
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `pnpm --filter @knowscroll/contracts build`          | Needed once before bundling: the web and native bundles read `@knowscroll/contracts` from its `dist/` (D-012); tests and type-checking read its sources                                          |
 | `pnpm --filter @knowscroll/client build`             | `expo export --platform web` into `dist/` (`web.output: "single"`: a static SPA served by Caddy at the site root, D-008)                                                                         |
-| `pnpm --filter @knowscroll/client build:gallery`     | The same export with the gallery (`EXPO_PUBLIC_KS_GALLERY=1`) into `dist-gallery/`, for comparing with `Components.html`; never shipped                                                          |
+| `pnpm --filter @knowscroll/client build:gallery`     | The same export with the gallery (`EXPO_PUBLIC_KS_GALLERY=1`, and `EXPO_PUBLIC_KS_DEV_EVIDENCE=1` so CI can prove the evidence panel is absent from `dist/`) into `dist-gallery/`, for comparing with `Components.html`; never shipped                                                          |
 | `pnpm --filter @knowscroll/client test` / `test:web` | The Jest projects / the Playwright smoke over `dist/` and `dist-gallery/`. Both run in GitHub Actions only (D-010); the `client` job installs Chromium there                                     |
 | `npx expo start` / `npx expo run:android`            | Development server / development build. Native builds read `EXPO_PUBLIC_KS_API_ORIGIN` (the world origin; HTTPS, or plain HTTP to `localhost`/`127.0.0.1`/`10.0.2.2` in development builds only) |
 
@@ -468,6 +468,6 @@ direct conversations and threads together; a thread row shows its people, the la
 - For the screens owned by the Explore, Reel and Scroll work: a Reel screen mounts `ShareSheetBody`, which now offers
   "Explore with friends" (`features/sharing/explore-with-friends.tsx`: pick friends, name, "Create thread · N friends").
   The Reel and Scroll encounter screens can reuse `ShareMomentSheet` and `ShareFromScrollSheet` through the hooks in
-  `features/threads/`. `ReelEncounter` passes `stageMaxHeight` to `ReelPlayer`; if the player's props change, adapt there.
+  `features/threads/`. `ReelEncounter` gives the player's parent its height (`stageMaxHeight` is that screen's own prop) and draws the compact controls through `controls={{ tapToToggle: false, controlsRef }}`; if the player's props change, adapt there.
 - Not built: What if and perspectives (#244), keep listening, a thread's own Like and Save (they stay on the full-screen
   encounter), thumbnails on episode cards, the multi-pane desktop thread (D03), native text selection for passages.

@@ -1,3 +1,4 @@
+import type { ComponentRef, Ref } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Icon, Tag, Text } from '@knowscroll/ui';
@@ -43,17 +44,20 @@ export function ScrollEnd({
   entry,
   state,
   session,
+  innerRef,
 }: {
   readonly entry: EncounterEntry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
+  /** Lets the screen see whether the end card is on screen (it holds its own action row). */
+  readonly innerRef?: Ref<ComponentRef<typeof View>>;
 }) {
   const { seriesNext, related } = entry.context.continuations;
   const disabled = state.phase !== 'active';
   const pending = seriesNext.status === 'pending' || related.status === 'pending';
   const hasContinuation = seriesNext.status === 'ready' || related.status === 'ready';
   return (
-    <View testID="encounter-scroll-end" style={styles.card}>
+    <View ref={innerRef} testID="encounter-scroll-end" style={styles.card}>
       <Text variant="label" color={content.ink2}>
         End of this Scroll
       </Text>

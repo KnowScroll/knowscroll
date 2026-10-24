@@ -67,7 +67,6 @@ function Frame({ children }: { readonly children: React.ReactNode }) {
 function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScroll }) {
   const insets = useSafeAreaInsets();
   const back = useBack();
-  const router = useRouter();
   const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
   const params = useLocalSearchParams<{ anchor?: string | string[] }>();
   useDocumentTitle(scroll.document.title);
@@ -142,15 +141,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       <View style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
         <IconButton icon="back" label="Back" onPress={back} />
         <View style={styles.spacer} />
-        <FormatSwitch
-          selected="scroll"
-          availability={siblings.availability}
-          showIcons
-          onSelect={(to) => {
-            const assetId = siblings.assetIds[to];
-            if (assetId !== undefined) router.push(`/${to}/${assetId}`);
-          }}
-        />
+        <FormatSwitch selected="scroll" availability={siblings.availability} showIcons onSelect={siblings.select} />
       </View>
       <ActivatedScrollView
         scope={scope}

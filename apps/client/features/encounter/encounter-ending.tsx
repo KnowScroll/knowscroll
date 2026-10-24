@@ -1,12 +1,34 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View, findNodeHandle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, Tag, Text } from '@knowscroll/ui';
+import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { useEncounterMetrics } from './encounter-metrics';
+
+/** The card's heading takes focus when the card arrives, so a keyboard or screen-reader user starts on it (E08). */
+function CardHeading({ children }: { readonly children: ReactNode }) {
+  const ref = useRef<ComponentRef<typeof View>>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (node === null) return;
+    if (Platform.OS === 'web') (node as unknown as { focus?: () => void }).focus?.();
+    else {
+      const tag = findNodeHandle(node);
+      if (typeof tag === 'number') AccessibilityInfo.setAccessibilityFocus(tag);
+    }
+  }, []);
+  return (
+    <View ref={ref} accessible focusable tabIndex={-1}>
+      <Text variant="displayL" heading={1}>
+        {children}
+      </Text>
+    </View>
+  );
+}
 
 /** The visited steps of the thread, newest last, as plain rows (no counts, no grades). */
 function visitedRows(state: EncounterState): readonly EncounterEntry[] {
@@ -47,6 +69,18 @@ export function EncounterEnding({
   const insets = useSafeAreaInsets();
   const metrics = useEncounterMetrics();
   const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return undefined;
+    // Escape is Done for now (E08).
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onDone();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [onDone]);
+  const removalNotice = (
+    <RemovalNotice removal={state.removal} undo={() => session.undoRemoval()} retry={() => session.retryRemoval()} />
+  );
   const saved = entry.context.actions.saved;
   const kept = asked && saved;
   const series = entry.context.series;
@@ -64,9 +98,7 @@ export function EncounterEnding({
               <View style={styles.check}>
                 <Icon name="check" size={28} />
               </View>
-              <Text variant="displayL" heading={1}>
-                We'll bring you back here
-              </Text>
+              <CardHeading>We'll bring you back here</CardHeading>
               <Text variant="body">
                 {series ? `Part ${String(series.part)}, end — ` : ''}“{entry.offer.metadata.title}”.
               </Text>
@@ -74,6 +106,7 @@ export function EncounterEnding({
                 It's in Keep whenever you want it. Next time you open Explore you'll get something new; this thread
                 waits until you choose it. Nothing expires.
               </Text>
+              {removalNotice}
               <View style={styles.actions}>
                 <Button label="See it in Keep" role="link" href="/saved" onPress={() => router.navigate('/saved')} />
                 <Button label="Undo" onPress={() => session.act('unsave')} />
@@ -84,9 +117,7 @@ export function EncounterEnding({
               <Text variant="label" color={content.ink2}>
                 {series ? 'End of thread' : 'A good place to stop'}
               </Text>
-              <Text variant="displayL" heading={1}>
-                A good place to pause
-              </Text>
+              <CardHeading>A good place to pause</CardHeading>
               <View style={styles.list}>
                 {visitedRows(state).map((visited) => (
                   <ThreadRow key={visited.exposureId} entry={visited} />
@@ -100,6 +131,7 @@ export function EncounterEnding({
                   action={{ label: 'Try again', onPress: () => session.retryAction() }}
                 />
               ) : null}
+              {removalNotice}
               <View style={styles.actions}>
                 <Button
                   label={saved ? 'Saved in Keep' : 'Keep a way back'}

@@ -101,4 +101,9 @@ describe('Saved immutable revision choices', () => {
     ).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: /Paused at 1:05/ })).toBeNull();
   });
+  it('says it is checking while the place is still loading, instead of "Not started"', async () => {
+    await card(available, jest.fn(), jest.fn(), { status: 'loading', write: 'idle' });
+    expect(screen.getByRole('button', { name: 'Corrected CI fixture. Reel. Checking your place…' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: /Not started/ })).toBeNull();
+  });
 });

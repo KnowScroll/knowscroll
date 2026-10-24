@@ -110,7 +110,8 @@ describe('actual encounter controller over CI transport fixtures', () => {
       expect(h.session.getState().entry?.position).toEqual({
         kind: 'reel',
         positionMs: 12345,
-        playing: true,
+        // Back restores a Reel paused, whatever it was doing when it was left.
+        playing: false,
         muted: true,
       });
       expect(h.session.getState().entry?.restored).toBe(true);
@@ -331,6 +332,29 @@ describe('actual encounter controller over CI transport fixtures', () => {
       h.session.bindSurface(entry, { capture: () => undefined, pause: jest.fn() });
       h.session.park(entry);
       expect(entry.resumePlaying).toBe(false);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('Back restores a Reel paused, so closing a sheet afterwards never starts it with sound', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const first = h.session.getState().entry!;
+      h.session.bindSurface(first, {
+        capture: () => ({ kind: 'reel', positionMs: 5000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      expect(first.position).toMatchObject({ playing: true });
+      expect(h.session.back()).toBe(true);
+      expect(h.session.getState().entry).toBe(first);
+      expect(first.position).toMatchObject({ positionMs: 5000, playing: false });
+      h.session.setOverlay(true);
+      h.session.setOverlay(false);
+      expect(first.resumePlaying).toBeFalsy();
     } finally {
       h.scope.end();
     }

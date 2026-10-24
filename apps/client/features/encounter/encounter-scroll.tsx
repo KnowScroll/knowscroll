@@ -1,5 +1,5 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, type ComponentRef, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
 import type { ScrollLocalPosition, ScrollPositionHandle } from '@knowscroll/ui';
@@ -43,16 +43,22 @@ export function ScrollEncounter({
   const scrollPosition = useRef<ScrollPositionHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const [underway, setUnderway] = useState(false);
+  const endCard = useRef<ComponentRef<typeof View>>(null);
+  const { height: windowHeight } = useWindowDimensions();
   const firstBlockId = entry.scroll.document.sections[0]?.blocks[0]?.id;
   const lastBlockId = entry.scroll.document.sections.at(-1)?.blocks.at(-1)?.id;
   const onPositionChange = useCallback(
-    (position: ScrollLocalPosition) =>
-      // Underway: past the opening, which holds its own action row, and short of the end card, which holds another.
-      setUnderway(
-        (position.blockId !== firstBlockId || position.offsetWithinBlock > OPENING_OFFSET) &&
-          position.blockId !== lastBlockId,
-      ),
-    [firstBlockId, lastBlockId],
+    (position: ScrollLocalPosition) => {
+      // Underway: past the opening, which holds its own action row.
+      const pastOpening = position.blockId !== firstBlockId || position.offsetWithinBlock > OPENING_OFFSET;
+      // The end card holds another row, so the floating one gives way as soon as any of it is on screen.
+      endCard.current?.measureInWindow((_x, top, _width, height) => {
+        const endVisible = height > 0 && top < windowHeight - metrics.bottom;
+        setUnderway(pastOpening && !endVisible);
+      });
+      if (endCard.current === null) setUnderway(pastOpening && position.blockId !== lastBlockId);
+    },
+    [firstBlockId, lastBlockId, windowHeight, metrics.bottom],
   );
   useLayoutEffect(() => {
     if (!playable) return;
@@ -84,7 +90,7 @@ export function ScrollEncounter({
           bottomInset={metrics.bottom + spacing[6]}
           readingBottomInset={metrics.bottom}
           afterHeader={<EncounterStrip entry={entry} state={state} session={session} align="start" />}
-          endSlot={<ScrollEnd entry={entry} state={state} session={session} />}
+          endSlot={<ScrollEnd entry={entry} state={state} session={session} innerRef={endCard} />}
         />
         <View style={[styles.notices, { left: metrics.side, right: metrics.side }]} pointerEvents="box-none">
           <EncounterNotices entry={entry} state={state} session={session} />
