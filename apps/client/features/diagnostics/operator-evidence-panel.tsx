@@ -72,6 +72,7 @@ export function OperatorEvidencePanel({
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
+          aria-expanded={open}
           accessibilityLabel="Developer diagnostics: evidence"
           onPress={() => setOpen((value) => !value)}
           style={styles.head}

@@ -13,7 +13,10 @@ jest.mock('../../platform/command-id', () => {
   let next = 30000;
   return { newCommandId: () => `0199a000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };
 });
+/** The Universe reads the map, and the room stations beside it: reads both, and nothing else. */
+const universeRead = (path: string) => path.startsWith('/v1/universe/') || path === '/v1/rooms/stations';
 const mockNavigate = jest.fn();
+const mockPush = jest.fn();
 let mockParams: Record<string, string> = {};
 jest.mock('../../providers/account-scope', () => ({
   useAccountScope: () => ({ state: { status: 'signed_in', scope: mockScope } }),
@@ -23,13 +26,14 @@ jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
     useFocusEffect: (effect: EffectCallback) => useEffect(effect, [effect]),
-    useRouter: () => ({ navigate: mockNavigate, canGoBack: () => false }),
+    useRouter: () => ({ navigate: mockNavigate, push: mockPush, canGoBack: () => false }),
     useLocalSearchParams: () => mockParams,
   };
 });
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
 beforeEach(() => {
   mockNavigate.mockReset();
+  mockPush.mockReset();
   mockParams = {};
   Object.defineProperty(AppState, 'currentState', { value: 'active', configurable: true });
 });
@@ -52,7 +56,7 @@ it('mounts the real core in StrictMode; shows loading, then actual empty without
     release();
   });
   await waitFor(() => expect(screen.getByText('Your universe starts quiet.')).toBeOnTheScreen());
-  expect(h.calls.every((p) => p.startsWith('/v1/universe/'))).toBe(true);
+  expect(h.calls.every(universeRead)).toBe(true);
   await v.unmount();
   h.scope.end();
 });
@@ -66,7 +70,7 @@ it('draws the real map; the list view reaches a region whose card never manufact
   await fireEvent.press(screen.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0' }));
   await waitFor(() => expect(screen.getByText('Encounters from this region aren’t available yet.')).toBeOnTheScreen());
   await waitFor(() => expect(h.calls.filter((p) => p.endsWith('/region/preview'))).toHaveLength(1));
-  expect(h.calls.every((p) => p.startsWith('/v1/universe/') || p === '/v1/experience/region/preview')).toBe(true);
+  expect(h.calls.every((p) => universeRead(p) || p === '/v1/experience/region/preview')).toBe(true);
   expect(h.calls.some((p) => /region\/open|activate|observations/.test(p))).toBe(false);
   await act(() => h.scope.end());
   expect(screen.queryByText('CI region 4')).toBeNull();
@@ -109,7 +113,7 @@ it('searches and toggles Lately without leaving the map, and none of it is a com
     screen.queryByLabelText('Search your universe') ?? screen.getByRole('header', { name: 'CI planet 3' }),
     'x',
   );
-  expect(h.calls.every((p) => p.startsWith('/v1/universe/') || p === '/v1/experience/region/preview')).toBe(true);
+  expect(h.calls.every((p) => universeRead(p) || p === '/v1/experience/region/preview')).toBe(true);
   await act(() => h.scope.end());
   await v.unmount();
 });
@@ -155,7 +159,7 @@ it('follows a drawn route from the system and from either planet', async () => {
   expect(screen.getByRole('header', { name: 'CI planet 3' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'Route to CI planet 2' }));
   expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
-  expect(h.calls.every((p) => p.startsWith('/v1/universe/'))).toBe(true);
+  expect(h.calls.every(universeRead)).toBe(true);
   await act(() => h.scope.end());
   await v.unmount();
 });
@@ -292,6 +296,60 @@ it('the simple drawing keeps every region reachable as a plain list', async () =
   await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple drawing' }));
   await waitFor(() => expect(screen.getByText('Low detail')).toBeOnTheScreen());
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'CI region 4' }).length).toBeGreaterThan(0));
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+/** A room whose topic is the fixture's first system: the station sits beside it, and opens the room (R01). */
+const roomStation = () => ({
+  room: {
+    roomId: '0199d000-0000-7000-8000-0000000000a1',
+    name: 'CI room',
+    description: 'A room about the first system.',
+    topic: { kind: 'system' as const, id: 'ci-topic', label: 'CI topic' },
+    joinRule: 'open' as const,
+    status: 'open' as const,
+  },
+  standing: 'none' as const,
+  placement: { systemId: fixtureId(10) },
+});
+
+it('draws a room station beside the system of its topic, lists it under Rooms, and opens the room from either', async () => {
+  const h = universeHarness();
+  h.world.stations.push(roomStation());
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  const id = roomStation().room.roomId;
+  await waitFor(() => expect(screen.getByTestId(`universe-station-${id}`)).toBeOnTheScreen());
+  expect(screen.getByRole('button', { name: 'CI room, a room station' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByTestId(`universe-station-${id}`));
+  expect(mockPush).toHaveBeenLastCalledWith(`/rooms/${id}`);
+  // The accessible list view names it too, after the places, and opens the same room.
+  await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+  await fireEvent.press(screen.getByTestId(`universe-outline-station-${id}`));
+  expect(mockPush).toHaveBeenCalledTimes(2);
+  // It is decoration beside a place: no count, no activity, and nothing is written.
+  expect(h.calls.every(universeRead)).toBe(true);
+  expect(screen.queryByText(/members|online|active now/i)).toBeNull();
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('draws a station inside its system too, and none where the map holds no system of its topic', async () => {
+  const h = universeHarness();
+  const elsewhere = roomStation();
+  h.world.stations.push(roomStation(), {
+    ...elsewhere,
+    room: { ...elsewhere.room, roomId: '0199d000-0000-7000-8000-0000000000a2', name: 'Elsewhere room' },
+    placement: { systemId: fixtureId(9999) },
+  });
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  expect(screen.queryByRole('button', { name: 'Elsewhere room, a room station' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI room, a room station' })).toBeOnTheScreen());
+  expect(screen.queryByRole('button', { name: 'Elsewhere room, a room station' })).toBeNull();
   await act(() => h.scope.end());
   await v.unmount();
 });

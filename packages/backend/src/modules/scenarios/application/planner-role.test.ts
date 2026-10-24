@@ -14,9 +14,10 @@ const model = { subject: 'Model', statement: 'The same model serves every reques
 const whatIf = {
   title: 'What happens at ten times the traffic?',
   explanation: 'Compares batching with more instances.',
-  changes: [traffic],
+  changes: [{ ...traffic, replaces: null }],
   kept: [model],
   lens: null,
+  speculative: false,
   needsConfirmation: false,
 };
 const perspective = {
@@ -25,6 +26,7 @@ const perspective = {
   changes: [],
   kept: [],
   lens: 'the operator’s view',
+  speculative: false,
   needsConfirmation: false,
 };
 
@@ -41,7 +43,7 @@ describe('the Scenario Planner answer', () => {
     const other = {
       ...whatIf,
       title: 'What if the latency target tightens?',
-      changes: [{ ...model, subject: 'Latency' }],
+      changes: [{ ...model, subject: 'Latency', replaces: null }],
       kept: [],
     };
     expect(check('what_if', { mode: 'options', options: [whatIf, other] }).success).toBe(true);
@@ -65,6 +67,77 @@ describe('the Scenario Planner answer', () => {
     ]);
   });
 
+  it('lets a change name the premise it replaces, and checks the name against the premises that hold', () => {
+    const parent: ParentFacts = { hypothetical: true, speculative: false, assumptions: [traffic, model] };
+    const replacing = (replaces: string | null) => ({
+      ...whatIf,
+      changes: [{ subject: 'Load', statement: 'Load is twenty times higher than in the original', replaces }],
+      kept: [],
+    });
+    expect(check('what_if', { mode: 'direct', options: [replacing('Traffic')] }, parent).success).toBe(true);
+    expect(issues(check('what_if', { mode: 'direct', options: [replacing('Weather')] }, parent))).toEqual([
+      'replaces_unknown_premise',
+    ]);
+  });
+
+  it('sends a change that would drop a premise it has nothing to do with to the repair', () => {
+    const parent: ParentFacts = {
+      hypothetical: true,
+      speculative: false,
+      assumptions: [{ subject: 'Axis tilt', statement: 'The axis of the planet is tilted' }],
+    };
+    const gravity = (replaces: string | null) => ({
+      ...whatIf,
+      changes: [{ subject: 'Gravity', statement: 'Gravity pushes things away from the Sun', replaces }],
+      kept: [],
+    });
+    expect(issues(check('what_if', { mode: 'direct', options: [gravity('Axis tilt')] }, parent))).toEqual([
+      'replaces_unrelated_premise',
+    ]);
+    expect(check('what_if', { mode: 'direct', options: [gravity(null)] }, parent).success).toBe(true);
+  });
+
+  it('sends a change that says a held premise again, without naming it, to the repair', () => {
+    const push = {
+      subject: 'Summer push',
+      statement:
+        'During each hemisphere’s summer, gravity would exert an additional net push on Earth away from the Sun.',
+    };
+    const parent: ParentFacts = { hypothetical: true, speculative: true, assumptions: [push] };
+    const weaker = (replaces: string | null) => ({
+      ...whatIf,
+      changes: [
+        {
+          subject: 'Push strength',
+          statement:
+            'During each hemisphere’s summer, gravity would exert an additional net push on Earth away from the Sun at half the strength.',
+          replaces,
+        },
+      ],
+      kept: [],
+    });
+    expect(issues(check('what_if', { mode: 'direct', options: [weaker(null)] }, parent))).toEqual([
+      'change_restates_premise',
+    ]);
+    expect(check('what_if', { mode: 'direct', options: [weaker('Summer push')] }, parent).success).toBe(true);
+  });
+
+  it('does not take a change for a restatement of the premise it changes by subject', () => {
+    const parent: ParentFacts = { hypothetical: true, speculative: false, assumptions: [traffic] };
+    const same = {
+      ...whatIf,
+      changes: [{ ...traffic, statement: `${traffic.statement}, and then some more`, replaces: null }],
+      kept: [],
+    };
+    expect(check('what_if', { mode: 'direct', options: [same] }, parent).success).toBe(true);
+  });
+
+  it('keeps speculative to what-ifs: a perspective that says it is speculative goes to the repair', () => {
+    expect(issues(check('perspective', { mode: 'direct', options: [{ ...perspective, speculative: true }] }))).toEqual([
+      'perspective_not_speculative',
+    ]);
+  });
+
   it('refuses a direct answer with several options, and options that repeat', () => {
     expect(issues(check('what_if', { mode: 'direct', options: [whatIf, { ...whatIf, title: 'Another' }] }))).toContain(
       'direct_needs_one_option',
@@ -77,6 +150,7 @@ describe('the Scenario Planner answer', () => {
   it('refuses a premise past what the earlier branches allow', () => {
     const parent: ParentFacts = {
       hypothetical: true,
+      speculative: false,
       assumptions: [
         traffic,
         model,
@@ -86,7 +160,7 @@ describe('the Scenario Planner answer', () => {
     };
     const added = {
       ...whatIf,
-      changes: [{ subject: 'Region', statement: 'Every request comes from one region' }],
+      changes: [{ subject: 'Region', statement: 'Every request comes from one region', replaces: null }],
       kept: [],
     };
     expect(issues(check('what_if', { mode: 'direct', options: [added] }, parent))).toEqual(['too_many_assumptions']);
@@ -158,10 +232,10 @@ describe('the Scenario Planner context', () => {
   it('lists the premises that hold below an earlier branch', () => {
     const context = plannerContext({
       ...input,
-      parent: { hypothetical: true, assumptions: [traffic], title: 'Ten times the traffic' },
+      parent: { hypothetical: true, speculative: false, assumptions: [traffic], title: 'Ten times the traffic' },
     });
     expect(context.items[2]?.text).toContain('Branch: Ten times the traffic');
-    expect(context.items[2]?.text).toContain(`- ${traffic.statement}`);
+    expect(context.items[2]?.text).toContain(`- ${traffic.subject}: ${traffic.statement}`);
   });
 
   it('cuts a long message', () => {
@@ -172,33 +246,75 @@ describe('the Scenario Planner context', () => {
 describe('suggestVerdict', () => {
   const answer: PlannerAnswer = { mode: 'options', options: [whatIf, { ...whatIf, title: 'Another way' }] };
   it('turns a proposed answer into stored options with their IDs', () => {
-    const verdict = suggestVerdict({
-      kind: 'proposed',
-      output: answer,
-      attemptId: 'a',
-      usage: { inputTokens: 1, outputTokens: 1 },
-      repaired: false,
-      reconciled: false,
-    } as never);
+    const verdict = suggestVerdict(
+      {
+        kind: 'proposed',
+        output: answer,
+        attemptId: 'a',
+        usage: { inputTokens: 1, outputTokens: 1 },
+        repaired: false,
+        reconciled: false,
+      } as never,
+      'what_if',
+    );
     expect(verdict).toMatchObject({ kind: 'ready', mode: 'options', end: 'completed' });
     if (verdict.kind === 'ready') expect(verdict.options.map((option) => option.optionId)).toEqual(['o1', 'o2']);
   });
 
+  const proposed = (options: PlannerAnswer['options'], kind: 'what_if' | 'perspective' = 'what_if') =>
+    suggestVerdict(
+      { kind: 'proposed', output: { mode: 'options', options }, attemptId: 'a', usage: {}, repaired: false } as never,
+      kind,
+    );
+
+  it('keeps the speculative flag and the need to confirm apart: a speculative idea always asks, an unclear one is not speculative', () => {
+    const verdict = proposed([
+      { ...whatIf, speculative: true, needsConfirmation: false },
+      { ...whatIf, title: 'Unclear', speculative: false, needsConfirmation: true },
+      { ...whatIf, title: 'Plain' },
+    ]);
+    if (verdict.kind !== 'ready') throw new Error('CI expected directions');
+    expect(verdict.options.map((option) => [option.speculative, option.needsConfirmation])).toEqual([
+      [true, true],
+      [false, true],
+      [false, false],
+    ]);
+  });
+
+  it('never marks a perspective speculative, and stores a change’s replaced premise only when it names one', () => {
+    const verdict = proposed([{ ...perspective, speculative: true }], 'perspective');
+    if (verdict.kind !== 'ready') throw new Error('CI expected directions');
+    expect(verdict.options[0]).toMatchObject({ speculative: false });
+    const replacing = proposed([
+      {
+        ...whatIf,
+        changes: [
+          { ...traffic, replaces: 'Load' },
+          { ...model, replaces: null },
+        ],
+      },
+    ]);
+    if (replacing.kind !== 'ready') throw new Error('CI expected directions');
+    expect(replacing.options[0]?.changes).toEqual([{ ...traffic, replaces: 'Load' }, model]);
+  });
+
   it('closes honestly on a failure, a spent budget or an unknown outcome, and never resends the unknown one', () => {
-    expect(suggestVerdict({ kind: 'invalid_output' } as never)).toMatchObject({
+    expect(suggestVerdict({ kind: 'invalid_output' } as never, 'what_if')).toMatchObject({
       failure: 'could_not_suggest',
       end: 'failed',
     });
-    expect(suggestVerdict({ kind: 'failed', code: 'X' } as never)).toMatchObject({
+    expect(suggestVerdict({ kind: 'failed', code: 'X' } as never, 'what_if')).toMatchObject({
       failure: 'could_not_suggest',
       end: 'failed',
     });
-    expect(suggestVerdict({ kind: 'budget_exhausted' } as never)).toMatchObject({
+    expect(suggestVerdict({ kind: 'budget_exhausted' } as never, 'what_if')).toMatchObject({
       failure: 'budget_unavailable',
       end: 'cancelled',
     });
-    expect(suggestVerdict({ kind: 'quota_unavailable' } as never)).toMatchObject({ failure: 'budget_unavailable' });
-    const unknown = suggestVerdict({ kind: 'unknown' } as never);
+    expect(suggestVerdict({ kind: 'quota_unavailable' } as never, 'what_if')).toMatchObject({
+      failure: 'budget_unavailable',
+    });
+    const unknown = suggestVerdict({ kind: 'unknown' } as never, 'what_if');
     expect(unknown).toMatchObject({ kind: 'failed', failure: 'could_not_suggest' });
     expect(unknown).not.toHaveProperty('end');
   });

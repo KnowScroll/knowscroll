@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, TextInput, useWindowDimensio
 import { passageOf, sentenceRanges, type PassageRange, type ScrollBlockStateStore } from '@knowscroll/client-core';
 import type { SendThreadBody } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { BottomSheet, Banner, Button, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
+import { BottomSheet, Banner, Button, spaceActivates, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
 import {
   buildBlockStateSnapshot,
   defaultBlockState,
@@ -91,6 +91,7 @@ function PassagePicker({
             key={range.start}
             role="checkbox"
             aria-checked={inside}
+            {...spaceActivates(() => choose(index))}
             accessibilityLabel={passage.text.slice(range.start, range.end)}
             onPress={() => choose(index)}
             style={[styles.sentence, inside ? styles.sentenceOn : null]}

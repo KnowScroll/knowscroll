@@ -1377,6 +1377,123 @@ export interface ReceiptsSharedCommands {
   scope_kind: string;
 }
 
+export interface RoomsActivities {
+  activity_id: string;
+  closed_at: Timestamp | null;
+  created_at: Timestamp;
+  created_by_account_id: string | null;
+  definition: Json;
+  kind: string;
+  room_id: string;
+  state: Generated<string>;
+  title: string;
+}
+
+export interface RoomsAiRequests {
+  attempt_id: string | null;
+  command_id: string;
+  created_at: Timestamp;
+  discussion_id: string;
+  dispatched: Generated<boolean>;
+  inhabitant: string;
+  message_id: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  request_id: string;
+  requested_by_account_id: string | null;
+  role_version: string | null;
+  room_id: string;
+  settled_at: Timestamp | null;
+  state: string;
+}
+
+export interface RoomsDiscussions {
+  created_at: Timestamp;
+  discussion_id: string;
+  last_activity_at: Timestamp;
+  last_change_sequence: Generated<Int8>;
+  last_sequence: Generated<Int8>;
+  origin_message_id: string | null;
+  pinned_at: Timestamp | null;
+  room_id: string;
+  root_asset_id: string | null;
+  root_asset_revision: number | null;
+  started_by_account_id: string | null;
+  title: string;
+}
+
+export interface RoomsInvitations {
+  created_at: Timestamp;
+  invitee_account_id: string;
+  inviter_account_id: string;
+  room_id: string;
+}
+
+export interface RoomsMembers {
+  account_id: string;
+  ended_at: Timestamp | null;
+  ended_by: string | null;
+  joined_at: Timestamp;
+  role: Generated<string>;
+  room_id: string;
+}
+
+export interface RoomsMessages {
+  ai_kind: string | null;
+  asset_id: string | null;
+  asset_revision: number | null;
+  author_account_id: string | null;
+  author_kind: string;
+  body_text: string | null;
+  change_sequence: Int8;
+  command_id: string | null;
+  discussion_id: string;
+  hidden_at: Timestamp | null;
+  inhabitant: string | null;
+  message_id: string;
+  note: string | null;
+  recorded_at: Timestamp;
+  sequence: Int8;
+}
+
+export interface RoomsMessageSnippets {
+  block_id: string | null;
+  block_label: string | null;
+  block_type: string | null;
+  block_version: number | null;
+  end_ms: number | null;
+  kind: string;
+  message_id: string;
+  quote: string | null;
+  quote_hash: string | null;
+  range_end: number | null;
+  range_start: number | null;
+  settings: Json | null;
+  settings_description: string | null;
+  start_ms: number | null;
+}
+
+export interface RoomsPollVotes {
+  account_id: string;
+  activity_id: string;
+  option_id: string;
+  voted_at: Timestamp;
+}
+
+export interface RoomsRooms {
+  created_at: Timestamp;
+  description: string;
+  guidelines: string | null;
+  inhabitants: Generated<string[]>;
+  join_rule: string;
+  name: string;
+  room_id: string;
+  slug: string;
+  status: Generated<string>;
+  topic_id: string;
+  topic_kind: string;
+}
+
 export interface ScenariosDrafts {
   created_at: Timestamp;
   draft_id: string;
@@ -1415,6 +1532,7 @@ export interface ScenariosNodes {
   parent_node_id: string | null;
   revision: number;
   semantic_key: string;
+  speculative: Generated<boolean>;
   started_by_account_id: string | null;
   status: string;
   thread_id: string;
@@ -1811,6 +1929,15 @@ export interface DB {
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
+  "rooms.activities": RoomsActivities;
+  "rooms.ai_requests": RoomsAiRequests;
+  "rooms.discussions": RoomsDiscussions;
+  "rooms.invitations": RoomsInvitations;
+  "rooms.members": RoomsMembers;
+  "rooms.message_snippets": RoomsMessageSnippets;
+  "rooms.messages": RoomsMessages;
+  "rooms.poll_votes": RoomsPollVotes;
+  "rooms.rooms": RoomsRooms;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;
   "scenes.chunks": ScenesChunks;

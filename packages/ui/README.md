@@ -28,7 +28,7 @@ tests); without either, components get the current window at 100 % text and moti
 
 | Component | States and behaviour | Accessibility |
 |---|---|---|
-| `Text` | Token type role; desktop +15 %; own text-size scaling (`allowFontScaling` off, `resolveType` applies the system size with the 200 % rules) | `heading={1..3}` (native header; web `h1`–`h3`) |
+| `Text` | Token type role; desktop +15 %; own text-size scaling (`allowFontScaling` off, `resolveType` applies the system size with the 200 % rules) | `heading={1..3}` (native header; web `h1`–`h3`); on the web a heading breaks a word wider than its line instead of running past the edge |
 | `Icon` | The export's 24 × 24 line icons (list below) | Always hidden; the control carries the name |
 | `Button` | Variants `primary · default · ink · ghost · space · danger · continue`; sizes `md` 48 / `sm` 44; default · pressed (travels 3 px, loses the shadow; no travel under reduced motion) · focus-visible · disabled (45 %) · busy (spinner + "…ing" label, no presses) | `button` or `link`; `toggled` makes a toggle button; `aria-busy`, `aria-disabled` |
 | `IconButton` | `paper · onMedia · onSpace · plain · accent`; 48 or 44 only; `pressed` (filled glyph on cobalt on paper, on opaque cream over media and the map; never yellow, D-006 b as amended on #255; Components.html draws it yellow) · disabled · busy | Name from `label` ("Back to Keep"), never the icon |
@@ -37,7 +37,7 @@ tests); without either, components get the current window at 100 % text and moti
 | `ReelPlayer` | Full-bleed expo-video stage that fills its parent; its only control is the stage-wide play/pause button (a Play disc while paused, a spinner while loading, "Playback interrupted" with Retry). Screen chrome is passed as `children` (a node or `(playback) => node`) and sits outside the stage wrapper | The toggle is named Play, Pause or Retry; the sound switch is `ReelProgress` |
 | `ReelProgress` | Thin progress track, "0:31 / 0:50" and the Mute/Unmute switch; no percentages, not a scrubber | `progressbar` with value text; the switch is a toggle button |
 | `RequestStatusChip` | requested · preparing · ready · failed · cancelled; a button only when ready/failed have an action; no percentages or times | Waiting states are a `status` |
-| `ActionRail` / `ActionStrip` | One action set (Like · Save · Share · Ask · More) and one placement (`encounterActionPlacement`, no format argument) that both components lay themselves out from, for Reel and Scroll (D-006 b); compact (≤ 360) 44 px buttons; above 150 % text a 2 × 2 grid of text buttons (pressed = primary cobalt); Save busy while its command is in flight | A `group` named "Actions" (not `toolbar`: each action is its own Tab stop); Like/Save are toggle buttons whose names and visible words stay "Like"/"Save" in both arrangements (the state is announced, never added to the name); rail words hidden (the button says it) |
+| `ActionRail` / `ActionStrip` | (`ActionRail` takes `surface="paper"` beside a Reel card, D01.) One action set (Like · Save · Share · Ask · More) and one placement (`encounterActionPlacement`, no format argument) that both components lay themselves out from, for Reel and Scroll (D-006 b); compact (≤ 360) 44 px buttons; above 150 % text a 2 × 2 grid of text buttons (pressed = primary cobalt); Save busy while its command is in flight | A `group` named "Actions" (not `toolbar`: each action is its own Tab stop); Like/Save are toggle buttons whose names and visible words stay "Like"/"Save" in both arrangements (the state is announced, never added to the name); rail words hidden (the button says it) |
 | `Tag` | `neutral · part · onDark · hypothetical · corrected` (no "Speculative", D-006 a) | Non-interactive text; caps become sentence case above 150 % |
 | `Banner` | `offline · reconnecting · corrected · accessEnded · recordingPaused · info · error`; optional inline action (44 × 44 minimum) | Offline/reconnecting `status` (polite), error `alert`, info plain |
 | `Skeleton` | Loading cards; gentle pulse, still under reduced motion | One busy `progressbar` with a name |
@@ -233,4 +233,21 @@ Related: #242.
 
 `RowLink` is one list row that is a link to a destination (Talk's conversations). It is at least 48 px tall, shows
 the focus ring on paper and, with `href`, is a real `<a>` on the web (Enter, middle-click, new tab). `label` is its
-whole accessible name. It draws no content of its own; the caller supplies the row.
+whole accessible name. `current` marks the row whose destination is open beside the list (`aria-current="page"` and a
+tint). It draws no content of its own; the caller supplies the row.
+
+### Keyboard on the web
+
+React Native Web gives a checkbox, radio or switch Enter but reserves Space for button roles. Spread
+`spaceActivates(action)` on such a `Pressable` so Space presses it once (no repeat while held); on native it adds
+nothing. It also does not write `accessibilityState` to the DOM: set `aria-checked`, `aria-expanded`, `aria-busy`
+or `aria-current` beside it. `dialogSemantics(title)` goes on a sheet inside a `Modal` and `dialogHostSemantics(title)`
+on the `Modal` itself, so the web dialog has one name.
+
+`usePageInert(open)` makes the app root `inert` while a modal sheet is open (the sheet is drawn into `document.body`, outside
+it), so the page behind cannot be focused, clicked or read; holds are counted so a sheet over a sheet frees the page only
+when the last one closes. `BottomSheet` and the Universe's modal sheets use it.
+
+`DisplayRoot` reads the system text size: the window's font scale on native, and on the web the browser's own text size
+(the root font size over 16 px, at least 1), read again on resize and focus. The type roles then apply their 200 % rules
+as on a phone. Page zoom changes the window width instead, which the breakpoints follow.

@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Modal, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Ellipse, G, Line } from 'react-native-svg';
-import { Button, Tag, Text } from '@knowscroll/ui';
+import { Button, dialogHostSemantics, dialogSemantics, Tag, Text, usePageInert } from '@knowscroll/ui';
 import { content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
 import type { SceneGeometry } from '@knowscroll/scene-core';
 import type { FormationPresentationState } from '@knowscroll/client-core';
@@ -61,6 +61,7 @@ function FormationSurface({
 }) {
   const controller = session.formation;
   const insets = useSafeAreaInsets();
+  usePageInert(true);
   const [beat, setBeat] = useState(0);
   const planet = fact.sequence.kind === 'planet' ? fact.sequence.planetId : fact.targets[0]!.objectId;
   const descriptor = session.descriptors().find((d) => d.objectId === planet);
@@ -112,14 +113,14 @@ function FormationSurface({
   const starFor =
     starDescriptor ?? session.descriptors().find((d) => d.kind === 'star' && d.parentId === descriptor?.parentId);
   return (
-    <Modal visible transparent animationType="none" onRequestClose={() => controller.skip(fact)}>
-      <View
-        testID="formation-presentation"
-        role="dialog"
-        accessibilityLabel="A new place"
-        accessibilityViewIsModal
-        style={styles.host}
-      >
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      onRequestClose={() => controller.skip(fact)}
+      {...dialogHostSemantics('A new place')}
+    >
+      <View testID="formation-presentation" {...dialogSemantics('A new place')} style={styles.host}>
         <UniverseBackdrop glow={false} />
         <View style={[styles.corner, { top: insets.top + spacing[3] }]}>
           <SpaceChip

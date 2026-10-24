@@ -1,5 +1,5 @@
 import { Link, Redirect, useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
 import { IconButton, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
@@ -72,21 +72,36 @@ function Card({ children }: { readonly children: ReactNode }) {
   return <View style={styles.card}>{children}</View>;
 }
 
-/** The settings list beside the cards on desktops (D05 `.sn`): only the pages that exist. */
-function SettingsNav() {
-  const { state } = useAccountScope();
+/** The other pages of the settings list (D05 `.sn`): only the ones that exist. Notifications and playback are not built. */
+const OTHER_SETTINGS = [
+  { title: 'Account', href: '/account' },
+  { title: 'Your requests', href: '/account/requests' },
+  { title: 'Friends & visibility', href: '/friends' },
+] as const;
+
+function SettingsLink({ title, href }: (typeof OTHER_SETTINGS)[number]) {
   const focus = useFocusRing('onLight');
   return (
-    <View style={styles.nav} accessibilityRole="menu" accessibilityLabel="Settings">
+    <Link href={href} asChild>
+      <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
+        <Text variant="bodyS">{title}</Text>
+      </Pressable>
+    </Link>
+  );
+}
+
+/** The settings list beside the cards on desktops (D05 `.sn`). */
+function SettingsNav() {
+  const { state } = useAccountScope();
+  return (
+    <View style={styles.nav} role="navigation" aria-label="Settings">
       <Text variant="heading" heading={2}>
         Settings
       </Text>
-      <Link href="/account" asChild>
-        <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
-          <Text variant="bodyS">Account</Text>
-        </Pressable>
-      </Link>
-      <View accessibilityState={{ selected: true }} style={[styles.navItem, styles.navCurrent]}>
+      {OTHER_SETTINGS.map((item) => (
+        <SettingsLink key={item.href} {...item} />
+      ))}
+      <View aria-current="page" style={[styles.navItem, styles.navCurrent]}>
         <Text variant="bodyS" color={content.paper}>
           Privacy & history
         </Text>
@@ -106,7 +121,7 @@ function Desktop() {
     <View style={styles.desktop}>
       <SettingsNav />
       <View style={styles.cards}>
-        <Text variant="meta" color={content.ink2}>
+        <Text variant="meta" color={content.ink2} style={styles.lead}>
           Every action here says exactly what it changes, and reports done only when it is.
         </Text>
         <Card>
@@ -158,8 +173,11 @@ export function PrivacyScreen() {
 /** One control on a page of its own (phones and tablets), back to the hub. */
 export function SubPage({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   const router = useRouter();
+  // An address opened on a desktop goes to the one page. A window that grows past 1024 px while the
+  // person is in the middle of Delete or Export keeps that page: redirecting would drop their step.
   const desktop = useOnePage();
-  if (desktop) return <Redirect href="/account/privacy" />;
+  const [openedOnDesktop] = useState(desktop);
+  if (openedOnDesktop) return <Redirect href="/account/privacy" />;
   const back = () => {
     if (router.canGoBack()) router.back();
     else router.navigate('/account/privacy');
@@ -201,6 +219,9 @@ export function PrivacyDeleteScreen() {
   );
 }
 
+/** A card is at least this wide: two sit side by side from about 1280 px (D05), one fills a narrower page. */
+const CARD_MIN_WIDTH = 380;
+
 const styles = StyleSheet.create({
   page: { gap: spacing[1], paddingBottom: spacing[8] },
   note: { paddingTop: spacing[5] },
@@ -214,8 +235,12 @@ const styles = StyleSheet.create({
   },
   navCurrent: { backgroundColor: content.ink },
   navNote: { paddingTop: spacing[4] },
-  cards: { flex: 1, minWidth: 0, gap: spacing[4], maxWidth: 760 },
+  cards: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  lead: { flexBasis: '100%' },
   card: {
+    flexGrow: 1,
+    flexBasis: CARD_MIN_WIDTH,
+    minWidth: 0,
     gap: spacing[3],
     padding: spacing[5],
     borderWidth: borderWidth.regular,

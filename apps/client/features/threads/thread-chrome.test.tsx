@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ContentThreadState } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
-import { InvitationView, threadTitle } from './thread-chrome';
+import { InvitationView, ThreadHeader, threadTitle } from './thread-chrome';
 
 const asha = {
   kind: 'person' as const,
@@ -65,5 +65,34 @@ describe('a thread invitation', () => {
     expect(threadTitle({ name: 'Black holes', root })).toBe('Black holes');
     expect(threadTitle({ name: undefined, root })).toBe('The edge');
     expect(threadTitle({ name: undefined, root: undefined })).toBe('Shared thread');
+  });
+});
+
+describe('the thread header', () => {
+  const header = async (onMap?: () => void) => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ThreadHeader
+          title="Black holes"
+          people="Asha, Ravi"
+          onBack={jest.fn()}
+          onMap={onMap}
+          onPeople={jest.fn()}
+          onMenu={jest.fn()}
+        />
+      </DisplayProvider>,
+    );
+  };
+
+  it('offers the map only once there is one to open', async () => {
+    await header(undefined);
+    expect(screen.queryByRole('button', { name: 'Map' })).toBeNull();
+  });
+
+  it('opens the map from its own button', async () => {
+    const onMap = jest.fn();
+    await header(onMap);
+    await fireEvent.press(screen.getByRole('button', { name: 'Map' }));
+    expect(onMap).toHaveBeenCalledTimes(1);
   });
 });

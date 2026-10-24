@@ -1,6 +1,11 @@
 /** CI-only authored protocol fixtures. Never imported by a production route or used as personal data. */
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
-import { problemDetails, type GeographyObject, type SceneClientCapabilities } from '@knowscroll/contracts';
+import {
+  problemDetails,
+  type GeographyObject,
+  type RoomStation,
+  type SceneClientCapabilities,
+} from '@knowscroll/contracts';
 import { type SceneChunk, type SceneDescriptor } from '@knowscroll/scene-core';
 export const fixtureId = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 export const fixtureAccount = {
@@ -93,11 +98,24 @@ export function sceneFixture(count = 5, dust = 0) {
             }))
           : [],
     });
+  /** The room stations this map's reads answer with; a test pushes some to see them drawn. */
+  const stations: RoomStation[] = [];
+  const stationsOf = () => stations;
   return {
     descriptors,
     chunks,
+    stations,
     reply(path: string, body: Record<string, unknown>) {
       const selection = { kind: 'universe' as const };
+      // The room stations of the map: a read of its own, answered with none unless a test names some.
+      if (path === '/v1/rooms/stations')
+        return {
+          version: 'rooms.v1',
+          readId: body.readId,
+          scope: { accountId: fixtureAccount.accountId, privacyEpoch: 1 },
+          status: 'ready',
+          stations: stationsOf(),
+        };
       if (path.endsWith('/geography/read')) {
         const cursor = body.cursor as { afterObjectId?: string } | undefined;
         const remaining = objects.filter((o) => o.id > (cursor?.afterObjectId ?? '')),

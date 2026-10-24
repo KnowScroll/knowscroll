@@ -10,7 +10,7 @@ const blockMessage: Record<ScenarioBlock, string> = {
   unsupported: 'This can’t be explored yet: nothing it rests on can be looked up.',
   invalid: 'That wording isn’t accepted. Keep it to a plain sentence, without web addresses.',
   stale: 'This changed while you were writing. Close this and start again from it.',
-  unavailable: 'This thread isn’t available any more.',
+  unavailable: 'This isn’t available any more.',
   offline: 'Couldn’t reach KnowScroll. Nothing was lost; try again.',
 };
 

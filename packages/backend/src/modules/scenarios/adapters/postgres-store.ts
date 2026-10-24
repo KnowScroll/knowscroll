@@ -1,21 +1,28 @@
 import { sql, type Kysely, type Selectable } from 'kysely';
 import { z } from 'zod';
-import { AssumptionSchema } from '@knowscroll/contracts';
+import { AssumptionSchema, OptionChangeSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readerOn, transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import type { BranchPoolStore, DraftRow, NodeRow, Origin, ScenarioStore } from '../application/ports.js';
 
 const Assumptions = z.array(AssumptionSchema);
+/**
+ * A direction as a draft stores it. A draft stored before directions carried their own `speculative` flag has none:
+ * what it called "needs confirmation" is what the branch made from it was then marked with, so that is its flag.
+ */
 const StoredOptions = z.array(
-  z.strictObject({
-    optionId: z.enum(['o1', 'o2', 'o3']),
-    title: z.string(),
-    explanation: z.string(),
-    changes: Assumptions,
-    kept: Assumptions,
-    lens: z.string().optional(),
-    needsConfirmation: z.boolean(),
-  }),
+  z
+    .strictObject({
+      optionId: z.enum(['o1', 'o2', 'o3']),
+      title: z.string(),
+      explanation: z.string(),
+      changes: z.array(OptionChangeSchema),
+      kept: Assumptions,
+      lens: z.string().optional(),
+      speculative: z.boolean().optional(),
+      needsConfirmation: z.boolean(),
+    })
+    .transform((option) => ({ ...option, speculative: option.speculative ?? option.needsConfirmation })),
 );
 
 type DraftColumns = Selectable<Database['scenarios.drafts']>;
@@ -59,6 +66,7 @@ const nodeOf = (row: NodeColumns): NodeRow => ({
   kept: Assumptions.parse(row.kept),
   assumptions: Assumptions.parse(row.assumptions),
   hypothetical: row.hypothetical,
+  speculative: row.speculative,
   semanticKey: row.semantic_key,
   status: row.status as NodeRow['status'],
   revision: row.revision,
@@ -183,6 +191,7 @@ export const scenarioStore: ScenarioStore = {
         kept: JSON.stringify(node.kept),
         assumptions: JSON.stringify(node.assumptions),
         hypothetical: node.hypothetical,
+        speculative: node.speculative,
         semantic_key: node.semanticKey,
         status: 'preparing',
         revision: 1,
@@ -221,6 +230,20 @@ export const scenarioStore: ScenarioStore = {
       .orderBy('node_id')
       .execute();
     return rows.map(nodeOf);
+  },
+
+  async listOpenDrafts(scope, accountId, threadId, now) {
+    const rows = await transactionOf(scope)
+      .selectFrom('scenarios.drafts')
+      .selectAll()
+      .where('requester_account_id', '=', accountId)
+      .where('thread_id', '=', threadId)
+      .where('state', '=', 'ready')
+      .where('expires_at', '>', now)
+      .orderBy('created_at', 'desc')
+      .orderBy('draft_id')
+      .execute();
+    return rows.map(draftOf);
   },
 
   async findLiveByMeaning(scope, threadId, semanticKey) {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { ownSelection, type OwnRow, type ScenarioSelection } from '@knowscroll/client-core';
-import type { Assumption, ScenarioKind, ScenarioOption } from '@knowscroll/contracts';
+import type { Assumption, OptionChange, ScenarioKind, ScenarioOption } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text, useTypeStyle } from '@knowscroll/ui';
 import { sheetStyles } from './sheet-styles';
@@ -13,10 +13,18 @@ interface Row extends OwnRow {
 
 const sameSubject = (a: string | undefined, b: string) => a?.trim().toLowerCase() === b.trim().toLowerCase();
 
-/** Lines of text for one list of assumptions, in a form that keeps each line's key and subject; `blank` empty lines follow. */
-function useRows(initial: readonly Assumption[], blank: number) {
+/**
+ * Lines of text for one list of assumptions, in a form that keeps each line's key and subject; `blank` empty lines
+ * follow. A change that took the place of a premise (`replaces`) starts as that premise's subject, so the line
+ * still replaces it until the member says otherwise.
+ */
+function useRows(initial: readonly OptionChange[], blank: number) {
   const [rows, setRows] = useState<readonly Row[]>(() => [
-    ...initial.map((assumption, id): Row => ({ id, statement: assumption.statement, subject: assumption.subject })),
+    ...initial.map((assumption, id): Row => ({
+      id,
+      statement: assumption.statement,
+      subject: assumption.replaces ?? assumption.subject,
+    })),
     ...Array.from({ length: blank }, (_, at): Row => ({ id: initial.length + at, statement: '' })),
   ]);
   const add = () => setRows([...rows, { id: Math.max(-1, ...rows.map((row) => row.id)) + 1, statement: '' }]);
@@ -126,7 +134,8 @@ export function OwnRequestForm({
   onCancel,
 }: {
   readonly kind: ScenarioKind;
-  readonly initial: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'> | undefined;
+  /** The direction being edited, when there is one: the request names it, so the server keeps what it was marked. */
+  readonly initial: Pick<ScenarioOption, 'optionId' | 'changes' | 'kept' | 'lens'> | undefined;
   readonly premises: readonly Assumption[];
   readonly busy: boolean;
   readonly onSubmit: (selection: ScenarioSelection) => void;
@@ -136,7 +145,13 @@ export function OwnRequestForm({
   const kept = useRows(initial?.kept ?? [], 0);
   const [lens, setLens] = useState(initial?.lens ?? '');
   const type = useTypeStyle('bodyS');
-  const selection = ownSelection({ kind, changes: changes.rows, kept: kept.rows, lens });
+  const selection = ownSelection({
+    kind,
+    changes: changes.rows,
+    kept: kept.rows,
+    lens,
+    fromOptionId: initial?.optionId,
+  });
   return (
     <View style={sheetStyles.step}>
       {kind === 'what_if' ? (

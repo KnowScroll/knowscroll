@@ -24,6 +24,18 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { befriend, pairRevision, seedContent, seedFriend, talkCases } from '../support/talk.js';
 import { visitCases } from '../support/visit-world.js';
+import {
+  joinRoom,
+  makeModerator,
+  roomWorld,
+  say,
+  seedRoom,
+  startPoll,
+  startTopic,
+  unwrap,
+  votePoll,
+  ask,
+} from '../support/rooms.js';
 
 /**
  * Account deletion (#246, D-043) against a real PostgreSQL 16 database: the fence, the erasure of
@@ -48,6 +60,8 @@ const NOT_SEEDED = new Set([
   'social.conversations',
   // Reached only through its message, which has an author column of its own: the thread tests prove it goes.
   'social.message_snippets',
+  // The same, for a room's snippet: `rooms-erasure.test.ts` proves it goes.
+  'rooms.message_snippets',
 ]);
 
 type EraseAccountData = Parameters<typeof deleteAccountFor>[2]['eraseAccountData'];
@@ -340,6 +354,29 @@ describe('account deletion (real database)', () => {
       // What they asked of the Scenario Planner there: a draft (theirs alone) and a branch (the thread's).
       scenarioThreadId = startedThread.value.thread.threadId;
       await seedScenarioRows(erased, scenarioThreadId);
+      // A room: the person joined, started a discussion, wrote in it, invited their friend and asked an inhabitant.
+      const rooms = await roomWorld(database);
+      try {
+        const room = await seedRoom(rooms);
+        unwrap(await joinRoom(rooms, erasedAsFriend, room.roomId));
+        const discussionId = await startTopic(rooms, erasedAsFriend, room.roomId, 'A discussion the person started');
+        unwrap(await say(rooms, erasedAsFriend, room.roomId, discussionId, 'words in a room by the deleted person'));
+        unwrap(
+          await rooms.rooms.invite(erased.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            friendPersonId: buddy.person.personId,
+          }),
+        );
+        unwrap(await ask(rooms, erasedAsFriend, room.roomId, discussionId));
+        // A poll the person started as the room's moderator, and their own vote in it.
+        await makeModerator(rooms, room.slug, erasedAsFriend);
+        const poll = unwrap(await startPoll(rooms, erasedAsFriend, room.roomId));
+        unwrap(await votePoll(rooms, erasedAsFriend, room.roomId, poll.activityId, 'o1'));
+      } finally {
+        await rooms.close();
+      }
       expect(
         (
           await talk.talk.shares.create(erased.authority, {

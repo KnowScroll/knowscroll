@@ -60,6 +60,16 @@ function isSocialRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   );
 }
 
+/** Idea-room POSTs: they share Social's problem family and private cache policy (D-051). */
+function isRoomsRequest(request: Pick<Request, 'method' | 'path'>): boolean {
+  return (
+    request.method === 'POST' &&
+    /^\/v1\/rooms\/(?:list|read|join|leave|invite|moderate|stations|discussions\/(?:create|read|history|changes|send|pin|hide|snippets\/open)|activities\/(?:list|read|create|vote|moderate)|inhabitants\/ask)\/?$/i.test(
+      request.path,
+    )
+  );
+}
+
 const storage = new AsyncLocalStorage<RequestContext>();
 
 /** The context of the request being handled, if any. */
@@ -74,7 +84,7 @@ export function currentRequest(): RequestContext | undefined {
  */
 export function requestContextMiddleware(logEvent: LogEvent) {
   return (request: Request, response: Response, next: NextFunction): void => {
-    const social = isSocialRequest(request);
+    const social = isSocialRequest(request) || isRoomsRequest(request);
     const keep = isKeepPlaceRequest(request);
     const removal = isKeepRemovalRequest(request);
     const privacy = isPrivacyClearRequest(request);

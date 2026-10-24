@@ -1,3 +1,4 @@
+import { announceBlocksChanged } from './blocks';
 import type { AccountScope } from './account-scope';
 import { ScopeEndedError } from './account-scope';
 import { createFriendsHttp, freezeFriends, FRIENDS_LIMITS, FriendsHttpError, sameFriendsId } from './friends-http';
@@ -257,6 +258,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       resetPages();
       resolvedToken = undefined;
       const cleared = empty('active', state.filter);
+      if (command.operation === 'block' || command.operation === 'unblock') announceBlocksChanged(scope);
       publish({
         ...cleared,
         command: {

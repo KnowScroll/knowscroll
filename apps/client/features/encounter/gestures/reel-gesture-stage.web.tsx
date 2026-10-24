@@ -1,25 +1,60 @@
-import { useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createGestureArbitrator, type EncounterGestureMove } from './arbitration';
+
+/**
+ * A keyboard move replaces the stage (each encounter is its own element), which would drop focus to
+ * the page. A stage that held focus when it went away leaves a short-lived note, and the next stage
+ * to mount takes focus, so the next key press lands.
+ */
+const FOCUS_HANDOVER_MS = 3000;
+let focusHandoverUntil = 0;
 
 /** DOM pointer ownership lives only on the real video stage; player buttons/seek controls stay outside. */
 export function ReelGestureStage({
   children,
   onMove,
+  onToggle,
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: EncounterGestureMove) => void;
+  /** Space on the focused stage plays or pauses, as the focused play button would. */
+  readonly onToggle?: () => void;
 }) {
+  const stage = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const node = stage.current;
+    if (node !== null && Date.now() < focusHandoverUntil) {
+      focusHandoverUntil = 0;
+      // Only when focus has nowhere to be: never pull it from a control the person has since moved to.
+      const holder = document.activeElement;
+      if (holder === null || holder === document.body) node.focus({ preventScroll: true });
+    }
+    return () => {
+      if (node?.contains(document.activeElement) === true) focusHandoverUntil = Date.now() + FOCUS_HANDOVER_MS;
+    };
+  }, []);
   const gesture = useRef<ReturnType<typeof createGestureArbitrator> | undefined>(undefined);
   const start = useRef({ x: 0, y: 0, pointerId: -1 });
   return (
     <div
+      ref={stage}
       style={{ display: 'flex', flex: 1, minHeight: 0, touchAction: 'none', userSelect: 'none' }}
       data-testid="reel-navigation-stage"
       tabIndex={0}
       role="group"
       aria-label="Reel navigation"
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
+        // The stage and its own play/pause button are the "Reel navigation" focus stops; any other
+        // control inside keeps its own keys.
+        const target = event.target as Element;
+        const onStage = target === event.currentTarget || target.hasAttribute('data-ks-playback-toggle');
+        // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.
+        if (!onStage || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (event.key === ' ' && target === event.currentTarget && onToggle) {
+          event.preventDefault();
+          onToggle();
+          return;
+        }
         const move =
           event.key === 'ArrowDown'
             ? 'subjectNext'
@@ -47,7 +82,7 @@ export function ReelGestureStage({
           event.target instanceof Element
             ? event.target.closest('button,a,input,select,textarea,[role="slider"],[contenteditable="true"]')
             : null;
-        const childOwns = control !== null && control.getAttribute('data-testid') !== 'reel-playback-toggle';
+        const childOwns = control !== null && !control.hasAttribute('data-ks-playback-toggle');
         gesture.current = createGestureArbitrator({ startX: event.clientX, scroll: false, childOwns, native: false });
       }}
       onPointerMove={(event) => {

@@ -4,8 +4,11 @@ import {
   ChooseScenarioSchema,
   MAX_SCENARIO_TEXT,
   ScenarioCardSchema,
+  MAX_SCENARIO_SUGGESTIONS,
   ScenarioDraftViewSchema,
+  ScenarioListSchema,
   ScenarioOptionSchema,
+  ScenarioSuggestionSchema,
   StartScenarioDraftSchema,
 } from './scenarios.js';
 
@@ -82,6 +85,23 @@ describe('choosing', () => {
       }).success,
     ).toBe(true);
   });
+  it('lets an edit name the direction it came from, and only a direction of the draft', () => {
+    const edit = (fromOptionId: unknown) =>
+      ChooseScenarioSchema.safeParse({
+        ...base,
+        selection: { kind: 'own', changes: [traffic], kept: [], fromOptionId },
+      }).success;
+    expect(edit('o2')).toBe(true);
+    expect(edit('o4')).toBe(false);
+    expect(edit('first')).toBe(false);
+    // A suggestion has no use for it: the direction is the choice.
+    expect(
+      ChooseScenarioSchema.safeParse({
+        ...base,
+        selection: { kind: 'suggestion', optionId: 'o1', fromOptionId: 'o1' },
+      }).success,
+    ).toBe(false);
+  });
   it('refuses an option the planner cannot name, too many changes or kept things, and unknown fields', () => {
     for (const selection of [
       { kind: 'suggestion', optionId: 'o4' },
@@ -112,6 +132,7 @@ describe('what a draft and a branch show', () => {
     explanation: 'Shows how batching holds the cost down.',
     changes: [traffic],
     kept: [],
+    speculative: false,
     needsConfirmation: false,
   };
   it('describes a ready draft with one to three directions only', () => {
@@ -122,6 +143,17 @@ describe('what a draft and a branch show', () => {
       false,
     );
     expect(ScenarioOptionSchema.safeParse({ ...option, optionId: 'o9' }).success).toBe(false);
+  });
+  it('says apart that a direction is speculative and that it needs confirming, and names what a change replaces', () => {
+    expect(ScenarioOptionSchema.safeParse({ ...option, speculative: true, needsConfirmation: true }).success).toBe(
+      true,
+    );
+    const { speculative: _omitted, ...withoutFlag } = option;
+    expect(ScenarioOptionSchema.safeParse(withoutFlag).success).toBe(false);
+    const replacing = { ...option, changes: [{ ...traffic, subject: 'Load', replaces: 'Traffic' }] };
+    expect(ScenarioOptionSchema.safeParse(replacing).success).toBe(true);
+    expect(ScenarioOptionSchema.safeParse({ ...option, changes: [{ ...traffic, replaces: 'T' }] }).success).toBe(false);
+    expect(ScenarioOptionSchema.safeParse({ ...option, changes: [{ ...traffic, extra: 1 }] }).success).toBe(false);
   });
   it('says a failed draft failed in one of two ways, and an unavailable one nothing else', () => {
     const base = { version: 'scenario.v1', readId: id(9), scope };
@@ -143,6 +175,7 @@ describe('what a draft and a branch show', () => {
       changes: [traffic],
       kept: [],
       hypothetical: true,
+      speculative: false,
       assumptions: [traffic],
       startedBy: person,
       status: 'preparing',
@@ -152,5 +185,35 @@ describe('what a draft and a branch show', () => {
     expect(ScenarioCardSchema.safeParse(card).success).toBe(true);
     for (const extra of [{ currentlyWatching: true }, { seen: true }, { position: 12 }, { visited: ['x'] }])
       expect(ScenarioCardSchema.safeParse({ ...card, ...extra }).success, JSON.stringify(extra)).toBe(false);
+  });
+});
+
+describe('what the member was offered and has not made', () => {
+  const suggestion = {
+    draftId: id(20),
+    optionId: 'o1',
+    kind: 'what_if',
+    title: 'What if the Sun became a black hole?',
+    speculative: true,
+  };
+  const list = { version: 'scenario.v1', readId: id(9), scope, status: 'ready', cards: [] };
+
+  it('is a title, a kind and where it would continue, with no number and no branch of its own', () => {
+    expect(ScenarioSuggestionSchema.safeParse(suggestion).success).toBe(true);
+    expect(ScenarioSuggestionSchema.safeParse({ ...suggestion, parentNodeId: id(8) }).success).toBe(true);
+    for (const extra of [{ part: 3 }, { nodeId: id(8) }, { episode: 2 }, { startedBy: person }])
+      expect(ScenarioSuggestionSchema.safeParse({ ...suggestion, ...extra }).success, JSON.stringify(extra)).toBe(
+        false,
+      );
+  });
+
+  it('is part of every ready list, and is bounded', () => {
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: [suggestion] }).success).toBe(true);
+    expect(ScenarioListSchema.safeParse(list).success).toBe(false);
+    const tooMany = Array.from({ length: MAX_SCENARIO_SUGGESTIONS + 1 }, () => suggestion);
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: tooMany }).success).toBe(false);
+    expect(
+      ScenarioListSchema.safeParse({ version: 'scenario.v1', readId: id(9), scope, status: 'unavailable' }).success,
+    ).toBe(true);
   });
 });

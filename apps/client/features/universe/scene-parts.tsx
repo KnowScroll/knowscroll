@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import type { RoomStation } from '@knowscroll/contracts';
 import { content, highlightRing, space, target } from '@knowscroll/design-tokens';
 import { Text, useFocusRing } from '@knowscroll/ui';
 import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
@@ -14,7 +15,14 @@ export interface SceneProps {
   readonly size: Size;
   /** A tap on a dust cue: the screen explains it; it is not a place and goes nowhere. */
   readonly onDust?: () => void;
+  /** The room stations of this map, each beside a system it holds (U01, U02). Optional decoration around real places. */
+  readonly stations?: readonly RoomStation[];
+  /** A tap on a station opens its room (R01). */
+  readonly onStation?: (roomId: string) => void;
 }
+
+/** The accessible name of a station: the room's name and what it is, as the artboards name it. */
+export const stationName = (station: RoomStation) => `${station.room.name}, a room station`;
 
 /**
  * A place's silhouette, or `undefined` when it cannot be built. A descriptor that fails the drawing
@@ -75,6 +83,7 @@ export function BodyTarget({
       accessibilityRole="button"
       accessibilityLabel={kind ? `${label}, ${KIND_PHRASE[kind]}${hypothetical ? ', hypothetical' : ''}` : label}
       accessibilityState={{ selected: Boolean(selected) }}
+      aria-current={selected ? 'true' : undefined}
       onPress={onPress}
       {...focus.props}
       style={[

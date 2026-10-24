@@ -63,10 +63,29 @@ export {
   type OutgoingThreadMessage,
 } from './content-thread';
 export {
+  DEFAULT_MAP_PREFERENCES,
+  GROUP_LIMIT,
+  buildMap,
+  loadHere,
+  loadMapPreferences,
+  mapOffered,
+  returnTarget,
+  saveHere,
+  saveMapPreferences,
+  type MapFilter,
+  type MapHere,
+  type MapInput,
+  type MapPreferences,
+  type MapRow,
+  type MapView,
+} from './scenario-map';
+export {
   chipText,
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  replacedPremises,
+  kindedTitle,
   kindWord,
   ownSelection,
   subjectOfStatement,
@@ -87,6 +106,36 @@ export {
   threadRowView,
   type ThreadRowView,
 } from './thread-inbox';
+export {
+  createRoom,
+  readRoomList,
+  readRoomStations,
+  type ModerateAction,
+  type RoomController,
+  type RoomOptions,
+  type RoomState,
+  type StartDiscussion,
+} from './room';
+export {
+  createRoomActivities,
+  createRoomActivity,
+  type RoomActivitiesController,
+  type RoomActivitiesOptions,
+  type RoomActivitiesState,
+  type RoomActivityController,
+  type RoomActivityOptions,
+  type RoomActivityState,
+} from './room-activity';
+export {
+  createRoomDiscussion,
+  mergeRoomMessages,
+  type AskOutcome,
+  type InhabitantStatus,
+  type OutgoingRoomMessage,
+  type RoomDiscussionController,
+  type RoomDiscussionOptions,
+  type RoomDiscussionState,
+} from './room-discussion';
 export {
   createExploreWithFriends,
   type CreateStatus,
@@ -223,6 +272,7 @@ export {
 } from './availability-session';
 
 export { createFriendsSession } from './friends-session';
+export { announceBlocksChanged, blocksRevisionKey } from './blocks';
 export { createFriendsHttp, FriendsHttpError, FRIENDS_LIMITS } from './friends-http';
 export type {
   FriendsSession,

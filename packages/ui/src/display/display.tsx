@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Dimensions, useWindowDimensions } from 'react-native';
 import { breakpointFor, type Breakpoint } from '@knowscroll/design-tokens';
+import { useSystemTextScale } from './text-scale';
 
 /** What the layout depends on: window width, the system text size and the motion preference. */
 export interface Display {
@@ -41,10 +42,11 @@ function useSystemReducedMotion(): boolean {
 
 function SystemDisplay({ children }: { children: ReactNode }) {
   const window = useWindowDimensions();
+  const textScale = useSystemTextScale(window.fontScale);
   const reducedMotion = useSystemReducedMotion();
   const value = useMemo(
-    () => ({ width: window.width, textScale: window.fontScale, reducedMotion }),
-    [window.width, window.fontScale, reducedMotion],
+    () => ({ width: window.width, textScale, reducedMotion }),
+    [window.width, textScale, reducedMotion],
   );
   return <DisplayContext.Provider value={value}>{children}</DisplayContext.Provider>;
 }

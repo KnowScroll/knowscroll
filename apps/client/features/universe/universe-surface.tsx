@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { RoomStation } from '@knowscroll/contracts';
 import { content, layout, space, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { UniverseBackdrop } from './universe-backdrop';
@@ -35,6 +36,8 @@ export function UniverseSurface({
   index,
   status,
   visitor,
+  stations,
+  onStation,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -42,6 +45,10 @@ export function UniverseSurface({
   /** A quiet pill over the map: "Drawing…" or "Last map shown". */
   readonly status: string | undefined;
   readonly visitor?: VisitorChrome;
+  /** The room stations of the person's own map. Never a friend's: a visit shows only what the friend shares. */
+  readonly stations?: readonly RoomStation[];
+  /** A tap on a station, or its row in the list, opens that room. */
+  readonly onStation?: (roomId: string) => void;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
@@ -158,6 +165,8 @@ export function UniverseSurface({
           index={index}
           onSearch={openSearch}
           onDust={() => setDustNote(true)}
+          stations={stations}
+          onStation={onStation}
         />
       )}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
@@ -199,11 +208,11 @@ export function UniverseSurface({
 
   if (wide)
     return (
-      <View style={styles.ground} testID="universe-screen">
+      <View style={styles.ground} testID="universe-screen" role="main">
         <View style={styles.desktopRow}>
           {stage}
           {panel ? (
-            <View style={styles.panel}>
+            <View style={styles.panel} role="complementary" aria-label="Outline">
               <Text variant="label" color={content.ink2} style={styles.panelEyebrow}>
                 Outline · List view
               </Text>
@@ -215,6 +224,8 @@ export function UniverseSurface({
                   session={session}
                   state={state}
                   index={index}
+                  {...(stations ? { stations } : {})}
+                  {...(onStation ? { onStation } : {})}
                   {...(visitor ? { label: `Places in ${visitor.ownerName}’s universe` } : {})}
                 />
               </View>
@@ -225,13 +236,15 @@ export function UniverseSurface({
       </View>
     );
   return (
-    <View style={styles.ground} testID="universe-screen">
+    <View style={styles.ground} testID="universe-screen" role="main">
       {stage}
       {state.overlay === 'outline' ? (
         <UniverseListSheet
           session={session}
           state={state}
           index={index}
+          {...(stations ? { stations } : {})}
+          {...(onStation ? { onStation } : {})}
           {...(visitor ? { owner: visitor.ownerName } : {})}
         />
       ) : null}

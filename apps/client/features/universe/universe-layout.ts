@@ -197,6 +197,21 @@ export function composeRegions(index: UniverseIndex, planet: SceneDescriptor): r
   return placed;
 }
 
+/**
+ * Where a room station sits around the system of its topic, relative to the star: just outside the
+ * outermost orbit, on the lower side (so a name below it never meets a system's own label above). The
+ * angle comes from the tail of the room's ID (the front of a time-ordered ID is the same for rooms made
+ * together), so a station keeps its place whatever else is on the map. It is personal decoration beside
+ * a real place: it encodes no activity and no count.
+ */
+export function stationOffset(roomId: string, bands: readonly OrbitBand[], unit: number, gap = 34): Vec {
+  const hex = roomId.replaceAll('-', '');
+  const share = Number.parseInt(hex.slice(20, 28), 16) / 0xffffffff;
+  const angle = (24 + share * 132) * (Math.PI / 180);
+  const outer = outerOrbit(bands);
+  return { x: Math.cos(angle) * (outer.rx * unit + gap), y: Math.sin(angle) * (outer.ry * unit + gap) };
+}
+
 /** One or two ends of world extent: the camera fits these. */
 export function worldBounds(systems: readonly SceneDescriptor[]): { center: Vec; width: number; height: number } {
   if (!systems.length) return { center: { x: 0, y: 0 }, width: 0, height: 0 };

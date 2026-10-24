@@ -1,11 +1,12 @@
 import Svg, { Path } from 'react-native-svg';
-import { space } from '@knowscroll/design-tokens';
+import { space, target } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
-import { OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph } from './universe-bodies';
+import { OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph, StationGlyph } from './universe-bodies';
 import {
   composeSystem,
   isQuiet,
   placeLabels,
+  stationOffset,
   ORBIT_BANDS,
   PLANET_RADIUS,
   STAR_RADIUS,
@@ -18,8 +19,31 @@ import {
   LABEL_HEIGHT,
   MapLabel,
   SceneLayer,
+  stationName,
   type SceneProps,
 } from './scene-parts';
+
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Room kept between a route's target and a planet's target (WCAG 2.5.8: targets that overlap need space). */
+const TARGET_GAP = 12;
+
+/**
+ * Where a route's tap target sits: on the middle of its curve, unless that is under a planet's own
+ * target (planets close together), when it drops just below them. The list view lists the same routes.
+ */
+function routeTargetAt(middle: Point, planets: readonly Point[], planetSide: number): Point {
+  const reach = planetSide / 2 + target.comfortable / 2 + TARGET_GAP;
+  const crowded = planets.some(
+    (planet) => Math.abs(planet.x - middle.x) < reach && Math.abs(planet.y - middle.y) < reach,
+  );
+  if (!crowded) return middle;
+  const lowest = Math.max(...planets.map((planet) => planet.y));
+  return { x: middle.x, y: Math.max(middle.y, lowest + reach) };
+}
 
 /**
  * U02: one system, organised by its star. Planets sit on orbits in the direction their persisted
@@ -31,6 +55,8 @@ export function SystemScene({
   index,
   size,
   system,
+  stations,
+  onStation,
 }: SceneProps & { readonly system: SceneDescriptor }) {
   const composition = composeSystem(index, system);
   const unit =
@@ -47,6 +73,35 @@ export function SystemScene({
     height: LABEL_HEIGHT,
     priority: descriptor.objectId === state.lastPlace?.id ? 2 : 1,
   }));
+  // The stations of rooms whose topic is this system, or one of its planets: beside that planet, else below the orbits.
+  // The stage is small on a phone, so a station is kept inside it, clear of the header and the chips.
+  const inView = (point: { x: number; y: number }) => ({
+    x: Math.min(size.width - 52, Math.max(52, point.x)),
+    y: Math.min(size.height - 170, Math.max(150, point.y)),
+  });
+  const here = (stations ?? [])
+    .filter((station) => station.placement.systemId === system.objectId)
+    .map((station) => {
+      const planet =
+        station.placement.planetId === undefined
+          ? undefined
+          : composition.planets.find(({ descriptor }) => descriptor.objectId === station.placement.planetId);
+      if (planet) {
+        const point = at(planet.position);
+        return { station, at: inView({ x: point.x + planetRadius + 26, y: point.y + planetRadius + 14 }) };
+      }
+      const offset = stationOffset(station.room.roomId, composition.bands, unit, 38);
+      return { station, at: inView({ x: centre.x + offset.x, y: centre.y + offset.y }) };
+    });
+  for (const { station, at: spot } of here)
+    requests.push({
+      id: `station:${station.room.roomId}`,
+      anchor: spot,
+      clearance: 30,
+      width: labelWidth(station.room.name),
+      height: LABEL_HEIGHT,
+      priority: 0,
+    });
   const labels = placeLabels(requests, size);
   const parked = composition.planets.find(({ descriptor }) => descriptor.objectId === state.lastPlace?.id);
   return (
@@ -94,19 +149,29 @@ export function SystemScene({
             />
           ) : null;
         })}
+        {here.map(({ station, at: spot }) => (
+          <StationGlyph key={station.room.roomId} x={spot.x} y={spot.y} scale={0.85} calm={state.lately} />
+        ))}
         {parked ? (
           <ShipGlyph x={at(parked.position).x + planetRadius + 18} y={at(parked.position).y - planetRadius - 6} />
         ) : null}
       </Svg>
       <SceneLayer>
         {labels.map((label) => {
-          const planet = composition.planets.find((p) => p.descriptor.objectId === label.id)!.descriptor;
-          return <MapLabel key={label.id} label={label} text={planet.label} calm={state.lately && isQuiet(planet)} />;
+          const planet = composition.planets.find((p) => p.descriptor.objectId === label.id)?.descriptor;
+          if (planet)
+            return <MapLabel key={label.id} label={label} text={planet.label} calm={state.lately && isQuiet(planet)} />;
+          const station = here.find((entry) => `station:${entry.station.room.roomId}` === label.id);
+          return station ? <MapLabel key={label.id} label={label} text={station.station.room.name} /> : null;
         })}
         {composition.routes.map((route) => {
           const from = at(route.from),
             to = at(route.to);
-          const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 + 14 * unit };
+          const middle = routeTargetAt(
+            { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 + 14 * unit },
+            [from, to],
+            Math.max(planetRadius * 2, target.comfortable),
+          );
           const named = (id: string) => index.byId.get(id)?.label ?? '';
           return (
             <BodyTarget
@@ -119,6 +184,17 @@ export function SystemScene({
             />
           );
         })}
+        {here.map(({ station, at: spot }) => (
+          <BodyTarget
+            key={station.room.roomId}
+            testID={`universe-station-${station.room.roomId}`}
+            x={spot.x}
+            y={spot.y}
+            size={48}
+            label={stationName(station)}
+            onPress={() => onStation?.(station.room.roomId)}
+          />
+        ))}
         {composition.planets.map(({ descriptor, position }) => {
           const point = at(position);
           return (

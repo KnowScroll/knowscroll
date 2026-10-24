@@ -41,6 +41,12 @@ export function RequestChoices<T extends string>({
                 tabIndex: value === option.value ? (0 as const) : (-1 as const),
                 onKeyDown: (event: { nativeEvent: unknown; preventDefault: () => void }) => {
                   const key = (event.nativeEvent as { key?: string }).key;
+                  // React Native Web reserves Space for button roles; a radio is chosen by it too.
+                  if (key === ' ' && !disabled) {
+                    event.preventDefault();
+                    onSelect(option.value);
+                    return;
+                  }
                   if (
                     disabled ||
                     !key ||

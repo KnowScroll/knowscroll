@@ -109,6 +109,7 @@ export function TextButton({
       role="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ busy, disabled: busy }}
+      aria-busy={busy}
       disabled={busy}
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}

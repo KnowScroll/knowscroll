@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@babel/plugin-transform-parameters": "catalog:",
+    "@axe-core/playwright": "catalog:",
     "@playwright/test": "catalog:",
     "@react-native/jest-preset": "catalog:",
     "@testing-library/react-native": "catalog:",

@@ -38,6 +38,14 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 Every page title reads "<title> · KnowScroll" (`platform/document-title.web.ts`, set when the
 screen gains focus; native screens have none).
 
+Explore by size (D01, V01): below 768 px the encounter fills the screen. From 768 px "This thread" sits beside it
+(`features/explore/thread-aside.tsx`, 212 px on tablets, 368 px on desktops): the part before, the open part, the next
+part, another angle and the other format, from the exposure context only. From 1024 px a Reel is a card
+(`features/explore/reel-frame.tsx`) with Previous subject, the Reel/Scroll switch and ⋯ above, the actions beside and
+Next subject with the key hints below; the card and the phone column are one element tree, so a resize never remounts
+the player. ↑ ↓ (subject), ← → (thread) and Space (play or pause) act while the Reel stage has focus. Not built: the
+whole list of a thread's parts, the thread's name and a "Talk" card (none is in the exposure context).
+
 Navigation by size (V01): floating tab bar on phones (icon-only ≤ 360 px), a 76 px rail on
 tablets (600–1023 px), an 88 px rail with the K mark and the account avatar on desktops
 (≥ 1024 px). The account route belongs to no tab; each tab keeps its own state and Back follows
@@ -62,6 +70,20 @@ exclude Reels, even though this controller has a working Reel player.
   `features/shell/route-map.test.ts` checks the route files against the route map).
 - `platform/`: platform files (`document-title(.web).ts`, `scope-storage(.web).ts`, `session-tokens(.web).ts`) and their web tests
   (`*.web.test.tsx`, the `web` Jest project, jest-expo/web in jsdom).
+- `features/shell/`: also `talk-frame.tsx` (the one `main` and, on tablets and desktops, the navigation rail with
+  Talk current, around a conversation or a thread, which are not tabs) and `keyboard-map.tsx` (every key the app
+  listens to, as a sheet from Account and from the desktop Explore footer; add a row there with any new key).
+- Talk by size (D03): below 1024 px a conversation or a thread is one column. From 1024 px a thread has its own pane
+  (episodes, the player, share) beside "Conversation" (messages, the asks, the message box); a direct conversation has
+  the inbox beside it, with its row current; the Talk tab itself shows the list beside a pane that says "Pick a
+  conversation". The rail is drawn from 768 px, also on a thread or a conversation. Presence ("Online") is not drawn: no
+  availability is read here.
+- Accessibility: `@axe-core/playwright` runs in the web smoke (`a11y-smoke.spec.ts`) over the main routes at 390, 834 and
+  1440 px; serious and critical violations fail it, and every route has one `main`. `keyboard-smoke.spec.ts` tabs
+  through screens and requires every stop to draw focus, and walks Explore, a sheet, the Universe, Talk and Privacy
+  by keys; `reflow-smoke.spec.ts` checks a 320 px phone, a landscape phone, doubled text and reduced motion. React Native
+  Web does not write `accessibilityState` to the DOM and reserves Space for button roles: set `aria-*` and use
+  `spaceActivates` on a checkbox, radio or switch.
 - `e2e/`: the Playwright web smoke over the static exports (`web-smoke.spec.ts` against `dist/`:
   links, Tab + Enter, modified clicks, page titles, focus order at 834 and 1440, no gallery;
   `gallery-smoke.spec.ts` against `dist-gallery/`: the gallery marker, the sheet's Esc, focus
@@ -249,7 +271,8 @@ Geography and Scenes path and the CI fixture model; not on dev).
 | Routes between planets (a target on each, "Route to ..." from a planet)                      | implemented                      |
 | Desktop outline panel (D02)                                                                  | runtime-verified                 |
 | Native persistence of the camera (memory only today)                                         | planned                          |
-| Friend's universe (U06), room stations, sky regions that merge quiet systems (U08)           | planned (no backend or data yet) |
+| Room stations beside their systems, a "Rooms" section in the list view (D-051)                | runtime-verified                 |
+| Sky regions that merge quiet systems (U08)                                                   | planned (no backend or data yet) |
 
 `/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
 float over it.
@@ -473,7 +496,43 @@ direct conversations and threads together; a thread row shows its people, the la
   visible ⋯ on each message and a **What if…** on each snippet card, and `thread-screen.tsx` adds What if… and Another
   perspective above the message box. See the next section.
 - Not built: keep listening, a thread's own Like and Save (they stay on the full-screen
-  encounter), thumbnails on episode cards, the multi-pane desktop thread (D03), native text selection for passages.
+  encounter), thumbnails on episode cards, native text selection for passages.
+
+## Idea rooms (#245, D-051)
+
+Routes: `/rooms/<id>` (R01 preview before joining, R02 room list after) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
+Talk (`/conversations`) lists the person's rooms and invitations under the conversations (D-006 o); a room has no tab.
+
+- `features/rooms/room-screen.tsx`: the dark room header, then either `PreviewBody` (who is here to help, the labelled
+  AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join) or `MemberBody`
+  (the discussions, pinned first; "Share into room" in `share-into-room-sheet.tsx`; moderator Pause and Resume; Leave).
+  No member, activity or online count is drawn anywhere.
+- `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
+  `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
+  composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
+  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked (a moderator who blocked the author gets it collapsed with "Show for moderation", and the options to remove it). An open discussion reads afresh when the person comes back to it, and when the Friends session announces an accepted block or unblock (`announceBlocksChanged`, a counter in the scope's query cache). `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
+  cannot be asked. `message-options-sheet.tsx` holds "Start a thread from this" and the moderator's remove and restore;
+  `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
+- `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite) and
+  `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pin, hide). Each command keeps its command ID until the
+  server answers. A discussion catches up on focus, on reconnect and every 20 seconds.
+- Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
+- Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes
+  the stations to `UniverseSurface`, which draws a `StationGlyph` beside the system it names (angle from the room's ID, just
+  outside the outermost orbit), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
+  room on a tap. A read that fails leaves the map as it was. A visit to a friend's map passes none.
+- R03 (`activities-section.tsx`, `activity-screen.tsx`, `poll-card.tsx`, `quiz-flow.tsx`, `start-activity-sheet.tsx`): the
+  room's page lists its polls and quizzes as "Optional" (nothing at all when there are none and the person is not a
+  moderator; no count or badge). A poll is a radio group; results (with the voters' names) show once the person has voted or
+  the poll is closed; an unsent vote says "Not sent yet" and retries as the same command. A quiz is read one question at a
+  time and its answers stay in the component, so leaving drops the position without a nag. A moderator starts either from a
+  sheet and closes or removes it from the poll's own screen. Routes: `/rooms/<id>/activity` and `/rooms/<id>/activity/<id>`.
+- D04 (`app/rooms/[roomId]/_layout.tsx`, `room-workspace.tsx`): from 1024 px a member sees the room and its threads on the
+  left, the open discussion, poll or quiz in the centre (the same screens, rendered by a nested `Stack`) and the room extras
+  (the newest open poll in place, the activity list, a moderator's start buttons) on the right. The layout shares one room
+  controller with the centre through `RoomWorkspaceContext`, so a join or leave changes the panes at once; an outsider sees the
+  preview alone. The navigation rail is not drawn beside rooms (they are outside the tab stack, like Talk's threads).
+- Not built: What-if, a focused snippet viewer, sharing a Scroll passage back from a room, reports.
 
 ## What if and Another perspective (#244, D-049)
 
@@ -482,7 +541,12 @@ menu, `message-step.tsx`) or from a shared moment or passage (the **What if…**
 rather than a route, so closing it returns to the same place in the thread. *Implemented; exercised in tests and a browser
 locally, not on dev.*
 
-Runtime-verified (web, 430 px, a local PostgreSQL, API and worker with the real model): asking from the whole thread and
+Runtime-verified for the branch view and the map (X03, X04: web, 430 px and 1280 px, a local PostgreSQL, API and worker with
+the real model, two people in one thread): a what-if, a perspective from a message, a what-if from the end of a branch
+("Try another assumption"), a speculative branch and one under it (it inherits), a removed branch, a branch still
+preparing, an offer the member did not make (shown to its owner only, never to the other member), the map from the
+thread and from inside a branch, search and the filters remembered per thread, and Back after choosing from a branch.
+Runtime-verified earlier (X01, X02): asking from the whole thread and
 from a message's ⋯ menu, a speculative idea asking to be confirmed, the branch card preparing and then ready without a
 reload, a second member opening the same Scroll, and a what-if continued from a branch. Not driven on native. The own-request
 form with earlier premises (add or replace) and the removed-branch note are covered by component tests, not yet driven in a browser.
@@ -508,7 +572,27 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.
   `use-thread-scenarios.ts` holds where a request starts in one open thread, and `asks-bar.tsx` is the two buttons above the
   message box. The controllers are `createScenarioBoard` and `createScenarioComposer` in client-core.
-- Exploring a ready branch opens `/threads/<id>/read/<assetId>?...&b=1`, the thread's own reader without the share control (a
-  snippet points into the thread's sequence, which a branch is not).
-- Not built: the branch sequence view (X03) and the history map (X04), a retry for a failed branch.
+- Exploring a ready branch opens `/threads/<id>/b/<node>` (X03, `branch-screen.tsx`): the thread's title, "What if ·
+  <idea>" (a title that already starts "What if" is not prefixed twice), a yellow way back that names the part the member
+  had selected (or the thread), the branch's one item ("1 · current", "1 · preparing" until its Scroll exists),
+  "Speculative scenario · not established science" in words when it is, the Scroll, and at its end "Try another
+  assumption" (the words go to the same sheet, which asks for directions). A removed or unknown branch and a branch
+  still being prepared say so and keep only the way back. What the address shows is chosen by `branch-view.ts` from what was
+  read, and only a card that is there and `removed` says "removed": a thread that is not the member's shows the thread's
+  "This thread isn't available", a failed read shows "Can't open this branch" with Try again, and a branch missing among
+  those read shows "This branch isn't available" without saying why. `use-mark-here.ts` remembers on the device where the
+  member is. The **Map** button is here too once the thread has several
+  branches, so a member can move between branches without going back; "You" marks the branch they have open. The Scroll is the member's own encounter without
+  the thread's share control (`ThreadScrollArticle chrome="own"`). Where the member is stays on the device
+  (`thread.here.<id>`).
+- The **Map** button in the thread's header, and in a branch's (X04, `map-sheet.tsx`, `map-rows.tsx`, `use-thread-map.ts`) appears once the
+  thread has two or more branches. It is an overlay with a nested list: the original sequence, its branches nested, "You"
+  on the member's own place, removed branches as "Removed", suggestions dashed and unnumbered ("SUGGESTION · NOT MADE",
+  press to see its directions), a group of five or more folded after three ("More from Part 1 · Show"; a fold never hides a
+  single line). Opening a branch or a suggestion waits for the map's own browser-history entry to go (`afterPendingBack`),
+  as every sheet that navigates does. Search and Mine / Everyone / Suggestions
+  appear for a larger map; the filter and opened groups are remembered per thread on the device. `use-thread-branches.ts`
+  gathers what a thread does with its branches (asking, the map, opening one); `branch-sheets.tsx` holds its two overlays.
+- Not built: a discussion scoped to one branch, a position time in the way back, Resume on branch cards, a retry for a
+  failed branch, the map's "opened" observation.
 
