@@ -71,19 +71,19 @@
       "mustShow": [
         {
           "id": "show-bright-star",
-          "text": "a single bright white star shining steadily in black space",
+          "text": "a bright white star filling most of the frame, its glowing surface shimmering",
           "type": "presence",
           "claimId": "c1"
         },
         {
           "id": "show-small-planet",
-          "text": "a small dark round planet silhouetted against the bright glowing face of a star",
+          "text": "a small dark round planet moving slowly across the bright glowing face of a star that fills the frame",
           "type": "presence",
           "claimId": "c2"
         },
         {
           "id": "show-large-planet",
-          "text": "a large dark round planet silhouetted across a wide part of the bright glowing face of a star",
+          "text": "a large dark round planet moving slowly across a wide part of the bright glowing face of a star that fills the frame",
           "type": "presence",
           "claimId": "c3"
         }
@@ -104,8 +104,8 @@
     },
     "style": {
       "id": "style-knowscroll-space",
-      "version": 1,
-      "text": "realistic deep-space photography, high contrast, natural starlight, steady camera"
+      "version": 2,
+      "text": "bright, well-exposed space imagery like a planetarium film: the subject is large, lit and moving from the first frame, warm glowing colours, slow continuous camera drift, no fade in from black"
     },
     "title": "A shadow in starlight",
     "summary": "How a planet too small to see can be found by the tiny, repeating dip it makes in its star's light."
