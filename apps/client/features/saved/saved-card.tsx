@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { AccountScope, KeepPlaceState } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
-import { Button, Tag, Text } from '@knowscroll/ui';
+import { BottomSheet, Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import type { PrivatePosition } from '../encounter/encounter-history';
 import { KeepThumb } from './keep-thumb';
 import { createKeepView } from './keep-place-bridge';
@@ -13,8 +13,9 @@ import type { SavedItem } from './saved-query';
 /**
  * One kept encounter (S01): a thumbnail, what it is, and where you left off. The card is one
  * button named by its title, format and place. Corrected and withdrawn items say so plainly;
- * a withdrawn one cannot be opened and offers only Remove. A visible Remove stands in for the
- * swipe the design draws.
+ * a withdrawn one cannot be opened and offers only Remove, drawn on the card. On every other
+ * card Remove is in the ⋯ menu, as the design has it; a removal that failed shows Retry removal on
+ * the card, because a failure must not hide behind a menu.
  */
 export function SavedCard({
   item,
@@ -38,6 +39,8 @@ export function SavedCard({
   const format = item.kind === 'reel' ? 'Reel' : 'Scroll';
   const title = item.metadata?.title ?? 'Saved encounter';
   const line = positionLine(item, place, resume);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const removeOnCard = withdrawn || failed;
   return (
     <View
       testID="saved-encounter-card"
@@ -65,24 +68,50 @@ export function SavedCard({
           </Text>
         </View>
       </Pressable>
-      <View style={styles.actions}>
-        {corrected && item.currentAssetRevision !== undefined ? (
-          <Button
-            label="Open updated version"
-            size="sm"
+      {removeOnCard || (corrected && item.currentAssetRevision !== undefined) ? (
+        <View style={styles.actions}>
+          {corrected && item.currentAssetRevision !== undefined ? (
+            <Button
+              label="Open updated version"
+              size="sm"
+              disabled={removing}
+              onPress={() => onOpen(item.currentAssetRevision)}
+            />
+          ) : null}
+          {removeOnCard ? (
+            <Button
+              label={failed ? 'Retry removal' : 'Remove from Keep'}
+              size="sm"
+              variant={withdrawn ? 'default' : 'ghost'}
+              busy={removing}
+              busyLabel="Removing"
+              onPress={onRemove}
+            />
+          ) : null}
+        </View>
+      ) : null}
+      {withdrawn ? null : (
+        <View style={styles.more}>
+          <IconButton
+            icon="more"
+            label={`More for ${title}`}
+            variant="paper"
             disabled={removing}
-            onPress={() => onOpen(item.currentAssetRevision)}
+            onPress={() => setMenuOpen(true)}
           />
-        ) : null}
+        </View>
+      )}
+      <BottomSheet visible={menuOpen} title={title} onClose={() => setMenuOpen(false)}>
         <Button
-          label={failed ? 'Retry removal' : 'Remove from Keep'}
-          size="sm"
+          label="Remove from Keep"
           variant="ghost"
-          busy={removing}
-          busyLabel="Removing"
-          onPress={onRemove}
+          fullWidth
+          onPress={() => {
+            setMenuOpen(false);
+            onRemove();
+          }}
         />
-      </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -113,6 +142,7 @@ export function KeptSavedCard({
 
 const styles = StyleSheet.create({
   card: {
+    position: 'relative',
     gap: spacing[2],
     padding: spacing[3],
     borderRadius: radius.lg,
@@ -124,5 +154,6 @@ const styles = StyleSheet.create({
   corrected: { borderColor: status.corrected.edge },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], minHeight: 72, cursor: 'pointer' as const },
   copy: { flex: 1, gap: spacing['1.5'], alignItems: 'flex-start' },
+  more: { position: 'absolute', top: spacing[2], right: spacing[2] },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], justifyContent: 'flex-end' },
 });
