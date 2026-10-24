@@ -818,6 +818,91 @@ export interface OpsGeographyRuns {
   updated_at: Timestamp | null;
 }
 
+export interface OpsJourneyEvents {
+  asset_id: string | null;
+  attempt_id: string | null;
+  code: string | null;
+  command_id: string | null;
+  count: Int8 | null;
+  decision_id: string | null;
+  ended_at: Timestamp | null;
+  exposure_id: string | null;
+  label: string | null;
+  offer_id: string | null;
+  production_run_id: string | null;
+  reasoning_run_id: string | null;
+  recipe_key: string | null;
+  reel_order_id: string | null;
+  request_id: string | null;
+  stage: string | null;
+  started_at: Timestamp | null;
+  state: string | null;
+  subject_id: string | null;
+  universe_id: string | null;
+  work_id: string | null;
+}
+
+export interface OpsModelAttempts {
+  attempt_id: string | null;
+  cached_tokens: number | null;
+  dispatched_at: Timestamp | null;
+  input_tokens: number | null;
+  model: string | null;
+  outcome_code: string | null;
+  output_tokens: number | null;
+  prompt_version: string | null;
+  provider: string | null;
+  reasoning_tokens: number | null;
+  redacted: boolean | null;
+  request_bytes: number | null;
+  reserved_at: Timestamp | null;
+  reserved_tokens: number | null;
+  role_id: string | null;
+  role_version: string | null;
+  run_id: string | null;
+  scope_kind: string | null;
+  settled_at: Timestamp | null;
+  state: string | null;
+  step: string | null;
+  written_off_at: Timestamp | null;
+}
+
+export interface OpsOperatorSignIns {
+  account_created: boolean;
+  account_id: string | null;
+  id: string;
+  issued_at: Generated<Timestamp>;
+  operator_source: string;
+  world: string;
+}
+
+export interface OpsPrivacyOperations {
+  attempts: number | null;
+  completed_at: Timestamp | null;
+  failure_code: string | null;
+  kind: string | null;
+  operation_id: string | null;
+  requested_at: Timestamp | null;
+  state: string | null;
+}
+
+export interface OpsProductionRuns {
+  asset_id: string | null;
+  asset_revision: number | null;
+  completed_at: Timestamp | null;
+  created_at: Timestamp | null;
+  model_attempts: Int8 | null;
+  policy_version: string | null;
+  production_run_id: string | null;
+  recipe_key: string | null;
+  refused_answers: Int8 | null;
+  state: string | null;
+  take: number | null;
+  target_revision: number | null;
+  writer_run_id: string | null;
+  writer_run_state: string | null;
+}
+
 export interface OpsJobs {
   completed_at: Timestamp | null;
   created_at: Timestamp | null;
@@ -1363,6 +1448,103 @@ export interface ReceiptsSharedCommands {
   scope_kind: string;
 }
 
+export interface RoomsAiRequests {
+  attempt_id: string | null;
+  command_id: string;
+  created_at: Timestamp;
+  discussion_id: string;
+  inhabitant: string;
+  message_id: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  request_id: string;
+  requested_by_account_id: string | null;
+  role_version: string | null;
+  room_id: string;
+  settled_at: Timestamp | null;
+  state: string;
+}
+
+export interface RoomsDiscussions {
+  created_at: Timestamp;
+  discussion_id: string;
+  last_activity_at: Timestamp;
+  last_change_sequence: Generated<Int8>;
+  last_sequence: Generated<Int8>;
+  origin_message_id: string | null;
+  pinned_at: Timestamp | null;
+  room_id: string;
+  root_asset_id: string | null;
+  root_asset_revision: number | null;
+  started_by_account_id: string | null;
+  title: string;
+}
+
+export interface RoomsInvitations {
+  created_at: Timestamp;
+  invitee_account_id: string;
+  inviter_account_id: string;
+  room_id: string;
+}
+
+export interface RoomsMembers {
+  account_id: string;
+  ended_at: Timestamp | null;
+  ended_by: string | null;
+  joined_at: Timestamp;
+  role: Generated<string>;
+  room_id: string;
+}
+
+export interface RoomsMessages {
+  ai_kind: string | null;
+  asset_id: string | null;
+  asset_revision: number | null;
+  author_account_id: string | null;
+  author_kind: string;
+  body_text: string | null;
+  change_sequence: Int8;
+  command_id: string | null;
+  discussion_id: string;
+  hidden_at: Timestamp | null;
+  inhabitant: string | null;
+  message_id: string;
+  note: string | null;
+  recorded_at: Timestamp;
+  sequence: Int8;
+}
+
+export interface RoomsMessageSnippets {
+  block_id: string | null;
+  block_label: string | null;
+  block_type: string | null;
+  block_version: number | null;
+  end_ms: number | null;
+  kind: string;
+  message_id: string;
+  quote: string | null;
+  quote_hash: string | null;
+  range_end: number | null;
+  range_start: number | null;
+  settings: Json | null;
+  settings_description: string | null;
+  start_ms: number | null;
+}
+
+export interface RoomsRooms {
+  created_at: Timestamp;
+  description: string;
+  guidelines: string | null;
+  inhabitants: Generated<string[]>;
+  join_rule: string;
+  name: string;
+  room_id: string;
+  slug: string;
+  status: Generated<string>;
+  topic_id: string;
+  topic_kind: string;
+}
+
 export interface ScenesChunks {
   chunk_id: string;
   payload: Json;
@@ -1709,6 +1891,11 @@ export interface DB {
   "identity.universes": IdentityUniverses;
   "ops.business_runs": OpsBusinessRuns;
   "ops.geography_runs": OpsGeographyRuns;
+  "ops.journey_events": OpsJourneyEvents;
+  "ops.model_attempts": OpsModelAttempts;
+  "ops.operator_sign_ins": OpsOperatorSignIns;
+  "ops.privacy_operations": OpsPrivacyOperations;
+  "ops.production_runs": OpsProductionRuns;
   "ops.jobs": OpsJobs;
   "ops.journey_events": OpsJourneyEvents;
   "ops.model_attempts": OpsModelAttempts;
@@ -1745,6 +1932,13 @@ export interface DB {
   "reasoning.usage_receipts": ReasoningUsageReceipts;
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
+  "rooms.ai_requests": RoomsAiRequests;
+  "rooms.discussions": RoomsDiscussions;
+  "rooms.invitations": RoomsInvitations;
+  "rooms.members": RoomsMembers;
+  "rooms.message_snippets": RoomsMessageSnippets;
+  "rooms.messages": RoomsMessages;
+  "rooms.rooms": RoomsRooms;
   "scenes.chunks": ScenesChunks;
   "scenes.formation_presentations": ScenesFormationPresentations;
   "scenes.manifests": ScenesManifests;
