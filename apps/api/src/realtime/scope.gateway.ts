@@ -12,6 +12,7 @@ import {
   SOCKET_PATH,
   SubscribeScopeRequestSchema,
   socketEvents,
+  type PresenceHeartbeatAck,
   type ScopeChangedHint,
   type ScopeRef,
   type ScopeResyncHint,
@@ -22,7 +23,12 @@ import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { ScopeNotice, ScopeNoticeSink } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { READ_UNIVERSE_ACCESS, type ReadUniverseAccess } from '@knowscroll/backend/modules/identity';
-import { READ_INBOX_REVISION, type ReadInboxRevision } from '@knowscroll/backend/modules/social';
+import {
+  READ_INBOX_REVISION,
+  RECORD_HEARTBEAT,
+  type ReadInboxRevision,
+  type RecordHeartbeat,
+} from '@knowscroll/backend/modules/social';
 import { API_CONFIG, CALLERS, LOG_EVENT } from '../tokens.js';
 import { cookieValue, sessionCookieName } from '../http/auth-credentials.js';
 import { scopeClaimMatches, type AuthenticatedCallers, type Caller } from '../http/callers.js';
@@ -37,6 +43,9 @@ function callerOf(socket: { readonly data: unknown }): Caller | undefined {
 
 /** Whether a socket may still receive a scope's hints: yes, not this scope, or not at all. */
 type Authorisation = 'ok' | 'scope_revoked' | 'session_invalid';
+
+/** A socket's heartbeats closer together than this are answered without a write (the client sends one every 20 s). */
+const HEARTBEAT_FLOOR_MS = 10_000;
 
 function cacheKey(caller: Caller, universeId: string): string {
   return `${caller.accountId}:${caller.sessionId}:${universeId}:${caller.privacyEpoch}`;
@@ -72,6 +81,7 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     @Inject(CALLERS) private readonly callers: AuthenticatedCallers,
     @Inject(READ_UNIVERSE_ACCESS) private readonly readAccess: ReadUniverseAccess,
     @Inject(READ_INBOX_REVISION) private readonly readInboxRevision: ReadInboxRevision,
+    @Inject(RECORD_HEARTBEAT) private readonly recordHeartbeat: RecordHeartbeat,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     @Inject(LOG_EVENT) private readonly logEvent: LogEvent,
   ) {}
@@ -149,6 +159,32 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     } catch (error) {
       await socket.leave(name);
       this.logEvent('realtime.subscription_refused', { reasonCode: 'UNAVAILABLE', error });
+      return { ok: false, code: 'UNAVAILABLE' };
+    }
+  }
+
+  /**
+   * One heartbeat from an open, visible app: the person is around. The answer is `{ ok: true }`
+   * whether or not the person shares availability, and never says which, so nothing can be learned
+   * about the setting from it. A beat is stored only for a person who chose to show availability, and
+   * only after the session and the caller's own scope are checked again. Beats closer together than
+   * `HEARTBEAT_FLOOR_MS` on one socket are acknowledged without a write. A heartbeat is not consumption
+   * evidence and grants nothing.
+   */
+  @SubscribeMessage(socketEvents.presenceHeartbeat)
+  async heartbeat(@ConnectedSocket() socket: Socket): Promise<PresenceHeartbeatAck> {
+    const caller = callerOf(socket);
+    if (caller === undefined) return { ok: false, code: 'UNAUTHENTICATED' };
+    const data = socket.data as { lastBeatAt?: number };
+    const now = Date.now();
+    if (data.lastBeatAt !== undefined && now - data.lastBeatAt < HEARTBEAT_FLOOR_MS) return { ok: true };
+    try {
+      if ((await this.authorise(caller, caller.universeId)) !== 'ok') return { ok: false, code: 'UNAUTHENTICATED' };
+      await this.recordHeartbeat(caller.accountId);
+      data.lastBeatAt = now;
+      return { ok: true };
+    } catch (error) {
+      this.logEvent('realtime.heartbeat_failed', { reasonCode: 'UNAVAILABLE', error });
       return { ok: false, code: 'UNAVAILABLE' };
     }
   }

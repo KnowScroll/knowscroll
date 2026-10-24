@@ -2,7 +2,17 @@ import { sql } from 'kysely';
 import { exportReading, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { bumpInboxHeads } from './inbox-heads.js';
+import {
+  eraseVisibilityAccountRows,
+  eraseVisitRows,
+  exportVisibility,
+  visibilityAccountColumns,
+  visibilityAccountTables,
+  visibilityLifecycle,
+  visitTables,
+} from './visibility-erasure.js';
 
 /**
  * Every Social store is keyed by account, not universe, and each has an explicit answer for the
@@ -28,14 +38,17 @@ export const socialStoreLifecycle = {
   'social.messages': { clear: 'preserve', onAccountErasure: 'the account authored messages become tombstones' },
   'social.inbox_heads': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.content_shares': { clear: 'preserve', onAccountErasure: 'delete with the account' },
+  ...visibilityLifecycle,
 } as const;
 
 /** Account-lifetime inventory. Exploration Clear retains profile, friendships, conversations and links. */
 export const socialErasure: ModuleErasure = {
   module: 'social',
-  tables: [],
+  // The published copy of a universe (D-047); everything else here is keyed by account.
+  tables: visitTables.map((table) => ({ schema: 'social', table, ownerColumn: 'universe_id' as const })),
   nonRowStores: [],
   accountTables: [
+    ...visibilityAccountTables,
     { schema: 'social', table: 'roster_heads', ownerColumn: 'owner_account_id' },
     { schema: 'social', table: 'roster_entries', ownerColumn: 'owner_account_id,peer_account_id' },
     { schema: 'social', table: 'invites', ownerColumn: 'account_id' },
@@ -51,6 +64,7 @@ export const socialErasure: ModuleErasure = {
     { schema: 'social', table: 'content_shares', ownerColumn: 'owner_account_id' },
   ],
   accountColumns: [
+    ...visibilityAccountColumns,
     { schema: 'social', table: 'roster_heads', column: 'owner_account_id' },
     { schema: 'social', table: 'roster_entries', column: 'owner_account_id' },
     { schema: 'social', table: 'roster_entries', column: 'peer_account_id' },
@@ -69,7 +83,11 @@ export const socialErasure: ModuleErasure = {
     { schema: 'social', table: 'inbox_heads', column: 'account_id' },
     { schema: 'social', table: 'content_shares', column: 'owner_account_id' },
   ],
-  erase: () => Promise.resolve({ module: 'social', status: 'completed', removed: 0 }),
+  /** Full erasure of one universe removes its published copy; conversations and friendships are account-keyed. */
+  async erase(scope) {
+    const removed = await eraseVisitRows(transactionOf(scope), scope.authority.universeId);
+    return { module: 'social', status: 'completed', removed };
+  },
 
   /**
    * Account deletion, after every universe eraser (D-043). Conversations first, then friendships.
@@ -93,7 +111,7 @@ export const socialErasure: ModuleErasure = {
     const trx = transactionOf(scope.personal);
     const account = scope.accountId;
     const now = new Date();
-    let removed = 0;
+    let removed = await eraseVisibilityAccountRows(trx, account);
 
     removed += Number(
       (await sql`delete from social.content_shares where owner_account_id = ${account}::uuid`.execute(trx))
@@ -172,12 +190,19 @@ export const socialErasure: ModuleErasure = {
     return { module: 'social', status: 'completed', removed };
   },
 
-  /** Clearing exploration history keeps profiles, friendships, invites, conversations and links. */
+  /**
+   * Clearing exploration history keeps profiles, friendships, invites, conversations, links and the
+   * person's sharing choices, and removes the published copy of their universe: friends who visit
+   * afterwards see an empty one.
+   */
   clearExploration: {
     dispositions: Object.fromEntries(
       Object.entries(socialStoreLifecycle).map(([store, lifecycle]) => [store, lifecycle.clear]),
     ),
-    erase: () => Promise.resolve({ module: 'social', status: 'completed', removed: 0 }),
+    async erase(scope) {
+      const removed = await eraseVisitRows(clearCoreTransactionOf(scope), scope.binding.universeId);
+      return { module: 'social', status: 'completed', removed };
+    },
   },
 };
 
@@ -200,8 +225,11 @@ socialErasure.export = exportReading(
     'social.conversation_members',
     'social.messages',
     'social.content_shares',
+    'social.visibility_settings',
+    'social.visibility_audience',
+    'social.visit_systems',
   ],
-  'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping.',
+  'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping; the heartbeat time is a signal that lapses within minutes and is never exported; visit planets and the publication header are copies of places the universe section already lists.',
   async (scope, person) => {
     const trx = transactionOf(scope);
     const profile = await trx
@@ -247,6 +275,7 @@ socialErasure.export = exportReading(
       .limit(500)
       .execute();
     return {
+      sharing: await exportVisibility(trx, person.accountId, scope.authority.universeId),
       profile: profile === undefined ? null : { handle: profile.handle, displayName: profile.display_name },
       connections: {
         friends: countOf('friends'),

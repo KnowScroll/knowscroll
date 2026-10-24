@@ -1,6 +1,9 @@
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { RosterStore } from '../application/ports.js';
+import type { PresencePreference } from '../domain/presence.js';
+const asPreference = (value: string | null): PresencePreference =>
+  value === 'online' || value === 'recently_active' ? value : 'hidden';
 /** Current side index only; candidate reads have a hard row bound even across inactive runs. */
 export const rosterStore: RosterStore = {
   async head(scope, filter) {
@@ -21,6 +24,8 @@ export const rosterStore: RosterStore = {
       .innerJoin('social.profiles as p', 'p.person_id', 'e.peer_person_id')
       .innerJoin('identity.accounts as a', 'a.id', 'e.peer_account_id')
       .innerJoin('identity.universes as u', 'u.account_id', 'a.id')
+      .leftJoin('social.visibility_settings as v', 'v.account_id', 'e.peer_account_id')
+      .leftJoin('social.presence as pr', 'pr.account_id', 'e.peer_account_id')
       .select([
         'e.peer_person_id',
         'e.public_revision',
@@ -30,6 +35,9 @@ export const rosterStore: RosterStore = {
         'p.display_name',
         'a.status as account_status',
         'u.status as universe_status',
+        'v.presence_preference',
+        'pr.last_seen_at',
+        'pr.window_number',
       ])
       .where('e.owner_account_id', '=', scope.authority.actor.accountId)
       .where('e.kind', '=', filter);
@@ -46,6 +54,13 @@ export const rosterStore: RosterStore = {
       requestId: r.request_id,
       expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : null,
       eligible: r.account_status === 'active' && r.universe_status === 'active',
+      presence: {
+        preference: asPreference(r.presence_preference),
+        record:
+          r.last_seen_at === null || r.window_number === null
+            ? undefined
+            : { lastSeenAtMs: new Date(r.last_seen_at).getTime(), windowNumber: Number(r.window_number) },
+      },
     }));
   },
   async deadline(scope, filter, now) {

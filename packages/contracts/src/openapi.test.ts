@@ -413,9 +413,10 @@ describe('the API contract', () => {
     const visit = JSON.stringify(document.paths?.['/v1/social/visits/read']?.post?.responses?.['200']);
     for (const field of [
       'publicSystemId',
+      'publicPlanetId',
+      'planets',
       'list.v1',
       'pairRevision',
-      'visibilityRevision',
       'publishedProjectionRevision',
     ])
       expect(visit).toContain(field);
@@ -434,6 +435,8 @@ describe('the API contract', () => {
       'branch',
       'lastSeenAt',
       'hiddenCount',
+      'visibilityRevision',
+      'systemId',
     ])
       expect(visit).not.toContain(`"${field}"`);
     expect(visit).toContain('"additionalProperties":false');

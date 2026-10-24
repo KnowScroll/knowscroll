@@ -5,6 +5,7 @@ import {
   type FriendPairView,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority } from '../../identity/public.js';
+import { availabilityOf } from '../domain/presence.js';
 import { ownEnvelope, refuse, type Result, type SocialPorts } from './ports.js';
 import type { z } from 'zod';
 const SCAN_LIMIT = 250;
@@ -61,7 +62,7 @@ export function makeReadRoster(p: SocialPorts, requests: boolean) {
             state: 'friends',
             peer: r.person,
             pairRevision: r.revision,
-            availability: { state: 'unknown' },
+            availability: availabilityOf(r.presence.preference, r.presence.record, time),
           });
         else items.push({ state: 'blocked', peer: r.person, pairRevision: r.revision });
       }
