@@ -12,9 +12,8 @@ export interface ShareSheetContentProps {
   readonly scope: AccountScope;
   /** The exact revision being shared. */
   readonly target: ConversationContentRef;
-  /** What the sheet says it is sharing: the title, and a part label such as "Part 2 of 4 · Reel". */
+  /** The title of what is shared, for the system share text. The container's header names the sheet. */
   readonly title: string;
-  readonly subtitle?: string;
   /** The origin links are built on: the app's own origin, where `/s/*` reaches the API. */
   readonly origin: string;
   /** Closes the sheet (Cancel). The caller restores what was playing; overlays never enter Back history. */
@@ -153,11 +152,12 @@ function Section({ children }: { readonly children: ReactNode }) {
  * copying a link or opening the system share sheet never claims anyone received anything.
  * Choosing, sending and copying are not encounters and create no evidence.
  *
- * The caller owns the container: it pauses playback while this is open, restores it on close, and
- * keeps the sheet out of the Back history (D-006 k).
+ * The caller owns the container and its header (title "Share", the shared item's name): it pauses
+ * playback while this is open, restores it on close, and keeps the sheet out of the Back history
+ * (D-006 k).
  */
 export function ShareSheetContent(props: ShareSheetContentProps) {
-  const { scope, title, subtitle, onClose, onOpenConversation, onExploreWithFriends } = props;
+  const { scope, title, onClose, onOpenConversation, onExploreWithFriends } = props;
   const { session, state } = useShareSession(scope, props.target, props.origin);
   const [view, setView] = useState<'menu' | 'send'>('menu');
   const [query, setQuery] = useState('');
@@ -177,17 +177,6 @@ export function ShareSheetContent(props: ShareSheetContentProps) {
 
   return (
     <View style={styles.sheet}>
-      <View style={styles.heading}>
-        <Text variant="bodyS" numberOfLines={2}>
-          {title}
-        </Text>
-        {subtitle === undefined ? null : (
-          <Text variant="meta" color={content.ink2}>
-            {subtitle}
-          </Text>
-        )}
-      </View>
-
       {view === 'menu' ? (
         <Section>
           <OptionRow
@@ -385,7 +374,6 @@ export function ShareSheetContent(props: ShareSheetContentProps) {
 
 const styles = StyleSheet.create({
   sheet: { gap: spacing[3] },
-  heading: { gap: spacing[0.5] },
   section: { gap: spacing[3] },
   option: {
     flexDirection: 'row',

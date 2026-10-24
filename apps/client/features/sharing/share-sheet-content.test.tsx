@@ -25,7 +25,6 @@ async function open(server: ReturnType<typeof talkServer>, extra: Partial<ShareS
         scope={server.scope}
         target={target}
         title="The edge you can’t come back from"
-        subtitle="Black holes · Part 2 of 4 · Reel"
         origin="https://app.fixture.test"
         onClose={onClose}
         onOpenConversation={onOpenConversation}
@@ -44,7 +43,6 @@ describe('share sheet (labelled in-memory server)', () => {
   it('offers send and copy, and Explore with friends only when something implements it', async () => {
     const server = talkServer();
     await open(server);
-    expect(screen.getByText('The edge you can’t come back from')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Send to a conversation' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Copy link' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Explore with friends' })).toBeNull();
