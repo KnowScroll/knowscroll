@@ -1,6 +1,11 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import {
+  EXPORT_LIST_LIMIT,
+  boundedSection,
+  exportReading,
+  type ModuleErasure,
+} from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { cartographyQueue, publishDeltaQueue } from '../events.js';
@@ -46,3 +51,19 @@ geographyErasure.clearExploration = {
     return { module: 'geography', status: 'completed', removed };
   },
 };
+
+/** The places of the universe as the person sees them: a kind and a name, never IDs, support or routes. */
+geographyErasure.export = exportReading(
+  geographyErasure,
+  ['geography.objects'],
+  'Runs, relations, deltas, state and queue jobs are internal bookkeeping behind the places listed.',
+  async (scope) => {
+    const rows = await sql<{ kind: string; label: string }>`
+      select payload ->> 'kind' as kind, payload ->> 'label' as label
+      from geography.objects
+      where universe_id = ${scope.authority.universeId}::uuid
+      order by id
+      limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
+    return { places: boundedSection(rows.rows) };
+  },
+);

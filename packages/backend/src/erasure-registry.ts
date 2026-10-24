@@ -1,7 +1,15 @@
 import { checkErasureInventory } from './infrastructure/erasure/inventory.js';
-import { clearExplorationRegistry, eraseExploration, erasureRegistry } from './infrastructure/erasure/registry.js';
+import {
+  accountLifecycleRegistry,
+  clearExplorationRegistry,
+  eraseAccountData,
+  eraseExploration,
+  erasureRegistry,
+  exportPersonalData,
+  type ExportPerson,
+} from './infrastructure/erasure/registry.js';
 import { clearCoreTransactionOf, markCurrentClearRemovalVerified } from './infrastructure/postgres/privacy-scope.js';
-import type { ClearCoreTx } from './modules/identity/public.js';
+import type { AccountDeletionTx, ClearCoreTx, PersonalScopeTx } from './modules/identity/public.js';
 import { composerErasure } from './modules/composer/adapters/erasure.js';
 import { evidenceErasure } from './modules/evidence/adapters/erasure.js';
 import { experienceErasure } from './modules/experience/adapters/erasure.js';
@@ -70,4 +78,25 @@ export const explorationStores = clearExplorationRegistry(
 export async function eraseCurrentExploration(scope: ClearCoreTx): Promise<void> {
   await eraseExploration(scope, explorationStores);
   markCurrentClearRemovalVerified(scope);
+}
+
+/**
+ * The same list for account deletion and export. Building it refuses (at start-up, in every
+ * process) a module that holds account-keyed stores without an `eraseAccount`, one without an
+ * `export`, or an export that does not account for exactly the stores the module declares.
+ */
+const lifecycleStores = accountLifecycleRegistry(personalStores);
+
+/**
+ * Account deletion's erasers over the deleting account, inside its deletion transaction: every
+ * module's universe eraser first, then every account eraser. Reports are returned to the use case,
+ * which decides what a `pending` one means.
+ */
+export function eraseCurrentAccount(scope: AccountDeletionTx) {
+  return eraseAccountData(scope, lifecycleStores);
+}
+
+/** Every module's export section for one person, inside their locked personal scope. */
+export function exportCurrentPerson(scope: PersonalScopeTx, person: ExportPerson) {
+  return exportPersonalData(scope, lifecycleStores, person);
 }

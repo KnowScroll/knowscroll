@@ -8,7 +8,7 @@ export function hashToken(token: string): string {
 }
 
 /** 32 random bytes as 43 base64url characters, behind a recognisable prefix (scanners, canaries). */
-function newSecret(prefix: 'ksl_' | 'kss_'): Secret {
+function newSecret(prefix: 'ksl_' | 'kss_' | 'kse_'): Secret {
   const token = `${prefix}${randomBytes(32).toString('base64url')}`;
   return { token, hash: hashToken(token) };
 }
@@ -22,6 +22,7 @@ export function challengeOf(verifier: string): string {
 export const cryptoSecrets: IdentitySecrets = {
   newLinkSecret: () => newSecret('ksl_'),
   newSessionSecret: () => newSecret('kss_'),
+  newDownloadSecret: () => newSecret('kse_'),
   hashToken,
   challengeOf,
   newId: () => uuidv7(),

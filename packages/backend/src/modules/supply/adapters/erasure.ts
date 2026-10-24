@@ -1,5 +1,11 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { sql } from 'kysely';
+import {
+  EXPORT_LIST_LIMIT,
+  boundedSection,
+  exportReading,
+  type ModuleErasure,
+} from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { resolveSupplyQueue } from '../events.js';
@@ -43,3 +49,41 @@ supplyErasure.clearExploration = {
     };
   },
 };
+
+/** What the person asked for, in their own words and the state it reached; no IDs, briefs or shared work. */
+supplyErasure.export = exportReading(
+  supplyErasure,
+  ['supply.requests'],
+  'Queue jobs are delivery bookkeeping for the requests listed.',
+  async (scope) => {
+    const rows = await sql<{
+      created_at: Date;
+      state: string;
+      kind: string;
+      text: string | null;
+      topic: string | null;
+      format: string | null;
+    }>`
+      select created_at, state,
+        command #>> '{intent,kind}' as kind,
+        command #>> '{intent,subject,text}' as text,
+        command #>> '{intent,subject,topicId}' as topic,
+        coalesce(command #>> '{intent,format}', command #>> '{intent,to}') as format
+      from supply.requests
+      where universe_id = ${scope.authority.universeId}::uuid and origin = 'person'
+      order by created_at desc, id
+      limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
+    return {
+      requests: boundedSection(
+        rows.rows.map((row) => ({
+          askedAt: row.created_at.toISOString(),
+          kind: row.kind,
+          ...(row.text === null ? {} : { text: row.text }),
+          ...(row.topic === null ? {} : { topic: row.topic }),
+          format: row.format,
+          state: row.state,
+        })),
+      ),
+    };
+  },
+);

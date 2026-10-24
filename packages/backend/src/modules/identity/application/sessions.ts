@@ -1,4 +1,13 @@
-import type { ActiveSession, ResolveSession, SessionValid, SignOut, SweepSignInRecords } from '../public.js';
+import type {
+  ActiveSession,
+  EndOtherSessions,
+  EndSession,
+  ListSessions,
+  ResolveSession,
+  SessionValid,
+  SignOut,
+  SweepSignInRecords,
+} from '../public.js';
 import type { SessionPorts, SweepPorts } from './ports.js';
 
 /**
@@ -41,7 +50,7 @@ export function makeSignOut(ports: SessionPorts): SignOut {
       revoked: await ports.revokeSessions({
         sessionId: request.sessionId,
         accountId: request.accountId,
-        everywhere: request.everywhere,
+        target: request.everywhere ? 'every_session' : 'session',
         reason,
       }),
     };
@@ -56,4 +65,54 @@ export function makeSignOut(ports: SessionPorts): SignOut {
  */
 export function makeSweepSignInRecords(ports: SweepPorts): SweepSignInRecords {
   return () => ports.sweep();
+}
+
+/**
+ * `listSessions`: the account's live sessions for P01, the presented one marked current. Read-only.
+ * Devices that signed in before labels existed show the plain label of their client.
+ */
+export function makeListSessions(ports: SessionPorts): ListSessions {
+  return async function listSessions(caller) {
+    const sessions = await ports.listLiveSessions(caller.accountId);
+    return sessions.map((session) => ({
+      id: session.id,
+      client: session.client,
+      deviceLabel: session.deviceLabel ?? (session.client === 'native' ? 'KnowScroll app' : 'Web browser'),
+      signedInAt: session.signedInAt,
+      lastUsedAt: session.lastUsedAt ?? session.signedInAt,
+      current: session.id === caller.sessionId,
+    }));
+  };
+}
+
+/**
+ * `endSession`: signs one *other* session of the account out (P01 "Sign out" beside a device).
+ * The presented session is refused: leaving this device is `signOut`, which also clears the
+ * cookie. An id that is unknown, already ended or another person's gets the same `not_found`.
+ */
+export function makeEndSession(ports: SessionPorts): EndSession {
+  return async function endSession(request) {
+    if (request.sessionId === request.currentSessionId) return { kind: 'current_session' };
+    const revoked = await ports.revokeSessions({
+      sessionId: request.sessionId,
+      accountId: request.accountId,
+      target: 'session',
+      reason: 'signed_out',
+    });
+    return revoked === 0 ? { kind: 'not_found' } : { kind: 'ended' };
+  };
+}
+
+/** `endOtherSessions`: signs out every session of the account except the presented one. */
+export function makeEndOtherSessions(ports: SessionPorts): EndOtherSessions {
+  return async function endOtherSessions(request) {
+    return {
+      revoked: await ports.revokeSessions({
+        sessionId: request.currentSessionId,
+        accountId: request.accountId,
+        target: 'other_sessions',
+        reason: 'signed_out_everywhere',
+      }),
+    };
+  };
 }

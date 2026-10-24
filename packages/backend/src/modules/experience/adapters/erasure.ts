@@ -1,6 +1,7 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { exportReading, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { experienceExportRead } from './export.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 const tables = [
   'recording_channel_certificates',
@@ -59,3 +60,10 @@ experienceErasure.clearExploration = {
     return { module: 'experience', status: 'completed', removed };
   },
 };
+
+experienceErasure.export = exportReading(
+  experienceErasure,
+  ['experience.saved_items', 'experience.saved_places', 'experience.exposures', 'experience.actions'],
+  'Navigation, offers, recorder certificates and activity inputs are internal bookkeeping behind the encounters and reactions listed; suggestions are not activity.',
+  experienceExportRead,
+);
