@@ -122,6 +122,22 @@ export function activityFor(f: FormationFacts, c: Candidate): 'active' | 'quiet'
       ? 'quiet'
       : 'active';
 }
+/**
+ * The first operation that makes a proposal invalid, and why. Operations depend on the ones before
+ * them, so the shortest failing prefix ends at the culprit. The repair names that operation, which a
+ * whole-proposal code cannot.
+ */
+export function proposalFault(
+  proposal: GeographyProposal,
+  f: FormationFacts,
+): { readonly code: string; readonly operation: number } | undefined {
+  const code = proposalIssue(proposal, f);
+  if (code === undefined) return undefined;
+  const failing = proposal.operations.findIndex((_operation, index) =>
+    proposalIssue({ ...proposal, operations: proposal.operations.slice(0, index + 1) }, f),
+  );
+  return { code, operation: Math.max(failing, 0) };
+}
 /** Simulate the complete proposal before any write. Parent additions are ordered explicit operations. */
 export function proposalIssue(proposal: GeographyProposal, f: FormationFacts): string | undefined {
   const objects = new Map(f.objects.map((o) => [o.key, o] as const));

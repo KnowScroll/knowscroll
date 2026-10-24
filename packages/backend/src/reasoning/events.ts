@@ -41,7 +41,9 @@ export type SweepDispatchedAttemptsPayload = z.infer<typeof SweepDispatchedAttem
  * crash after dispatch leaves such an attempt, and until a later delivery of the same step found
  * it nothing could see it: not the operator's `reasoning unknown`, not the write-off, and the
  * universe's erasure waited on it for ever. The sweep never resends anything and a late answer
- * still settles the attempt as `reconciled`. Safe to run late, twice or concurrently.
+ * still settles the attempt as `reconciled`. The same sweep closes personal runs a role left
+ * `admitted` that have had no activity for hours and have no live attempt, so a run that ended
+ * without being closed does not stay open for ever. Safe to run late, twice or concurrently.
  */
 export const sweepDispatchedAttemptsQueue = defineQueue({
   name: 'reasoning.sweep-dispatched-attempts',

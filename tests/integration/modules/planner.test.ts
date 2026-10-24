@@ -37,6 +37,8 @@ import { geographyStore, makeCheckGeographyRecordingRun } from '@knowscroll/back
 import {
   guardedModelPort,
   personalRecordingReasoningHarnessFor,
+  reasoningOperatorFor,
+  type HarnessSettings,
   type ModelPort,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
@@ -167,7 +169,11 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
   function runner(
     p: FixturePerson,
     script?: (context: FrozenContext, sequence: number) => FixtureScenario | Promise<FixtureScenario>,
-    options: { readonly providerUnavailable?: boolean; readonly observeQuota?: ModelPort['observeQuota'] } = {},
+    options: {
+      readonly providerUnavailable?: boolean;
+      readonly observeQuota?: ModelPort['observeQuota'];
+      readonly settings?: HarnessSettings;
+    } = {},
   ) {
     const model = fixtureModel(
       async (sequence) => {
@@ -182,7 +188,8 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       : options.observeQuota
         ? guardedModelPort({ ...model, observeQuota: options.observeQuota })
         : model;
-    const fixture = fixtureHarness(database.db, { model: provider });
+    const settings = options.settings ?? fixtureSettings;
+    const fixture = fixtureHarness(database.db, { model: provider, settings });
     let enabled = true;
     let clock: Date | undefined;
     const harness = personalRecordingReasoningHarnessFor({
@@ -190,7 +197,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       model: fixture.ports.model,
       withPersonalScope: fixture.ports.withPersonalScope,
       fenceOwn: accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount,
-      settings: fixtureSettings,
+      settings,
       logEvent: silent,
       overrides: fixture.ports,
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now: () => clock ?? new Date() }),
@@ -516,7 +523,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       ).rows,
     ).toHaveLength(0);
   });
-  it('refuses stale concurrent revisions and concurrent deliveries, then creates exactly one successor', async () => {
+  it('stales a plan the person has since asked something else of, refuses concurrent deliveries, then creates exactly one successor', async () => {
     const p = await seedPerson(database.db);
     await qualify(p);
     let release!: (s: FixtureScenario) => void, started!: () => void;
@@ -538,7 +545,7 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
       value: { kind: 'obsolete_wake' },
     });
     const context = await frozen(p);
-    await request(p.authority, { commandId: randomUUID() });
+    await request(p.authority, { commandId: randomUUID(), intent: { language: 'en', topicIds: [topic] } });
     release({ kind: 'success', text: JSON.stringify(answer(context)) });
     expect(await running).toMatchObject({ kind: 'entered', value: { kind: 'stale' } });
     const next = await state(p);
@@ -555,6 +562,190 @@ describe('Personal Planner (real PostgreSQL, authored CI model fixtures)', () =>
         .execute(),
     ).toHaveLength(1);
     expect(r.model.calls).toHaveLength(1);
+  });
+  /** The person's ledger runs and the pg-boss wake of a planner run. */
+  async function ledgerStates(p: FixturePerson) {
+    return (
+      await database.db
+        .selectFrom('reasoning.business_runs')
+        .select('state')
+        .where('universe_id', '=', p.universeId)
+        .execute()
+    ).map((run) => run.state);
+  }
+  async function wakeStart(p: FixturePerson, runId: string) {
+    const row = await database.db
+      .selectFrom('planner.runs')
+      .select('normal_wake_id')
+      .where('universe_id', '=', p.universeId)
+      .where('id', '=', runId)
+      .executeTakeFirstOrThrow();
+    const result = await database.pool.query<{ start_after: Date }>('select start_after from pgboss.job where id=$1', [
+      row.normal_wake_id,
+    ]);
+    return result.rows[0]!.start_after.getTime();
+  }
+  it('accepts a valid plan although more reading arrived while the model worked, then queues one paced successor', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    let release!: (s: FixtureScenario) => void, started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<FixtureScenario>((resolve) => {
+      release = resolve;
+    });
+    const r = runner(p, () => {
+      started();
+      return { kind: 'hold', until: held };
+    });
+    const first = await state(p),
+      running = r.run(await job(p, first.active_run_id!), signal());
+    await entered;
+    const context = await frozen(p);
+    await qualify(p);
+    await qualify(p);
+    expect((await state(p)).desired_revision).toBeGreaterThan(first.desired_revision);
+    expect((await state(p)).active_run_id).toBe(first.active_run_id);
+    release({ kind: 'success', text: JSON.stringify(answer(context)) });
+    expect(await running).toMatchObject({ kind: 'entered', value: { kind: 'accepted' } });
+
+    // The plan was stored although the evidence behind it had moved on, and its ledger run completed.
+    expect(
+      await database.db
+        .selectFrom('planner.revisions')
+        .select('run_id')
+        .where('universe_id', '=', p.universeId)
+        .execute(),
+    ).toEqual([{ run_id: first.active_run_id }]);
+    expect(await ledgerStates(p)).toEqual(['completed']);
+    expect(r.model.calls).toHaveLength(1);
+
+    // One successor takes up the later reading and waits its interval; more reading joins it.
+    const after = await state(p);
+    expect(after.active_run_id).not.toBe(first.active_run_id);
+    const settledBy = Date.now();
+    expect(await wakeStart(p, after.active_run_id!)).toBeGreaterThan(settledBy + 4 * 60_000);
+    expect(await wakeStart(p, after.active_run_id!)).toBeLessThan(settledBy + 6 * 60_000);
+    const wake = (await job(p, after.active_run_id!)).wakeId;
+    await qualify(p);
+    expect((await state(p)).active_run_id).toBe(after.active_run_id);
+    expect((await job(p, after.active_run_id!)).wakeId).toBe(wake);
+    expect(
+      await database.db.selectFrom('planner.runs').select('id').where('universe_id', '=', p.universeId).execute(),
+    ).toHaveLength(2);
+  });
+  it('accepts the plan of a run while a plain request arrives, then queues one paced successor for the request', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    let release!: (s: FixtureScenario) => void, started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const held = new Promise<FixtureScenario>((resolve) => {
+      release = resolve;
+    });
+    const r = runner(p, () => {
+      started();
+      return { kind: 'hold', until: held };
+    });
+    const first = await state(p),
+      running = r.run(await job(p, first.active_run_id!), signal());
+    await entered;
+    const context = await frozen(p);
+    // A request without an intent changes nothing the plan was made for, but it asks for a newer run.
+    await request(p.authority, { commandId: randomUUID() });
+    expect((await state(p)).active_run_id).toBe(first.active_run_id);
+    release({ kind: 'success', text: JSON.stringify(answer(context)) });
+    expect(await running).toMatchObject({ kind: 'entered', value: { kind: 'accepted' } });
+    expect(await ledgerStates(p)).toEqual(['completed']);
+    const after = await state(p);
+    expect(after.active_run_id).not.toBeNull();
+    expect(after.active_run_id).not.toBe(first.active_run_id);
+    // The successor is paced like any other: it does not start until the interval has passed.
+    expect(await wakeStart(p, after.active_run_id!)).toBeGreaterThan(Date.now() + 4 * 60_000);
+    expect(
+      await database.db.selectFrom('planner.runs').select('id').where('universe_id', '=', p.universeId).execute(),
+    ).toHaveLength(2);
+  });
+  it('ends a run that budget refuses: its ledger run is closed, not left admitted, and new reading starts another', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    const exhausted = {
+      ...fixtureSettings,
+      caps: { ...fixtureSettings.caps, scope: { requestsPerDay: 0, tokensPerDay: 0 } },
+    };
+    const r = runner(p, undefined, { settings: exhausted }),
+      s = await state(p);
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'insufficient' },
+    });
+    expect(r.model.calls).toHaveLength(0);
+    expect(
+      await database.db
+        .selectFrom('planner.runs')
+        .select(['status', 'outcome'])
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ status: 'insufficient', outcome: 'budget_exhausted' });
+    expect(await ledgerStates(p)).toEqual(['cancelled']);
+    expect((await state(p)).active_run_id).toBeNull();
+    expect((await state(p)).next_run_not_before).not.toBeNull();
+
+    // Reading after the refusal starts a new business run, which waits out the interval.
+    await qualify(p);
+    const next = await state(p);
+    expect(next.active_run_id).not.toBeNull();
+    expect(next.active_run_id).not.toBe(s.active_run_id);
+    expect(await wakeStart(p, next.active_run_id!)).toBeGreaterThan(Date.now() + 4 * 60_000);
+  });
+  it('starts over with a new run when the ledger run behind a blocked run was closed meanwhile', async () => {
+    const p = await seedPerson(database.db);
+    await qualify(p);
+    const s = await state(p);
+    const quotaDown: ModelPort['observeQuota'] = () =>
+      Promise.resolve({
+        verdict: 'unavailable',
+        intervalRemainingPercent: null,
+        weeklyRemainingPercent: null,
+        reasonCode: 'QUOTA_CI',
+      });
+    const blocked = runner(p, undefined, { observeQuota: quotaDown });
+    expect(await blocked.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'quota_unavailable' },
+    });
+    expect(await ledgerStates(p)).toEqual(['admitted']);
+    // The idle sweep closes the leftover ledger run; the Planner run is still blocked on it.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(await reasoningOperatorFor(database.db, silent).closeIdleRuns(0)).toBeGreaterThanOrEqual(1);
+    expect(await ledgerStates(p)).toEqual(['cancelled']);
+
+    // New reading wakes the blocked run; its closed ledger run ends it and a new run takes over.
+    await database.pool.query(
+      "update pgboss.job set state='completed' where name='planner.run' and data->>'runId'=$1",
+      [s.active_run_id],
+    );
+    await qualify(p);
+    const r = runner(p);
+    const woken = await state(p);
+    expect(woken.active_run_id).toBe(s.active_run_id);
+    expect(await r.run(await job(p, s.active_run_id!), signal())).toMatchObject({
+      kind: 'entered',
+      value: { kind: 'insufficient' },
+    });
+    expect(
+      await database.db
+        .selectFrom('planner.runs')
+        .select(['status', 'outcome'])
+        .where('id', '=', s.active_run_id!)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ status: 'insufficient', outcome: 'run_closed' });
+    const fresh = await state(p);
+    expect(fresh.active_run_id).not.toBeNull();
+    expect(fresh.active_run_id).not.toBe(s.active_run_id);
+    expect(r.model.calls).toHaveLength(0);
   });
   it('rechecks exact inventory authority after the model finishes and rejects a withdrawn asset', async () => {
     const p = await seedPerson(database.db);
