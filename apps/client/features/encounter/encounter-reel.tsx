@@ -2,7 +2,15 @@ import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'r
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { EdgeTab, ReelProgress, Tag, Text, type ReelPlaybackView, type ReelPositionHandle } from '@knowscroll/ui';
+import {
+  EdgeTab,
+  ReelProgress,
+  Tag,
+  Text,
+  type ReelControls,
+  type ReelPlaybackView,
+  type ReelPositionHandle,
+} from '@knowscroll/ui';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { useReelPageStage } from '../reel/reel-page';
 import { continuationIntent, continuationLabel, continuationName } from './continuation-intent';
@@ -65,7 +73,11 @@ function ContinuationTabs({
   );
 }
 
-/** Everything drawn over the video except the stage itself (E01). */
+/**
+ * Everything drawn over the video except the stage itself (E01). In a `framed` Reel (D01) the top
+ * controls, the action rail and the continuation tabs sit around the card, in the desktop shell,
+ * so only the notices, the title and the progress row stay over the video.
+ */
 function ReelChrome({
   entry,
   state,
@@ -73,6 +85,7 @@ function ReelChrome({
   playback,
   back,
   hint,
+  framed,
 }: {
   readonly entry: ReelEntry;
   readonly state: EncounterState;
@@ -80,6 +93,7 @@ function ReelChrome({
   readonly playback: ReelPlaybackView;
   readonly back: () => void;
   readonly hint: ReactNode;
+  readonly framed: boolean;
 }) {
   const metrics = useEncounterMetrics();
   const idle = state.phase !== 'active';
@@ -94,21 +108,28 @@ function ReelChrome({
         style={[styles.top, { top: metrics.top, left: metrics.side, right: metrics.side }]}
         pointerEvents="box-none"
       >
-        <EncounterTopBar entry={entry} session={session} surface="media" back={back} />
+        {framed ? null : <EncounterTopBar entry={entry} session={session} surface="media" back={back} />}
         <View style={styles.notices} pointerEvents="box-none">
           <EncounterNotices entry={entry} state={state} session={session} />
         </View>
       </View>
-      <View
-        style={[styles.rail, { top: metrics.top + (metrics.short ? 56 : 160), right: spacing[3] }]}
-        pointerEvents="box-none"
-      >
-        <EncounterRail entry={entry} state={state} session={session} dense={metrics.short} />
-      </View>
-      <ContinuationTabs entry={entry} session={session} disabled={idle} metrics={metrics} />
+      {framed ? null : (
+        <>
+          <View
+            style={[styles.rail, { top: metrics.top + (metrics.short ? 56 : 160), right: spacing[3] }]}
+            pointerEvents="box-none"
+          >
+            <EncounterRail entry={entry} state={state} session={session} dense={metrics.short} />
+          </View>
+          <ContinuationTabs entry={entry} session={session} disabled={idle} metrics={metrics} />
+        </>
+      )}
       <View
         testID="encounter-reel-caption"
-        style={[styles.title, { bottom: titleBottom, left: spacing[5], right: spacing[5] + EDGE_TAB_WIDTH }]}
+        style={[
+          styles.title,
+          { bottom: titleBottom, left: spacing[5], right: spacing[5] + (framed ? 0 : EDGE_TAB_WIDTH) },
+        ]}
         pointerEvents="none"
       >
         {entry.context.series ? <Tag label={`Part ${String(entry.context.series.part)}`} variant="part" /> : null}
@@ -119,7 +140,11 @@ function ReelChrome({
       <View
         style={[
           styles.progress,
-          { bottom: progressBottom, left: spacing[5], right: metrics.short ? spacing[3] + EDGE_TAB_WIDTH : spacing[3] },
+          {
+            bottom: progressBottom,
+            left: spacing[5],
+            right: framed ? spacing[5] : metrics.short ? spacing[3] + EDGE_TAB_WIDTH : spacing[3],
+          },
         ]}
         pointerEvents="box-none"
       >
@@ -148,6 +173,7 @@ export function ReelEncounter({
   foreground,
   back,
   hint,
+  framed = false,
 }: {
   readonly scope: AccountScope;
   readonly entry: ReelEntry;
@@ -156,8 +182,11 @@ export function ReelEncounter({
   readonly foreground: boolean;
   readonly back: () => void;
   readonly hint: ReactNode;
+  /** The desktop card (D01): the shell draws the top controls, actions and tabs around the video. */
+  readonly framed?: boolean;
 }) {
   const reelPosition = useRef<ReelPositionHandle>(null);
+  const reelControls = useRef<ReelControls>(null);
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
   const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
   const playable = foreground && !state.overlay && state.phase === 'active';
@@ -166,7 +195,9 @@ export function ReelEncounter({
   const renderStage = useCallback(
     (stage: ReactNode) => (
       <View ref={visibility.ref} onLayout={visibility.onLayout} style={styles.fill}>
-        <ReelGestureStage onMove={onMove}>{stage}</ReelGestureStage>
+        <ReelGestureStage onMove={onMove} onToggle={() => reelControls.current?.toggle()}>
+          {stage}
+        </ReelGestureStage>
       </View>
     ),
     [onMove, visibility.ref, visibility.onLayout],
@@ -200,13 +231,22 @@ export function ReelEncounter({
       retainedGrant={retainedGrant}
       renderStage={renderStage}
       positionRef={reelPosition}
+      controls={{ controlsRef: reelControls }}
       initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
       initialPlaying={entry.resumePlaying === true}
       initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
       onMutedChange={onMutedChange}
     >
       {(playback) => (
-        <ReelChrome entry={entry} state={state} session={session} playback={playback} back={back} hint={hint} />
+        <ReelChrome
+          entry={entry}
+          state={state}
+          session={session}
+          playback={playback}
+          back={back}
+          hint={hint}
+          framed={framed}
+        />
       )}
     </ActivatedReelView>
   );

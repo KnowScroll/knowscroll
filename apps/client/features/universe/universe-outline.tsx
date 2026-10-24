@@ -58,6 +58,7 @@ export function OutlineList({
           accessibilityRole="button"
           accessibilityLabel={name}
           accessibilityState={{ selected: isCurrent }}
+          aria-current={isCurrent ? 'true' : undefined}
           onPress={() => {
             session.focus(place.objectId);
             onChoose?.();

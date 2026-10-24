@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { AppState, StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,11 +16,13 @@ import { EncounterView } from '../encounter/encounter-view';
 import { useEncounterBack } from '../encounter/use-encounter-back';
 import { useEncounterContext } from '../encounter/use-encounter-context';
 import { useEncounterSession } from '../encounter/use-encounter-session';
-import { usesRail } from '../shell/app-navigation';
+import { railWidth, usesRail } from '../shell/app-navigation';
 import { ReelPage } from '../reel/reel-page';
 import { useDisplay } from '@knowscroll/ui';
+import { DesktopReelFrame } from './desktop-reel-frame';
 import { FirstArrivalHint } from './first-arrival-hint';
 import { FirstArrivalScreen } from './first-arrival-screen';
+import { asideWidthFor, ThreadAside } from './thread-aside';
 
 /** A Scroll owns its reading viewport. Only Reel pages need the measured page around the stage. */
 function EncounterPage({ reading, children }: { readonly reading: boolean; readonly children: ReactNode }) {
@@ -57,7 +59,10 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const { session, state } = useEncounterSession(scope);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const railed = usesRail(useDisplay().breakpoint);
+  const { breakpoint } = useDisplay();
+  const { width: windowWidth } = useWindowDimensions();
+  const railed = usesRail(breakpoint);
+  const desktop = breakpoint === 'desktop';
   const [foreground, setForeground] = useState(false);
   // "Done for now" belongs to the entry it was chosen on; any other state or entry shows its own screen.
   const [calmedEntry, setCalmedEntry] = useState<EncounterEntry>();
@@ -97,8 +102,12 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const calm = state.phase === 'exhausted' && entry !== undefined && calmedEntry === entry;
   const showSurface = entry !== undefined && SURFACE_PHASES.has(state.phase);
   const opening = state.phase !== 'active';
+  // The thread sits beside the encounter from 768 px up (V01, D01); the desktop Reel is a card (D01).
+  const asideWidth = showSurface && railed ? asideWidthFor(windowWidth) : 0;
+  const framedReel = showSurface && desktop && entry.kind === 'reel';
+  // The swipe hint is written for touch; a desktop Reel shows its keys under the card instead.
   const hint =
-    hintOpen && showSurface ? (
+    hintOpen && showSurface && !framedReel ? (
       <FirstArrivalHint
         {...HINTS[entry.kind]}
         lines={HINTS[entry.kind].lines}
@@ -112,9 +121,28 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
     ? state.phase === 'exhausted' && entry && !calm
       ? content.continue
       : content.paper
-    : entry.kind === 'reel'
+    : entry.kind === 'reel' && !framedReel
       ? content.ink
       : content.paper;
+  const encounterView = (framed: boolean) =>
+    entry === undefined ? null : (
+      <EncounterView
+        key={`${entry.exposureId}:${String(state.surfaceRevision)}`}
+        scope={scope}
+        entry={entry}
+        state={state}
+        session={session}
+        foreground={foreground}
+        back={backOrRoot}
+        hint={hint}
+        framed={framed}
+      />
+    );
+  const openingNotice = opening ? (
+    <View style={styles.opening} pointerEvents="none">
+      <Skeleton rows={1} label="Opening your next encounter" />
+    </View>
+  ) : null;
   return (
     <View
       style={[
@@ -123,38 +151,42 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
       ]}
       testID="encounter-explore"
     >
-      {showSurface ? (
-        <EncounterPage reading={entry.kind === 'scroll'}>
-          <View style={styles.centered}>
-            <View style={entry.kind === 'reel' ? styles.reelColumn : styles.readingColumn}>
-              <EncounterView
-                key={`${entry.exposureId}:${String(state.surfaceRevision)}`}
-                scope={scope}
-                entry={entry}
-                state={state}
-                session={session}
-                foreground={foreground}
-                back={backOrRoot}
-                hint={hint}
-              />
-              {opening ? (
-                <View style={styles.opening} pointerEvents="none">
-                  <Skeleton rows={1} label="Opening your next encounter" />
+      <View role="main" style={styles.main}>
+        {showSurface ? (
+          <EncounterPage reading={entry.kind === 'scroll'}>
+            <View style={styles.centered}>
+              {framedReel ? (
+                <DesktopReelFrame
+                  entry={entry}
+                  state={state}
+                  session={session}
+                  areaWidth={windowWidth - railWidth(breakpoint) - asideWidth}
+                >
+                  {encounterView(true)}
+                  {openingNotice}
+                </DesktopReelFrame>
+              ) : (
+                <View style={entry.kind === 'reel' ? styles.reelColumn : styles.readingColumn}>
+                  {encounterView(false)}
+                  {openingNotice}
                 </View>
-              ) : null}
+              )}
             </View>
-          </View>
-        </EncounterPage>
-      ) : state.phase === 'exhausted' && entry && !calm ? (
-        <EncounterEnding entry={entry} state={state} session={session} onDone={() => setCalmedEntry(entry)} />
-      ) : (
-        <EncounterStateScreen
-          state={state}
-          session={session}
-          calm={calm}
-          onLeaveCalm={() => setCalmedEntry(undefined)}
-        />
-      )}
+          </EncounterPage>
+        ) : state.phase === 'exhausted' && entry && !calm ? (
+          <EncounterEnding entry={entry} state={state} session={session} onDone={() => setCalmedEntry(entry)} />
+        ) : (
+          <EncounterStateScreen
+            state={state}
+            session={session}
+            calm={calm}
+            onLeaveCalm={() => setCalmedEntry(undefined)}
+          />
+        )}
+      </View>
+      {asideWidth > 0 && showSurface ? (
+        <ThreadAside entry={entry} state={state} session={session} width={asideWidth} />
+      ) : null}
       <EncounterSheets state={state} session={session} />
     </View>
   );
@@ -165,7 +197,8 @@ export function ExploreScreen() {
   return <FirstArrivalScreen />;
 }
 const styles = StyleSheet.create({
-  ground: { flex: 1, minHeight: 0 },
+  ground: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  main: { flex: 1, minWidth: 0, minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
   centered: { flex: 1, minHeight: 0, alignItems: 'center' },
   reelColumn: { flex: 1, minHeight: 0, width: '100%', maxWidth: 480 },

@@ -119,6 +119,7 @@ Client build (Babel for Metro; added by the native lane, #249; both already in t
 | test-renderer | 1.3.0 | 2026-09-17 | MIT | the version jest-expo 58.0.11 depends on |
 | @types/jest | 30.0.0 | 2025-06-16 | MIT | |
 | @playwright/test | 1.64.1 | 2026-10-14 | Apache-2.0 | brings playwright and playwright-core 1.64.1; no install script runs (browsers are fetched only by `playwright install --with-deps chromium` in the `client` CI job, never on a developer machine) |
+| @axe-core/playwright | 4.13.0 | 2026-08-11 | MPL-2.0 | peer playwright-core >= 1.0.0 (the 1.64.1 `@playwright/test` brings it); brings axe-core ~4.13; runs inside the Playwright web smoke only, nothing ships |
 
 The client also takes `@types/node` (the root's 22.20.5) for its one Node-side test,
 `features/shell/route-map.test.ts`, which references the types itself; the app's own

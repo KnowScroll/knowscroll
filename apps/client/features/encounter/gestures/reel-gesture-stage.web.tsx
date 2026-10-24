@@ -5,9 +5,12 @@ import { createGestureArbitrator, type EncounterGestureMove } from './arbitratio
 export function ReelGestureStage({
   children,
   onMove,
+  onToggle,
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: EncounterGestureMove) => void;
+  /** Space on the focused stage plays or pauses, as the focused play button would. */
+  readonly onToggle?: () => void;
 }) {
   const gesture = useRef<ReturnType<typeof createGestureArbitrator> | undefined>(undefined);
   const start = useRef({ x: 0, y: 0, pointerId: -1 });
@@ -19,7 +22,16 @@ export function ReelGestureStage({
       role="group"
       aria-label="Reel navigation"
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
+        // The stage and its own play/pause button are the "Reel navigation" focus stops; any other
+        // control inside keeps its own keys.
+        const target = event.target as Element;
+        const onStage = target === event.currentTarget || target.getAttribute('data-testid') === 'reel-playback-toggle';
+        if (!onStage) return;
+        if (event.key === ' ' && target === event.currentTarget && onToggle) {
+          event.preventDefault();
+          onToggle();
+          return;
+        }
         const move =
           event.key === 'ArrowDown'
             ? 'subjectNext'
