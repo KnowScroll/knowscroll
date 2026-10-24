@@ -6,7 +6,8 @@ import { ScreenFrame } from '../shell/screen-frame';
 import { RequestsList, type ReadyRequestTarget } from './requests-list';
 import { useRequestsList } from './use-requests-list';
 
-function SignedInRequests({ scope }: { readonly scope: Parameters<typeof useRequestsList>[0] }) {
+/** The signed-in person's requests list: `/account/requests` and Keep's Requested view both mount it. */
+export function SignedInRequests({ scope }: { readonly scope: Parameters<typeof useRequestsList>[0] }) {
   const router = useRouter();
   const session = useRequestsList(scope);
   const open = (target: ReadyRequestTarget) => router.push(`/${target.kind}/${target.assetId}`);
