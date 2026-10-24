@@ -10,7 +10,7 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint --max-warnings 0 .",
+    "lint": "node --max-old-space-size=6144 node_modules/eslint/bin/eslint.js --max-warnings 0 .",
     "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
     "boundaries": "depcruise --config .dependency-cruiser.cjs apps packages migrations tests",
     "knip": "knip",
