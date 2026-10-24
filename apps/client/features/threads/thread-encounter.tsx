@@ -2,18 +2,18 @@ import { useRouter } from 'expo-router';
 import { useCallback, useState, type RefObject } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import type { ContentThreadRef, ReelDocument, ThreadEpisode } from '@knowscroll/contracts';
+import type { ReelDocument, ThreadEpisode } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, IconButton, StateBlock, Tag, Text, type ReelPositionHandle } from '@knowscroll/ui';
 import { ReelEncounter } from './reel-encounter';
-import { readInThreadHref } from './thread-links';
 
 /** The picture of the inline player takes at most this much, so the conversation stays in view. */
 const PLAYER_STAGE_HEIGHT = 200;
 
 export interface ThreadEncounterProps {
   readonly scope: AccountScope;
-  readonly thread: ContentThreadRef;
+  /** Where "Read this Scroll" goes: a friend thread reads it in the thread, a room in the ordinary reader. */
+  readonly readHref: (assetId: string) => string;
   readonly episode: ThreadEpisode;
   readonly series: boolean;
   readonly total: number;
@@ -40,7 +40,7 @@ export interface ThreadEncounterProps {
  */
 export function ThreadEncounter({
   scope,
-  thread,
+  readHref,
   episode,
   series,
   total,
@@ -108,11 +108,7 @@ export function ThreadEncounter({
             <Banner kind="corrected" lead="Updated." message="You will read the current version." />
           ) : null}
           <View style={styles.actions}>
-            <Button
-              label="Read this Scroll"
-              variant="primary"
-              onPress={() => router.push(readInThreadHref(thread, episode.assetId))}
-            />
+            <Button label="Read this Scroll" variant="primary" onPress={() => router.push(readHref(episode.assetId))} />
             <Button label="Full screen" variant="ghost" onPress={() => router.push(fullHref)} />
           </View>
         </View>
