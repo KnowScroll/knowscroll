@@ -27,7 +27,7 @@ export function WelcomeScreen() {
       </Text>
       <Button
         label="Continue with email"
-        variant="space"
+        variant="spacePrimary"
         role="link"
         href="/signin"
         surface="dark"
@@ -36,7 +36,7 @@ export function WelcomeScreen() {
       />
       <Button
         label="I have a sign-in link"
-        variant="ink"
+        variant="spaceGhost"
         role="link"
         href="/redeem"
         surface="dark"

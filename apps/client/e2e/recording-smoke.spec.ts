@@ -206,7 +206,7 @@ test('Pause unknown retry, necessary paused Save, and fresh activation after Res
   await expect(page.getByText(/1 group of unuploaded activity was discarded/)).toBeVisible();
   await page.goto(`/scroll/${id(3)}`);
   await expect(page.getByTestId('scroll-article')).toBeVisible();
-  await page.getByRole('button', { name: 'Save to Keep', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect.poll(() => actions.length).toBe(1);
   expect(actions[0]?.recordingGeneration).toBe(2);
   expect(activations[0]?.recordingGeneration).toBe(2);

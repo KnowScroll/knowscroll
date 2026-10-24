@@ -243,7 +243,6 @@ const styles = StyleSheet.create({
     backgroundColor: content.ink,
     opacity: opacity.grabHandle,
   },
-  notice: { gap: spacing[2], paddingHorizontal: layout.gutter, paddingVertical: spacing[2], alignItems: 'flex-start' },
   sheet: {
     flexGrow: 1,
     width: '100%',
@@ -273,31 +272,3 @@ const styles = StyleSheet.create({
     color: content.ink,
   },
 });
-
-/** Last known, memory-only state attached to the exact encounter where it was requested. */
-export function RequestNotice({
-  session,
-  exposureId,
-  onPress,
-}: {
-  readonly session: RequestSession;
-  readonly exposureId: string;
-  readonly onPress: () => void;
-}) {
-  const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
-  if (
-    state.source?.exposureId !== exposureId ||
-    state.phase === 'draft' ||
-    state.phase === 'ended' ||
-    state.status?.status === 'cancelled'
-  )
-    return null;
-  return (
-    <View style={styles.notice}>
-      {state.status?.status === 'preparing' ? <RequestStatusChip status={state.status.phase} /> : null}
-      {state.status?.status === 'ready' ? <RequestStatusChip status="ready" /> : null}
-      <Text variant="meta">{state.status ? 'Request · last checked availability' : 'Your request'}</Text>
-      <Button label="View request" size="sm" onPress={onPress} />
-    </View>
-  );
-}
