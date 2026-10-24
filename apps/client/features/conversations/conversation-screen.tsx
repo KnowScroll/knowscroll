@@ -363,9 +363,24 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1 },
   body: { padding: layout.gutter },
-  banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[3] },
+  banner: {
+    paddingHorizontal: layout.gutter,
+    paddingTop: spacing[3],
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
+  },
   list: { flex: 1, backgroundColor: content.paper2 },
-  listContent: { padding: layout.gutter, gap: spacing[3], flexGrow: 1, justifyContent: 'flex-end' },
+  /** Messages keep the reading measure, centred, on wide screens (the multi-pane layout is D01 to D05). */
+  listContent: {
+    padding: layout.gutter,
+    gap: spacing[3],
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
+  },
   messages: { gap: spacing[3] },
   item: { gap: spacing[1] },
 });

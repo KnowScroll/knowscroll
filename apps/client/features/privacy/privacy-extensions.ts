@@ -21,7 +21,7 @@ export interface PrivacyExtension {
 export const privacyExtensions: readonly PrivacyExtension[] = [
   {
     id: 'shared-links',
-    title: 'Links you’ve shared',
+    title: 'Shared links',
     description: 'See your public links and stop sharing them.',
     href: '/account/privacy/shared-links',
     Panel: SharedLinksSection,

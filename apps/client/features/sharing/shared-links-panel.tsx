@@ -8,20 +8,29 @@ import { useSharedLinks } from './use-share-session';
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
 /**
- * "Links you've shared" (P02): every public link the person made and has not stopped, with a way
+ * "Shared links" (P02): every public link the person made and has not stopped, with a way
  * to stop each. A stopped link answers "no longer available" to everyone; copies already pasted
  * elsewhere cannot be recalled, and the panel says so. Mount it inside the privacy screen.
  */
-export function SharedLinksPanel({ scope }: { readonly scope: AccountScope }) {
+export function SharedLinksPanel({
+  scope,
+  titled = true,
+}: {
+  readonly scope: AccountScope;
+  /** Draws the heading; a page that names itself passes false. */
+  readonly titled?: boolean;
+}) {
   const { session, state } = useSharedLinks(scope);
   useEffect(() => {
     void session.refresh();
   }, [session]);
   return (
     <View style={styles.panel}>
-      <Text variant="title" heading={2}>
-        Links you’ve shared
-      </Text>
+      {titled ? (
+        <Text variant="title" heading={2}>
+          Shared links
+        </Text>
+      ) : null}
       <Text variant="meta" color={content.ink2}>
         Stopping a link makes it say “no longer available” for everyone. Copies already pasted elsewhere can’t be
         recalled.

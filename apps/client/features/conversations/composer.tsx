@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
-import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { IconButton, useTypeStyle } from '@knowscroll/ui';
 
 const MAX_LENGTH = 2000;
@@ -29,48 +29,56 @@ export function Composer({
   };
   return (
     <View style={styles.bar}>
-      <TextInput
-        accessibilityLabel={`Message ${name}`}
-        placeholder={`Message ${name}`}
-        placeholderTextColor={content.ink2}
-        value={value}
-        onChangeText={onChange}
-        multiline
-        maxLength={MAX_LENGTH}
-        allowFontScaling={false}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onKeyPress={(event) => {
-          const key = event.nativeEvent as unknown as { key: string; shiftKey?: boolean };
-          if (Platform.OS === 'web' && key.key === 'Enter' && key.shiftKey !== true) {
-            (event as unknown as { preventDefault?: () => void }).preventDefault?.();
-            send();
-          }
-        }}
-        style={[
-          styles.input,
-          {
-            fontFamily: type.fontFamily,
-            fontSize: type.fontSize,
-            lineHeight: type.lineHeight,
-            borderColor: focused ? content.accent : content.ink,
-          },
-        ]}
-      />
-      <IconButton icon="send" label="Send message" variant="accent" disabled={text === ''} onPress={send} />
+      <View style={styles.column}>
+        <TextInput
+          accessibilityLabel={`Message ${name}`}
+          placeholder={`Message ${name}`}
+          placeholderTextColor={content.ink2}
+          value={value}
+          onChangeText={onChange}
+          multiline
+          maxLength={MAX_LENGTH}
+          allowFontScaling={false}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyPress={(event) => {
+            const key = event.nativeEvent as unknown as { key: string; shiftKey?: boolean };
+            if (Platform.OS === 'web' && key.key === 'Enter' && key.shiftKey !== true) {
+              (event as unknown as { preventDefault?: () => void }).preventDefault?.();
+              send();
+            }
+          }}
+          style={[
+            styles.input,
+            {
+              fontFamily: type.fontFamily,
+              fontSize: type.fontSize,
+              lineHeight: type.lineHeight,
+              borderColor: focused ? content.accent : content.ink,
+            },
+          ]}
+        />
+        <IconButton icon="send" label="Send message" variant="accent" disabled={text === ''} onPress={send} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   bar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing[2],
     padding: spacing[3],
     borderTopWidth: borderWidth.regular,
     borderTopColor: content.ink,
     backgroundColor: content.paper,
+  },
+  /** On wide screens the box keeps the reading measure, centred under the messages. */
+  column: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing[2],
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
   },
   input: {
     flex: 1,
