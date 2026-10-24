@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
@@ -9,22 +9,24 @@ import { Banner, Button, Icon, IconButton, Skeleton, StateBlock, Tag, Text } fro
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
+import { ActivitiesSection } from './activities-section';
 import { AiLabel, ModeratorLabel } from './ai-label';
 import { discussionHref, isRoomId } from './room-links';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
-import { useRoom } from './use-room';
+import { RoomWorkspaceContext } from './room-workspace-context';
+import { useRoom, useRoomActivities } from './use-room';
 
 type Preview = Extract<RoomView, { status: 'preview' }>;
 type Member = Extract<RoomView, { status: 'member' }>;
 
-const RULE_WORDS = {
+export const RULE_WORDS = {
   open: 'Open to everyone',
   friends_of_members: 'Open to friends of members',
   invite_only: 'Invite-only',
 } as const;
 
 /** The dark header both the preview and the room share (R01 "rhead"). */
-function RoomHeader({
+export function RoomHeader({
   name,
   onBack,
   children,
@@ -195,7 +197,16 @@ export function PreviewBody({
   );
 }
 
-function DiscussionRow({ roomId, item }: { readonly roomId: string; readonly item: RoomDiscussionSummary }) {
+function DiscussionRow({
+  roomId,
+  item,
+  selected,
+}: {
+  readonly roomId: string;
+  readonly item: RoomDiscussionSummary;
+  /** The discussion open beside the list (D04). */
+  readonly selected?: boolean;
+}) {
   const router = useRouter();
   const metadata =
     item.root?.status === 'available'
@@ -223,7 +234,8 @@ function DiscussionRow({ roomId, item }: { readonly roomId: string; readonly ite
       role="link"
       accessibilityLabel={`${item.pinned ? 'Pinned by the moderator. ' : ''}${item.title}, ${subtitle}`}
       onPress={() => router.push(href)}
-      style={[styles.row, item.pinned ? styles.rowPinned : null]}
+      aria-current={selected === true ? 'true' : undefined}
+      style={[styles.row, item.pinned ? styles.rowPinned : null, selected === true ? styles.rowSelected : null]}
       testID={`discussion-${item.discussionId}`}
     >
       {item.pinned ? (
@@ -255,17 +267,28 @@ function DiscussionRow({ roomId, item }: { readonly roomId: string; readonly ite
   );
 }
 
+/** R03's way in on a phone: the room's polls and quizzes under its threads. */
+function PageActivities({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+  const { controller, state } = useRoomActivities(scope, roomId);
+  return <ActivitiesSection roomId={roomId} state={state} controller={controller} />;
+}
+
 /** R02 "Room · threads": the room's discussions, pinned first, and the ways to start one. */
 export function MemberBody({
   scope,
   view,
   controller,
   state,
+  rail,
+  selectedDiscussionId,
 }: {
   readonly scope: AccountScope;
   readonly view: Member;
   readonly controller: RoomController;
   readonly state: RoomState;
+  /** D04's left pane: no activity here (it has its own pane) and the open discussion is marked. */
+  readonly rail?: boolean;
+  readonly selectedDiscussionId?: string;
 }) {
   const router = useRouter();
   const [sharing, setSharing] = useState(false);
@@ -309,11 +332,16 @@ export function MemberBody({
           <View role="list" accessibilityLabel="Discussions in this room" style={styles.rows}>
             {view.discussions.map((item) => (
               <View key={item.discussionId} role="listitem">
-                <DiscussionRow roomId={view.room.roomId} item={item} />
+                <DiscussionRow
+                  roomId={view.room.roomId}
+                  item={item}
+                  selected={item.discussionId === selectedDiscussionId}
+                />
               </View>
             ))}
           </View>
         )}
+        {rail === true ? null : <PageActivities scope={scope} roomId={view.room.roomId} />}
         {view.guidelines === undefined ? null : <Guidelines text={view.guidelines} />}
         {moderator ? (
           <View style={styles.moderation}>
@@ -367,9 +395,17 @@ export function MemberBody({
   );
 }
 
-function OpenRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+/** One room as a full page: the preview for an outsider, the room's threads for a member. */
+function RoomPage({
+  scope,
+  controller,
+  state,
+}: {
+  readonly scope: AccountScope;
+  readonly controller: RoomController;
+  readonly state: RoomState;
+}) {
   const router = useRouter();
-  const { controller, state } = useRoom(scope, roomId);
   const view = state.view;
   useDocumentTitle(view?.room.name ?? 'Room');
   const back = () => (router.canGoBack() ? router.back() : router.replace('/conversations'));
@@ -425,6 +461,31 @@ function OpenRoom({ scope, roomId }: { readonly scope: AccountScope; readonly ro
   );
 }
 
+/** A room opened on its own (a phone, a tablet): the screen reads it itself. */
+function StandaloneRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+  const { controller, state } = useRoom(scope, roomId);
+  return <RoomPage scope={scope} controller={controller} state={state} />;
+}
+
+/** A room opened beside its own panes (D04): the layout already reads it, and a member's centre is a quiet prompt. */
+function WorkspaceRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+  const workspace = useContext(RoomWorkspaceContext);
+  if (workspace === undefined) return <StandaloneRoom scope={scope} roomId={roomId} />;
+  if (workspace.panes)
+    return (
+      <View style={styles.centreHome} testID="room-workspace-home">
+        <Text variant="title" heading={1}>
+          Choose a thread
+        </Text>
+        <Text variant="bodyS" color={content.ink2} style={styles.centreHomeText}>
+          Pick a discussion on the left, or share something into the room to start one. Nobody has to join in, and
+          nothing here changes your universe.
+        </Text>
+      </View>
+    );
+  return <RoomPage scope={scope} controller={workspace.controller} state={workspace.state} />;
+}
+
 /**
  * R01 and R02's room list: a room is a station in the person's own geography with one identity.
  * Outsiders see who it is for and who is here to help, then join; members see the room's discussions.
@@ -442,7 +503,7 @@ export function RoomScreen({ roomId }: { readonly roomId: string }) {
       {!isRoomId(roomId) ? (
         <StateBlock title="This room isn’t available" body="Check the address and try again." />
       ) : state.status === 'signed_in' ? (
-        <OpenRoom key={roomId} scope={state.scope} roomId={roomId} />
+        <WorkspaceRoom key={roomId} scope={state.scope} roomId={roomId} />
       ) : state.status === 'unavailable' ? (
         <StateBlock
           title="Can’t reach your account"
@@ -470,6 +531,8 @@ export function RoomScreen({ roomId }: { readonly roomId: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   scroll: { flexGrow: 1 },
+  centreHome: { flex: 1, gap: spacing[2], padding: layout.gutter, justifyContent: 'center', alignItems: 'center' },
+  centreHomeText: { maxWidth: 420, textAlign: 'center' },
   header: {
     gap: spacing[2],
     paddingHorizontal: layout.gutter,
@@ -522,6 +585,7 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   rowPinned: { backgroundColor: content.paper2 },
+  rowSelected: { backgroundColor: content.continue },
   pinnedLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   tile: {

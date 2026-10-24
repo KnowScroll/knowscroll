@@ -1,6 +1,12 @@
 import type * as React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
+import type {
+  AccountScope,
+  RoomActivitiesController,
+  RoomActivitiesState,
+  RoomController,
+  RoomState,
+} from '@knowscroll/client-core';
 import type { RoomView } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { MemberBody, PreviewBody } from './room-screen';
@@ -13,6 +19,24 @@ jest.mock('expo-router', () => {
     useRouter: () => ({ navigate: jest.fn(), push: mockPush, replace: jest.fn(), canGoBack: () => false }),
     useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   };
+});
+
+const mockActivities = jest.fn<{ controller: RoomActivitiesController; state: RoomActivitiesState }, []>();
+jest.mock('./use-room', () => ({
+  ...jest.requireActual<object>('./use-room'),
+  useRoomActivities: () => mockActivities(),
+}));
+const activitiesState = (patch: Partial<RoomActivitiesState> = {}) => ({
+  controller: { load: jest.fn(), create: jest.fn() } as unknown as RoomActivitiesController,
+  state: {
+    phase: 'ready',
+    activities: [],
+    canCreate: false,
+    offline: false,
+    working: false,
+    refused: false,
+    ...patch,
+  } satisfies RoomActivitiesState,
 });
 
 const id = (n: number) => `0199d000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -132,6 +156,7 @@ describe('a room preview (R01)', () => {
 
 describe('a room as a member (R02)', () => {
   const scope = {} as AccountScope;
+  beforeEach(() => mockActivities.mockReturnValue(activitiesState()));
   const discussions = [
     { discussionId: id(10), title: 'Offline inference', pinned: false, lastActivityAt: '2026-10-24T08:00:00.000Z' },
     {
@@ -185,6 +210,55 @@ describe('a room as a member (R02)', () => {
     await wrap(<MemberBody scope={scope} view={member()} controller={controller()} state={roomState()} />);
     expect(screen.queryByText('Moderator tools')).not.toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Share into room' })).toBeOnTheScreen();
+  });
+});
+
+describe('a room’s optional activity (R03) on its page', () => {
+  const scope = {} as AccountScope;
+  const poll = {
+    activityId: id(50),
+    kind: 'poll' as const,
+    title: 'At 10x requests, what would you try first?',
+    state: 'open' as const,
+    startedAt: '2026-10-24T08:00:00.000Z',
+    voted: true,
+  };
+  const quiz = { ...poll, activityId: id(51), kind: 'quiz' as const, title: 'Room quiz', voted: undefined };
+
+  it('shows nothing at all when there is nothing and the person is not a moderator', async () => {
+    mockActivities.mockReturnValue(activitiesState());
+    await wrap(<MemberBody scope={scope} view={member()} controller={controller()} state={roomState()} />);
+    expect(screen.queryByTestId('room-activities')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Optional')).not.toBeOnTheScreen();
+  });
+
+  it('lists the polls and quizzes as optional, says whether the person voted, and opens one', async () => {
+    mockPush.mockClear();
+    mockActivities.mockReturnValue(activitiesState({ activities: [poll, quiz] }));
+    await wrap(<MemberBody scope={scope} view={member()} controller={controller()} state={roomState()} />);
+    expect(screen.getByText('Room activity')).toBeOnTheScreen();
+    expect(screen.getByText('Poll · Optional · You voted')).toBeOnTheScreen();
+    expect(screen.getByText('Quiz · Optional')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId(`activity-${id(50)}`));
+    expect(mockPush).toHaveBeenCalledWith(`/rooms/${id(1)}/activity/${id(50)}`);
+    // No count, no badge, no "new".
+    expect(screen.queryByText(/new|unread|\d+ (polls|quizzes)/i)).not.toBeOnTheScreen();
+  });
+
+  it('gives a moderator the two ways to start one, and nobody else', async () => {
+    mockActivities.mockReturnValue(activitiesState({ canCreate: true }));
+    await wrap(
+      <MemberBody scope={scope} view={member({ role: 'moderator' })} controller={controller()} state={roomState()} />,
+    );
+    expect(screen.getByRole('button', { name: 'Start a poll' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Start a quiz' })).toBeOnTheScreen();
+    expect(screen.getByText('Nothing open. Nobody has to join in.')).toBeOnTheScreen();
+  });
+
+  it('leaves the activity out of D04’s left pane, which has a pane of its own for it', async () => {
+    mockActivities.mockReturnValue(activitiesState({ activities: [poll] }));
+    await wrap(<MemberBody scope={scope} view={member()} controller={controller()} state={roomState()} rail />);
+    expect(screen.queryByTestId('room-activities')).not.toBeOnTheScreen();
   });
 });
 

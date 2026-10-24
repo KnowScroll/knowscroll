@@ -1,4 +1,4 @@
-import type { RoomListItem, RoomView } from '@knowscroll/contracts';
+import type { RoomListItem, RoomStation, RoomView } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { talkFailure } from './talk-failure';
 
@@ -8,6 +8,15 @@ const VERSION = 'rooms.v1' as const;
 export async function readRoomList(scope: AccountScope, newId: () => string): Promise<readonly RoomListItem[]> {
   const list = await scope.api.rooms.list({ version: VERSION, readId: newId() });
   return list.items;
+}
+
+/**
+ * The room stations of the person's own map (U01, U02), each beside the place of its topic. A failed
+ * request throws; `talkFailure` classifies it. A person with no map has none.
+ */
+export async function readRoomStations(scope: AccountScope, newId: () => string): Promise<readonly RoomStation[]> {
+  const answer = await scope.api.rooms.stations({ version: VERSION, readId: newId() });
+  return answer.stations;
 }
 
 export type StartDiscussion =
