@@ -72,20 +72,35 @@ function Card({ children }: { readonly children: ReactNode }) {
   return <View style={styles.card}>{children}</View>;
 }
 
-/** The settings list beside the cards on desktops (D05 `.sn`): only the pages that exist. */
+/** The other pages of the settings list (D05 `.sn`): only the ones that exist. Notifications and playback are not built. */
+const OTHER_SETTINGS = [
+  { title: 'Account', href: '/account' },
+  { title: 'Your requests', href: '/account/requests' },
+  { title: 'Friends & visibility', href: '/friends' },
+] as const;
+
+function SettingsLink({ title, href }: (typeof OTHER_SETTINGS)[number]) {
+  const focus = useFocusRing('onLight');
+  return (
+    <Link href={href} asChild>
+      <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
+        <Text variant="bodyS">{title}</Text>
+      </Pressable>
+    </Link>
+  );
+}
+
+/** The settings list beside the cards on desktops (D05 `.sn`). */
 function SettingsNav() {
   const { state } = useAccountScope();
-  const focus = useFocusRing('onLight');
   return (
     <View style={styles.nav} role="navigation" aria-label="Settings">
       <Text variant="heading" heading={2}>
         Settings
       </Text>
-      <Link href="/account" asChild>
-        <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
-          <Text variant="bodyS">Account</Text>
-        </Pressable>
-      </Link>
+      {OTHER_SETTINGS.map((item) => (
+        <SettingsLink key={item.href} {...item} />
+      ))}
       <View aria-current="page" style={[styles.navItem, styles.navCurrent]}>
         <Text variant="bodyS" color={content.paper}>
           Privacy & history

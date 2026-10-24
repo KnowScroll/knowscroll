@@ -2,8 +2,8 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { inboxRowView, listTime, threadRowView, type AccountScope } from '@knowscroll/client-core';
 import type { DirectConversationSummary } from '@knowscroll/contracts';
-import { borderWidth, content, dimension, layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, RowLink, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { borderWidth, content, dimension, layout, radius, spacing } from '@knowscroll/design-tokens';
+import { Banner, Button, RowLink, Skeleton, StateBlock, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 import { EmptyTalk } from './empty-talk-screen';
@@ -13,7 +13,7 @@ import { useTalkInbox } from './use-talk-inbox';
 import { ThreadRow } from '../threads/thread-row';
 import { useThreadInbox } from '../threads/use-thread-inbox';
 
-function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
+function InboxRow({ item, current }: { readonly item: DirectConversationSummary; readonly current: boolean }) {
   const router = useRouter();
   const view = inboxRowView(item);
   const href = conversationHref(item.conversation);
@@ -26,6 +26,7 @@ function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
         label={`${name}${view.unread ? ', unread' : ''}, ${preview}${time === undefined ? '' : `, ${time}`}`}
         href={href}
         onPress={() => router.push(href)}
+        current={current}
         testID={`talk-row-${item.conversation.conversationId}`}
       >
         <View style={styles.row}>
@@ -52,7 +53,8 @@ function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
   );
 }
 
-function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
+/** The person's conversations and threads, newest first; `currentId` marks the one open beside the list. */
+export function TalkList({ scope, currentId }: { readonly scope: AccountScope; readonly currentId?: string }) {
   const inbox = useTalkInbox(scope);
   const threads = useThreadInbox(scope);
   if (inbox.loading || threads.loading) return <Skeleton rows={4} label="Loading conversations" />;
@@ -70,7 +72,7 @@ function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
     ...inbox.items.map((item) => ({
       key: item.conversation.conversationId,
       at: inboxRowView(item).at?.getTime() ?? 0,
-      node: <InboxRow item={item} />,
+      node: <InboxRow item={item} current={item.conversation.conversationId === currentId} />,
     })),
     ...threads.items.map((item) => ({
       key: item.thread.threadId,
@@ -106,13 +108,32 @@ function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
   );
 }
 
-/** C01: Talk, the inbox of real conversations. Reading or opening it records nothing about anyone. */
+/**
+ * C01: Talk, the inbox of real conversations. Reading or opening it records nothing about anyone.
+ * From 1024 px (D03) the list has a pane beside it, where a chosen conversation opens; until one
+ * is chosen the pane says so.
+ */
 export function ConversationsScreen() {
   const { state, manager } = useAccountScopeIfPresent();
+  const desktop = useDisplay().breakpoint === 'desktop';
   return (
     <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
-      {state.status === 'signed_in' ? (
-        <SignedInTalk scope={state.scope} />
+      {state.status === 'signed_in' && desktop ? (
+        <View style={styles.panes}>
+          <View style={styles.listPane}>
+            <TalkList scope={state.scope} />
+          </View>
+          <View style={styles.emptyPane}>
+            <Text variant="heading" heading={2}>
+              Pick a conversation
+            </Text>
+            <Text variant="bodyS" color={content.ink2}>
+              It opens here, beside the list.
+            </Text>
+          </View>
+        </View>
+      ) : state.status === 'signed_in' ? (
+        <TalkList scope={state.scope} />
       ) : state.status === 'unavailable' && manager !== undefined ? (
         <StateBlock
           title="Can't reach your account"
@@ -134,9 +155,25 @@ export function ConversationsScreen() {
   );
 }
 
+/** The inbox pane beside an open conversation (D03). */
+export const PANE_LIST_WIDTH = 380;
+
 const styles = StyleSheet.create({
-  /** On wide screens rows keep the reading measure; the multi-pane Talk is D01 to D05. */
+  /** On wide screens rows keep the reading measure. */
   list: { width: '100%', maxWidth: layout.measureDesktop },
+  panes: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing[8] },
+  listPane: { width: PANE_LIST_WIDTH },
+  emptyPane: {
+    flex: 1,
+    minHeight: 240,
+    justifyContent: 'center',
+    gap: spacing[2],
+    padding: spacing[8],
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderStyle: 'dashed',
+    borderRadius: radius.panel,
+  },
   rowFrame: { borderBottomWidth: borderWidth.hairline, borderBottomColor: content.rule },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   rowText: { flex: 1, gap: spacing['0.5'] },

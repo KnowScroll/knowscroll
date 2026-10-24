@@ -1,8 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
+import { conversation, talkFixture, thread } from './talk-fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
-import { encounterFixture, id } from './encounter-fixture';
+import { signedInAccount } from './account-fixture';
+import { encounterFixture } from './encounter-fixture';
 
 /**
  * Automated accessibility checks (axe-core) over the main routes of the production export, at a
@@ -51,61 +53,6 @@ async function expectAccessible(page: Page, ready: () => Promise<void>, landmark
   // Behind a modal sheet the page is inert, so its landmarks are hidden on purpose.
   if (landmarks) await expect(page.getByRole('main')).toHaveCount(1);
   expect(await seriousViolations(page)).toEqual([]);
-}
-
-const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'axe@fixture.test' };
-
-/** A signed-in account with an empty Talk inbox, nothing kept and no sessions beyond this one. */
-async function signedInAccount(page: Page) {
-  const ago = new Date(Date.now() - 60_000).toISOString();
-  await page.route('**/auth/session', (route) =>
-    route.fulfill({ json: { account, client: 'web', expiresAt: '2099-10-23T00:00:00.000Z' } }),
-  );
-  await page.route('**/auth/deletion/**', (route) => route.fulfill({ json: { state: 'in_progress' } }));
-  await page.route('**/v1/**', (route: Route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
-    const scope = { accountId: account.accountId, privacyEpoch: 1 };
-    if (isInboxPath(path)) return route.fulfill({ json: emptyInbox(path, body, account.accountId) });
-    if (path === '/v1/privacy/recording/read')
-      return route.fulfill({
-        json: { version: 'recording-policy.v1', ...body, scope, revision: 0, policy: { on: true, generation: 1 } },
-      });
-    if (path === '/v1/privacy/clear-exploration/status')
-      return route.fulfill({
-        json: { version: 'clear-exploration.v1', scope, target: body['target'], status: 'not_recorded' },
-      });
-    if (path === '/v1/account/sessions')
-      return route.fulfill({
-        json: {
-          sessions: [
-            {
-              id: id(10),
-              client: 'web',
-              deviceLabel: 'Chrome on macOS',
-              lastUsedAt: ago,
-              signedInAt: ago,
-              current: true,
-            },
-          ],
-        },
-      });
-    if (path === '/v1/saved')
-      return route.fulfill({
-        json: {
-          pagination: 'saved-page.v1',
-          consistency: 'live',
-          filter: new URL(request.url()).searchParams.get('filter'),
-          limit: 20,
-          scope,
-          continuation: { status: 'end' },
-          revision: 1,
-          items: [],
-        },
-      });
-    return route.fulfill({ status: 404, json: {} });
-  });
 }
 
 test.describe('signed out', () => {
@@ -250,5 +197,26 @@ test.describe('the Universe', () => {
         );
       }
     });
+  }
+});
+
+test.describe('Talk with something in it', () => {
+  const addresses = [
+    { name: 'the inbox', path: '/conversations', ready: 'Ravi fixture' },
+    {
+      name: 'a conversation',
+      path: `/conversations/${conversation.conversationId}?m=${conversation.membershipId}&r=1`,
+      ready: 'Starting the second part now.',
+    },
+    { name: 'a content thread', path: `/threads/${thread.threadId}?m=${thread.membershipId}&r=1`, ready: 'CI series' },
+  ] as const;
+  for (const size of widths) {
+    for (const address of addresses) {
+      test(`${address.name} at ${size.label} has no serious axe violations`, async ({ page }) => {
+        await talkFixture(page, size);
+        await page.goto(address.path);
+        await expectAccessible(page, () => expect(page.getByText(address.ready).first()).toBeVisible());
+      });
+    }
   }
 });
