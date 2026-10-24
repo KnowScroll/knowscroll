@@ -24,6 +24,8 @@ import {
   READ_REGION_ENCOUNTER_CANDIDATES,
   LOCK_REGION_ENCOUNTER_CANDIDATES,
   RENDER_SCROLL,
+  CHOOSE_SCROLL_RECIPE,
+  READ_SCROLL_PRODUCTION,
   type RenderScroll,
 } from '../public.js';
 import {
@@ -40,6 +42,7 @@ import { makeRenderScroll } from './render-scroll.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
+import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
 
 /**
@@ -65,6 +68,8 @@ export function contentProviders() {
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
+    { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
+    { provide: READ_SCROLL_PRODUCTION, useValue: readScrollProduction },
   ];
 }
 
@@ -97,6 +102,10 @@ export { makeMediaAccess } from './media-access.js';
 
 /** Composition-only factory for the worker's bounded, nonpersonal Scroll operator. */
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
+/** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
+export { makeRunScrollProduction } from '../production/job.js';
+export { makeEnqueueScrollProduction, type EnqueueScrollProduction } from './enqueue-production.js';
+export { readLibraryStatus } from './production-state.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {
   readEncounterAttribution,

@@ -75,6 +75,7 @@ function SignedIn({ email }: { readonly email: string }) {
       </View>
       {state.status === 'signed_in' ? <SessionsList scope={state.scope} /> : null}
       <SettingsLabel>Settings</SettingsLabel>
+      <SettingsRow title="Your requests" description="What you asked KnowScroll to make" href="/account/requests" />
       <SettingsRow
         title="Privacy & history"
         description="Recording, export, clear exploration, delete"

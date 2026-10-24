@@ -5,9 +5,11 @@ import { apiContract, type ProblemCode } from '@knowscroll/contracts';
 import {
   CREATE_CONTENT_REQUEST,
   READ_CONTENT_REQUEST,
+  LIST_CONTENT_REQUESTS,
   CANCEL_CONTENT_REQUEST,
   type CreateRequest,
   type ReadRequest,
+  type ListRequests,
   type CancelRequest,
   type Refusal,
 } from '@knowscroll/backend/modules/supply';
@@ -23,6 +25,8 @@ const refusalProblems: Record<Refusal, ProblemCode> = {
   stale_source: 'ASSET_REVISION_STALE',
   // Unknown and another person's request have the same answer.
   not_found: 'NOT_FOUND',
+  // Too many asks are open at once: try again after one ends or is cancelled.
+  too_many_open: 'TOO_MANY_REQUESTS',
 };
 
 /** Private demand commands: acceptance receipts and current status remain separate reads. */
@@ -31,6 +35,7 @@ export class SupplyController {
   constructor(
     @Inject(CREATE_CONTENT_REQUEST) private readonly createRequest: CreateRequest,
     @Inject(READ_CONTENT_REQUEST) private readonly readRequest: ReadRequest,
+    @Inject(LIST_CONTENT_REQUESTS) private readonly listRequests: ListRequests,
     @Inject(CANCEL_CONTENT_REQUEST) private readonly cancelRequest: CancelRequest,
   ) {}
 
@@ -47,6 +52,15 @@ export class SupplyController {
   readRoute(@Req() request: Request) {
     return implement(apiContract.supply.read).handler(async ({ input }) => {
       const result = await this.readRequest(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
+      return result.value;
+    });
+  }
+
+  @Implement(apiContract.supply.list)
+  listRoute(@Req() request: Request) {
+    return implement(apiContract.supply.list).handler(async () => {
+      const result = await this.listRequests(authorityOf(admittedCaller(request)));
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return result.value;
     });

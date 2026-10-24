@@ -15,6 +15,7 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/friends` | `app/friends/index.tsx` | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility | Friends |
 | `/friends/invite` | `app/friends/invite.tsx` | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in | Friend invitation |
 | `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: scoped bounded saved list, real metadata/status, filters, remove/retry and explicit immutable original/updated-version revisit choices. | Keep |
+| `/account/requests` | `app/(tabs)/account/requests.tsx` | E07 Your requests: the person's own asks with their state (requested, preparing, ready, couldn't prepare, cancelled), Open when ready, Cancel while preparing, "may be out of date" when a refresh fails (#239) | Requests |
 | `/account` | `app/(tabs)/account/` | P01, the account stack, reached from the avatar on every tab (D-006 c): signed in, the address, the person's sessions (coarse device names and last use; Sign out of one asks once; "Sign out of other devices"), the settings that exist and "Sign out" of this device; signed out, "Sign in" and the receipt of an account deletion asked for here; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
 | `/account/privacy` | `app/(tabs)/account/privacy/index.tsx` | P02 hub (phones, tablets): recording, History & export, Clear exploration, privacy controls other slices add (`features/privacy/privacy-extensions.ts`), Delete account. D05 (desktops): the settings list and one card per control on this one page | Privacy & history |
 | `/account/privacy/export`, `/clear`, `/delete` | `app/(tabs)/account/privacy/*.tsx` | The control of that name on a page of its own (phones, tablets); on desktops they redirect to `/account/privacy` | History & export · Clear exploration · Delete account |
@@ -194,9 +195,9 @@ or Request Scroll actions. Existing ready siblings keep the normal navigation pa
 
 `features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
 real `supply.create/read/cancel` HTTP commands with the existing encounter capabilities. Private text
-is bounded to 500 characters; the current backend closes free-text requests as unsupported. Three
-explicit catalogue suggestions send their selected canonical intent, without interpreting private
-prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
+is bounded to 500 characters and is sent as a free-text ask: the server matches it to an exact
+catalogue topic or closes it as unsupported. Three explicit catalogue suggestions send their selected
+canonical intent, without interpreting private prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
 asset revision and latest authorised matching session revision; changed sources require a new choice.
 
 A deliberate send/cancel gets a fresh command ID. Unknown transport outcomes freeze the entire
@@ -206,9 +207,17 @@ reads while the request panel is foreground, stops on terminal/close/scope end, 
 explicitly. Reopening reads current status. Ready never interrupts playback: Open rechecks status,
 then uses the existing exact-revision return/open/activation flow. Cancel affects only the caller's
 waiter according to server authority; closing is not cancellation. Scope end clears all draft,
-frozen command, source, receipt, status and timers. There is no durable request list or production
+frozen command, source, receipt, status and timers. There is no production
 retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
+
+`features/requests/requests-list-session.ts` is the memory-only session behind "Your requests"
+(`/account/requests`, E07). It reads `supply.list`, keeps the highest request revision it has seen of each
+ask, looks again every ten seconds while the list is visible and something is preparing, and keeps the last
+list marked out of date when a refresh fails. Cancel is the same command as in the request sheet, and an
+unconfirmed cancel is retried with its exact command ID. `RequestsList` and `useRequestsList` can be
+mounted anywhere; Keep's Requested view is meant to mount them. Closed-request copy lives in
+`request-copy.ts`: it says the request is closed and never names models, budgets or machinery.
 
 ## Universe (#238)
 

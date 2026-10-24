@@ -52,6 +52,7 @@ export const releaseQueues = queueRegistry([
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,
+  produceScrollQueue,
   plannerQueue,
   prepareBufferQueue,
   applyActionEvidenceQueue,
@@ -61,4 +62,4 @@ export const releaseQueues = queueRegistry([
   purgeExpiredRequestsQueue,
   sweepDispatchedAttemptsQueue,
 ]);
-import { receiveCutroomQueue, recoverReceiveCutroomQueue } from './modules/content/public.js';
+import { produceScrollQueue, receiveCutroomQueue, recoverReceiveCutroomQueue } from './modules/content/public.js';

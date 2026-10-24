@@ -1,25 +1,41 @@
 import {
   CREATE_CONTENT_REQUEST,
   READ_CONTENT_REQUEST,
+  LIST_CONTENT_REQUESTS,
   CANCEL_CONTENT_REQUEST,
   RESOLVE_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
 } from '../public.js';
 import { CHECK_REQUEST_SOURCE, type CheckRequestSource } from '../../experience/public.js';
 import {
+  CHOOSE_SCROLL_RECIPE,
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
+  READ_REGION_ENCOUNTER_CANDIDATES,
+  READ_SCROLL_PRODUCTION,
   LOCK_CURRENT_ENCOUNTERS,
+  produceScrollJob,
+  produceScrollSingletonKey,
+  produceScrollQueue,
+  type ChooseScrollRecipe,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
+  type ReadRegionEncounterCandidates,
+  type ReadScrollProduction,
   type LockCurrentEncounters,
 } from '../../content/public.js';
+import type { ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  READ_EXPLORATION_SNAPSHOT,
+  encounteredUnitsOf,
+  type ReadExplorationSnapshot,
+} from '../../personal-context/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
   type CheckPersonalOwnerActive,
   type WithPersonalScope,
 } from '../../identity/public.js';
-import { uuidv7 } from '../../../infrastructure/ids/index.js';
+import { stableUuid, uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
@@ -33,21 +49,49 @@ import {
   makeCreateRequest,
   makeReadRequest,
   makeCancelRequest,
-  makeResolveRequest,
   makeRecordPlannedDemand,
 } from '../application/requests.js';
+import { makeListRequests } from '../application/list.js';
+import { makeMatchRequest } from '../application/matching.js';
+import { makeResolveRequest } from '../application/resolve.js';
 import { resolveSupplyQueue } from '../events.js';
 import type { SupplyPorts } from '../application/ports.js';
 import { supplyStore } from './postgres-store.js';
 export const SUPPLY_PORTS = Symbol('supply.ports');
-/** Same provider-free use cases in API/worker. No HTTP route or production bridge is installed. */
-export function supplyProviders(t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
+/** What Supply reads from a process's configuration (the API's and the worker's both carry it). */
+export interface SupplySettings {
+  /** Productions people's own asks may start per UTC day; 0 turns Create off. */
+  readonly supplyCreateDailyCap: number;
+  /** Productions the Planner's demand may start per UTC day; never above the cap for people. */
+  readonly supplyPlannerCreateDailyCap: number;
+}
+
+/** Priority of a person's production job over operator seeding (priority 0). */
+const REQUEST_PRIORITY = 10;
+
+/**
+ * Supply's use cases for the API and the worker. `config` names the token of the process's
+ * configuration (`SupplySettings`). The worker also passes `harness`, the personal reasoning
+ * harness, which lets its resolver match free-text asks to the catalogue; without it (the API, tests)
+ * a free-text ask simply waits for a worker.
+ */
+export function supplyProviders(t: {
+  readonly withPersonalScope: symbol;
+  readonly enqueueJob: symbol;
+  readonly config: symbol;
+  readonly harness?: symbol;
+}) {
   return [
     {
       provide: SUPPLY_PORTS,
       inject: [
         t.withPersonalScope,
         t.enqueueJob,
+        t.config,
+        READ_EXPLORATION_SNAPSHOT,
+        CHOOSE_SCROLL_RECIPE,
+        READ_SCROLL_PRODUCTION,
+        READ_REGION_ENCOUNTER_CANDIDATES,
         READ_DISCOVERY_CANDIDATES,
         READ_EXACT_ENCOUNTER,
         LOCK_CURRENT_ENCOUNTERS,
@@ -57,6 +101,11 @@ export function supplyProviders(t: { readonly withPersonalScope: symbol; readonl
       useFactory: (
         withScope: WithPersonalScope,
         enqueue: EnqueueJob,
+        settings: SupplySettings,
+        readExploration: ReadExplorationSnapshot,
+        chooseRecipe: ChooseScrollRecipe,
+        readProduction: ReadScrollProduction,
+        readFacetCandidates: ReadRegionEncounterCandidates,
         readCandidates: ReadDiscoveryCandidates,
         readExact: ReadExactEncounter,
         lockCurrent: LockCurrentEncounters,
@@ -66,6 +115,33 @@ export function supplyProviders(t: { readonly withPersonalScope: symbol; readonl
         withScope,
         ownerActive,
         store: supplyStore,
+        chooseRecipe,
+        readProduction,
+        readFacetCandidates,
+        createDailyCaps: {
+          person: settings.supplyCreateDailyCap,
+          planner: Math.min(settings.supplyPlannerCreateDailyCap, settings.supplyCreateDailyCap),
+        },
+        readMetUnits: async (scope, query) => {
+          const snapshot = await readExploration(scope, {
+            evaluatedAt: new Date().toISOString(),
+            topicIds: [...query.topicIds],
+            candidates: query.units.map((explanationUnitId) => ({ explanationUnitId, facets: [] })),
+            provisionalLimit: 0,
+          });
+          // Without proof of what they have met, nothing is shown to be new: bind nothing.
+          return snapshot.proofAvailability === 'available'
+            ? new Set(encounteredUnitsOf(snapshot))
+            : new Set(query.units);
+        },
+        enqueueProduction: (scope, recipe, take) => {
+          const job = produceScrollJob(recipe, take);
+          return enqueue(scope, produceScrollQueue, job, {
+            singletonKey: produceScrollSingletonKey(job),
+            duplicate: 'ignore',
+            priority: REQUEST_PRIORITY,
+          });
+        },
         readCandidates,
         readExact,
         lockCurrent,
@@ -74,13 +150,24 @@ export function supplyProviders(t: { readonly withPersonalScope: symbol; readonl
         now: () => new Date(),
         advance: advanceScopeRevision,
         notify: (scope, revision, eventId) => notifyScopeChanged(scope, { revision, eventId }),
-        enqueue: (scope, requestId) =>
-          enqueue(scope, resolveSupplyQueue, {
-            v: 1,
-            universeId: scope.authority.universeId,
-            privacyEpoch: scope.authority.privacyEpoch,
-            requestId,
-          }),
+        enqueue: (scope, requestId, options) =>
+          enqueue(
+            scope,
+            resolveSupplyQueue,
+            {
+              v: 1,
+              universeId: scope.authority.universeId,
+              privacyEpoch: scope.authority.privacyEpoch,
+              requestId,
+            },
+            options === undefined
+              ? undefined
+              : {
+                  startAfter: options.startAfter,
+                  jobId: stableUuid(`supply-wait:${requestId}:${options.slot}`),
+                  duplicate: 'ignore',
+                },
+          ),
         receipts: {
           async find(scope, operation, commandId, command) {
             const r = await findPersonalReceipt(scope, {
@@ -105,8 +192,14 @@ export function supplyProviders(t: { readonly withPersonalScope: symbol; readonl
     },
     { provide: CREATE_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeCreateRequest(p) },
     { provide: READ_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeReadRequest(p) },
+    { provide: LIST_CONTENT_REQUESTS, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeListRequests(p) },
     { provide: CANCEL_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeCancelRequest(p) },
-    { provide: RESOLVE_CONTENT_REQUEST, inject: [SUPPLY_PORTS], useFactory: (p: SupplyPorts) => makeResolveRequest(p) },
+    {
+      provide: RESOLVE_CONTENT_REQUEST,
+      inject: [SUPPLY_PORTS, ...(t.harness === undefined ? [] : [t.harness])],
+      useFactory: (p: SupplyPorts, harness?: ReasoningHarness) =>
+        makeResolveRequest(p, harness === undefined ? undefined : makeMatchRequest(p, harness)),
+    },
     {
       provide: RECORD_PLANNED_DEMAND,
       inject: [SUPPLY_PORTS],
@@ -118,7 +211,10 @@ export {
   makeCreateRequest,
   makeReadRequest,
   makeCancelRequest,
-  makeResolveRequest,
   makeRecordPlannedDemand,
 } from '../application/requests.js';
+export { makeResolveRequest } from '../application/resolve.js';
+export { makeMatchRequest } from '../application/matching.js';
+export { makeListRequests } from '../application/list.js';
+export { recoverOpenDemand, type RecoveredDemand } from './recover-open-demand.js';
 export type { SupplyPorts } from '../application/ports.js';

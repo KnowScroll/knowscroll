@@ -61,6 +61,16 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
     expect(LIBRARY_SYSTEMS).toHaveLength(6);
   });
 
+  it('gives every facet a recipe that teaches it, so a request for any catalogue meaning can be produced', () => {
+    for (const system of LIBRARY_SYSTEMS)
+      for (const topic of system.topics)
+        for (const facet of topic.facets)
+          expect(
+            recipes.some((recipe) => recipe.topicId === topic.id && recipe.facetId === facet.id),
+            facet.id,
+          ).toBe(true);
+  });
+
   it('gives every system and planet a Scene family, with Earth as it always was', () => {
     const families = ['terraced.v1', 'ridged.v1', 'archipelago.v1'];
     for (const system of LIBRARY_SYSTEMS) {

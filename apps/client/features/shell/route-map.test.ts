@@ -45,6 +45,7 @@ describe('route map', () => {
         '/account/privacy/clear',
         '/account/privacy/delete',
         '/account/privacy/export',
+        '/account/requests',
         '/conversations',
         '/explore',
         '/friends',

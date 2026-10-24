@@ -6,6 +6,7 @@ import type {
   ContentRequestReceipt,
   ContentRequestStatus,
   CancelContentRequestReceipt,
+  ContentRequestList,
   CreateContentRequest,
   ProblemCode,
 } from '@knowscroll/contracts';
@@ -52,6 +53,10 @@ const status: ContentRequestStatus = {
   status: 'unavailable',
   reason: 'unsupported_request',
 };
+const listing: ContentRequestList = {
+  version: 'content-request-list.v1',
+  requests: [{ title: 'Seasons', format: 'scroll', status }],
+};
 async function admittedRequest(): Promise<Request> {
   const request = { path: '/v1/content/requests', headers: { 'x-ks-scope': `${accountId}:2` } } as unknown as Request;
   const next = vi.fn();
@@ -65,13 +70,14 @@ async function admittedRequest(): Promise<Request> {
 function wired() {
   const create = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: receipt }));
   const read = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: status }));
+  const list = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: listing }));
   const cancel = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: cancellation }));
-  return { controller: new SupplyController(create, read, cancel), create, read, cancel };
+  return { controller: new SupplyController(create, read, list, cancel), create, read, list, cancel };
 }
 
 describe('Supply guarded HTTP contract adapter', () => {
   it('dispatches exact inputs with admitted authority and preserves independent receipt/status values', async () => {
-    const { controller, create, read, cancel } = wired();
+    const { controller, create, read, list, cancel } = wired();
     const request = await admittedRequest();
     expect(await call(controller.createRoute(request), createInput)).toEqual(receipt);
     expect(create).toHaveBeenCalledExactlyOnceWith(authority, createInput);
@@ -80,6 +86,8 @@ describe('Supply guarded HTTP contract adapter', () => {
     expect(await call(controller.readRoute(request), { requestId: id })).toEqual(status);
     expect(read).toHaveBeenCalledExactlyOnceWith(authority, { requestId: id });
     expect(create).toHaveBeenCalledTimes(1);
+    expect(await call(controller.listRoute(request), undefined)).toEqual(listing);
+    expect(list).toHaveBeenCalledExactlyOnceWith(authority);
     expect(await call(controller.cancelRoute(request), cancelInput)).toEqual(cancellation);
     expect(cancel).toHaveBeenCalledExactlyOnceWith(authority, cancelInput);
   });
@@ -91,27 +99,31 @@ describe('Supply guarded HTTP contract adapter', () => {
     source_unavailable: 'ASSET_NOT_FOUND',
     stale_source: 'ASSET_REVISION_STALE',
     not_found: 'NOT_FOUND',
+    too_many_open: 'TOO_MANY_REQUESTS',
   };
   for (const reason of Object.keys(refusalCodes) as Refusal[])
     it(`maps ${reason} consistently without backend details`, async () => {
       const refused = vi.fn(() => Promise.resolve({ kind: 'refused' as const, reason }));
-      const controller = new SupplyController(refused, refused, refused);
+      const controller = new SupplyController(refused, refused, refused, refused);
       const request = await admittedRequest();
       for (const invoke of [
         () => call(controller.createRoute(request), createInput),
         () => call(controller.readRoute(request), { requestId: id }),
+        () => call(controller.listRoute(request), undefined),
         () => call(controller.cancelRoute(request), cancelInput),
       ]) {
         await expect(invoke()).rejects.toMatchObject({ code: refusalCodes[reason], data: {} });
       }
-      expect(refused).toHaveBeenCalledTimes(3);
+      expect(refused).toHaveBeenCalledTimes(4);
     });
 
   it('refuses every unguarded handler before its use case runs', async () => {
-    const { controller, create, read, cancel } = wired();
+    const { controller, create, read, list, cancel } = wired();
     const request = {} as unknown as Request;
     await expect(call(controller.createRoute(request), createInput)).rejects.toThrow('without the scope guard');
     await expect(call(controller.readRoute(request), { requestId: id })).rejects.toThrow('without the scope guard');
+    await expect(call(controller.listRoute(request), undefined)).rejects.toThrow('without the scope guard');
+    expect(list).not.toHaveBeenCalled();
     await expect(call(controller.cancelRoute(request), cancelInput)).rejects.toThrow('without the scope guard');
     expect(create).not.toHaveBeenCalled();
     expect(read).not.toHaveBeenCalled();
@@ -142,8 +154,8 @@ describe('Supply guarded HTTP contract adapter', () => {
 
   it('validates backend output instead of emitting a malformed acceptance receipt', async () => {
     const create = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: { ...receipt, requestId: 'bad' } }));
-    const { read, cancel } = wired();
-    const controller = new SupplyController(create, read, cancel);
+    const { read, list, cancel } = wired();
+    const controller = new SupplyController(create, read, list, cancel);
     await expect(call(controller.createRoute(await admittedRequest()), createInput)).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
     });
