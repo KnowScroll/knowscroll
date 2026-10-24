@@ -25,7 +25,7 @@ export class ScopeEndedError extends Error {
   }
 }
 
-/** Synchronous string storage under the scope (web: `localStorage`; native: the platform's encrypted storage). */
+/** Synchronous string storage under the scope (web: `localStorage`; native: memory for now). */
 export interface KeyValueStore {
   keys(): readonly string[];
   getItem(key: string): string | null;
@@ -169,20 +169,6 @@ export function purgeStorage(store: KeyValueStore, prefix: string): void {
   for (const key of store.keys()) if (key.startsWith(prefix)) store.removeItem(key);
 }
 
-/**
- * Removes every scope's keys except those under `keepPrefix`: what an earlier run left behind when
- * it was killed before its scope could end (another account, an older privacy epoch).
- */
-export function purgeOtherScopes(store: KeyValueStore, keepPrefix: string): void {
-  for (const key of store.keys())
-    if (key.startsWith(SCOPED_STORAGE_PREFIX) && !key.startsWith(keepPrefix)) store.removeItem(key);
-}
-
-/** The key prefix of one scope's storage. */
-export function scopeStoragePrefix(scopeId: string): string {
-  return `${SCOPED_STORAGE_PREFIX}${scopeId}.`;
-}
-
 export interface AccountScopeOptions {
   readonly account: SessionAccount;
   readonly baseUrl: string;
@@ -204,7 +190,7 @@ export interface AccountScopeOptions {
 export function createAccountScope(options: AccountScopeOptions): AccountScope {
   const id = scopeIdOf(options.account);
   const ended = new AbortController();
-  const prefix = scopeStoragePrefix(id);
+  const prefix = `${SCOPED_STORAGE_PREFIX}${id}.`;
   const queryClient = options.queryClient ?? createQueryClient();
   let connection: ScopeConnection | undefined;
   const endListeners = new Set<() => void>();
@@ -284,7 +270,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   return scope;
 }
 
-/** A `KeyValueStore` in memory (tests, and where the platform has no storage). */
+/** A `KeyValueStore` in memory (native until a persistent store is needed; tests). */
 export function memoryStore(): KeyValueStore {
   const values = new Map<string, string>();
   return {

@@ -305,44 +305,6 @@ describe('the account scope manager', () => {
     expect(tokens.value).toBeUndefined();
   });
 
-  it('native: mounting a scope removes what a killed run left in the persistent store; the deletion receipt stays', async () => {
-    const store = memoryStore();
-    const own = `ks.scope.${scopeIdOf(accountA)}.explore.hint`;
-    const otherAccount = `ks.scope.${scopeIdOf(accountB)}.universe.view`;
-    const olderEpoch = `ks.scope.${accountA.accountId}:0.universe.view`;
-    store.setItem(own, '1');
-    store.setItem(otherAccount, 'b');
-    store.setItem(olderEpoch, 'old');
-    store.setItem('ks.deletion.receipt', 'receipt-id');
-    const manager = createAccountScopeManager({
-      baseUrl: 'https://app.scope.test',
-      platform: 'native',
-      fetch: deferredApi().fetch,
-      tokens: tokenStore('kss_stored'),
-      store,
-      auth: fakeAuth({ current: accountA }),
-    });
-    await manager.start();
-    expect(manager.getState().status).toBe('signed_in');
-    expect([...store.keys()].sort()).toEqual([own, 'ks.deletion.receipt'].sort());
-  });
-
-  it('web: another tab’s scope keys in the shared store are left alone', async () => {
-    const store = memoryStore();
-    const otherTab = `ks.scope.${scopeIdOf(accountB)}.universe.view`;
-    store.setItem(otherTab, 'b');
-    const manager = createAccountScopeManager({
-      baseUrl: 'https://app.scope.test',
-      platform: 'web',
-      fetch: deferredApi().fetch,
-      store,
-      auth: fakeAuth({ current: accountA }),
-    });
-    await manager.start();
-    expect(manager.getState().status).toBe('signed_in');
-    expect([...store.keys()]).toEqual([otherTab]);
-  });
-
   it('starts signed out on native without a stored token, and unavailable when the API cannot be asked', async () => {
     const auth = {
       ...fakeAuth({ current: accountA }),

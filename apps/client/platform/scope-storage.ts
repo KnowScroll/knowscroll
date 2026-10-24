@@ -1,20 +1,8 @@
-import * as SecureStore from 'expo-secure-store';
-import type { KeyValueStore } from '@knowscroll/client-core';
-import { createSecureKeyValueStore, type SecureItemBackend } from './secure-key-value-store';
-
-const options = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
-
-/** The platform secure store (Keychain on iOS, Keystore-backed storage on Android) as the backend. */
-const platformBackend: SecureItemBackend = {
-  getItem: (name) => SecureStore.getItem(name, options),
-  setItem: (name, value) => SecureStore.setItemAsync(name, value, options),
-  deleteItem: (name) => SecureStore.deleteItemAsync(name, options),
-};
+import { memoryStore, type KeyValueStore } from '@knowscroll/client-core';
 
 /**
- * Native: the account scope's local storage, kept in the platform's encrypted storage so the
- * camera, Keep places, the observation outbox and the deletion receipt id survive an app restart.
- * The scope manager purges it when a scope ends and removes what an earlier run left behind
- * (`createSecureKeyValueStore` has the write and failure rules).
+ * Native: the account scope's local storage. Nothing scoped is persisted on native yet, so it
+ * lives in memory and ends with the app; a persistent store replaces this when a feature needs
+ * one, behind the same interface and the same purge.
  */
-export const scopeStorage: KeyValueStore = createSecureKeyValueStore(platformBackend);
+export const scopeStorage: KeyValueStore = memoryStore();

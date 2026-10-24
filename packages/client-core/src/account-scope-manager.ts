@@ -3,9 +3,7 @@ import type { SessionAccount, SessionClient } from '@knowscroll/contracts';
 import {
   SCOPED_STORAGE_PREFIX,
   createAccountScope,
-  purgeOtherScopes,
   purgeStorage,
-  scopeStoragePrefix,
   scopeIdOf,
   type AccountScope,
   type KeyValueStore,
@@ -182,8 +180,6 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     if (state.status === 'signed_in' && state.scope.active && state.scope.id === scopeIdOf(account)) return;
     privacy.accountChanged(account.accountId);
     endCurrentScope();
-    // A native store outlives the process: a run that was killed mid-scope left its scope behind.
-    if (options.platform === 'native') purgeOtherScopes(options.store, scopeStoragePrefix(scopeIdOf(account)));
     signedOutClient.clear();
     const connect = options.connect;
     const authorization = credential === undefined ? undefined : `Bearer ${credential}`;

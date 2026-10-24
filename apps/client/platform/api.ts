@@ -10,12 +10,11 @@ export function appApiOrigin(): ApiOrigin {
   if (Platform.OS === 'web') {
     return resolveApiOrigin({ platform: 'web', pageOrigin: typeof location === 'undefined' ? '' : location.origin });
   }
-  // Plain HTTP (to localhost or the emulator's 10.0.2.2) only in development builds and in a build
-  // made for a test API (`EXPO_PUBLIC_KS_TEST_API=1`, the native lane's journeys).
+  // Plain HTTP (to localhost or the emulator's 10.0.2.2) only in development builds.
   return resolveApiOrigin({
     platform: 'native',
     configuredOrigin: process.env.EXPO_PUBLIC_KS_API_ORIGIN,
-    allowDevelopmentHttp: __DEV__ || process.env.EXPO_PUBLIC_KS_TEST_API === '1',
+    allowDevelopmentHttp: __DEV__,
   });
 }
 
