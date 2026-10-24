@@ -15,6 +15,7 @@ import {
   READ_ENCOUNTER_TOPICS,
   READ_SAVED_METADATA,
   READ_SAVED_PAGE_METADATA,
+  READ_SHAREABLE_CONTENT,
   READ_ENCOUNTER_ATTRIBUTION,
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
@@ -37,6 +38,7 @@ import {
   readEncounterAttribution,
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
+import { readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
@@ -59,6 +61,7 @@ export function contentProviders() {
     { provide: READ_ENCOUNTER_TOPICS, useValue: readEncounterTopics },
     { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },
     { provide: READ_SAVED_PAGE_METADATA, useValue: readSavedPageMetadata },
+    { provide: READ_SHAREABLE_CONTENT, useValue: readShareableContent },
     { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
@@ -152,6 +155,7 @@ export { makeCommissionChainSnapshots } from '../production/commission-chain-sto
 export { postgresCommissionChainStore } from './postgres-commission-chain.js';
 
 export { readSavedPageMetadata } from './discovery-store.js';
+export { readShareableContent } from './shareable-content.js';
 
 /** Connected commissioning: source gates stay off unless the operator supplies every real dependency. */
 export { makeCommissioning } from '../production/commissioning.js';

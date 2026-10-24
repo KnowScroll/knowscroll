@@ -52,7 +52,6 @@ problem projection runs before auth/parsing for exactly the mounted methods/path
 immutable and current pair/epoch/lineage authority is enforced by these owning use cases, not
 reconstructed by HTTP. There is no list scan, cursor/index, provider, job or evidence path added.
 
-
 ## Recoverable rosters and invitations (#377)
 
 `friend-pages.v2` is separate from the still-unmounted `sharing.v1` list declarations.

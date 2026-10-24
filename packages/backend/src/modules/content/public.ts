@@ -8,7 +8,11 @@ import type { makeCommission } from './production/commission.js';
  * Content is shared, not personal. Reads use the caller transaction; admission writes require
  * an operator-owned admission capability and never record who consumed content.
  */
+import type { Kysely } from 'kysely';
+import type { z } from 'zod';
+import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
+import type { Database } from '../../infrastructure/postgres/database.js';
 import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
@@ -268,6 +272,23 @@ export type {
   CutroomObservedRun,
   ValidateCutroomRemoteChain,
 } from './production/commission-contracts.js';
+
+/** One exact content revision, as a message card or share link names it. */
+export interface ContentRef {
+  readonly assetId: string;
+  readonly assetRevision: number;
+}
+
+/**
+ * Port: public metadata of exact revisions (at most 100), read from shared content with any
+ * database handle or transaction. Gives each ref `available`, `corrected` (original ref kept, current
+ * revision's metadata attached) or `unavailable`; it decides nothing about who may see a card.
+ */
+export type ReadShareableContent = (
+  reader: Kysely<Database>,
+  refs: readonly ContentRef[],
+) => Promise<readonly z.infer<typeof ConversationContentProjectionSchema>[]>;
+export const READ_SHAREABLE_CONTENT = Symbol('content.readShareableContent');
 
 /** Minimized current immutable facts, bounded by canonical document validation. No rendering grant. */
 export type KeepPositionTarget =

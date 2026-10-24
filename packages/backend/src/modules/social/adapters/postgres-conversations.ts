@@ -1,0 +1,427 @@
+import { sql, type Kysely, type Transaction } from 'kysely';
+import { PublicPersonRefSchema } from '@knowscroll/contracts';
+import type { Database } from '../../../infrastructure/postgres/database.js';
+import { notifyInboxChanged } from '../../../infrastructure/notices/index.js';
+import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import type {
+  ContentCard,
+  ContentRef,
+  Conversation,
+  ConversationRow,
+  ConversationStore,
+  MemberRow,
+  MessageRow,
+} from '../application/conversation-ports.js';
+import type { PairLock } from '../application/ports.js';
+
+type ReadContent = (reader: Kysely<Database>, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
+
+const trxOf = (scope: PairLock | Parameters<typeof transactionOf>[0]): Transaction<Database> =>
+  'shared' in scope ? sharedTransactionOf(scope.shared) : transactionOf(scope);
+
+const memberOf = (row: {
+  account_id: string;
+  membership_id: string;
+  membership_revision: string;
+  read_through_sequence: string;
+  muted: boolean;
+  left_at: unknown;
+}): MemberRow => ({
+  accountId: row.account_id,
+  membershipId: row.membership_id,
+  membershipRevision: Number(row.membership_revision),
+  readThroughSequence: Number(row.read_through_sequence),
+  muted: row.muted,
+  left: row.left_at !== null,
+});
+
+const conversationOf = (row: {
+  conversation_id: string;
+  pair_id: string;
+  lineage: string;
+  last_sequence: string;
+  last_change_sequence: string;
+  last_activity_at: Date | string;
+  closed_at: unknown;
+}): ConversationRow => ({
+  conversationId: row.conversation_id,
+  pairId: row.pair_id,
+  lineage: row.lineage,
+  lastSequence: Number(row.last_sequence),
+  lastChangeSequence: Number(row.last_change_sequence),
+  lastActivityAt: new Date(row.last_activity_at),
+  closed: row.closed_at !== null,
+});
+
+interface MessageColumns {
+  sequence: string;
+  change_sequence: string;
+  message_id: string;
+  command_id: string | null;
+  recorded_at: Date | string;
+  body_text: string | null;
+  asset_id: string | null;
+  asset_revision: number | null;
+  note: string | null;
+  person_id: string | null;
+  handle: string | null;
+  display_name: string | null;
+}
+
+const messageOf = (row: MessageColumns): MessageRow => ({
+  sequence: Number(row.sequence),
+  changeSequence: Number(row.change_sequence),
+  messageId: row.message_id,
+  commandId: row.command_id,
+  recordedAt: new Date(row.recorded_at),
+  author:
+    row.person_id === null
+      ? null
+      : PublicPersonRefSchema.parse({
+          kind: 'person',
+          personId: row.person_id,
+          handle: row.handle,
+          displayName: row.display_name,
+        }),
+  text: row.body_text,
+  content: row.asset_id === null ? null : { assetId: row.asset_id, assetRevision: row.asset_revision! },
+  note: row.note,
+});
+
+const MESSAGE_COLUMNS = [
+  'm.sequence',
+  'm.change_sequence',
+  'm.message_id',
+  'm.command_id',
+  'm.recorded_at',
+  'm.body_text',
+  'm.asset_id',
+  'm.asset_revision',
+  'm.note',
+  'p.person_id',
+  'p.handle',
+  'p.display_name',
+] as const;
+
+/** Postgres conversation rows (migration 0054). The use cases decide who may read or write; this only runs queries. */
+export function conversationStore(readContent: ReadContent): ConversationStore {
+  return {
+    async ownMembership(scope, accountId, conversationId) {
+      const rows = await transactionOf(scope)
+        .selectFrom('social.conversation_members as m')
+        .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
+        .innerJoin('social.conversation_members as pm', (join) =>
+          join.onRef('pm.conversation_id', '=', 'm.conversation_id').onRef('pm.account_id', '<>', 'm.account_id'),
+        )
+        .select([
+          'c.pair_id',
+          'pm.account_id as peer_account_id',
+          'm.account_id',
+          'm.membership_id',
+          'm.membership_revision',
+          'm.read_through_sequence',
+          'm.muted',
+          'm.left_at',
+        ])
+        .where('m.conversation_id', '=', conversationId)
+        .where('m.account_id', '=', accountId)
+        .execute();
+      const row = rows[0];
+      return row && { pairId: row.pair_id, peerAccountId: row.peer_account_id, own: memberOf(row) };
+    },
+
+    async load(lock, conversationId, ownAccountId) {
+      return loadConversation(lock, { conversationId, ownAccountId });
+    },
+
+    async findOpen(lock, lineage, ownAccountId) {
+      return loadConversation(lock, { lineage, ownAccountId });
+    },
+
+    async create(lock, input) {
+      const trx = trxOf(lock);
+      await trx
+        .insertInto('social.conversations')
+        .values({
+          conversation_id: input.conversationId,
+          pair_id: lock.pair.id,
+          lineage: input.lineage,
+          last_activity_at: input.now,
+          created_at: input.now,
+        })
+        .execute();
+      await trx
+        .insertInto('social.conversation_members')
+        .values(
+          input.members.map((member) => ({
+            conversation_id: input.conversationId,
+            account_id: member.accountId,
+            membership_id: member.membershipId,
+          })),
+        )
+        .execute();
+    },
+
+    async append(lock, conversationId, message) {
+      const trx = trxOf(lock);
+      const counters = await trx
+        .updateTable('social.conversations')
+        .set((eb) => ({
+          last_sequence: sql`last_sequence + 1`,
+          last_change_sequence: sql`last_change_sequence + 1`,
+          last_activity_at: eb.fn('greatest', ['last_activity_at', eb.val(message.recordedAt)]),
+        }))
+        .where('conversation_id', '=', conversationId)
+        .returning(['last_sequence', 'last_change_sequence'])
+        .executeTakeFirstOrThrow();
+      const sequence = Number(counters.last_sequence);
+      const changeSequence = Number(counters.last_change_sequence);
+      await trx
+        .insertInto('social.messages')
+        .values({
+          conversation_id: conversationId,
+          sequence,
+          message_id: message.messageId,
+          change_sequence: changeSequence,
+          command_id: message.commandId,
+          author_account_id: message.authorAccountId,
+          recorded_at: message.recordedAt,
+          body_text: message.text ?? null,
+          asset_id: message.content?.assetId ?? null,
+          asset_revision: message.content?.assetRevision ?? null,
+          note: message.note ?? null,
+        })
+        .execute();
+      return { sequence, changeSequence };
+    },
+
+    async messages(lock, conversationId, query) {
+      let select = trxOf(lock)
+        .selectFrom('social.messages as m')
+        .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
+        .select([...MESSAGE_COLUMNS])
+        .where('m.conversation_id', '=', conversationId);
+      if (query.after !== undefined)
+        select = select.where('m.change_sequence', '>', String(query.after)).orderBy('m.change_sequence', 'asc');
+      else {
+        if (query.before !== undefined) select = select.where('m.sequence', '<', String(query.before));
+        select = select.orderBy('m.sequence', 'desc');
+      }
+      return (await select.limit(query.limit).execute()).map(messageOf);
+    },
+
+    async messageOfCommand(lock, conversationId, authorAccountId, commandId) {
+      const row = await trxOf(lock)
+        .selectFrom('social.messages as m')
+        .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
+        .select([...MESSAGE_COLUMNS])
+        .where('m.conversation_id', '=', conversationId)
+        .where('m.author_account_id', '=', authorAccountId)
+        .where('m.command_id', '=', commandId)
+        .executeTakeFirst();
+      return row && messageOf(row);
+    },
+
+    async setReadThrough(lock, conversationId, accountId, sequence) {
+      await trxOf(lock)
+        .updateTable('social.conversation_members')
+        .set({ read_through_sequence: sequence })
+        .where('conversation_id', '=', conversationId)
+        .where('account_id', '=', accountId)
+        .execute();
+    },
+
+    async setMuted(lock, conversationId, accountId, muted) {
+      await trxOf(lock)
+        .updateTable('social.conversation_members')
+        .set({ muted })
+        .where('conversation_id', '=', conversationId)
+        .where('account_id', '=', accountId)
+        .execute();
+    },
+
+    async leave(lock, conversationId, accountId, now) {
+      const trx = trxOf(lock);
+      await trx
+        .updateTable('social.conversation_members')
+        .set({ left_at: now })
+        .where('conversation_id', '=', conversationId)
+        .where('account_id', '=', accountId)
+        .execute();
+      await trx
+        .updateTable('social.conversations')
+        .set({ closed_at: now })
+        .where('conversation_id', '=', conversationId)
+        .execute();
+    },
+
+    async announce(lock, changes, newEventId) {
+      const trx = trxOf(lock);
+      // Canonical account order keeps two concurrent conversations from taking heads crosswise.
+      for (const change of [...changes].sort((a, b) => (a.accountId < b.accountId ? -1 : 1))) {
+        const head = await trx
+          .insertInto('social.inbox_heads')
+          .values({ account_id: change.accountId, revision: 1 })
+          .onConflict((conflict) =>
+            conflict
+              .column('account_id')
+              .doUpdateSet((eb) => ({ revision: eb('social.inbox_heads.revision', '+', 1) })),
+          )
+          .returning('revision')
+          .executeTakeFirstOrThrow();
+        await notifyInboxChanged(trx, {
+          universeId: change.universeId,
+          revision: Number(head.revision),
+          eventId: newEventId(),
+        });
+      }
+    },
+
+    async inbox(scope, accountId, query) {
+      const trx = transactionOf(scope);
+      let select = trx
+        .selectFrom('social.conversation_members as own')
+        .innerJoin('social.conversations as c', 'c.conversation_id', 'own.conversation_id')
+        // A conversation lives only while the friendship lineage it began under does.
+        .innerJoin('social.pairs as pair', (join) =>
+          join.onRef('pair.pair_id', '=', 'c.pair_id').onRef('pair.accepted_lineage', '=', 'c.lineage'),
+        )
+        .innerJoin('social.conversation_members as peer', (join) =>
+          join.onRef('peer.conversation_id', '=', 'c.conversation_id').onRef('peer.account_id', '<>', 'own.account_id'),
+        )
+        .innerJoin('social.profiles as profile', 'profile.account_id', 'peer.account_id')
+        .innerJoin('identity.accounts as peer_account', 'peer_account.id', 'peer.account_id')
+        .innerJoin('identity.universes as peer_universe', 'peer_universe.account_id', 'peer.account_id')
+        .select([
+          'c.conversation_id',
+          'c.pair_id',
+          'c.lineage',
+          'c.last_sequence',
+          'c.last_change_sequence',
+          'c.last_activity_at',
+          'c.closed_at',
+          'own.account_id as own_account_id',
+          'own.membership_id as own_membership_id',
+          'own.membership_revision as own_membership_revision',
+          'own.read_through_sequence as own_read_through',
+          'own.muted as own_muted',
+          'own.left_at as own_left_at',
+          'peer.account_id as peer_account_id',
+          'peer.membership_id as peer_membership_id',
+          'peer.membership_revision as peer_membership_revision',
+          'peer.read_through_sequence as peer_read_through',
+          'peer.muted as peer_muted',
+          'peer.left_at as peer_left_at',
+          'profile.person_id',
+          'profile.handle',
+          'profile.display_name',
+        ])
+        .where('own.account_id', '=', accountId)
+        .where('own.left_at', 'is', null)
+        .where('c.last_sequence', '>', '0')
+        .where('peer_account.status', '=', 'active')
+        .where('peer_universe.status', '=', 'active');
+      if (query.after) {
+        const at = new Date(query.after.activityMs);
+        const id = query.after.conversationId;
+        select = select.where((eb) =>
+          eb.or([
+            eb('c.last_activity_at', '<', at),
+            eb.and([eb('c.last_activity_at', '=', at), eb('c.conversation_id', '>', id)]),
+          ]),
+        );
+      }
+      const rows = await select
+        .orderBy('c.last_activity_at', 'desc')
+        .orderBy('c.conversation_id', 'asc')
+        .limit(query.limit)
+        .execute();
+      if (rows.length === 0) return [];
+      const lastMessages = await trx
+        .selectFrom('social.messages as m')
+        .innerJoin('social.conversations as c', (join) =>
+          join.onRef('c.conversation_id', '=', 'm.conversation_id').onRef('c.last_sequence', '=', 'm.sequence'),
+        )
+        .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
+        .select(['m.conversation_id', ...MESSAGE_COLUMNS])
+        .where(
+          'm.conversation_id',
+          'in',
+          rows.map((row) => row.conversation_id),
+        )
+        .execute();
+      return rows.map((row) => ({
+        conversation: conversationOf(row),
+        own: memberOf({
+          account_id: row.own_account_id,
+          membership_id: row.own_membership_id,
+          membership_revision: row.own_membership_revision,
+          read_through_sequence: row.own_read_through,
+          muted: row.own_muted,
+          left_at: row.own_left_at,
+        }),
+        peer: memberOf({
+          account_id: row.peer_account_id,
+          membership_id: row.peer_membership_id,
+          membership_revision: row.peer_membership_revision,
+          read_through_sequence: row.peer_read_through,
+          muted: row.peer_muted,
+          left_at: row.peer_left_at,
+        }),
+        peerPerson: PublicPersonRefSchema.parse({
+          kind: 'person',
+          personId: row.person_id,
+          handle: row.handle,
+          displayName: row.display_name,
+        }),
+        lastMessage: ((found) => found && messageOf(found))(
+          lastMessages.find((message) => message.conversation_id === row.conversation_id),
+        ),
+      }));
+    },
+
+    async inboxRevision(scope, accountId) {
+      const row = await transactionOf(scope)
+        .selectFrom('social.inbox_heads')
+        .select('revision')
+        .where('account_id', '=', accountId)
+        .executeTakeFirst();
+      return Number(row?.revision ?? 0);
+    },
+
+    cards: (scope, refs) => readContent(trxOf(scope), refs),
+  };
+
+  async function loadConversation(
+    lock: PairLock,
+    by: { readonly ownAccountId: string } & ({ conversationId: string } | { lineage: string }),
+  ): Promise<Conversation | undefined> {
+    let select = trxOf(lock)
+      .selectFrom('social.conversations as c')
+      .select([
+        'c.conversation_id',
+        'c.pair_id',
+        'c.lineage',
+        'c.last_sequence',
+        'c.last_change_sequence',
+        'c.last_activity_at',
+        'c.closed_at',
+      ])
+      .where('c.pair_id', '=', lock.pair.id);
+    select =
+      'conversationId' in by
+        ? select.where('c.conversation_id', '=', by.conversationId)
+        : select.where('c.lineage', '=', by.lineage).where('c.closed_at', 'is', null);
+    const conversation = await select.executeTakeFirst();
+    if (!conversation) return undefined;
+    const members = await trxOf(lock)
+      .selectFrom('social.conversation_members')
+      .selectAll()
+      .where('conversation_id', '=', conversation.conversation_id)
+      .execute();
+    const own = members.find((member) => member.account_id === by.ownAccountId);
+    const peer = members.find((member) => member.account_id !== by.ownAccountId);
+    if (!own || !peer) return undefined;
+    return { conversation: conversationOf(conversation), own: memberOf(own), peer: memberOf(peer) };
+  }
+}
