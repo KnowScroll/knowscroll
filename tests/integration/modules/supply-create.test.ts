@@ -36,7 +36,7 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -488,6 +488,49 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         kind: 'ok',
         value: { outcome: 'not_retryable' },
       });
+    });
+
+    it('refuses a retry while the person has the most open asks they may, without a receipt, and accepts the same command once one ends', async () => {
+      await build({ writer: () => ({ kind: 'malformed' }) });
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      const open: string[] = [];
+      for (let n = 0; n < 10; n += 1) open.push(await ask(person, freeText(`question number ${String(n)}`)));
+      const command = retryCommand(requestId);
+      expect(await retry(person.authority, command)).toEqual({ kind: 'refused', reason: 'too_many_open' });
+      expect(
+        await database.db
+          .selectFrom('receipts.personal_commands')
+          .select('command_id')
+          .where('command_id', '=', command.commandId)
+          .execute(),
+      ).toEqual([]);
+      expect(await rowOf(requestId)).toMatchObject({ state: 'unavailable', retries: 0 });
+      await cancel(person.authority, {
+        version: 'content-request-cancel.v1',
+        commandId: randomUUID(),
+        requestId: open[0]!,
+      });
+      expect(await retry(person.authority, command)).toMatchObject({ kind: 'ok', value: { outcome: 'retrying' } });
+    });
+
+    it('lets only one of two concurrent retries reopen the request: the other finds it open', async () => {
+      await build({ writer: () => ({ kind: 'malformed' }) });
+      const person = await seedPerson(database.db);
+      const requestId = await ask(person, facet());
+      expect(await publish('tides', 1)).toMatchObject({ result: { outcome: 'rejected' } });
+      await resolve(job(person, requestId));
+      const [first, second] = await Promise.all([
+        retry(person.authority, retryCommand(requestId)),
+        retry(person.authority, retryCommand(requestId)),
+      ]);
+      const outcomes = [first, second].map((result) => (result.kind === 'ok' ? result.value.outcome : result.reason));
+      expect(outcomes.sort()).toEqual(['already_open', 'retrying']);
+      // One reopening: one retry counted, one production take queued, one wait started.
+      expect(await rowOf(requestId)).toMatchObject({ state: 'requested', retries: 1 });
+      expect((await queuedProduceJobs()).filter((queued) => queued.take === 2)).toHaveLength(1);
     });
 
     it('answers another person and an unknown request the same way, and keeps the same command ID to its first input', async () => {
@@ -985,6 +1028,10 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       expect(await produceJobs()).toHaveLength(1);
       // The model saw the person's words and the catalogue, and nothing of the shared work does.
       expect(matchModel.calls[0]!.request.user).toContain('why does the sea go in and out');
+      // The person asked in their own words, so matching counts against the whole allowance.
+      expect(await receiptClassesOf(database.db, person.universeId)).toEqual([
+        { role_id: 'supply.match-request', background: false },
+      ]);
       expect(JSON.stringify(await database.db.selectFrom('supply.work').selectAll().execute())).not.toContain('sea go');
       expect(
         await database.db

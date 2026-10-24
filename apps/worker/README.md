@@ -151,8 +151,10 @@ for operator inspection; ordinary logs contain no Planner context or proposal te
 
 The `composer.prepare-buffer` consumer (#234) prepares the next vertical Explore move for an offer the
 person just activated and stores it for the next navigation (`modules/composer/README.md`). It reads the
-session, candidates and Hide in one short transaction, may ask Jev (`KS_JEV_ENABLED=1`) outside any
-transaction, then persists the ranking and replaces the person's buffer in a second one. A job for a
+session, candidates, Hide and the person's stored Jev assessments in one short transaction, may ask Jev
+(`KS_JEV_ENABLED=1`) outside any transaction, only about shortlisted candidates that have no stored
+assessment from the last 30 minutes (D-058), then adds what it paid for to the stored assessments, persists
+the ranking and replaces the person's buffer in a second one. A job for a
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 

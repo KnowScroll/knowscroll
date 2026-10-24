@@ -39,17 +39,19 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | E06 | Preparing segment, Back to Reel chip, ready toast | differs | Preparing stripe and ready notice with Later and Open exist; the From the Reel at 0:31 · Back to Reel chip on the Scroll is not drawn. | fixture | [E06](fidelity/pairs/E06.jpg) |
 | E07 | Requests list | matches | Fixed in #443: one line per ask with a chip; Open, Retry, Cancel on the chip or row (before: boxed cards with pre-chip words). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Requested in Keep | matches | Fixed in #443: Requested filter in Keep (before: only /account/requests). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
-| E07 | Couldn't prepare + Try again | matches | Fixed in #443: Try again and Ask differently in the sheet (`could_not_prepare` only); the list shows Ask differently and does not resend (D-054). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
+| E07 | Couldn't prepare + Try again | matches | Fixed in #443 and #454: Try again retries the same request in the sheet, Retry and Ask differently in the list (`could_not_prepare` only; D-054). | fixture, #443, #454 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Can't be made, cancelled, exhausted | matches | Fixed in #443: Can't be made chip (new); cancelled dashed chip; exhausted says You've seen what's ready for now. | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
+| E07 | Placed where the request was made | matches | Fixed in #443: Ready — the Scroll you asked for on the opened encounter. | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
+| E07 | List retry and retry of the same request | matches | `request.retry{requestId}` re-drives the same request (same ID, idempotent receipt, caps and the retry limit respected, "can't be retried" answered); Try again in the sheet and Retry in the list both send it (D-054, #454). | fixture, #454 | [E07](fidelity/pairs/E07.jpg) |
 | E08 | Natural thread ending | matches | Yellow card, Keep a way back, Something different, Done for now, thread rows (fixture). | fixture | [E08](fidelity/pairs/E08.jpg) |
 | E08 | Way back kept, Something new | differs | Way back kept is drawn; the Somewhere new direction picker with coloured subject cards is not (Something different opens a new subject). | fixture | [E08](fidelity/pairs/E08.jpg) |
 | E09 | Narration, captions, illustrated range | missing | No client work possible: a Reel document carries captions: burned_in only, no caption track, transcript or timing (D-054). The range of variants is the asset's own picture. | contract | [E09](fidelity/pairs/E09.jpg) |
 | F01 | Friends list | differs | Roster is tabbed (Friends, Incoming, Sent, Blocked) with Refresh and paging buttons and long explanations; design is one list (Friends, Waiting, Blocked) with Add a friend as the one primary. | dev | [F01](fidelity/pairs/F01.jpg) |
 | F01 | Add a friend | differs | Handle and invite link are present; the found-person row, Send invite and invite-link card are plain. | dev | [F01](fidelity/pairs/F01.jpg) |
 | F02 | Visibility | differs | Visitors choice, what they can see and activity status exist; header, row styling and the Preview what <name> sees button differ. | dev | [F02](fidelity/pairs/F02.jpg) |
-| H01 | Share sheet (Scroll) | differs | Send to a conversation, Explore with friends, Copy link; the sheet header lacks the thumbnail and Part line, rows lack icon tiles and the drawn highlight; Share a moment is for Reels. | dev | [H01](fidelity/pairs/H01.jpg) |
-| H01 | Send to a conversation | differs | Picker with note and Send to <name> present; design adds search, recents with presence and a sent confirmation row. | dev | [H01](fidelity/pairs/H01.jpg) |
-| H01 | Explore with friends | differs | Thread name and friend checkboxes present; plain compared with the drawn flow. | dev | [H01](fidelity/pairs/H01.jpg) |
+| H01 | Share sheet (Scroll) | differs | Fixed in #450: header with a kind tile, the title and "Part 2 · Reel"; icon tiles; Explore with friends on the pale highlight; Copy link / Share elsewhere in one row. Left: the thumbnail is a kind glyph (the offer has no poster), the series name and "of 4" (the encounter does not carry them), and Share a moment (a moment is a message in a thread, so it needs one). | dev, fixture, fixed in #450 | [H01](fidelity/pairs/H01.jpg) |
+| H01 | Send to a conversation | differs | Fixed in #450: Back arrow and title, search, Recent and More friends groups, Online / Recently active only for friends who show it (else @handle), the Sent to name row with Open chat. Left: rooms are not in this list (a room is not a conversation here). | fixture, fixed in #450 | [H01](fidelity/pairs/H01.jpg) |
+| H01 | Explore with friends | matches | Fixed in #450: Thread name (the content title as its placeholder), search, Recent and More friends with the same availability words, the keep-your-own-place line and Create thread · N friends. | fixture, fixed in #450 | [H01](fidelity/pairs/H01.jpg) |
 | H02 | Public landing | matches | Fixed in #444: cobalt poster card with kind tag, pill buttons. | rendered page, #444 | [H02](fidelity/pairs/H02.jpg) |
 | H02 | Private, signed-in, corrected | differs | Rendered pages show a poster card; the signed-in page says nothing about who shared it (names stay off the page by design) and revoked/withdrawn share one neutral page. | rendered page | [H02](fidelity/pairs/H02.jpg) |
 | H02 | Revoked / withdrawn | differs | One neutral page by design; the drawn two reasons would reveal state. | dev | [H02](fidelity/pairs/H02.jpg) |
@@ -101,7 +103,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 
 ## Not fixed, and why
 
-- **Needs contract:** retry of the same request (E07), a correction field on an encounter (E01, E05), caption track or transcript on a Reel (E09, E01).
+- **Needs contract:** a correction field on an encounter (E01, E05), caption track or transcript on a Reel (E09, E01).
 - **Larger than a sweep:** Friends roster as one list (F01), Account identity card, Notifications and Accessibility & playback (P01), recording as a switch (P02, D05), Talk invitation card with Ignore and Preview (C03), conversation header and Start a thread (C02), share sheet header (H01).
 - **Not opened:** thread presence and members sheet (C03), snippet range handles (H03), failed and dismissed branches (X02), branch map (X04), three-person worlds (U07), series threads on dev (C04). They are drawn in code and covered by tests; no dev data reaches them yet.
 

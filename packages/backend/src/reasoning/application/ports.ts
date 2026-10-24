@@ -7,7 +7,7 @@ import type {
   WithPersonalScope,
 } from '../../modules/identity/public.js';
 import type { AttemptState } from '../domain/attempts.js';
-import type { BudgetCap, BudgetUsage, ReportedUsage } from '../domain/budgets.js';
+import type { BudgetCap, BudgetClass, BudgetUsage, ReportedUsage } from '../domain/budgets.js';
 import type { OutputIssue } from '../domain/output.js';
 
 /**
@@ -311,6 +311,8 @@ export interface Reservation {
   readonly requestBody: Uint8Array;
   readonly maxOutputTokens: number;
   readonly reservedTokens: number;
+  /** Which share of the daily caps the attempt counts against; omitted means `interactive`. */
+  readonly budgetClass?: BudgetClass;
   readonly causationAttemptId?: string;
   /** How long the protected request bytes are kept. */
   readonly requestRetentionSeconds: number;
@@ -409,9 +411,10 @@ export interface AttemptLedger<S = PersonalScopeTx> {
   /** The latest attempt of a logical run step, read under the personal lock. */
   readonly findLocked: (scope: S, runId: string, step: string) => Promise<AttemptRow | undefined>;
   /**
-   * Today's spend in the three budget dimensions. Takes the budget lock (a transaction advisory
-   * lock after the personal root, always in that order) so concurrent reservations in different
-   * universes serialise on the global and role counts until this transaction ends.
+   * Today's spend in the three budget dimensions, and the part of the global and the scope spend
+   * that background roles made. Takes the budget lock (a transaction advisory lock after the
+   * personal root, always in that order) so concurrent reservations in different universes
+   * serialise on all of these counts until this transaction ends.
    */
   readonly budgetUsage: (scope: S, roleId: string) => Promise<BudgetUsage>;
   /** Under the budget advisory lock, bound unresolved and conclusive-failed new role/day runs. */
@@ -511,6 +514,11 @@ export interface AttemptLedger<S = PersonalScopeTx> {
 export interface HarnessSettings {
   /** Caps for every role unless the role declares its own. */
   readonly caps: { readonly global: BudgetCap; readonly scope: BudgetCap; readonly roleDefault: BudgetCap };
+  /**
+   * The part of the global cap and of the scope cap, in whole percent (0 to 100), that background
+   * roles may use together. 100 keeps nothing back for roles a person asks for.
+   */
+  readonly backgroundSharePercent: number;
   /** Largest request body, in bytes (the protected store's limit). */
   readonly maxRequestBytes: number;
   /** How long protected request bytes are kept. */
