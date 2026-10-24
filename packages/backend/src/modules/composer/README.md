@@ -10,6 +10,8 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Buffer job `composer.prepare-buffer`, `composer.buffers`, serving from a buffer | implemented (integration-tested; not yet run on dev) |
 | Jev (`composer.jev`, `KS_JEV_ENABLED`) | implemented; four real MiniMax calls succeeded locally (M3 x3, M3.1-Flash x1); not yet run on dev |
 | Stored-assessment use on the HTTP path | implemented |
+| Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
+| Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
 no writes, Nest calls, clock reads or network I/O. Experience prepares it
@@ -179,14 +181,43 @@ inside the buffer job, outside any transaction. For up to 20 of the best eligibl
 deterministic baseline it returns three criteria per candidate, each in [0,1]: relevance to the current
 step, appropriateness as a next explanation and redundancy with the current step. Code combines them:
 `SemanticFit = 0.4 relevance + 0.4 appropriateness + 0.2 (1 - redundancy)`. Entries naming an unknown or
-repeated candidate are dropped. The assessments are stored with the role and prompt versions, the model
-and a 30-minute expiry, inside the buffer row, and are reused by a later preparation or by the HTTP
-ranking while valid, so the same pair is never paid for twice. Provider failure, refusal, a budget stop
-or an unusable answer is the absence of an assessment: with none at all the lexical baseline applies as
-before, and nothing is judged negatively. The harness run ID is the queue job ID, so a redelivery answers from the attempt
-ledger and a possibly sent request is never resent. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1
-on dev. Limit: the generic personal harness only runs while recording is at its initial generation (a
-person who has used Pause has no Jev until the recording-aware harness accepts a Composer purpose).
+repeated candidate are dropped. Provider failure, refusal, a budget stop or an unusable answer is the absence
+of an assessment: with none at all the lexical baseline applies as before, and nothing is judged negatively.
+The harness run ID is the queue job ID, so a redelivery answers from the attempt ledger and a possibly sent
+request is never resent. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1 on dev. Limit: the generic
+personal harness only runs while recording is at its initial generation (a person who has used Pause has no
+Jev until the recording-aware harness accepts a Composer purpose).
+
+**Jev reuses what it paid for (D-058).** A buffer is prepared on every activation, so a person who swipes
+all day would otherwise pay for a call per swipe. Each judgement is therefore kept for 30 minutes in the
+person's pool, one row of `composer.jev_assessments`, which survives the buffer being served.
+
+- *What a stored judgement is about.* The subject: the language and the primary topic (the heaviest topic
+  that is not incidental) of the step the person was on. A step without a topic is its own subject, so its
+  judgements are never lent to another step. Candidates of a vertical move are retrieved by the step's
+  topics, and "how well does this continue the learner's interest" holds for a later step on the same
+  subject. Redundancy with the step the person is on right now is not carried by a stored judgement:
+  the current explanation is excluded outright, and recent repetition and novelty are recomputed for every
+  ranking.
+- *What is reused.* The entries of the current subject that are under 30 minutes old and were made by the same
+  role version, harness framing version and model. Anything else is not used and is dropped when the pool is
+  next written.
+- *When Jev is asked.* Only about shortlisted candidates with no usable entry, and not at all when there are
+  none. A call also waits 10 minutes after the subject's newest judgement, because the shortlist drifts by a
+  candidate or two with every swipe; the candidates that miss out are ranked as unassessed (neutral 0.5), never
+  as bad. A steady swiper therefore costs at most one call per subject per ten minutes, and one per half hour
+  when nothing new turns up. In CI, a person who activates 100 encounters on one subject causes 1 call instead of 100.
+- *What is kept.* What a call returned is added to the pool in the preparation's second transaction, before the
+  checks that may skip the buffer, so a call whose session moved on while the model thought still serves the
+  next preparation. The merge happens under the personal lock, so concurrent preparations of one person lose
+  nothing. The pool keeps the newest 100 entries.
+- *What ranks.* The stored entries of the subject, plus the new ones, for the candidates retrieved this time.
+  They are stored in the buffer row as before, valid until the oldest of them expires, so the HTTP path can
+  use them after the buffer's own 10 minutes.
+- *Background budget.* Jev is a `background` role: it stops at its share of the global and the person's daily
+  caps (`KS_REASONING_BACKGROUND_SHARE_PERCENT`), so what a person asks for keeps working. A refused call is
+  `budget_exhausted`, the Jev run ends `cancelled`, and the buffer is prepared from the stored judgements, or
+  from the deterministic ranking when there are none. Nothing the person sees changes.
 
 **Exploration.** Unchanged: a vertical decision gives the first slot to the exploration pool with
 probability 0.10 and logs the branch and the realised probability in the decision; a buffer's decision
@@ -196,16 +227,19 @@ logs the same.
 
 | Item | Detail |
 |---|---|
-| Tables | `composer.decisions` (0017), `composer.buffers` (0047) |
+| Tables | `composer.decisions` (0017), `composer.buffers` (0047), `composer.jev_assessments` (0069: one row per person, at most 100 entries, newest first) |
 | Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only) |
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |
-| Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, and the queue payloads (`pgboss/composer.prepare-buffer`) |
-| Config | `KS_JEV_ENABLED` (worker); the model is the harness's configured model |
+| Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, `composer.jev_assessments` (it references nothing), and the queue payloads (`pgboss/composer.prepare-buffer`) |
+| Config | `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
 
 **Failure and recovery.** A job for a changed epoch, an unactivated offer or a superseded revision is
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
-leaves the run in the attempt ledger under the job ID; the retry reads it and does not pay again.
+leaves the run in the attempt ledger under the job ID; the retry reads it and does not pay again, unless the
+person's pool changed in between and the request now differs: the harness then refuses the same run ID with a
+different request, the preparation goes ahead without new assessments, and nothing is paid twice. An idle
+person keeps one expired pool row until their next preparation or erasure.
 
 ## Using the Planner plan (D-035)
 

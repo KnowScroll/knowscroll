@@ -58,7 +58,7 @@ import { scenarioProviders, scenarioWorkerProviders } from '@knowscroll/backend/
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored, answerWith } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel, gate, protectedRequestsOf } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, gate, protectedRequestsOf, receiptClassesOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker } from '../support/production-worker.js';
 import { buildRecursively } from '../support/providers.js';
@@ -417,6 +417,11 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         new AbortController().signal,
       );
       expect(plannerCalls()).toBe(calls + 1);
+      // The member asked for it, so it counts against the whole allowance, never the background share.
+      expect((await receiptClassesOf(database.db, a.universeId)).at(-1)).toEqual({
+        role_id: 'scenarios.planner',
+        background: false,
+      });
       const ready = unwrap(await readDraft(a, aRef, started.draftId));
       expect(ready).toMatchObject({ status: 'ready', mode: 'options' });
       if (ready.status === 'ready') expect(ready.options.map((option) => option.optionId)).toEqual(['o1', 'o2']);

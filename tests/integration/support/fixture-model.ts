@@ -163,6 +163,18 @@ export function receiptsOf(db: Kysely<Database>, attemptIds: readonly string[]) 
     .execute();
 }
 
+/** The role and budget class (background or asked-for) of each usage receipt of a universe's attempts, oldest first. */
+export function receiptClassesOf(db: Kysely<Database>, universeId: string) {
+  return db
+    .selectFrom('reasoning.usage_receipts as receipt')
+    .innerJoin('reasoning.external_attempts as attempt', 'attempt.id', 'receipt.attempt_id')
+    .select(['receipt.role_id', 'receipt.background'])
+    .where('attempt.universe_id', '=', universeId)
+    .orderBy('receipt.created_at')
+    .orderBy('receipt.attempt_id')
+    .execute();
+}
+
 /** Protected request rows of a universe (sizes and hashes; bytes only when asked). */
 export function protectedRequestsOf(db: Kysely<Database>, universeId: string) {
   return db

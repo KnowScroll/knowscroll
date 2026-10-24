@@ -27,7 +27,15 @@ import {
   reasoningOperatorFor,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { attemptsOf, fixtureHarness, fixtureModel, fixtureSettings, silent, signal } from '../support/fixture-model.js';
+import {
+  attemptsOf,
+  fixtureHarness,
+  fixtureModel,
+  fixtureSettings,
+  receiptClassesOf,
+  silent,
+  signal,
+} from '../support/fixture-model.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import type { FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
@@ -461,6 +469,11 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state).sort()).toEqual([
       'succeeded',
       'written_off',
+    ]);
+    // The Planner runs because the person read, so its attempts count against the background share.
+    expect(await receiptClassesOf(database.db, p.universeId)).toEqual([
+      { role_id: 'planner.personal-planner', background: true },
+      { role_id: 'planner.personal-planner', background: true },
     ]);
   });
 

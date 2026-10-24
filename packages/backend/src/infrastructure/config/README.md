@@ -35,6 +35,11 @@ work remains durable and resumes only through an explicit same-business-run requ
 optional semantic assessment in the Composer buffer job. Off, the job still prepares buffers from the
 deterministic ranking and makes no model call. Dev sets it to 1. It does not change reasoning caps.
 
+`KS_REASONING_BACKGROUND_SHARE_PERCENT` (#231, D-058) is a whole number from 0 to 100, default 50. It is the
+share of the global cap and of each person's cap that background roles (Jev, Cartographer, Planner) may use
+together; the rest is kept for roles a person asks for. 0 switches background roles off, 100 keeps nothing
+back. It is a reasoning variable: the worker and the Scroll production operator read it with the caps.
+
 `KS_CARTOGRAPHER_ENABLED` (#237) accepts 0/1 and defaults 0. Set it to 1 on the worker to let
 reading form places (D-038). It is the only switch of the role: spend is bounded by the shared
 reasoning budgets and the role's failure brake, not by a second permit. The role needs

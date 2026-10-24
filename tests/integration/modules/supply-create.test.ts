@@ -34,7 +34,7 @@ import { TOPICS } from '../../../packages/backend/src/modules/content/production
 import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureAuthored } from '../support/generated-scroll.js';
-import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, receiptClassesOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -818,6 +818,10 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       expect(await produceJobs()).toHaveLength(1);
       // The model saw the person's words and the catalogue, and nothing of the shared work does.
       expect(matchModel.calls[0]!.request.user).toContain('why does the sea go in and out');
+      // The person asked in their own words, so matching counts against the whole allowance.
+      expect(await receiptClassesOf(database.db, person.universeId)).toEqual([
+        { role_id: 'supply.match-request', background: false },
+      ]);
       expect(JSON.stringify(await database.db.selectFrom('supply.work').selectAll().execute())).not.toContain('sea go');
       expect(
         await database.db
