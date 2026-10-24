@@ -39,6 +39,9 @@ export function InhabitantBar({
       <Text variant="metaS" color={content.ink2}>
         AI inhabitants speak when someone asks. They won’t fill the room on their own.
       </Text>
+      <Text variant="metaS" color={content.ink2}>
+        Asking sends this discussion’s recent messages, without names, to an AI model.
+      </Text>
       <View style={compact === true ? styles.compact : styles.list}>
         {inhabitants.map((entry) => {
           const reason = WORDS[entry.ask];

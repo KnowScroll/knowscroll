@@ -15,6 +15,11 @@ export const CONTRIBUTION_MAX_CHARS = 600;
 export const ROOM_ASKS_PER_DAY = 12;
 /** How many one person may ask for in a UTC day, across rooms. */
 export const PERSON_ASKS_PER_DAY = 4;
+/**
+ * How many asks of any outcome one person may make in a UTC day, across rooms: also those that failed
+ * before reaching the provider. The bound above never counts those, so this one keeps them from piling up.
+ */
+export const PERSON_REQUESTS_PER_DAY = 12;
 /** An ask still queued after this long no longer holds its discussion (the job was lost or erased). */
 export const QUEUED_ASK_LAPSES_MS = 15 * 60 * 1000;
 /** The newest messages of a discussion an inhabitant reads, and the most characters of each. */
@@ -22,10 +27,15 @@ export const CONTEXT_MESSAGES = 20;
 export const CONTEXT_MESSAGE_CHARS = 600;
 
 export interface AskFacts {
-  /** Asks that were queued or answered in this room since the UTC day began (failed ones are not counted). */
+  /**
+   * Asks counted against this room since the UTC day began: queued, answered or declined ones, and
+   * failed ones that reached the provider. Only an ask that never reached the provider is not counted.
+   */
   readonly roomAsksToday: number;
   /** The same, for the person across rooms. */
   readonly personAsksToday: number;
+  /** Every ask of the person since the UTC day began, whatever became of it. */
+  readonly personRequestsToday: number;
   /** An ask of this discussion is still being prepared. */
   readonly openAsk: boolean;
 }
@@ -40,7 +50,8 @@ export type AskDecision = 'allowed' | 'preparing' | 'room_resting' | 'person_res
 export function askDecision(facts: AskFacts): AskDecision {
   if (facts.openAsk) return 'preparing';
   if (facts.roomAsksToday >= ROOM_ASKS_PER_DAY) return 'room_resting';
-  if (facts.personAsksToday >= PERSON_ASKS_PER_DAY) return 'person_resting';
+  if (facts.personAsksToday >= PERSON_ASKS_PER_DAY || facts.personRequestsToday >= PERSON_REQUESTS_PER_DAY)
+    return 'person_resting';
   return 'allowed';
 }
 

@@ -75,6 +75,7 @@ async function inhabitantStatuses(
   const decision = askDecision({
     roomAsksToday: counts.room,
     personAsksToday: counts.person,
+    personRequestsToday: counts.personRequests,
     openAsk: open.length > 0,
   });
   const ask: InhabitantStatus['ask'] = !roomAcceptsPosts(standing.room.status)
@@ -190,7 +191,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             inhabitants: asks.inhabitants,
             ...(asks.yourAsk === undefined ? {} : { yourAsk: asks.yourAsk }),
             latestMessageSequence: discussion.lastSequence,
-            messages: await viewRoomMessages(p, scope, lock, rows),
+            messages: await viewRoomMessages(p, scope, lock, rows, entered.owner.accountId),
             limit: query.limit,
             history:
               oldest && oldest.sequence > 1
@@ -223,7 +224,7 @@ export function makeDiscussionReads(p: RoomPorts) {
         authority,
         query,
         (envelope) => DiscussionHistoryPageSchema.parse({ ...envelope, readId: query.readId, status: 'unavailable' }),
-        async (scope, _entered, lock, discussion) => {
+        async (scope, entered, lock, discussion) => {
           const envelope = { ...roomEnvelope(scope), readId: query.readId };
           const position = historyCursor.decode(query.cursor);
           if (position?.discussionId !== discussion.discussionId)
@@ -242,7 +243,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             status: 'ready',
             limit: query.limit,
             requestCursor: query.cursor,
-            messages: await viewRoomMessages(p, scope, lock, rows),
+            messages: await viewRoomMessages(p, scope, lock, rows, entered.owner.accountId),
             continuation:
               oldest && oldest.sequence > 1
                 ? {
@@ -270,7 +271,7 @@ export function makeDiscussionReads(p: RoomPorts) {
         authority,
         query,
         (envelope) => DiscussionChangesPageSchema.parse({ ...envelope, readId: query.readId, status: 'unavailable' }),
-        async (scope, _entered, lock, discussion) => {
+        async (scope, entered, lock, discussion) => {
           const envelope = { ...roomEnvelope(scope), readId: query.readId };
           const position = changesCursor.decode(query.cursor);
           if (position?.discussionId !== discussion.discussionId)
@@ -283,7 +284,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             after: position.afterChangeSequence,
             limit: query.limit,
           });
-          const views = await viewRoomMessages(p, scope, lock, rows);
+          const views = await viewRoomMessages(p, scope, lock, rows, entered.owner.accountId);
           const last = rows.at(-1);
           const next = changesCursor.encode({
             discussionId: discussion.discussionId,
@@ -313,11 +314,17 @@ export function makeDiscussionReads(p: RoomPorts) {
         authority,
         query,
         (envelope) => RoomSnippetOpeningSchema.parse({ ...envelope, readId: query.readId, status: 'unavailable' }),
-        async (scope, _entered, lock, discussion) => {
+        async (scope, entered, lock, discussion) => {
           const envelope = { ...roomEnvelope(scope), readId: query.readId };
           const unavailable = () => RoomSnippetOpeningSchema.parse({ ...envelope, status: 'unavailable' });
           const message = await p.discussions.messageById(lock, discussion.discussionId, query.messageId);
           if (message === undefined || message.hidden) return unavailable();
+          // A blocked author's card is collapsed for the blocker, and so is what it opens.
+          if (
+            message.authorAccountId !== null &&
+            (await p.blocked(scope, entered.owner.accountId, [message.authorAccountId])).has(message.authorAccountId)
+          )
+            return unavailable();
           const stored = await p.discussions.snippetOfMessage(lock, discussion.discussionId, query.messageId);
           if (stored === undefined) return unavailable();
           const resolution = await p.resolveSnippet(scope, stored.target, stored.anchor);

@@ -488,8 +488,7 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
 - `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
   composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
-  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message and a
-  deleted account. `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
+  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked. `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
   cannot be asked. `message-options-sheet.tsx` holds "Start a thread from this" and the moderator's remove and restore;
   `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
 - `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite) and

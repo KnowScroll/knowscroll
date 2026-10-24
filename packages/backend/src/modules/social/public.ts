@@ -244,6 +244,18 @@ export type ReadFriendAccounts = (
   query: { readonly limit: number } | { readonly personId: string },
 ) => Promise<readonly PublicPerson[]>;
 export const READ_FRIEND_ACCOUNTS = Symbol('social.readFriendAccounts');
+
+/**
+ * Port: of these accounts, the ones the caller has blocked. Read inside the caller's personal
+ * transaction. Another module uses it to collapse a blocked person's words for the blocker; it says
+ * nothing of who blocked the caller, so it can never tell a person they were blocked.
+ */
+export type ReadBlockedAmong = (
+  scope: PersonalScopeTx,
+  accountId: string,
+  candidates: readonly string[],
+) => Promise<ReadonlySet<string>>;
+export const READ_BLOCKED_AMONG = Symbol('social.readBlockedAmong');
 /**
  * What another module may do inside a thread (scenarios; later rooms): enter it as a member, read a
  * bounded window of its messages, keep receipts on it and tell the inboxes. It decides nothing about

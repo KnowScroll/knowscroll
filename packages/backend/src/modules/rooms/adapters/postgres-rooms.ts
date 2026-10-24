@@ -194,8 +194,11 @@ export const roomStore: RoomStore = {
     const joined = await trx
       .insertInto('rooms.members')
       .values({ room_id: lock.roomId, account_id: accountId, role: 'member', joined_at: now })
+      // A person who comes back is an ordinary member: a moderator's role is the operator's to give again.
       .onConflict((conflict) =>
-        conflict.columns(['room_id', 'account_id']).doUpdateSet({ ended_at: null, ended_by: null, joined_at: now }),
+        conflict
+          .columns(['room_id', 'account_id'])
+          .doUpdateSet({ ended_at: null, ended_by: null, joined_at: now, role: 'member' }),
       )
       .returning('role')
       .executeTakeFirstOrThrow();
@@ -210,7 +213,7 @@ export const roomStore: RoomStore = {
   async end(lock, accountId, by, now) {
     await sharedTransactionOf(lock.shared)
       .updateTable('rooms.members')
-      .set({ ended_at: now, ended_by: by })
+      .set({ ended_at: now, ended_by: by, role: 'member' })
       .where('room_id', '=', lock.roomId)
       .where('account_id', '=', accountId)
       .where('ended_at', 'is', null)

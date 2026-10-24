@@ -256,11 +256,15 @@ export interface AiProvenance {
  * An inhabitant cannot write a message without a request row that a member created.
  */
 export interface AiStore {
-  /** Asks counted against the bound since `since` (queued or answered, never failed), in the room and by the person. */
+  /**
+   * Asks counted against the bounds since `since`, in the room and by the person: queued, answered and
+   * declined ones, and failed ones that reached the provider (`dispatched`); only an ask that never reached
+   * the provider is not counted. `personRequests` is every ask the person made, whatever became of it.
+   */
   countAsks(
     lock: RoomLock,
     query: { readonly accountId: string; readonly since: Date },
-  ): Promise<{ readonly room: number; readonly person: number }>;
+  ): Promise<{ readonly room: number; readonly person: number; readonly personRequests: number }>;
   /** Requests of this discussion still queued and not lapsed at `now`, by inhabitant. */
   openAsks(lock: RoomLock, discussionId: string, now: Date): Promise<readonly InhabitantId[]>;
   /** The caller's newest ask of this discussion that ended without a contribution since `since`. */
@@ -277,7 +281,7 @@ export interface AiStore {
     lock: RoomLock,
     requestId: string,
     outcome:
-      | { readonly state: 'declined' | 'failed'; readonly at: Date }
+      | { readonly state: 'declined' | 'failed'; readonly at: Date; readonly dispatched: boolean }
       | {
           readonly state: 'completed';
           readonly at: Date;
@@ -357,6 +361,13 @@ export interface PersonLookup {
   hasProfile(scope: PersonalScopeTx, accountId: string): Promise<boolean>;
 }
 
+/** Which of these accounts the caller has blocked (their words are collapsed for the caller only). */
+export type BlockedLookup = (
+  scope: PersonalScopeTx,
+  accountId: string,
+  candidates: readonly string[],
+) => Promise<ReadonlySet<string>>;
+
 export interface FriendLookup {
   /** The caller's current friends' account IDs, at most `limit`. */
   accounts(scope: PersonalScopeTx, accountId: string, limit: number): Promise<readonly string[]>;
@@ -376,6 +387,7 @@ export interface RoomPorts {
   readonly activities: ActivityStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
+  readonly blocked: BlockedLookup;
   readonly readContent: ReadContent;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;

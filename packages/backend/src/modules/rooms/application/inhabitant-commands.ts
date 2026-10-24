@@ -39,6 +39,7 @@ export function makeInhabitantCommands(p: RoomPorts) {
           const decision = askDecision({
             roomAsksToday: counts.room,
             personAsksToday: counts.person,
+            personRequestsToday: counts.personRequests,
             openAsk: open.length > 0,
           });
           if (decision === 'preparing') return refuse('unavailable');

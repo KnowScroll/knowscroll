@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { PublicPerson, ReadFriendAccounts, ReadPublicPeople } from '../public.js';
+import type { PublicPerson, ReadBlockedAmong, ReadFriendAccounts, ReadPublicPeople } from '../public.js';
 
 interface PersonColumns {
   account_id: string;
@@ -53,4 +53,19 @@ export const readFriendAccounts: ReadFriendAccounts = async (scope, accountId, q
       and pair.accepted_lineage is not null ${one}
     order by profile.person_id ${limit}`.execute(transactionOf(scope));
   return rows.rows.map(personOf);
+};
+
+/** Which of these accounts the caller has blocked: their own side of a pair says so, the other side never does. */
+export const readBlockedAmong: ReadBlockedAmong = async (scope, accountId, candidates) => {
+  if (candidates.length === 0) return new Set();
+  const rows = await sql<{ other: string }>`
+    select case when pair.low_account_id = ${accountId}::uuid then pair.high_account_id else pair.low_account_id end as other
+    from social.pairs pair
+    join social.pair_sides side on side.pair_id = pair.pair_id and side.account_id = ${accountId}::uuid
+    where side.own_blocked
+      and ((pair.low_account_id = ${accountId}::uuid and pair.high_account_id = any(${[...candidates]}::uuid[]))
+        or (pair.high_account_id = ${accountId}::uuid and pair.low_account_id = any(${[...candidates]}::uuid[])))`.execute(
+    transactionOf(scope),
+  );
+  return new Set(rows.rows.map((row) => row.other));
 };

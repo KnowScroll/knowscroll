@@ -49,10 +49,18 @@ const poll = (yourVote?: string) => ({
   activity: {
     kind: 'poll' as const,
     prompt: 'Which first?',
-    options: [
-      { optionId: 'o1', text: 'Batching', votes: yourVote === 'o1' ? 1 : 0, voters: [] },
-      { optionId: 'o2', text: 'Instances', votes: yourVote === 'o2' ? 1 : 0, voters: [] },
-    ],
+    // The server sends a tally only once the person has voted.
+    resultsVisible: yourVote !== undefined,
+    options:
+      yourVote === undefined
+        ? [
+            { optionId: 'o1', text: 'Batching' },
+            { optionId: 'o2', text: 'Instances' },
+          ]
+        : [
+            { optionId: 'o1', text: 'Batching', votes: yourVote === 'o1' ? 1 : 0, voters: [] },
+            { optionId: 'o2', text: 'Instances', votes: yourVote === 'o2' ? 1 : 0, voters: [] },
+          ],
     ...(yourVote === undefined ? {} : { yourVote }),
     canVote: true,
   },

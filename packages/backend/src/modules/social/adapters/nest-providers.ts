@@ -50,12 +50,13 @@ import type { RefreshPorts, VisibilityPorts } from '../application/visibility-po
 import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
 import { newOpaqueToken } from './opaque-token.js';
 import { recordHeartbeat, visibilityStore } from './postgres-visibility.js';
-import { readFriendAccounts, readPublicPeople } from './postgres-people.js';
+import { readBlockedAmong, readFriendAccounts, readPublicPeople } from './postgres-people.js';
 import { makeLookupPerson, makeReadPair } from '../application/lookup-person.js';
 import { makePairCommand } from '../application/pairs.js';
 import {
   ANNOUNCE_THREAD,
   CONVERSATION_USE_CASES,
+  READ_BLOCKED_AMONG,
   READ_FRIEND_ACCOUNTS,
   READ_INBOX_REVISION,
   READ_PUBLIC_PEOPLE,
@@ -300,6 +301,7 @@ export function socialPeopleProviders() {
   return [
     { provide: READ_PUBLIC_PEOPLE, useValue: readPublicPeople },
     { provide: READ_FRIEND_ACCOUNTS, useValue: readFriendAccounts },
+    { provide: READ_BLOCKED_AMONG, useValue: readBlockedAmong },
   ];
 }
 
@@ -359,6 +361,6 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
     },
   ];
 }
-export { readFriendAccounts, readPublicPeople } from './postgres-people.js';
+export { readBlockedAmong, readFriendAccounts, readPublicPeople } from './postgres-people.js';
 export { socialStore, privatePairId } from './postgres-store.js';
 export type { SocialPorts } from '../application/ports.js';

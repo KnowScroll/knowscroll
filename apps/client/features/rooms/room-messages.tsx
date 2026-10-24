@@ -338,6 +338,8 @@ export function RoomMessages({
                         />
                       ) : message.status === 'removed' ? (
                         <Marker words="Message removed by the moderator" mine={false} />
+                      ) : message.status === 'blocked' ? (
+                        <Marker words="A message from someone you blocked" mine={false} />
                       ) : (
                         <Marker words="Message removed" mine={false} />
                       )}

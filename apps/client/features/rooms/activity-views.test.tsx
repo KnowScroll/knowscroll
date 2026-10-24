@@ -21,10 +21,12 @@ const person = (n: number, displayName: string) => ({
 const poll = (patch: Partial<Poll> = {}): Poll => ({
   kind: 'poll',
   prompt: 'At 10x requests, what would you try first?',
+  // Before the person has voted the server sends no tally and no voters.
+  resultsVisible: false,
   options: [
-    { optionId: 'o1', text: 'Batching', votes: 0, voters: [] },
-    { optionId: 'o2', text: 'More instances', votes: 0, voters: [] },
-    { optionId: 'o3', text: 'Shorter answers', votes: 0, voters: [] },
+    { optionId: 'o1', text: 'Batching' },
+    { optionId: 'o2', text: 'More instances' },
+    { optionId: 'o3', text: 'Shorter answers' },
   ],
   canVote: true,
   ...patch,
@@ -99,6 +101,7 @@ describe('a poll (R03)', () => {
     const c = controller();
     const p = poll({
       yourVote: 'o1',
+      resultsVisible: true,
       options: [
         { optionId: 'o1', text: 'Batching', votes: 2, voters: [person(5, 'Asha'), person(6, 'Ravi')] },
         { optionId: 'o2', text: 'More instances', votes: 1, voters: [person(7, 'Meera')] },
@@ -118,6 +121,7 @@ describe('a poll (R03)', () => {
   it('says a closed poll is closed, shows its votes and offers no vote', async () => {
     const p = poll({
       canVote: false,
+      resultsVisible: true,
       options: [
         { optionId: 'o1', text: 'Batching', votes: 3, voters: [person(5, 'Asha')] },
         { optionId: 'o2', text: 'More instances', votes: 0, voters: [] },

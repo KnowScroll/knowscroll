@@ -156,7 +156,8 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
     const ids = { roomId, activityId: created.activityId };
     await clientOf(b).rooms.votePoll({ version, commandId: randomUUID(), ...ids, optionId: 'o1' });
     await clientOf(b).rooms.votePoll({ version, commandId: randomUUID(), ...ids, optionId: 'o2' });
-    const open = await clientOf(a).rooms.readActivity({ version, readId: randomUUID(), ...ids });
+    // The voter sees the tally; the moderator, who has not voted, would not.
+    const open = await clientOf(b).rooms.readActivity({ version, readId: randomUUID(), ...ids });
     if (open.status !== 'ready' || open.activity.kind !== 'poll') throw new Error('CI poll view');
     expect(open.activity.options.map((option) => option.votes)).toEqual([0, 1]);
     await clientOf(a).rooms.moderateActivity({ version, commandId: randomUUID(), ...ids, action: 'close' });

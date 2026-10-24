@@ -29,7 +29,12 @@ import {
   seedRooms,
   setRoomModerator,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
-import { readFriendAccounts, readPublicPeople } from '@knowscroll/backend/modules/social/nest-providers';
+import {
+  readBlockedAmong,
+  readFriendAccounts,
+  readPublicPeople,
+} from '@knowscroll/backend/modules/social/nest-providers';
+import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import type { ReasoningHarness } from '@knowscroll/backend/reasoning';
 import type { TestDatabase } from './database.js';
 import { befriend, seedFriend, talkCases, type Friend } from './talk.js';
@@ -70,12 +75,15 @@ export async function roomWorld(
     fenceOwn: access.fenceOwnAccount,
     readPeople: readPublicPeople,
     readFriends: readFriendAccounts,
+    readBlocked: readBlockedAmong,
     readContent: readShareableContent,
     readSequence: readContentSequence,
     readVisited: readVisitedAssets,
     validateSnippet: validateSnippetAnchor,
     resolveSnippet: resolveSnippetAnchor,
     readGeography: geographyReader(database.db),
+    // No Scroll in these tests is made for a thread, so the audience of an order is nobody's.
+    checkAudience: makeCheckAssetAudience(database.db, () => Promise.resolve(new Set())),
     now: () => clock.now,
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;

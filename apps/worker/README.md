@@ -123,7 +123,7 @@ idempotent and calls no provider.
 
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
-names an account a moderator of a room or takes the role back. Both write room rows only: no member, no message,
+names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,
 no provider call. The `rooms.contribute` consumer answers a member's ask of an AI inhabitant with the personal
 harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`).
 

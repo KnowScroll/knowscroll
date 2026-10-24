@@ -11,17 +11,18 @@ type Poll = Extract<Ready['activity'], { kind: 'poll' }>;
 
 /** What a tally adds under an option: its count, a bar and the first voters by name (a vote is visible to the room). */
 function Tally({ option, total }: { readonly option: Poll['options'][number]; readonly total: number }) {
-  const named = option.voters.map((voter) => voter.displayName);
-  const more = option.votes - named.length;
+  const votes = option.votes ?? 0;
+  const named = (option.voters ?? []).map((voter) => voter.displayName);
+  const more = votes - named.length;
   const who = [...named, ...(more > 0 ? [`${String(more)} more`] : [])].join(', ');
-  const share = total === 0 ? 0 : Math.round((option.votes / total) * 100);
+  const share = total === 0 ? 0 : Math.round((votes / total) * 100);
   return (
     <View style={styles.result} aria-hidden>
       <View style={styles.bar}>
         <View style={[styles.barFill, { width: `${String(share)}%` }]} />
       </View>
       <Text variant="metaS" color={content.ink2}>
-        {`${String(option.votes)} ${option.votes === 1 ? 'vote' : 'votes'}${who === '' ? '' : ` · ${who}`}`}
+        {`${String(votes)} ${votes === 1 ? 'vote' : 'votes'}${who === '' ? '' : ` · ${who}`}`}
       </Text>
     </View>
   );
@@ -30,17 +31,18 @@ function Tally({ option, total }: { readonly option: Poll['options'][number]; re
 /** The spoken name of an option with its tally, since the visible tally is decoration for the row. */
 function spoken(option: Poll['options'][number], showResults: boolean): string {
   if (!showResults) return option.text;
-  const who = option.voters.map((voter) => voter.displayName);
-  const more = option.votes - who.length;
-  return `${option.text}, ${String(option.votes)} ${option.votes === 1 ? 'vote' : 'votes'}${
+  const votes = option.votes ?? 0;
+  const who = (option.voters ?? []).map((voter) => voter.displayName);
+  const more = votes - who.length;
+  return `${option.text}, ${String(votes)} ${votes === 1 ? 'vote' : 'votes'}${
     who.length === 0 ? '' : `, ${[...who, ...(more > 0 ? [`${String(more)} more`] : [])].join(', ')}`
   }`;
 }
 
 /**
  * R03 "Moderator poll": one question, pick one, vote. The vote is visible to the room and can be changed
- * until the moderator closes the poll. Results show once the person has voted or the poll is closed, so
- * seeing others' votes never comes before choosing. Nothing here is required or scored; skipping changes
+ * until the moderator closes the poll. Results come from the server once the person has voted or the poll is
+ * closed, so seeing others' votes never comes before choosing. Nothing here is required or scored; skipping changes
  * nothing for anyone. `compact` is the card in D04's side panel.
  */
 export function PollCard({
@@ -61,8 +63,9 @@ export function PollCard({
   const [picked, setPicked] = useState<string | undefined>(poll.yourVote);
   const choice = picked ?? poll.yourVote;
   const closed = view.state === 'closed';
-  const showResults = closed || poll.yourVote !== undefined;
-  const total = poll.options.reduce((sum, option) => sum + option.votes, 0);
+  // The server decides: it sends a tally only once the person has voted or the poll is closed.
+  const showResults = poll.resultsVisible;
+  const total = poll.options.reduce((sum, option) => sum + (option.votes ?? 0), 0);
   const send = (optionId: string) => void controller.vote(optionId);
   return (
     <View style={styles.card} testID="poll-card">

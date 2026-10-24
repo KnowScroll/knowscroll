@@ -142,8 +142,11 @@ export type ContributionVerdict =
       readonly end: 'completed';
     }
   | { readonly kind: 'nothing_to_add'; readonly end: 'completed' }
-  /** Absent `end`: the attempt may have reached the provider, so the run stays open for reconciliation. */
-  | { readonly kind: 'failed'; readonly end?: 'failed' | 'cancelled' };
+  /**
+   * Absent `end`: the attempt may have reached the provider, so the run stays open for reconciliation.
+   * `dispatched` says an attempt was made: the ask then stays counted against the daily bounds.
+   */
+  | { readonly kind: 'failed'; readonly dispatched: boolean; readonly end?: 'failed' | 'cancelled' };
 
 /**
  * Reads the harness outcome. Only a `proposed` answer can contribute, and it already passed the
@@ -160,12 +163,14 @@ export function contributionVerdict(outcome: ProposeOutcome<InhabitantAnswer>): 
     }
     case 'invalid_output':
     case 'failed':
-      return { kind: 'failed', end: 'failed' };
+      return { kind: 'failed', dispatched: true, end: 'failed' };
     case 'budget_exhausted':
     case 'quota_unavailable':
-      return { kind: 'failed', end: 'cancelled' };
+      // Refused before any model call, so the ask is not counted.
+      return { kind: 'failed', dispatched: false, end: 'cancelled' };
     case 'unknown':
+      return { kind: 'failed', dispatched: true };
     case 'refused':
-      return { kind: 'failed' };
+      return { kind: 'failed', dispatched: outcome.attemptId !== undefined };
   }
 }

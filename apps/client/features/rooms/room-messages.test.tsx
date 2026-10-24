@@ -112,6 +112,12 @@ describe('room messages', () => {
     expect(screen.getByText('Message removed')).toBeOnTheScreen();
   });
 
+  it('collapses a message from someone the reader blocked into a marker that keeps its place and shows no words', async () => {
+    await show([text(1, ravi, 'hello'), { messageId: id(104), sequence: 2, status: 'blocked' }]);
+    expect(screen.getByText('A message from someone you blocked')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Message options' })).not.toBeOnTheScreen();
+  });
+
   it('offers message options only where there is something to do: a card, or a moderator', async () => {
     const member = await show([text(1, ravi, 'plain'), card]);
     expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);

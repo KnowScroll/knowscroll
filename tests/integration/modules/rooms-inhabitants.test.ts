@@ -13,6 +13,7 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   ask,
   befriend,
+  joinRoom,
   joined,
   readDiscussion,
   roomWorld,
@@ -287,6 +288,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
           requested_by_account_id: filler.accountId,
           command_id: randomUUID(),
           state: 'declined',
+          dispatched: true,
           created_at: world.clock.now,
           settled_at: world.clock.now,
         })
@@ -348,8 +350,144 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     );
     release(answer('explanation', 'too late'));
     await running;
-    expect((await requestState(job.requestId)).state).toBe('failed');
+    // The model was called, so the ask is dropped but stays counted against the day.
+    expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
     expect(JSON.stringify(await messagesOf(asha, roomId, discussionId))).not.toContain('too late');
+  });
+
+  /** One ask whose model call is held in flight until `finish` runs; the asker's standing may change meanwhile. */
+  async function askWhileModelRuns(
+    person: Friend,
+    roomId: string,
+    discussionId: string,
+    meanwhile: () => Promise<void>,
+  ) {
+    let release: (scenario: FixtureScenario) => void = () => undefined;
+    const held = new Promise<FixtureScenario>((resolve) => (release = resolve));
+    const model = fixtureModel(() => ({ kind: 'hold', until: held }), { label: 'rooms-bound' });
+    const { harness } = fixtureHarness(database.db, { model });
+    const job = await askAndTake(person, roomId, discussionId);
+    const running = world.contribute(harness)(job);
+    await expect.poll(() => model.calls.length).toBe(1);
+    await meanwhile();
+    release(answer('assumption', 'discarded'));
+    await running;
+    return { job, calls: model.calls.length };
+  }
+
+  it('does not give an ask back when the asker leaves while the model runs: four calls a day, not more', async () => {
+    const { roomId, ravi, discussionId } = await conversation(() => answer('assumption', 'unused'));
+    let modelCalls = 0;
+    for (let round = 1; round <= 4; round++) {
+      const { job, calls } = await askWhileModelRuns(ravi, roomId, discussionId, async () => {
+        unwrap(await world.rooms.leave(ravi.authority, { version, commandId: randomUUID(), roomId }));
+      });
+      modelCalls += calls;
+      expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
+      unwrap(await joinRoom(world, ravi, roomId));
+    }
+    expect(modelCalls).toBe(4);
+    const fifth = await ask(world, ravi, roomId, discussionId);
+    expect(fifth.kind === 'refused' ? fifth.code : 'ok').toBe('rate_limited');
+  }, 60_000);
+
+  it('counts an ask whose answer was dropped by a pause or a Clear, and refunds one that never reached the provider', async () => {
+    const paused = await conversation(() => answer('assumption', 'unused'));
+    const pausedRun = await askWhileModelRuns(paused.ravi, paused.roomId, paused.discussionId, async () => {
+      await world.db
+        .updateTable('rooms.rooms')
+        .set({ status: 'paused' })
+        .where('room_id', '=', paused.roomId)
+        .execute();
+    });
+    expect(await requestState(pausedRun.job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
+    await world.db.updateTable('rooms.rooms').set({ status: 'open' }).where('room_id', '=', paused.roomId).execute();
+    const asked = await world.db
+      .selectFrom('rooms.ai_requests')
+      .select(['state', 'dispatched'])
+      .where('requested_by_account_id', '=', paused.ravi.accountId)
+      .execute();
+    expect(asked.filter((row) => row.state !== 'failed' || row.dispatched)).toHaveLength(1);
+
+    // Leaving before the worker starts costs no call, so that ask is handed back.
+    const early = await conversation(() => answer('assumption', 'unused'));
+    const job = await askAndTake(early.ravi, early.roomId, early.discussionId);
+    unwrap(await world.rooms.leave(early.ravi.authority, { version, commandId: randomUUID(), roomId: early.roomId }));
+    await early.contribute(job);
+    expect(early.model.calls).toHaveLength(0);
+    expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: false });
+  });
+
+  it('caps every ask a person makes in a day, so asks that never reach the provider cannot pile up', async () => {
+    const { roomId, ravi, discussionId, model, contribute } = await conversation(() => answer('assumption', 'unused'));
+    // Each ask is made and the asker leaves before the worker starts: nothing is dispatched, nothing is counted.
+    for (let round = 1; round <= 12; round++) {
+      const job = await askAndTake(ravi, roomId, discussionId);
+      unwrap(await world.rooms.leave(ravi.authority, { version, commandId: randomUUID(), roomId }));
+      await contribute(job);
+      unwrap(await joinRoom(world, ravi, roomId));
+    }
+    expect(model.calls).toHaveLength(0);
+    const next = await ask(world, ravi, roomId, discussionId);
+    expect(next.kind === 'refused' ? next.code : 'ok').toBe('rate_limited');
+    expect((await messagesOf(ravi, roomId, discussionId)).inhabitants.map((entry) => entry.ask)).toEqual([
+      'resting',
+      'resting',
+    ]);
+  }, 60_000);
+
+  it('accepts the same command ID in another room as another ask, not as an error', async () => {
+    const first = await conversation(() => answer('assumption', 'unused'));
+    const { roomId: otherRoom } = await seedRoom(world);
+    unwrap(await joinRoom(world, first.ravi, otherRoom));
+    const otherDiscussion = await startTopic(world, first.ravi, otherRoom, 'Another room, another topic');
+    const commandId = randomUUID();
+    unwrap(
+      await world.rooms.ask(first.ravi.authority, {
+        version,
+        commandId,
+        roomId: first.roomId,
+        discussionId: first.discussionId,
+        inhabitant: 'skeptic',
+      }),
+    );
+    const second = await world.rooms.ask(first.ravi.authority, {
+      version,
+      commandId,
+      roomId: otherRoom,
+      discussionId: otherDiscussion,
+      inhabitant: 'skeptic',
+    });
+    expect(second.kind).toBe('ok');
+    const rows = await world.db
+      .selectFrom('rooms.ai_requests')
+      .select('room_id')
+      .where('command_id', '=', commandId)
+      .execute();
+    expect(rows.map((row) => row.room_id).sort()).toEqual([first.roomId, otherRoom].sort());
+  });
+
+  it('never sends a message a moderator removed to the model', async () => {
+    const { roomId, slug, asha, ravi, discussionId, model, contribute } = await conversation(() =>
+      answer('assumption', 'Is that so?'),
+    );
+    const moderator = await seedFriend(world.db, world.friends);
+    const { makeModerator } = await import('../support/rooms.js');
+    await makeModerator(world, slug, moderator);
+    const said = unwrap(await say(world, asha, roomId, discussionId, 'SECRET-HIDDEN-WORDS'));
+    unwrap(
+      await world.rooms.hideMessage(moderator.authority, {
+        version,
+        commandId: randomUUID(),
+        roomId,
+        discussionId,
+        messageId: said.messageId,
+        hidden: true,
+      }),
+    );
+    await contribute(await askAndTake(ravi, roomId, discussionId));
+    expect(model.calls[0]!.request.user).not.toContain('SECRET-HIDDEN-WORDS');
+    expect(model.calls[0]!.request.user).toContain('I think batching makes it cheaper.');
   });
 
   async function countJobs(queue: string): Promise<number> {

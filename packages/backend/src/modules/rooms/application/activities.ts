@@ -71,10 +71,11 @@ export function makeActivities(p: RoomPorts) {
           })),
         },
       });
-    const [tally, yourVote] = await Promise.all([
-      p.activities.tally(lock, row.activityId, VOTERS_SHOWN),
-      p.activities.yourVote(lock, row.activityId, owner.accountId),
-    ]);
+    const yourVote = await p.activities.yourVote(lock, row.activityId, owner.accountId);
+    // Results are shown once the person has voted or the poll is closed, and not before: a tally is never
+    // sent to someone who has not chosen yet, whatever their client does with it.
+    const resultsVisible = row.state !== 'open' || yourVote !== undefined;
+    const tally = resultsVisible ? await p.activities.tally(lock, row.activityId, VOTERS_SHOWN) : [];
     const voterIds = [...new Set(tally.flatMap((entry) => entry.voterAccountIds))];
     const people: ReadonlyMap<string, PublicPersonRef> =
       voterIds.length === 0 ? new Map() : await p.people.byAccounts(scope, voterIds);
@@ -83,7 +84,9 @@ export function makeActivities(p: RoomPorts) {
       activity: {
         kind: 'poll',
         prompt: definition.prompt,
+        resultsVisible,
         options: definition.options.map((option) => {
+          if (!resultsVisible) return { optionId: option.id, text: option.text };
           const votes = tally.find((entry) => entry.optionId === option.id);
           return {
             optionId: option.id,
@@ -171,7 +174,8 @@ export function makeActivities(p: RoomPorts) {
         request: command,
         acceptance: ActivityCreationSchema,
         requires: 'moderator',
-        mode: 'read',
+        // FOR UPDATE: the open and daily bounds are counted under this lock, so concurrent moderators cannot exceed them.
+        mode: 'write',
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
           if (!acceptsNewActivity(standing.room.status)) return refuse('unavailable');

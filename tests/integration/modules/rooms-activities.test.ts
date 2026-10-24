@@ -82,13 +82,13 @@ describe('optional room activity (real PostgreSQL)', () => {
     const consumptionBefore = await consumptionRows(world.db);
     unwrap(await votePoll(world, one, roomId, activityId, 'o1'));
     unwrap(await votePoll(world, two, roomId, activityId, 'o1'));
-    let view = await readActivity(world, moderator, roomId, activityId);
+    let view = await readActivity(world, one, roomId, activityId);
     if (view.status !== 'ready' || view.activity.kind !== 'poll') throw new Error('expected a poll');
     expect(view.activity.options.map((option) => option.votes)).toEqual([2, 0, 0]);
-    expect(view.activity.options[0]?.voters.map((voter) => voter.personId).sort()).toEqual(
+    expect(view.activity.options[0]?.voters?.map((voter) => voter.personId).sort()).toEqual(
       [one.person.personId, two.person.personId].sort(),
     );
-    expect(view.canModerate).toBe(true);
+    expect(view.canModerate).toBe(false);
 
     // A change of mind is a new command: the vote moves, the total stays at one each.
     unwrap(await votePoll(world, two, roomId, activityId, 'o3'));
@@ -96,7 +96,6 @@ describe('optional room activity (real PostgreSQL)', () => {
     if (view.status !== 'ready' || view.activity.kind !== 'poll') throw new Error('expected a poll');
     expect(view.activity.options.map((option) => option.votes)).toEqual([1, 0, 1]);
     expect(view.activity.yourVote).toBe('o3');
-    expect(view.canModerate).toBe(false);
     // A vote is conversation: it leaves no exposure, observation or Keep behind.
     expect(await consumptionRows(world.db)).toBe(consumptionBefore);
     expect(
@@ -327,6 +326,152 @@ describe('optional room activity (real PostgreSQL)', () => {
       world.db,
     );
     expect(creators.rows[0]?.n).toBe('0');
+  });
+
+  it('sends a tally and the voters only to someone who has voted, or to anyone once the poll is closed', async () => {
+    const { roomId, moderator, one, two } = await room();
+    const { activityId } = unwrap(await startPoll(world, moderator, roomId));
+    unwrap(await votePoll(world, one, roomId, activityId, 'o1'));
+    const pollOf = async (person: typeof one) => {
+      const view = await readActivity(world, person, roomId, activityId);
+      if (view.status !== 'ready' || view.activity.kind !== 'poll') throw new Error('expected a poll');
+      return { view, poll: view.activity, json: JSON.stringify(view) };
+    };
+
+    // Someone who has not voted (a member, and the moderator) is told nothing of how others voted.
+    for (const person of [two, moderator]) {
+      const hidden = await pollOf(person);
+      expect(hidden.poll.resultsVisible).toBe(false);
+      expect(hidden.poll.yourVote).toBeUndefined();
+      expect(hidden.poll.options.every((option) => option.votes === undefined && option.voters === undefined)).toBe(
+        true,
+      );
+      expect(hidden.json).not.toContain(one.person.displayName);
+      expect(hidden.json).not.toContain(one.person.personId);
+      expect(hidden.json).not.toMatch(/"votes"|"voters"/);
+    }
+    // The voter sees results, with names.
+    const voted = await pollOf(one);
+    expect(voted.poll.resultsVisible).toBe(true);
+    expect(voted.poll.options.map((option) => option.votes)).toEqual([1, 0, 0]);
+    // Voting opens the results to the one who voted, and only to them.
+    unwrap(await votePoll(world, two, roomId, activityId, 'o2'));
+    const after = await pollOf(two);
+    expect(after.poll.resultsVisible).toBe(true);
+    expect(after.poll.options.map((option) => option.votes)).toEqual([1, 1, 0]);
+    expect((await pollOf(moderator)).poll.resultsVisible).toBe(false);
+    // Closing shows everyone, who voted or not.
+    unwrap(
+      await world.rooms.moderateActivity(moderator.authority, {
+        version,
+        commandId: randomUUID(),
+        roomId,
+        activityId,
+        action: 'close',
+      }),
+    );
+    const closed = await pollOf(moderator);
+    expect(closed.poll.resultsVisible).toBe(true);
+    expect(closed.poll.options.map((option) => option.votes)).toEqual([1, 1, 0]);
+  });
+
+  it('keeps the open and daily bounds exact when many moderators start an activity at once', async () => {
+    let mostOpen = 0;
+    for (let round = 0; round < 6; round++) {
+      const { roomId, slug } = await seedRoom(world);
+      const moderators: Friend[] = [];
+      for (let index = 0; index < 10; index++) {
+        const moderator = await seedFriend(world.db, world.friends);
+        unwrap(await joinRoom(world, moderator, roomId));
+        await makeModerator(world, slug, moderator);
+        moderators.push(moderator);
+      }
+      for (let index = 0; index < 4; index++) unwrap(await startPoll(world, moderators[0]!, roomId));
+      const outcomes = await Promise.all(moderators.map((moderator) => startPoll(world, moderator, roomId)));
+      const open = await world.db
+        .selectFrom('rooms.activities')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('room_id', '=', roomId)
+        .where('state', '=', 'open')
+        .executeTakeFirstOrThrow();
+      mostOpen = Math.max(mostOpen, Number(open.n));
+      // Exactly one of the ten fits under the bound of five; the rest are told the room has enough open.
+      expect(outcomes.filter((outcome) => outcome.kind === 'ok')).toHaveLength(1);
+      expect(outcomes.filter((outcome) => outcome.kind === 'refused' && outcome.code === 'rate_limited')).toHaveLength(
+        9,
+      );
+    }
+    expect(mostOpen).toBe(5);
+
+    // The same under the daily bound: nineteen already started and closed today, ten start at once.
+    const { roomId, slug } = await seedRoom(world);
+    const moderators: Friend[] = [];
+    for (let index = 0; index < 10; index++) {
+      const moderator = await seedFriend(world.db, world.friends);
+      unwrap(await joinRoom(world, moderator, roomId));
+      await makeModerator(world, slug, moderator);
+      moderators.push(moderator);
+    }
+    for (let index = 0; index < 19; index++)
+      await world.db
+        .insertInto('rooms.activities')
+        .values({
+          activity_id: randomUUID(),
+          room_id: roomId,
+          kind: 'poll',
+          title: 'Earlier today',
+          definition: JSON.stringify({
+            kind: 'poll',
+            prompt: 'Earlier today',
+            options: [
+              { id: 'o1', text: 'A' },
+              { id: 'o2', text: 'B' },
+            ],
+          }),
+          state: 'closed',
+          created_by_account_id: moderators[0]!.accountId,
+          created_at: world.clock.now,
+          closed_at: world.clock.now,
+        })
+        .execute();
+    const outcomes = await Promise.all(moderators.map((moderator) => startPoll(world, moderator, roomId)));
+    expect(outcomes.filter((outcome) => outcome.kind === 'ok')).toHaveLength(1);
+    const today = await world.db
+      .selectFrom('rooms.activities')
+      .select((eb) => eb.fn.countAll<string>().as('n'))
+      .where('room_id', '=', roomId)
+      .executeTakeFirstOrThrow();
+    expect(Number(today.n)).toBe(20);
+  }, 120_000);
+
+  it('keeps a full-length quiz in a script of three-byte letters, as the contract allows', async () => {
+    const { roomId, moderator, one } = await room();
+    // 160 + 5 x (160 + 4 x 80 + 80 + 240 + 160) letters, each three bytes in UTF-8.
+    const letters = (count: number, tag: string) => (tag + '界'.repeat(count)).slice(0, count);
+    const question = (q: number) => ({
+      prompt: letters(160, `q${String(q)}`),
+      options: [1, 2, 3, 4].map((o) => letters(80, `o${String(o)}`)),
+      explanation: { heading: letters(80, 'h'), text: letters(240, 't'), note: letters(160, 'n') },
+    });
+    const created = unwrap(
+      await world.rooms.createActivity(moderator.authority, {
+        version,
+        commandId: randomUUID(),
+        roomId,
+        activity: { kind: 'quiz', title: letters(160, 'title'), questions: [1, 2, 3, 4, 5].map(question) },
+      }),
+    );
+    const stored = await sql<{ bytes: number }>`
+      select octet_length(definition::text) as bytes from rooms.activities where activity_id = ${created.activityId}::uuid`.execute(
+      world.db,
+    );
+    // Bigger than the old 12 KiB bound, inside the new one.
+    expect(stored.rows[0]!.bytes).toBeGreaterThan(12_288);
+    expect(stored.rows[0]!.bytes).toBeLessThan(32_768);
+    const view = await readActivity(world, one, roomId, created.activityId);
+    if (view.status !== 'ready' || view.activity.kind !== 'quiz') throw new Error('expected a quiz');
+    expect(view.activity.questions).toHaveLength(5);
+    expect(view.activity.questions[4]!.explanation.note).toBe(letters(160, 'n'));
   });
 
   /** The rows of every rooms table: reading a quiz writes none. */

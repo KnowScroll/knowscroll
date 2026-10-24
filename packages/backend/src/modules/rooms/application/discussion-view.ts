@@ -20,16 +20,21 @@ const isTombstone = (row: MessageRow): boolean =>
  * tombstone is a different marker; an AI contribution carries its fixed label and kind and never
  * a person's identity. A person's message whose author cannot be named (no profile) reads as a
  * tombstone, never as an invented author. A card message without its anchor row reads as a plain card.
+ * A message by someone the reader has blocked is a marker for the reader: D-051 keeps a room open to the
+ * blocked person, but the blocker never has to read them.
  */
 export function viewRoomMessage(
   row: MessageRow,
   authors: ReadonlyMap<string, PublicPersonRef>,
   snippets: ReadonlyMap<string, StoredSnippetAnchor>,
   cards: ReadonlyMap<string, ContentCard>,
+  blocked: ReadonlySet<string> = new Set(),
 ): RoomMessage {
   const identity = { messageId: row.messageId, sequence: row.sequence };
   if (row.hidden) return { ...identity, status: 'removed' };
   if (isTombstone(row)) return { ...identity, status: 'unavailable' };
+  // A person the reader has blocked: their words are collapsed for this reader and for no one else.
+  if (row.authorAccountId !== null && blocked.has(row.authorAccountId)) return { ...identity, status: 'blocked' };
   const base = { ...identity, status: 'available' as const, recordedAt: row.recordedAt.toISOString() };
   if (row.inhabitant !== null && row.aiKind !== null && row.text !== null)
     return {
@@ -56,6 +61,7 @@ export async function viewRoomMessages(
   scope: PersonalScopeTx,
   lock: RoomLock,
   rows: readonly MessageRow[],
+  viewer: string,
 ): Promise<RoomMessage[]> {
   const shown = rows.filter((row) => !row.hidden);
   const withContent = shown.filter((row) => row.content !== null);
@@ -68,8 +74,9 @@ export async function viewRoomMessages(
   const authorIds = [...new Set(shown.flatMap((row) => (row.authorAccountId === null ? [] : [row.authorAccountId])))];
   const authors =
     authorIds.length === 0 ? new Map<string, PublicPersonRef>() : await p.people.byAccounts(scope, authorIds);
+  const blocked = authorIds.length === 0 ? new Set<string>() : await p.blocked(scope, viewer, authorIds);
   const byKey = new Map(cards.map((card) => [keyOf(card.target), card]));
-  return rows.map((row) => viewRoomMessage(row, authors, snippets, byKey));
+  return rows.map((row) => viewRoomMessage(row, authors, snippets, byKey, blocked));
 }
 
 function episodeOf(

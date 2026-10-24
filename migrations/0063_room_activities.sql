@@ -8,12 +8,15 @@
 -- so this migration has no table for them.
 -- Query shapes: a room's activities (open first, newest first); one activity by ID; the votes of one
 -- poll (a tally and the first voters); one person's vote in one poll.
--- Locking: the room's own root as in 0062 (FOR SHARE); a vote takes the activity row FOR SHARE and a
--- moderator's close or removal takes it FOR UPDATE, so a vote can never land on a poll that has closed.
+-- Locking: the room's own root as in 0062. Starting an activity takes it FOR UPDATE, so the open and daily
+-- bounds are exact however many moderators start one at once; a vote, a close and a removal take it FOR SHARE.
+-- A vote takes the activity row FOR SHARE and a moderator's close or removal takes it FOR UPDATE, so a vote
+-- can never land on a poll that has closed.
 -- Access: members read; a moderator creates, closes and removes; a member votes while the room is open
 -- and the poll is open. Nothing else grants access.
 -- Growth: bounded by the application (five open at once and twenty started per room and UTC day);
--- the definition is at most 12 KiB; one vote row per person per poll.
+-- the definition is at most 32 KiB (the longest quiz the contract allows is under 20 KiB even in a script of
+-- three-byte letters); one vote row per person per poll.
 -- Retention: kept until the room ends or the moderator removes the activity (the definition stays,
 -- never served). Exploration Clear keeps both tables (explicit conversation, D-042). Deleting an
 -- account deletes its votes and clears the creator link of activities it started; the activity goes on.
@@ -28,7 +31,7 @@ create table rooms.activities (
   room_id uuid not null references rooms.rooms(room_id) on delete restrict,
   kind text not null check (kind in ('poll', 'quiz')),
   title text not null check (char_length(title) between 1 and 160),
-  definition jsonb not null check (jsonb_typeof(definition) = 'object' and octet_length(definition::text) <= 12288),
+  definition jsonb not null check (jsonb_typeof(definition) = 'object' and octet_length(definition::text) <= 32768),
   state text not null default 'open' check (state in ('open', 'closed', 'removed')),
   -- Null once the moderator's account is deleted; the activity stays with the room.
   created_by_account_id uuid references identity.accounts(id) on delete restrict,

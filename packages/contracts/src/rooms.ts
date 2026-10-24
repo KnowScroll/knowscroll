@@ -255,6 +255,8 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
   }),
   /** A moderator removed it. It keeps its place; a moderator can restore it. */
   z.strictObject({ ...MessageIdentity, status: z.literal('removed') }),
+  /** Written by someone the reader has blocked: collapsed for the reader, shown as usual to everyone else (D-051). */
+  z.strictObject({ ...MessageIdentity, status: z.literal('blocked') }),
   /** The author's account was deleted. */
   z.strictObject({ ...MessageIdentity, status: z.literal('unavailable') }),
 ]);
@@ -591,9 +593,13 @@ export const ReadActivitySchema = z.strictObject({ ...Read, roomId: UuidSchema, 
 const PollOptionView = z.strictObject({
   optionId: OptionId,
   text: OptionText,
-  votes: Counter,
-  /** The first voters, by public profile: a vote is visible to the room. */
-  voters: z.array(PublicPersonRefSchema).max(12),
+  /**
+   * Present only while the poll's results are visible (the caller has voted, or the poll is closed): a
+   * member who has not voted yet is not shown how others voted, so the tally never leads their choice.
+   */
+  votes: Counter.optional(),
+  /** The first voters, by public profile: a vote is visible to the room once results are. */
+  voters: z.array(PublicPersonRefSchema).max(12).optional(),
 });
 export const ActivityViewSchema = z.discriminatedUnion('status', [
   /** Unknown, removed by a moderator, or not a room the caller may read: one shape for all. */
@@ -608,14 +614,24 @@ export const ActivityViewSchema = z.discriminatedUnion('status', [
     /** The caller is a moderator: they may close or remove it. */
     canModerate: z.boolean(),
     activity: z.discriminatedUnion('kind', [
-      z.strictObject({
-        kind: z.literal('poll'),
-        prompt: ActivityPrompt,
-        options: z.array(PollOptionView).min(2).max(5),
-        yourVote: OptionId.optional(),
-        /** Open, in a room that accepts posts, for a member. */
-        canVote: z.boolean(),
-      }),
+      z
+        .strictObject({
+          kind: z.literal('poll'),
+          prompt: ActivityPrompt,
+          /** The caller has voted or the poll is closed: tallies and voters follow. Otherwise they are absent. */
+          resultsVisible: z.boolean(),
+          options: z.array(PollOptionView).min(2).max(5),
+          yourVote: OptionId.optional(),
+          /** Open, in a room that accepts posts, for a member. */
+          canVote: z.boolean(),
+        })
+        .refine((poll) =>
+          poll.options.every((option) =>
+            poll.resultsVisible
+              ? option.votes !== undefined && option.voters !== undefined
+              : option.votes === undefined && option.voters === undefined,
+          ),
+        ),
       z.strictObject({
         kind: z.literal('quiz'),
         title: ActivityPrompt,
