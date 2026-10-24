@@ -20,9 +20,5 @@ export const RESOLVE_CONTENT_REQUEST = Symbol('supply.resolveRequest');
 export const RECORD_PLANNED_DEMAND = Symbol('supply.recordPlannedDemand');
 
 /** Quartermaster's Create for a branch of a content thread; the scenarios module's choice calls it (D-049). */
-export type {
-  CommissionScenarioOrder,
-  ScenarioOrder,
-  ScenarioOrderOutcome,
-} from './application/scenario-orders.js';
+export type { CommissionScenarioOrder, ScenarioOrder, ScenarioOrderOutcome } from './application/scenario-orders.js';
 export const COMMISSION_SCENARIO_ORDER = Symbol('supply.commissionScenarioOrder');

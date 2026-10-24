@@ -182,6 +182,31 @@ function threadDepsOf(
   return { withScope, fencePair, fenceOwn, readContent, readSequence, readVisited, validateSnippet, resolveSnippet };
 }
 
+/**
+ * What other modules may do inside a thread: the guest, the standing read and the inbox hint. A
+ * process that needs only these (the worker) composes this and not all of `socialProviders`. Needs
+ * the content, experience and identity tokens `THREAD_INJECTIONS` names.
+ */
+export function threadGuestProviders(tokens: { readonly withPersonalScope: symbol; readonly database: symbol }) {
+  return [
+    {
+      provide: THREAD_GUEST,
+      inject: THREAD_INJECTIONS(tokens),
+      useFactory: (...args: Parameters<typeof threadDepsOf>) => threadGuest(threadDepsOf(...args)),
+    },
+    {
+      provide: READ_THREAD_STANDING,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadThreadStanding(db),
+    },
+    {
+      provide: ANNOUNCE_THREAD,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeAnnounceThread(db),
+    },
+  ];
+}
+
 export function socialProviders(tokens: { readonly withPersonalScope: symbol; readonly database: symbol }) {
   return [
     {
@@ -208,21 +233,7 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
       inject: THREAD_INJECTIONS(tokens),
       useFactory: (...args: Parameters<typeof threadDepsOf>) => threadUseCases(threadDepsOf(...args)),
     },
-    {
-      provide: THREAD_GUEST,
-      inject: THREAD_INJECTIONS(tokens),
-      useFactory: (...args: Parameters<typeof threadDepsOf>) => threadGuest(threadDepsOf(...args)),
-    },
-    {
-      provide: READ_THREAD_STANDING,
-      inject: [tokens.database],
-      useFactory: (db: Kysely<Database>) => makeReadThreadStanding(db),
-    },
-    {
-      provide: ANNOUNCE_THREAD,
-      inject: [tokens.database],
-      useFactory: (db: Kysely<Database>) => makeAnnounceThread(db),
-    },
+    ...threadGuestProviders(tokens),
     {
       provide: READ_INBOX_REVISION,
       inject: [tokens.database],

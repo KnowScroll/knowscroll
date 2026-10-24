@@ -346,6 +346,18 @@ export type ReadMadeToOrderProduction = (recipe: string) => Promise<MadeToOrderS
 export const READ_MADE_TO_ORDER_PRODUCTION = Symbol('content.readMadeToOrderProduction');
 
 /**
+ * Sends the production job of one take of a recipe or order outside any transaction. The queue keeps
+ * one job per recipe, version and take while one is queued or running, so asking twice reaches one job
+ * (`already_queued`); once it finished or failed, asking again resumes the same business run.
+ */
+export type EnqueueScrollProduction = (
+  recipe: string,
+  take: number,
+  priority?: number,
+) => Promise<'queued' | 'already_queued'>;
+export const ENQUEUE_SCROLL_PRODUCTION = Symbol('content.enqueueScrollProduction');
+
+/**
  * The public pages an exact revision rests on, chosen by code for a what-if of it: its own recorded
  * sources, else those of the Scroll that gives the same explanation, else the library recipe of that
  * explanation. At most three; empty when nothing is known. Never a page a person or a model named.

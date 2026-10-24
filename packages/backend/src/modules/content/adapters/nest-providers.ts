@@ -3,8 +3,10 @@ import { LOCK_KEEP_POSITION_TARGET } from '../public.js';
 import { lockCurrentEncounters } from './current-encounters.js';
 import { LOCK_CURRENT_ENCOUNTERS } from '../public.js';
 import type { Kysely } from 'kysely';
+import type { PgBoss } from 'pg-boss';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { makeImportEditorialScroll } from '../application/import-editorial-scroll.js';
+import { makeEnqueueScrollProduction } from './enqueue-production.js';
 import {
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
@@ -33,7 +35,9 @@ import {
   READ_MADE_TO_ORDER_PRODUCTION,
   READ_SCROLL_SOURCE_PAGES,
   CHECK_ASSET_AUDIENCE,
+  ENQUEUE_SCROLL_PRODUCTION,
   type CheckAssetAudience,
+  type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
   type ReadOrderAudience,
   type RenderScroll,
@@ -122,6 +126,17 @@ export function madeToOrderProviders(tokens: { readonly database: symbol; readon
   ];
 }
 
+/** The sender of production jobs outside a transaction, over the process's pg-boss (the branch resolver, the operator). */
+export function scrollProductionSenderProviders(tokens: { readonly boss: symbol }) {
+  return [
+    {
+      provide: ENQUEUE_SCROLL_PRODUCTION,
+      inject: [tokens.boss],
+      useFactory: (boss: PgBoss): EnqueueScrollProduction => makeEnqueueScrollProduction(boss),
+    },
+  ];
+}
+
 /** `renderScroll` for the API's composition root: reads the shared document outside any transaction. */
 export function contentRenderProviders(tokens: { readonly database: symbol }) {
   return [
@@ -158,7 +173,7 @@ export { makeMediaAccess } from './media-access.js';
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
-export { makeEnqueueScrollProduction, type EnqueueScrollProduction } from './enqueue-production.js';
+export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {

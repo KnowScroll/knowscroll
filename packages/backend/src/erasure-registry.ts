@@ -16,6 +16,7 @@ import { experienceErasure } from './modules/experience/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
 import { identityErasure } from './modules/identity/adapters/erasure.js';
 import { personalContextErasure } from './modules/personal-context/adapters/erasure.js';
+import { scenariosErasure } from './modules/scenarios/adapters/erasure.js';
 import { plannerErasure } from './modules/planner/adapters/erasure.js';
 import { scenesErasure } from './modules/scenes/adapters/erasure.js';
 import { socialErasure } from './modules/social/adapters/erasure.js';
@@ -39,6 +40,8 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  * and the shared content tables hold no personal rows of their own and are not listed.
  */
 const moduleErasures = [
+  // Scenarios refer to threads and messages, so they come before Social.
+  scenariosErasure,
   socialErasure,
   scenesErasure,
   geographyErasure,

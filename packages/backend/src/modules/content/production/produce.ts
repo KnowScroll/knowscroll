@@ -214,24 +214,31 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           ]);
           return false;
         }
-        return completeWriterPublication(scope, deps.harness, row.id, row.writer_run_id, subject.attribution, async () => {
-          await admission.storeRevision(admissionTx, {
-            assetId: subject.identity.assetId,
-            revision: row.target_revision,
-            provenanceKind: 'generated',
-            compiled,
-            createsAsset: asset.kind === 'absent',
-          });
-          await store.finish(
-            tx,
-            row.id,
-            'writer',
-            'published',
-            receipts,
-            { assetId: subject.identity.assetId, revision: row.target_revision },
-            { authored, claims: compiled.provenance['claims'] },
-          );
-        });
+        return completeWriterPublication(
+          scope,
+          deps.harness,
+          row.id,
+          row.writer_run_id,
+          subject.attribution,
+          async () => {
+            await admission.storeRevision(admissionTx, {
+              assetId: subject.identity.assetId,
+              revision: row.target_revision,
+              provenanceKind: 'generated',
+              compiled,
+              createsAsset: asset.kind === 'absent',
+            });
+            await store.finish(
+              tx,
+              row.id,
+              'writer',
+              'published',
+              receipts,
+              { assetId: subject.identity.assetId, revision: row.target_revision },
+              { authored, claims: compiled.provenance['claims'] },
+            );
+          },
+        );
       });
     });
     if (applied.kind !== 'entered') return scopeRefused(row.id);

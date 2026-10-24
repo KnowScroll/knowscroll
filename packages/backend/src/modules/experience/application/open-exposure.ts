@@ -88,7 +88,8 @@ export function makeOpenExposure(ports: OpenExposurePorts) {
       if (asset?.kind !== command.target.kind || !asset.admitted || asset.documentSha256 === undefined)
         return { kind: 'refused', reason: 'asset_not_found' };
       // A Scroll ordered for a thread is not found by anyone outside it, exactly as a missing one.
-      if (!(await ports.audienceHolds(scope.authority, asset.assetId))) return { kind: 'refused', reason: 'asset_not_found' };
+      if (!(await ports.audienceHolds(scope.authority, asset.assetId)))
+        return { kind: 'refused', reason: 'asset_not_found' };
 
       await ports.insertReceipt(scope, key);
       const exposureId = ports.newId();

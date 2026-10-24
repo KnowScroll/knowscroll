@@ -200,6 +200,16 @@
       "@knowscroll/source": "./src/modules/social/adapters/nest-providers.ts",
       "types": "./dist/modules/social/adapters/nest-providers.d.ts",
       "default": "./dist/modules/social/adapters/nest-providers.js"
+    },
+    "./modules/scenarios": {
+      "@knowscroll/source": "./src/modules/scenarios/public.ts",
+      "types": "./dist/modules/scenarios/public.d.ts",
+      "default": "./dist/modules/scenarios/public.js"
+    },
+    "./modules/scenarios/nest-providers": {
+      "@knowscroll/source": "./src/modules/scenarios/adapters/nest-providers.ts",
+      "types": "./dist/modules/scenarios/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/scenarios/adapters/nest-providers.js"
     }
   },
   "files": [
