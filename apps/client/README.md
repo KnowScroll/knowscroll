@@ -508,7 +508,19 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.
   `use-thread-scenarios.ts` holds where a request starts in one open thread, and `asks-bar.tsx` is the two buttons above the
   message box. The controllers are `createScenarioBoard` and `createScenarioComposer` in client-core.
-- Exploring a ready branch opens `/threads/<id>/read/<assetId>?...&b=1`, the thread's own reader without the share control (a
-  snippet points into the thread's sequence, which a branch is not).
-- Not built: the branch sequence view (X03) and the history map (X04), a retry for a failed branch.
+- Exploring a ready branch opens `/threads/<id>/b/<node>` (X03, `branch-screen.tsx`): the thread's title, "What if ·
+  <idea>" or "Another perspective · <lens>", a yellow way back that names the part the member had selected (or the thread),
+  the branch's one item ("1 · current"), "Speculative scenario · not established science" in words when it is, the Scroll,
+  and "Try another assumption" (the words go to the same sheet, which asks for directions). A removed or unknown branch
+  and a branch still being prepared say so and keep only the way back. The Scroll is the member's own encounter without
+  the thread's share control (`ThreadScrollArticle chrome="own"`). Where the member is stays on the device
+  (`thread.here.<id>`).
+- The **Map** button in the thread's header (X04, `map-sheet.tsx`, `map-rows.tsx`, `use-thread-map.ts`) appears once the
+  thread has two or more branches. It is an overlay with a nested list: the original sequence, its branches nested, "You"
+  on the member's own place, removed branches as "Removed", suggestions dashed and unnumbered ("SUGGESTION · NOT MADE",
+  press to see its directions), long groups folded ("More from Part 1 · Show"). Search and Mine / Everyone / Suggestions
+  appear for a larger map; the filter and opened groups are remembered per thread on the device. `use-thread-branches.ts`
+  gathers what a thread does with its branches (asking, the map, opening one); `branch-sheets.tsx` holds its two overlays.
+- Not built: a discussion scoped to one branch, a position time in the way back, Resume on branch cards, a retry for a
+  failed branch, the map's "opened" observation.
 

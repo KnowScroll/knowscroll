@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
-import type { MapFilter, MapRow, MapView } from '@knowscroll/client-core';
+import type { MapFilter, MapView } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Icon, Text, useTypeStyle } from '@knowscroll/ui';
 import { MapLine } from './map-rows';
@@ -18,10 +18,6 @@ const EMPTY: Record<NonNullable<MapView['empty']>, string> = {
   search: 'No branch matches that.',
   filter: 'Nothing here for this filter.',
 };
-
-/** Branches and suggestions in a view: what makes a map "large" (X04). */
-export const sizeOf = (rows: readonly MapRow[]): number =>
-  rows.filter((row) => row.kind === 'branch' || row.kind === 'suggestion').length;
 
 /**
  * X04: the map of this thread, an outline of the original sequence with its branches nested where they grew, as

@@ -26,11 +26,14 @@ driven in a browser. It is not running on dev.
 | Ask for directions | `draft` | Stores a private draft, sends one job. Starts no production. At most 20 a day. | Implemented |
 | See the directions | `readDraft` | `thinking`, `ready` (one clear idea, or two to three options), `failed` or `chosen`. Private to the asker. | Implemented |
 | Choose | `choose` | Picks an option, or sends the member's own complete request. The only command that commissions. Idempotent. | Implemented |
-| See the thread's branches | `list` | Cards, oldest first, removed ones as notes. Polled and hinted, never a position of anyone. | Implemented |
+| See the thread's branches | `list` | Cards, oldest first, removed ones as notes, and the caller's own offers: the directions of their ready drafts that they have not chosen (at most 9; private, never another member's). Polled and hinted, never a position of anyone. | Implemented |
 | Remove a branch they started | `remove` | The card becomes a note; its Scroll closes. | Implemented |
 
-Not built: Reel branches, a retry command for a failed branch (remove it and ask again), the sequence view
-and history map (X03, X04), idea rooms (#245).
+Not built: Reel branches, a retry command for a failed branch (remove it and ask again), a discussion scoped to one
+branch (it needs a scope on messages, which Social and idea rooms (#245) own), idea rooms.
+
+The branch view and the map of a thread (X03, X04) read only what `list` returns. A branch is one Scroll, so the view has
+one item; nothing is invented to fill a sequence.
 
 ## The model: a tree of branches
 
@@ -42,7 +45,10 @@ another node at a revision). The rules are pure, in `domain/`:
   it. A kept line may not name a subject an earlier branch assumes in other words
   (`kept_contradicts_premise`); one that restates it in the same words is listed once, among the
   assumptions. The client lists what already holds and lets a changed line add a premise or say which one it
-  replaces; an edited suggestion keeps its subjects. Hypothetical status is inherited by every descendant.
+  replaces; an edited suggestion keeps its subjects. Hypothetical status is inherited by every descendant. A direction the Planner marked as needing confirmation
+  (`needsConfirmation`: a speculative or unclear premise) makes its branch `speculative` once the member confirms it,
+  and every descendant of a speculative what-if is speculative too. It is a flag on the card that the client says in
+  words ("Speculative scenario · not established science"), not a second status label beside Hypothetical (D-006 a).
 - **Another perspective**: a named lens, no change; the parent's premises and status are kept. A perspective
   on the unchanged root is not hypothetical.
 - `planStep` is the one rule that checks a proposed or a hand-written step, so anything the Planner proposes
@@ -93,8 +99,8 @@ worker, which builds the export, composes `READ_ORDER_AUDIENCE` (`orderAudienceP
 
 | Store | Role | Clear | Account deletion |
 | --- | --- | --- | --- |
-| `scenarios.nodes` | The shared exploration of a thread: parent, kind, title, premises, lens, status, revision, bound asset | kept | the link to the person (`started_by_account_id`) cleared. Title, premises (a premise may be the member's own typed sentence), order and Scroll stay, with no account ID |
-| `scenarios.drafts` | A member's private request text and the directions proposed | deleted | deleted |
+| `scenarios.nodes` | The shared exploration of a thread: parent, kind, title, premises, lens, `speculative`, status, revision, bound asset | kept | the link to the person (`started_by_account_id`) cleared. Title, premises (a premise may be the member's own typed sentence), order and Scroll stay, with no account ID |
+| `scenarios.drafts` | A member's private request text and the directions proposed; a ready, unexpired draft's directions are the caller's offers in `list` | deleted | deleted |
 | `supply.scenario_orders` (Supply) | The ledger the two caps count; names no person | kept | kept (no person) |
 | `content.made_to_order_scrolls` (Content) | The code-built order of a branch's Scroll: recipe, brief (with the premises), pages, kicker, framing | kept | kept (no account ID) |
 | `receipts.shared_commands` | Receipts of the thread's commands (`scenarios.draft`, `.choose`, `.remove`) | kept | the person's own are deleted (`receiptsErasure`) |
