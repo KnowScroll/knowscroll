@@ -337,7 +337,9 @@ describe('conversations, live hints and share links over the installed API (disp
       const asMember = await (await landing(token, cookieHeaders(b))).text();
       expect(asMember).toContain('Shared in your conversation');
       expect(asMember).toContain('For the two of us');
-      expect(asMember).toContain(`href="/conversations/${bRef.conversationId}"`);
+      expect(asMember).toContain(
+        `href="/conversations/${bRef.conversationId}?m=${bRef.membershipId}&amp;r=${String(bRef.membershipRevision)}"`,
+      );
       expect(asMember).not.toContain('Sign in to keep it');
     });
 

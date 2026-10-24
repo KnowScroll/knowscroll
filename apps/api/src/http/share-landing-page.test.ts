@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderLanding, type LandingState } from './share-landing-page.js';
 
 const assetId = '0199a000-0000-7000-8000-000000000001';
+const otherId = '0199a000-0000-7000-8000-000000000002';
 const target = { assetId, assetRevision: 1 };
 const metadata = {
   kind: 'reel' as const,
@@ -53,11 +54,15 @@ describe('share landing page', () => {
 
   it('offers a member their conversation, without the sign-in prompts, and no public preview tags', () => {
     const html = renderLanding(
-      { kind: 'conversation', content: { status: 'available', target, metadata }, conversationId: assetId },
+      {
+        kind: 'conversation',
+        content: { status: 'available', target, metadata },
+        conversation: { conversationId: assetId, membershipId: otherId, membershipRevision: 3 },
+      },
       { signedIn: true },
     );
     expect(html).toContain('Shared in your conversation');
-    expect(html).toContain(`href="/conversations/${assetId}"`);
+    expect(html).toContain(`href="/conversations/${assetId}?m=${otherId}&amp;r=3"`);
     expect(html).toContain('Reply in Talk');
     expect(html).not.toContain('og:title');
     expect(html).toContain('<title>KnowScroll</title>');

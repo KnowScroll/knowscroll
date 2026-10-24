@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ShareableContentProjectionSchema } from '@knowscroll/contracts';
+import type { DirectConversationRef, ShareableContentProjectionSchema } from '@knowscroll/contracts';
 
 type Content = z.infer<typeof ShareableContentProjectionSchema>;
 
@@ -7,7 +7,7 @@ type Content = z.infer<typeof ShareableContentProjectionSchema>;
 export type LandingState =
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'public'; readonly content: Content }
-  | { readonly kind: 'conversation'; readonly content: Content; readonly conversationId: string }
+  | { readonly kind: 'conversation'; readonly content: Content; readonly conversation: DirectConversationRef }
   | { readonly kind: 'try_again' };
 
 export interface LandingOptions {
@@ -22,6 +22,12 @@ const escapeMap: Readonly<Record<string, string>> = {
   "'": '&#39;',
 };
 const escape = (text: string) => text.replace(/[&<>"']/g, (character) => escapeMap[character] ?? character);
+
+/** The client's address of a conversation: its ID and the member's own reference to open it with. */
+function conversationPath(ref: DirectConversationRef): string {
+  const query = `m=${ref.membershipId}&r=${String(ref.membershipRevision)}`;
+  return escape(`/conversations/${ref.conversationId}?${query}`);
+}
 
 // Values of the content register in packages/design-tokens (paper, ink, ink2, accent, onAccent,
 // rule, paper2, corrected). The API does not depend on the client's token package.
@@ -127,7 +133,7 @@ export function renderLanding(state: LandingState, options: LandingOptions): str
       signedIn: options.signedIn,
       body: contentBody(state.content, {
         kicker: 'Shared in your conversation',
-        actions: `${primary}<a class="button" href="/conversations/${escape(state.conversationId)}">Reply in Talk</a>`,
+        actions: `${primary}<a class="button" href="${conversationPath(state.conversation)}">Reply in Talk</a>`,
       }),
     });
   const current = state.content.status === 'available' ? state.content.metadata : state.content.current.metadata;

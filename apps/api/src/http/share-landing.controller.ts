@@ -75,7 +75,7 @@ export class ShareLandingController {
       return {
         kind: 'conversation',
         content: resolved.value.content,
-        conversationId: resolved.value.conversation.conversationId,
+        conversation: resolved.value.conversation,
       };
     return { kind: 'unavailable' };
   }
