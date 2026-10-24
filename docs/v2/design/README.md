@@ -7,3 +7,5 @@
 - Open the HTML with an internet connection so the fonts load (the same fonts are vendored in `packages/design-tokens/fonts/`).
 
 **This is a visual specification, not evidence.** All people, messages, content and worlds are authored examples. Interactions are drawn, not implemented. Where the export conflicts with the blueprint or the product rules, `../decisions.md` (D-006) records the resolution. The coverage matrix mapping each artboard to a route, contract, issue and evidence lives on the main tracker issue.
+
+`fidelity.md` compares every consumer artboard with the app (24 Oct 2026): status per state, what differs, and design/app pair images in `fidelity/`.
