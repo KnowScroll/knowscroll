@@ -26,6 +26,7 @@ async function open(server: ReturnType<typeof talkServer>, extra: Partial<ShareS
         scope={server.scope}
         target={target}
         title="The edge you can’t come back from"
+        kind="reel"
         origin="https://app.fixture.test"
         onClose={onClose}
         onOpenConversation={onOpenConversation}
@@ -47,7 +48,7 @@ describe('share sheet (labelled in-memory server)', () => {
     await open(server);
     expect(screen.getByRole('button', { name: 'Send to a conversation' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Explore with friends' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Copy link' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Copy link / Share elsewhere' })).toBeOnTheScreen();
     await screen.unmount();
     server.scope.end();
   });
@@ -120,7 +121,7 @@ describe('share sheet (labelled in-memory server)', () => {
   it('copies a public link and stops it on request', async () => {
     const server = talkServer();
     await open(server);
-    await fireEvent.press(screen.getByRole('button', { name: 'Copy link' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Copy link / Share elsewhere' }));
     expect(await screen.findByText('Link copied')).toBeOnTheScreen();
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
       expect.stringMatching(/^https:\/\/app\.fixture\.test\/s\/kssh_/),
@@ -128,6 +129,53 @@ describe('share sheet (labelled in-memory server)', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Stop sharing this link' }));
     await waitFor(() => expect(screen.getByText('Link stopped.')).toBeOnTheScreen());
     expect(server.sharesOf().every(([, share]) => share.revoked)).toBe(true);
+    await screen.unmount();
+    server.scope.end();
+  });
+
+  it('shows who is around only for friends who show it, and their handle otherwise', async () => {
+    const server = talkServer();
+    await open(server);
+    await fireEvent.press(screen.getByRole('button', { name: 'Send to a conversation' }));
+    expect(await screen.findByText(`@${peer.handle}`)).toBeOnTheScreen();
+    expect(screen.queryByText('Online')).toBeNull();
+    await screen.unmount();
+    server.scope.end();
+
+    const showing = talkServer();
+    showing.peerShowsAvailability('online');
+    await open(showing);
+    await fireEvent.press(screen.getByRole('button', { name: 'Explore with friends' }));
+    expect(await screen.findByText('Online')).toBeOnTheScreen();
+    expect(screen.queryByText(`@${peer.handle}`)).toBeNull();
+    await screen.unmount();
+    showing.scope.end();
+  });
+
+  it('reads availability only while a picker is open, not on the first view', async () => {
+    const server = talkServer();
+    await open(server);
+    expect(server.requests.filter((request) => request.path.endsWith('/friends/page'))).toEqual([]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Send to a conversation' }));
+    await screen.findByText(`@${peer.handle}`);
+    expect(server.requests.some((request) => request.path.endsWith('/friends/page'))).toBe(true);
+    await screen.unmount();
+    server.scope.end();
+  });
+
+  it('groups people already talked to under Recent, with a search box and the thread name as placeholder', async () => {
+    const server = talkServer();
+    server.peerSays('hello');
+    await open(server);
+    await fireEvent.press(screen.getByRole('button', { name: 'Send to a conversation' }));
+    expect(await screen.findByText('Recent')).toBeOnTheScreen();
+    expect(screen.getByPlaceholderText('Search friends by name or @handle')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByLabelText('Search friends'), 'nobody by that name');
+    expect(screen.queryByRole('radio', { name: peer.displayName })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Explore with friends' }));
+    expect(await screen.findByPlaceholderText('The edge you can’t come back from')).toBeOnTheScreen();
+    expect(screen.getByText(/Everyone keeps their own place in the Reels/)).toBeOnTheScreen();
     await screen.unmount();
     server.scope.end();
   });

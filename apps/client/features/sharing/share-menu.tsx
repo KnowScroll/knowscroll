@@ -13,9 +13,11 @@ interface OptionRowProps {
   readonly description: string;
   readonly onPress: () => void;
   readonly busy?: boolean;
+  /** The one way H01 draws forward: the thread, on a pale yellow ground. */
+  readonly highlighted?: boolean;
 }
 
-function OptionRow({ icon, label, description, onPress, busy }: OptionRowProps) {
+function OptionRow({ icon, label, description, onPress, busy, highlighted }: OptionRowProps) {
   const focus = useFocusRing('onLight');
   return (
     <Pressable
@@ -26,9 +28,14 @@ function OptionRow({ icon, label, description, onPress, busy }: OptionRowProps) 
       aria-busy={busy}
       disabled={busy === true}
       onPress={onPress}
-      style={({ pressed }) => [styles.option, pressed ? styles.pressed : null, focus.style]}
+      style={({ pressed }) => [
+        styles.option,
+        highlighted === true ? styles.highlighted : null,
+        pressed ? styles.pressed : null,
+        focus.style,
+      ]}
     >
-      <View style={styles.optionIcon}>
+      <View style={[styles.optionIcon, highlighted === true ? styles.highlightedIcon : null]}>
         <Icon name={icon} size={20} />
       </View>
       <View style={styles.optionText}>
@@ -39,6 +46,12 @@ function OptionRow({ icon, label, description, onPress, busy }: OptionRowProps) 
       </View>
     </Pressable>
   );
+}
+
+/** H01 names the row for both things it does; where this device has no system share sheet it only copies. */
+function copyLinkLabel(link: LinkStatus): string {
+  const copy = link.status === 'ready' ? 'Copy link again' : 'Copy link';
+  return canShareElsewhere() ? `${copy} / Share elsewhere` : copy;
 }
 
 type ReadyLink = Extract<LinkStatus, { status: 'ready' }>;
@@ -110,7 +123,7 @@ export function ShareMenu({
       <OptionRow
         icon="send"
         label="Send to a conversation"
-        description="Drop it into a chat with a friend"
+        description="Drop it into a chat you already have"
         onPress={onSendToConversation}
       />
       {onExploreWithFriends === undefined ? null : (
@@ -118,13 +131,14 @@ export function ShareMenu({
           icon="menu"
           label="Explore with friends"
           description="Start a thread: this one, what comes next, and the chat together"
+          highlighted
           onPress={onExploreWithFriends}
         />
       )}
       <OptionRow
         icon="link"
-        label={link.status === 'ready' ? 'Copy link again' : 'Copy link'}
-        description="Anyone with the link sees the title and summary"
+        label={copyLinkLabel(link)}
+        description="Other apps get a public link. It shows only the title and summary."
         busy={link.status === 'creating'}
         onPress={() => void session.copyLink()}
       />
@@ -158,6 +172,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   optionText: { flex: 1, gap: spacing[0.5] },
+  highlighted: { backgroundColor: content.highlight },
+  highlightedIcon: { backgroundColor: content.continue },
   pressed: { backgroundColor: content.highlight },
   linkBox: {
     gap: spacing[2],

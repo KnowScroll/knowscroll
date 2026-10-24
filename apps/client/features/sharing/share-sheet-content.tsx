@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import type { ContentThreadRef, ConversationContentRef, DirectConversationRef } from '@knowscroll/contracts';
 import { spacing } from '@knowscroll/design-tokens';
+import { useSheetAvailability } from '../friends/use-availability';
 import { ExploreWithFriends } from './explore-with-friends';
 import { SendToFriend } from './send-to-friend';
 import { ShareMenu } from './share-menu';
@@ -14,6 +15,8 @@ export interface ShareSheetContentProps {
   readonly target: ConversationContentRef;
   /** The title of what is shared, for the system share text. The container's header names the sheet. */
   readonly title: string;
+  /** What is shared. */
+  readonly kind: 'reel' | 'scroll';
   /** The origin links are built on: the app's own origin, where `/s/*` reaches the API. */
   readonly origin: string;
   /** Closes the sheet (Cancel). The caller restores what was playing; overlays never enter Back history. */
@@ -36,9 +39,10 @@ export interface ShareSheetContentProps {
  * (D-006 k).
  */
 export function ShareSheetContent(props: ShareSheetContentProps) {
-  const { scope, title, onClose, onOpenConversation, onOpenThread } = props;
+  const { scope, title, kind, onClose, onOpenConversation, onOpenThread } = props;
   const { session, state } = useShareSession(scope, props.target, props.origin);
   const [view, setView] = useState<'menu' | 'send' | 'explore'>('menu');
+  const availabilityOf = useSheetAvailability(scope, view !== 'menu');
   return (
     <View style={styles.sheet}>
       {view === 'menu' ? (
@@ -54,6 +58,9 @@ export function ShareSheetContent(props: ShareSheetContentProps) {
         <ExploreWithFriends
           scope={scope}
           root={props.target}
+          title={title}
+          kind={kind}
+          availabilityOf={availabilityOf}
           onBack={() => setView('menu')}
           onClose={onClose}
           onOpenThread={onOpenThread}
@@ -65,6 +72,7 @@ export function ShareSheetContent(props: ShareSheetContentProps) {
           onBack={() => setView('menu')}
           onClose={onClose}
           onOpenConversation={onOpenConversation}
+          availabilityOf={availabilityOf}
         />
       )}
     </View>

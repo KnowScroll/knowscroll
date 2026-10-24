@@ -21,7 +21,12 @@ export type CreateStatus =
   | { readonly status: 'failed' };
 
 export interface ExploreWithFriendsState {
-  readonly friends: { readonly status: 'loading' | 'ready' | 'failed'; readonly items: readonly PublicPersonRef[] };
+  readonly friends: {
+    readonly status: 'loading' | 'ready' | 'failed';
+    readonly items: readonly PublicPersonRef[];
+    /** How many of the first `items` the person already talks to ("Recent"); the rest are other friends. */
+    readonly recentCount: number;
+  };
   /** Chosen people, by public person ID, in the order they were chosen. */
   readonly selected: readonly string[];
   readonly name: string;
@@ -56,7 +61,7 @@ export function createExploreWithFriends(options: ExploreWithFriendsOptions): Ex
   const { scope, root, newId } = options;
   const listeners = new Set<() => void>();
   let state: ExploreWithFriendsState = {
-    friends: { status: 'loading', items: [] },
+    friends: { status: 'loading', items: [], recentCount: 0 },
     selected: [],
     name: '',
     create: { status: 'idle' },
@@ -70,7 +75,7 @@ export function createExploreWithFriends(options: ExploreWithFriendsOptions): Ex
   }
 
   /** Friends, the people the person talks to first (newest activity first), then the rest. */
-  async function readFriends(): Promise<readonly PublicPersonRef[]> {
+  async function readFriends(): Promise<Pick<ExploreWithFriendsState['friends'], 'items' | 'recentCount'>> {
     const recent: string[] = [];
     const inbox = await scope.api.conversations.inbox({ version: CONVERSATIONS_VERSION, readId: newId(), limit: 50 });
     if (inbox.status === 'ready')
@@ -90,7 +95,10 @@ export function createExploreWithFriends(options: ExploreWithFriendsOptions): Ex
       if (cursor === undefined) break;
     }
     const first = recent.flatMap((personId) => friends.get(personId) ?? []);
-    return [...first, ...[...friends.values()].filter((friend) => !recent.includes(friend.personId))];
+    return {
+      items: [...first, ...[...friends.values()].filter((friend) => !recent.includes(friend.personId))],
+      recentCount: first.length,
+    };
   }
 
   const locked = () => state.create.status === 'creating' || state.create.status === 'unconfirmed';
@@ -103,10 +111,10 @@ export function createExploreWithFriends(options: ExploreWithFriendsOptions): Ex
     },
     async loadFriends() {
       try {
-        publish({ friends: { status: 'loading', items: state.friends.items } });
-        publish({ friends: { status: 'ready', items: await readFriends() } });
+        publish({ friends: { ...state.friends, status: 'loading' } });
+        publish({ friends: { status: 'ready', ...(await readFriends()) } });
       } catch (error) {
-        if (talkFailure(error) !== 'ended') publish({ friends: { status: 'failed', items: [] } });
+        if (talkFailure(error) !== 'ended') publish({ friends: { status: 'failed', items: [], recentCount: 0 } });
       }
     },
     toggle(personId) {

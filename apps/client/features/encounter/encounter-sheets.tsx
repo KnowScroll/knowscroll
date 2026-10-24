@@ -16,15 +16,21 @@ import { EncounterOverlay } from './encounter-overlay';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession, EncounterState } from './encounter-session';
 
-/** The bottom sheet every encounter overlay shares: grab handle, title, Close, then its content. */
+/**
+ * The bottom sheet every encounter overlay shares: grab handle, title, Close, then its content.
+ * A sheet about one piece of content (H01) passes `tile`: the kind's glyph on a dark square, and
+ * the content's title in the controls' size instead of a page-sized heading.
+ */
 function SheetPanel({
   title,
   subtitle,
+  tile,
   onClose,
   children,
 }: {
   readonly title: string;
   readonly subtitle?: string;
+  readonly tile?: IconName;
   readonly onClose: () => void;
   readonly children: ReactNode;
 }) {
@@ -43,8 +49,13 @@ function SheetPanel({
           accessibilityElementsHidden
         />
         <View style={styles.heading}>
+          {tile === undefined ? null : (
+            <View style={styles.tile} aria-hidden>
+              <Icon name={tile} size={24} color={content.paper} />
+            </View>
+          )}
           <View style={styles.headingText}>
-            <Text variant="displayL" heading={2}>
+            <Text variant={tile === undefined ? 'displayL' : 'ui'} heading={2}>
               {title}
             </Text>
             {subtitle === undefined ? null : (
@@ -251,13 +262,14 @@ function ShareSheet({ state, session }: { readonly state: EncounterState; readon
   const entry = state.entry;
   if (!entry) return null;
   const close = () => session.setOverlay(false);
-  const part = entry.context.series ? ` · Part ${String(entry.context.series.part)}` : '';
-  const title = entry.offer.metadata.title;
+  const { kind, title } = entry.offer.metadata;
+  const part = entry.context.series ? `Part ${String(entry.context.series.part)} · ` : '';
   return (
-    <SheetPanel title="Share" subtitle={`${title}${part}`} onClose={close}>
+    <SheetPanel title={title} subtitle={`${part}${kind === 'reel' ? 'Reel' : 'Scroll'}`} tile={kind} onClose={close}>
       <ShareSheetBody
         target={{ assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision }}
         title={title}
+        kind={kind}
         onClose={close}
       />
     </SheetPanel>
@@ -367,6 +379,14 @@ const styles = StyleSheet.create({
     opacity: opacity.grabHandle,
   },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[3] },
+  tile: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: content.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headingText: { flex: 1, gap: spacing[1] },
   menu: { gap: 0 },
   menuRow: {

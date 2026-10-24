@@ -393,7 +393,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   `accepted`, `unconfirmed` (the retry reuses the command ID) or `not_sent`; `respond('join' | 'decline')` keeps one command
   ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
   episode or anything of another member.
-- `createExploreWithFriends(...)`: lists friends, creates the thread with one command ID per intent, and reports
+- `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
 - `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
