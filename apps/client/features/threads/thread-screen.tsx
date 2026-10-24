@@ -149,7 +149,7 @@ function ReadyThread({
           />
           <ThreadEncounter
             scope={scope}
-            thread={thread}
+            readHref={(assetId) => readInThreadHref(thread, assetId)}
             episode={current}
             series={series}
             total={episodes.length}

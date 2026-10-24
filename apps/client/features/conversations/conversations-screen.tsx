@@ -12,6 +12,8 @@ import { conversationHref } from './conversation-links';
 import { useTalkInbox } from './use-talk-inbox';
 import { ThreadRow } from '../threads/thread-row';
 import { useThreadInbox } from '../threads/use-thread-inbox';
+import { RoomRow } from '../rooms/room-row';
+import { useRoomList } from '../rooms/use-room';
 
 function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
   const router = useRouter();
@@ -55,8 +57,9 @@ function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
 function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
   const inbox = useTalkInbox(scope);
   const threads = useThreadInbox(scope);
+  const rooms = useRoomList(scope);
   if (inbox.loading || threads.loading) return <Skeleton rows={4} label="Loading conversations" />;
-  if (inbox.failed && inbox.items.length === 0 && threads.items.length === 0)
+  if (inbox.failed && inbox.items.length === 0 && threads.items.length === 0 && rooms.items.length === 0)
     return (
       <StateBlock
         title="Can't load conversations"
@@ -64,7 +67,7 @@ function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
         actions={[{ label: 'Try again', onPress: inbox.retry }]}
       />
     );
-  if (inbox.items.length === 0 && threads.items.length === 0) return <EmptyTalk />;
+  if (inbox.items.length === 0 && threads.items.length === 0 && rooms.items.length === 0) return <EmptyTalk />;
   // Direct conversations and threads share one list, newest activity first.
   const rows = [
     ...inbox.items.map((item) => ({
@@ -92,6 +95,20 @@ function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
           </View>
         ))}
       </View>
+      {rooms.items.length === 0 ? null : (
+        <View style={styles.rooms}>
+          <Text variant="monoXs" color={content.ink2}>
+            Rooms
+          </Text>
+          <View role="list" accessibilityLabel="Rooms">
+            {rooms.items.map((item) => (
+              <View key={item.room.roomId} role="listitem">
+                <RoomRow item={item} />
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
       {inbox.hasMore ? (
         <View style={styles.more}>
           <Button
@@ -143,5 +160,6 @@ const styles = StyleSheet.create({
   rowEnd: { alignItems: 'flex-end', gap: spacing[2], minWidth: 44 },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: content.accent },
   banner: { marginBottom: spacing[3] },
+  rooms: { gap: spacing[2], paddingTop: spacing[5] },
   more: { paddingVertical: spacing[4] },
 });
