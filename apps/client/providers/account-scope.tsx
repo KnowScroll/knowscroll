@@ -16,6 +16,12 @@ import { newCommandId } from '../platform/command-id';
 
 const AccountScopeContext = createContext<AccountScopeManager | null>(null);
 
+/** Whether the app is open and showing: heartbeats (friends' "Online") only go while it is. */
+function appIsVisible(): boolean {
+  if (AppState.currentState !== 'active') return false;
+  return Platform.OS !== 'web' || typeof document === 'undefined' || document.visibilityState === 'visible';
+}
+
 /**
  * One key per scope object, not per scope id: a scope that ended and was mounted again for the
  * same account and epoch (a switching redemption that failed) is a new subtree too.
@@ -47,7 +53,7 @@ export function createAppAccountScopeManager(): AccountScopeManager {
     ...(sessionTokens === undefined ? {} : { tokens: sessionTokens }),
     ...(signInBinding === undefined ? {} : { signInBinding }),
     store: scopeStorage,
-    connect: connectScopeSocket,
+    connect: (scope, context) => connectScopeSocket(scope, { ...context, visible: appIsVisible }),
   });
 }
 

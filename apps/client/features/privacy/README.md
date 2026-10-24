@@ -11,7 +11,8 @@ person can do with their own data. Each control says what it changes, and report
 | History & export            | `export-panel.tsx`      | Asks for a copy of the person's own data and keeps the receipts: preparing, ready (Download, once), downloaded, expired, failed (Retry) |
 | Clear exploration           | `clear-panel.tsx`       | Selective Clear (#345): consequences, an acknowledgement, a deliberate step and honest receipt states                                   |
 | Delete account              | `delete-panel.tsx`      | Consequences, an acknowledgement, one deliberate step; the result is read from the receipt                                              |
-| Anything another slice adds | `privacy-extensions.ts` | A row on the hub and a card on desktops; the share slice's revocation goes between Clear and Delete                                     |
+| Sharing & visibility        | `../visibility/`        | Who may visit the universe, which systems visitors see, and whether friends see the person as online (F02, D-047)                       |
+| Anything another slice adds | `privacy-extensions.ts` | A row on the hub and a card on desktops; the sharing slices go between Clear and Delete                                                 |
 
 Phones and tablets get the hub of rows and a page for each control (`/account/privacy/export`, `/clear`,
 `/delete`). Desktops (D05) get the settings list beside one card per control on `/account/privacy`, and the

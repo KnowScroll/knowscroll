@@ -131,6 +131,10 @@ export function makePairCommand(p: SocialPorts) {
         });
         await p.store.beginReceipt(locked, key);
         await p.store.savePair(locked, decision.pair);
+        // A friendship that begins or ends takes neither person's choice of the other with it, so an
+        // old "may visit" can never come back with a new friendship (D-047).
+        if (operation === 'accept' || operation === 'remove' || operation === 'block')
+          await p.visibility.forgetChoiceBetween(locked.shared, gate.owner.accountId, gate.peer.accountId);
         await p.store.bind(locked, gate.owner.accountId, operation, command.commandId, {
           epoch: scope.authority.privacyEpoch,
           lineage: decision.lineage,

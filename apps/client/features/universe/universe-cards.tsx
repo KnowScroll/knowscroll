@@ -3,7 +3,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Text } from '@knowscroll/ui';
-import type { UniversePlace, UniverseViewSession, UniverseViewState } from './universe-session';
+import type { UniversePlace, UniverseMapSession, UniverseViewState } from './universe-session';
 
 /** The paper card the map shows for one place (U04 "Regions & topic card", U08 selection). */
 function CardFrame({
@@ -49,7 +49,7 @@ function CardFrame({
 }
 
 /** A system picked on the far map: its name and the way in. It carries no counts or scores. */
-export function SystemCard({ session, place }: { session: UniverseViewSession; place: UniversePlace }) {
+export function SystemCard({ session, place }: { session: UniverseMapSession; place: UniversePlace }) {
   return (
     <CardFrame
       testID="universe-system-card"
@@ -74,7 +74,7 @@ export function RegionCard({
   state,
   place,
 }: {
-  session: UniverseViewSession;
+  session: UniverseMapSession;
   state: UniverseViewState;
   place: UniversePlace;
 }) {

@@ -194,6 +194,32 @@ export {
   type FormationPresentationSession,
 } from './formation-presentation';
 
+export {
+  createVisibilitySession,
+  type AudienceMode,
+  type PresencePreference,
+  type VisibilityDraft,
+  type VisibilitySave,
+  type VisibilitySession,
+  type VisibilityState,
+} from './visibility-session';
+export {
+  createVisitSession,
+  VISIT_POLL_MS,
+  VISIT_STALE_MS,
+  type VisitedSystem,
+  type VisitSession,
+  type VisitState,
+  type VisitTarget,
+} from './visit-session';
+export {
+  createAvailabilitySession,
+  AVAILABILITY_POLL_MS,
+  type AvailabilitySession,
+  type AvailabilityState,
+  type AvailabilityWord,
+} from './availability-session';
+
 export { createFriendsSession } from './friends-session';
 export { createFriendsHttp, FriendsHttpError, FRIENDS_LIMITS } from './friends-http';
 export type {
