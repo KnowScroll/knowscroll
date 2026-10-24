@@ -82,27 +82,37 @@ export function StaticRow(props: RowProps) {
 
 export type ReceiptTone = 'preparing' | 'done' | 'failed';
 
+const receiptGround = {
+  preparing: { backgroundColor: content.paper2, borderColor: content.muted, borderStyle: 'dashed' },
+  done: { backgroundColor: content.freshTint, borderColor: content.freshInk, borderStyle: 'solid' },
+  failed: { backgroundColor: status.corrected.background, borderColor: status.danger.edge, borderStyle: 'solid' },
+} as const;
+
 /**
- * A receipt card (P02 `.rcpt`): a state in glyph, word and colour, never colour alone; striped
- * while the work is under way, a danger edge when it failed.
+ * A receipt strip (P02 `.rcpt`): a tinted band that says a state in glyph, word and colour, never
+ * colour alone. Striped and dashed while the work is under way, green when done, danger-tinted when
+ * it failed. `children` is the sentence; `action` is the one button the state offers (Download,
+ * Retry), drawn beside it.
  */
 export function ReceiptCard({
   tone,
   state,
   when,
+  action,
   children,
 }: {
   readonly tone: ReceiptTone;
   readonly state: string;
   readonly when?: string;
+  readonly action?: ReactNode;
   readonly children?: ReactNode;
 }) {
   return (
-    <View style={[styles.receipt, tone === 'failed' ? styles.receiptFailed : null]}>
+    <View style={[styles.receipt, receiptGround[tone]]}>
       {tone === 'preparing' ? <PendingStripe /> : null}
       <View style={styles.receiptHead}>
         <Icon
-          name={tone === 'failed' ? 'alert' : tone === 'done' ? 'check' : 'clock'}
+          name={tone === 'failed' ? 'retry' : tone === 'done' ? 'check' : 'clock'}
           size={20}
           color={tone === 'failed' ? status.danger.foreground : content.ink}
         />
@@ -115,9 +125,22 @@ export function ReceiptCard({
           </Text>
         )}
       </View>
-      {children}
+      {children === undefined && action === undefined ? null : (
+        <View style={styles.receiptBody}>
+          <View style={styles.receiptText}>{children}</View>
+          {action}
+        </View>
+      )}
     </View>
   );
+}
+
+/**
+ * The dashed box a destructive step sits in (P02 "Clear exploration", D05 "Delete account"): the
+ * acknowledgement and the one button, set apart from the consequences above them.
+ */
+export function ConfirmBox({ children }: { readonly children: ReactNode }) {
+  return <View style={styles.confirmBox}>{children}</View>;
 }
 
 /** The acknowledgement before a destructive step: a checkbox, with the sentence as its name. */
@@ -167,16 +190,25 @@ const styles = StyleSheet.create({
   title: { flexShrink: 1 },
   receipt: {
     gap: spacing[2],
-    padding: spacing[4],
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
     borderWidth: borderWidth.regular,
-    borderColor: content.ink,
     borderRadius: radius.lg,
-    backgroundColor: content.paper,
     overflow: 'hidden',
   },
-  receiptFailed: { borderColor: status.danger.edge },
   receiptHead: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  receiptBody: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[3] },
+  receiptText: { flexGrow: 1, flexShrink: 1, flexBasis: 160, gap: spacing[1] },
   when: { marginLeft: 'auto' },
+  confirmBox: {
+    gap: spacing[3],
+    alignItems: 'flex-start',
+    padding: spacing[4],
+    borderWidth: borderWidth.regular,
+    borderStyle: 'dashed',
+    borderColor: status.danger.edge,
+    borderRadius: radius.lg,
+  },
   acknowledge: {
     minHeight: target.comfortable,
     flexDirection: 'row',

@@ -116,6 +116,8 @@ test.describe('signed in', () => {
     { path: '/conversations', name: 'Talk' },
     { path: '/saved', name: 'Keep' },
     { path: '/account', name: 'Account' },
+    { path: '/account/notifications', name: 'Notifications' },
+    { path: '/account/accessibility', name: 'Accessibility and playback' },
     { path: '/account/privacy', name: 'Privacy' },
     { path: '/account/privacy/clear', name: 'Clear exploration' },
     { path: '/account/privacy/delete', name: 'Delete account' },

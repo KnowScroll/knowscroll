@@ -374,6 +374,28 @@ describe('private Supply HTTP boundary in the installed release', () => {
       'NOT_FOUND',
     );
     expect(foreignCancel).toEqual(unknownCancel);
+    const retry = {
+      version: 'content-request-retry.v1' as const,
+      commandId: randomUUID(),
+      requestId: receipt.requestId,
+    };
+    const foreignRetry = await expectProblem(
+      await post('/v1/content/requests/retry', retry, headers(stranger)),
+      404,
+      'NOT_FOUND',
+    );
+    const unknownRetry = await expectProblem(
+      await post('/v1/content/requests/retry', { ...retry, requestId: randomUUID() }, headers(stranger)),
+      404,
+      'NOT_FOUND',
+    );
+    expect(foreignRetry).toEqual(unknownRetry);
+    // The owner's own request is still preparing, so a retry changes nothing and says so.
+    expect(await client().supply.retry({ ...retry, commandId: randomUUID() })).toMatchObject({
+      version: 'content-request-retry-receipt.v1',
+      outcome: 'already_open',
+      requestId: receipt.requestId,
+    });
     expect(await snapshot(stranger)).toEqual(before);
   });
 

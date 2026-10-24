@@ -6,6 +6,7 @@ import type {
   ContentRequestReceipt,
   ContentRequestStatus,
   CancelContentRequestReceipt,
+  RetryContentRequestReceipt,
   ContentRequestList,
   CreateContentRequest,
   ProblemCode,
@@ -27,6 +28,7 @@ const createInput: CreateContentRequest = {
   capabilities: { documentSchemas: ['scroll-document.v1'], blocks: { fallback: [1] } },
 };
 const cancelInput = { version: 'content-request-cancel.v1' as const, commandId: id, requestId: id };
+const retryInput = { version: 'content-request-retry.v1' as const, commandId: id, requestId: id };
 const receipt: ContentRequestReceipt = {
   version: 'content-request-receipt.v1',
   commandId: id,
@@ -41,6 +43,11 @@ const cancellation: CancelContentRequestReceipt = {
   ...receipt,
   version: 'content-request-cancel-receipt.v1',
   outcome: 'already_closed',
+};
+const retried: RetryContentRequestReceipt = {
+  ...receipt,
+  version: 'content-request-retry-receipt.v1',
+  outcome: 'retrying',
 };
 const status: ContentRequestStatus = {
   version: 'content-request-status.v1',
@@ -72,12 +79,13 @@ function wired() {
   const read = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: status }));
   const list = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: listing }));
   const cancel = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: cancellation }));
-  return { controller: new SupplyController(create, read, list, cancel), create, read, list, cancel };
+  const retry = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: retried }));
+  return { controller: new SupplyController(create, read, list, cancel, retry), create, read, list, cancel, retry };
 }
 
 describe('Supply guarded HTTP contract adapter', () => {
   it('dispatches exact inputs with admitted authority and preserves independent receipt/status values', async () => {
-    const { controller, create, read, list, cancel } = wired();
+    const { controller, create, read, list, cancel, retry } = wired();
     const request = await admittedRequest();
     expect(await call(controller.createRoute(request), createInput)).toEqual(receipt);
     expect(create).toHaveBeenCalledExactlyOnceWith(authority, createInput);
@@ -90,6 +98,8 @@ describe('Supply guarded HTTP contract adapter', () => {
     expect(list).toHaveBeenCalledExactlyOnceWith(authority);
     expect(await call(controller.cancelRoute(request), cancelInput)).toEqual(cancellation);
     expect(cancel).toHaveBeenCalledExactlyOnceWith(authority, cancelInput);
+    expect(await call(controller.retryRoute(request), retryInput)).toEqual(retried);
+    expect(retry).toHaveBeenCalledExactlyOnceWith(authority, retryInput);
   });
 
   const refusalCodes: Record<Refusal, ProblemCode> = {
@@ -104,17 +114,18 @@ describe('Supply guarded HTTP contract adapter', () => {
   for (const reason of Object.keys(refusalCodes) as Refusal[])
     it(`maps ${reason} consistently without backend details`, async () => {
       const refused = vi.fn(() => Promise.resolve({ kind: 'refused' as const, reason }));
-      const controller = new SupplyController(refused, refused, refused, refused);
+      const controller = new SupplyController(refused, refused, refused, refused, refused);
       const request = await admittedRequest();
       for (const invoke of [
         () => call(controller.createRoute(request), createInput),
         () => call(controller.readRoute(request), { requestId: id }),
         () => call(controller.listRoute(request), undefined),
         () => call(controller.cancelRoute(request), cancelInput),
+        () => call(controller.retryRoute(request), retryInput),
       ]) {
         await expect(invoke()).rejects.toMatchObject({ code: refusalCodes[reason], data: {} });
       }
-      expect(refused).toHaveBeenCalledTimes(4);
+      expect(refused).toHaveBeenCalledTimes(5);
     });
 
   it('refuses every unguarded handler before its use case runs', async () => {
@@ -154,8 +165,8 @@ describe('Supply guarded HTTP contract adapter', () => {
 
   it('validates backend output instead of emitting a malformed acceptance receipt', async () => {
     const create = vi.fn(() => Promise.resolve({ kind: 'ok' as const, value: { ...receipt, requestId: 'bad' } }));
-    const { read, list, cancel } = wired();
-    const controller = new SupplyController(create, read, list, cancel);
+    const { read, list, cancel, retry } = wired();
+    const controller = new SupplyController(create, read, list, cancel, retry);
     await expect(call(controller.createRoute(await admittedRequest()), createInput)).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
     });

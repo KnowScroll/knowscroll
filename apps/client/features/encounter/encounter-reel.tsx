@@ -11,6 +11,7 @@ import {
   type ReelPlaybackView,
   type ReelPositionHandle,
 } from '@knowscroll/ui';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 import { useReelPageStage } from '../reel/reel-page';
 import { continuationIntent, continuationLabel, continuationName } from './continuation-intent';
@@ -187,6 +188,7 @@ export function ReelEncounter({
 }) {
   const reelPosition = useRef<ReelPositionHandle>(null);
   const reelControls = useRef<ReelControls>(null);
+  const { preferences } = useDevicePreferences();
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
   const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
   const playable = foreground && !state.overlay && state.phase === 'active';
@@ -234,7 +236,9 @@ export function ReelEncounter({
       controls={{ controlsRef: reelControls }}
       initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
       initialPlaying={entry.resumePlaying === true}
-      initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
+      initialMuted={
+        entry.muted ?? (entry.position?.kind === 'reel' && entry.position.muted ? true : !preferences.reelSound)
+      }
       onMutedChange={onMutedChange}
     >
       {(playback) => (
