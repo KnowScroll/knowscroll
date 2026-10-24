@@ -62,7 +62,7 @@ export type ReadBufferSource = (
   scope: PersonalScopeTx,
   query: { readonly sessionId: string; readonly offerId: string; readonly exposureId: string },
 ) => Promise<BufferSourceFacts | undefined>;
-/** The subset of `assetIds` the person has hidden (at most 100 per call). */
+/** The subset of `assetIds` the person has hidden or marked "Not interested" (at most 100 per call). */
 export type ReadHiddenAssets = (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<readonly string[]>;
 
 /** The stored buffer for exactly this key, expired or not; the caller applies the lifetimes. */

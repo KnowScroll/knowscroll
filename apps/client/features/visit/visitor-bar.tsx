@@ -5,12 +5,21 @@ import { IconButton, Text } from '@knowscroll/ui';
 import { SpaceChip } from '../universe/space-chip';
 
 /**
- * The visitor bar of U06: who is being visited, "Only what they share", and Leave. It is the first
+ * The visitor bar of U06: who is being visited, "Only what they share", Leave and Report. It is the first
  * thing on the screen so Leave is first in the tab order, and the banner under it is the same on
  * every visit for every person: it does not appear because something is hidden, so it cannot say
  * whether anything is.
  */
-export function VisitorBar({ ownerName, onLeave }: { readonly ownerName: string; readonly onLeave: () => void }) {
+export function VisitorBar({
+  ownerName,
+  onLeave,
+  onReport,
+}: {
+  readonly ownerName: string;
+  readonly onLeave: () => void;
+  /** Opens the report sheet about the owner. */
+  readonly onReport: () => void;
+}) {
   const [explaining, setExplaining] = useState(false);
   return (
     <View testID="visitor-bar" style={styles.root}>
@@ -43,6 +52,13 @@ export function VisitorBar({ ownerName, onLeave }: { readonly ownerName: string;
           label="Private parts stay private"
           toggled={explaining}
           onPress={() => setExplaining((open) => !open)}
+        />
+        <SpaceChip
+          testID="visit-report"
+          icon="alert"
+          label="Report"
+          accessibilityLabel={`Report ${ownerName}`}
+          onPress={onReport}
         />
       </View>
       {explaining ? (
@@ -84,7 +100,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   who: { flex: 1, minWidth: 0 },
-  banner: { alignItems: 'flex-start' },
+  banner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: spacing[2] },
   card: {
     gap: spacing[2],
     padding: spacing[4],

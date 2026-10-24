@@ -61,13 +61,22 @@ const titleOf = (card: ConversationContentProjection): string | undefined =>
 export interface MessageActions {
   readonly canStartThread: boolean;
   readonly canModerate: boolean;
+  /** Anyone can report a message that is not their own, an AI inhabitant's included (P03). */
+  readonly canReport: boolean;
 }
 
-export function actionsFor(message: RoomMessage, role: 'member' | 'moderator'): MessageActions {
+export function actionsFor(
+  message: RoomMessage,
+  role: 'member' | 'moderator',
+  ownPersonId: string | undefined,
+): MessageActions {
   const isCard = message.status === 'available' && message.body.kind === 'content';
+  const mine =
+    message.status === 'available' && message.author.kind === 'person' && message.author.personId === ownPersonId;
   return {
     canStartThread: isCard,
     canModerate: role === 'moderator' && (message.status === 'removed' || message.status === 'available'),
+    canReport: message.status === 'available' && !mine,
   };
 }
 
@@ -364,7 +373,7 @@ export function RoomMessages({
               {dayLabel(group.at, now)}
             </Text>
             {group.items.map((message) => {
-              const actions = actionsFor(message, role);
+              const actions = actionsFor(message, role, ownPersonId);
               const mine = mineOf(message);
               return (
                 <View key={message.sequence} role="listitem" style={styles.item}>
@@ -386,7 +395,7 @@ export function RoomMessages({
                   ) : null}
                   <MessageLine
                     sequence={message.sequence}
-                    hasActions={actions.canStartThread || actions.canModerate}
+                    hasActions={actions.canStartThread || actions.canModerate || actions.canReport}
                     onActions={() => onActions(message)}
                   >
                     {message.status === 'available' && collapsedOf(message) ? (

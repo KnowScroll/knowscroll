@@ -60,10 +60,12 @@ export interface MessageListProps {
   /** From `useFollowEnd`: the scroll view's ref and scroll handler. */
   readonly scrollRef: RefObject<ScrollViewInstance | null>;
   readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Reports another person's message. */
+  readonly onReport: (message: Extract<ConversationMessage, { status: 'available' }>) => void;
 }
 
 /** The messages by day, then the ones still being sent. "Sent" marks the person's latest message once nothing is pending. */
-export function MessageList({ state, controller, name, scrollRef, onScroll }: MessageListProps) {
+export function MessageList({ state, controller, name, scrollRef, onScroll, onReport }: MessageListProps) {
   const mineOf = (message: ConversationMessage) =>
     message.status === 'available' && message.author.personId !== state.peer?.personId;
   const lastMineSequence = [...state.messages].reverse().find(mineOf)?.sequence;
@@ -102,7 +104,11 @@ export function MessageList({ state, controller, name, scrollRef, onScroll }: Me
             {group.items.map((message) => (
               <View key={message.sequence} role="listitem" style={styles.item}>
                 {message.sequence === awayFrom ? <AwayDivider /> : null}
-                <MessageBubble message={message} mine={mineOf(message)} />
+                <MessageBubble
+                  message={message}
+                  mine={mineOf(message)}
+                  {...(message.status === 'available' && !mineOf(message) ? { onReport: () => onReport(message) } : {})}
+                />
                 {message.sequence === lastMineSequence && state.outgoing.length === 0 ? (
                   <Text variant="monoXs" color={content.ink2} align="right">
                     Sent

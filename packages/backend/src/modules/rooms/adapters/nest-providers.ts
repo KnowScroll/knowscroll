@@ -42,11 +42,20 @@ import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
 import { makeStationReads } from '../application/stations.js';
 import { contributeQueue } from '../events.js';
-import { CONTRIBUTE_AS_INHABITANT, ROOM_USE_CASES, type ContributeAsInhabitant, type RoomUseCases } from '../public.js';
+import {
+  CONTRIBUTE_AS_INHABITANT,
+  READ_REPORTABLE_ROOM_MESSAGE,
+  READ_ROOM_REPORTS,
+  ROOM_USE_CASES,
+  type ContributeAsInhabitant,
+  type ReadRoomReports,
+  type RoomUseCases,
+} from '../public.js';
 import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
+import { readReportableRoomMessage } from './report-reads.js';
 import { gateSnippetAnchors } from './snippet-audience.js';
 
 /** What every room use case needs from the rest of the system, chosen by the composition root. */
@@ -60,6 +69,8 @@ export interface RoomsDeps {
   readonly readContent: ReadShareableContent;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
+  /** Reports on a room's messages, for its moderators; only the API serves that read. */
+  readonly readReports?: ReadRoomReports;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
   /** The caller's own map, for stations; the worker never reads stations. */
@@ -107,6 +118,10 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     readContent: deps.readContent,
     readSequence: deps.readSequence,
     readVisited: deps.readVisited,
+    readReports: (scope, query) => {
+      if (deps.readReports === undefined) throw new Error('ROOMS_REPORTS_NOT_CONFIGURED');
+      return deps.readReports(scope, query);
+    },
     ...gateSnippetAnchors(deps.checkAudience, deps.validateSnippet, deps.resolveSnippet),
     readGeography: deps.readGeography ?? (() => Promise.resolve({ kind: 'refused' as const })),
     newId: deps.newId ?? uuidv7,
@@ -152,9 +167,10 @@ export function contributeAsInhabitant(
 
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 
-/** The API's room use cases. */
+/** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
   return [
+    { provide: READ_REPORTABLE_ROOM_MESSAGE, useValue: readReportableRoomMessage },
     {
       provide: ROOM_USE_CASES,
       inject: [
@@ -170,6 +186,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         RESOLVE_SNIPPET_ANCHOR,
         READ_GEOGRAPHY_SCENE_INPUT,
         CHECK_ASSET_AUDIENCE,
+        READ_ROOM_REPORTS,
         tokens.enqueueJob,
       ],
       useFactory: (
@@ -185,6 +202,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         resolveSnippet: ResolveSnippetAnchor,
         readGeography: ReadGeographySceneInput,
         checkAudience: CheckAssetAudience,
+        readReports: ReadRoomReports,
         enqueue: EnqueueJob,
       ) =>
         roomUseCases({
@@ -200,6 +218,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
           resolveSnippet,
           readGeography,
           checkAudience,
+          readReports,
           enqueue,
         }),
     },

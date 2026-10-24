@@ -27,6 +27,7 @@ function store(overrides: Partial<PanelStore> = {}): PanelStore {
     reelOrders: () => Promise.resolve(available([])),
     cartographer: () => Promise.resolve(available({ counts: [], recent: [] })),
     privacy: () => Promise.resolve(available({ groups: [], failed: [] })),
+    reports: () => Promise.resolve(available({ last24Hours: 0, recent: [] })),
     ...overrides,
   };
 }
@@ -75,11 +76,33 @@ describe('the Operator panels', () => {
       reelOrders: slow(available([])),
       cartographer: slow(available({ counts: [], recent: [] })),
       privacy: slow(available({ groups: [], failed: [] })),
+      reports: slow(available({ last24Hours: 0, recent: [] })),
     };
     expect(Object.keys(bounded)).toEqual(Object.keys(base));
     const panels = await makeReadOperatorPanels({ store: bounded, now })();
     expect(most).toBe(3);
     expect(panels.overview.queues.status).toBe('available');
+  });
+
+  it('lists the reports to the safety team beside the other panels', async () => {
+    const recent = [
+      {
+        reportId: '5b7f8d25-9a9c-4c1e-9a3a-0a4c2b7a8e11',
+        kind: 'abuse' as const,
+        category: 'harassment',
+        targetKind: 'room_message' as const,
+        assetId: null,
+        messageId: '0f3c9c5e-5d2c-4a37-8b0b-4f5fdc3e2d10',
+        roomId: 'a8d9d0e2-3c0e-4b8c-9c1b-6d0c9b3c4f21',
+        hasNote: true,
+        createdAt: new Date('2026-10-24T09:30:00.000Z'),
+      },
+    ];
+    const panels = await makeReadOperatorPanels({
+      store: store({ reports: () => Promise.resolve(available({ last24Hours: 1, recent })) }),
+      now,
+    })();
+    expect(panels.safety.reports).toEqual(available({ last24Hours: 1, recent }));
   });
 
   it('keeps answering when one view cannot be read', async () => {

@@ -1,14 +1,17 @@
 import {
   ReadRoomListSchema,
+  ReadRoomReportsSchema,
   ReadRoomSchema,
   RoomListSchema,
+  RoomReportsSchema,
   RoomViewSchema,
   type PublicPersonRef,
   type RoomDiscussionSummary,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { joinDecision, roomAcceptsPosts } from '../domain/membership.js';
+import { isModerator, joinDecision, roomAcceptsPosts } from '../domain/membership.js';
+import { reportedOnDay } from '../domain/reports.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import {
   earlierPlaceOf,
@@ -26,6 +29,8 @@ import { inhabitantsOf, roomSummary } from './view.js';
 const FRIEND_LOOKUP_LIMIT = 1000;
 /** The most discussions a room view lists. */
 export const DISCUSSIONS_PER_ROOM_VIEW = 50;
+/** The most reported messages a moderator's list shows. */
+const REPORTS_PER_ROOM_VIEW = 50;
 
 const keyOf = (ref: { assetId: string; assetRevision: number }) => `${ref.assetId}:${String(ref.assetRevision)}`;
 
@@ -110,6 +115,54 @@ export function makeRoomReads(p: RoomPorts) {
             readId: parsed.data.readId,
             status: 'ready',
             items: rows.map((row) => ({ room: roomSummary(row.room), standing: row.standing })),
+          }),
+        );
+      });
+      return result.kind === 'entered' ? result.value : refuse('unavailable');
+    },
+
+    /**
+     * The reports on this room's messages, for its moderators only (D-055). A member who is not a moderator,
+     * a stranger and an unknown room all get the same refusal. A moderator never sees a report about their
+     * own words, and no answer says who reported, what they wrote or the time of day: only the day of the newest report.
+     */
+    async reports(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReportsSchema>>> {
+      const parsed = ReadRoomReportsSchema.safeParse(input);
+      if (!parsed.success) return refuse('invalid_input');
+      const query = parsed.data;
+      const result = await p.withScope(authority, async (scope) => {
+        const entered = await enterRoom(p, scope, query.roomId, 'read');
+        if (!entered?.member || !isModerator(entered.member.role)) return refuse('unavailable');
+        const found = await p.readReports(scope, {
+          roomId: query.roomId,
+          excludingAccountId: entered.owner.accountId,
+          limit: REPORTS_PER_ROOM_VIEW,
+        });
+        const placed = await p.discussions.locate(
+          entered.lock,
+          found.map((report) => report.messageId),
+        );
+        return ok(
+          RoomReportsSchema.parse({
+            ...roomEnvelope(scope),
+            readId: query.readId,
+            roomId: query.roomId,
+            reports: found.flatMap((report) => {
+              const place = placed.get(report.messageId);
+              return place === undefined
+                ? []
+                : [
+                    {
+                      messageId: report.messageId,
+                      discussionId: place.discussionId,
+                      discussionTitle: place.discussionTitle,
+                      sequence: place.sequence,
+                      count: report.count,
+                      categories: report.categories,
+                      lastReportedAt: reportedOnDay(report.lastReportedAt).toISOString(),
+                    },
+                  ];
+            }),
           }),
         );
       });

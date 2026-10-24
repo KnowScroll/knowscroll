@@ -188,3 +188,9 @@ migration. Apply with the new binary; the generated database types change by the
 0066 adds `composer.jev_assessments` (#231, D-058): one row per person with their recent Jev assessments (at most 60,
 each used for 30 minutes), so a candidate judged lately is not sent to the model again. A disposable cache, never
 evidence. Erased with the person's other Composer stores. Nothing is backfilled; no earlier writer exists.
+
+0068 is Feedback (D-055): `experience.not_interested` (a short-lived routing constraint, universe-keyed; it keeps the mark it
+replaced so Undo of a second tap restores it), `feedback.reports` (account-keyed reports to the safety team; a report about
+a deleted account loses its pointer to the person and carries `retain_until`, 90 days after the deletion, for the
+`feedback.purge-reports` job) and the `ops.feedback_reports` view.
+Additive; no earlier writer. The queue `feedback.purge-reports` is registered by the migrate command with the others.

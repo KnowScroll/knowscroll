@@ -74,6 +74,7 @@ import {
   recordActivation,
   writeSession,
 } from './navigation-store.js';
+import { readNotInterested } from './not-interested-store.js';
 import { insertExposure, markExposureActivated } from './postgres-store.js';
 export const NAVIGATION_PORTS = Symbol('experience.navigationPorts');
 export const NAVIGATE_ENCOUNTER = Symbol('experience.navigateEncounter');
@@ -160,6 +161,7 @@ export function navigationProviders(
           insertOffers,
           bindOffer,
           readHidden,
+          readNotInterested,
           readContextBase,
           readPrepared,
           compose,

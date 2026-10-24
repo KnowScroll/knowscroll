@@ -16,7 +16,9 @@ Declared queues: `evidence.apply-action` and `evidence.project-scroll-reading` (
 `identity.sweep-sign-in-records` (identity; scheduled every 15 minutes: deletes expired sign-in links
 and long-ended sessions), `reasoning.purge-expired-requests` (reasoning; scheduled every 15 minutes:
 deletes protected model request bytes past their retention) and `reasoning.sweep-dispatched-attempts`
-(reasoning; scheduled every 5 minutes: moves attempts a crash left `dispatched` to `unknown`). A job
+(reasoning; scheduled every 5 minutes: moves attempts a crash left `dispatched` to `unknown`) and
+`feedback.purge-reports` (feedback; scheduled daily at 03:17 UTC: deletes reports about deleted accounts 90 days after the
+deletion). A job
 that calls the reasoning harness declares `expireInSeconds` above what one delivery can take (see
 `reasoning/README.md`). Consumers are non-transactional: a
 handler opens its own short transactions, records its applied identity with its effects so a

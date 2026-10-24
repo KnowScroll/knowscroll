@@ -20,6 +20,22 @@ export const isRegionOpen = (command: NavigationCommand): command is RegionEncou
 export const sameRegion = (p: NavigationPorts, a: GeographyRegionConstraint, b: GeographyRegionConstraint) =>
   p.hashRequest('region-constraint', json(a)) === p.hashRequest('region-constraint', json(b));
 
+/**
+ * What a move leaves out: Hide always, and "Not interested" (D-055) unless the person named the target
+ * (`namesTarget`: Saved, a finished request, a variant, a series or related link, a pin). A person's own
+ * explicit open is never blocked by a mark; only what Composer would pick for them is.
+ */
+export async function readWithheld(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  assetIds: readonly string[],
+  namesTarget: boolean,
+): Promise<readonly string[]> {
+  const hidden = await p.readHidden(scope, assetIds);
+  if (namesTarget || !assetIds.length) return hidden;
+  return [...new Set([...hidden, ...(await p.readNotInterested(scope, assetIds))])];
+}
+
 /** A vertical move inherits its actual source offer's immutable region, never mutable intent. */
 export async function commandRegion(
   p: NavigationPorts,

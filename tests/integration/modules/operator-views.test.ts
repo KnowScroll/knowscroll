@@ -31,6 +31,7 @@ const PRIVATE = {
   note: 'CI-PRIVATE-OPERATOR-NOTE',
   detail: 'CI-PRIVATE-REMOTE-DETAIL',
   job: 'CI-PRIVATE-JOB-PAYLOAD',
+  reportNote: 'CI-PRIVATE-REPORT-NOTE',
 };
 
 /** The columns each view shows. A new column is a reviewed change to this list (D-044). */
@@ -49,6 +50,18 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'updated_at',
     'closed_at',
     'redacted',
+  ],
+  feedback_reports: [
+    'report_id',
+    'kind',
+    'category',
+    'target_kind',
+    'asset_id',
+    'asset_revision',
+    'message_id',
+    'room_id',
+    'has_note',
+    'created_at',
   ],
   geography_runs: ['run_id', 'status', 'outcome', 'desired_revision', 'created_at', 'updated_at'],
   jobs: [
@@ -235,6 +248,10 @@ describe('the ops views (real PostgreSQL)', () => {
       values (${randomUUID()}::uuid, ${orderId}::uuid, 1, false, ${`ks-reel-${'b'.repeat(32)}-1`}, ${request},
         encode(sha256(convert_to(${request}, 'UTF8')), 'hex'), 75, 'written_off', ${PRIVATE.note},
         ${PRIVATE.detail}, now(), 'none')`.execute(db());
+    // A report with a note: operators learn that it has one, never what it says or who sent it.
+    await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, message_id, room_id, note, created_at)
+      values (${randomUUID()}::uuid, ${person.accountId}::uuid, 'abuse', 'harassment', 'room_message', ${randomUUID()}::uuid,
+        ${randomUUID()}::uuid, ${PRIVATE.reportNote}, now())`.execute(db());
     // A job that failed for good, with a payload that carries private text.
     const diagnostics = { onError: () => undefined, onWarning: () => undefined };
     const install = createBoss(world.database.settings, 'install', diagnostics);
@@ -287,6 +304,7 @@ describe('the ops views (real PostgreSQL)', () => {
     ).toBe(1);
     expect(await found(sql`select 1 from content.reel_attempts where operator_note = ${PRIVATE.note}`)).toBe(1);
     expect(await found(sql`select 1 from pgboss.job where data::text like ${`%${PRIVATE.job}%`}`)).toBe(1);
+    expect(await found(sql`select 1 from feedback.reports where note = ${PRIVATE.reportNote}`)).toBe(1);
   });
 
   it('lists exactly the reviewed columns in every view', async () => {
@@ -314,6 +332,7 @@ describe('the ops views (real PostgreSQL)', () => {
     expect(shown['rejected_answers']).toBeGreaterThan(0);
     expect(shown['reel_orders']).toBe(1);
     expect(shown['reel_attempts']).toBe(1);
+    expect(shown['feedback_reports']).toBe(1);
     expect(shown['jobs']).toBeGreaterThan(0);
     expect(shown['journey_events']).toBeGreaterThan(0);
   });

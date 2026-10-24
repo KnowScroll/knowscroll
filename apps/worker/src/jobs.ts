@@ -112,6 +112,8 @@ import {
   type SweepSignInRecords,
 } from '@knowscroll/backend/modules/identity';
 import { identitySweepProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { PURGE_REPORTS, purgeReportsQueue, type PurgeReports } from '@knowscroll/backend/modules/feedback';
+import { feedbackPurgeProviders } from '@knowscroll/backend/modules/feedback/nest-providers';
 import {
   PRODUCTION_REASONING_HARNESS,
   PURGE_EXPIRED_REQUESTS,
@@ -204,6 +206,7 @@ export const jobWiring: Provider[] = [
     materialChange: PERSONAL_MATERIAL_CHANGE,
   }),
   ...identitySweepProviders({ database: DATABASE }),
+  ...feedbackPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...reasoningPurgeProviders({ database: DATABASE, logEvent: LOG_EVENT }),
   ...reasoningSweepProviders({ database: DATABASE, logEvent: LOG_EVENT, workerConfig: WORKER_CONFIG }),
   {
@@ -227,6 +230,7 @@ export const jobWiring: Provider[] = [
       SWEEP_SIGN_IN_RECORDS,
       PURGE_EXPIRED_REQUESTS,
       SWEEP_DISPATCHED_ATTEMPTS,
+      PURGE_REPORTS,
       PRODUCTION_REASONING_HARNESS,
       WITH_PRODUCTION_SCOPE,
       LOG_EVENT,
@@ -253,6 +257,7 @@ export const jobWiring: Provider[] = [
       sweepSignInRecords: SweepSignInRecords,
       purgeExpiredRequests: PurgeExpiredRequests,
       sweepDispatchedAttempts: SweepDispatchedAttempts,
+      purgeReports: PurgeReports,
       productionHarness: ProductionReasoningHarness,
       withProductionScope: WithProductionScope,
       logEvent: LogEvent,
@@ -365,6 +370,10 @@ export const jobWiring: Provider[] = [
       // personal runs left admitted and idle for hours are closed (logs `reasoning.idle_runs_closed`).
       jobConsumer(sweepDispatchedAttemptsQueue, async () => {
         await sweepDispatchedAttempts();
+      }),
+      // Once a day: reports about deleted accounts whose 90 days are over (logs `feedback.reports_purged`, D-055).
+      jobConsumer(purgeReportsQueue, async () => {
+        await purgeReports();
       }),
     ],
   },

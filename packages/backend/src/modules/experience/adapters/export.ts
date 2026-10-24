@@ -83,9 +83,19 @@ export const experienceExportRead: ModuleExport['read'] = async (scope, person) 
     where action.universe_id = ${universeId}::uuid
     order by action.created_at desc, action.id
     limit ${limit}`.execute(trx);
+  const notInterested = await sql<{ asset_id: string; title: string; marked_at: Date; expires_at: Date }>`
+    select marked.asset_id, revision.title, marked.marked_at, marked.expires_at
+    from experience.not_interested marked
+    join content.assets asset on asset.id = marked.asset_id
+    join content.asset_revisions revision on revision.asset_id = asset.id and revision.revision = asset.revision
+    where marked.universe_id = ${universeId}::uuid and marked.expires_at > now()
+    order by marked.marked_at desc, marked.asset_id
+    limit ${limit}`.execute(trx);
   // A Scroll made for a thread the person has left (or never was in) keeps no title, place or part in their file.
   const reachable = await person.reach([
-    ...new Set([...saved.rows, ...encounters.rows, ...reactions.rows].map((row) => row.asset_id)),
+    ...new Set(
+      [...saved.rows, ...encounters.rows, ...reactions.rows, ...notInterested.rows].map((row) => row.asset_id),
+    ),
   ]);
   const titleOf = (row: { readonly asset_id: string; readonly title: string }) =>
     reachable.has(row.asset_id) ? row.title : UNREACHABLE_TITLE;
@@ -108,6 +118,13 @@ export const experienceExportRead: ModuleExport['read'] = async (scope, person) 
     ),
     reactions: boundedSection(
       reactions.rows.map((row) => ({ title: titleOf(row), action: row.action, at: row.created_at.toISOString() })),
+    ),
+    notInterested: boundedSection(
+      notInterested.rows.map((row) => ({
+        title: titleOf(row),
+        markedAt: row.marked_at.toISOString(),
+        until: row.expires_at.toISOString(),
+      })),
     ),
   };
 };

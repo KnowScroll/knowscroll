@@ -613,3 +613,12 @@ form with earlier premises (add or replace) and the removed-branch note are cove
 - Not built: a discussion scoped to one branch, a position time in the way back, Resume on branch cards, a retry for a
   failed branch, the map's "opened" observation.
 
+## Feedback and report (#250, D-055)
+
+P03 is an overlay with no route of its own (`features/feedback/`, its README). The encounter's ⋯ and a long-press on a Reel
+open it as the `feedback` overlay owner (`session.openFeedback`); the conversation, a room's message options and the friend
+visit open it in a bottom sheet (`FeedbackSheet`). The state lives in client-core (`feedback-store.ts` per account scope:
+the timed Undo of "Not interested" and the reports kept for a connection; `feedback-flow.ts` per sheet: the forms). The
+Operator screen shows the newest reports as card 7 (ids and kinds only), and a room's moderators see the reported
+messages of their room under Moderator tools.
+

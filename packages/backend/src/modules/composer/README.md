@@ -146,7 +146,7 @@ before. No model call or provider wait is ever on the HTTP path.
 | `composerBufferProviders` | API side: read, release and request a buffer |
 | `composerBufferWorkerProviders` | worker side: the use case, with Jev when `KS_JEV_ENABLED=1` |
 | `assembleSnapshot`, `evidenceQueryFor`, `readVerticalCandidates` | shared by the worker and Experience's navigation, so both rank the same inputs |
-| `READ_BUFFER_SOURCE`, `READ_HIDDEN_ASSETS` | ports Experience implements (sessions, activations and Hide are its tables) |
+| `READ_BUFFER_SOURCE`, `READ_HIDDEN_ASSETS` | ports Experience implements (sessions, activations, Hide and Not interested are its tables; a buffer is a subject move, so it leaves out both) |
 
 **What a buffer is.** One row of `composer.buffers` per person and mode (`vertical`). It points at an
 ordinary Composer decision (so the offers it produces reference a real decision) and lists up to three

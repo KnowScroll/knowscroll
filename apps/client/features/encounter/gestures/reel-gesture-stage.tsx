@@ -1,6 +1,11 @@
-import { useMemo, type ReactNode } from 'react';
-import { PanResponder, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { PanResponder, StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { createGestureArbitrator, type EncounterGestureMove } from './arbitration';
+
+/** Holding a finger still this long on the video opens the feedback menu (P03); the ⋯ is the visible way. */
+export const LONG_PRESS_MS = 500;
+/** A finger that moves further than this is a swipe, not a hold. */
+const HOLD_SLOP = 10;
 
 function createReelResponder(onMove: (move: EncounterGestureMove) => void, width: number) {
   let gesture: ReturnType<typeof createGestureArbitrator> | undefined;
@@ -47,16 +52,51 @@ function createReelResponder(onMove: (move: EncounterGestureMove) => void, width
 export function ReelGestureStage({
   children,
   onMove,
+  onMenu,
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: EncounterGestureMove) => void;
   /** A keyboard action of the web stage (Space); touch has the player's own button. */
   readonly onToggle?: () => void;
+  /** A long press on the video: opens the feedback menu. */
+  readonly onMenu?: () => void;
 }) {
   const { width } = useWindowDimensions();
   const responder = useMemo(() => createReelResponder(onMove, width), [onMove, width]);
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout> | undefined; x: number; y: number }>({
+    timer: undefined,
+    x: 0,
+    y: 0,
+  });
+  const release = useCallback(() => {
+    clearTimeout(hold.current.timer);
+    hold.current.timer = undefined;
+  }, []);
+  useEffect(() => release, [release]);
+  const begin = (event: GestureResponderEvent) => {
+    release();
+    if (onMenu === undefined || event.nativeEvent.touches.length !== 1) return;
+    hold.current.x = event.nativeEvent.pageX;
+    hold.current.y = event.nativeEvent.pageY;
+    hold.current.timer = setTimeout(onMenu, LONG_PRESS_MS);
+  };
+  const drift = (event: GestureResponderEvent) => {
+    if (
+      Math.abs(event.nativeEvent.pageX - hold.current.x) > HOLD_SLOP ||
+      Math.abs(event.nativeEvent.pageY - hold.current.y) > HOLD_SLOP
+    )
+      release();
+  };
   return (
-    <View style={styles.stage} {...responder.panHandlers} testID="reel-navigation-stage">
+    <View
+      style={styles.stage}
+      {...responder.panHandlers}
+      onTouchStart={begin}
+      onTouchMove={drift}
+      onTouchEnd={release}
+      onTouchCancel={release}
+      testID="reel-navigation-stage"
+    >
       {children}
     </View>
   );

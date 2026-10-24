@@ -143,6 +143,18 @@ fixed hint. `nothing_to_add` is an honest answer: nothing is posted and the aske
 refuses every call while no model provider is configured (`KS_REASONING_PROVIDER=none`), and the ask then
 ends as failed.
 
+## Reports on room messages (#250, D-055)
+
+A member reports a room message through the Feedback module (`reportAbuse`, target `room_message`). Rooms answers two
+questions for it. `READ_REPORTABLE_ROOM_MESSAGE` says whether the caller is a current member who can see the message (not
+removed by a moderator, not a tombstone) and gives its room and author's account (none for an AI inhabitant). The other
+way, `reports` (`POST /v1/rooms/reports`) shows a room's **moderators** which messages were reported: the message, its
+discussion and number, the reasons, how many *different people* reported it and on which *day* (the start of the UTC
+day of the newest report, never the time), newest first (50). It never carries who reported, the note
+or the author, and it leaves out reports about the asking moderator's own words. A member who is not a moderator, a
+stranger and an unknown room all get the same `unavailable`. The list reads Feedback's `READ_ROOM_REPORTS` port; only the
+API provides it, and the worker's inhabitant consumer never asks. *Implemented; CI-verified.*
+
 ## Erasure and export
 
 | Store | Exploration Clear | Account deletion |

@@ -18,15 +18,16 @@ import type {
   RoomMessageAcceptanceSchema,
   RoomMessageHidingAcceptanceSchema,
   RoomModerationAcceptanceSchema,
+  RoomReportsSchema,
   RoomSnippetOpeningSchema,
   RoomStationsSchema,
   RoomViewSchema,
 } from '@knowscroll/contracts';
-import type { PersonalAuthority } from '../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
 import type { ContributeJob } from './events.js';
 import type { Result } from './application/ports.js';
 
-export type { Result as RoomResult, RoomRefusal } from './application/ports.js';
+export type { Result as RoomResult, RoomRefusal, ReadRoomReports, RoomReportRow } from './application/ports.js';
 export { contributeQueue, ContributeJobSchema, type ContributeJob } from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export type { RoomSeed } from './application/seeds.js';
@@ -56,6 +57,8 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof RoomMessageHidingAcceptanceSchema>>>;
+  /** The reports on this room's messages, for its moderators alone (D-055). */
+  reports(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReportsSchema>>>;
   readDiscussion(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionViewSchema>>>;
   history(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionHistoryPageSchema>>>;
   changes(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionChangesPageSchema>>>;
@@ -82,3 +85,19 @@ export const ROOM_USE_CASES = Symbol('rooms.useCases');
  */
 export type ContributeAsInhabitant = (job: ContributeJob, signal: AbortSignal) => Promise<void>;
 export const CONTRIBUTE_AS_INHABITANT = Symbol('rooms.contributeAsInhabitant');
+
+/**
+ * Port: a message of a room discussion the caller can see, for a report: its room and the account that
+ * wrote it (none for an AI inhabitant). A caller who is not a current member of the room, a message a
+ * moderator removed or that was deleted, and an unknown ID are all absent. Read inside the caller's
+ * personal transaction; it decides nothing else.
+ */
+export type ReadReportableRoomMessage = (
+  scope: PersonalScopeTx,
+  accountId: string,
+  messageId: string,
+) => Promise<{ readonly roomId: string; readonly authorAccountId: string | null } | undefined>;
+export const READ_REPORTABLE_ROOM_MESSAGE = Symbol('rooms.readReportableRoomMessage');
+
+/** Bound by Feedback: the reports on one room's messages, for that room's moderators. */
+export const READ_ROOM_REPORTS = Symbol('rooms.readRoomReports');

@@ -9,6 +9,7 @@ import type {
   QueueRow,
   RefusedAnswerRow,
   ReelOrderRow,
+  ReportsSummary,
   UsageSummary,
 } from '../domain/panels.js';
 
@@ -37,4 +38,5 @@ export interface PanelStore {
   reelOrders(limit: number): Promise<Piece<readonly ReelOrderRow[]>>;
   cartographer(limit: number): Promise<Piece<CartographerSummary>>;
   privacy(limit: number): Promise<Piece<PrivacySummary>>;
+  reports(limit: number): Promise<Piece<ReportsSummary>>;
 }

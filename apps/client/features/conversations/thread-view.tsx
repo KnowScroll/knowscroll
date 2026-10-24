@@ -1,12 +1,19 @@
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { blockFriend, type AccountScope, type ThreadController, type ThreadState } from '@knowscroll/client-core';
+import {
+  blockFriend,
+  type AccountScope,
+  type FeedbackTarget,
+  type ThreadController,
+  type ThreadState,
+} from '@knowscroll/client-core';
 import { DELETED_ACCOUNT_LABEL, type ConversationMessage, type DirectConversationRef } from '@knowscroll/contracts';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Skeleton, StateBlock } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
+import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { Composer } from './composer';
 import { ConversationMenu } from './conversation-menu';
 import { MessageList, useFollowEnd } from './message-list';
@@ -92,9 +99,10 @@ interface ThreadMenuProps {
   readonly visible: boolean;
   readonly onClose: () => void;
   readonly leaveToTalk: () => void;
+  readonly onReport: () => void;
 }
 
-/** Mute, leave and block, each leaving Talk when it ends the conversation. */
+/** Mute, leave, report and block, each leaving Talk when it ends the conversation. */
 function ThreadMenu({
   scope,
   controller,
@@ -104,6 +112,7 @@ function ThreadMenu({
   visible,
   onClose,
   leaveToTalk,
+  onReport,
 }: ThreadMenuProps) {
   return (
     <ConversationMenu
@@ -114,6 +123,7 @@ function ThreadMenu({
       canBlock={!accountDeleted}
       onClose={onClose}
       onMute={(muted) => void controller.mute(muted)}
+      onReport={onReport}
       onLeave={() => {
         onClose();
         void controller.leave().then((left) => {
@@ -155,10 +165,17 @@ export interface ThreadProps {
   readonly reference: DirectConversationRef;
 }
 
+const reportedPerson = (person: { personId: string; displayName: string; handle: string }) => ({
+  personId: person.personId,
+  displayName: person.displayName,
+  handle: person.handle,
+});
+
 /** One open conversation: header, notices, messages, composer and options. */
 export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const [reporting, setReporting] = useState<FeedbackTarget>();
   const [starting, setStarting] = useState(false);
   const [draft, keepDraft] = useDraft(scope, reference.conversationId);
   const {
@@ -187,7 +204,16 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         onStartThread={canStartThread ? () => setStarting(true) : undefined}
       />
       <ThreadNotices state={state} name={name} accountDeleted={accountDeleted} />
-      <MessageList state={state} controller={controller} name={name} scrollRef={scrollRef} onScroll={onScroll} />
+      <MessageList
+        state={state}
+        controller={controller}
+        name={name}
+        scrollRef={scrollRef}
+        onScroll={onScroll}
+        onReport={(message) =>
+          setReporting({ kind: 'message', messageId: message.messageId, author: reportedPerson(message.author) })
+        }
+      />
       {state.ended ? null : (
         <Composer
           name={name}
@@ -212,7 +238,11 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         visible={menu}
         onClose={() => setMenu(false)}
         leaveToTalk={leaveToTalk}
+        onReport={() => {
+          if (state.peer !== undefined) setReporting({ kind: 'person', person: reportedPerson(state.peer) });
+        }}
       />
+      <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
     </>
   );
 }

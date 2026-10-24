@@ -15,6 +15,7 @@ import {
   keepPlaceProviders,
   keepRemovalProviders,
   navigationProviders,
+  notInterestedProviders,
   savedPageUseCase,
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
@@ -24,6 +25,7 @@ import {
 import {
   KEEP_PLACE_USE_CASES,
   KEEP_REMOVAL_USE_CASE,
+  NOT_INTERESTED_USE_CASES,
   READ_SAVED_PAGE,
   EXPERIENCE_RECORDING_EFFECTS,
 } from '@knowscroll/backend/modules/experience';
@@ -79,6 +81,7 @@ export const experienceWiring: Provider[] = [
     { withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB },
     { recordingEffects: EXPERIENCE_RECORDING_EFFECTS },
   ),
+  ...notInterestedProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...composerProviders({ isOperator: () => false }),
   ...composerBufferProviders({ enqueueJob: ENQUEUE_JOB }),
   ...navigationProviders(
@@ -91,6 +94,7 @@ export {
   READ_SAVED_PAGE,
   KEEP_PLACE_USE_CASES,
   KEEP_REMOVAL_USE_CASE,
+  NOT_INTERESTED_USE_CASES,
   ACTIVATE_EXPOSURE,
   APPLY_ACTION,
   LIST_SAVED,

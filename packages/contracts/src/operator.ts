@@ -112,7 +112,25 @@ const PrivacySummary = z.strictObject({
     .max(50),
 });
 
-/** The six panels of the Operator artboard, read at one moment. */
+/**
+ * Reports to the safety team (P03, D-055): what each is about and when. Never the note, the sender or the
+ * person reported; `hasNote` only says a note exists.
+ */
+const ReportRow = z.strictObject({
+  reportId: UuidSchema,
+  kind: z.enum(['content_error', 'abuse']),
+  category: Code,
+  targetKind: z.enum(['asset', 'message', 'room_message', 'person', 'deleted_account']),
+  assetId: UuidSchema.nullable(),
+  messageId: UuidSchema.nullable(),
+  roomId: UuidSchema.nullable(),
+  hasNote: z.boolean(),
+  createdAt: Time,
+});
+
+const ReportsSummary = z.strictObject({ last24Hours: Count, recent: z.array(ReportRow).max(50) });
+
+/** The six panels of the Operator artboard and the list of reports, read at one moment. */
 export const OperatorPanelsSchema = z.strictObject({
   generatedAt: Time,
   overview: z.strictObject({
@@ -130,6 +148,7 @@ export const OperatorPanelsSchema = z.strictObject({
     usage: piece(UsageSummary),
   }),
   universeChange: z.strictObject({ cartographer: piece(CartographerSummary) }),
+  safety: z.strictObject({ reports: piece(ReportsSummary) }),
   realtime: z.strictObject({ delivery: OperatorUnavailableSchema }),
   privacy: z.strictObject({
     operations: piece(PrivacySummary),

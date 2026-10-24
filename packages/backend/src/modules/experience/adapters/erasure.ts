@@ -12,6 +12,7 @@ const tables = [
   'recording_command_origins',
   'action_links',
   'action_state',
+  'not_interested',
   'navigation_transitions',
   'offer_activations',
   'offer_region_constraints',
@@ -59,7 +60,13 @@ export const experienceErasure = declareErasure({
   export: (declaration) =>
     exportReading(
       declaration,
-      ['experience.saved_items', 'experience.saved_places', 'experience.exposures', 'experience.actions'],
+      [
+        'experience.saved_items',
+        'experience.saved_places',
+        'experience.exposures',
+        'experience.actions',
+        'experience.not_interested',
+      ],
       'Navigation, offers, recorder certificates and activity inputs are internal bookkeeping behind the encounters and reactions listed; suggestions are not activity.',
       experienceExportRead,
     ),

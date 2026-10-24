@@ -26,7 +26,16 @@ function fixture(patch: Partial<RequestState>) {
   };
   const dismissNotice = jest.fn();
   const requests = { subscribe: () => () => undefined, getState: () => state, dismissNotice, cancel: jest.fn() };
-  const session = { requests, openReadyRequest: jest.fn() } as unknown as EncounterSession;
+  // Nothing was marked "Not interested": that notice has its own tests.
+  const idle = { notInterested: { status: 'idle' }, queued: 0 };
+  const feedback = { subscribe: () => () => undefined, getState: () => idle };
+  const session = {
+    requests,
+    feedback,
+    openReadyRequest: jest.fn(),
+    undoNotInterested: jest.fn(),
+    retryNotInterested: jest.fn(),
+  } as unknown as EncounterSession;
   const entry = { exposureId: EXPOSURE, kind: 'reel' } as unknown as EncounterEntry;
   return { session, entry, dismissNotice };
 }

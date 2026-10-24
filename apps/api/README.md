@@ -376,3 +376,13 @@ routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed
 `unavailable` to `SHARING_UNAVAILABLE`). Membership, the parent's revision, the caps and idempotence are decided in the use
 cases; no handler waits for a model. The API also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_CAP`.
 Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*
+
+### Feedback and reports (#250, D-055)
+
+`FeedbackController` mounts private POSTs under `/v1/feedback/`: `not-interested`, `not-interested/undo`, `content-errors` and
+`abuse-reports`, and `RoomsController` adds `POST /v1/rooms/reports` for a room's moderators. Each is a command with a
+`commandId` (an identical retry answers the first outcome with `replayed: true`) and answers `Cache-Control: private, no-store`.
+A refusal is a catalogue problem: `ASSET_NOT_FOUND` (Not interested on missing or withdrawn content), `NOT_FOUND` (a report target that is
+missing, hidden or the caller's own: one answer), `TOO_MANY_REQUESTS` (25 reports in 24 hours), `COMMAND_KEY_REUSED`. No route returns a stored report to
+a consumer.
+

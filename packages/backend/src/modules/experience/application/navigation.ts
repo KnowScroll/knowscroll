@@ -19,11 +19,12 @@ import type {
 } from './navigation-ports.js';
 import { OfferRegionConstraintSchema } from './navigation-ports.js';
 import { keyOf, receipt } from './navigation-receipt.js';
-import { prepare, type Prepared } from './navigation-prepare.js';
+import { namesTarget, prepare, type Prepared } from './navigation-prepare.js';
 import {
   currentRegionOffers,
   isRegionOpen,
   json,
+  readWithheld,
   ref,
   refuse,
   same,
@@ -227,7 +228,10 @@ async function lockRegionSelection(
   return locked ? undefined : { kind: 'drift' };
 }
 
-/** Rereads each ranked candidate: still admitted, same content, not hidden, link still current. `undefined` is drift. */
+/**
+ * Rereads each ranked candidate: still admitted, same content, not hidden, not marked "Not interested" (unless the
+ * person named it), link still current. `undefined` is drift.
+ */
 async function selectStillEligible(
   p: NavigationPorts,
   scope: PersonalScopeTx,
@@ -239,7 +243,7 @@ async function selectStillEligible(
     if (
       !exact ||
       exact.catalogWatermark !== target.catalogWatermark ||
-      (await p.readHidden(scope, [target.assetId])).length
+      (await readWithheld(p, scope, [target.assetId], namesTarget(prepared))).length
     )
       return undefined;
     const link = prepared.links.find((l) => same(l.target, target));
