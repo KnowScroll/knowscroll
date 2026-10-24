@@ -3,13 +3,14 @@ import Svg, { Circle } from 'react-native-svg';
 import { content, space } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { BODY_COLOURS, calmColours } from './universe-palette';
-import { DustGlyph, OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph } from './universe-bodies';
+import { DustGlyph, OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph, StationGlyph } from './universe-bodies';
 import {
   composeSystem,
   isQuiet,
   overviewScale,
   placeDust,
   placeLabels,
+  stationOffset,
   SYSTEM_CLUSTER_WORLD,
   worldBounds,
   ORBIT_BANDS,
@@ -27,6 +28,7 @@ import {
   LABEL_HEIGHT,
   MapLabel,
   SceneLayer,
+  stationName,
   type SceneProps,
 } from './scene-parts';
 
@@ -44,7 +46,7 @@ export const detailLevel = (unit: number): DetailLevel => (unit < 0.2 ? 'far' : 
  * U01 and U08: every system as a star with its orbits and planets, at a level of detail that follows
  * its size on screen. Far away only names remain; the same targets exist at every level.
  */
-export function OverviewScene({ session, state, index, size, onDust }: SceneProps) {
+export function OverviewScene({ session, state, index, size, onDust, stations, onStation }: SceneProps) {
   const { systems } = index;
   const bounds = useMemo(() => worldBounds(systems), [systems]);
   // The header and the chips and tab bar take the top and bottom of the screen; systems fit between them.
@@ -88,6 +90,23 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
         (isQuiet(system) ? 0 : 1),
     };
   });
+  // A station sits beside the system of its topic, if that system is in view; the same ID is the same place on every map.
+  const stationsInView = (stations ?? []).flatMap((station) => {
+    const home = placed.find(({ system }) => system.objectId === station.placement.systemId);
+    if (!home) return [];
+    const offset = stationOffset(station.room.roomId, home.composition.bands, unit, 30);
+    return [{ station, at: { x: home.position.x + offset.x, y: home.position.y + offset.y } }];
+  });
+  if (level !== 'far')
+    for (const { station, at } of stationsInView)
+      requests.push({
+        id: `station:${station.room.roomId}`,
+        anchor: at,
+        clearance: 16,
+        width: labelWidth(station.room.name),
+        height: LABEL_HEIGHT,
+        priority: 0,
+      });
   const labels = placeLabels(requests, size);
   const ship = lastSystemId ? placed.find(({ system }) => system.objectId === lastSystemId) : undefined;
 
@@ -122,6 +141,15 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
             />
           );
         })}
+        {stationsInView.map(({ station, at }) => (
+          <StationGlyph
+            key={station.room.roomId}
+            x={at.x}
+            y={at.y}
+            scale={level === 'far' ? 0.5 : 0.8}
+            calm={state.lately}
+          />
+        ))}
         {ship ? (
           <ShipGlyph
             x={ship.position.x + 22 + ORBIT_BANDS[0].rx * unit * 0.2}
@@ -131,8 +159,11 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
       </Svg>
       <SceneLayer>
         {labels.map((label) => {
-          const system = systems.find((candidate) => candidate.objectId === label.id)!;
-          return <MapLabel key={label.id} label={label} text={system.label} calm={state.lately && isQuiet(system)} />;
+          const system = systems.find((candidate) => candidate.objectId === label.id);
+          if (system)
+            return <MapLabel key={label.id} label={label} text={system.label} calm={state.lately && isQuiet(system)} />;
+          const station = stationsInView.find((entry) => `station:${entry.station.room.roomId}` === label.id);
+          return station ? <MapLabel key={label.id} label={label} text={station.station.room.name} /> : null;
         })}
         {[...dust].map(([id, world]) => {
           const at = toScreen(world);
@@ -148,6 +179,17 @@ export function OverviewScene({ session, state, index, size, onDust }: SceneProp
             />
           ) : null;
         })}
+        {stationsInView.map(({ station, at }) => (
+          <BodyTarget
+            key={station.room.roomId}
+            testID={`universe-station-${station.room.roomId}`}
+            x={at.x}
+            y={at.y}
+            size={48}
+            label={stationName(station)}
+            onPress={() => onStation?.(station.room.roomId)}
+          />
+        ))}
         {placed.map(({ system, position, composition }) => (
           <BodyTarget
             key={system.objectId}

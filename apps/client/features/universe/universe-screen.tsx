@@ -7,6 +7,8 @@ import type { AccountScope } from '@knowscroll/client-core';
 import { Button, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { space, spacing } from '@knowscroll/design-tokens';
 import { useAccountScope } from '../../providers/account-scope';
+import { roomHref } from '../rooms/room-links';
+import { useRoomStationsOnMap } from '../rooms/use-room-stations';
 import { useDocumentTitle } from '../../platform/document-title';
 import { EmptyUniverseScreen } from './empty-universe-screen';
 import { FormationPresentation } from './formation-presentation';
@@ -32,6 +34,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
     router = useRouter(),
     { focus: focusParam } = useLocalSearchParams<{ focus?: string }>();
   const [foreground, setForeground] = useState(false);
+  const stations = useRoomStationsOnMap(scope);
   useDocumentTitle('Universe · KnowScroll');
   useFocusEffect(
     useCallback(() => {
@@ -86,7 +89,14 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
     return <Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />;
   return (
     <>
-      <UniverseSurface session={session} state={state} index={index} status={statusOf(state)} />
+      <UniverseSurface
+        session={session}
+        state={state}
+        index={index}
+        status={statusOf(state)}
+        stations={stations}
+        onStation={(roomId) => router.push(roomHref(roomId))}
+      />
       <FormationPresentation session={session} />
     </>
   );

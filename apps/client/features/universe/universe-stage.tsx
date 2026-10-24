@@ -5,6 +5,7 @@ import { PlanetScene } from './planet-scene';
 import { SystemScene } from './system-scene';
 import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
+import type { SceneProps } from './scene-parts';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 const KEY_PAN = 60;
@@ -50,12 +51,16 @@ export function UniverseStage({
   index,
   onSearch,
   onDust,
+  stations,
+  onStation,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   readonly onSearch: () => void;
   readonly onDust: () => void;
+  readonly stations?: SceneProps['stations'];
+  readonly onStation?: SceneProps['onStation'];
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId);
@@ -101,7 +106,7 @@ export function UniverseStage({
       move();
     }
   };
-  const sceneProps = { session, state, index, size, onDust };
+  const sceneProps = { session, state, index, size, onDust, stations, onStation };
   const description =
     view.kind === 'universe'
       ? 'Universe map. Arrow keys pan, plus and minus zoom, slash searches.'

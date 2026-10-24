@@ -1,11 +1,12 @@
 import Svg, { Path } from 'react-native-svg';
 import { space } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
-import { OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph } from './universe-bodies';
+import { OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph, StationGlyph } from './universe-bodies';
 import {
   composeSystem,
   isQuiet,
   placeLabels,
+  stationOffset,
   ORBIT_BANDS,
   PLANET_RADIUS,
   STAR_RADIUS,
@@ -18,6 +19,7 @@ import {
   LABEL_HEIGHT,
   MapLabel,
   SceneLayer,
+  stationName,
   type SceneProps,
 } from './scene-parts';
 
@@ -31,6 +33,8 @@ export function SystemScene({
   index,
   size,
   system,
+  stations,
+  onStation,
 }: SceneProps & { readonly system: SceneDescriptor }) {
   const composition = composeSystem(index, system);
   const unit =
@@ -47,6 +51,30 @@ export function SystemScene({
     height: LABEL_HEIGHT,
     priority: descriptor.objectId === state.lastPlace?.id ? 2 : 1,
   }));
+  // The stations of rooms whose topic is this system, or one of its planets: beside that planet, else below the orbits.
+  const here = (stations ?? [])
+    .filter((station) => station.placement.systemId === system.objectId)
+    .map((station) => {
+      const planet =
+        station.placement.planetId === undefined
+          ? undefined
+          : composition.planets.find(({ descriptor }) => descriptor.objectId === station.placement.planetId);
+      if (planet) {
+        const point = at(planet.position);
+        return { station, at: { x: point.x + planetRadius + 26, y: point.y + planetRadius + 14 } };
+      }
+      const offset = stationOffset(station.room.roomId, composition.bands, unit, 38);
+      return { station, at: { x: centre.x + offset.x, y: centre.y + offset.y } };
+    });
+  for (const { station, at: spot } of here)
+    requests.push({
+      id: `station:${station.room.roomId}`,
+      anchor: spot,
+      clearance: 18,
+      width: labelWidth(station.room.name),
+      height: LABEL_HEIGHT,
+      priority: 0,
+    });
   const labels = placeLabels(requests, size);
   const parked = composition.planets.find(({ descriptor }) => descriptor.objectId === state.lastPlace?.id);
   return (
@@ -94,14 +122,20 @@ export function SystemScene({
             />
           ) : null;
         })}
+        {here.map(({ station, at: spot }) => (
+          <StationGlyph key={station.room.roomId} x={spot.x} y={spot.y} calm={state.lately} />
+        ))}
         {parked ? (
           <ShipGlyph x={at(parked.position).x + planetRadius + 18} y={at(parked.position).y - planetRadius - 6} />
         ) : null}
       </Svg>
       <SceneLayer>
         {labels.map((label) => {
-          const planet = composition.planets.find((p) => p.descriptor.objectId === label.id)!.descriptor;
-          return <MapLabel key={label.id} label={label} text={planet.label} calm={state.lately && isQuiet(planet)} />;
+          const planet = composition.planets.find((p) => p.descriptor.objectId === label.id)?.descriptor;
+          if (planet)
+            return <MapLabel key={label.id} label={label} text={planet.label} calm={state.lately && isQuiet(planet)} />;
+          const station = here.find((entry) => `station:${entry.station.room.roomId}` === label.id);
+          return station ? <MapLabel key={label.id} label={label} text={station.station.room.name} /> : null;
         })}
         {composition.routes.map((route) => {
           const from = at(route.from),
@@ -119,6 +153,17 @@ export function SystemScene({
             />
           );
         })}
+        {here.map(({ station, at: spot }) => (
+          <BodyTarget
+            key={station.room.roomId}
+            testID={`universe-station-${station.room.roomId}`}
+            x={spot.x}
+            y={spot.y}
+            size={48}
+            label={stationName(station)}
+            onPress={() => onStation?.(station.room.roomId)}
+          />
+        ))}
         {composition.planets.map(({ descriptor, position }) => {
           const point = at(position);
           return (

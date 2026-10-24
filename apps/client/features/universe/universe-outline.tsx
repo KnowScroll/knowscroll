@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { RoomStation } from '@knowscroll/contracts';
 import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Scrim, Text } from '@knowscroll/ui';
 import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
@@ -20,12 +21,17 @@ export function OutlineList({
   index,
   onChoose,
   label = 'Places in your universe',
+  stations,
+  onStation,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   readonly onChoose?: () => void;
   readonly label?: string;
+  /** The room stations of this map: listed after the places, as the artboards' "Rooms" section does. */
+  readonly stations?: readonly RoomStation[];
+  readonly onStation?: (roomId: string) => void;
 }) {
   const rows = outlineRows(index, state.lately);
   const list = useRef<FlatList<OutlineRow>>(null);
@@ -96,7 +102,43 @@ export function OutlineList({
       maxToRenderPerBatch={16}
       windowSize={7}
       style={styles.list}
+      {...(stations && stations.length > 0
+        ? { ListFooterComponent: <StationRows stations={stations} onStation={onStation} /> }
+        : {})}
     />
+  );
+}
+
+/** The "Rooms" section of the list view: each room station beside a system of this map, opening its room. */
+function StationRows({
+  stations,
+  onStation,
+}: {
+  readonly stations: readonly RoomStation[];
+  readonly onStation: ((roomId: string) => void) | undefined;
+}) {
+  return (
+    <View role="group" accessibilityLabel="Rooms on your map" style={styles.rooms}>
+      <Text variant="label" color={content.ink2} style={styles.roomsHeading}>
+        Rooms
+      </Text>
+      {stations.map((station) => (
+        <View key={station.room.roomId} role="listitem">
+          <Pressable
+            testID={`universe-outline-station-${station.room.roomId}`}
+            accessibilityRole="button"
+            accessibilityLabel={`${station.room.name}, a room station`}
+            onPress={() => onStation?.(station.room.roomId)}
+            style={styles.row}
+          >
+            <Text variant="bodyS">{station.room.name}</Text>
+            <Text variant="label" color={content.ink2}>
+              Room
+            </Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -130,10 +172,14 @@ export function UniverseListSheet({
   state,
   index,
   owner,
+  stations,
+  onStation,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
+  readonly stations?: readonly RoomStation[];
+  readonly onStation?: (roomId: string) => void;
   /** A friend's name: the sheet is theirs, and there is no Lately lens over a universe that is not yours. */
   readonly owner?: string;
 }) {
@@ -193,6 +239,8 @@ export function UniverseListSheet({
               session={session}
               state={state}
               index={index}
+              {...(stations ? { stations } : {})}
+              {...(onStation ? { onStation } : {})}
               {...(owner === undefined ? {} : { label: `Places in ${owner}’s universe` })}
             />
           </View>
@@ -244,6 +292,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     cursor: 'pointer' as const,
   },
+  rooms: { gap: spacing[1], paddingTop: spacing[3] },
+  roomsHeading: { paddingHorizontal: spacing[3] },
   ancestor: { backgroundColor: content.paper2 },
   current: { backgroundColor: content.continue },
   systemName: { fontSize: 18, lineHeight: 24 },

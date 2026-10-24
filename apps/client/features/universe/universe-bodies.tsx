@@ -232,6 +232,34 @@ export function ShipGlyph({ x, y }: { x: number; y: number }) {
   );
 }
 
+/**
+ * A room station (U01, U02): a small module with two arms and panels and a warm light, drawn in cream
+ * line so it reads beside the stars. It is a doorway to a shared room, not a place of the person's own
+ * universe; `calm` mutes it like a quiet place.
+ */
+export function StationGlyph({
+  x,
+  y,
+  scale = 1,
+  calm,
+}: {
+  readonly x: number;
+  readonly y: number;
+  readonly scale?: number;
+  readonly calm?: boolean;
+}) {
+  const stroke = calm ? space.label2 : space.label;
+  return (
+    <G transform={`translate(${x} ${y}) scale(${scale})`}>
+      <Rect x={-14} y={-7} width={28} height={14} rx={4} fill={space.s0} stroke={stroke} strokeWidth={2} />
+      <Path d="M-26 0h12M14 0h12" stroke={stroke} strokeWidth={2} strokeLinecap="round" />
+      <Rect x={-33} y={-5} width={7} height={10} fill={stroke} />
+      <Rect x={26} y={-5} width={7} height={10} fill={stroke} />
+      <Circle cx={0} cy={0} r={2.6} fill={calm ? calmer(STAR_COLOUR, 0.55) : STAR_COLOUR} />
+    </G>
+  );
+}
+
 export type LandmarkKind = 'lighthouse' | 'harbour';
 
 /**

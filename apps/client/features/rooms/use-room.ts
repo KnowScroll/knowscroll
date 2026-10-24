@@ -8,7 +8,6 @@ import {
   createRoomActivity,
   createRoomDiscussion,
   readRoomList,
-  readRoomStations,
   type AccountScope,
   type RoomActivitiesController,
   type RoomActivitiesState,
@@ -150,27 +149,4 @@ export function useRoomActivity(
     refetchOnReconnect: !quiz,
   });
   return { controller, state };
-}
-
-/** The room stations of the person's own map. They change when the map does, so a focus or reconnect is enough. */
-export function useRoomStations(scope: AccountScope | undefined) {
-  const key = useMemo(
-    () =>
-      scope === undefined
-        ? ([TALK_QUERY_KEY, 'signed-out', 'room-stations'] as const)
-        : scope.queryKey(TALK_QUERY_KEY, 'room-stations'),
-    [scope],
-  );
-  const query = useQuery({
-    queryKey: key,
-    enabled: scope !== undefined,
-    queryFn: () => {
-      if (scope === undefined) throw new Error('no scope');
-      return readRoomStations(scope, newCommandId);
-    },
-    staleTime: 60_000,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-  });
-  return { stations: query.data ?? [], loading: query.isPending && scope !== undefined };
 }
