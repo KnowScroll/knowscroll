@@ -107,61 +107,64 @@ function ScrollSnippet({
   readonly onBack: () => void;
 }) {
   const [reading, setReading] = useState(false);
+  const insets = useSafeAreaInsets();
   const base = useMemo(() => createScopedBlockStateStore(scope.storage), [scope]);
   const { anchor } = opening;
   if (anchor.kind === 'reel_range') return null;
   if (!reading)
     return (
-      <View style={styles.card}>
-        <Text variant="monoXs" color={content.ink2}>
-          {anchor.kind === 'scroll_passage' ? 'Passage' : 'Shared part'} · {opening.content.title}
-        </Text>
-        {anchor.kind === 'scroll_passage' ? (
-          <Text variant="body" style={styles.quote}>
-            “{anchor.quote}”
+      <View style={[styles.screen, { paddingTop: insets.top + spacing[4] }]}>
+        <View style={styles.card}>
+          <Text variant="monoXs" color={content.ink2}>
+            {anchor.kind === 'scroll_passage' ? 'Passage' : 'Shared part'} · {opening.content.title}
           </Text>
-        ) : (
-          <>
-            <Text variant="title" heading={1}>
-              {anchor.label ?? opening.content.title}
+          {anchor.kind === 'scroll_passage' ? (
+            <Text variant="body" style={styles.quote}>
+              “{anchor.quote}”
             </Text>
-            <Text variant="bodyS" color={content.ink2}>
-              {anchor.snapshot === undefined
-                ? 'The settings were not included.'
-                : anchor.description === undefined || anchor.description === ''
-                  ? 'Shared as the sender set it.'
-                  : `Set as: ${anchor.description}`}
-            </Text>
-          </>
-        )}
-        {opening.mapped ? (
-          <Banner
-            kind="corrected"
-            lead="Updated."
-            message="The Scroll changed after this was shared; this is where it is now."
-          />
-        ) : null}
-        {opening.settingsReset ? (
-          <Banner
-            kind="info"
-            lead="Settings reset."
-            message="The block changed, so it starts from its own default settings."
-          />
-        ) : null}
-        <View style={styles.actions}>
-          <Button
-            label={
-              anchor.kind === 'scroll_passage'
-                ? 'Read in context'
-                : anchor.snapshot === undefined
-                  ? 'Open it'
-                  : 'Open as set'
-            }
-            variant="primary"
-            onPress={() => setReading(true)}
-            testID="open-snippet-scroll"
-          />
-          <Button label="Back to thread" variant="ghost" onPress={onBack} />
+          ) : (
+            <>
+              <Text variant="title" heading={1}>
+                {anchor.label ?? opening.content.title}
+              </Text>
+              <Text variant="bodyS" color={content.ink2}>
+                {anchor.snapshot === undefined
+                  ? 'The settings were not included.'
+                  : anchor.description === undefined || anchor.description === ''
+                    ? 'Shared as the sender set it.'
+                    : `Set as: ${anchor.description}`}
+              </Text>
+            </>
+          )}
+          {opening.mapped ? (
+            <Banner
+              kind="corrected"
+              lead="Updated."
+              message="The Scroll changed after this was shared; this is where it is now."
+            />
+          ) : null}
+          {opening.settingsReset ? (
+            <Banner
+              kind="info"
+              lead="Settings reset."
+              message="The block changed, so it starts from its own default settings."
+            />
+          ) : null}
+          <View style={styles.actions}>
+            <Button
+              label={
+                anchor.kind === 'scroll_passage'
+                  ? 'Read in context'
+                  : anchor.snapshot === undefined
+                    ? 'Open it'
+                    : 'Open as set'
+              }
+              variant="primary"
+              onPress={() => setReading(true)}
+              testID="open-snippet-scroll"
+            />
+            <Button label="Back to thread" variant="ghost" onPress={onBack} />
+          </View>
         </View>
       </View>
     );
@@ -304,19 +307,24 @@ export function SnippetViewerScreen(params: {
     void findThread(scope, newCommandId, params.threadId).then(setFound, () => undefined);
   }, [scope, carried, params.threadId]);
   const thread = carried ?? found;
-  if (scope === undefined || thread === undefined)
-    return (
-      <StateBlock
-        title="Open this from the thread"
-        actions={[
-          { label: 'Back', onPress: () => (router.canGoBack() ? router.back() : router.replace('/conversations')) },
-        ]}
-      />
-    );
-  return <Viewer key={params.messageId} scope={scope} thread={thread} messageId={params.messageId} />;
+  return (
+    <View style={styles.root}>
+      {scope === undefined || thread === undefined ? (
+        <StateBlock
+          title="Open this from the thread"
+          actions={[
+            { label: 'Back', onPress: () => (router.canGoBack() ? router.back() : router.replace('/conversations')) },
+          ]}
+        />
+      ) : (
+        <Viewer key={params.messageId} scope={scope} thread={thread} messageId={params.messageId} />
+      )}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: content.paper },
   scroll: { flex: 1, backgroundColor: content.paper },
   screen: {
     gap: spacing[4],

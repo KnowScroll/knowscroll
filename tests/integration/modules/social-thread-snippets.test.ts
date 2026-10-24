@@ -441,7 +441,7 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       );
       expect(unwrap(await open(b, bRef, moment.messageId))).toMatchObject({
         status: 'ready',
-        content: { kind: 'reel', assetId: reel.assetId, assetRevision: 1 },
+        content: { kind: 'reel', assetId: reel.assetId, assetRevision: 1, title: 'The edge' },
         anchor: { kind: 'reel_range', startMs: 5_000, endMs: 12_000 },
         mapped: false,
         settingsReset: false,
@@ -449,7 +449,7 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       expect(unwrap(await open(b, bRef, passage.messageId))).toMatchObject({
         status: 'ready',
         content: { kind: 'scroll', assetId: attention.assetId },
-        anchor: { kind: 'scroll_passage', blockId: 'crowd-p1', start: 0, end: 9 },
+        anchor: { kind: 'scroll_passage', blockId: 'crowd-p1', start: 0, end: 9, quote: text.slice(0, 9) },
       });
       expect(await consumptionRows(database.db)).toBe(before);
     });
