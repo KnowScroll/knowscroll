@@ -91,6 +91,8 @@ export const scenariosErasure = declareErasure({
           select created_at, kind, request_text, status from scenarios.nodes
           where started_by_account_id = ${person.accountId}::uuid
           order by created_at desc, node_id limit ${EXPORT_LIST_LIMIT + 1}`.execute(trx);
+        // A person who never used What if has no section: the file never names the module.
+        if (drafts.rows.length === 0 && branches.rows.length === 0) return {};
         return {
           drafts: boundedSection(
             drafts.rows.map((row) => ({

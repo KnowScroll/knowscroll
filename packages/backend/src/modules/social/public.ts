@@ -167,12 +167,7 @@ export const READ_INBOX_REVISION = Symbol('social.readInboxRevision');
  * bounded window of its messages, keep receipts on it and tell the inboxes. It decides nothing about
  * who may take part: that stays Social's. See `application/thread-guest.ts`.
  */
-export type {
-  ThreadContextMessage,
-  ThreadGuest,
-  ThreadVisit,
-  ThreadWindow,
-} from './application/thread-guest.js';
+export type { ThreadContextMessage, ThreadGuest, ThreadVisit, ThreadWindow } from './application/thread-guest.js';
 export type { ReceiptKey as ThreadReceiptKey } from './application/ports.js';
 export const THREAD_GUEST = Symbol('social.threadGuest');
 

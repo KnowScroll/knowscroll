@@ -1,4 +1,4 @@
-import { subjectKey, type Assumption } from './assumptions.js';
+import { wordsKey, type Assumption } from './assumptions.js';
 import type { Step } from './exploration.js';
 
 /** How an ordered Scroll is framed for its reader: copied by code, never written by the model. */
@@ -56,7 +56,7 @@ export function writerBrief(facts: BranchFacts): string {
   if (step.kind === 'what_if')
     lines.push('PREMISE (what this idea changes; it is not true of the real world):', ...bullets(step.changes));
   const inherited = step.assumptions.filter(
-    (assumption) => !step.changes.some((change) => subjectKey(change.subject) === subjectKey(assumption.subject)),
+    (assumption) => !step.changes.some((change) => wordsKey(change.subject) === wordsKey(assumption.subject)),
   );
   if (inherited.length > 0)
     lines.push('PREMISES INHERITED FROM EARLIER BRANCHES (also hypothetical):', ...bullets(inherited));

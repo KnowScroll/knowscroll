@@ -199,6 +199,51 @@ describe('account deletion (real database)', () => {
     return { ...person, authority: { ...person.authority, privacyEpoch: 2 } };
   }
 
+  let scenarioThreadId = '';
+  /** Authored erasure-only rows: a member's unanswered draft, and a branch they started with their own words. */
+  async function seedScenarioRows(person: FixturePerson, threadId: string) {
+    const now = new Date();
+    await database.db
+      .insertInto('scenarios.drafts')
+      .values({
+        draft_id: randomUUID(),
+        thread_id: threadId,
+        requester_account_id: person.accountId,
+        requester_universe_id: person.universeId,
+        privacy_epoch: 1,
+        kind: 'what_if',
+        origin_kind: 'root',
+        parent_revision: 1,
+        request_text: 'Authored erasure-only words of a draft',
+        state: 'thinking',
+        created_at: now,
+        expires_at: new Date(now.getTime() + 3_600_000),
+      })
+      .execute();
+    await database.db
+      .insertInto('scenarios.nodes')
+      .values({
+        node_id: randomUUID(),
+        thread_id: threadId,
+        kind: 'what_if',
+        origin_kind: 'root',
+        started_by_account_id: person.accountId,
+        request_text: 'Authored erasure-only words of a branch',
+        title: 'Authored erasure-only branch',
+        changes: JSON.stringify([{ subject: 'Fixture', statement: 'An authored erasure-only premise' }]),
+        kept: '[]',
+        assumptions: JSON.stringify([{ subject: 'Fixture', statement: 'An authored erasure-only premise' }]),
+        hypothetical: true,
+        semantic_key: 'a'.repeat(64),
+        status: 'preparing',
+        revision: 1,
+        asset_id: randomUUID(),
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
+  }
+
   const deletionJobs = async (deletionId: string) =>
     (
       await sql<{ n: number }>`select count(*)::int as n from pgboss.job
@@ -264,17 +309,18 @@ describe('account deletion (real database)', () => {
         ).kind,
       ).toBe('ok');
       // A content thread the person started, with the friend invited into it.
-      expect(
-        (
-          await talk.threads.create(erased.authority, {
-            version: 'content-thread.v1',
-            commandId: randomUUID(),
-            root: { assetId: talkContent.assetId, assetRevision: 1 },
-            friendPersonIds: [buddy.person.personId],
-            name: 'a thread the person who will delete their account started',
-          })
-        ).kind,
-      ).toBe('ok');
+      const startedThread = await talk.threads.create(erased.authority, {
+        version: 'content-thread.v1',
+        commandId: randomUUID(),
+        root: { assetId: talkContent.assetId, assetRevision: 1 },
+        friendPersonIds: [buddy.person.personId],
+        name: 'a thread the person who will delete their account started',
+      });
+      expect(startedThread.kind).toBe('ok');
+      if (startedThread.kind !== 'ok') throw new Error('thread not started');
+      // What they asked of the Scenario Planner there: a draft (theirs alone) and a branch (the thread's).
+      scenarioThreadId = startedThread.value.thread.threadId;
+      await seedScenarioRows(erased, scenarioThreadId);
       expect(
         (
           await talk.talk.shares.create(erased.authority, {
@@ -346,6 +392,15 @@ describe('account deletion (real database)', () => {
         buddyThreads.kind === 'ok' &&
           buddyThreads.value.items.map((item) => item.people.map((person) => person.displayName)),
       ).toEqual([[DELETED_ACCOUNT_LABEL]]);
+      // The branch they started stays for the thread, without their authorship or their words; their draft is gone.
+      expect(
+        await database.db
+          .selectFrom('scenarios.nodes')
+          .select(['started_by_account_id', 'request_text', 'title'])
+          .where('thread_id', '=', scenarioThreadId)
+          .execute(),
+      ).toEqual([{ started_by_account_id: null, request_text: null, title: 'Authored erasure-only branch' }]);
+      expect(await countWhere('scenarios.drafts', 'thread_id', scenarioThreadId)).toBe(0);
       expect(
         await database.db
           .selectFrom('identity.account_deletions')

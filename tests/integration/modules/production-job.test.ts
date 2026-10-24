@@ -26,6 +26,7 @@ import { fixtureProductionWorker, type QuotaScript } from '../support/production
 import { fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
 import { ResearchRefusal } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
 import { productionStore } from '../../../packages/backend/src/modules/content/production/store.js';
+import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 
@@ -332,7 +333,10 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       const store = productionStore(database.db);
       const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
       const authority = { scopeId: 'scroll-supply', generation: 1 } as const;
-      const ask = () => withScope(authority, (scope) => store.create(productionTransactionOf(scope), 'seasons', 1, 2));
+      const ask = () =>
+        withScope(authority, (scope) =>
+          store.create(productionTransactionOf(scope), 'seasons', TOPICS.seasons.assetId, 1, 2),
+        );
       const results = await Promise.all([ask(), ask(), ask()]);
       const jobs = results.map((entered) => (entered.kind === 'entered' ? entered.value : undefined));
       expect(jobs.filter((job) => job?.kind === 'job' && job.created)).toHaveLength(1);

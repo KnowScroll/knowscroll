@@ -4,8 +4,7 @@ import {
   MAX_CHANGES,
   MAX_KEPT,
   repeatsSubject,
-  statementKey,
-  subjectKey,
+  wordsKey,
   type Assumption,
 } from './assumptions.js';
 
@@ -83,8 +82,8 @@ export function planStep(parent: ParentFacts, request: StepRequest): StepOutcome
   if (request.kept.length > MAX_KEPT) return { ok: false, refusal: 'too_many_kept' };
   if (repeatsSubject(request.changes)) return { ok: false, refusal: 'repeated_change' };
   if (repeatsSubject(request.kept)) return { ok: false, refusal: 'repeated_kept' };
-  const changed = new Set(request.changes.map((change) => subjectKey(change.subject)));
-  if (request.kept.some((kept) => changed.has(subjectKey(kept.subject))))
+  const changed = new Set(request.changes.map((change) => wordsKey(change.subject)));
+  if (request.kept.some((kept) => changed.has(wordsKey(kept.subject))))
     return { ok: false, refusal: 'kept_contradicts_change' };
   const assumptions = applyChanges(parent.assumptions, request.changes);
   if (assumptions.length > MAX_ASSUMPTIONS) return { ok: false, refusal: 'too_many_assumptions' };
@@ -101,7 +100,7 @@ export function planStep(parent: ParentFacts, request: StepRequest): StepOutcome
  */
 export function meaningOf(parentNodeId: string | null, step: Step): string {
   const changes = step.changes
-    .map((change) => [subjectKey(change.subject), statementKey(change.statement)] as const)
+    .map((change) => [wordsKey(change.subject), wordsKey(change.statement)] as const)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return JSON.stringify([parentNodeId, step.kind, changes, step.lens === undefined ? null : statementKey(step.lens)]);
+  return JSON.stringify([parentNodeId, step.kind, changes, step.lens === undefined ? null : wordsKey(step.lens)]);
 }

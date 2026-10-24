@@ -11,16 +11,13 @@ export const MAX_CHANGES = 2;
 export const MAX_KEPT = 3;
 export const MAX_ASSUMPTIONS = 4;
 
-/** How subjects compare: case, spacing and compatibility forms do not make a new subject. */
-export const subjectKey = (subject: string): string =>
+/** How subjects and statements compare: case, spacing and compatibility forms do not make a new one. */
+export const wordsKey = (subject: string): string =>
   subject.normalize('NFKC').toLowerCase().replaceAll(/\s+/gu, ' ').trim();
-
-/** How statements compare for the meaning of a branch. */
-export const statementKey = subjectKey;
 
 /** Whether a list names the same subject twice. */
 export const repeatsSubject = (items: readonly Assumption[]): boolean =>
-  new Set(items.map((item) => subjectKey(item.subject))).size !== items.length;
+  new Set(items.map((item) => wordsKey(item.subject))).size !== items.length;
 
 /**
  * The assumptions that hold after a step: a change to a subject the parent already assumes replaces
@@ -29,7 +26,7 @@ export const repeatsSubject = (items: readonly Assumption[]): boolean =>
 export function applyChanges(parent: readonly Assumption[], changes: readonly Assumption[]): Assumption[] {
   const next = [...parent];
   for (const change of changes) {
-    const index = next.findIndex((existing) => subjectKey(existing.subject) === subjectKey(change.subject));
+    const index = next.findIndex((existing) => wordsKey(existing.subject) === wordsKey(change.subject));
     if (index === -1) next.push(change);
     else next[index] = change;
   }
