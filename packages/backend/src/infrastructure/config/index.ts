@@ -1,4 +1,5 @@
 export { ConfigurationError, type Environment } from './environment.js';
+export { readReelOperatorConfig, type ReelOperatorConfig } from './reel-operator.js';
 export {
   checkReleaseIdentity,
   commitForDiagnostics,
@@ -30,7 +31,5 @@ export {
   type ReasoningCap,
   type ReasoningSettings,
   type WorkerConfig,
-  type CutroomCommissioningSettings,
-  type CutroomReceivingSettings,
   type WorkerOperatorConfig,
 } from './processes.js';

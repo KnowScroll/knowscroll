@@ -30,6 +30,8 @@ const compositionRoots = [
   '^apps/worker/src/jobs\\.ts$',
   // The worker's operator command composes the reasoning ledger for write-offs (S2.2).
   '^apps/worker/src/operator\\.ts$',
+  // The Reel operator commands compose the ledger, the shared pool and Cutroom (#240).
+  '^apps/worker/src/reel-operator\\.ts$',
   // The Scroll production consumer and the operator's library commands compose the production use case (#239).
   '^apps/worker/src/production-jobs\\.ts$',
   '^apps/worker/src/library-operator\\.ts$',
@@ -146,11 +148,7 @@ module.exports = {
       severity: 'error',
       from: {
         path: '^packages/backend/src/infrastructure/',
-        pathNot: [
-          '^packages/backend/src/infrastructure/postgres/production-scope\\.ts$',
-          '^packages/backend/src/infrastructure/postgres/cutroom-scope\\.ts$',
-          '^packages/backend/src/infrastructure/jobs/enqueue-cutroom\\.ts$',
-        ],
+        pathNot: ['^packages/backend/src/infrastructure/postgres/production-scope\\.ts$'],
       },
       to: { path: '^packages/backend/src/reasoning/public\\.ts$' },
     },

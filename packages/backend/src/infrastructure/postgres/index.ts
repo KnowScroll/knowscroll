@@ -43,5 +43,4 @@ export {
   isClearCore,
   closeClearCore,
 } from './privacy-scope.js';
-export { makeWithCutroomReceiveScope, cutroomReceiveTransactionOf } from './cutroom-receive-scope.js';
 export { fencePersonalRecording, recordingTransactionOf } from './recording-scope.js';

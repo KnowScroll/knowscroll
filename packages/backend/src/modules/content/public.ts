@@ -1,4 +1,3 @@
-import type { makeCommission } from './production/commission.js';
 /**
  * Content's public surface for other modules and the apps: the read ports experience and evidence
  * use, and the admission use case's types. Everything here is framework-free; the ports are
@@ -292,22 +291,6 @@ export type LockRegionEncounterCandidates = (
 export const READ_REGION_ENCOUNTER_CANDIDATES = Symbol('content.readRegionEncounterCandidates');
 export const LOCK_REGION_ENCOUNTER_CANDIDATES = Symbol('content.lockRegionEncounterCandidates');
 
-/** Backend-internal Cutroom prerequisite; pure preparation, no commissioned content or permission. */
-export {
-  CUTROOM_COMMISSION_POLICY,
-  CutroomCommissionScriptSchema,
-  CutroomApprovalReferenceSchema,
-  lintCutroomCommission,
-  prepareCutroomCommission,
-} from './production/commission-contracts.js';
-export type {
-  CutroomCommissionScript,
-  CutroomCommissionRefusal,
-  CutroomCommissionRun,
-  CutroomObservedRun,
-  ValidateCutroomRemoteChain,
-} from './production/commission-contracts.js';
-
 /** Minimized current immutable facts, bounded by canonical document validation. No rendering grant. */
 export type KeepPositionTarget =
   | { readonly kind: 'reel'; readonly durationMs: number }
@@ -326,111 +309,3 @@ export type LockKeepPositionTarget = (
   ref: unknown,
 ) => Promise<KeepPositionTarget | undefined>;
 export const LOCK_KEEP_POSITION_TARGET = Symbol('content.lockKeepPositionTarget');
-
-/** Optional unmounted B business prerequisite; no dispatch/publication/Supply binding. */
-export type { CommissionBusiness, CommissionStore, CommissionPorts } from './production/commission-ports.js';
-export type CommissionCutroom = ReturnType<typeof makeCommission>;
-
-/** C1 source-review packet, never consumer metadata or human-approval authority. */
-export {
-  prepareCommissionReview,
-  reelFingerprint,
-  normalizeReelNarration,
-  checkReelCorpus,
-} from './production/commission-review.js';
-export type {
-  ReelTemplateDescriptor,
-  ReelArgumentDescriptor,
-  ReelCorpusRecord,
-  ReelCorpusManifest,
-  CommissionReviewDraft,
-  CommissionReviewPacket,
-  CommissionReviewPreparation,
-  CommissionHumanApproval,
-  CommissionReviewVerdict,
-  CommissionReviewStore,
-} from './production/commission-review-ports.js';
-
-/** Default-disabled snapshot preapproval only. No live corpus/approval registry or normal binding. */
-export { makeCommissionPreparation } from './production/commission-review.js';
-export type { CommissionPreparationStore } from './production/commission-review-ports.js';
-
-/** Pure pinned chain metadata only; no remote, settlement or publication authority. */
-export { validatePinnedCutroomChain } from './production/commission-chain.js';
-export { CUTROOM_CHAIN_UPSTREAM_REVISION, CUTROOM_CHAIN_LIMITS } from './production/commission-contracts.js';
-export type {
-  CutroomChainInput,
-  CutroomChainStatusSnapshot,
-  CutroomChainResultSnapshot,
-  CutroomChainRecordSnapshot,
-  CutroomChainReport,
-  CutroomChainLabel,
-} from './production/commission-contracts.js';
-
-export { CUTROOM_CHAIN_COLLECTION_LIMITS } from './production/commission-contracts.js';
-export type {
-  CutroomChainCollector,
-  CutroomChainCollectorSettings,
-  CutroomChainCollection,
-} from './production/commission-contracts.js';
-
-/** Sanitized evidence data/ports only; no adapter or dispatch/settlement factory here. */
-export type {
-  CutroomCollectedChain,
-  CutroomChainSnapshotCollection,
-  CutroomChainSnapshotCollector,
-} from './production/commission-contracts.js';
-export type {
-  ChainDocument,
-  ChainDocumentKind,
-  ChainSnapshotHeader,
-  SealedChainSnapshot,
-  StoredChainSnapshot,
-  ChainSnapshotSelector,
-  ChainStoreRefusal,
-  ChainStoreResult,
-  CommissionChainStore,
-  CommissionChainStorePorts,
-  CommissionChainSnapshots,
-} from './production/commission-chain-store-ports.js';
-
-export type { Commissioning, CommissioningPorts } from './production/commissioning-ports.js';
-export type { CommissionPublication, CommissionPublicationResult } from './production/commission-publication-ports.js';
-export {
-  parseCommissionReviewPacket,
-  parseCommissionReviewDraft,
-  CommissionHumanApprovalSchema,
-  ReelCorpusManifestSchema,
-} from './production/commission-review.js';
-
-export { parseCommissioningSetup } from './production/commissioning.js';
-export type { CommissioningSetup } from './production/commissioning.js';
-export {
-  CommissionReceiveSetupSchema,
-  CommissionReceivePayloadSchema,
-  CommissionReceiveBindingSchema,
-  ReceiveWorkSchema,
-  ReceiveRecoveryWorkSchema,
-  receiveCutroomQueue,
-  recoverReceiveCutroomQueue,
-} from './production/commission-receive-contracts.js';
-export type {
-  CommissionReceiveSetup,
-  CommissionReceivePayload,
-  CommissionReceiveBinding,
-} from './production/commission-receive-contracts.js';
-export type {
-  CommissionReceive,
-  CommissionReceivePorts,
-  ReceiveResult,
-  ReceiveEnvelope,
-  ReceiveReceipt,
-  ReceiveScopeTx,
-  WithReceiveScope,
-  ReceiveStore,
-  ReceiveRecord,
-  ReceiveMedia,
-  ReceiveMediaProof,
-  CommissionReceiveOrigin,
-} from './production/commission-receive-ports.js';
-export { makeCommissionReceiveExport } from './production/commission-receive-export.js';

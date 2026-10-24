@@ -379,6 +379,57 @@ The Universe follows U01 to U08 and D02 with real scene data. Choices where the 
 - **Routes are the Cartographer's, nothing more.** A route joins two planets of one system, so the system view draws it with a 48 px target ("Route from A to B") and a planet offers "Route to B". Regions have no routes and no line joins them. The region card has no "More in ..." link until a read for more encounters from a region exists.
 - **Not built:** the friend's universe (U06; there is no visit backend), room stations (the scene has no room objects), and named sky regions that merge quiet systems at far zoom (U08; no family data). A native persistent store waits for the platform work.
 
+## D-041 · 2026-10-24 · Reels from Cutroom: one short operator path, with the money rules kept (#240)
+
+The connected commissioning built for #240 (about 9,800 lines, with its tests) was never used and
+could not be: it needed a root-owned approval packet, per-script human approvals, a corpus manifest,
+funds and sole-writer attestations with expiry, a pool role mapped by OID, a function-definition hash,
+and a pool grant capped at 200 cents, which cannot carry D-030's 400. It is removed. What replaces it is
+short, and keeps every money rule.
+
+- **Operator commands, no jobs.** `reel check | order | follow | receive | status | write-off | settle`
+  in the worker operator. A Reel takes 13 to 41 minutes and the coordinator watches each paid step, so
+  each step is a command that can be repeated; nothing waits in a queue.
+- **Claim before order.** A paid attempt records the exact request bytes, then claims the whole
+  ceiling in the shared pool, then commits a dispatch intent, then sends one POST. The table refuses a
+  paid attempt that leaves `reserved` without a claim. The pool's own functions are used as v1 used them
+  (`pool_claim`, `pool_settle`, `pool_release`); the pool cap is the one limit on total spend.
+- **Never resent.** An uncertain POST is only looked up by request id. A run that exists is adopted.
+  When none is found the attempt stays `unknown`; it can be written off (the claim stays open and
+  counted) or, with proof (Cutroom answers, has no run, the POST is over two minutes old), written off
+  with its claim given back. A retry is a new take and a new request id.
+- **Settle once, at the real cost.** The cost is the sum over the chain (an original and at most one
+  continuation Cutroom makes itself). A failed run that Cutroom is continuing is not the end. A
+  completed Reel is published first and settled second; a Reel that is made but cannot be published
+  stays held with its claim open until a person settles it (`reel settle`), except for the engine's own
+  failed checks, a media file that is not a Reel and a repeat, which are settled as spent.
+- **Budget.** At most 400 cents of new spend (D-030). Pool migration `0005` raises the cap to 1017, the
+  617 cents already settled plus 400, after locking the claim table, and refuses a pool unless the cap
+  is exactly 700 and exactly 617 is committed. Every order asks for exactly 75 cents, Cutroom's own cap
+  for one Reel: Cutroom stops a run at its ceiling after it was paid for, so a lower ceiling can only buy no
+  Reel. A paid order also needs a finished rehearsal here whose estimate plus 20 cents (the most real runs
+  have run over) fits in 75. Settled cost above a ceiling is recorded as it was.
+- **Approval.** A script carries `approvedBy: coordinator (delegated by owner, D-030)`. The owner does not
+  approve each script in a pull request any more (D-030); the pool records the same text with the claim.
+- **The twin.** A script names the library recipe whose Scroll is its twin. Every claim rests on that
+  Scroll at one revision; the order refuses unless that revision is admitted in the ordering world. The
+  Reel is admitted in the Scroll's explanation unit and planet, so Explore offers both formats.
+- **Repetition.** The three fingerprints of CF-63 are computed from the script (the template fingerprint
+  matches v1's `3d8d42d5`). A new script may not share one with the fourteen v1 scripts or with any Reel in
+  the ordering world.
+- **Receive.** The second world rebuilds the request from the same script, compares it byte for byte
+  with the pool's record, reads Cutroom's runs and publishes the same Reel. It claims, sends and settles
+  nothing.
+- **Kept as it was:** the byte-pinned wire schemas (CF-61), the pinned engine, the GET-only read client,
+  the media store and probe, and the importer of the three v1 Reels.
+- **Removed:** migrations 0030, 0031, 0033, 0036 and 0039's tables (never populated; dropped by 0053),
+  pool migrations 0003 and 0004 (never applied), the Cutroom queues, scopes and settings of the worker, and
+  the `cutroom` operator commands.
+- **Limits.** Nothing here has placed a real order. The record check is derived from the three Reels v1
+  imported; no completed continuation run has been observed, so a Reel from one is the first real test of
+  that branch (it is held, not refused, when the record and result disagree). Run ids must be UUIDs, as
+  every real run has been.
+
 ## D-043 · 2026-10-24 · Account deletion, export and sessions (#246)
 
 Choices where the blueprint (§5, §19, §26) and the P01, P02 and D05 artboards leave room:
