@@ -1,143 +1,226 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Link, Redirect, useRouter } from 'expo-router';
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { PRIVACY_CLEAR_ACKNOWLEDGEMENT, type PrivacyClearState } from '@knowscroll/client-core';
-import { content, spacing } from '@knowscroll/design-tokens';
-import { Button, IconButton, Text } from '@knowscroll/ui';
+import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
+import { IconButton, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
-import { newCommandId } from '../../platform/command-id';
+import { SettingsLabel, SettingsRow } from '../account/settings-parts';
 import { ScreenFrame } from '../shell/screen-frame';
+import { ClearPanel } from './clear-panel';
+import { DeletePanel } from './delete-panel';
+import { ExportPanel } from './export-panel';
+import { privacyExtensions } from './privacy-extensions';
 import { RecordingControl } from './recording-control';
 
-const message = (state: PrivacyClearState): string => {
-  if (state.status === 'sending') return 'Sending your clear request…';
-  if (state.status === 'checking') return 'Checking the latest removal status…';
-  if (state.status === 'accepted') return 'Your clear request was accepted. Live removal has not been confirmed yet.';
-  if (state.status === 'unknown') return 'We could not confirm your request. It may already have been accepted.';
-  if (state.status === 'not_recorded')
-    return state.retryOriginal
-      ? 'No receipt appeared in this check. Your original request may still arrive.'
-      : 'No clear request is recorded for this account.';
-  if (state.status === 'completed_live') return 'Live exploration removal is complete.';
-  if (state.status === 'failed')
-    return 'Live removal could not be verified. Check its status again; your request is retained.';
-  if (state.status === 'pending') {
-    if (state.phase === 'waiting_for_accounting')
-      return 'Some earlier activity is still finishing. Your removal request is retained.';
-    if (state.phase === 'verifying_live_removal') return 'Checking that live exploration data has been removed.';
-    return 'Your exploration history and universe are being removed.';
-  }
-  if (state.status === 'unavailable') return 'We could not check removal status. No completion is confirmed.';
-  return '';
-};
-
-/** P02: explicit selective clear and honest receipt states over the manager-owned controller. */
-export function PrivacyScreen() {
-  const { manager, state: account } = useAccountScope();
-  const privacy = manager.privacy;
-  const state = useSyncExternalStore(privacy.subscribe, privacy.getState, privacy.getState);
+function useBackToAccount() {
   const router = useRouter();
-  const [understood, setUnderstood] = useState(false);
-  const scope = account.status === 'signed_in' ? account.scope : undefined;
-  useEffect(() => {
-    if (scope) void privacy.refreshStatus();
-  }, [scope, privacy]);
-  const busy = state.status === 'sending' || state.status === 'checking';
-  const canConfirm = account.status === 'signed_in' && account.scope.active && state.canConfirm;
-  const back = () => {
+  return () => {
     if (router.canGoBack()) router.back();
     else router.navigate('/account');
   };
+}
+
+/** The desktop page (D05) draws every control on one page, so a phone's sub-page address sends it there. */
+function useOnePage(): boolean {
+  return useDisplay().breakpoint === 'desktop';
+}
+
+function Recording() {
+  const { state } = useAccountScope();
+  return state.status === 'signed_in' ? <RecordingControl scope={state.scope} /> : null;
+}
+
+/** The hub (P02): each row names what it changes; the controls themselves are one tap further. */
+function Hub() {
+  return (
+    <View style={styles.page}>
+      <Recording />
+      <SettingsLabel>Your data</SettingsLabel>
+      <SettingsRow
+        title="History & export"
+        description="Download a copy of your history, Keep and requests."
+        href="/account/privacy/export"
+      />
+      <SettingsRow
+        title="Clear exploration"
+        description="Removes your history and universe. Keep and conversations stay."
+        href="/account/privacy/clear"
+      />
+      {privacyExtensions.map((extension) => (
+        <SettingsRow
+          key={extension.id}
+          title={extension.title}
+          description={extension.description}
+          href={extension.href}
+        />
+      ))}
+      <SettingsRow
+        title="Delete account"
+        description="Removes your account, universe and Keep. Friendships end too."
+        href="/account/privacy/delete"
+      />
+      <Text variant="meta" color={content.ink2} style={styles.note}>
+        Your universe grows from the Reels and Scrolls you actually watch or read. Messages are stored for your
+        conversations; they aren't treated as evidence of what you explored. Recommendations and things we prepare for
+        you never count either.
+      </Text>
+    </View>
+  );
+}
+
+function Card({ children }: { readonly children: ReactNode }) {
+  return <View style={styles.card}>{children}</View>;
+}
+
+/** The settings list beside the cards on desktops (D05 `.sn`): only the pages that exist. */
+function SettingsNav() {
+  const { state } = useAccountScope();
+  const focus = useFocusRing('onLight');
+  return (
+    <View style={styles.nav} accessibilityRole="menu" accessibilityLabel="Settings">
+      <Text variant="heading" heading={2}>
+        Settings
+      </Text>
+      <Link href="/account" asChild>
+        <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
+          <Text variant="bodyS">Account</Text>
+        </Pressable>
+      </Link>
+      <View accessibilityState={{ selected: true }} style={[styles.navItem, styles.navCurrent]}>
+        <Text variant="bodyS" color={content.paper}>
+          Privacy & history
+        </Text>
+      </View>
+      {state.status === 'signed_in' ? (
+        <Text variant="meta" color={content.ink2} style={styles.navNote}>
+          Signed in as {state.scope.account.email}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** D05: settings list on the left, one card for each control on the right. */
+function Desktop() {
+  return (
+    <View style={styles.desktop}>
+      <SettingsNav />
+      <View style={styles.cards}>
+        <Text variant="meta" color={content.ink2}>
+          Every action here says exactly what it changes, and reports done only when it is.
+        </Text>
+        <Card>
+          <Recording />
+        </Card>
+        <Card>
+          <Text variant="title" heading={2}>
+            History & export
+          </Text>
+          <ExportPanel />
+        </Card>
+        <Card>
+          <ClearPanel />
+        </Card>
+        {privacyExtensions.map((extension) => (
+          <Card key={extension.id}>
+            <extension.Panel />
+          </Card>
+        ))}
+        <Card>
+          <DeletePanel />
+        </Card>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * `/account/privacy` (P02, D05): recording, export, Clear exploration, anything other slices add,
+ * and account deletion. Phones and tablets get the hub of rows and a page for each control;
+ * desktops get every control as a card on one page.
+ */
+export function PrivacyScreen() {
+  const back = useBackToAccount();
+  const desktop = useOnePage();
   return (
     <ScreenFrame
       tone="paper"
       title="Privacy & history"
       showAccount={false}
+      bodyOffset={spacing[5]}
       leading={<IconButton icon="back" label="Back to account" onPress={back} />}
     >
-      <View style={styles.body}>
-        {scope ? <RecordingControl scope={scope} /> : null}
-        <Text variant="title" heading={2}>
-          Clear exploration
-        </Text>
-        <Text variant="body">
-          Removes your watch and read history, the interests and plans derived from it, and your universe.
-        </Text>
-        <Text variant="body">
-          Keep items and their saved places stay. Your friends, sharing settings, conversations, threads, rooms and
-          messages stay.
-        </Text>
-        <Text variant="bodyS">This cannot be undone. A new universe can grow from what you explore next.</Text>
-        <Text variant="bodyS">
-          Context already sent to an AI provider cannot be recalled. Live removal does not confirm expiry of backups,
-          provider copies or copies on offline devices. No expiry date is confirmed here.
-        </Text>
-        {message(state) ? (
-          <View accessibilityLiveRegion="polite">
-            <Text variant="bodyS">{message(state)}</Text>
-          </View>
-        ) : null}
-        {state.receipt ? (
-          <Text variant="meta">Clear request recorded {new Date(state.receipt.recordedAt).toLocaleString()}</Text>
-        ) : null}
-        {state.retryOriginal ? (
-          <Button
-            label="Retry the same clear request"
-            disabled={busy || account.status !== 'signed_in'}
-            onPress={() => {
-              void privacy.retryOriginal();
-            }}
-          />
-        ) : null}
-        {account.status === 'signed_in' ? (
-          <Button
-            label="Check removal status"
-            variant="ghost"
-            disabled={busy}
-            onPress={() => {
-              void privacy.refreshStatus();
-            }}
-          />
-        ) : account.status === 'unavailable' ? (
-          <Button
-            label="Reconnect to your account"
-            onPress={() => {
-              void manager.refresh();
-            }}
-          />
-        ) : (
-          <Text variant="bodyS">Sign in to manage your exploration history.</Text>
-        )}
-        {canConfirm ? (
-          <View style={styles.confirm}>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityLabel="I understand this cannot be undone"
-              accessibilityState={{ checked: understood }}
-              onPress={() => setUnderstood((value) => !value)}
-            >
-              <Text variant="bodyS">{understood ? '✓ ' : '□ '}I understand this cannot be undone.</Text>
-            </Pressable>
-            <Button
-              label="Clear exploration"
-              variant="danger"
-              disabled={!understood}
-              onPress={() => {
-                if (!understood) return;
-                setUnderstood(false);
-                void privacy.confirm({ commandId: newCommandId(), confirmation: PRIVACY_CLEAR_ACKNOWLEDGEMENT });
-              }}
-            />
-          </View>
-        ) : null}
-        <Text variant="meta" color={content.ink2}>
-          History export and account deletion are not available from this page yet.
-        </Text>
-      </View>
+      {desktop ? <Desktop /> : <Hub />}
     </ScreenFrame>
   );
 }
+
+/** One control on a page of its own (phones and tablets), back to the hub. */
+function SubPage({ title, children }: { readonly title: string; readonly children: ReactNode }) {
+  const router = useRouter();
+  const desktop = useOnePage();
+  if (desktop) return <Redirect href="/account/privacy" />;
+  const back = () => {
+    if (router.canGoBack()) router.back();
+    else router.navigate('/account/privacy');
+  };
+  return (
+    <ScreenFrame
+      tone="paper"
+      title={title}
+      showAccount={false}
+      bodyOffset={spacing[5]}
+      leading={<IconButton icon="back" label="Back to privacy and history" onPress={back} />}
+    >
+      <View style={styles.page}>{children}</View>
+    </ScreenFrame>
+  );
+}
+
+export function PrivacyExportScreen() {
+  return (
+    <SubPage title="History & export">
+      <ExportPanel />
+    </SubPage>
+  );
+}
+
+export function PrivacyClearScreen() {
+  return (
+    <SubPage title="Clear exploration">
+      <ClearPanel titled={false} />
+    </SubPage>
+  );
+}
+
+export function PrivacyDeleteScreen() {
+  return (
+    <SubPage title="Delete account">
+      <DeletePanel titled={false} />
+    </SubPage>
+  );
+}
+
 const styles = StyleSheet.create({
-  body: { gap: spacing[4], paddingTop: spacing[6], paddingBottom: spacing[8] },
-  confirm: { gap: spacing[4], alignItems: 'flex-start' },
+  page: { gap: spacing[1], paddingBottom: spacing[8] },
+  note: { paddingTop: spacing[5] },
+  desktop: { flexDirection: 'row', gap: spacing[8], alignItems: 'flex-start', paddingBottom: spacing[8] },
+  nav: { width: 260, gap: spacing[2] },
+  navItem: {
+    minHeight: target.comfortable,
+    paddingHorizontal: spacing[3],
+    borderRadius: radius.md,
+    justifyContent: 'center',
+  },
+  navCurrent: { backgroundColor: content.ink },
+  navNote: { paddingTop: spacing[4] },
+  cards: { flex: 1, minWidth: 0, gap: spacing[4], maxWidth: 760 },
+  card: {
+    gap: spacing[3],
+    padding: spacing[5],
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderRadius: radius.panel,
+    backgroundColor: content.paper,
+  },
 });

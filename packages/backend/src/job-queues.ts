@@ -12,9 +12,12 @@ import {
   projectEncounterActivityQueue,
 } from './modules/evidence/public.js';
 import {
-  sweepSignInRecordsQueue,
+  buildDataExportQueue,
   clearExplorationQueue,
+  deleteAccountQueue,
+  recoverAccountDeletionsQueue,
   recoverClearOperationsQueue,
+  sweepSignInRecordsQueue,
 } from './modules/identity/public.js';
 import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reasoning/events.js';
 
@@ -26,6 +29,9 @@ import { purgeExpiredRequestsQueue, sweepDispatchedAttemptsQueue } from './reaso
 export const releaseQueues = queueRegistry([
   clearExplorationQueue,
   recoverClearOperationsQueue,
+  deleteAccountQueue,
+  recoverAccountDeletionsQueue,
+  buildDataExportQueue,
   projectSceneQueue,
   expireFormationQueue,
   recoverFormationQueue,

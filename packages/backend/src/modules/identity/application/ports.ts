@@ -32,6 +32,8 @@ export interface IdentitySecrets {
   newLinkSecret(): Secret;
   /** A session token (`kss_…`) and its hash. */
   newSessionSecret(): Secret;
+  /** A one-time export download token (`kse_…`) and its hash. */
+  newDownloadSecret(): Secret;
   /** The stored form of a presented token. */
   hashToken(token: string): string;
   /** The S256 challenge of a PKCE-style verifier: base64url SHA-256, without padding. */
@@ -189,6 +191,8 @@ export interface RedeemSignInPorts extends ReceiptPorts, AccountRootPorts {
       readonly tokenHash: string;
       readonly client: SessionClient;
       readonly issuedByCommand: string;
+      /** The coarse label Account shows for this device (`deviceLabelOf`). */
+      readonly deviceLabel?: string;
     },
   ) => Promise<{ readonly expiresAt: Date }>;
   /**
@@ -235,15 +239,30 @@ export interface SessionPorts {
   readonly revokeSessions: (request: {
     readonly sessionId: string;
     readonly accountId: string;
-    readonly everywhere: boolean;
+    /** `session` ends `sessionId`; `every_session` ends all; `other_sessions` ends all but `sessionId`. */
+    readonly target: 'session' | 'every_session' | 'other_sessions';
     readonly reason: SessionEndReason;
   }) => Promise<number>;
+  /** The account's live sessions, newest use first, at most `SESSION_LIST_LIMIT`. */
+  readonly listLiveSessions: (accountId: string) => Promise<readonly LiveSession[]>;
   readonly secrets: IdentitySecrets;
 }
 
+/** One live session as the owner sees it in Account. No token, hash or address. */
+export interface LiveSession {
+  readonly id: string;
+  readonly client: SessionClient;
+  readonly deviceLabel: string | null;
+  readonly signedInAt: Date;
+  readonly lastUsedAt: Date | null;
+}
+
 export interface SweepPorts {
-  /** Deletes links a day past expiry and sessions 30 days past their end, in bounded batches. */
-  readonly sweep: () => Promise<{ readonly links: number; readonly sessions: number }>;
+  /**
+   * Deletes links a day past expiry and sessions 30 days past their end, in bounded batches, and
+   * retires exports: files past their expiry, builds stuck for half an hour, receipts after 30 days.
+   */
+  readonly sweep: () => Promise<{ readonly links: number; readonly sessions: number; readonly exports: number }>;
 }
 
 /** Exact Identity lifecycle effects; no arbitrary transaction callback crosses this boundary. */

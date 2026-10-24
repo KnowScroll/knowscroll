@@ -24,6 +24,7 @@ export default defineConfig({
       testMatch: [
         'web-smoke.spec.ts',
         'auth-smoke.spec.ts',
+        'account-smoke.spec.ts',
         'security-smoke.spec.ts',
         'encounter-smoke.spec.ts',
         'recording-smoke.spec.ts',

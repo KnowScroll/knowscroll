@@ -6,7 +6,7 @@ import { createAccountScopeManager, memoryStore } from '@knowscroll/client-core'
 import { DisplayProvider } from '@knowscroll/ui';
 import { AccountScopeProvider } from '../../providers/account-scope';
 import { AccountScreen } from '../account/account-screen';
-import { PrivacyScreen } from './privacy-screen';
+import { PrivacyClearScreen, PrivacyScreen } from './privacy-screen';
 
 jest.mock('../../platform/command-id', () => ({ newCommandId: () => '0199a000-0000-7000-8000-000000000003' }));
 const account = {
@@ -92,8 +92,13 @@ async function mount(options: { unknown?: boolean; completed?: boolean; initialU
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>{children}</DisplayProvider>
   );
   const app = await renderRouter(
-    { _layout: Layout, account: () => <AccountScreen />, 'account/privacy': () => <PrivacyScreen /> },
-    { initialUrl: options.initialUrl ?? '/account/privacy', wrapper },
+    {
+      _layout: Layout,
+      account: () => <AccountScreen />,
+      'account/privacy/index': () => <PrivacyScreen />,
+      'account/privacy/clear': () => <PrivacyClearScreen />,
+    },
+    { initialUrl: options.initialUrl ?? '/account/privacy/clear', wrapper },
   );
   return {
     app,
@@ -113,6 +118,8 @@ describe('P02 selective Clear', () => {
     const f = await mount({ initialUrl: '/account' });
     await fireEvent.press(await screen.findByRole('link', { name: 'Privacy & history' }));
     expect(f.app.getPathname()).toBe('/account/privacy');
+    await fireEvent.press(await screen.findByRole('link', { name: 'Clear exploration' }));
+    expect(f.app.getPathname()).toBe('/account/privacy/clear');
     await screen.findByText('No clear request is recorded for this account.');
     expect(screen.getByRole('button', { name: 'Clear exploration' })).toBeDisabled();
     expect(screen.getByText(/Keep items and their saved places stay/)).toBeOnTheScreen();
@@ -123,7 +130,6 @@ describe('P02 selective Clear', () => {
     expect(before.scope.active).toBe(false);
     expect(f.calls.filter((c) => c.path.endsWith('/clear-exploration'))).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Clear exploration' })).toBeNull();
-    expect(screen.getByText(/History export and account deletion are not available/)).toBeOnTheScreen();
     await f.app.unmount();
   });
   it('retains original same-body Retry through the actual provider scope remount without offering a new clear', async () => {

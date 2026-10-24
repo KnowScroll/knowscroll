@@ -804,7 +804,7 @@ describe('sign-in, sessions and operator links (real database)', () => {
       .orderBy('id')
       .execute();
     expect(sessions.map((row) => row.id).sort()).toEqual([recentlyExpired, person.session.id].sort());
-    expect(await sweep()).toEqual({ links: 0, sessions: 0 });
+    expect(await sweep()).toEqual({ links: 0, sessions: 0, exports: 0 });
   });
 
   it('spends the domain and world budgets only on links it issues, and alerts once when one fills (review M2)', async () => {
