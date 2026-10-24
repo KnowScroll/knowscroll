@@ -505,3 +505,9 @@ Choices where blueprint §17 and the C04, H01, H03 and X03 artboards leave room:
 - **Opening or expanding a snippet is not an encounter.** The viewer shows a poster or an introduction with an explicit Watch or Read; only that starts an ordinary encounter of the original content, with its own recorder. "Open as set" shows the sender's settings in memory only and never overwrites the reader's own saved settings.
 - **A passage is picked by sentence** (a run of sentences of one block, at most 600 characters), which also works with a keyboard and a screen reader. Mapping a native text selection to offsets is not built.
 - **Not built:** What if, perspectives and branches (#244), "Keep listening" (audio only), renaming a thread, adding people later, mute, Like and Save inside the thread's encounter area (they stay on the full-screen encounter), the multi-pane desktop thread (D03), a snippet's own link, and reporting from a thread.
+
+## D-048 · 2026-10-24 · Coordinator: Cutroom orders are bounded by real fal money, not pool cents
+
+On 24 Oct five v2 orders were counted by `knowscroll_pool` as 183¢ (48 + 40 + 50 + 40 + 5), but the fal balance fell from $11.99 to −$0.09: about $12.08 of real spend. On these runs the pool's counted cents **under**count real fal money about 6.6×. CF-62's statement that counted cost overcounts real money does not hold for v2 Reels. The owner's D-030 budget ($4 of new fal spend) was exceeded by about $8 before the fal account locked; the coordinator stopped all ordering and reported it on #222. Two Reels were produced.
+
+From now on a paid order is bounded by real money: the operator reads the fal balance (server side, with Cutroom's environment) before and after every order, and stops when real new spend reaches the amount the owner set. The pool cap stays as a second limit. Nothing is ordered without a new owner decision on the amount.
