@@ -1,7 +1,7 @@
 import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import { expect, test } from '@playwright/test';
 import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
-import { emptyInbox, INBOX_PATH } from './empty-inbox';
+import { emptyInbox, isInboxPath } from './empty-inbox';
 /** Production-export consumer over authored HTTP fixtures. No established world/provider acceptance. */
 test('authoritative map/outline/travel and browser Back keep camera private and perform reads only', async ({
   page,
@@ -35,9 +35,9 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
         },
       });
     }
-    if (path === INBOX_PATH)
+    if (isInboxPath(path))
       return route.fulfill({
-        json: emptyInbox(route.request().postDataJSON() as Record<string, unknown>, fixtureAccount.accountId),
+        json: emptyInbox(path, route.request().postDataJSON() as Record<string, unknown>, fixtureAccount.accountId),
       });
     calls.push(path);
     // Fail at the actual HTTP boundary; unrelated bodyless requests are never draft fixtures.
@@ -129,8 +129,8 @@ test('canonical region card opens displayed A through actual activation, then Ba
       });
       return;
     }
-    if (path === INBOX_PATH) {
-      await route.fulfill({ json: emptyInbox(body, fixtureAccount.accountId) });
+    if (isInboxPath(path)) {
+      await route.fulfill({ json: emptyInbox(path, body, fixtureAccount.accountId) });
       return;
     }
     calls.push({ path, body });
@@ -334,8 +334,8 @@ test('durable formation waits for an exact current claim after a lost reply, pre
       });
       return;
     }
-    if (path === INBOX_PATH) {
-      await route.fulfill({ json: emptyInbox(body, fixtureAccount.accountId) });
+    if (isInboxPath(path)) {
+      await route.fulfill({ json: emptyInbox(path, body, fixtureAccount.accountId) });
       return;
     }
     calls.push({ path, body });

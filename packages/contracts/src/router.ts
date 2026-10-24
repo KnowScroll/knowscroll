@@ -2,6 +2,7 @@ import { accountContract } from './account.js';
 import { operatorContract } from './operator.js';
 import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
+import { threadsContract } from './threads.js';
 import { contentSharesContract } from './content-shares.js';
 import { friendPagesContract } from './friend-pages.js';
 import { formationPresentationContract } from './formation-presentation.js';
@@ -52,6 +53,7 @@ export const apiContract: {
   sharing: typeof sharingContract;
   friendPages: typeof friendPagesContract;
   conversations: typeof conversationsContract;
+  threads: typeof threadsContract;
   contentShares: typeof contentSharesContract;
   publicContentShares: typeof publicContentSharesContract;
   scenes: { manifest: typeof readSceneManifestContract; chunk: typeof readSceneChunkContract };
@@ -101,6 +103,7 @@ export const apiContract: {
   sharing: sharingContract,
   friendPages: friendPagesContract,
   conversations: conversationsContract,
+  threads: threadsContract,
   contentShares: contentSharesContract,
   publicContentShares: publicContentSharesContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },

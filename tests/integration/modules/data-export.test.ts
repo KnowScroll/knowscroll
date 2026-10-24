@@ -283,6 +283,7 @@ describe('personal data export (real database)', () => {
       'state',
       'supply',
       'text',
+      'threads',
       'title',
       'truncated',
       'version',

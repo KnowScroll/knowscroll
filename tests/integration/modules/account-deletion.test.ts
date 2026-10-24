@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DELETED_ACCOUNT_LABEL } from '@knowscroll/contracts';
 import { eraseCurrentAccount, exportCurrentPerson, personalStores } from '@knowscroll/backend/erasure-registry';
 import type { IdentitySettings } from '@knowscroll/backend/infrastructure/config';
 import { checkErasureInventory } from '@knowscroll/backend/infrastructure/erasure';
@@ -43,6 +44,8 @@ const NOT_SEEDED = new Set([
   'identity.account_deletions',
   // Keyed by the friendship, not by an account: it outlives the deleted person for the one who remains.
   'social.conversations',
+  // Reached only through its message, which has an author column of its own: the thread tests prove it goes.
+  'social.message_snippets',
 ]);
 
 type EraseAccountData = Parameters<typeof deleteAccountFor>[2]['eraseAccountData'];
@@ -260,6 +263,18 @@ describe('account deletion (real database)', () => {
           })
         ).kind,
       ).toBe('ok');
+      // A content thread the person started, with the friend invited into it.
+      expect(
+        (
+          await talk.threads.create(erased.authority, {
+            version: 'content-thread.v1',
+            commandId: randomUUID(),
+            root: { assetId: talkContent.assetId, assetRevision: 1 },
+            friendPersonIds: [buddy.person.personId],
+            name: 'a thread the person who will delete their account started',
+          })
+        ).kind,
+      ).toBe('ok');
       expect(
         (
           await talk.talk.shares.create(erased.authority, {
@@ -321,6 +336,16 @@ describe('account deletion (real database)', () => {
       ).toEqual([]);
       expect(await countWhere('identity.accounts', 'id', erased.accountId)).toBe(0);
       expect(await countWhere('identity.universes', 'id', erased.universeId)).toBe(0);
+      // The friend keeps the thread they were invited to, now naming nobody.
+      const buddyThreads = await talk.threads.inbox(buddy.authority, {
+        version: 'content-thread.v1',
+        readId: randomUUID(),
+        limit: 10,
+      });
+      expect(
+        buddyThreads.kind === 'ok' &&
+          buddyThreads.value.items.map((item) => item.people.map((person) => person.displayName)),
+      ).toEqual([[DELETED_ACCOUNT_LABEL]]);
       expect(
         await database.db
           .selectFrom('identity.account_deletions')

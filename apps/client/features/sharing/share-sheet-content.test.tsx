@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { conversation, id, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
+import { conversation, createdThread, id, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
 import { DisplayProvider } from '@knowscroll/ui';
 import { ShareSheetContent, type ShareSheetContentProps } from './share-sheet-content';
 
@@ -19,6 +19,7 @@ const target = { assetId: id(40), assetRevision: 2 };
 async function open(server: ReturnType<typeof talkServer>, extra: Partial<ShareSheetContentProps> = {}) {
   const onClose = jest.fn();
   const onOpenConversation = jest.fn();
+  const onOpenThread = jest.fn();
   await render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <ShareSheetContent
@@ -28,11 +29,12 @@ async function open(server: ReturnType<typeof talkServer>, extra: Partial<ShareS
         origin="https://app.fixture.test"
         onClose={onClose}
         onOpenConversation={onOpenConversation}
+        onOpenThread={onOpenThread}
         {...extra}
       />
     </DisplayProvider>,
   );
-  return { onClose, onOpenConversation };
+  return { onClose, onOpenConversation, onOpenThread };
 }
 
 afterEach(() => {
@@ -40,17 +42,46 @@ afterEach(() => {
 });
 
 describe('share sheet (labelled in-memory server)', () => {
-  it('offers send and copy, and Explore with friends only when something implements it', async () => {
+  it('offers send, explore and copy', async () => {
     const server = talkServer();
     await open(server);
     expect(screen.getByRole('button', { name: 'Send to a conversation' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Explore with friends' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Copy link' })).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Explore with friends' })).toBeNull();
     await screen.unmount();
-    const explore = jest.fn();
-    await open(server, { onExploreWithFriends: explore });
+    server.scope.end();
+  });
+
+  it('creates a thread with the chosen friends and shows it only after the receipt, then opens it', async () => {
+    const server = talkServer();
+    const { onOpenThread } = await open(server);
     await fireEvent.press(screen.getByRole('button', { name: 'Explore with friends' }));
-    expect(explore).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Choose friends' })).toBeDisabled();
+    await fireEvent.press(await screen.findByRole('checkbox', { name: peer.displayName }));
+    await fireEvent.changeText(screen.getByLabelText('Thread name (optional)'), 'Black holes');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create thread · 1 friend' }));
+    expect(await screen.findByText('Thread created')).toBeOnTheScreen();
+    const create = server.requests.find((request) => request.path.endsWith('/threads/create'));
+    expect(create?.body).toMatchObject({ root: target, friendPersonIds: [peer.personId], name: 'Black holes' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Open thread' }));
+    expect(onOpenThread).toHaveBeenCalledWith(createdThread);
+    await screen.unmount();
+    server.scope.end();
+  });
+
+  it('keeps Retry for an unknown outcome and creates the thread once', async () => {
+    const server = talkServer();
+    await open(server);
+    await fireEvent.press(screen.getByRole('button', { name: 'Explore with friends' }));
+    await fireEvent.press(await screen.findByRole('checkbox', { name: peer.displayName }));
+    server.failNext('/v1/social/threads/create', 'lost_response');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create thread · 1 friend' }));
+    expect(await screen.findByText('Couldn’t confirm it was created.')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Thread created')).toBeOnTheScreen();
+    const creates = server.requests.filter((request) => request.path.endsWith('/threads/create'));
+    expect(creates).toHaveLength(2);
+    expect(creates[0]?.body['commandId']).toBe(creates[1]?.body['commandId']);
     await screen.unmount();
     server.scope.end();
   });
