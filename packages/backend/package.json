@@ -191,6 +191,16 @@
       "types": "./dist/modules/scenes/adapters/nest-providers.d.ts",
       "default": "./dist/modules/scenes/adapters/nest-providers.js"
     },
+    "./modules/rooms": {
+      "@knowscroll/source": "./src/modules/rooms/public.ts",
+      "types": "./dist/modules/rooms/public.d.ts",
+      "default": "./dist/modules/rooms/public.js"
+    },
+    "./modules/rooms/nest-providers": {
+      "@knowscroll/source": "./src/modules/rooms/adapters/nest-providers.ts",
+      "types": "./dist/modules/rooms/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/rooms/adapters/nest-providers.js"
+    },
     "./modules/social": {
       "@knowscroll/source": "./src/modules/social/public.ts",
       "types": "./dist/modules/social/public.d.ts",

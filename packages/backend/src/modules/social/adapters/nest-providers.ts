@@ -45,11 +45,14 @@ import type { RefreshPorts, VisibilityPorts } from '../application/visibility-po
 import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
 import { newOpaqueToken } from './opaque-token.js';
 import { recordHeartbeat, visibilityStore } from './postgres-visibility.js';
+import { readFriendAccounts, readPublicPeople } from './postgres-people.js';
 import { makeLookupPerson, makeReadPair } from '../application/lookup-person.js';
 import { makePairCommand } from '../application/pairs.js';
 import {
   CONVERSATION_USE_CASES,
+  READ_FRIEND_ACCOUNTS,
   READ_INBOX_REVISION,
+  READ_PUBLIC_PEOPLE,
   RECORD_HEARTBEAT,
   REFRESH_VISIT_PUBLICATION,
   SOCIAL_USE_CASES,
@@ -214,6 +217,14 @@ export function visitRefreshProviders(tokens: { readonly withPersonalScope: symb
   ];
 }
 
+/** The people and friend reads other modules use (idea rooms); every process that composes them binds these. */
+export function socialPeopleProviders() {
+  return [
+    { provide: READ_PUBLIC_PEOPLE, useValue: readPublicPeople },
+    { provide: READ_FRIEND_ACCOUNTS, useValue: readFriendAccounts },
+  ];
+}
+
 export function socialProviders(tokens: { readonly withPersonalScope: symbol; readonly database: symbol }) {
   return [
     {
@@ -283,6 +294,7 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
           resolveSnippet,
         }),
     },
+    ...socialPeopleProviders(),
     {
       provide: READ_INBOX_REVISION,
       inject: [tokens.database],
@@ -296,5 +308,6 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
     },
   ];
 }
+export { readFriendAccounts, readPublicPeople } from './postgres-people.js';
 export { socialStore, privatePairId } from './postgres-store.js';
 export type { SocialPorts } from '../application/ports.js';

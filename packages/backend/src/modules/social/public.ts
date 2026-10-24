@@ -41,8 +41,9 @@ import type {
   OwnPresencePreferenceSchema,
   PresencePreferenceAcceptanceSchema,
   VisitorWorldSnapshotSchema,
+  PublicPersonRef,
 } from '@knowscroll/contracts';
-import type { PersonalAuthority } from '../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
 import type { Operation } from './domain/friends.js';
 import type { Result } from './application/ports.js';
 /** Friends ports; live presence and visitor publication remain separate. */
@@ -163,6 +164,13 @@ export interface ThreadUseCases {
 }
 export const THREAD_USE_CASES = Symbol('social.threadUseCases');
 
+/**
+ * A stored snippet anchor as the card every thread surface shows (friend threads and idea rooms): the
+ * quote, label and settings words are copied from the exact revision and shown only while the content
+ * is not withdrawn.
+ */
+export { snippetCard } from './application/thread-view.js';
+
 /** The account's current inbox revision, for the socket gateway's subscribe acknowledgement. */
 export type ReadInboxRevision = (accountId: string) => Promise<number>;
 export const READ_INBOX_REVISION = Symbol('social.readInboxRevision');
@@ -206,3 +214,33 @@ export type RefreshVisitPublication = (job: {
   readonly privacyEpoch: number;
 }) => Promise<'refreshed' | 'unchanged' | 'skipped'>;
 export const REFRESH_VISIT_PUBLICATION = Symbol('social.refreshVisitPublication');
+
+/** A person other modules may name: a claimed sharing profile and the account behind it. */
+export interface PublicPerson {
+  readonly accountId: string;
+  readonly person: PublicPersonRef;
+}
+
+/**
+ * Port: the public profiles of people, by account or by public person ID, read inside the caller's
+ * personal transaction. Only a claimed profile of an active account is returned; a person with none
+ * is absent. It decides nothing about who may see whom.
+ */
+export type ReadPublicPeople = (
+  scope: PersonalScopeTx,
+  query: { readonly accountIds: readonly string[] } | { readonly personIds: readonly string[] },
+) => Promise<readonly PublicPerson[]>;
+export const READ_PUBLIC_PEOPLE = Symbol('social.readPublicPeople');
+
+/**
+ * Port: the caller's current friends (an accepted friendship neither side removed or blocked), at
+ * most `limit` of them, or the one friend with this public person ID. Read inside the caller's
+ * personal transaction. Another module uses it to decide an invitation or a rule such as "friends
+ * of members"; it never reveals why someone is absent.
+ */
+export type ReadFriendAccounts = (
+  scope: PersonalScopeTx,
+  accountId: string,
+  query: { readonly limit: number } | { readonly personId: string },
+) => Promise<readonly PublicPerson[]>;
+export const READ_FRIEND_ACCOUNTS = Symbol('social.readFriendAccounts');

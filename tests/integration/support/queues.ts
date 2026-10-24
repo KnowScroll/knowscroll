@@ -4,6 +4,7 @@ import { resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
 import { produceScrollQueue } from '@knowscroll/backend/modules/content';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
 import { prepareBufferQueue } from '@knowscroll/backend/modules/composer';
+import { contributeQueue } from '@knowscroll/backend/modules/rooms';
 import { buildDataExportQueue, deleteAccountQueue } from '@knowscroll/backend/modules/identity';
 import { z } from 'zod';
 import { defineQueue, queueRegistry } from '@knowscroll/backend/infrastructure/jobs';
@@ -56,6 +57,7 @@ export const testQueues = queueRegistry([
   produceScrollQueue,
   plannerQueue,
   prepareBufferQueue,
+  contributeQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,
