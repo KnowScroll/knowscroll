@@ -1411,23 +1411,6 @@ export interface RoomsMembers {
   room_id: string;
 }
 
-export interface RoomsMessageSnippets {
-  block_id: string | null;
-  block_label: string | null;
-  block_type: string | null;
-  block_version: number | null;
-  end_ms: number | null;
-  kind: string;
-  message_id: string;
-  quote: string | null;
-  quote_hash: string | null;
-  range_end: number | null;
-  range_start: number | null;
-  settings: Json | null;
-  settings_description: string | null;
-  start_ms: number | null;
-}
-
 export interface RoomsMessages {
   ai_kind: string | null;
   asset_id: string | null;
@@ -1444,6 +1427,23 @@ export interface RoomsMessages {
   note: string | null;
   recorded_at: Timestamp;
   sequence: Int8;
+}
+
+export interface RoomsMessageSnippets {
+  block_id: string | null;
+  block_label: string | null;
+  block_type: string | null;
+  block_version: number | null;
+  end_ms: number | null;
+  kind: string;
+  message_id: string;
+  quote: string | null;
+  quote_hash: string | null;
+  range_end: number | null;
+  range_start: number | null;
+  settings: Json | null;
+  settings_description: string | null;
+  start_ms: number | null;
 }
 
 export interface RoomsRooms {

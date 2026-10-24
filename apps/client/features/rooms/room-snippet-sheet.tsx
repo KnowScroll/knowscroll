@@ -31,21 +31,22 @@ export function RoomSnippetSheet({
   readonly onClose: () => void;
 }) {
   const router = useRouter();
-  const [opening, setOpening] = useState<Opening>();
+  // The answer is kept with the message it is for, so a new message starts from nothing without resetting state in an effect.
+  const [answered, setAnswered] = useState<{ readonly messageId: string; readonly opening: Opening }>();
   useEffect(() => {
-    setOpening(undefined);
     if (messageId === undefined) return;
     let current = true;
     scope.api.rooms
       .openSnippet({ version: 'rooms.v1', readId: newCommandId(), roomId, discussionId, messageId })
-      .then((answer) => current && setOpening(answer))
+      .then((answer) => current && setAnswered({ messageId, opening: answer }))
       .catch((error: unknown) => {
-        if (current && talkFailure(error) !== 'ended') setOpening({ status: 'failed' });
+        if (current && talkFailure(error) !== 'ended') setAnswered({ messageId, opening: { status: 'failed' } });
       });
     return () => {
       current = false;
     };
   }, [scope, roomId, discussionId, messageId]);
+  const opening = answered?.messageId === messageId ? answered?.opening : undefined;
 
   const go = (kind: 'reel' | 'scroll', assetId: string) => {
     onClose();
