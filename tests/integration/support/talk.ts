@@ -16,6 +16,7 @@ import { readVisitedAssets } from '@knowscroll/backend/modules/experience/nest-p
 import {
   conversationUseCases,
   socialUseCases,
+  threadGuest,
   threadUseCases,
 } from '@knowscroll/backend/modules/social/nest-providers';
 import { seedPerson, type FixturePerson } from './fixtures.js';
@@ -34,6 +35,14 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
     fenceOwn: access.fenceOwnAccount,
     now: () => clock.now,
   };
+  const threadDeps = {
+    ...deps,
+    readContent: readShareableContent,
+    readSequence: readContentSequence,
+    readVisited: readVisitedAssets,
+    validateSnippet: validateSnippetAnchor,
+    resolveSnippet: resolveSnippetAnchor,
+  };
   return {
     clock,
     friends: socialUseCases(deps),
@@ -43,14 +52,9 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
       readContent: readShareableContent,
       readPublicContent: makeReadPublicContent(db),
     }),
-    threads: threadUseCases({
-      ...deps,
-      readContent: readShareableContent,
-      readSequence: readContentSequence,
-      readVisited: readVisitedAssets,
-      validateSnippet: validateSnippetAnchor,
-      resolveSnippet: resolveSnippetAnchor,
-    }),
+    threads: threadUseCases(threadDeps),
+    /** What the scenarios module may do inside a thread. */
+    guest: threadGuest(threadDeps),
   };
 }
 

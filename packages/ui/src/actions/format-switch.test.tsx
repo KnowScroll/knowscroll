@@ -33,6 +33,18 @@ describe('FormatSwitch', () => {
     expect(onSelect).toHaveBeenCalledWith('scroll');
   });
 
+  it('lets a missing format be asked for, with its name unchanged and a hint saying so', async () => {
+    const onSelect = jest.fn();
+    await renderOn(<FormatSwitch selected="reel" availability={{ scroll: 'requestable' }} onSelect={onSelect} />);
+    const scroll = screen.getByRole('radio', { name: 'Scroll' });
+    expect(scroll).toHaveProp('accessibilityHint', 'Ask for a Scroll of this explanation');
+    expect(scroll).not.toBeDisabled();
+
+    await fireEvent.press(scroll);
+
+    expect(onSelect).toHaveBeenCalledWith('scroll');
+  });
+
   it('disables an unavailable format', async () => {
     const onSelect = jest.fn();
     await renderOn(<FormatSwitch selected="scroll" availability={{ reel: 'unavailable' }} onSelect={onSelect} />);

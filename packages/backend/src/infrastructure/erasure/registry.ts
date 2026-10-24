@@ -50,9 +50,14 @@ export interface ErasureReport {
   readonly removed: number;
 }
 
-/** Who an export is for. Modules read their own account-keyed rows by `accountId`, universe rows by the scope. */
+/**
+ * Who an export is for. Modules read their own account-keyed rows by `accountId`, universe rows by the
+ * scope. `reach` says which of the assets named by their records the person may still read: a Scroll
+ * made for a thread they have left is theirs to remember doing, not to read the title of.
+ */
 export interface ExportPerson {
   readonly accountId: string;
+  readonly reach: (assetIds: readonly string[]) => Promise<ReadonlySet<string>>;
 }
 
 /**

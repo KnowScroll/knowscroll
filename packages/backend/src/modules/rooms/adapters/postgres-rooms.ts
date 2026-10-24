@@ -58,7 +58,7 @@ const memberOf = (row: { account_id: string; role: string; ended_by: string | nu
   endedBy: row.ended_by === null ? null : endedByOf(row.ended_by),
 });
 
-/** Postgres room rows (migration 0063). The use cases decide who may read or write; this only runs queries. */
+/** Postgres room rows (migration 0062). The use cases decide who may read or write; this only runs queries. */
 export const roomStore: RoomStore = {
   async lock(scope, roomId, mode) {
     const shared = await enterSharedRoot(scope, {

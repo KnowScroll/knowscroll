@@ -6,6 +6,7 @@ import { produceScrollQueue } from './modules/content/public.js';
 import { plannerQueue } from './modules/planner/public.js';
 import { contributeQueue } from './modules/rooms/public.js';
 import { prepareBufferQueue } from './modules/composer/public.js';
+import { resolveBranchesQueue, suggestDraftQueue } from './modules/scenarios/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import {
   applyActionEvidenceQueue,
@@ -40,6 +41,8 @@ export const releaseQueues = queueRegistry([
   publishDeltaQueue,
   resolveSupplyQueue,
   produceScrollQueue,
+  suggestDraftQueue,
+  resolveBranchesQueue,
   plannerQueue,
   prepareBufferQueue,
   contributeQueue,

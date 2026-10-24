@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Ref, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref, type RefObject, type ReactNode } from 'react';
 import { useIsFocused } from 'expo-router';
 import { AppState, StyleSheet, View } from 'react-native';
 import {
@@ -10,7 +10,16 @@ import {
 } from '@knowscroll/client-core';
 import { DirectActivateExposureResponseSchema, type ReelDocument } from '@knowscroll/contracts';
 import { content, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, Skeleton, StateBlock, Text, type ReelPositionHandle } from '@knowscroll/ui';
+import {
+  Button,
+  IconButton,
+  Skeleton,
+  StateBlock,
+  Text,
+  type ReelControls,
+  type ReelPlaybackView,
+  type ReelPositionHandle,
+} from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
 import { ActivatedReelView } from '../reel/activated-reel-view';
@@ -105,6 +114,9 @@ export function useReelExposure(scope: AccountScope, assetId: string) {
   return { state, start };
 }
 
+/** The player's height when the screen does not say. */
+const DEFAULT_STAGE_HEIGHT = 320;
+
 export interface ReelMoment {
   readonly startMs: number;
   readonly endMs: number;
@@ -137,7 +149,7 @@ export function ReelEncounter({
   readonly positionRef?: Ref<ReelPositionHandle> | undefined;
   /** Called once the Reel is open, with the revision and length actually playing. */
   readonly onOpened?: ((document: ReelDocument) => void) | undefined;
-  /** The most height the picture may take, so a screen with more on it stays usable. */
+  /** The height of the player, so a screen with more on it stays usable. The player fills what it is given. */
   readonly stageMaxHeight?: number | undefined;
   readonly afterEnd?: ReactNode;
 }) {
@@ -149,6 +161,7 @@ export function ReelEncounter({
   const focused = useIsFocused();
   const playing = active && focused && !ended;
   const internalRef = useRef<ReelPositionHandle>(null);
+  const controlsRef = useRef<ReelControls>(null);
   const handle = positionRef ?? internalRef;
   const exposure = state.status === 'ready' ? state.exposure : undefined;
   useEffect(() => {
@@ -204,17 +217,21 @@ export function ReelEncounter({
     );
   return (
     <View style={styles.player}>
-      <ActivatedReelView
-        key={round}
-        scope={scope}
-        exposureId={exposure.exposureId}
-        document={exposure.document}
-        recorder={watched}
-        active={playing}
-        positionRef={handle}
-        initialPositionMs={moment?.startMs}
-        stageMaxHeight={stageMaxHeight}
-      />
+      <View style={[styles.stage, { height: stageMaxHeight ?? DEFAULT_STAGE_HEIGHT }]}>
+        <ActivatedReelView
+          key={round}
+          scope={scope}
+          exposureId={exposure.exposureId}
+          document={exposure.document}
+          recorder={watched}
+          active={playing}
+          positionRef={handle}
+          initialPositionMs={moment?.startMs}
+          controls={{ tapToToggle: false, controlsRef }}
+        >
+          {(playback) => <CompactControls playback={playback} controls={controlsRef} />}
+        </ActivatedReelView>
+      </View>
       {ended ? (
         <View style={styles.ended}>
           <Button
@@ -232,6 +249,47 @@ export function ReelEncounter({
   );
 }
 
+/**
+ * The thread's own compact player controls (C04): back 10 seconds, play or pause, and sound, drawn
+ * over the foot of the picture. The player itself has no buttons of its own here (`tapToToggle`
+ * is off), so these are the only ones and each name is unique on the screen.
+ */
+function CompactControls({
+  playback,
+  controls,
+}: {
+  readonly playback: ReelPlaybackView;
+  readonly controls: RefObject<ReelControls | null>;
+}) {
+  const label = playback.status === 'error' ? 'Retry' : playback.playing ? 'Pause' : 'Play';
+  return (
+    <View style={styles.controls} pointerEvents="box-none">
+      <IconButton
+        icon="rewind"
+        label="Back 10s"
+        variant="onMedia"
+        size={44}
+        onPress={() => controls.current?.seekBy(-10)}
+      />
+      <IconButton
+        icon={playback.status === 'error' ? 'retry' : playback.playing ? 'pause' : 'play'}
+        label={label}
+        variant="onMedia"
+        size={44}
+        onPress={() => controls.current?.toggle()}
+      />
+      <IconButton
+        icon={playback.muted ? 'volumeOff' : 'volume'}
+        label={playback.muted ? 'Unmute' : 'Mute'}
+        variant="onMedia"
+        size={44}
+        pressed={playback.muted}
+        onPress={playback.toggleMuted}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   poster: {
     flexDirection: 'row',
@@ -244,5 +302,15 @@ const styles = StyleSheet.create({
   },
   posterText: { flexGrow: 1, flexShrink: 1, flexBasis: 160, gap: spacing[1] },
   player: { gap: spacing[2] },
+  stage: { width: '100%', overflow: 'hidden', borderRadius: radius.card, backgroundColor: content.ink },
+  controls: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing[2],
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing[3],
+  },
   ended: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
 });

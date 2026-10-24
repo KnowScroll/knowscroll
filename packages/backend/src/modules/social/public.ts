@@ -43,7 +43,7 @@ import type {
   VisitorWorldSnapshotSchema,
   PublicPersonRef,
 } from '@knowscroll/contracts';
-import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx, ReadOn } from '../identity/public.js';
 import type { Operation } from './domain/friends.js';
 import type { Result } from './application/ports.js';
 /** Friends ports; live presence and visitor publication remain separate. */
@@ -244,3 +244,23 @@ export type ReadFriendAccounts = (
   query: { readonly limit: number } | { readonly personId: string },
 ) => Promise<readonly PublicPerson[]>;
 export const READ_FRIEND_ACCOUNTS = Symbol('social.readFriendAccounts');
+/**
+ * What another module may do inside a thread (scenarios; later rooms): enter it as a member, read a
+ * bounded window of its messages, keep receipts on it and tell the inboxes. It decides nothing about
+ * who may take part: that stays Social's. See `application/thread-guest.ts`.
+ */
+export type { ThreadContextMessage, ThreadGuest, ThreadVisit, ThreadWindow } from './application/thread-guest.js';
+export type { ReceiptKey as ThreadReceiptKey } from './application/ports.js';
+export const THREAD_GUEST = Symbol('social.threadGuest');
+
+/**
+ * Whether the account takes part in the thread right now. A read with no lock; whatever acts on it
+ * rechecks. `on` is where it reads: a caller inside a personal write passes its scope and the read
+ * uses that transaction, never a second connection.
+ */
+export type ReadThreadStanding = (on: ReadOn, accountId: string, threadId: string) => Promise<boolean>;
+export const READ_THREAD_STANDING = Symbol('social.readThreadStanding');
+
+/** Tells every participant's inbox the thread changed, after a commit. A disposable hint; polling repairs a lost one. */
+export type AnnounceThread = (threadId: string) => Promise<void>;
+export const ANNOUNCE_THREAD = Symbol('social.announceThread');

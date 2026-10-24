@@ -1,9 +1,13 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { content, overlay } from '@knowscroll/design-tokens';
 
 const candidates =
   'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-/** Local dialog: keyboard focus stays inside and returns to the invoking control. History belongs to the Back adapter. */
+/**
+ * Local dialog: keyboard focus stays inside and returns to the invoking control. History belongs to the Back adapter.
+ * It is drawn into the document body, above the tab bar and rail, which sit in their own stacking contexts.
+ */
 export function EncounterOverlay({
   children,
   onClose,
@@ -26,7 +30,7 @@ export function EncounterOverlay({
       if (previous?.isConnected) previous.focus();
     };
   }, []);
-  return (
+  return createPortal(
     <div
       ref={host}
       role="dialog"
@@ -72,6 +76,7 @@ export function EncounterOverlay({
       }}
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }

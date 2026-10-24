@@ -32,7 +32,10 @@ tests); without either, components get the current window at 100 % text and moti
 | `Icon` | The export's 24 × 24 line icons (list below) | Always hidden; the control carries the name |
 | `Button` | Variants `primary · default · ink · ghost · space · danger · continue`; sizes `md` 48 / `sm` 44; default · pressed (travels 3 px, loses the shadow; no travel under reduced motion) · focus-visible · disabled (45 %) · busy (spinner + "…ing" label, no presses) | `button` or `link`; `toggled` makes a toggle button; `aria-busy`, `aria-disabled` |
 | `IconButton` | `paper · onMedia · onSpace · plain · accent`; 48 or 44 only; `pressed` (filled glyph on cobalt on paper, on opaque cream over media and the map; never yellow, D-006 b as amended on #255; Components.html draws it yellow) · disabled · busy | Name from `label` ("Back to Keep"), never the icon |
-| `FormatSwitch` | Reel ⇄ Scroll; ready · preparing (stripe + "· preparing") · unavailable (disabled); tap only | Labelled `radiogroup` of two `radio`s, the current format checked (choosing it again does nothing, as for any radio); on the web one Tab stop and arrow keys move and choose; 44 px options |
+| `FormatSwitch` | Reel ⇄ Scroll; ready · preparing (stripe + "· preparing") · requestable (plain name, choosing it starts the request flow) · unavailable (disabled); tap only | Labelled `radiogroup` of two `radio`s, the current format checked (choosing it again does nothing, as for any radio); on the web one Tab stop and arrow keys move and choose; 44 px options |
+| `EdgeTab` | The continuation tab on a Reel's edge (E01, E05): `part` solid yellow, `related` dashed on paper, `previous` ink on the start edge; 72 px high, focus ring on dark | A button named for its destination ("Continue: Part 2, Attention at work"); the arrow alone says nothing |
+| `ReelPlayer` | Full-bleed expo-video stage that fills its parent; its only control is the stage-wide play/pause button (a Play disc while paused, a spinner while loading, "Playback interrupted" with Retry). Screen chrome is passed as `children` (a node or `(playback) => node`) and sits outside the stage wrapper | The toggle is named Play, Pause or Retry; the sound switch is `ReelProgress` |
+| `ReelProgress` | Thin progress track, "0:31 / 0:50" and the Mute/Unmute switch; no percentages, not a scrubber | `progressbar` with value text; the switch is a toggle button |
 | `RequestStatusChip` | requested · preparing · ready · failed · cancelled; a button only when ready/failed have an action; no percentages or times | Waiting states are a `status` |
 | `ActionRail` / `ActionStrip` | One action set (Like · Save · Share · Ask · More) and one placement (`encounterActionPlacement`, no format argument) that both components lay themselves out from, for Reel and Scroll (D-006 b); compact (≤ 360) 44 px buttons; above 150 % text a 2 × 2 grid of text buttons (pressed = primary cobalt); Save busy while its command is in flight | A `group` named "Actions" (not `toolbar`: each action is its own Tab stop); Like/Save are toggle buttons whose names and visible words stay "Like"/"Save" in both arrangements (the state is announced, never added to the name); rail words hidden (the button says it) |
 | `Tag` | `neutral · part · onDark · hypothetical · corrected` (no "Speculative", D-006 a) | Non-interactive text; caps become sentence case above 150 % |
@@ -181,7 +184,7 @@ The consumer binds the position to the same activated encounter's asset and immu
 stores it only within AccountScope, and purges it when that scope ends. No grant, source URL,
 exposure activation, telemetry, upload or wire persistence belongs in this local position. The ref
 clears synchronously on unmount or ScopeEnd; retained methods cannot operate on the ended player.
-Restore waits for the source commit and SDK readiness and remains paused until explicit Play.
+Restore waits for the source commit and SDK readiness and remains paused until explicit Play, except for the one `initialPlaying` case below (a sheet that was opened over a playing Reel and has closed).
 Changing `initialPositionMs` on a mounted player does not seek; remount for another restore intent.
 Grant renewal and Retry preserve the newest actual playhead instead of reapplying the initial offset. `initialMuted` is mount-only, default false; `onMutedChange` reports explicit user intent only.
 The sound choice is distinct from temporary SDK autoplay muting. While replacement is pending,
@@ -190,32 +193,39 @@ choice. Disposed players never receive a late unmute or resume. The encounter ow
 sound choice only for that exact entry, including a park with unavailable SDK position; scope end,
 eviction or a new encounter ends that preference. It is not part of durable resume storage.
 This is a player prerequisite only: navigation/Back integration and real native/browser acceptance
-remain separate work. Share overlay playback restoration is not implemented by this seam.
+remain separate work. Playback restoration after a sheet is `initialPlaying`, below.
 
 
-`ReelPlayer.renderStage` optionally wraps only the video and noninteractive poster in an app-owned
-navigation surface. Its returned element must fill the supplied stage. Play/Retry and seek controls
-remain outside that wrapper, so encounter navigation never has to inspect private button nodes or
-capture their gestures. The default keeps the existing direct-player layout. This hook adds no player,
-source, grant, position or recorder lifecycle; the app owns axis/edge/child arbitration. SDK stand-in
-CI verifies the stage/control boundary and source/playhead continuity across wrapper rerenders;
-actual full-stage gestures and decoding require consumer browser/native evidence.
+`ReelPlayer.renderStage` optionally wraps only the video and its play surface in an app-owned
+navigation surface. Its returned element must fill the supplied stage. The screen's chrome (switch,
+actions, title, progress, edge tabs) is passed as `children` and drawn over the stage, outside that
+wrapper, so encounter navigation never has to inspect private button nodes or capture their gestures.
+This hook adds no player, source, grant, position or recorder lifecycle; the app owns axis/edge/child
+arbitration. SDK stand-in CI verifies the stage/chrome boundary and source/playhead continuity across
+wrapper rerenders; actual full-stage gestures and decoding require consumer browser/native evidence.
 
-### Responsive Reel geometry
+`initialPlaying` (mount-only) is for one case: the Reel was playing under a sheet that has just
+closed (D-006 k), so it plays on once its source is restored and the stage is visible, and again if the
+screen becomes active after that. The encounter sets it from `resumePlaying` and never for Back, a trail
+jump or a tab detour, which return paused.
 
-Related: #359.
+Play and pause are one stage-wide button (a Play disc while paused, Retry after a failure). A screen
+that draws its own compact controls (a thread's inline player) turns that off and must then pass
+`controlsRef`: `tapToToggle: false` without it does not type-check, so a player cannot be left
+unplayable. `ReelControls` gives that screen `toggle()` (play, pause or Retry, exactly as tapping the
+stage would) and `seekBy(seconds)` (clamped to the Reel); it creates no source, grant or recorder event
+beyond what the same action would.
 
-ReelPlayer sizes only its video stage from the measured frame width (portrait ratio, capped 480px,
-minimum 160px until a smaller measured page budget is supplied); scrolling consumers cap it at
-half their actual viewport. Playback controls have their own natural height below it. Its page consumer must
-provide reachable vertical overflow for captions/actions/navigation. The frame no longer assumes a
-whole-window minus 300px space budget. Layout changes do not replace the SDK player/source or reset
-sound/playhead. renderStage still receives video/poster only; app continuation buttons are siblings
-of the gesture responder inside the measured stage, never over the playback controls. FormatSwitch
-bounds its full state labels to the parent width and permits wrapping while preserving 44px targets.
+### Reel geometry
 
-Web visibility observes the video stage itself, excluding the wrapping controls from its half-visible
-threshold. A short-page height cap changes geometry only; the SDK/source/playhead remain mounted.
+Related: #234, #359.
+
+`ReelPlayer` fills its parent: the stage and the chrome layer are both absolute-filled inside a frame
+with `flex: 1`. It measures nothing for its own height. A screen that wants a smaller player (a thread)
+gives the player's parent a height; Explore gives it the whole screen, or a column of at most 480 px on
+a wide display. Layout changes never replace the SDK player/source or reset sound/playhead. Web
+visibility observes the video stage itself. `FormatSwitch` bounds its full state labels to the parent
+width and permits wrapping while preserving 44 px targets.
 
 ### RowLink
 

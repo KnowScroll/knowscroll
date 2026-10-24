@@ -3,8 +3,10 @@ import { LOCK_KEEP_POSITION_TARGET } from '../public.js';
 import { lockCurrentEncounters } from './current-encounters.js';
 import { LOCK_CURRENT_ENCOUNTERS } from '../public.js';
 import type { Kysely } from 'kysely';
+import type { PgBoss } from 'pg-boss';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { makeImportEditorialScroll } from '../application/import-editorial-scroll.js';
+import { makeEnqueueScrollProduction } from './enqueue-production.js';
 import {
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
@@ -29,6 +31,15 @@ import {
   RENDER_SCROLL,
   CHOOSE_SCROLL_RECIPE,
   READ_SCROLL_PRODUCTION,
+  RECORD_MADE_TO_ORDER_SCROLL,
+  READ_MADE_TO_ORDER_PRODUCTION,
+  READ_SCROLL_SOURCE_PAGES,
+  CHECK_ASSET_AUDIENCE,
+  ENQUEUE_SCROLL_PRODUCTION,
+  type CheckAssetAudience,
+  type EnqueueScrollProduction,
+  type ReadMadeToOrderProduction,
+  type ReadOrderAudience,
   type RenderScroll,
 } from '../public.js';
 import {
@@ -45,6 +56,12 @@ import { makeRenderScroll } from './render-scroll.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
+import {
+  makeCheckAssetAudience,
+  makeReadMadeToOrderProduction,
+  readScrollSourcePages,
+  recordMadeToOrderScroll,
+} from './made-to-order.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
 import { readContentSequence } from './content-sequence.js';
 import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
@@ -75,11 +92,48 @@ export function contentProviders() {
     { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
+    { provide: RECORD_MADE_TO_ORDER_SCROLL, useValue: recordMadeToOrderScroll },
+    { provide: READ_SCROLL_SOURCE_PAGES, useValue: readScrollSourcePages },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
     { provide: READ_SCROLL_PRODUCTION, useValue: readScrollProduction },
+  ];
+}
+
+/** The audience of an order when no module claims it: nobody. */
+const denyOrderAudience: ReadOrderAudience = () => Promise.resolve(new Set());
+
+/**
+ * Reads of Scrolls ordered from code that need the database handle: where an order's production
+ * stands (the resolver, in the worker) and whether a caller may read an asset (the API's document
+ * read). `orderAudience` names the token of the module that orders Scrolls.
+ */
+export function madeToOrderProviders(tokens: { readonly database: symbol; readonly orderAudience?: symbol }) {
+  return [
+    {
+      provide: READ_MADE_TO_ORDER_PRODUCTION,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): ReadMadeToOrderProduction => makeReadMadeToOrderProduction(db),
+    },
+    {
+      provide: CHECK_ASSET_AUDIENCE,
+      inject: [tokens.database, ...(tokens.orderAudience === undefined ? [] : [tokens.orderAudience])],
+      useFactory: (db: Kysely<Database>, audience?: ReadOrderAudience): CheckAssetAudience =>
+        makeCheckAssetAudience(db, audience ?? denyOrderAudience),
+    },
+  ];
+}
+
+/** The sender of production jobs outside a transaction, over the process's pg-boss (the branch resolver, the operator). */
+export function scrollProductionSenderProviders(tokens: { readonly boss: symbol }) {
+  return [
+    {
+      provide: ENQUEUE_SCROLL_PRODUCTION,
+      inject: [tokens.boss],
+      useFactory: (boss: PgBoss): EnqueueScrollProduction => makeEnqueueScrollProduction(boss),
+    },
   ];
 }
 
@@ -119,7 +173,7 @@ export { makeMediaAccess } from './media-access.js';
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
-export { makeEnqueueScrollProduction, type EnqueueScrollProduction } from './enqueue-production.js';
+export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {

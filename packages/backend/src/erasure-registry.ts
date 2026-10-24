@@ -9,6 +9,7 @@ import {
   type ExportPerson,
 } from './infrastructure/erasure/registry.js';
 import { clearCoreTransactionOf, markCurrentClearRemovalVerified } from './infrastructure/postgres/privacy-scope.js';
+import type { CheckAssetAudience } from './modules/content/public.js';
 import type { AccountDeletionTx, ClearCoreTx, PersonalScopeTx } from './modules/identity/public.js';
 import { composerErasure } from './modules/composer/adapters/erasure.js';
 import { evidenceErasure } from './modules/evidence/adapters/erasure.js';
@@ -16,6 +17,7 @@ import { experienceErasure } from './modules/experience/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
 import { identityErasure } from './modules/identity/adapters/erasure.js';
 import { personalContextErasure } from './modules/personal-context/adapters/erasure.js';
+import { scenariosErasure } from './modules/scenarios/adapters/erasure.js';
 import { plannerErasure } from './modules/planner/adapters/erasure.js';
 import { roomsErasure } from './modules/rooms/adapters/erasure.js';
 import { scenesErasure } from './modules/scenes/adapters/erasure.js';
@@ -41,6 +43,8 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  */
 const moduleErasures = [
   roomsErasure,
+  // Scenarios refer to threads and messages, so they come before Social.
+  scenariosErasure,
   socialErasure,
   scenesErasure,
   geographyErasure,
@@ -98,7 +102,20 @@ export function eraseCurrentAccount(scope: AccountDeletionTx) {
   return eraseAccountData(scope, lifecycleStores);
 }
 
-/** Every module's export section for one person, inside their locked personal scope. */
-export function exportCurrentPerson(scope: PersonalScopeTx, person: ExportPerson) {
-  return exportPersonalData(scope, lifecycleStores, person);
+/**
+ * Every module's export section for one person, inside their locked personal scope. `audience` is
+ * Content's check of which assets a person may reach, asked on the export's own transaction as the
+ * person: a Scroll made for a thread they left keeps no title in their file.
+ */
+export function exportCurrentPerson(
+  scope: PersonalScopeTx,
+  person: { readonly accountId: string },
+  audience: CheckAssetAudience,
+) {
+  const asPerson = { ...scope.authority, actor: { kind: 'account', accountId: person.accountId } } as const;
+  const exported: ExportPerson = {
+    accountId: person.accountId,
+    reach: (assetIds) => audience({ scope }, asPerson, assetIds),
+  };
+  return exportPersonalData(scope, lifecycleStores, exported);
 }

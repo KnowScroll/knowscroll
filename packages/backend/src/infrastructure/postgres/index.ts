@@ -25,6 +25,7 @@ export {
   makeAuthorityHolds,
   makeWithPersonalScope,
   makeWithResolvedPersonalScope,
+  readerOn,
   resolutionTransactionOf,
   sharedTransactionOf,
   transactionOf,

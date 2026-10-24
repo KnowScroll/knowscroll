@@ -153,7 +153,7 @@ function snippetOf(row: SnippetColumns): StoredSnippetAnchor | undefined {
   return undefined;
 }
 
-/** Postgres discussion and message rows (migration 0063). The use cases decide who may read or write; this only runs queries. */
+/** Postgres discussion and message rows (migration 0062). The use cases decide who may read or write; this only runs queries. */
 export const discussionStore: DiscussionStore = {
   async exists(lock, discussionId) {
     const row = await trxOf(lock)

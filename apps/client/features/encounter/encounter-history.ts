@@ -13,6 +13,11 @@ export type EncounterEntry = {
   /** Keep positions never enter the legacy asset/revision-only resume store. */
   keepOrigin?: boolean;
   restored: boolean;
+  /**
+   * Set only when a sheet over a playing Reel closes: the Reel never left, so playback resumes where it
+   * was (D-006 k). Back, a trail jump and a tab detour return paused. Cleared when the entry is parked.
+   */
+  resumePlaying?: boolean;
   started: boolean;
   suspended: boolean;
   disposed: boolean;
@@ -107,6 +112,13 @@ export function createEncounterHistory(
       entry.suspended = true;
     }
     entry.surface = undefined;
+    entry.resumePlaying = false;
+  };
+  /** Back, a trail jump and a return from another tab restore an entry paused, whatever it was doing when it was left (E01: no sound after a detour). */
+  const returnPaused = (entry: EncounterEntry) => {
+    entry.restored = true;
+    entry.resumePlaying = false;
+    if (entry.position?.kind === 'reel') entry.position = { ...entry.position, playing: false };
   };
   const endEntry = (entry: EncounterEntry) => {
     if (entry.disposed) return;
@@ -127,6 +139,7 @@ export function createEncounterHistory(
     canBack: () => cursor > 0,
     capture,
     park,
+    returnPaused,
     push(entry: EncounterEntry) {
       if (ended || !scope.active) {
         endEntry(entry);
@@ -142,7 +155,7 @@ export function createEncounterHistory(
       if (ended || !scope.active || cursor <= 0) return false;
       park();
       cursor -= 1;
-      entries[cursor]!.restored = true;
+      returnPaused(entries[cursor]!);
       return true;
     },
     restore(exposureId: string) {
@@ -150,7 +163,7 @@ export function createEncounterHistory(
       if (ended || !scope.active || index < 0 || index >= cursor) return false;
       park();
       cursor = index;
-      entries[cursor]!.restored = true;
+      returnPaused(entries[cursor]!);
       return true;
     },
     end() {

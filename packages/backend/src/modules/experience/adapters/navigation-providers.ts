@@ -1,9 +1,11 @@
 import {
+  CHECK_ASSET_AUDIENCE,
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
   READ_CONTINUATIONS,
   RESOLVE_CONTINUITY_LINK,
   READ_ENCOUNTER_ATTRIBUTION,
+  type CheckAssetAudience,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
   type ReadContinuations,
@@ -23,6 +25,7 @@ import {
   requireRecordingEffects,
 } from './recording-store.js';
 import { makeRegionEncounters } from '../application/region-encounter.js';
+import { gateExactEncounter } from './audience-gate.js';
 import {
   COMPOSE_ENCOUNTER,
   PERSIST_COMPOSER_DECISION,
@@ -98,6 +101,7 @@ export function navigationProviders(
         PERSIST_COMPOSER_DECISION,
         READ_DISCOVERY_CANDIDATES,
         READ_EXACT_ENCOUNTER,
+        CHECK_ASSET_AUDIENCE,
         READ_CONTINUATIONS,
         RESOLVE_CONTINUITY_LINK,
         READ_ENCOUNTER_ATTRIBUTION,
@@ -119,6 +123,7 @@ export function navigationProviders(
         persistDecision: PersistComposerDecision,
         readDiscoveryCandidates: ReadDiscoveryCandidates,
         readExactEncounter: ReadExactEncounter,
+        audience: CheckAssetAudience,
         readContinuations: ReadContinuations,
         resolveContinuityLink: ResolveContinuityLink,
         readAttribution: ReadEncounterAttribution,
@@ -161,7 +166,7 @@ export function navigationProviders(
           persistDecision,
           ...(buffers ? { buffers } : {}),
           readDiscoveryCandidates,
-          readExactEncounter,
+          readExactEncounter: gateExactEncounter(readExactEncounter, audience),
           readContinuations,
           resolveContinuityLink,
           readAttribution,

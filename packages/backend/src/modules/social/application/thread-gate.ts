@@ -1,7 +1,7 @@
 import type { ContentThreadRef } from '@knowscroll/contracts';
 import type { AccountAccess, PersonalScopeTx } from '../../identity/public.js';
 import { canAnswerInvitation, canTakePart } from '../domain/threads.js';
-import type { LoadedThread, ThreadLock, ThreadPorts } from './thread-ports.js';
+import type { LoadedThread, ThreadLock, ThreadMember, ThreadPorts } from './thread-ports.js';
 
 /** A thread the caller may act in: gates passed and its rows loaded under the thread's lock. */
 export interface EnteredThread extends LoadedThread {
@@ -30,17 +30,43 @@ export async function enterThread(
   entry: Entry = 'participant',
 ): Promise<EnteredThread | undefined> {
   if (scope.authority.actor.kind !== 'account') return undefined;
+  return enterOwnThread(p, scope, ref.threadId, mode, entry, (own) => {
+    return own.membershipId === ref.membershipId && own.membershipRevision === ref.membershipRevision;
+  });
+}
+
+/**
+ * Enters a thread for a worker acting on behalf of a member (a system actor in the member's personal
+ * scope), by the thread's ID rather than a membership reference a client holds. Every other gate is
+ * `enterThread`'s: the member's account, their place in the thread and the lock order.
+ */
+export function enterThreadAsMember(
+  p: ThreadPorts,
+  scope: PersonalScopeTx,
+  threadId: string,
+  mode: 'write' | 'read',
+): Promise<EnteredThread | undefined> {
+  return enterOwnThread(p, scope, threadId, mode, 'participant', () => true);
+}
+
+async function enterOwnThread(
+  p: ThreadPorts,
+  scope: PersonalScopeTx,
+  threadId: string,
+  mode: 'write' | 'read',
+  entry: Entry,
+  holdsReference: (own: ThreadMember) => boolean,
+): Promise<EnteredThread | undefined> {
   const gate = await p.fenceOwn(scope);
   if (gate.kind !== 'active') return undefined;
-  if (!(await p.threads.isMember(scope, gate.owner.accountId, ref.threadId))) return undefined;
-  const lock = await p.threads.lock(scope, ref.threadId, mode);
+  if (!(await p.threads.isMember(scope, gate.owner.accountId, threadId))) return undefined;
+  const lock = await p.threads.lock(scope, threadId, mode);
   if (!lock) return undefined;
   const loaded = await p.threads.load(lock, gate.owner.accountId);
   if (!loaded) return undefined;
   const { own } = loaded;
-  const sameMembership = own.membershipId === ref.membershipId && own.membershipRevision === ref.membershipRevision;
   const allowed = canTakePart(own) || (entry === 'participant_or_invitee' && canAnswerInvitation(own));
-  return sameMembership && allowed ? { ...loaded, lock, owner: gate.owner } : undefined;
+  return holdsReference(own) && allowed ? { ...loaded, lock, owner: gate.owner } : undefined;
 }
 
 export const threadRefOf = (entered: Pick<LoadedThread, 'thread' | 'own'>): ContentThreadRef => ({

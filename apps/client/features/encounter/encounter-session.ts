@@ -1,3 +1,4 @@
+import { CancelledError } from '@tanstack/react-query';
 import {
   apiProblem,
   recordingCommandFields,
@@ -27,6 +28,7 @@ import type {
   NavigationOutcome,
 } from '@knowscroll/contracts';
 import { parseDocument } from '@knowscroll/scroll-model';
+import { afterPendingBack } from '../../platform/after-pending-back';
 import { createRequestSession, type RequestMode } from '../requests/request-session';
 import { savedRemovalFor, type SavedRemovalState } from '../saved/saved-query';
 import type { EncounterGestureMove } from './gestures/arbitration';
@@ -62,7 +64,7 @@ export interface EncounterState {
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   readonly overlay: boolean;
-  readonly overlayOwner?: 'path' | 'request';
+  readonly overlayOwner?: 'path' | 'request' | 'share';
   readonly surfaceRevision: number;
   readonly contextReady?: boolean;
   readonly keepPlace?: KeepPlaceState;
@@ -250,7 +252,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     }
   }
   function fail(error: unknown) {
-    if (!valid() || error instanceof ScopeEndedError) return;
+    // A refetch that a newer one replaced (after a removal, say) says nothing about the network.
+    if (!valid() || error instanceof ScopeEndedError || error instanceof CancelledError) return;
     const problem = apiProblem(error);
     if (
       problem?.code === 'INTENT_REVISION_STALE' ||
@@ -540,11 +543,15 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setOverlay(false);
     return true;
   });
-  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' = 'path') => {
+  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' | 'share' = 'path') => {
     if (overlay) history.park();
     else {
       const entry = history.current();
-      if (entry) entry.restored = true;
+      if (entry) {
+        entry.restored = true;
+        // A sheet is not a departure: a Reel that was playing under it plays on when it closes.
+        entry.resumePlaying = entry.position?.kind === 'reel' && entry.position.playing;
+      }
     }
     requests.visible(overlay && overlayOwner === 'request' && foreground);
     publish({
@@ -790,6 +797,18 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
       if (requests.show(mode)) setOverlay(true, 'request');
     },
+    /** The share sheet: an overlay like the menu, so playback pauses under it and Back closes it. */
+    openShare() {
+      if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
+      setOverlay(true, 'share');
+    },
+    /** Opens the finished requested content from the ready notice, without a second tap on the sheet. */
+    async openReadyRequest() {
+      if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return false;
+      if (!requests.show(requests.getState().mode)) return false;
+      setOverlay(true, 'request');
+      return requests.openReady();
+    },
     gesture(move: EncounterGestureMove) {
       const entry = history.current();
       if (!entry || state.phase !== 'active' || !foreground || state.overlay) return;
@@ -868,7 +887,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       requests.visible(value && state.overlayOwner === 'request' && state.overlay);
       if (returning) {
         const entry = history.current();
-        if (entry?.started) entry.restored = true;
+        if (entry?.started) history.returnPaused(entry);
         publish({ surfaceRevision: state.surfaceRevision + 1 });
       }
       if (!value) {
@@ -934,7 +953,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         history.park();
         releaseCheckpoint();
         publish({ overlay: false, overlayOwner: undefined });
-        origin.returnToMap();
+        // The encounter's own history marker is popped by an asynchronous Back; the map is opened after it lands.
+        afterPendingBack(origin.returnToMap);
         return true;
       }
       if (work || busy) return false;

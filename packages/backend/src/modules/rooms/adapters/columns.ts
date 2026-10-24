@@ -2,7 +2,7 @@ import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 
 /**
- * The text columns of migration 0063 are closed sets by CHECK constraints, but the generated row types
+ * The text columns of migration 0062 are closed sets by CHECK constraints, but the generated row types
  * only know `string`. Each reader names the set once and refuses a value outside it, so a schema that
  * drifts fails loudly here instead of reaching a use case as an impossible value.
  */
