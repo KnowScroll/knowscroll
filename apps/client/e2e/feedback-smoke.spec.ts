@@ -67,7 +67,7 @@ test('Not interested saves, moves to the next subject, and Undo takes it back an
   const { calls } = await feedbackFixture(page);
   await openMore(page);
   await page.getByRole('button', { name: 'Not interested. Fewer like this one' }).click();
-  await expect(page.getByText('Got it — fewer like this.')).toBeVisible();
+  await expect(page.getByText('Got it — we won’t show this for a while.')).toBeVisible();
   await expect(page.getByText('CI encounter fixture 2', { exact: true }).last()).toBeVisible();
   const marked = calls.filter((call) => call.path === '/v1/feedback/not-interested');
   expect(marked).toHaveLength(1);
@@ -79,7 +79,7 @@ test('Not interested saves, moves to the next subject, and Undo takes it back an
   expect(undone?.body['assetId']).toBe(id(300));
   expect(undone?.body['commandId']).not.toBe(marked[0]?.body['commandId']);
   await expect(page.getByText('CI encounter fixture 1', { exact: true }).last()).toBeVisible();
-  await expect(page.getByText('Got it — fewer like this.')).not.toBeVisible();
+  await expect(page.getByText('Got it — we won’t show this for a while.')).not.toBeVisible();
 });
 
 test('a content error is sent for the exact revision with the person’s reason and note, and answered with a receipt', async ({

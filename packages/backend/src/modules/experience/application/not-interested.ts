@@ -24,9 +24,15 @@ export type NotInterestedResult<T> =
 
 /** The rows of `experience.not_interested`, written and read inside the caller's personal scope. */
 export interface NotInterestedStore {
-  /** Marks the asset until the lapse time and returns it. Marking again restarts the clock. */
+  /**
+   * Marks the asset until the lapse time and returns it. Marking again restarts the clock and remembers
+   * the mark it replaced.
+   */
   mark(scope: PersonalScopeTx, assetId: string): Promise<Date>;
-  /** Removes the mark; removing what is not there changes nothing. */
+  /**
+   * Takes back the latest mark: the one it replaced if that is still running, otherwise the row.
+   * Removing what is not there changes nothing.
+   */
   unmark(scope: PersonalScopeTx, assetId: string): Promise<void>;
 }
 

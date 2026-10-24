@@ -389,6 +389,7 @@ export type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) 
 export interface RoomReportRow {
   readonly messageId: string;
   readonly categories: readonly string[];
+  /** How many different people reported it. */
   readonly count: number;
   readonly lastReportedAt: Date;
 }

@@ -7,4 +7,9 @@
  */
 export type { ReportRefusal, ReportResult, ReportUseCases } from './application/file-report.js';
 
+export { PurgeReportsPayloadSchema, purgeReportsQueue, type PurgeReportsPayload } from './events.js';
+export type { PurgeReports } from './application/purge-reports.js';
+
 export const REPORT_USE_CASES = Symbol('feedback.reportUseCases');
+/** Injection token of the scheduled report purge (bound by `feedbackPurgeProviders`). */
+export const PURGE_REPORTS = Symbol('feedback.purgeReports');

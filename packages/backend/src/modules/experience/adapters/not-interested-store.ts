@@ -21,7 +21,10 @@ export const notInterestedStore: NotInterestedStore = {
       insert into experience.not_interested (universe_id, privacy_epoch, asset_id, marked_at, expires_at)
       values (${universeId}::uuid, ${privacyEpoch}, ${assetId}::uuid, now(), now() + make_interval(days => ${NOT_INTERESTED_DAYS}::int))
       on conflict (universe_id, asset_id) do update
-        set privacy_epoch = excluded.privacy_epoch, marked_at = excluded.marked_at, expires_at = excluded.expires_at
+        set privacy_epoch = excluded.privacy_epoch,
+            prior_marked_at = experience.not_interested.marked_at,
+            prior_expires_at = experience.not_interested.expires_at,
+            marked_at = excluded.marked_at, expires_at = excluded.expires_at
       returning expires_at`.execute(db);
     await sql`
       delete from experience.not_interested
@@ -32,8 +35,16 @@ export const notInterestedStore: NotInterestedStore = {
   },
 
   async unmark(scope, assetId) {
-    await sql`delete from experience.not_interested where universe_id = ${scope.authority.universeId}::uuid and asset_id = ${assetId}::uuid`.execute(
-      transactionOf(scope),
+    const db = transactionOf(scope);
+    const { universeId } = scope.authority;
+    // Undo of a second tap goes back to the first mark, if that one is still running.
+    const restored = await sql`
+      update experience.not_interested
+      set marked_at = prior_marked_at, expires_at = prior_expires_at, prior_marked_at = null, prior_expires_at = null
+      where universe_id = ${universeId}::uuid and asset_id = ${assetId}::uuid and prior_expires_at > now()`.execute(db);
+    if (Number(restored.numAffectedRows ?? 0) > 0) return;
+    await sql`delete from experience.not_interested where universe_id = ${universeId}::uuid and asset_id = ${assetId}::uuid`.execute(
+      db,
     );
   },
 };

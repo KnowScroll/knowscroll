@@ -509,8 +509,10 @@ export const RoomReportsSchema = z.strictObject({
         discussionTitle: z.string().min(1).max(80),
         /** The message's number in its discussion. */
         sequence: Revision,
+        /** How many different people reported it. */
         count: z.number().int().min(1),
         categories: z.array(AbuseCategorySchema).min(1).max(7),
+        /** The start of the UTC day of the newest report: the day, never the time. */
         lastReportedAt: z.iso.datetime(),
       }),
     )

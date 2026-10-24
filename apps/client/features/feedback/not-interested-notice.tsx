@@ -47,7 +47,7 @@ export function NotInterestedNotice({
           <Icon name="check" size={20} color={content.paper} />
           <View style={styles.words}>
             <Text variant="uiS" color={content.paper}>
-              Got it — fewer like this.
+              Got it — we won’t show this for a while.
             </Text>
           </View>
           <Button label="Undo" size="sm" variant="space" onPress={onUndo} />

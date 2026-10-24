@@ -11,6 +11,7 @@ import {
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { isModerator, joinDecision, roomAcceptsPosts } from '../domain/membership.js';
+import { reportedOnDay } from '../domain/reports.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import {
   earlierPlaceOf,
@@ -123,7 +124,7 @@ export function makeRoomReads(p: RoomPorts) {
     /**
      * The reports on this room's messages, for its moderators only (D-055). A member who is not a moderator,
      * a stranger and an unknown room all get the same refusal. A moderator never sees a report about their
-     * own words, and no answer says who reported or what they wrote.
+     * own words, and no answer says who reported, what they wrote or the time of day: only the day of the newest report.
      */
     async reports(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReportsSchema>>> {
       const parsed = ReadRoomReportsSchema.safeParse(input);
@@ -158,7 +159,7 @@ export function makeRoomReads(p: RoomPorts) {
                       sequence: place.sequence,
                       count: report.count,
                       categories: report.categories,
-                      lastReportedAt: report.lastReportedAt.toISOString(),
+                      lastReportedAt: reportedOnDay(report.lastReportedAt).toISOString(),
                     },
                   ];
             }),

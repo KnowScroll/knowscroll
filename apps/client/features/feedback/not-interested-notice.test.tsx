@@ -29,7 +29,7 @@ describe('the Not interested notice', () => {
 
   it('acknowledges plainly, asks for no reason, and offers Undo', async () => {
     const { onUndo } = await show({ status: 'acknowledged', assetId, resume: 'exposure-1' });
-    expect(screen.getByText('Got it — fewer like this.')).toBeOnTheScreen();
+    expect(screen.getByText('Got it — we won’t show this for a while.')).toBeOnTheScreen();
     // Announced politely, without moving focus.
     expect(screen.getByTestId('not-interested-notice').props.role).toBe('status');
     await fireEvent.press(screen.getByRole('button', { name: 'Undo' }));

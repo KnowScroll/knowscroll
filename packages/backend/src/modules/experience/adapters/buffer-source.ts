@@ -5,6 +5,7 @@ import {
   type ReadHiddenAssets,
 } from '../../composer/public.js';
 import { readHidden, readMember, readSession } from './navigation-store.js';
+import { readNotInterested } from './not-interested-store.js';
 
 /** Tells the Composer buffer worker about an offer, only if it was really activated at this exposure. */
 const readBufferSource: ReadBufferSource = async (scope, { sessionId, offerId, exposureId }) => {
@@ -19,9 +20,12 @@ const readBufferSource: ReadBufferSource = async (scope, { sessionId, offerId, e
   };
 };
 
-const readHiddenAssets: ReadHiddenAssets = (scope, assetIds) => readHidden(scope, assetIds);
+/** A buffer serves a subject move, which names no target, so it leaves out Hide and "Not interested" (D-055). */
+const readHiddenAssets: ReadHiddenAssets = async (scope, assetIds) => [
+  ...new Set([...(await readHidden(scope, assetIds)), ...(await readNotInterested(scope, assetIds))]),
+];
 
-/** Experience's answers to the Composer buffer worker: read-only views of sessions, activations and Hide. */
+/** Experience's answers to the Composer buffer worker: read-only views of sessions, activations, Hide and Not interested. */
 export function experienceBufferSourceProviders() {
   return [
     { provide: READ_BUFFER_SOURCE, useValue: readBufferSource },

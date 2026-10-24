@@ -180,6 +180,93 @@ describe('Not interested (real PostgreSQL)', () => {
     expect(ready(await nextSubject(person, afterExhausted, from)).offer.assetId).toBe(other.assetId);
   });
 
+  it('never blocks a person’s own open of a marked asset: Saved, a finished request, and a return inside a session', async () => {
+    const person = await seedPerson(database.db);
+    const { open, from } = await openAndActivate(person);
+    const other = assets.find((asset) => asset.assetId !== open.offer.assetId)!;
+    expect(await mark(person, other.assetId)).toMatchObject({ kind: 'applied' });
+    // What Composer would pick for the person leaves the marked asset out ...
+    const exhausted = await nextSubject(person, open, from);
+    expect(exhausted).toMatchObject({
+      kind: 'accepted',
+      outcome: { status: 'exhausted', reason: 'no_eligible_content' },
+    });
+
+    // ... but naming it is the person's own choice. This is the request Saved and a finished request send:
+    // a return with no session. It opens, and so does the activation after it.
+    const fresh = ready(
+      await cases.navigate(person.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'return', ...other },
+        capabilities: textCapabilities,
+      }),
+    );
+    expect(fresh.offer.assetId).toBe(other.assetId);
+    expect(
+      await cases.activateOffer(person.authority, {
+        commandId: randomUUID(),
+        target: {
+          kind: 'offer',
+          sessionId: fresh.sessionId,
+          offerId: fresh.offer.offerId,
+          expectedIntentRevision: fresh.intentRevision,
+        },
+      }),
+    ).toMatchObject({ kind: 'accepted' });
+
+    // The same inside the session the person is already in (a return intent).
+    const back = await cases.navigate(person.authority, {
+      commandId: randomUUID(),
+      sessionId: open.sessionId,
+      expectedIntentRevision: exhausted.kind === 'accepted' ? exhausted.outcome.intentRevision : 0,
+      from,
+      intent: { mode: 'return', target: other },
+    });
+    expect(ready(back).offer.assetId).toBe(other.assetId);
+    // Opening it does not lift the mark: the next subject still leaves it out.
+    expect(await markedAssets(person.universeId)).toEqual([other.assetId]);
+  });
+
+  it('Undo of a second tap goes back to the first mark instead of dropping it', async () => {
+    const person = await seedPerson(database.db);
+    const expiryOf = async () =>
+      (
+        await database.db
+          .selectFrom('experience.not_interested')
+          .select('expires_at')
+          .where('universe_id', '=', person.universeId)
+          .execute()
+      ).map((row) => row.expires_at.getTime());
+    const target = assets[0]!.assetId;
+    const undo = () => cases.notInterested.undo(person.authority, { commandId: randomUUID(), assetId: target });
+
+    await mark(person, target);
+    // Pretend the first tap was ten days ago, so the second one moves the lapse time.
+    await sql`update experience.not_interested set marked_at = now() - interval '10 days', expires_at = now() + interval '4 days'
+      where universe_id = ${person.universeId}::uuid`.execute(database.db);
+    const [firstExpiry] = await expiryOf();
+    await mark(person, target);
+    const [secondExpiry] = await expiryOf();
+    expect(secondExpiry).toBeGreaterThan(firstExpiry!);
+
+    expect(await undo()).toMatchObject({ kind: 'applied' });
+    expect(await expiryOf()).toEqual([firstExpiry]);
+    // Undo again has nothing earlier to go back to: it lifts the constraint.
+    expect(await undo()).toMatchObject({ kind: 'applied' });
+    expect(await markedAssets(person.universeId)).toEqual([]);
+  });
+
+  it('Undo drops the row when the earlier mark has lapsed meanwhile', async () => {
+    const person = await seedPerson(database.db);
+    const target = assets[0]!.assetId;
+    await mark(person, target);
+    await mark(person, target);
+    await sql`update experience.not_interested set prior_marked_at = now() - interval '15 days', prior_expires_at = now() - interval '1 day'
+      where universe_id = ${person.universeId}::uuid`.execute(database.db);
+    await cases.notInterested.undo(person.authority, { commandId: randomUUID(), assetId: target });
+    expect(await markedAssets(person.universeId)).toEqual([]);
+  });
+
   it('lets the asset return once the mark has lapsed, with no sweep needed', async () => {
     const person = await seedPerson(database.db);
     const { open, from } = await openAndActivate(person);

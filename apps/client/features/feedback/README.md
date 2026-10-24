@@ -8,14 +8,14 @@ fixtures, and screenshots at 390 and 1440 px; not run on dev.
 | --- | --- |
 | `feedback-content.tsx` | The sheet's content for a target: the menu (a Reel or Scroll), the content error form, the abuse form, sending, the receipt with "Also block", "Will send when online" and a failure with Retry. Its state is client-core's `createReportFlow` |
 | `feedback-sheet.tsx` | `FeedbackSheetBody` (sits inside a container's sheet; signed-out people are asked to sign in) and `FeedbackSheet`, a bottom sheet for the screens that report a message or a person |
-| `not-interested-notice.tsx` | The dark acknowledgement "Got it — fewer like this." with Undo for 8 s, and the saving, undoing and failed states. It sits among the encounter's notices, so it survives the move to the next subject |
+| `not-interested-notice.tsx` | The dark acknowledgement "Got it — we won’t show this for a while." with Undo for 8 s, and the saving, undoing and failed states. It sits among the encounter's notices, so it survives the move to the next subject |
 | `feedback-parts.tsx` | A menu row, the "Not interested" row and its failure, the reason chips (radios) and the note field |
 | `feedback-copy.ts` | The labels of the reasons and the words of the receipt. A receipt names the reason, what it is about and when; it never names a person |
 | `use-feedback.ts` | The scope's feedback store (waking it sends reports kept from an earlier run), its state, and the busy/failed state of the "Not interested" row |
 
 Entries: the encounter's ⋯ (More) has "Not interested", "Report a content error" and "Report abuse"; a long-press on a Reel, a
 right-click, Shift+F10 or the menu key opens the P03 menu (`session.openFeedback`); the conversation's ⋯ has "Report {name}",
-and a long-press, right-click or screen-reader action on another person's message reports it; a room's message options have
+and a long-press or screen-reader action on another person's message reports it (the browser's right-click stays the browser's, so the text can be copied); a room's message options have
 "Report this message"; the friend visit bar has "Report". A Scroll's reading surface keeps text selection and the browser's
 menu, so its only entry is ⋯. Moderators of a room see the reported messages under Moderator tools
 (`features/rooms/reported-messages.tsx`).

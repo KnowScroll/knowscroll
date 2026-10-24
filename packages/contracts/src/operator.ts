@@ -120,7 +120,7 @@ const ReportRow = z.strictObject({
   reportId: UuidSchema,
   kind: z.enum(['content_error', 'abuse']),
   category: Code,
-  targetKind: z.enum(['asset', 'message', 'room_message', 'person']),
+  targetKind: z.enum(['asset', 'message', 'room_message', 'person', 'deleted_account']),
   assetId: UuidSchema.nullable(),
   messageId: UuidSchema.nullable(),
   roomId: UuidSchema.nullable(),

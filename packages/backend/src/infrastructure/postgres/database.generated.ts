@@ -471,6 +471,8 @@ export interface ExperienceNotInterested {
   asset_id: string;
   expires_at: Timestamp;
   marked_at: Timestamp;
+  prior_expires_at: Timestamp | null;
+  prior_marked_at: Timestamp | null;
   privacy_epoch: number;
   universe_id: string;
 }
@@ -616,6 +618,7 @@ export interface FeedbackReports {
   report_id: string;
   reported_account_id: string | null;
   reporter_account_id: string;
+  retain_until: Timestamp | null;
   room_id: string | null;
   target_kind: string;
 }

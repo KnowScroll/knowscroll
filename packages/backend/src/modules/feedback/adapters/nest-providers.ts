@@ -1,3 +1,4 @@
+import type { Kysely } from 'kysely';
 import {
   CHECK_ASSET_AUDIENCE,
   FIND_ASSET_FOR_ACTION,
@@ -13,6 +14,8 @@ import {
   type ReadReportableMessage,
 } from '../../social/public.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
+import type { Database } from '../../../infrastructure/postgres/database.js';
 import {
   completePersonalReceipt,
   findPersonalReceipt,
@@ -21,7 +24,9 @@ import {
   type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
 import { makeReportUseCases, type ReportUseCases } from '../application/file-report.js';
-import { REPORT_USE_CASES } from '../public.js';
+import { PURGE_REPORTS, REPORT_USE_CASES } from '../public.js';
+import { makePurgeReports, type PurgeReports } from '../application/purge-reports.js';
+import { purgeDueReports } from './postgres-purge.js';
 import { readRoomReports, reportStore } from './postgres-reports.js';
 
 /** What the report use cases need from the rest of the system, chosen by the composition root. */
@@ -85,6 +90,18 @@ export function feedbackProviders(tokens: { readonly withPersonalScope: symbol }
         readRoomMessage: ReadReportableRoomMessage,
         readPeople: ReadPublicPeople,
       ) => reportUseCases({ withScope, fenceOwn, findAsset, checkAudience, readMessage, readRoomMessage, readPeople }),
+    },
+  ];
+}
+
+/** Nest wiring of the scheduled report purge (`feedback.purge-reports`, daily) for the worker composition root. */
+export function feedbackPurgeProviders(tokens: { readonly database: symbol; readonly logEvent: symbol }) {
+  return [
+    {
+      provide: PURGE_REPORTS,
+      inject: [tokens.database, tokens.logEvent],
+      useFactory: (db: Kysely<Database>, logEvent: LogEvent): PurgeReports =>
+        makePurgeReports({ purgeDue: purgeDueReports(db), logEvent }),
     },
   ];
 }

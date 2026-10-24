@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { feedbackPurgeProviders } from '@knowscroll/backend/modules/feedback/nest-providers';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { readOperatorPanelsFor } from '@knowscroll/backend/modules/operator/nest-providers';
 import type { AbuseReportRequest, ContentErrorReportRequest } from '@knowscroll/contracts';
@@ -28,10 +29,19 @@ import {
   unwrap,
   type RoomWorld,
 } from '../support/rooms.js';
-import { friendCommand, seedContent, seedFriend, seedFriends, talkCases, type Friend } from '../support/talk.js';
+import {
+  befriend,
+  friendCommand,
+  seedContent,
+  seedFriend,
+  seedFriends,
+  talkCases,
+  type Friend,
+} from '../support/talk.js';
 
 const conversationVersion = 'direct-conversation.v1' as const;
 const version = 'rooms.v1' as const;
+const startOfDay = (at: Date) => new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
 
 describe('reports to the safety team (real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
@@ -285,18 +295,61 @@ describe('reports to the safety team (real PostgreSQL)', () => {
         asset_revision: 1,
       });
     });
+
+    it('answers a second report about the same message, person or Reel with the first receipt and adds nothing', async () => {
+      const { a, b } = await seedFriends(database.db, world.friends);
+      const { messageId } = await conversationWithMessage(a, b);
+      const targets: AbuseReportRequest['target'][] = [
+        { kind: 'message', messageId },
+        { kind: 'person', personId: a.person.personId },
+        { kind: 'asset', assetId: asset.assetId, assetRevision: 1 },
+      ];
+      for (const target of targets) {
+        const first = await reports.reportAbuse(b.authority, abuse(target));
+        if (first.kind !== 'received') throw new Error('expected received');
+        world.clock.now = new Date(world.clock.now.getTime() + 3_600_000);
+        const second = abuse(target, { category: 'spam', note: 'a second time' });
+        expect(await reports.reportAbuse(b.authority, second)).toEqual({
+          kind: 'received',
+          outcome: {
+            commandId: second.commandId,
+            reportId: first.outcome.reportId,
+            receivedAt: first.outcome.receivedAt,
+            replayed: true,
+          },
+        });
+        // Nothing of the second is kept: not the reason, not the note, not a receipt.
+        expect(
+          await sql`select 1 from receipts.personal_commands where universe_id = ${b.universeId}::uuid and command_id = ${second.commandId}::uuid`
+            .execute(database.db)
+            .then((result) => result.rows),
+        ).toEqual([]);
+      }
+      const rows = await rowsBy(b.accountId);
+      expect(rows).toHaveLength(3);
+      expect(rows.every((row) => row.category === 'harassment' && row.note === null)).toBe(true);
+    });
+
+    it('keeps two content errors about one Reel: they can point at different places', async () => {
+      const person = await seedFriend(database.db, world.friends);
+      for (const positionMs of [1_000, 9_000])
+        expect(
+          await reports.reportContentError(person.authority, contentError({ anchor: { kind: 'reel', positionMs } })),
+        ).toMatchObject({ kind: 'received', outcome: { replayed: false } });
+      expect(await rowsBy(person.accountId)).toHaveLength(2);
+    });
   });
 
   describe('the bound', () => {
     it('allows 25 reports in 24 hours, refuses the next and writes nothing for it, then lets a day pass', async () => {
       const person = await seedFriend(database.db, world.friends);
-      const target = await seedFriend(database.db, world.friends);
+      // Content errors may repeat about one Reel (they can point at different places); abuse about one target may not.
       for (let sent = 0; sent < 25; sent++)
-        expect(
-          await reports.reportAbuse(person.authority, abuse({ kind: 'person', personId: target.person.personId })),
-        ).toMatchObject({ kind: 'received' });
-      const refused = abuse({ kind: 'person', personId: target.person.personId });
-      expect(await reports.reportAbuse(person.authority, refused)).toEqual({
+        expect(await reports.reportContentError(person.authority, contentError())).toMatchObject({
+          kind: 'received',
+        });
+      const refused = contentError();
+      expect(await reports.reportContentError(person.authority, refused)).toEqual({
         kind: 'refused',
         reason: 'too_many_reports',
       });
@@ -307,7 +360,20 @@ describe('reports to the safety team (real PostgreSQL)', () => {
           .then((result) => result.rows),
       ).toEqual([]);
       world.clock.now = new Date(world.clock.now.getTime() + 25 * 3_600_000);
-      expect(await reports.reportAbuse(person.authority, refused)).toMatchObject({ kind: 'received' });
+      expect(await reports.reportContentError(person.authority, refused)).toMatchObject({ kind: 'received' });
+    });
+
+    it('does not count a repeat abuse report, which adds nothing', async () => {
+      const person = await seedFriend(database.db, world.friends);
+      const target = await seedFriend(database.db, world.friends);
+      const aboutTarget = () => abuse({ kind: 'person', personId: target.person.personId });
+      expect(await reports.reportAbuse(person.authority, aboutTarget())).toMatchObject({ kind: 'received' });
+      for (let sent = 0; sent < 30; sent++)
+        expect(await reports.reportAbuse(person.authority, aboutTarget())).toMatchObject({
+          kind: 'received',
+          outcome: { replayed: true },
+        });
+      expect(await rowsBy(person.accountId)).toHaveLength(1);
     });
   });
 
@@ -401,7 +467,8 @@ describe('reports to the safety team (real PostgreSQL)', () => {
           sequence: 1,
           count: 2,
           categories: ['harassment', 'spam'],
-          lastReportedAt: world.clock.now.toISOString(),
+          // The day of the newest report, never the time of day.
+          lastReportedAt: startOfDay(world.clock.now).toISOString(),
         },
       ]);
       const text = JSON.stringify(shown);
@@ -421,6 +488,58 @@ describe('reports to the safety team (real PostgreSQL)', () => {
       ).toEqual({ kind: 'refused', code: 'unavailable' });
     });
 
+    it('counts different reporters for a room’s moderators, so one person cannot raise the number', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const [author, reporterOne, reporterTwo, moderator] = await Promise.all([
+        seedFriend(database.db, world.friends),
+        seedFriend(database.db, world.friends),
+        seedFriend(database.db, world.friends),
+        seedFriend(database.db, world.friends),
+      ]);
+      for (const person of [author, reporterOne, reporterTwo, moderator]) unwrap(await joinRoom(world, person, roomId));
+      await makeModerator(world, slug, moderator);
+      const discussionId = await startTopic(world, author, roomId);
+      unwrap(await say(world, author, roomId, discussionId, 'words that get reported'));
+      const view = await readDiscussion(world, reporterOne, roomId, discussionId);
+      if (view.status !== 'ready') throw new Error('expected ready');
+      const messageId = view.messages[0]!.messageId;
+      const target = { kind: 'room_message', messageId } as const;
+      const countSeen = async () => {
+        const shown = unwrap(await world.rooms.reports(moderator.authority, { version, readId: randomUUID(), roomId }));
+        return shown.reports.map((report) => report.count);
+      };
+
+      // One person reporting again is a repeat: the same receipt, and the moderators still see one.
+      const first = await reports.reportAbuse(reporterOne.authority, abuse(target));
+      const again = await reports.reportAbuse(reporterOne.authority, abuse(target, { category: 'spam' }));
+      if (first.kind !== 'received' || again.kind !== 'received') throw new Error('expected received');
+      expect(again.outcome.reportId).toBe(first.outcome.reportId);
+      expect(await countSeen()).toEqual([1]);
+      await reports.reportAbuse(reporterTwo.authority, abuse(target));
+      expect(await countSeen()).toEqual([2]);
+
+      // Whatever the table holds, the count is of people: a second row from the same reporter (the unique
+      // index is dropped for this check and put back) does not move it.
+      const [{ definition }] = (
+        await sql<{ definition: string }>`select pg_get_indexdef('feedback.reports_one_abuse_per_target'::regclass) as definition`.execute(
+          database.db,
+        )
+      ).rows as [{ definition: string }];
+      await sql`drop index feedback.reports_one_abuse_per_target`.execute(database.db);
+      try {
+        await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, message_id, room_id, reported_account_id, created_at)
+          values (${randomUUID()}::uuid, ${reporterOne.accountId}::uuid, 'abuse', 'spam', 'room_message', ${messageId}::uuid, ${roomId}::uuid, ${author.accountId}::uuid, now())`.execute(
+          database.db,
+        );
+        expect(await countSeen()).toEqual([2]);
+      } finally {
+        await sql`delete from feedback.reports where reporter_account_id = ${reporterOne.accountId}::uuid and category = 'spam'`.execute(
+          database.db,
+        );
+        await sql.raw(definition).execute(database.db);
+      }
+    });
+
     it('is read by operators as ids, a category and whether a note exists, never the note', async () => {
       const person = await seedFriend(database.db, world.friends);
       const target = await seedFriend(database.db, world.friends);
@@ -430,8 +549,8 @@ describe('reports to the safety team (real PostgreSQL)', () => {
         abuse({ kind: 'person', personId: target.person.personId }, { note: 'CI-PRIVATE-OPERATOR-PANEL-NOTE' }),
       );
       // The test clock is fixed in the past; one row written now proves the 24-hour count.
-      await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, reported_account_id, created_at)
-        values (${randomUUID()}::uuid, ${person.accountId}::uuid, 'abuse', 'spam', 'person', ${target.accountId}::uuid, now())`.execute(
+      await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, asset_id, asset_revision, created_at)
+        values (${randomUUID()}::uuid, ${person.accountId}::uuid, 'content_error', 'wrong', 'asset', ${asset.assetId}::uuid, 1, now())`.execute(
         database.db,
       );
       const panels = await readOperatorPanelsFor(database.db)();
@@ -446,62 +565,215 @@ describe('reports to the safety team (real PostgreSQL)', () => {
     });
   });
 
-  describe('erasure', () => {
-    it('survives a Clear of the sender, and account deletion removes what a person sent and what was sent about them', async () => {
-      const sender = await recordingPerson(database);
-      const about = await recordingPerson(database);
-      const named = async (person: Awaited<ReturnType<typeof recordingPerson>>): Promise<Friend> => {
-        const set = await world.friends.setProfile(person.authority, {
-          version: 'sharing.v1',
-          commandId: randomUUID(),
-          expectedProfileRevision: 0,
-          handle: `ci.${person.accountId.replaceAll('-', '').slice(0, 14)}`,
-          displayName: 'Fixture person',
-        });
-        if (set.kind !== 'ok') throw new Error('profile refused');
-        const read = await world.friends.readProfile(person.authority);
-        if (read.kind !== 'ok' || read.value.status !== 'claimed') throw new Error('profile unreadable');
-        return { ...person, person: read.value.person };
-      };
-      const [senderFriend, aboutFriend] = [await named(sender), await named(about)];
-      const bystander = await seedFriend(database.db, world.friends);
-      await reports.reportAbuse(
-        senderFriend.authority,
-        abuse({ kind: 'person', personId: aboutFriend.person.personId }),
+  describe('erasure and retention', () => {
+    type Recorded = Awaited<ReturnType<typeof recordingPerson>>;
+    /** A person created by the real sign-in (deletion and Clear need the real lifecycle), with a claimed profile. */
+    const named = async (): Promise<Friend & Recorded> => {
+      const person = await recordingPerson(database);
+      const set = await world.friends.setProfile(person.authority, {
+        version: 'sharing.v1',
+        commandId: randomUUID(),
+        expectedProfileRevision: 0,
+        handle: `ci.${person.accountId.replaceAll('-', '').slice(0, 14)}`,
+        displayName: 'Fixture person',
+      });
+      if (set.kind !== 'ok') throw new Error('profile refused');
+      const read = await world.friends.readProfile(person.authority);
+      if (read.kind !== 'ok' || read.value.status !== 'claimed') throw new Error('profile unreadable');
+      return { ...person, person: read.value.person };
+    };
+    const erase = async (person: Recorded) => {
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+    };
+    const involving = async (accountId: string) =>
+      Number(
+        (
+          await sql<{ n: string }>`select count(*)::text as n from feedback.reports
+            where reporter_account_id = ${accountId}::uuid or reported_account_id = ${accountId}::uuid`.execute(
+            database.db,
+          )
+        ).rows[0]?.n,
       );
-      await reports.reportContentError(senderFriend.authority, contentError());
-      await reports.reportAbuse(bystander.authority, abuse({ kind: 'person', personId: aboutFriend.person.personId }));
-      const involving = async (accountId: string) =>
-        Number(
-          (
-            await sql<{ n: string }>`select count(*)::text as n from feedback.reports
-              where reporter_account_id = ${accountId}::uuid or reported_account_id = ${accountId}::uuid`.execute(
-              database.db,
-            )
-          ).rows[0]?.n,
-        );
-      expect([await involving(sender.accountId), await involving(about.accountId)]).toEqual([2, 2]);
+    const all = (reporterId: string) =>
+      database.db
+        .selectFrom('feedback.reports')
+        .selectAll()
+        .where('reporter_account_id', '=', reporterId)
+        .orderBy('created_at')
+        .orderBy('report_id')
+        .execute();
+    const exportOf = async (person: Friend) => {
+      const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
+        exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+      );
+      if (exported.kind !== 'entered') throw new Error('export refused');
+      return exported.value.sections['feedback'] as { reports: { items: Record<string, unknown>[] } };
+    };
+    const purge = () => {
+      const [provider] = feedbackPurgeProviders({ database: Symbol('db'), logEvent: Symbol('log') });
+      return provider!.useFactory(database.db, () => undefined)();
+    };
 
+    /** A person and everything said about them: a conversation message, a room message and the person, by several people. */
+    async function reportedEverywhere() {
+      const author = await named();
+      const reporter = await named();
+      const bystander = await seedFriend(database.db, world.friends);
+      await befriend(world.friends, author, reporter);
+      const { messageId } = await conversationWithMessage(author, reporter, 'words that will be tombstoned');
+      const { roomId } = await seedRoom(world);
+      for (const person of [author, reporter]) unwrap(await joinRoom(world, person, roomId));
+      const discussionId = await startTopic(world, author, roomId);
+      unwrap(await say(world, author, roomId, discussionId, 'room words that will be tombstoned'));
+      const view = await readDiscussion(world, reporter, roomId, discussionId);
+      if (view.status !== 'ready') throw new Error('expected ready');
+      const roomMessageId = view.messages[0]!.messageId;
+      for (const target of [
+        { kind: 'message', messageId },
+        { kind: 'room_message', messageId: roomMessageId },
+        { kind: 'person', personId: author.person.personId },
+      ] as const)
+        expect(
+          await reports.reportAbuse(reporter.authority, abuse(target, { note: 'CI-RETAINED-NOTE' })),
+        ).toMatchObject({ kind: 'received' });
+      expect(
+        await reports.reportAbuse(bystander.authority, abuse({ kind: 'person', personId: author.person.personId })),
+      ).toMatchObject({ kind: 'received' });
+      // A content error names an asset, never a person.
+      expect(await reports.reportContentError(reporter.authority, contentError())).toMatchObject({
+        kind: 'received',
+      });
+      return { author, reporter, bystander, messageId, roomMessageId };
+    }
+
+    it('a Clear keeps what a person sent', async () => {
+      const sender = await named();
+      const about = await named();
+      await reports.reportAbuse(sender.authority, abuse({ kind: 'person', personId: about.person.personId }));
+      await reports.reportContentError(sender.authority, contentError());
+      expect(await involving(sender.accountId)).toBe(2);
       // A Clear forgets exploration, not what a person told the safety team.
       await clearRecordingPerson(database, boss, sender);
       expect(await involving(sender.accountId)).toBe(2);
+    });
 
-      const erase = async (person: typeof sender) => {
-        const receiptId = randomUUID();
-        const deleting = deleteAccountFor(database.db, boss, {
-          eraseAccountData: eraseCurrentAccount,
-          lockTimeoutMs: 5_000,
-        });
-        expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
-        expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
-      };
-      // The person reported goes first: every report about them goes, the others' other reports stay.
-      await erase(about);
-      expect(await involving(about.accountId)).toBe(0);
-      expect(await involving(sender.accountId)).toBe(1);
-      expect(await rowsBy(bystander.accountId)).toEqual([]);
-      await erase({ ...sender, authority: { ...sender.authority, privacyEpoch: 2 } });
-      expect(await involving(sender.accountId)).toBe(0);
+    it('deleting the reported person keeps abuse reports about them for 90 days, without them in it', async () => {
+      const { author, reporter, bystander, messageId, roomMessageId } = await reportedEverywhere();
+      expect(await involving(author.accountId)).toBe(4);
+      const authorId = author.accountId;
+
+      await erase(author);
+
+      // Nothing points at the deleted account any more.
+      expect(await involving(authorId)).toBe(0);
+      const kept = await all(reporter.accountId);
+      expect(kept.map((row) => [row.kind, row.target_kind])).toEqual([
+        ['abuse', 'message'],
+        ['abuse', 'room_message'],
+        ['abuse', 'deleted_account'],
+        ['content_error', 'asset'],
+      ]);
+      const [aboutMessage, aboutRoomMessage, aboutPerson, contentError_] = kept;
+      // The message id stays, because the message it names is now a tombstone: no author, no words.
+      expect(aboutMessage).toMatchObject({ message_id: messageId, reported_account_id: null });
+      expect(aboutRoomMessage).toMatchObject({ message_id: roomMessageId, reported_account_id: null });
+      expect(
+        (
+          await sql<{ author_account_id: string | null; body_text: string | null }>`
+            select author_account_id, body_text from social.messages where message_id = ${messageId}::uuid`.execute(
+            database.db,
+          )
+        ).rows,
+      ).toEqual([{ author_account_id: null, body_text: null }]);
+      expect(
+        (
+          await sql<{ author_account_id: string | null; body_text: string | null }>`
+            select author_account_id, body_text from rooms.messages where message_id = ${roomMessageId}::uuid`.execute(
+            database.db,
+          )
+        ).rows,
+      ).toEqual([{ author_account_id: null, body_text: null }]);
+      // A person target no longer names a person at all.
+      expect(aboutPerson).toMatchObject({
+        message_id: null,
+        asset_id: null,
+        room_id: null,
+        reported_account_id: null,
+      });
+      expect((await all(bystander.accountId)).map((row) => row.target_kind)).toEqual(['deleted_account']);
+      // The reports about the person run for 90 days from the deletion; a content error is not about them.
+      const ninetyDays = 90 * 86_400_000;
+      for (const row of [aboutMessage, aboutRoomMessage, aboutPerson])
+        expect(Math.abs(row!.retain_until!.getTime() - (Date.now() + ninetyDays))).toBeLessThan(120_000);
+      expect(contentError_!.retain_until).toBeNull();
+      expect(JSON.stringify(kept)).not.toContain(authorId);
+      expect(JSON.stringify(kept)).not.toContain(author.person.personId);
+
+      // The reporter's export says what became of them, in words and without naming anyone.
+      const section = await exportOf(reporter);
+      const afterwards = section.reports.items.filter((item) => item['about'] !== 'a Reel or Scroll');
+      expect(afterwards.map((item) => item['about'])).toEqual([
+        'a message',
+        'a message in a room',
+        'a person who has since deleted their account',
+      ]);
+      expect(afterwards.every((item) => typeof item['keptUntil'] === 'string')).toBe(true);
+      expect(JSON.stringify(section)).not.toContain(authorId);
+
+      // Operators read them as reports about a deleted account.
+      const panels = await readOperatorPanelsFor(database.db)();
+      if (panels.safety.reports.status !== 'available') throw new Error('expected the reports panel');
+      expect(panels.safety.reports.data.recent).toContainEqual(
+        expect.objectContaining({ kind: 'abuse', targetKind: 'deleted_account', hasNote: true }),
+      );
+    });
+
+    it('purges those reports once their 90 days are over, and only those', async () => {
+      const { author, reporter, bystander } = await reportedEverywhere();
+      await erase(author);
+      const stillHeld = async () => (await all(reporter.accountId)).length + (await all(bystander.accountId)).length;
+      expect(await stillHeld()).toBe(5);
+
+      // Not yet due.
+      expect(await purge()).toEqual({ removed: 0 });
+      expect(await stillHeld()).toBe(5);
+
+      // The clock moves past retain_until (a day short of 90 has passed, then two more).
+      await sql`update feedback.reports set retain_until = retain_until - interval '89 days'
+        where retain_until is not null`.execute(database.db);
+      expect(await purge()).toEqual({ removed: 0 });
+      await sql`update feedback.reports set retain_until = retain_until - interval '2 days'
+        where retain_until is not null`.execute(database.db);
+      const due = Number(
+        (await sql<{ n: string }>`select count(*)::text as n from feedback.reports where retain_until < now()`.execute(
+          database.db,
+        )).rows[0]?.n,
+      );
+      expect(due).toBeGreaterThanOrEqual(4);
+      // The reports about the deleted person go. Everything else, including every other report, stays.
+      expect(await purge()).toEqual({ removed: due });
+      expect((await all(reporter.accountId)).map((row) => row.kind)).toEqual(['content_error']);
+      expect(await all(bystander.accountId)).toEqual([]);
+      expect(await purge()).toEqual({ removed: 0 });
+    });
+
+    it('deleting the reporter removes their own reports, including those about a person who left', async () => {
+      const { author, reporter, bystander } = await reportedEverywhere();
+      await erase(author);
+      expect((await all(reporter.accountId)).length).toBe(4);
+
+      await erase(reporter);
+
+      expect(await involving(reporter.accountId)).toBe(0);
+      expect(await all(reporter.accountId)).toEqual([]);
+      // What other people reported stays with them.
+      expect((await all(bystander.accountId)).map((row) => row.target_kind)).toEqual(['deleted_account']);
     });
   });
 });

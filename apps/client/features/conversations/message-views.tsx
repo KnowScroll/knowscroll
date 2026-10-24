@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import type { ConversationContentProjection, ConversationMessage } from '@knowscroll/contracts';
 import type { OutgoingMessage } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
@@ -66,9 +66,10 @@ export function ContentCard({
 }
 
 /**
- * A received message that can be reported (P03): a long-press, or a right-click on the web, opens the
- * report sheet, and a screen reader gets the same as a custom action. The conversation's own menu is the
- * visible, keyboard route to report the person.
+ * A received message that can be reported (P03): a long-press (a held mouse button on the web) opens the
+ * report sheet, and a screen reader gets the same as a custom action. The web's right-click is left to the
+ * browser, so the text can still be copied. The conversation's own menu is the visible, keyboard route to
+ * report the person.
  */
 function Reportable({
   onReport,
@@ -88,14 +89,6 @@ function Reportable({
       onAccessibilityAction={(event) => {
         if (event.nativeEvent.actionName === 'report') onReport();
       }}
-      {...(Platform.OS === 'web'
-        ? {
-            onContextMenu: (event: { preventDefault: () => void }) => {
-              event.preventDefault();
-              onReport();
-            },
-          }
-        : {})}
       style={style}
     >
       {children}

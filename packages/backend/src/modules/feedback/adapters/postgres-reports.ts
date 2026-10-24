@@ -12,6 +12,18 @@ export const reportStore: ReportStore = {
     return counted.rows[0]?.sent ?? 0;
   },
 
+  async findEarlierAbuse(scope, accountId, target) {
+    const targetId = target.assetId ?? target.messageId ?? target.reportedAccountId;
+    if (targetId === undefined) return undefined;
+    // The same expression as the unique index `reports_one_abuse_per_target`, so the probe is an index lookup.
+    const found = await sql<{ report_id: string; created_at: Date }>`
+      select report_id, created_at from feedback.reports
+      where kind = 'abuse' and reporter_account_id = ${accountId}::uuid and target_kind = ${target.targetKind}
+        and coalesce(asset_id, message_id, reported_account_id) = ${targetId}::uuid`.execute(transactionOf(scope));
+    const first = found.rows[0];
+    return first === undefined ? undefined : { reportId: first.report_id, createdAt: first.created_at };
+  },
+
   async insert(scope, report) {
     await sql`
       insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, asset_id,
@@ -24,11 +36,14 @@ export const reportStore: ReportStore = {
   },
 };
 
-/** Reports on one room's messages, one row per message. A moderator's own messages are left out of their view. */
+/**
+ * Reports on one room's messages, one row per message. `sent` counts different reporters, so one person
+ * cannot raise it. A moderator's own messages are left out of their view.
+ */
 export const readRoomReports: ReadRoomReports = async (scope, query) => {
   const rows = await sql<{ message_id: string; categories: string[]; sent: number; last_reported_at: Date }>`
     select message_id, array_agg(distinct category order by category) as categories,
-      count(*)::int as sent, max(created_at) as last_reported_at
+      count(distinct reporter_account_id)::int as sent, max(created_at) as last_reported_at
     from feedback.reports
     where room_id = ${query.roomId}::uuid and target_kind = 'room_message'
       and (reported_account_id is null or reported_account_id <> ${query.excludingAccountId}::uuid)

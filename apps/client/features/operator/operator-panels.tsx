@@ -341,6 +341,7 @@ const TARGET_WORDS = {
   message: 'message',
   room_message: 'room message',
   person: 'person',
+  deleted_account: 'person (account deleted)',
 } as const;
 
 /** 7 · Reports to the safety team: what each is about and when, never its note, its sender or the person reported. */
