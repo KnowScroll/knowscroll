@@ -497,6 +497,14 @@ export interface AttemptLedger<S = PersonalScopeTx> {
    * conclusive answer still settles such an attempt as `reconciled`.
    */
   readonly sweepStaleDispatched: (olderThanSeconds: number, limit: number) => Promise<number>;
+  /**
+   * Personal-only hygiene: closes up to `limit` runs still `admitted` that nobody has touched for
+   * `olderThanSeconds` and that have no live attempt (`reserved`, `dispatched` or `unknown`) and no
+   * attempt settled within that time, as `cancelled`. Such a run is a leftover of a role that ended
+   * without closing it; its owner starts a new run when it next needs one. Returns how many closed.
+   * Optional on the shared production ledger, whose runs their producers close.
+   */
+  readonly closeIdleRuns?: (olderThanSeconds: number, limit: number) => Promise<number>;
 }
 
 /** Process-wide settings of the harness (from configuration). */

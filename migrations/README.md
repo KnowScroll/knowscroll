@@ -173,3 +173,8 @@ after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.t
 - Erasure: both new tables are in the Social inventory (`adapters/erasure.ts`). Deleting an account removes the person's
   membership, tombstones their messages and deletes those messages' snippet rows. Clear keeps threads and snippets.
 - Apply with the new binary. 0057 runs first; 0058 needs 0056 and 0011.
+
+0060 adds one nullable column, `next_run_not_before`, to `geography.state` and `planner.state` (#231, D-052): the
+earliest time that person's next Cartographer or Planner run may start. A settled run sets it, and the next run's wake
+waits for it. Nothing is backfilled or constrained, so an older process leaves it null (no wait). Apply with the new
+binary; the generated database types change by the same two lines.

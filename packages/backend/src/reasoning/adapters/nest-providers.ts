@@ -17,7 +17,7 @@ import {
   type PersonalRecordingHarnessPorts,
 } from '../application/personal-recording.js';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
-import { makeReasoningOperator } from '../application/operator.js';
+import { IDLE_RUN_CLOSES_AFTER_SECONDS, makeReasoningOperator } from '../application/operator.js';
 import type { HarnessPorts, HarnessSettings, ModelPort, ExecutionPorts } from '../application/ports.js';
 import { makeReasoningHarness, makeScopedReasoningHarness } from '../application/propose.js';
 import {
@@ -290,7 +290,9 @@ export function reasoningSweepProviders(tokens: {
       ): SweepDispatchedAttempts => {
         const operator = reasoningOperatorFor(db, logEvent);
         const staleAfterSeconds = dispatchStaleAfterSeconds(config.reasoning);
-        return () => operator.sweepStaleDispatched(staleAfterSeconds);
+        return async () =>
+          (await operator.sweepStaleDispatched(staleAfterSeconds)) +
+          (await operator.closeIdleRuns(IDLE_RUN_CLOSES_AFTER_SECONDS));
       },
     },
   ];

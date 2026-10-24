@@ -200,12 +200,15 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
       const universeId = scope.authority.universeId;
       const run = await trx
         .selectFrom('reasoning.business_runs')
-        .select('privacy_erased_at')
+        .select(['privacy_erased_at', 'state'])
         .where('universe_id', '=', universeId)
         .where('id', '=', reservation.runId)
         .forUpdate()
         .executeTakeFirst();
-      if (run === undefined || run.privacy_erased_at !== null) throw new Error('Reasoning run is unavailable');
+      // The idle sweep takes no personal root lock, so it can close a run between `admitRun` and here.
+      // An attempt reserved under a closed run would be an orphan; the next delivery finds `run_closed`.
+      if (run === undefined || run.privacy_erased_at !== null || run.state !== 'admitted')
+        throw new Error('Reasoning run is unavailable');
       await trx
         .insertInto('reasoning.external_attempts')
         .values({
@@ -625,6 +628,29 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
             for update of p skip locked
           )`.execute(trx);
         return Number(result.numAffectedRows ?? 0n);
+      });
+    },
+
+    closeIdleRuns(olderThanSeconds, limit) {
+      return withTransaction(db, 'attempt-ledger', async (trx) => {
+        const closed = await sql<{ id: string }>`
+          update reasoning.business_runs run
+          set state = 'cancelled', fence = fence + 1, closed_at = now(), updated_at = now()
+          where (run.universe_id, run.id) in (
+            select r.universe_id, r.id from reasoning.business_runs r
+            where r.state = 'admitted' and r.privacy_erased_at is null
+              and r.updated_at < now() - make_interval(secs => ${olderThanSeconds}::double precision)
+              and not exists (
+                select 1 from reasoning.external_attempts a
+                where a.universe_id = r.universe_id and a.run_id = r.id
+                  and (a.state in ('reserved', 'dispatched', 'unknown')
+                    or a.settled_at >= now() - make_interval(secs => ${olderThanSeconds}::double precision)))
+            order by r.updated_at
+            limit ${limit}
+            for update of r skip locked
+          ) and run.state = 'admitted'
+          returning run.id`.execute(trx);
+        return closed.rows.length;
       });
     },
 

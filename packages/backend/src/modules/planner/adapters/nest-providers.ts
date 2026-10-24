@@ -192,7 +192,7 @@ export function plannerRequestProviders(t: { readonly withPersonalScope: symbol;
               : cap.generation !== 1 || header.hasRecordingMetadata)
           )
             throw new Error('PLANNER_WAKE_ORIGIN_INVALID');
-          if (delayed) {
+          if (delayed?.expectedClaimId) {
             if (header.status !== 'prepared' || header.claimId !== delayed.expectedClaimId) return;
             if (header.claimWakeClaimId === delayed.expectedClaimId) return;
             await enqueue(
@@ -225,7 +225,7 @@ export function plannerRequestProviders(t: { readonly withPersonalScope: symbol;
                 recordingGeneration: cap.generation,
                 wakeId,
               },
-              { jobId: wakeId },
+              { jobId: wakeId, ...(delayed ? { startAfter: delayed.startAfter } : {}) },
             );
             await plannerStore.writeRun(scope, { ...header, normalWakeId: wakeId });
           }

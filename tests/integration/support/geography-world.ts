@@ -60,6 +60,7 @@ import {
 import { plannerStore, makeCheckPlannerRecordingRun } from '@knowscroll/backend/modules/planner/nest-providers';
 import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
 import type { PersonalRecordingPurpose } from '@knowscroll/backend/reasoning';
+import type { HarnessSettings } from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureHarness, fixtureModel, fixtureSettings, silent, signal } from '../support/fixture-model.js';
 import { createTestDatabase } from '../support/database.js';
@@ -285,6 +286,7 @@ export async function geographyWorld(name: string) {
     p: FixturePerson,
     script?: (ctx: GeographyContext, sequence: number) => FixtureScenario | Promise<FixtureScenario>,
     overrides: Partial<CartographerPorts> = {},
+    settings: HarnessSettings = fixtureSettings,
   ) {
     const model = fixtureModel(
       async (sequence) => {
@@ -295,14 +297,14 @@ export async function geographyWorld(name: string) {
       },
       { label: 'geography-authored-ci-only' },
     );
-    const fixture = fixtureHarness(database.db, { model }),
+    const fixture = fixtureHarness(database.db, { model, settings }),
       now = overrides.now ?? base.now;
     const harness = personalRecordingReasoningHarnessFor({
       db: database.db,
       model: fixture.ports.model,
       withPersonalScope: fixture.ports.withPersonalScope,
       fenceOwn: base.fenceOwn,
-      settings: fixtureSettings,
+      settings,
       logEvent: silent,
       overrides: fixture.ports,
       checkPlanner: makeCheckPlannerRecordingRun({ store: plannerStore, now }),

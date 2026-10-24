@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { wakeAt } from '../domain/pacing.js';
 import { IntentSchema } from '../domain/proposal.js';
 import type {
   PlannerMaterialChange,
@@ -61,11 +62,17 @@ async function reviveActiveRun(
     await requeueRun(p, cap, run);
 }
 
-/** Birth identity comes from an accepted source, never worker preparation or a resumed clock. */
+/**
+ * Makes sure one run exists for the person and is woken. Birth identity comes from an accepted
+ * source, never worker preparation or a resumed clock. A `paced` caller (evidence, or a follow-up
+ * to a settled run) starts a new run no earlier than `state.nextRunNotBefore`; changes that arrive
+ * meanwhile find this run active and coalesce into it. An explicit request is not paced.
+ */
 export async function ensureRun(
-  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'prepareNormalWake'>,
+  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'prepareNormalWake' | 'now'>,
   cap: RecordingScopeTx,
   state: PlannerState,
+  paced = false,
 ): Promise<PlannerState & { readonly activeRunId: string }> {
   const root = await p.store.root(cap);
   if (!state.desiredSource || state.desiredSource.generation !== cap.generation)
@@ -93,11 +100,12 @@ export async function ensureRun(
   });
   const next = { ...state, activeRunId: runId };
   await p.store.writeState(cap.personal, next);
-  await p.enqueue(cap, runId);
+  const startAfter = paced ? wakeAt(state.nextRunNotBefore, p.now()) : undefined;
+  await p.enqueue(cap, runId, startAfter && { startAfter });
   return next;
 }
 export function makeMaterialChange(
-  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'prepareNormalWake'>,
+  p: Pick<PlannerPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'prepareNormalWake' | 'now'>,
 ): PlannerMaterialChange {
   return async (cap, input) => {
     const root = await p.store.root(cap);
@@ -117,7 +125,7 @@ export function makeMaterialChange(
       desiredSource: { generation: cap.generation, kind: 'material' as const, sourceRevision: input.sourceRevision },
     };
     await p.store.writeState(cap.personal, next);
-    await ensureRun(p, cap, next);
+    await ensureRun(p, cap, next, true);
   };
 }
 export function makeRequestPlanner(
