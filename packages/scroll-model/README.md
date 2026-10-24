@@ -419,6 +419,13 @@ Long nested JSON is where models slip (a dropped quote, an unbalanced bracket), 
   and edges by id, by label or as `from>to`. A simulation lists parameters, constants and outputs
   with the canonical closed formula kinds; code aligns its grid and always marks it illustrative.
   Cosmetic text up to twice its limit is shortened at a word boundary; prose keeps its strict limit.
+  A diagram's `layout` and a node's `kind` only change how it looks: any other word is mapped to the
+  default (`flow-lr`, `entity`) instead of refusing the Scroll, and the revision's provenance records
+  it as a check named `authoring-normalisation` with reason codes such as
+  `diagram_layout_defaulted_block_6`. Choices that change meaning stay strict. A formula operand is
+  a number or the key of a parameter, constant or earlier output; a nested formula or an
+  expression is refused at the operand (`blocks[7].outputs[0].formula.denominator`), and the
+  prompt's reference says to name a computed value as an output first.
 - **Citations instead of anchors.** Every non-heading block has `cites`, the handles of the offered
   evidence passages (`e1`, …) it rests on. `deriveBindings` turns them into claim bindings: a `block`
   binding per citation, and for every sentence of any reader-facing text that states a number, an

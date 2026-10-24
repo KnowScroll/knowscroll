@@ -9,6 +9,7 @@ import { z } from './zod.js';
 import {
   Span,
   richText,
+  copiedRuns,
   countWords,
   isGraphemeBoundary,
   isUnitExponent,
@@ -411,6 +412,27 @@ describe('text helpers', () => {
   it('counts whitespace-separated words', () => {
     expect(countWords('')).toBe(0);
     expect(countWords('  one two\nthree  ')).toBe(3);
+  });
+});
+
+describe('copied runs', () => {
+  const source = 'Each lunar month contains two sets of spring tides and two sets of neap tides, as the Moon circles.';
+
+  it('returns the whole stretch that the copy check refuses, in the sources’ own lower-case words', () => {
+    const text = 'Notice that each month has Two sets of spring tides, and two sets of neap tides! Then it ends.';
+    expect(copiedRuns(text, [source], 9)).toEqual(['two sets of spring tides and two sets of neap tides']);
+  });
+
+  it('returns nothing for a run shorter than the limit, and each distinct run once', () => {
+    expect(copiedRuns('Two sets of spring tides and two sets', [source], 9)).toEqual([]);
+    const twice = `${source} A different thought. ${source}`;
+    expect(copiedRuns(twice, [source], 9)).toEqual([source.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '')]);
+  });
+
+  it('finds runs from any source and separates runs that do not touch', () => {
+    const other = 'Sailors count the seconds between flashes to learn which lighthouse they are approaching.';
+    const text = `${other.slice(0, 60)} and then something new, then ${source.slice(0, 66)}.`;
+    expect(copiedRuns(text, [source, other], 9)).toHaveLength(2);
   });
 });
 
