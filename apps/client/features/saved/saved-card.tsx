@@ -46,28 +46,39 @@ export function SavedCard({
       testID="saved-encounter-card"
       style={[styles.card, withdrawn ? styles.withdrawn : null, corrected ? styles.corrected : null]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title}. ${format}. ${line}`}
-        disabled={withdrawn || removing}
-        aria-disabled={withdrawn || removing}
-        onPress={() => onOpen(item.assetRevision)}
-        style={styles.row}
-      >
-        <KeepThumb kind={item.kind} withdrawn={withdrawn} />
-        <View style={styles.copy}>
-          <Tag
-            label={withdrawn ? 'No longer available' : corrected ? 'Updated' : format}
-            variant={corrected ? 'corrected' : 'neutral'}
+      <View style={styles.top}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${title}. ${format}. ${line}`}
+          disabled={withdrawn || removing}
+          aria-disabled={withdrawn || removing}
+          onPress={() => onOpen(item.assetRevision)}
+          style={styles.row}
+        >
+          <KeepThumb kind={item.kind} withdrawn={withdrawn} />
+          <View style={styles.copy}>
+            <Tag
+              label={withdrawn ? 'No longer available' : corrected ? 'Updated' : format}
+              variant={corrected ? 'corrected' : 'neutral'}
+            />
+            <Text variant="ui" numberOfLines={3}>
+              {title}
+            </Text>
+            <Text variant="meta" color={content.ink2}>
+              {line}
+            </Text>
+          </View>
+        </Pressable>
+        {withdrawn ? null : (
+          <IconButton
+            icon="more"
+            label={`More for ${title}`}
+            variant="paper"
+            disabled={removing}
+            onPress={() => setMenuOpen(true)}
           />
-          <Text variant="ui" numberOfLines={3}>
-            {title}
-          </Text>
-          <Text variant="meta" color={content.ink2}>
-            {line}
-          </Text>
-        </View>
-      </Pressable>
+        )}
+      </View>
       {removeOnCard || (corrected && item.currentAssetRevision !== undefined) ? (
         <View style={styles.actions}>
           {corrected && item.currentAssetRevision !== undefined ? (
@@ -90,17 +101,6 @@ export function SavedCard({
           ) : null}
         </View>
       ) : null}
-      {withdrawn ? null : (
-        <View style={styles.more}>
-          <IconButton
-            icon="more"
-            label={`More for ${title}`}
-            variant="paper"
-            disabled={removing}
-            onPress={() => setMenuOpen(true)}
-          />
-        </View>
-      )}
       <BottomSheet visible={menuOpen} title={title} onClose={() => setMenuOpen(false)}>
         <Button
           label="Remove from Keep"
@@ -142,7 +142,6 @@ export function KeptSavedCard({
 
 const styles = StyleSheet.create({
   card: {
-    position: 'relative',
     gap: spacing[2],
     padding: spacing[3],
     borderRadius: radius.lg,
@@ -152,8 +151,15 @@ const styles = StyleSheet.create({
   },
   withdrawn: { borderStyle: 'dashed', backgroundColor: content.paper2 },
   corrected: { borderColor: status.corrected.edge },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], minHeight: 72, cursor: 'pointer' as const },
+  row: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    minHeight: 72,
+    cursor: 'pointer' as const,
+  },
   copy: { flex: 1, gap: spacing['1.5'], alignItems: 'flex-start' },
-  more: { position: 'absolute', top: spacing[2], right: spacing[2] },
+  top: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing[2] },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], justifyContent: 'flex-end' },
 });
