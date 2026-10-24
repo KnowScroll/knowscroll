@@ -33,7 +33,7 @@ export function ScenarioSheet({
     setPicked(undefined);
     onClose();
   };
-  const kind = start?.kind ?? picked;
+  const kind = start === undefined ? undefined : 'offer' in start ? start.offer.kind : (start.kind ?? picked);
   const choosingKind = start !== undefined && kind === undefined;
   return (
     <BottomSheet
@@ -43,11 +43,15 @@ export function ScenarioSheet({
       testID="scenario-sheet"
     >
       {start === undefined ? null : kind === undefined ? (
-        <MessageStep quote={start.quote ?? { authorName: '', preview: '' }} onPick={setPicked} onCancel={close} />
+        <MessageStep
+          quote={'quote' in start && start.quote !== undefined ? start.quote : { authorName: '', preview: '' }}
+          onPick={setPicked}
+          onCancel={close}
+        />
       ) : (
         <SheetBody
-          key={`${kind}:${JSON.stringify(start.origin)}`}
-          start={{ ...start, kind }}
+          key={'offer' in start ? start.offer.draftId : `${kind}:${JSON.stringify(start.origin)}:${start.words ?? ''}`}
+          start={'offer' in start ? start : { ...start, kind }}
           scope={scope}
           thread={thread}
           onClose={close}

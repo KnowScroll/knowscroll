@@ -10,7 +10,7 @@ import {
   type ContentThreadController,
   type ContentThreadState,
 } from '@knowscroll/client-core';
-import type { ContentThreadRef, ReelDocument, ScenarioCard, SendThreadBody } from '@knowscroll/contracts';
+import type { ContentThreadRef, ReelDocument, SendThreadBody } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Skeleton, StateBlock, type ReelPositionHandle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
@@ -19,20 +19,19 @@ import { useAccountScope } from '../../providers/account-scope';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
 import { AsksBar } from '../scenarios/asks-bar';
-import { ScenarioSheet } from '../scenarios/scenario-sheet';
+import { BranchSheets } from '../scenarios/branch-sheets';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
-import { useThreadScenarios } from '../scenarios/use-thread-scenarios';
+import { useThreadBranches } from '../scenarios/use-thread-branches';
 import { EpisodeNavigator } from './episode-navigator';
+import { useOwnPlace } from './own-place';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
 import { ThreadEncounter } from './thread-encounter';
-import { readInThreadHref, snippetHref, threadRefFromParams } from './thread-links';
+import { snippetHref, threadRefFromParams } from './thread-links';
 import { ThreadMessages } from './thread-messages';
 import { useContentThread } from './use-content-thread';
 
 const draftKey = (threadId: string) => `thread.draft.${threadId}`;
-const selectedKey = (threadId: string) => `thread.selected.${threadId}`;
-const foldedKey = (threadId: string) => `thread.folded.${threadId}`;
 
 /** The unsent text of one thread, kept in the account scope's storage so leaving and coming back keeps it. */
 function useDraft(scope: AccountScope, threadId: string) {
@@ -43,27 +42,6 @@ function useDraft(scope: AccountScope, threadId: string) {
     else scope.storage.set(draftKey(threadId), text);
   };
   return [draft, keepDraft] as const;
-}
-
-/**
- * This person's own place in the thread: the episode selected and whether the player is folded. It
- * lives in the account scope's storage on this device. It is never sent, so no one else can learn it.
- */
-function useOwnPlace(scope: AccountScope, threadId: string) {
-  const [selected, setSelected] = useState(() => scope.storage.get(selectedKey(threadId)));
-  const [folded, setFolded] = useState(() => scope.storage.get(foldedKey(threadId)) === '1');
-  return {
-    selected,
-    select: (assetId: string) => {
-      setSelected(assetId);
-      scope.storage.set(selectedKey(threadId), assetId);
-    },
-    folded,
-    setFolded: (next: boolean) => {
-      setFolded(next);
-      scope.storage.set(foldedKey(threadId), next ? '1' : '0');
-    },
-  };
 }
 
 /** What the person sees once the thread is read: episodes, encounter, messages, composer and sheets. */
@@ -108,18 +86,19 @@ function ReadyThread({
   const series = state.sequence === 'series';
   const current = episodes.find((episode) => episode.assetId === place.selected) ?? episodes[0];
   const ownPersonId = state.participants.find((participant) => participant.you)?.person.personId;
-  const scenarios = useThreadScenarios({
-    board: board.controller,
-    rootRevision: state.root?.target.assetRevision,
+  const branches = useThreadBranches({
+    scope,
+    thread,
+    title,
+    state,
+    board,
+    selectedAssetId: place.selected,
     onBranchStarted: () => {
       follow();
       // The new card is below the fold: show it once the branches are read and laid out.
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 150);
     },
   });
-  const openBranch = (card: ScenarioCard) => {
-    if (card.content !== undefined) router.push(readInThreadHref(thread, card.content.assetId, { branch: true }));
-  };
   const rootSummary =
     state.root?.status === 'available' && state.root.target.assetId === current?.assetId
       ? state.root.metadata.summary
@@ -130,6 +109,7 @@ function ReadyThread({
         title={title}
         people={state.participants.map((participant) => participant.person.displayName).join(', ')}
         onBack={onBack}
+        onMap={branches.mapOffered ? branches.map.show : undefined}
         onPeople={() => setPeople(true)}
         onMenu={() => setMenu(true)}
       />
@@ -171,13 +151,13 @@ function ReadyThread({
         onScroll={onScroll}
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
         branches={board.state.cards}
-        onOpenBranch={openBranch}
-        onContinueBranch={scenarios.continueBranch}
-        onRemoveBranch={scenarios.removeBranch}
-        onMessageMenu={scenarios.askFromMessage}
-        onAsk={scenarios.askFromMessage}
+        onOpenBranch={branches.openBranch}
+        onContinueBranch={branches.scenarios.continueBranch}
+        onRemoveBranch={branches.scenarios.removeBranch}
+        onMessageMenu={branches.scenarios.askFromMessage}
+        onAsk={branches.scenarios.askFromMessage}
       />
-      <AsksBar onAsk={scenarios.askFromRoot} />
+      <AsksBar onAsk={branches.scenarios.askFromRoot} />
       <Composer
         name={
           state.participants
@@ -209,12 +189,13 @@ function ReadyThread({
           }}
         />
       )}
-      <ScenarioSheet
-        start={scenarios.start}
+      <BranchSheets
         scope={scope}
         thread={thread}
-        onClose={scenarios.close}
-        onChosen={scenarios.branchStarted}
+        scenarios={branches.scenarios}
+        map={branches.map}
+        suggestions={board.state.suggestions}
+        onOpenEpisode={place.select}
       />
       <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />
       <OptionsSheet

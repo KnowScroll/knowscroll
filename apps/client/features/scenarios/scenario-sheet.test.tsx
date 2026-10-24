@@ -118,6 +118,48 @@ describe('the What if… sheet from a message', () => {
   });
 });
 
+describe('the What if… sheet from the end of a branch', () => {
+  it('asks for directions at once with the words already written, and nothing else is typed', async () => {
+    const { calls } = await open(
+      {
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [option] }),
+      },
+      { start: { ...start, premises: [traffic], words: 'What if the traffic were steady?' } },
+    );
+    expect(await screen.findByText('WE’LL EXPLORE')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Your idea')).toBeNull();
+    expect(calls.map((call) => call.name)).toEqual(['draft', 'readDraft']);
+    expect(calls[0]?.input['text']).toBe('What if the traffic were steady?');
+    expect(calls[0]?.input['kind']).toBe('what_if');
+  });
+});
+
+describe('the What if… sheet from a direction the member was offered', () => {
+  const offer: ScenarioStart = { offer: { draftId: id(7), kind: 'what_if' }, premises: [] };
+
+  it('picks the draft up and shows its options, without asking again', async () => {
+    const { calls } = await open(
+      {
+        readDraft: () => Promise.resolve({ status: 'ready', mode: 'options', options: [option, second] }),
+        choose: () => Promise.resolve({ node: card, reused: false }),
+      },
+      { start: offer },
+    );
+    expect(await screen.findByText('Suggestions. Nothing is made until you choose one.')).toBeOnTheScreen();
+    expect(calls.map((call) => call.name)).toEqual(['readDraft']);
+    expect(calls[0]?.input['draftId']).toBe(id(7));
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Explore this' })[1]!);
+    expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+    expect(calls.at(-1)?.input['selection']).toEqual({ kind: 'suggestion', optionId: 'o2' });
+  });
+
+  it('says plainly when the offer has expired', async () => {
+    await open({ readDraft: () => Promise.resolve({ status: 'unavailable' }) }, { start: offer });
+    expect(await screen.findByText(/This isn’t available any more\./)).toBeOnTheScreen();
+  });
+});
+
 describe('the What if… sheet', () => {
   it('starts from where the request began, keeps the member’s words, and asks nothing until Continue', async () => {
     const { calls, stored } = await open({});

@@ -42,10 +42,38 @@ export function saveMapPreferences(storage: ScopedStorage, threadId: string, pre
 export const mapOffered = (cards: readonly ScenarioCard[]): boolean =>
   cards.filter((card) => card.status !== 'removed').length >= 2;
 
-/** Where the member is, as they left it: in the original sequence at an episode, or inside a branch. */
-export type MapHere =
-  | { readonly kind: 'original'; readonly assetId: string | undefined }
-  | { readonly kind: 'branch'; readonly nodeId: string };
+/** Where the member is, as they left it: in the original sequence (at the episode they selected), or inside a branch. */
+export type MapHere = { readonly kind: 'original' } | { readonly kind: 'branch'; readonly nodeId: string };
+
+const hereKey = (threadId: string) => `thread.here.${threadId}`;
+
+/** The branch the member last opened and has not come back from, kept on this device; otherwise they are in the original. */
+export function loadHere(storage: ScopedStorage, threadId: string): MapHere {
+  const nodeId = storage.get(hereKey(threadId));
+  return nodeId === undefined || nodeId === '' ? { kind: 'original' } : { kind: 'branch', nodeId };
+}
+
+export function saveHere(storage: ScopedStorage, threadId: string, here: MapHere): void {
+  if (here.kind === 'original') storage.remove(hereKey(threadId));
+  else storage.set(hereKey(threadId), here.nodeId);
+}
+
+/**
+ * Where the way back from a branch leads, in words (X03): the original sequence at the member's own place. It
+ * names the part they had selected when the thread is a series, and the thread itself otherwise. The chip always
+ * says where it goes; `spoken` is what a screen reader reads.
+ */
+export function returnTarget(
+  threadTitle: string,
+  episodes: readonly ThreadEpisode[],
+  selectedAssetId: string | undefined,
+): { readonly label: string; readonly spoken: string } {
+  const place =
+    episodes.length > 1 ? (episodes.find((episode) => episode.assetId === selectedAssetId) ?? episodes[0]) : undefined;
+  if (place?.part === undefined) return { label: threadTitle, spoken: `Back to ${threadTitle}` };
+  const part = `Part ${String(place.part)}`;
+  return { label: part, spoken: `Back to ${threadTitle}, ${part}` };
+}
 
 /** Branches shown under one parent before the rest fold into "More from … Show". */
 export const GROUP_LIMIT = 3;

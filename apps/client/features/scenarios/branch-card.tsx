@@ -16,6 +16,12 @@ function Chip({ prefix, assumption }: { readonly prefix: 'Changed' | 'Kept'; rea
   );
 }
 
+/**
+ * What a branch the Planner flagged says of its premise. It is the premise's own text, not a second status
+ * label: the only status labels are Hypothetical and Corrected (D-006 a).
+ */
+export const SPECULATIVE_NOTICE = 'Speculative scenario · not established science';
+
 /** The card's accessible name: the kind and its status in words, then the title (X02, accessibility). */
 export function branchLabel(card: ScenarioCard): string {
   const kind = card.hypothetical ? `${kindWord(card)}, hypothetical` : kindWord(card);
@@ -99,6 +105,11 @@ export function BranchCard({
           ))}
         </View>
       )}
+      {card.speculative ? (
+        <Text variant="uiS" color={status.hypothetical.foreground}>
+          {SPECULATIVE_NOTICE}
+        </Text>
+      ) : null}
       <Text variant="meta" color={content.ink2}>
         {asker} · {startedLine}
       </Text>

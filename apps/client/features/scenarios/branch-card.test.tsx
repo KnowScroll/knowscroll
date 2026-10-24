@@ -111,4 +111,16 @@ describe('a branch card', () => {
     expect(screen.queryByText('Explore this')).toBeNull();
     expect(branchLabel(card({ status: 'removed' }))).toContain('removed');
   });
+
+  it('says a speculative premise in words, not as a second label beside Hypothetical', async () => {
+    await show(card({ speculative: true }));
+    expect(screen.getByText('Speculative scenario · not established science')).toBeOnTheScreen();
+    expect(screen.getByText('Hypothetical')).toBeOnTheScreen();
+    expect(screen.queryByText('Speculative')).toBeNull();
+  });
+
+  it('says nothing of speculation for an ordinary what-if', async () => {
+    await show(card());
+    expect(screen.queryByText(/not established science/)).toBeNull();
+  });
 });

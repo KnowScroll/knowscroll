@@ -3,6 +3,7 @@ import type { ScenarioOption } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { AssumptionChips } from './assumption-chips';
+import { SPECULATIVE_NOTICE } from './branch-card';
 import { sheetStyles } from './sheet-styles';
 
 const SHARED_NOTE = 'Everyone in this thread will see the branch. Each of you opens it at your own pace.';
@@ -105,7 +106,7 @@ export function ConfirmStep({
   return (
     <View style={sheetStyles.step}>
       <View style={styles.notice} role="note">
-        <Text variant="uiS">Speculative scenario · not established science</Text>
+        <Text variant="uiS">{SPECULATIVE_NOTICE}</Text>
         <Text variant="bodyS">
           A quick check first. The branch will say that this is an idea, not something that is known, and will compare
           it with what is established.

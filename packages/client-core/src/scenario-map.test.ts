@@ -5,8 +5,11 @@ import {
   DEFAULT_MAP_PREFERENCES,
   GROUP_LIMIT,
   buildMap,
+  loadHere,
   loadMapPreferences,
   mapOffered,
+  returnTarget,
+  saveHere,
   saveMapPreferences,
   type MapPreferences,
   type MapRow,
@@ -67,7 +70,7 @@ const view = (
     cards,
     suggestions,
     ownPersonId: me,
-    here: { kind: 'original', assetId: undefined },
+    here: { kind: 'original' },
     selectedAssetId: id(2),
     preferences: DEFAULT_MAP_PREFERENCES,
     query: '',
@@ -227,11 +230,38 @@ describe('what the map keeps on this device', () => {
     expect(loadMapPreferences(storage, 'thread-b')).toEqual(DEFAULT_MAP_PREFERENCES);
   });
 
+  it('remembers which branch the member is in until they come back, and says original otherwise', () => {
+    const { storage } = store();
+    expect(loadHere(storage, 't')).toEqual({ kind: 'original' });
+    saveHere(storage, 't', { kind: 'branch', nodeId: id(101) });
+    expect(loadHere(storage, 't')).toEqual({ kind: 'branch', nodeId: id(101) });
+    expect(loadHere(storage, 'other')).toEqual({ kind: 'original' });
+    saveHere(storage, 't', { kind: 'original' });
+    expect(loadHere(storage, 't')).toEqual({ kind: 'original' });
+  });
+
   it('starts over from anything it cannot read', () => {
     const { storage, values } = store();
     values.set('thread.map.t', '{nope');
     expect(loadMapPreferences(storage, 't')).toEqual(DEFAULT_MAP_PREFERENCES);
     values.set('thread.map.t', JSON.stringify({ filter: 'weird', expanded: [1, 'ok', null] }));
     expect(loadMapPreferences(storage, 't')).toEqual({ filter: 'everyone', expanded: ['ok'] });
+  });
+});
+
+describe('the way back from a branch', () => {
+  it('names the part the member had selected, and says where it goes', () => {
+    expect(returnTarget('Black holes', episodes, id(3))).toEqual({
+      label: 'Part 3',
+      spoken: 'Back to Black holes, Part 3',
+    });
+  });
+
+  it('falls back to the first part when the selection is gone, and to the thread when it has no parts', () => {
+    expect(returnTarget('Black holes', episodes, 'gone')).toMatchObject({ label: 'Part 1' });
+    expect(returnTarget('Black holes', episodes.slice(0, 1), undefined)).toEqual({
+      label: 'Black holes',
+      spoken: 'Back to Black holes',
+    });
   });
 });

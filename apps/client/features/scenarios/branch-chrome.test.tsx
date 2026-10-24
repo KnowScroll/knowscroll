@@ -1,0 +1,54 @@
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { DisplayProvider } from '@knowscroll/ui';
+import { BranchNavigator, SpeculativeBanner, TryAnotherPrompt, branchSubtitle } from './branch-chrome';
+
+const wrap = (node: React.ReactNode) => (
+  <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>{node}</DisplayProvider>
+);
+
+describe('the branch navigator', () => {
+  it('names where the way back goes, and shows the branch as its one current item', async () => {
+    const onReturn = jest.fn();
+    await render(
+      wrap(<BranchNavigator returnLabel="Part 2" returnSpoken="Back to Black holes, Part 2" onReturn={onReturn} />),
+    );
+    expect(screen.getByText('Part 2')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Item 1, current')).toBeOnTheScreen();
+    expect(screen.queryByText(/2 ·/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Black holes, Part 2' }));
+    expect(onReturn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the speculative banner', () => {
+  it('says it in words as the premise’s own text, with no second status label', async () => {
+    await render(wrap(<SpeculativeBanner />));
+    expect(screen.getByText('Speculative scenario · not established science')).toBeOnTheScreen();
+    expect(screen.queryByText('Speculative')).toBeNull();
+  });
+});
+
+describe('the line under a branch’s thread title', () => {
+  it('names the kind and the idea', () => {
+    expect(branchSubtitle({ kind: 'what_if', title: 'a black hole were a portal' })).toBe(
+      'What if · a black hole were a portal',
+    );
+    expect(branchSubtitle({ kind: 'perspective', title: 'The physicist’s view' })).toBe(
+      'Another perspective · The physicist’s view',
+    );
+  });
+});
+
+describe('trying another assumption', () => {
+  it('offers Continue only for words, hands them over trimmed, and can be put away', async () => {
+    const onContinue = jest.fn();
+    const onDismiss = jest.fn();
+    await render(wrap(<TryAnotherPrompt onContinue={onContinue} onDismiss={onDismiss} />));
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+    await fireEvent.changeText(screen.getByLabelText('Try another assumption'), '  What if it spun faster?  ');
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledWith('What if it spun faster?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Not now' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+});

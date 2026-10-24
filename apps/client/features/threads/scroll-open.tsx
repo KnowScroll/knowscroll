@@ -101,6 +101,7 @@ export function ThreadScrollArticle({
   anchorBlockId,
   afterHeader,
   floating,
+  chrome = 'floating',
 }: {
   readonly scope: AccountScope;
   readonly scroll: OpenedScroll;
@@ -109,6 +110,11 @@ export function ThreadScrollArticle({
   readonly afterHeader?: ReactNode;
   /** Controls drawn over the article, top right. */
   readonly floating?: ReactNode;
+  /**
+   * `floating`: a Back button over the article's top-left, which the article leaves room for. `own`: the screen
+   * draws its own header above the article (a branch has a return chip), so there is no button and no room reserved.
+   */
+  readonly chrome?: 'floating' | 'own';
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -130,28 +136,33 @@ export function ThreadScrollArticle({
     recorder.start();
     return () => recorder.end();
   }, [recorder]);
-  const own = useMemo(() => createScopedBlockStateStore(scope.storage), [scope]);
+  const own = chrome === 'own';
+  const ownStore = useMemo(() => createScopedBlockStateStore(scope.storage), [scope]);
   return (
     <View style={styles.article}>
       <ScrollArticle
         document={scroll.document}
-        store={store ?? own}
+        store={store ?? ownStore}
         observer={recorder.observer}
         anchorBlockId={anchorBlockId}
         afterHeader={afterHeader}
         testID="scroll-article"
-        contentInset={{ top: insets.top + 72, bottom: spacing[24] + insets.bottom }}
-        readingInset={{ top: insets.top + 72, bottom: insets.bottom }}
+        contentInset={{ top: own ? spacing[3] : insets.top + 72, bottom: spacing[24] + insets.bottom }}
+        readingInset={{ top: own ? 0 : insets.top + 72, bottom: insets.bottom }}
       />
-      <View style={[styles.floating, { top: insets.top + spacing[3] }]} pointerEvents="box-none">
-        <IconButton
-          icon="back"
-          label="Back to thread"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/conversations'))}
-        />
-        <View style={styles.grow} />
-        {floating}
-      </View>
+      {own && floating === undefined ? null : (
+        <View style={[styles.floating, { top: own ? spacing[3] : insets.top + spacing[3] }]} pointerEvents="box-none">
+          {own ? null : (
+            <IconButton
+              icon="back"
+              label="Back to thread"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/conversations'))}
+            />
+          )}
+          <View style={styles.grow} />
+          {floating}
+        </View>
+      )}
     </View>
   );
 }

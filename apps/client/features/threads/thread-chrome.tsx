@@ -19,6 +19,7 @@ export function ThreadHeader({
   title,
   people,
   onBack,
+  onMap,
   onPeople,
   onMenu,
 }: {
@@ -26,6 +27,8 @@ export function ThreadHeader({
   /** Names of the participants, for the line under the title. */
   readonly people: string | undefined;
   readonly onBack: () => void;
+  /** Offered only once the thread has several branches (X04); never for a first exploration. */
+  readonly onMap?: (() => void) | undefined;
   readonly onPeople: (() => void) | undefined;
   readonly onMenu: (() => void) | undefined;
 }) {
@@ -42,6 +45,9 @@ export function ThreadHeader({
           </Text>
         )}
       </View>
+      {onMap === undefined ? null : (
+        <Button label="Map" size="sm" variant="ghost" icon="hypothetical" onPress={onMap} testID="thread-map-button" />
+      )}
       {onPeople === undefined ? null : <IconButton icon="person" label="People in this thread" onPress={onPeople} />}
       {onMenu === undefined ? null : <IconButton icon="more" label="Thread options" onPress={onMenu} />}
     </View>
