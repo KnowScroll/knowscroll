@@ -1,7 +1,6 @@
 import type * as React from 'react';
 import type * as Ui from '@knowscroll/ui';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import * as Clipboard from 'expo-clipboard';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AppState } from 'react-native';
 import { DisplayProvider } from '@knowscroll/ui';
@@ -17,6 +16,10 @@ jest.mock('../../platform/command-id', () => {
   return { newCommandId: () => `0199a000-0000-7000-8000-${String(++next).padStart(12, '0')}` };
 });
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }));
+let mockScope: unknown;
+jest.mock('../../providers/account-scope', () => ({
+  useAccountScope: () => ({ state: { status: 'signed_in', scope: mockScope }, manager: { refresh: jest.fn() } }),
+}));
 jest.mock('../../platform/api', () => ({
   appApiOrigin: () => ({ ok: true, baseUrl: 'https://fixture.encounter.test' }),
 }));
@@ -59,6 +62,7 @@ async function openExplore(setup?: (h: ReturnType<typeof harness>) => void) {
       </QueryClientProvider>
     </DisplayProvider>,
   );
+  mockScope = h.scope;
   await screen.findByRole('button', { name: 'More options' });
   // The screen drives the scope's own session; the harness only supplies the scope and the HTTP fixture.
   return { h: { ...h, session: encounterSessionFor(h.scope) }, app };
@@ -148,17 +152,16 @@ describe('Explore Reel as drawn in E01', () => {
 });
 
 describe('Explore sheets', () => {
-  it('Share offers the address of the encounter and copies it, with no friends or conversations invented', async () => {
+  it('Share opens the sharing sheet over the encounter and closes back to it', async () => {
     const { h, app } = await openExplore();
     try {
       await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
-      expect(await screen.findByText('Copy link')).toBeOnTheScreen();
-      expect(screen.queryByText(/friend|conversation/i)).toBeNull();
-      await fireEvent.press(screen.getByRole('button', { name: 'Copy link' }));
-      await waitFor(() => expect(screen.getByText('Link copied')).toBeOnTheScreen());
-      expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-        `https://fixture.encounter.test/reel/${h.session.getState().entry!.offer.assetId}`,
-      );
+      expect(await screen.findByRole('button', { name: 'Send to a conversation' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Copy link' })).toBeOnTheScreen();
+      expect(h.session.getState().overlayOwner).toBe('share');
+      await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+      expect(h.session.getState().overlay).toBe(false);
+      expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull();
     } finally {
       await app.unmount();
       h.scope.end();
