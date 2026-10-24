@@ -59,6 +59,33 @@ describe('Saved immutable revision choices', () => {
     expect(remove).toHaveBeenCalledTimes(1);
     expect(open).not.toHaveBeenCalled();
   });
+  it('keeps Remove in the more menu on an available card, and asks nothing more before the grace starts', async () => {
+    const remove = jest.fn();
+    await card(available, jest.fn(), remove);
+    expect(screen.queryByRole('button', { name: 'Remove from Keep' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'More for Corrected CI fixture' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove from Keep' }));
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+  it('says Removing… on a normal card while its removal is in flight, and the menu cannot be opened again', async () => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <SavedCard item={available} failed={false} removing onOpen={jest.fn()} onRemove={jest.fn()} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('Removing…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'More for Corrected CI fixture' })).toBeDisabled();
+  });
+  it('shows Retry removal on the card itself after a failed removal', async () => {
+    const remove = jest.fn();
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <SavedCard item={available} failed removing={false} onOpen={jest.fn()} onRemove={remove} />
+      </DisplayProvider>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry removal' }));
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
   it('does not display a replacement membership B playhead for paged card A', async () => {
     await card(available, jest.fn(), jest.fn(), {
       status: 'ready',

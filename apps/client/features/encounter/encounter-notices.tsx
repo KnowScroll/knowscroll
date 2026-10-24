@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderStyle as borderStyleTokens, borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { unavailableCopy } from '../requests/request-copy';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
@@ -21,6 +22,7 @@ const FORMAT_WORD = { reel: 'Reel', scroll: 'Scroll' } as const;
  */
 function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; readonly session: EncounterSession }) {
   const state = useSyncExternalStore(session.requests.subscribe, session.requests.getState, session.requests.getState);
+  const { preferences } = useDevicePreferences();
   if (
     state.source?.exposureId !== entry.exposureId ||
     state.phase === 'draft' ||
@@ -31,7 +33,8 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
   const what = state.mode === 'topic' ? 'request' : FORMAT_WORD[state.mode];
   const dismissed = state.receipt !== undefined && state.dismissedRequestId === state.receipt.requestId;
   if (state.status?.status === 'ready') {
-    if (dismissed) return null;
+    // Notifications > Ready requests: off, the notice stays away; the request is still in Keep.
+    if (dismissed || !preferences.readyNotices) return null;
     return (
       <View role="status" style={styles.ready}>
         <View style={styles.readyBadge}>

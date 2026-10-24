@@ -652,6 +652,13 @@ On dev, one test account that read every 15 s started 229 Cartographer runs in f
 - **Captions cannot follow narration in the client.** A Reel document carries `captions: "burned_in"` and nothing else: no caption track, transcript or timing. The client draws no captions, no CC toggle and no transcript sheet (E01 paused, E09 history and football Reels); the words on screen are in the video's pixels. A track needs a contract change on the Cutroom document and the media grant. E09's narration styling, kinetic captions and illustrated scenes are content the asset brings, not screen chrome.
 - **Corrected notes on an encounter** (E01, E05) need a correction field on the exposure context; threads and share links already carry one. Not built.
 
+## D-057 · 2026-10-24 · Account settings kept on the device; recording as a switch (#250, fidelity round 2)
+
+- **Device preferences, not account settings.** Notifications and Accessibility & playback (P01) are choices about how this device looks, moves and plays: motion (follow the system or always reduce), text size (system, larger, largest), Reels open with sound, and the "Ready" notice over an encounter. They are stored in the platform's own storage (`SecureStore` on native, `localStorage` on the web) under one key, read once at the root above the account scope, and survive signing out, switching account and a privacy clear. They hold no account data, so no scope purges them and nothing is sent to the server. A damaged or unknown value falls back to its default.
+- **Never more motion than the system asks.** "Follow my device" is the default; the person's choice can only reduce motion further, and text size multiplies the system's size.
+- **Only settings with behaviour.** No push, streak or "you missed" setting exists because no such message exists. Captions and transcript stay with the player's own Text version toggle; there is no second preference for them.
+- **Recording is a switch.** The same two commands as before (`set(false)`, `set(true)`), now one switch row plus the paused card with its Resume button. The page still shows no state it has not read back.
+
 ## D-058 · 2026-10-24 · Background roles keep to a share of the model budgets, and Jev reuses its assessments (#231)
 
 This amends D-034: "one call per key" becomes at most one call per subject per ten minutes, and "stored Jev assessments live in the buffer row" becomes "they live in the person's pool", while the buffer row still carries the ones that informed its ranking. The rest of D-034 stands.
