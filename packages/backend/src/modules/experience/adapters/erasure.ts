@@ -1,6 +1,7 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import { exportReading, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
+import { exportReading } from '../../../infrastructure/erasure/registry.js';
 import { experienceExportRead } from './export.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 const tables = [
@@ -23,7 +24,9 @@ const tables = [
   'actions',
   'exposures',
 ] as const;
-export const experienceErasure: ModuleErasure = {
+/** Saved items and places are the person's own library, so selective Clear keeps them. */
+const keptByClear: readonly string[] = ['saved_items', 'saved_places'];
+export const experienceErasure = declareErasure({
   module: 'experience',
   tables: tables.map((table) => ({ schema: 'experience', table, ownerColumn: 'universe_id' })),
   nonRowStores: [],
@@ -38,32 +41,26 @@ export const experienceErasure: ModuleErasure = {
     }
     return { module: 'experience', status: 'completed', removed };
   },
-};
-
-experienceErasure.clearExploration = {
-  dispositions: Object.fromEntries([
-    ...experienceErasure.tables.map((t) => [
-      `${t.schema}.${t.table}`,
-      t.table === 'saved_items' || t.table === 'saved_places' ? 'preserve' : 'erase',
-    ]),
-    ...experienceErasure.nonRowStores.map((s) => [`store:${s.name}`, 'erase']),
-  ]) as Record<string, 'erase' | 'preserve'>,
-  async erase(scope) {
-    let removed = 0;
-    for (const table of tables.filter((t) => t !== 'saved_items' && t !== 'saved_places')) {
-      const result =
-        await sql`delete from ${sql.table(`experience.${table}`)} where universe_id=${scope.binding.universeId}::uuid`.execute(
-          clearCoreTransactionOf(scope),
-        );
-      removed += Number(result.numAffectedRows ?? 0);
-    }
-    return { module: 'experience', status: 'completed', removed };
+  clear: {
+    defaultDisposition: 'erase',
+    dispositions: Object.fromEntries(keptByClear.map((table) => [`experience.${table}`, 'preserve'])),
+    async erase(scope) {
+      let removed = 0;
+      for (const table of tables.filter((candidate) => !keptByClear.includes(candidate))) {
+        const result =
+          await sql`delete from ${sql.table(`experience.${table}`)} where universe_id=${scope.binding.universeId}::uuid`.execute(
+            clearCoreTransactionOf(scope),
+          );
+        removed += Number(result.numAffectedRows ?? 0);
+      }
+      return { module: 'experience', status: 'completed', removed };
+    },
   },
-};
-
-experienceErasure.export = exportReading(
-  experienceErasure,
-  ['experience.saved_items', 'experience.saved_places', 'experience.exposures', 'experience.actions'],
-  'Navigation, offers, recorder certificates and activity inputs are internal bookkeeping behind the encounters and reactions listed; suggestions are not activity.',
-  experienceExportRead,
-);
+  export: (declaration) =>
+    exportReading(
+      declaration,
+      ['experience.saved_items', 'experience.saved_places', 'experience.exposures', 'experience.actions'],
+      'Navigation, offers, recorder certificates and activity inputs are internal bookkeeping behind the encounters and reactions listed; suggestions are not activity.',
+      experienceExportRead,
+    ),
+});

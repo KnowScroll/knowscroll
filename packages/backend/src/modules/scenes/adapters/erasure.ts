@@ -1,11 +1,12 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
+import { exportNothing } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { projectSceneQueue, expireFormationQueue, recoverFormationQueue } from '../events.js';
 const tables = ['formation_presentations', 'manifests', 'chunks', 'objects', 'state'] as const;
-export const scenesErasure: ModuleErasure = {
+export const scenesErasure = declareErasure({
   module: 'scenes',
   tables: tables.map((table) => ({ schema: 'scenes', table, ownerColumn: 'universe_id' })),
   nonRowStores: [
@@ -36,31 +37,23 @@ export const scenesErasure: ModuleErasure = {
     removed += await deleteJobPayloads(scope, [projectSceneQueue.name, expireFormationQueue.name]);
     return { module: 'scenes', status: 'completed', removed };
   },
-};
-
-scenesErasure.clearExploration = {
-  dispositions: Object.fromEntries([
-    ...scenesErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'erase']),
-    ...scenesErasure.nonRowStores.map((s) => [
-      `store:${s.name}`,
-      s.name === `pgboss/${recoverFormationQueue.name}` ? 'preserve' : 'erase',
-    ]),
-  ]) as Record<string, 'erase' | 'preserve'>,
-  async erase(scope) {
-    let removed = 0;
-    for (const table of tables) {
-      const r =
-        await sql`delete from ${sql.table(`scenes.${table}`)} where universe_id=${scope.binding.universeId}::uuid`.execute(
-          clearCoreTransactionOf(scope),
-        );
-      removed += Number(r.numAffectedRows ?? 0);
-    }
-    removed += await deleteClearJobPayloads(scope, [projectSceneQueue.name, expireFormationQueue.name]);
-    return { module: 'scenes', status: 'completed', removed };
+  clear: {
+    defaultDisposition: 'erase',
+    // The recovery cursor is global maintenance state with no personal link.
+    dispositions: { [`store:pgboss/${recoverFormationQueue.name}`]: 'preserve' },
+    async erase(scope) {
+      let removed = 0;
+      for (const table of tables) {
+        const r =
+          await sql`delete from ${sql.table(`scenes.${table}`)} where universe_id=${scope.binding.universeId}::uuid`.execute(
+            clearCoreTransactionOf(scope),
+          );
+        removed += Number(r.numAffectedRows ?? 0);
+      }
+      removed += await deleteClearJobPayloads(scope, [projectSceneQueue.name, expireFormationQueue.name]);
+      return { module: 'scenes', status: 'completed', removed };
+    },
   },
-};
-
-scenesErasure.export = exportNothing(
-  scenesErasure,
-  'A rendering cache of the universe structure listed under geography.',
-);
+  export: (declaration) =>
+    exportNothing(declaration, 'A rendering cache of the universe structure listed under geography.'),
+});
