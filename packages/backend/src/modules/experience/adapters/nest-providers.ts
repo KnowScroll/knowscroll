@@ -13,6 +13,8 @@ import {
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
   RENDER_SCROLL,
+  CHECK_ASSET_AUDIENCE,
+  type CheckAssetAudience,
   type FindAssetForAction,
   type FindOpenableAsset,
   type RenderScroll,
@@ -39,6 +41,7 @@ import {
 } from '../../../infrastructure/receipts/index.js';
 import { makeActivateExposure } from '../application/activate-exposure.js';
 import { makeApplyAction } from '../application/apply-action.js';
+import { gateFindAsset, gateSavedMetadata, holdsOne } from './audience-gate.js';
 import { hydratedSaved } from './saved-store.js';
 import { makeApplyEncounterAction } from '../application/encounter-action.js';
 import { makeCommitAction, makeRecordLegacyAction, makeEnqueueActionEvidence, readChannels } from './action-store.js';
@@ -99,7 +102,7 @@ export interface ExperienceDependencyTokens {
 /**
  * Reusable outer wiring (blueprint §22): Nest factory providers that build experience's commands
  * and queries from concrete adapters. Needs content's providers (`FIND_ASSET_FOR_ACTION`,
- * `FIND_OPENABLE_ASSET`, `RENDER_SCROLL`) in the same composition root. Only the apps' composition
+ * `FIND_OPENABLE_ASSET`, `RENDER_SCROLL`, `CHECK_ASSET_AUDIENCE`) in the same composition root. Only the apps' composition
  * roots import this file.
  */
 export function experienceProviders(
@@ -115,6 +118,7 @@ export function experienceProviders(
         READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         FIND_ASSET_FOR_ACTION,
+        CHECK_ASSET_AUDIENCE,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
       ],
       useFactory: (
@@ -123,11 +127,12 @@ export function experienceProviders(
         lifecycle: ReadRecordingLifecycle,
         enqueue: EnqueueJob,
         findAsset: FindAssetForAction,
+        audience: CheckAssetAudience,
         effects?: ExperienceRecordingEffects,
       ) =>
         makeApplyEncounterAction({
           ...commandPorts(withExperienceScope(withScope, fenceOwn), lifecycle),
-          findAsset,
+          findAsset: gateFindAsset(findAsset, audience),
           readExposure: readExposureForEvidence,
           readChannels,
           commitAction: makeCommitAction(
@@ -147,6 +152,7 @@ export function experienceProviders(
         READ_RECORDING_LIFECYCLE,
         tokens.enqueueJob,
         FIND_ASSET_FOR_ACTION,
+        CHECK_ASSET_AUDIENCE,
         ...(options.recordingEffects ? [options.recordingEffects] : []),
       ],
       useFactory: (
@@ -155,6 +161,7 @@ export function experienceProviders(
         lifecycle: ReadRecordingLifecycle,
         enqueueJob: EnqueueJob,
         findAsset: FindAssetForAction,
+        audience: CheckAssetAudience,
         effects?: ExperienceRecordingEffects,
       ) =>
         makeApplyAction({
@@ -163,7 +170,7 @@ export function experienceProviders(
           findReceipt: findPersonalReceipt,
           insertReceipt: insertPersonalReceipt,
           completeReceipt: (scope, commandId, outcome) => completePersonalReceipt(scope, commandId, outcome),
-          findAsset,
+          findAsset: gateFindAsset(findAsset, audience),
           readSavedReference: async (scope, id) => {
             const s = await readChannels(scope, id);
             return s.savedRevision === undefined ? undefined : { assetRevision: s.savedRevision };
@@ -184,21 +191,30 @@ export function experienceProviders(
     },
     {
       provide: LIST_SAVED,
-      inject: [tokens.withPersonalScope, READ_SAVED_METADATA],
-      useFactory: (withScope: WithPersonalScope, metadata: ReadSavedMetadata) => hydratedSaved(withScope, metadata),
+      inject: [tokens.withPersonalScope, READ_SAVED_METADATA, CHECK_ASSET_AUDIENCE],
+      useFactory: (withScope: WithPersonalScope, metadata: ReadSavedMetadata, audience: CheckAssetAudience) =>
+        hydratedSaved(withScope, gateSavedMetadata(metadata, audience)),
     },
     {
       provide: OPEN_EXPOSURE,
-      inject: [tokens.withPersonalScope, FENCE_OWN_ACCOUNT, READ_RECORDING_LIFECYCLE, FIND_OPENABLE_ASSET],
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
+        FIND_OPENABLE_ASSET,
+        CHECK_ASSET_AUDIENCE,
+      ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
         lifecycle: ReadRecordingLifecycle,
         findOpenableAsset: FindOpenableAsset,
+        audience: CheckAssetAudience,
       ) =>
         makeOpenExposure({
           ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
           findOpenableAsset,
+          audienceHolds: holdsOne(audience),
           insertExposure,
         }),
     },
@@ -247,9 +263,13 @@ export function experienceProviders(
     },
     {
       provide: READ_EXPOSURE_DOCUMENT,
-      inject: [tokens.database, RENDER_SCROLL],
-      useFactory: (db: Kysely<Database>, renderScroll: RenderScroll) =>
-        makeReadExposureDocument({ readExposure: makeReadExposureForDocument(db), renderScroll }),
+      inject: [tokens.database, RENDER_SCROLL, CHECK_ASSET_AUDIENCE],
+      useFactory: (db: Kysely<Database>, renderScroll: RenderScroll, audience: CheckAssetAudience) =>
+        makeReadExposureDocument({
+          readExposure: makeReadExposureForDocument(db),
+          renderScroll,
+          audienceHolds: holdsOne(audience),
+        }),
     },
   ];
 }

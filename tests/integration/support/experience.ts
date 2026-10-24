@@ -3,9 +3,11 @@ import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest
 import type { PgBoss } from 'pg-boss';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { CHECK_ASSET_AUDIENCE } from '@knowscroll/backend/modules/content';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import type { ApplyAction, ListSaved } from '@knowscroll/backend/modules/experience';
 import { APPLY_ACTION, LIST_SAVED, experienceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
+import { openToEveryone } from './audience.js';
 import type { TestDatabase } from './database.js';
 import { buildFromProviders } from './providers.js';
 import { scrollUseCases } from './scroll.js';
@@ -44,6 +46,7 @@ export async function experienceUseCases(
     [FENCE_OWN_ACCOUNT, identity.fenceOwnAccount],
     [READ_RECORDING_LIFECYCLE, identity.readRecordingLifecycle],
     [DATABASE_TOKEN, database.db],
+    [CHECK_ASSET_AUDIENCE, openToEveryone],
     [SCOPE_TOKEN, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
     [ENQUEUE_TOKEN, options.wrapEnqueue === undefined ? enqueue : options.wrapEnqueue(enqueue)],
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),

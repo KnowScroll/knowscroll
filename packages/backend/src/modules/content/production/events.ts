@@ -3,8 +3,9 @@ import { defineQueue } from '../../../infrastructure/jobs/queues.js';
 import { MAX_TAKES_PER_RECIPE, SCROLL_PRODUCTION_VERSION } from './topics.js';
 
 /**
- * One request to produce the Scroll of a library recipe. IDs only: the recipe key names code-owned
- * data, so no brief, research or person is in the payload. `policyVersion` is the recipe version the
+ * One request to produce the Scroll of a library recipe, or of an order placed from code (`order-…`).
+ * IDs only: the recipe key names code-owned or stored data, so no brief, research or person is in
+ * the payload. `policyVersion` is the recipe version the
  * sender knew; a worker running another version drops the job instead of producing under it. `take`
  * says which attempt at the recipe this is: 1, or the next after every earlier one was rejected.
  */
@@ -27,7 +28,7 @@ export type ProduceScrollJob = z.infer<typeof ProduceScrollJobSchema>;
  */
 export const produceScrollQueue = defineQueue({
   name: 'content.produce-scroll',
-  purpose: 'Produce the Scroll of one library recipe through research, the writer and publication.',
+  purpose: 'Produce the Scroll of one library recipe or order through research, the writer and publication.',
   payload: ProduceScrollJobSchema,
   policy: {
     expireInSeconds: 900,

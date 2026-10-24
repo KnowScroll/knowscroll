@@ -1,10 +1,12 @@
-import { parseScrollTopic, SCROLL_PRODUCTION_VERSION, type ScrollTopic } from './topics.js';
+import { parseScrollTopic, SCROLL_PRODUCTION_VERSION } from './topics.js';
+import { isMadeToOrderKey } from '../domain/order-key.js';
+import type { ProductionKey } from './subject.js';
 import type { ProduceScrollJob } from './events.js';
 import type { ProduceScrollResult } from './types.js';
 
 /** The production use case one job runs: `makeProduceScroll`'s function, injected by composition. */
 export type ProduceScroll = (
-  recipe: ScrollTopic,
+  recipe: ProductionKey,
   dryRun: boolean,
   signal: AbortSignal,
   resume?: boolean,
@@ -22,7 +24,7 @@ export type ScrollProductionJobOutcome =
   | { readonly kind: 'finished'; readonly result: ProduceScrollResult };
 
 /**
- * Runs the production of one library recipe for a queue delivery (blueprint §11, §15: the delivery
+ * Runs the production of one library recipe, or of one Scroll ordered from code, for a queue delivery (blueprint §11, §15: the delivery
  * is not the business run, which is the recipe's job row, and not the attempt, which the writer's
  * ledger holds). Every delivery continues the same job row and writer run, so a redelivery after a
  * crash or a lost claim never starts over and never resends an attempt whose outcome is unknown.
@@ -43,9 +45,10 @@ export function makeRunScrollProduction(produce: ProduceScroll) {
     delivery: { readonly signal: AbortSignal },
   ): Promise<ScrollProductionJobOutcome> {
     if (job.policyVersion !== SCROLL_PRODUCTION_VERSION) return { kind: 'skipped', reason: 'policy_version' };
-    const recipe = parseScrollTopic(job.recipe);
+    const recipe = parseScrollTopic(job.recipe) ?? (isMadeToOrderKey(job.recipe) ? job.recipe : undefined);
     if (recipe === undefined) return { kind: 'skipped', reason: 'unknown_recipe' };
     const result = await produce(recipe, false, delivery.signal, true, job.take);
+    if (result.outcome === 'unknown_recipe') return { kind: 'skipped', reason: 'unknown_recipe' };
     if (result.outcome === 'scope_refused') throw new Error('SCROLL_PRODUCTION_SCOPE_REFUSED');
     if (result.outcome === 'in_progress') throw new Error('SCROLL_PRODUCTION_IN_PROGRESS');
     if (result.outcome === 'retry_later') throw new Error('SCROLL_PRODUCTION_RESEARCH_UNAVAILABLE');

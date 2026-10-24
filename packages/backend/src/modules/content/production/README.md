@@ -158,6 +158,21 @@ separately named reasoning attestation read before any such capability can exist
 CI uses explicitly labelled transport identity stand-ins for positives and fault injection for
 authority negatives; none is real provider or discovery journey evidence.
 
+## Made-to-order Scrolls (#244, D-049)
+
+The recipe key names either a library recipe or an order (`order-<32 hex>`, `content.made_to_order_scrolls`). Production
+resolves it to a `ProductionSubject` (`subject.ts`): the asset and explanation identity, the mode, the brief, the research
+pages, the format and whether the result is attributed to a topic. The pipeline, the job, the takes, the stop rules and the
+ledger are the same; what differs is:
+
+- **Writer.** `writerInstructions(format, mode)` keeps the library instructions byte for byte and, for `what_if` or
+  `perspective`, appends the scenario rules (open by stating the premise, mark every consequence as reasoning, premise
+  quantities in words, end with a limit). The prompt version is `scenario-writer.v1`; the library's is unchanged.
+- **Identity.** The kicker and the framing come from the order (copied by code, never written by the model).
+- **Publication.** An order publishes with `attribution: 'none'`: `completeWriterPublication` skips the topic projection and
+  the coverage step, so a hypothetical Scroll never grows real-world coverage. An unknown order key is
+  `unknown_recipe` and does nothing.
+
 ## Reels
 
 Reels are not produced here. A Reel is a request to Cutroom, which has its own service, budget and
