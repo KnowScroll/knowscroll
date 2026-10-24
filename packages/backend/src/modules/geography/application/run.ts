@@ -435,9 +435,11 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         }))
       )
         throw new Error('GEOGRAPHY_REQUIRED_CLAIM_WAKE');
-      // A person's or operator's explicit request wants the model's say even when nothing is due.
+      // Only a run's first claim can skip the model: a later claim may already have an attempt in the
+      // ledger. An explicit request wants the model's say even when nothing is due.
       const explicit = state.desiredSource?.kind === 'command' || claimed.recording?.source.kind === 'command';
-      return { kind: 'prepared', run: claimed, context, explicit } as const;
+      const modelOptional = !run.hasContext && !explicit;
+      return { kind: 'prepared', run: claimed, context, modelOptional } as const;
     });
     if (prepared.kind !== 'entered' || !prepared.value) return;
     if (prepared.value.kind === 'revoked') {
@@ -449,7 +451,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       });
       return;
     }
-    const { run, context: c, explicit } = prepared.value;
+    const { run, context: c, modelOptional } = prepared.value;
     const purpose: PersonalRecordingPurpose = {
       version: 'personal-role-purpose.v1',
       accountId: run.recording!.accountId,
@@ -465,7 +467,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
     };
     // Formation is the rules' decision. A model only chooses labels and routes for places that are
     // due, so with none due a reading-triggered run makes no call.
-    if (!explicit && !placesDue(c.facts)) {
+    if (modelOptional && !placesDue(c.facts)) {
       await settleUnadmitted(p, authority, purpose, 'no_changes');
       return;
     }
