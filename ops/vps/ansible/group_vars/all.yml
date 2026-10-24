@@ -65,6 +65,17 @@ ks_v2_cartographer_enabled_worlds: [dev]
 # Worlds whose worker asks Jev for a semantic assessment while preparing Explore buffers
 # (KS_JEV_ENABLED=1, #234). Without it, ranking uses the deterministic semantic fit.
 ks_v2_jev_enabled_worlds: [dev]
+# Worlds whose worker may run Scroll production (KS_REASONING_PRODUCTION_ENABLED=1, #232/#239). The
+# database root `reasoning.production_scopes` must also be enabled by an operator; both default off.
+ks_v2_production_enabled_worlds: [dev]
+# How many shared Scroll productions Quartermaster's Create may start per UTC day, per world
+# (KS_SUPPLY_CREATE_DAILY_CAP, #239, D-037). Both the API (people's requests) and the worker (the
+# Planner's demand) read it; a world not listed gets 0, which turns Create off.
+ks_v2_supply_create_daily_cap: { dev: 10 }
+# The part of that day's work the Planner's demand may use (KS_SUPPLY_PLANNER_CREATE_DAILY_CAP). It is
+# counted apart from people's requests and never exceeds the cap above, so a person's explicit ask is
+# not starved by the Planner. A world not listed gets the default of 5.
+ks_v2_supply_planner_create_daily_cap: { dev: 5 }
 # Per-process memory for the v2 units, inside the world's slice (MemoryMax 1536M above).
 ks_v2_services:
   api: { memory_high: 600M, memory_max: 800M }

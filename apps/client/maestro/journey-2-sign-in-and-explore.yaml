@@ -1,0 +1,77 @@
+# Journey, step 2 of 3: the link opens the app, the person confirms whose account it is, then
+# Explore offers the fixture Reel, Next subject reaches the starter Scroll, Save and Keep this place
+# hold it, and Keep and Universe open. Content is the labelled fixture world of test-api/serve.mjs.
+# The app keeps its state from step 1 (no clearState): the sign-in binding's verifier lives in
+# the platform secure store, and only the device that asked can redeem the link.
+# Env: LINK, the sign-in link (knowscroll://redeem#token=...).
+appId: com.knowscroll.client
+name: Journey 2 - sign in, explore a Reel, read a Scroll, keep, universe
+tags:
+  - journey
+---
+- launchApp:
+    stopApp: false
+- openLink: ${LINK}
+- extendedWaitUntil:
+    visible: Finish signing in
+    timeout: 60000
+- takeScreenshot: journey-2-01-confirm-account
+- tapOn: Continue as .*
+# Explore, signed in: the fixture Reel is the first encounter. If the first open fails (the screen
+# says it is offline and offers "Try again"), the person tries again, as a person would.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: encounter-reel-caption
+    commands:
+      - runFlow:
+          when:
+            visible: Try again
+          commands:
+            - tapOn: Try again
+      - extendedWaitUntil:
+          visible:
+            id: encounter-reel-caption
+          timeout: 20000
+          optional: true
+- assertVisible:
+    id: encounter-reel-caption
+- assertVisible: .*A blanket made of gas.*
+- takeScreenshot: journey-2-02-reel
+# The hint and the move buttons sit below the video. The hint is dismissed once and stays
+# dismissed (journey 3 checks it after a restart).
+- runFlow: scroll-down.yaml
+- assertVisible: Got it
+- tapOn: Got it
+- assertNotVisible: Got it
+# Next subject: the starter Scroll.
+- tapOn: Next subject
+- extendedWaitUntil:
+    visible: Why the sky is blue
+    timeout: 90000
+- takeScreenshot: journey-2-03-scroll
+# Save puts the Scroll in Keep; Keep this place then holds where the person is in it.
+- tapOn: Save
+- extendedWaitUntil:
+    visible: Keep this place
+    timeout: 30000
+- tapOn: Keep this place
+- extendedWaitUntil:
+    visible: Latest saved place loaded.
+    timeout: 60000
+    optional: true
+- tapOn:
+    id: destination-saved
+- tapOn: Refresh Keep
+- extendedWaitUntil:
+    visible: Why the sky is blue
+    timeout: 60000
+- assertNotVisible: Nothing kept yet
+- takeScreenshot: journey-2-04-keep
+- tapOn:
+    id: destination-universe
+- extendedWaitUntil:
+    visible: Your universe.*
+    timeout: 60000
+- takeScreenshot: journey-2-05-universe

@@ -1,60 +1,92 @@
 # infrastructure/erasure
 
-The erasure registry (blueprint §5): every module declares its personal tables (`universe_id`
-owner column), its non-row personal stores (job payloads, media, caches, exports) and an eraser.
-The complete list is `src/erasure-registry.ts`.
+The erasure registry (blueprint §5). Every module declares the personal data it holds, next to its
+own code, and the backend composes those declarations into one list. Full erasure, selective Clear
+and the schema inventory all read that list.
 
-| Operation | Purpose |
+Status: implemented and covered by the integration tests against real PostgreSQL. Account
+deletion and export read the same list (#246, D-043): implemented, and runtime-verified through the
+installed API and worker in `tests/integration/release/account-http.test.ts`.
+
+## What a module declares
+
+Each module exports a `ModuleErasure` from `adapters/erasure.ts`:
+
+| Field | Meaning |
 |---|---|
-| `erasureRegistry(modules)` | Builds the registry; refuses a table or store declared twice. |
-| `eraseUniverse(scope, registry)` | Runs every eraser for the scope's universe, in registry order, inside the locked personal scope. Each reports `completed`, `pending` or `failed` and is safe to retry. |
-| `checkErasureInventory(db, registry)` | Schema inventory: every base table with a `universe_id` column is declared and every declared table has one; every declared table references `identity.universes` from `universe_id` with `ON DELETE RESTRICT`; every account-linked column (`account_id`, `*_account_id`) outside identity is declared by its module; every identity table other than the roots is declared as an account table (`accountTables`) and every declared one exists. CI runs it against the migrated schema. |
-| `checkQueuePayloadStores(queues, registry)` | Every declared queue whose payload carries `universeId` is declared as the non-row store `pgboss/<queue>` with an eraser. CI runs it against `releaseQueues`. |
+| `tables` | Personal tables keyed by `universe_id`. Each references `identity.universes` with `ON DELETE RESTRICT`, so rows can only leave through an eraser. |
+| `accountTables` | Account-keyed tables (identity's addresses, sign-in links, sessions; Social's friendships). Clear and reset keep them; account deletion removes them. |
+| `accountColumns` | Account or person columns outside identity, such as `*_account_id` or `person_id`. Account deletion must handle each one. |
+| `nonRowStores` | Personal stores SQL cannot see: job payloads (`pgboss/<queue>`), media, mail held by a provider. |
+| `erase` | Full erasure of one universe, inside the locked personal scope. Idempotent. |
+| `clearExploration` | What selective Clear does: a disposition per store (`erase`, `preserve`, `redact_accounting`, `external_retention`) and its own eraser. Saved items, friends, sign-in and financial records are kept. |
+| `eraseAccount` | Account deletion only: removes the module's account-keyed rows and account links after every `erase` has run. Required when the module declares `accountTables`, or `accountColumns` outside its own `tables`. Idempotent. |
+| `export` | What the person's export holds: `covers` (stores `read` reports on), `omits` (stores left out, each with its reason) and `read(scope, person)`, which returns bounded plain-JSON sections of the person's own records. Helpers: `exportReading` (one omit reason for the rest), `exportNothing`, `boundedSection`. |
 
-Account-keyed personal tables (identity's addresses, sign-in links and sessions, S1.3) are declared
-as `accountTables`: clearing or resetting a universe leaves them (sign-in must keep working);
-account deletion erases them. Not in the registry because they hold no personal rows of their own:
-`identity.accounts` and `identity.universes` (the personal root; account deletion is its own
-lifecycle, S1.x privacy work) and the shared content tables `content.assets`, `content.asset_revisions` and `content.asset_provenance`. The privacy operations that call `eraseUniverse` (clear
-history, reset, delete account) and their epoch handling arrive with the privacy work; this
-folder provides the registry and its checks.
+## How the registry is built
 
-Account-keyed lifetime tables may be declared by modules outside Identity. The inventory checks their actual base-table existence separately while retaining compulsory coverage of every Identity account table, personal universe FK and account-linked column. These declarations do not execute account deletion.
+`src/erasure-registry.ts` is a plain list of the modules' declarations, in eraser order (rows that
+reference others first, identity last). It exports:
 
-Cutroom's closed shared-public store manifests live with the Content and Reasoning adapters.
-They are separate from personal eraser declarations because their actual ownership closure is
-world/business/attempt/snapshot/shared asset, with no direct or transitive account/universe FK.
-The real-schema fixture compares all19 actual Cutroom tables to both manifests, rejects personal
-dependencies, and the populated full/selective fixture asserts unchanged new publication,
-financial report, settlement, receipt and maintenance rows plus the existing world records and
-pool history. Selective Saved preservation and unchanged full eraser semantics remain asserted.
-These manifests are not a naming exemption: any future actual personal dependency requires a
-matching ordinary registry/owner eraser entry. The public media and fixed IDs-only queue retention
-is explicit in the non-row inventories. No new personal queue payload or provider data is retained.
+- `personalStores`: the list for full erasure and the inventory.
+- `explorationStores`: the same list checked for a disposition on every store.
+- `eraseCurrentExploration(scope)`: runs selective Clear's erasers over that list inside the Clear
+  core transaction, then records that the real registry did it. Identity installs the new
+  recording witness only on that proof, so a test registry cannot mark a Clear as verified.
 
-CF62 adds the actual Content receiving root and immutable handoff/admission receipt to that
-closed shared-public inventory (now19 Cutroom tables), plus target public media/staging and fixed
-IDs-only queue retention. Both tables have genuine world/publication ownership and no direct or
-transitive personal FK. The populated receiving fixture asserts byte-identical shared rows/media
-through full erasure and selective Clear while preserving exact Saved UUID/ref/fractional places.
-The schema inventory still discovers actual tables, so omitting a declaration fails rather than
-creating an exemption by name. No new personal payload, provider output or erasure waiver is added.
+`erasureRegistry` refuses a table, store or module declared twice. `eraseUniverse` runs the
+erasers in order. `eraseExploration` first re-runs the schema inventory inside the Clear
+transaction and refuses to erase anything if it finds a problem, then runs every owner's Clear
+eraser and requires each to report `completed`.
 
-## Current recording lifecycle closure
+## Account deletion and export
 
-The fixed backend eraseCurrentExploration runner closes over the actual imported frozen owner
-callbacks and current canonical literal registry/writer protocol v1 (SHA256 d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10).
-Generic clearExplorationRegistry/eraseExploration retains basic verification but cannot issue the
-separate live current-registry proof required for lifecycle READY. No caller supplies a digest,
-version flag, replacement registry or successful callback to that runner. The lifetime proof is
-removed with its ClearCoreTx. Actual core completion installs READY before barrier release,
-independently of subsequent financial settlement.
+`accountLifecycleRegistry(modules)` runs at start-up in every process (`src/erasure-registry.ts`).
+It refuses a module that holds account-keyed stores without an `eraseAccount`, a module without an
+`export`, and an export that does not account for exactly the stores the module declares, so a new
+store cannot be forgotten by either. `eraseAccountData(scope, registry)` runs every module's `erase`
+and then every `eraseAccount` inside the deletion transaction, and `exportPersonalData` collects
+each module's export section inside the person's locked scope. The use cases and their
+lifecycles are in `modules/identity/README.md`.
 
-Experience deletes channel certificates before actions/segments; Identity, last, removes the
-prior lifecycle witness before installing the current one. Full erasure removes it permanently
-until a separately authorized actual lifecycle transition. The witness is declared for both
-universe and account ownership. Registry deduplication permits that same-owner cross-kind
-declaration while still rejecting same-kind duplicates, duplicate owners and cross-owner stores.
-This is not an account-deletion executor or a mixed-version aggregate-write sandbox.
+Account deletion removes the personal roots last: a foreign key from any store the registry missed
+makes the final `delete` fail and the transaction roll back, so a forgotten store stops deletion
+loudly instead of leaving a person's rows behind an account that is gone.
 
-Planner and Geography each declare runs.recording_account_id as an actual account-linked column. Their selective disposition erases the owning run row, including that link; no financial identity is nulled or reset. The pending0044 fixed protocol digest changes because the previous unaccepted c21 literal omitted these schema links. Old failed source/evidence is retained, with no generic hash compatibility or future Conversations extension elected.
+## Completeness is proved against the schema
+
+`checkErasureInventory(db, registry)` reads the migrated database and returns every problem. CI
+runs it, and every Clear runs it again. It fails when:
+
+- a table with a `universe_id` column is not declared, or a declared table lacks the column or the
+  `ON DELETE RESTRICT` reference to `identity.universes`;
+- a column named `account_id`, `person_id`, `owner_id`, `member_id`, `*_universe_id`,
+  `*_account_id` or `*_person_id`, or any column with a foreign key to `identity.accounts` or
+  `identity.universes`, outside identity is not declared as an account column (and the reverse: a
+  declared column that does not exist);
+- an identity table other than `accounts` and `universes` is not declared as an account table;
+- another table reaches a personal root through foreign keys and is declared nowhere. A child
+  table of a personal table therefore needs its own `universe_id`.
+
+`checkQueuePayloadStores(queues, registry)` fails when a queue whose payload carries `universeId`
+has no `pgboss/<queue>` store declared.
+
+Not in the registry: `identity.accounts` and `identity.universes` (the personal roots; account
+deletion removes them after everything else) and shared tables. A shared table has none of the links above, and each
+shared family keeps its own inventory and test that proves it: the Reel order stores
+(`contentReelStores`) and the Region projection
+(`contentRegionStores`) survive both erasers by design.
+
+## Recording witness
+
+The recording lifecycle witness (Pause and Resume, #388) records that a root elected the lifecycle
+for its current epoch. It holds the epoch, account and origin (birth or Clear), and no registry
+digest. Adding a personal store changes only that module's declaration and its migration. The
+history is in `docs/v2/decisions.md` (D-050).
+
+## Failure and recovery
+
+Erasers are idempotent, so a failed Clear or erasure is retried. A Clear that finds an undeclared
+personal table, or an eraser that does not report `completed`, rolls back before the barrier is
+released. Queue payloads are erased by the owning module's eraser (`deleteJobPayloads`,
+`deleteClearJobPayloads`); a job already claimed rechecks authority itself before any effect.

@@ -30,8 +30,8 @@ first v2 deploy to a world stops v1 there; a rollback to a v1 release brings v1 
 | v1 (left as it is) | `knowscroll_test_dev`, `ks_dev`, `dev/media`, `dev.env` | `knowscroll_test_stage`, … | — |
 
 The v1 databases, roles, media, env files and units are not changed or dropped. The shared Reel
-pool `knowscroll_pool` is not reachable by the v2 roles (S4.3 decides how v2 uses it); it is backed
-up nightly with the v2 databases.
+pool `knowscroll_pool` is reachable by a v2 role only after `GRANT ks_pool_client TO ks2_<world>` (the Reel
+runbook, `cutroom-and-spend.md`); it is backed up nightly with the v2 databases.
 
 ## The v2 release contract
 
@@ -148,6 +148,13 @@ then. Refused: an address outside the pattern (`address_not_allowed`), an addres
 by mail (`not_disposable`). Each issue leaves an audit row: `select world, issued_at,
 operator_source, account_id from ops.operator_sign_ins order by issued_at desc` (as
 `postgres` on `knowscroll_v2_<world>`); `operator_source` is `cli:<SUDO_USER>`.
+
+### Looking at the system (#248)
+
+`/operator` on the web app is the Operator screen for the accounts in the world's `KS_OPERATOR_ACCOUNTS`; on dev
+every `*@test.knowscroll.space` account qualifies until the list is set. `node dist/operator.js journey <id>` in the
+worker tree prints one record's timeline. The one-time `ks2_ops_reader` role for Grafana or psql is created by the
+owner. All of it is in `looking-at-the-system.md`.
 
 ### Reasoning operator commands (worker tree; S2.2)
 

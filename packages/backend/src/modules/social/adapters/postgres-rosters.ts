@@ -14,20 +14,7 @@ export const rosterStore: RosterStore = {
       .executeTakeFirst();
     return Number(row?.revision ?? 1);
   },
-  async ceiling(scope, filter) {
-    if (scope.authority.actor.kind !== 'account') throw new Error('SOCIAL_ACCOUNT_REQUIRED');
-    return (
-      await transactionOf(scope)
-        .selectFrom('social.roster_entries')
-        .select('peer_person_id')
-        .where('owner_account_id', '=', scope.authority.actor.accountId)
-        .where('kind', '=', filter)
-        .orderBy('peer_person_id', 'desc')
-        .limit(1)
-        .executeTakeFirst()
-    )?.peer_person_id;
-  },
-  async scan(scope, filter, after, ceiling, limit) {
+  async scan(scope, filter, after, limit) {
     if (scope.authority.actor.kind !== 'account') throw new Error('SOCIAL_ACCOUNT_REQUIRED');
     let q = transactionOf(scope)
       .selectFrom('social.roster_entries as e')
@@ -45,8 +32,7 @@ export const rosterStore: RosterStore = {
         'u.status as universe_status',
       ])
       .where('e.owner_account_id', '=', scope.authority.actor.accountId)
-      .where('e.kind', '=', filter)
-      .where('e.peer_person_id', '<=', ceiling);
+      .where('e.kind', '=', filter);
     if (after) q = q.where('e.peer_person_id', '>', after);
     const rows = await q.orderBy('e.peer_person_id').limit(limit).execute();
     return rows.map((r) => ({

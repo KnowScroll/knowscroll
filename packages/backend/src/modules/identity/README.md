@@ -11,7 +11,9 @@ single-use sign-in links and sessions (D-007, decided as the first-party impleme
 | `identity.universes` | `0001_identity` | The personal root: one per account (`universes_account_key`), `privacy_epoch`, `status`, `revision` | Account deletion |
 | `identity.email_addresses` | `0007_identity_sign_in` | The account's normalised address (unique) and `disposable` (made by operator sign-in; cleared when the address proves itself by a mailed link) | Account table: account deletion |
 | `identity.sign_in_links` | `0007_identity_sign_in` | SHA-256 of each link token, the address and its `domain`, `origin` (`email`/`operator`), the native `code_challenge` (or none), expiry ≤ 15 min (checked by the database), and who consumed it (`consumed_command_id`, `consumed_account_id`) | Account table: deleted a day after expiry by the scheduled sweep; account deletion removes the rest |
-| `identity.sessions` | `0007_identity_sign_in` | SHA-256 of each session token, `client` (`web` cookie / `native` bearer), the redemption command that issued it (`issued_by_command`), expiry ≤ 30 days (checked), `revoked_at`/`revoked_reason` (`signed_out`, `signed_out_everywhere`, `replaced`) | Account table: an account's ended sessions are deleted at its next sign-in, and by the sweep 30 days after they ended; account deletion removes the rest |
+| `identity.sessions` | `0007_identity_sign_in`, `0055_account_privacy` | SHA-256 of each session token, `client` (`web` cookie / `native` bearer), the redemption command that issued it (`issued_by_command`), expiry ≤ 30 days (checked), `revoked_at`/`revoked_reason` (`signed_out`, `signed_out_everywhere`, `replaced`), and since 0055 the coarse `device_label` ("Chrome on macOS", from the `User-Agent` once, at redemption) and `last_used_at` (written at most every ten minutes) | Account table: an account's ended sessions are deleted at its next sign-in, and by the sweep 30 days after they ended; account deletion removes the rest |
+| `identity.account_deletions` | `0055_account_privacy` | One operation per account deletion: the client-chosen `id` (also the receipt), `account_id`/`scope_id` while pending, `state` (`pending`/`completed`), `attempts`, `next_attempt_at`, `failure_code`. At completion it loses both links and stays as an audit row (id, two timestamps, state) | Account table: the audit row holds no personal data and is kept |
+| `identity.data_exports` | `0055_account_privacy` | One personal data export: `state` (`preparing`, `ready`, `downloaded`, `expired`, `failed`), the file (`payload`, a bounded JSON, present only while `ready`), `expires_at`, and a one-time download link as its SHA-256 and expiry | Account table: the file goes at first download, at expiry (seven days) and with the account; Clear removes the person's exports; receipts go after 30 days |
 | `ops.operator_sign_ins` | `0008_ops_operator_sign_ins` | The audit of every operator link: `world`, `issued_at`, `operator_source` (`cli:<user>`), `account_id`, `account_created` | Kept as an audit (not exploration history): clearing a universe leaves it; account deletion sets `account_id` to null (declared as an account-linked column) |
 
 No token is ever stored: links and sessions are looked up by the hash of the presented token.
@@ -26,15 +28,23 @@ universe leaves identity alone.
   `WithPersonalScope`, `AuthorityHolds`, and for sign-in `WithResolvedPersonalScope` with
   `RootResolutionTx`/`RootResolution` (implemented by `infrastructure/postgres`).
 - Read ports `ReadAccountUniverse`, `ReadUniverseAccess` (tokens `READ_ACCOUNT_UNIVERSE`,
-  `READ_UNIVERSE_ACCESS`): claims that `withPersonalScope` rechecks under the lock.
+  `READ_UNIVERSE_ACCESS`): claims that `withPersonalScope` rechecks under the lock. `ReadAccountAddress`
+  (`READ_ACCOUNT_ADDRESS`): the address of an active account, used by the Operator module to decide who may
+  look (#248); never for display, mail or logs.
 - Sign-in use cases (tokens `REQUEST_SIGN_IN`, `PEEK_SIGN_IN_LINK`, `REDEEM_SIGN_IN`,
   `RESOLVE_SESSION`, `SESSION_VALID`, `SIGN_OUT`, `SWEEP_SIGN_IN_RECORDS`) and
   `IssueOperatorSignIn`, with their typed results; `OPERATOR_WORLDS`, `operatorAddressMatcher`;
   the sweep's queue `sweepSignInRecordsQueue` (`events.ts`).
+- Account privacy (#246): `ListSessions`, `EndSession`, `EndOtherSessions` (tokens `LIST_SESSIONS`, `END_SESSION`,
+  `END_OTHER_SESSIONS`), `RequestAccountDeletion`, `ReadAccountDeletion`, `RetryAccountDeletion`,
+  `RequestDataExport`, `ListDataExports`, `MintDataExportLink`, `ConsumeDataExportLink` (token
+  `CONSUME_DATA_EXPORT_LINK`), the `AccountDeletionTx` capability, `deviceLabelOf`, and the queues
+  `deleteAccountQueue`, `recoverAccountDeletionsQueue`, `buildDataExportQueue`.
 - Built by `adapters/nest-providers.ts`: `identityProviders` (read ports), `identityUseCases`
   (all sign-in use cases over one database; the mail sender from `IdentitySettings`),
   `signInProviders` (Nest wiring), `operatorSignInUseCase` (the operator command alone),
-  `identitySweepUseCase`/`identitySweepProviders` (the worker's sweep).
+  `identitySweepUseCase`/`identitySweepProviders` (the worker's sweep), and `deleteAccountFor`/`dataExportFor`
+  (deletion and export over one database, with the registry's functions injected by the composition root).
 
 ## Use cases
 
@@ -47,7 +57,10 @@ universe leaves identity alone.
 | `sessionValid({sessionId, accountId})` | sockets | The same session checks for a socket's session, on every subscribe and re-authorisation. |
 | `signOut({sessionId, accountId, everywhere, reason?})` | `POST /auth/sign-out`; an account switch on a device (`replaced`) | One transaction: revoke the session (or all live sessions of the account) and `revokeAccountSockets` in the same transaction, so every API process drops the account's sockets on commit. |
 | `issueOperatorSignIn({email})` | `dist/operator.js issue-sign-in` | Allow-listed worlds only (below). The address must match the world's pattern (`address_not_allowed`); finds or creates a **disposable** account, refuses an address that signed up by mail (`not_disposable`), writes a receipt, an operator link and the audit row, returns the link to print. |
-| `sweepSignInRecords()` | pg-boss `identity.sweep-sign-in-records`, every 15 minutes (worker) | Deletes links a day past expiry and sessions 30 days after they ended, in transactions of at most 500 rows chosen `FOR UPDATE SKIP LOCKED` (never waits on or deadlocks with a sign-in; review m12). |
+| `sweepSignInRecords()` | pg-boss `identity.sweep-sign-in-records`, every 15 minutes (worker) | Deletes links a day past expiry and sessions 30 days after they ended, and retires exports (a ready file at its expiry, a build stuck for half an hour as failed, receipts after 30 days), in transactions of at most 500 rows chosen `FOR UPDATE SKIP LOCKED` (never waits on or deadlocks with a sign-in; review m12). |
+| `listSessions`, `endSession`, `endOtherSessions` | `GET /v1/account/sessions`, `POST /v1/account/sessions/end`, `.../end-others` | The caller's live sessions (coarse label, last use, "current"), or signing out one other or all other sessions with the same socket-revocation notice as sign-out. The presented session cannot be ended here (`current_session`, 409); another person's, an ended or an unknown id are all `not_found`. |
+| `requestAccountDeletion`, `readAccountDeletion`, `retryAccountDeletion`, `process`, `recover` | `POST /v1/account/delete`; `GET /auth/deletion/{receiptId}`; `POST /auth/deletion/retry`; worker `identity.delete-account` and `identity.recover-account-deletions` | Account deletion, below. |
+| `requestDataExport`, `listDataExports`, `mintDataExportLink`, `consumeDataExportLink`, `build` | `POST/GET /v1/account/exports`, `POST /v1/account/exports/link`, `GET /auth/exports/{token}`; worker `identity.build-export` | Personal data export, below. |
 
 ### Redemption, in one transaction
 
@@ -81,9 +94,12 @@ an address (also enforced by `email_addresses_address_key` and `universes_accoun
 universe's rows**. Redemption and operator issue take them in this order; request-sign-in takes
 the address lock and then the world budget's lock. Suspension
 locks the universe row before changing the account status (so a command that passed its account
-check cannot commit afterwards). Account deletion (privacy work) must take the address lock first,
-then the root. Every wait is bounded by the personal-scope lock timeout (a timeout is a retryable
-503).
+check cannot commit afterwards). Account deletion's worker transaction takes the address lock first, then the root, then the
+account, then its operation row (`makeWithAccountDeletion`); its request transaction is an ordinary
+personal scope plus the own-account gate and touches no sign-in link, so it cannot meet a sign-in
+(address → link row → root) in a cycle. Every wait is bounded by the personal-scope lock timeout (a
+timeout is a retryable
+503)..
 
 ## How sign-in works end to end
 
@@ -202,8 +218,7 @@ live:
 ## Not here yet
 
 Privacy-epoch changes (privacy work) must call `revokeAccountSockets` in their transaction (the
-scope claim already refuses an old epoch's requests if the notice is lost). Account deletion must
-erase the account tables above and null `ops.operator_sign_ins.account_id`. Native magic-link
+scope claim already refuses an old epoch's requests if the notice is lost). Native magic-link
 opening (universal/app links) needs mobile builds (owner decision 2); the device binding is built
 and tested only against fixtures until then.
 
@@ -371,10 +386,11 @@ not deployed end-to-end Pause or disposable-account dev acceptance.
 
 Actual createAccount explicitly inserts mode1, whose root INSERT trigger atomically records the
 account/epoch1 birth witness. Disposable operator accounts use that same creation path. Existing
-NULL roots, timestamps, missing state and old Clear receipts cannot claim birth. The fixed current
-backend erasure runner checks the canonical v1 registry, invokes the actual frozen owner callbacks
-and catalogue verifier, and issues a live ClearCoreTx proof. Generic registries cannot issue it.
+NULL roots, timestamps, missing state and old Clear receipts cannot claim birth. The backend's
+`eraseCurrentExploration` runner runs the real registry's Clear erasers after the schema inventory
+passes, and issues a live ClearCoreTx proof. A test registry cannot issue it.
 coreDone writes its timestamp, creates the current witness and releases the barrier atomically.
+A witness holds the epoch, account and origin (birth or Clear) and no registry digest (0051).
 It does not wait for old unknown financial liabilities; recording generation/on and account
 recording receipts retain their account-lifetime values.
 
@@ -387,4 +403,54 @@ grants legacy fallback. Genuine authority/protocol/dependency failure remains a 
 deletion also owns its account FK. No automatic recertification follows erasure or sign-in replay.
 No API/control, provider permission or complete Pause/runtime acceptance is introduced.
 
-The pending0044 hosted correction binds the fixed manifest to both actual personal-role recording_account_id links. It replaces the unaccepted c21 source digest consistently; it does not accept historical hashes, rewrite witnesses or implement a Conversations registry transition. Runtime audit identity checks retain the exact scope/epoch/exposure/generation/audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance follows from static checks.
+The Planner and Geography `runs.recording_account_id` links are declared account columns, erased with
+their owning run rows. Runtime audit identity checks keep the exact scope, epoch, exposure, generation
+and audit predicates with positional SQL arguments. No full Pause/runtime or deployment acceptance
+follows from static checks.
+
+## Account deletion (#246, D-043; implemented, runtime-verified)
+
+**Request** (`POST /v1/account/delete`, one transaction): the caller's personal scope and own-account gate
+(`FOR UPDATE`) are taken; the operation row is inserted under the client's receipt id (a taken id writes
+nothing: `receipt_in_use`); the universe and account become `deleting`, the privacy epoch advances once, every
+session row is deleted, `revokeAccountSockets` is sent and `identity.delete-account` is enqueued, all in the
+same commit. Every check that already tests `status = 'active'` (`withPersonalScope`, `authorityHolds`,
+session resolution, sockets, sign-in redemption, workers) now refuses the account, and an old session or link
+cannot bring it back (a link redeemed meanwhile answers `account_unavailable`). A Clear still holding its
+barrier refuses the request (`unavailable`; try again shortly). The answer is 202: durable, not done. The web
+cookie is cleared with it.
+
+**Worker** (`identity.delete-account`, one transaction under the deletion locks): every module's `erase` over
+the deleting universe, then every `eraseAccount` (identity's removes sign-in links of the address, sessions,
+Clear and recording receipts, exports and their queue jobs, the address, and nulls the operator audit's account;
+Social's removes the profile, invite, roster entries, pairs and requests naming the person, bumping the other
+people's roster heads so their lists refetch; receipts removes the person's shared command receipts). If every
+report is `completed`, the operation row sheds its links and becomes the audit row, then the universe root and
+the account are deleted. If a paid model attempt still has an unknown outcome the reasoning eraser reports
+`pending` (a paid attempt is never refunded or resent): what could be erased is committed, `attempts` and
+`next_attempt_at` move, and the receipt keeps saying `in_progress`; the recovery cron hands the operation back
+until accounting settles. An eraser reporting `failed`, or any error, rolls the whole transaction back. A
+foreign key from a store no module declared makes the final `delete` fail and roll back, never leave rows.
+
+**Recovery and receipts**: `identity.recover-account-deletions` (every 5 minutes) re-enqueues up to 25 pending
+operations that are due and pushes each 15 minutes out; the final failed delivery marks the receipt
+`needs_retry`; `POST /auth/deletion/retry` makes the same operation due now. The receipt id names no one, so
+`GET /auth/deletion/{id}` needs no session and answers only `in_progress`, `needs_retry` or `completed`.
+
+Limits: backups, provider-held copies (AgentMail's sent sign-in mail, MiniMax requests) and offline devices
+are outside the deletion and the copy says so; a Clear that stays unfinished blocks deletion until it is
+recovered; native keeps its receipt id in memory only until the platform has a persistent store.
+
+## Personal data export (#246, D-043; implemented, runtime-verified)
+
+`POST /v1/account/exports` records an export under the client's id and enqueues `identity.build-export` in one
+transaction (asking again while one prepares returns that one; the newest five are kept). The worker builds the
+file inside the person's locked scope: every module's `export.read` returns bounded sections of that
+person's own records in readable fields (titles and times, never IDs, hashes, tokens, scores, prompts or
+another person's data: Social reports counts, not friends). A Keep place is words ("at 0:31", "part 2 of 5"), never the stored position. A module with nothing to say (all its stores are internal) has no section, so the file never names `composer`, `planner` or the like. The file is JSON, at most 8 MiB, stored on the
+export row. `POST /v1/account/exports/link` mints a link (`/auth/exports/kse_…`, 60 seconds, one use, stored
+only as a hash); `GET /auth/exports/{token}` needs no session, hands the file over as an attachment and
+removes it from the row in the same transaction, and only for an account that is still active. Every other
+method, HEAD included, answers 405 and spends nothing, so a link prefetcher cannot use up the one download. Clear removes
+the person's exports (an export is a copy of the history Clear removes). Readable HTML is not built: one JSON
+file is the portable format.

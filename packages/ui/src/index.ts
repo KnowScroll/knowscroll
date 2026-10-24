@@ -1,11 +1,14 @@
 export { DisplayProvider, DisplayRoot, useDisplay, type Display } from './display/display';
 export { Text, useTypeStyle, type TextProps } from './text/text';
+export { useFocusRing } from './display/focus-ring';
+export { toggleSemantics } from './display/semantics';
 export { Icon, type IconProps } from './icons/icon';
 export { iconShapes, type IconName } from './icons/icon-paths';
 export { Spinner } from './feedback/spinner';
 export { PendingStripe } from './feedback/pending-stripe';
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './actions/button';
 export { IconButton, type IconButtonProps, type IconButtonVariant } from './actions/icon-button';
+export { RowLink, type RowLinkProps } from './actions/row-link';
 export {
   FormatSwitch,
   type EncounterFormat,

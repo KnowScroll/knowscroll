@@ -9,6 +9,13 @@ export {
   type RegisteredMigration,
 } from './migrator.js';
 export {
+  OPS_READER_ROLE,
+  OPS_READER_VIEWS,
+  createOpsJobViews,
+  dropOpsJobViews,
+  grantOpsReader,
+} from './ops-job-views.js';
+export {
   LockOrderError,
   ScopeBusyError,
   ScopeClosedError,
@@ -43,5 +50,4 @@ export {
   isClearCore,
   closeClearCore,
 } from './privacy-scope.js';
-export { makeWithCutroomReceiveScope, cutroomReceiveTransactionOf } from './cutroom-receive-scope.js';
 export { fencePersonalRecording, recordingTransactionOf } from './recording-scope.js';

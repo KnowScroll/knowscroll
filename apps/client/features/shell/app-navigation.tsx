@@ -3,7 +3,8 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { StyleSheet, View } from 'react-native';
 import { content, layout, type Breakpoint } from '@knowscroll/design-tokens';
 import { NavRail, TabBar, useDisplay, type Destination } from '@knowscroll/ui';
-import { useAccountInitial } from '../../providers/account-scope';
+import { useAccountInitial, useAccountScopeIfPresent } from '../../providers/account-scope';
+import { useTalkInbox } from '../conversations/use-talk-inbox';
 
 const destinationRoutes: readonly Destination[] = ['explore', 'universe', 'conversations', 'saved'];
 
@@ -37,6 +38,9 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
   const router = useRouter();
   const { breakpoint } = useDisplay();
   const initial = useAccountInitial();
+  const { state: account } = useAccountScopeIfPresent();
+  // Talk shows a dot (never a count) while a friend's message waits.
+  const unread = useTalkInbox(account.status === 'signed_in' ? account.scope : undefined).unread;
   const routeName = state.routes[state.index]?.name;
   const active = asDestination(routeName);
   const tone = routeName === 'universe' ? 'space' : 'paper';
@@ -61,6 +65,7 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
           hrefFor={destinationHref}
           size={breakpoint === 'desktop' ? 'desktop' : 'tablet'}
           tone={tone}
+          unread={unread}
           account={{
             onPress: () => router.navigate('/account'),
             href: '/account',
@@ -76,7 +81,7 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
       pointerEvents="box-none"
       style={[styles.slot, { height: layout.tabBarSlot + insets.bottom, paddingBottom: insets.bottom }]}
     >
-      <TabBar active={active} onSelect={select} hrefFor={destinationHref} tone={tone} />
+      <TabBar active={active} onSelect={select} hrefFor={destinationHref} tone={tone} unread={unread} />
     </View>
   );
 }

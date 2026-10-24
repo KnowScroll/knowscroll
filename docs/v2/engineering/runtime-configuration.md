@@ -28,12 +28,15 @@ print them.
 | `KS_SCOPE_LOCK_TIMEOUT_MS` | 5000 | longest wait for a personal-scope lock before a retryable 503; must be below `KS_DB_STATEMENT_TIMEOUT_MS` |
 | `KS_AUTH_ADAPTER` | `session` | how callers are authenticated. `session`: identity's sessions (S1.3, D-022) — the web session cookie or `Authorization: Bearer kss_…` (and the Socket.IO `auth.token`). `test-bearer`: CI fixture that trusts `Authorization: Bearer test.<accountId>` (and the Socket.IO `auth.token` `test.<accountId>`); refused at startup unless `NODE_ENV=test` **and** `KS_WORLD` is `ci` or `local` |
 | `KS_SOCKET_AUTH_CACHE_MS` | 30000 (max 30000) | how long a socket's authorisation (session validity and scope access) may be reused before a relayed hint rechecks it; cleared whenever the relay reconnects |
+| `KS_SUPPLY_CREATE_DAILY_CAP` | 20 in `local`, otherwise 0 | how many shared Scroll productions people's requests may start per UTC day (D-037); 0 turns Create off, so a request for missing supply closes as `budget_unavailable`. Set it to the same value as on the worker (max 500) |
+| `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` | 5 | how many productions the Planner's demand may start per UTC day, counted apart from people's asks so it cannot starve them; never above `KS_SUPPLY_CREATE_DAILY_CAP` (0 there turns Create off for both). Set the same value on the API and the worker (max 500) |
 | `KS_PUBLIC_ORIGIN` | production: **required**; else `http://127.0.0.1:<PORT>` | the world's own origin (`https://app.<world>.knowscroll.space`, D-008): sign-in links point at `<origin>/redeem`, and cookie-authenticated POST/PUT/PATCH/DELETE and socket handshakes must carry this `Origin`. A bare origin; production requires HTTPS except on a loopback host (the release smoke test). HTTPS also makes the session cookie `__Host-ks_session` and Secure (`ks_session` otherwise) |
 | `KS_MAIL_SENDER` | `agentmail` | how sign-in mail is sent. `agentmail` (production accepts nothing else) needs `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID`. `fixture`: CI only, records each mail (to `KS_FIXTURE_MAIL_FILE`, JSON lines, when set); refused unless `NODE_ENV=test` and `KS_WORLD` is `ci` or `local` |
 | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | required for `agentmail` | credentials (server: `/etc/knowscroll/secrets/shared/agentmail.env`, read by the API unit only). Never logged |
 | `AGENTMAIL_TIMEOUT_MS` | 10000 (max 30000) | one send's whole exchange, response body included |
 | `AGENTMAIL_BASE_URL` | `https://api.agentmail.to` | a different base only outside production (tests with a fake AgentMail); production refuses it |
 | `KS_ALLOW_OPERATOR_SIGN_IN` | unset | exactly `1` lets operator-minted links (`dist/operator.js`) be redeemed; any other value is refused, and so is `1` in every world but `dev`, `stage`, `ci` and `local` (an allow-list: a production world under any name is refused) |
+| `KS_OPERATOR_ACCOUNTS` | unset | who may use the operator routes and the Operator screen (D-044): comma-separated addresses, each exact or with one `*` in the local part, lower case, at most 20. Unset: on `dev` with operator sign-in on, the `KS_OPERATOR_SIGN_IN_PATTERN`; elsewhere nobody. A `*` is refused on `live`. Read when the API starts |
 | `KS_NATIVE_SIGN_IN_BINDING` | unset (off) | exactly `1` lets native apps bind their links with a code challenge; off on every world until the native app ships, and while off `POST /auth/sign-in` with `codeChallenge` answers 422 (re-review N1; what must change before enabling it: `modules/identity/README.md`) |
 | `KS_OPERATOR_SIGN_IN_PATTERN` | required with `KS_ALLOW_OPERATOR_SIGN_IN=1` | the disposable addresses operator links may open, as one address with at most one `*` in the local part and a literal domain (dev and stage: `*@test.knowscroll.space`); an operator link for any other address is refused when redeemed |
 
@@ -107,6 +110,10 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_REASONING_GLOBAL_REQUESTS_PER_DAY`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY` | 300, 3,000,000 | daily caps (UTC day) for the whole process, counted from the minimal usage receipts |
 | `KS_REASONING_ROLE_REQUESTS_PER_DAY`, `KS_REASONING_ROLE_TOKENS_PER_DAY` | 200, 2,000,000 | default daily caps per role, across universes (a role may declare its own) |
 | `KS_REASONING_SCOPE_REQUESTS_PER_DAY`, `KS_REASONING_SCOPE_TOKENS_PER_DAY` | 60, 600,000 | daily caps per personal scope (one universe) |
+| `KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, `KS_REASONING_PRODUCTION_TOKENS_PER_DAY` | 200, 3,000,000 | daily caps for the nonpersonal production scope (`scroll-supply`) instead of the per-person caps: seeding the library takes about 70 writer requests and 1.4M tokens, and Create jobs add more. The global and role caps still apply, and the worker and the production operator commands both use these |
+| `KS_SCROLL_PRODUCTION_GENERATION` | 1 | the production scope generation the `content.produce-scroll` consumer works under; it must match the database root |
+| `KS_SUPPLY_CREATE_DAILY_CAP` | 20 in `local`, otherwise 0 | how many shared Scroll productions Quartermaster's Create may start per UTC day for people's asks (the worker commissions for an ask the resolver finds without a production; the API takes the request itself); 0 turns Create off, and a request for missing supply then closes as `budget_unavailable`. Set the same value on both processes (max 500) |
+| `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` | 5 | the part of that cap the Planner's demand may use (see the API row); the worker counts the Planner's productions against it |
 | `KS_REASONING_MAX_REQUEST_BYTES` | 262144 (max 262144) | largest request body; a larger one is refused (`request_too_large`) before anything is written |
 | `KS_REASONING_REQUEST_RETENTION_HOURS` | 48 (max 720) | how long the protected request bytes are kept before the scheduled purge deletes them |
 
@@ -128,6 +135,27 @@ stdout, diagnostic records on stderr. Exit 0 done, 2 refused or not applicable, 
 tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it on a world:
 `docs/v2/operations/environments.md`.
 
+## Journey inspector (`node dist/operator.js journey …` in the `worker/` tree)
+
+`KS_WORLD` and `DATABASE_URL` only. Read-only; it prints IDs, states, codes and times. See
+`docs/v2/operations/looking-at-the-system.md`.
+
+## Library production operator (`node dist/operator.js content …` in the `worker/` tree)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KS_WORLD` | required | only `dev`, `stage`, `ci` or `local`; refused before the database is touched |
+| `DATABASE_URL` | required | the world's database (credential) |
+| `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | as for the API |
+
+`produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends the `content.produce-scroll`
+jobs of recipes that need one, and `production-status [--only <keys>]` lists every recipe's standing.
+Neither calls a provider or needs a key. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
+[--resume]` runs one job directly and needs the worker's reasoning variables
+(`KS_REASONING_PROVIDER=minimax`, `MINIMAX_API_KEY`, `KS_REASONING_PRODUCTION_ENABLED=1`,
+`KS_SCROLL_PRODUCTION_GENERATION`, and the production caps). One JSON line on stdout, diagnostics on
+stderr. Exit 0 done, 2 refused or not applicable, 1 failure. Steps: `docs/v2/operations/scroll-production.md`.
+
 ## Migrate (`node dist/migrate.js` in the `api/` tree)
 
 | Variable | Default | Meaning |
@@ -137,7 +165,8 @@ tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it o
 | `KS_DB_STATEMENT_TIMEOUT_MS` | 900000 | per-statement timeout for migrations |
 
 Applies pending migrations from the static registry, installs or upgrades pg-boss's `pgboss`
-schema and applies every declared queue's policy. Exit 0 means the database is ready for this
+schema, applies every declared queue's policy, rebuilds the `ops` views that read pg-boss's tables and
+grants the read-only `ks2_ops_reader` role the views (a missing role is only a `migrate.warning`). Exit 0 means the database is ready for this
 release. Migrations are forward-only; recovery is restoring the verified pre-migration backup
 (CF-27).
 

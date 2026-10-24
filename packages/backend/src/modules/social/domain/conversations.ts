@@ -1,0 +1,24 @@
+/** Rules of direct conversations and share links that need no database, clock or crypto. */
+
+/** Share links live thirty days from creation; they can be revoked earlier, never extended (D-042). */
+export const SHARE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type ShareState = 'live' | 'revoked' | 'expired';
+
+/** Revocation wins over expiry, so a revoked link never reads as merely old. */
+export function shareState(
+  share: { readonly expiresAt: Date; readonly revokedAt: Date | null },
+  now: Date,
+): ShareState {
+  if (share.revokedAt !== null) return 'revoked';
+  return now.getTime() >= share.expiresAt.getTime() ? 'expired' : 'live';
+}
+
+/**
+ * Where a person's read position ends up. It never moves back, and it cannot pass the newest
+ * message: `undefined` means the request named a message that does not exist yet.
+ */
+export function acceptedReadThrough(current: number, requested: number, latest: number): number | undefined {
+  if (requested > latest) return undefined;
+  return Math.max(current, requested);
+}

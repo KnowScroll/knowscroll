@@ -1,6 +1,6 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 const tables = [
   'recording_coverage_references',
@@ -49,3 +49,8 @@ personalContextErasure.clearExploration = {
     return { module: 'personal-context', status: 'completed', removed };
   },
 };
+
+personalContextErasure.export = exportNothing(
+  personalContextErasure,
+  'Interest projections and coverage counts derived from your activity: internal scores that are never shown.',
+);

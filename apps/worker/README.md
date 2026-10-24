@@ -15,15 +15,25 @@ and commits the recovery marker with its fixed-queue wake. Completed operations 
 only their due exact-set accounting cleanup; they never reacquire core-removal authority.
 
 The Clear core callback is the closed `eraseCurrentExploration` runner from the actual backend
-erasure root. It verifies the frozen current owner registry, runs those actual owner removals and
-marks that exact Clear transaction only after successful verification. The worker accepts no
-caller-provided registry, digest or lookalike callback as lifecycle proof. Exact-set accounting and
+erasure root. It runs the schema inventory, runs the real registry's owner removals and marks that
+exact Clear transaction only after every owner reports `completed`. The worker accepts no
+caller-provided registry or lookalike callback as lifecycle proof. Exact-set accounting and
 recovery retain their separate existing authority; they cannot reacquire core removal.
 
 This composition requires the durable core from PR348 and the reviewed current lifecycle/schema
 prerequisites; older installed schemas or an incomplete lifecycle cannot be certified by wiring.
 Actions installed-release fixtures exercise the normal API and worker with disposable data
 and no provider. Actual dev/stage privacy journeys require separate deployment evidence.
+
+## Account deletion and export (#246, D-043)
+
+The registry also holds `identity.delete-account` (erases one accepted account deletion in one transaction
+through `eraseCurrentAccount`), `identity.recover-account-deletions` (every five minutes: hands pending, due
+deletions back to the queue) and `identity.build-export` (builds one export file through
+`exportCurrentPerson`). On a final failed delivery the consumer marks the receipt `needs_retry` (deletion) or
+the export `failed`, best effort: the recovery cron and a retry are the other ways out. Their payloads are IDs
+only (the operation or export id, never a person), and the logged outcomes carry no account, universe or
+receipt id. The sweep `identity.sweep-sign-in-records` also retires exports.
 
 Background worker: a Nest application context with no network listener. pg-boss claims jobs for
 the queues in the explicit consumer registry (`src/jobs.ts`); nothing is discovered by
@@ -43,18 +53,50 @@ imports approved existing output at no spend. Required worker-only settings: `KS
 `KS_MEDIA_ROOT`, `KS_CUTROOM_ORIGIN` (HTTP loopback only), `KS_CUTROOM_ARTIFACT_ROOT`; optional
 `KS_FFPROBE_PATH` defaults `/usr/bin/ffprobe`. Only dev/stage/ci/local operator worlds are accepted.
 The worker unit alone receives `SupplementaryGroups=ks-pool`; the API receives no Cutroom origin or
-artifact access group. No Cutroom/provider POST exists. `--fixture` additionally requires ci/local and
+artifact access group. This importer sends nothing to Cutroom. `--fixture` additionally requires ci/local and
 a disposable `ks_it_*`/`knowscroll_fixture_*` DB, and marks content visibly. Operator output is one
 sanitised result line; external errors never log URLs/paths/response text. Failed copy/probe/admission
 can leave an unreferenced object; never delete referenced bytes during rollback.
+
+`node dist/operator.js journey <id>` and `journey --account <accountId>` (`src/journey-operator.ts`, #248) print one
+record's timeline across modules, read from the `ops` views: IDs, states, codes and times only. `--json` prints one
+JSON line. Exit 0 found, 2 not found or bad usage, 1 failure. Read-only; it needs only `KS_WORLD` and `DATABASE_URL`.
+Runbook: `docs/v2/operations/looking-at-the-system.md`.
+
+`node dist/operator.js reel <check|order|follow|receive|status|write-off|settle> …` orders Reels from
+Cutroom and brings them in (`src/reel-operator.ts`; the use cases and the guarantees are in
+`packages/backend/src/modules/content/README.md`, "Reels from Cutroom"; the runbook is
+`docs/v2/operations/cutroom-and-spend.md`). Settings: the import settings above plus the shared pool,
+which is `KS_POOL_DATABASE_URL` or, by default, the world's own `DATABASE_URL` pointed at
+`knowscroll_pool`. Only `reel order --until video` can spend, only through a claim in the pool, and
+only up to the ceiling, which must be Cutroom's own 75 cents. The worker service registers no Reel job:
+every step is an operator command. Output is one JSON line per result; exit 0 done or under way, 2
+refused or not ready yet, 1 failure.
 
 The composition root binds `PRODUCTION_REASONING_HARNESS` and `WITH_PRODUCTION_SCOPE` separately
 from the personal harness. Nonpersonal Scroll supply requires explicit worker configuration and
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
+The `content.produce-scroll` consumer (`src/production-jobs.ts`, #239) runs the production use case for
+one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
+registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The
+`supply.resolve-request` consumer advances a person's request (a free-text match, the wait for
+production, binding) with the personal reasoning harness. `KS_SUPPLY_CREATE_DAILY_CAP` caps the
+productions Create may start per UTC day for people's asks (default 20 in `local`, 0 elsewhere);
+`KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5) caps the Planner's demand apart from it.
+
+`node dist/operator.js supply recover-open-demand [--dry-run]` (`src/supply-operator.ts`) sends one
+resolver job for every ask that is still open from before Create existed and prints the counts. It is
+idempotent and calls no provider.
+
+`node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
+the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
+`content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared
+database and pg-boss; no provider is called.
+
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
-[--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local, defaults to
+[--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
 `MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
 explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
 `--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is
@@ -77,45 +119,6 @@ transaction, then persists the ranking and replaces the person's buffer in a sec
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 
-Connected Cutroom source (#240) registers explicit normal pool/follow/accounting/settle consumers
-and a bounded scheduled recovery consumer; all work stays disabled unless the complete separate
-Cutroom worker configuration and trusted root packet exist. Each delivery re-reads bounded
-externally refreshed attestations without renewing any timestamp. Network/file/probe waits happen
-outside world transactions. Normal queued work and Root-driven immediate work invoke the same
-exact-operation use case; a receipt or safe hold alone never authorizes POST.
-
-The installed operator accepts `cutroom import-corpus`, `cutroom commission`, `cutroom process-pool`,
-`cutroom follow` and `cutroom settle`. They read only the configured root packet, never accept an
-arbitrary queue or approval JSON argument. The first pool delivery can safely claim then hold while
-Root obtains the actual bound-receipt preflight. Root may refresh actual attestations and use the
-exact existing `poolWork`/`followWork`/`settleWork` from that packet for immediate processing. This
-is not Cutroom resume or POST retry: any retained C1 intent can only be followed/reconciled.
-Immediate output identifies `root_immediate_existing_operation` and distinguishes a held/unknown
-operation from progress. `accounting_pending` is a local durable report/job; `accounting_confirmed`
-can represent an active evidence hold and must not be read as settlement. Inspect the exact
-immutable settlement receipt to establish claim closure.
-
-Source ships no corpus, human approval, principal, allowance, actual preflight, credential, root
-seed or runtime activation. Pool0004 installation/provenance/ACL and actual funds/sole-writer
-preflight remain separately reviewed Root operations. Old0014 imports and retained scripts are
-unchanged. CF62 cross-world0c receiving uses the separate default-disabled target root described
-below; it cannot order or settle the original claim. Actions synthetic worker/media journeys establish fixture behavior only, never paid
-provider or real installed-profile acceptance.
-
-Bootstrap metadata is separate from human approval: trusted setup permits empty approval
-registries for `cutroom import-corpus` and the read-only `cutroom prepare-review` command. The
-latter returns the exact prepared public packet for subsequent individual HUMAN approval; it
-never adds that approval to a registry or reserves/claims work. A missing current profile may
-still permit exact old financial accounting, while fresh GET verification requires its own
-actual read profile. Pinned upstream source guards original-plus-child against the unchanged original ceiling. The
-actual installed revision/profile/rates, sole-writer/lease and complete send/receipt assumptions
-remain an activation gate; unexpected-overage accounting alone never proves that gate.
-
-`cutroom purge` invokes the existing bounded B expiry purge (maximum50) under the current world
-root. It does not reconstruct bytes, forget liabilities or automatically release/refund a claim.
-This source exposes explicit operator expiry cleanup; it does not claim an additional automatic
-protected-byte GC scheduler.
-
 U05 (#363) normally registers the fixed `scenes.expire-formation` consumer and five-minute UTC
 `scenes.recover-formation` scheduled consumer. They finalize only the exact current due claim as
 skipped, never create formation, grant animation, consume content or invoke a model/provider.
@@ -128,24 +131,6 @@ again, and overlapping scheduled passes may revisit due rows. Exhausted final de
 or crash leaves durable due state for the next finite pass. The ordinal-only global cursor has
 no personal UUID or per-account effect authority; full/Clear erases the personal row and all exact
 private expiry job states. Old late work cannot restore removed IDs or touch fresh-epoch data.
-
-## CF62 zero-cost receiver (#373, default disabled)
-
-`operator.js cutroom receive` stages only the exact envelope in the configured Root-owned
-receiving packet; it accepts no arbitrary path, approval JSON, source URL or financial argument.
-Stage/required pg-boss work commit together. Normal fixed `content.receive-cutroom` and
-`content.recover-receive-cutroom` consumers use separate receiving configuration/root authority;
-they never compose Cutroom HTTP/pool connections or require the paid commissioning flag. Every
-delivery re-reads the bounded Root packet without renewing its timestamps. Local media/probe work
-runs outside transactions; admission and exact receipt are atomic. Unknown commit outcomes retry
-the original body, and a historical admitted receipt never restores later content eligibility.
-
-Three finite cooled recovery wakes and bounded leases/deliveries preserve held unknown work.
-Fixed-ceiling keyset continuation commits before individual operation waits, including busy first
-pages; final pages terminate. Root may explicitly refresh current-policy provenance for the SAME
-handoff within its original hard deadline. Source/Actions fixtures do not approve an actual export,
-transfer, individual script, corpus, provider call, receiving root or process flag.
-
 
 ## Original-generation personal recording composition (#381)
 

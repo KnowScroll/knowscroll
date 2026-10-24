@@ -1,5 +1,5 @@
 import { clearCoreTransactionOf, markClearRemovalVerified } from '../postgres/privacy-scope.js';
-import type { ClearCoreTx, PersonalScopeTx } from '../../modules/identity/public.js';
+import type { AccountDeletionTx, ClearCoreTx, PersonalScopeTx } from '../../modules/identity/public.js';
 
 /** A personal SQL table and the column that names its universe. */
 export interface PersonalTable {
@@ -47,6 +47,28 @@ export interface ErasureReport {
   readonly removed: number;
 }
 
+/** Who an export is for. Modules read their own account-keyed rows by `accountId`, universe rows by the scope. */
+export interface ExportPerson {
+  readonly accountId: string;
+}
+
+/**
+ * What a module puts in a person's export file (blueprint §19 "Export", D-043). The registry list
+ * drives it like it drives erasure: every declared store is either read here (`covers`) or left
+ * out with the reason (`omits`), so a new store cannot be forgotten.
+ *
+ * `read` runs inside the locked personal scope and returns plain JSON sections: bounded lists of
+ * the person's own records with readable fields only. Never another person's data or identifiers,
+ * internal IDs and hashes, tokens, scores, prompts or provider secrets.
+ */
+export interface ModuleExport {
+  /** Declared stores (`schema.table` or `store:<name>`) that `read` reports on. */
+  readonly covers: readonly string[];
+  /** Declared stores left out on purpose, each with its reason. */
+  readonly omits: Readonly<Record<string, string>>;
+  read(scope: PersonalScopeTx, person: ExportPerson): Promise<Readonly<Record<string, unknown>>>;
+}
+
 /**
  * One module's erasure declaration (blueprint §5 "Erasure registry"): every personal table and
  * non-row store it owns, and the eraser that removes one universe's data from them inside the
@@ -62,6 +84,14 @@ export interface ModuleErasure {
   readonly accountTables?: readonly AccountTable[];
   /** Erasers run in registry order; list dependants (rows referencing others) first. */
   erase(scope: PersonalScopeTx): Promise<ErasureReport>;
+  /**
+   * Account deletion only: removes the account-keyed rows and account links this module owns
+   * (`accountTables`, `accountColumns` outside its own `tables`) after every `erase` has run.
+   * Idempotent like `erase`. Required when the module declares such stores.
+   */
+  eraseAccount?(scope: AccountDeletionTx): Promise<ErasureReport>;
+  /** What the person's export holds of this module. Required in the real registry. */
+  export?: ModuleExport;
   /** Separate capability, owner callback and per-store disposition for selective Clear. */
   clearExploration?: {
     readonly dispositions: Readonly<Record<string, 'erase' | 'preserve' | 'redact_accounting' | 'external_retention'>>;
@@ -152,4 +182,111 @@ export async function eraseExploration(
   }
   markClearRemovalVerified(scope);
   return reports;
+}
+
+/** `schema.table` for every row store a module declares, and `store:<name>` for the others. */
+function declaredStores(declaration: ModuleErasure): readonly string[] {
+  const names = new Set([
+    ...declaration.tables.map((t) => `${t.schema}.${t.table}`),
+    ...(declaration.accountTables ?? []).map((t) => `${t.schema}.${t.table}`),
+    ...(declaration.accountColumns ?? []).map((t) => `${t.schema}.${t.table}`),
+    ...declaration.nonRowStores.map((s) => `store:${s.name}`),
+  ]);
+  return [...names];
+}
+
+/**
+ * An export that reads `covers` with `read` and leaves every other declared store out for one
+ * reason (internal bookkeeping, derived scores, shared with another person). Use it when one
+ * reason fits; a module whose omissions differ writes its `omits` out.
+ */
+export function exportReading(
+  declaration: ModuleErasure,
+  covers: readonly string[],
+  omitReason: string,
+  read: ModuleExport['read'],
+): ModuleExport {
+  const omitted = declaredStores(declaration).filter((name) => !covers.includes(name));
+  return { covers, omits: Object.fromEntries(omitted.map((name) => [name, omitReason])), read };
+}
+
+/** An export of a module whose stores are all internal: nothing is read. */
+export function exportNothing(declaration: ModuleErasure, reason: string): ModuleExport {
+  return exportReading(declaration, [], reason, () => Promise.resolve({}));
+}
+
+/**
+ * The registry for account deletion and export. Refuses, at start-up, a module that holds
+ * account-keyed stores without an `eraseAccount`, one without an `export`, and an export that does
+ * not account for exactly the stores the module declares.
+ */
+export function accountLifecycleRegistry(modules: readonly ModuleErasure[]): readonly ModuleErasure[] {
+  for (const declaration of modules) {
+    const ownTables = new Set(declaration.tables.map((t) => `${t.schema}.${t.table}`));
+    const holdsAccountStores =
+      (declaration.accountTables ?? []).length > 0 ||
+      (declaration.accountColumns ?? []).some((c) => !ownTables.has(`${c.schema}.${c.table}`));
+    if (holdsAccountStores && declaration.eraseAccount === undefined)
+      throw new Error(`ACCOUNT_ERASER_MISSING: ${declaration.module}`);
+    const exported = declaration.export;
+    if (exported === undefined) throw new Error(`EXPORT_OWNER_MISSING: ${declaration.module}`);
+    const accounted = [...exported.covers, ...Object.keys(exported.omits)];
+    const declared = declaredStores(declaration);
+    if (
+      new Set(accounted).size !== accounted.length ||
+      declared.some((name) => !accounted.includes(name)) ||
+      accounted.some((name) => !declared.includes(name))
+    )
+      throw new Error(`EXPORT_COVERAGE_MISMATCH: ${declaration.module}`);
+  }
+  return modules;
+}
+
+/**
+ * Account deletion's erasers over the deleting universe: every module's `erase` first (universe
+ * rows, queue payloads), then every `eraseAccount` (account-keyed rows and links). Returns each
+ * report; the caller decides what `pending` means. A thrown error rolls the transaction back.
+ */
+export async function eraseAccountData(
+  scope: AccountDeletionTx,
+  registry: readonly ModuleErasure[],
+): Promise<readonly ErasureReport[]> {
+  const reports: ErasureReport[] = [];
+  for (const declaration of registry) reports.push(await declaration.erase(scope.personal));
+  for (const declaration of registry) {
+    if (declaration.eraseAccount !== undefined) reports.push(await declaration.eraseAccount(scope));
+  }
+  return reports;
+}
+
+/** The most records one export section lists; a section that had more says `truncated`. */
+export const EXPORT_LIST_LIMIT = 2000;
+
+/**
+ * A list section for the export file. Query `EXPORT_LIST_LIMIT + 1` rows, newest first: the extra
+ * row only tells us the list was cut, and is not returned.
+ */
+export function boundedSection<T>(rows: readonly T[]): { readonly items: readonly T[]; readonly truncated: boolean } {
+  return { items: rows.slice(0, EXPORT_LIST_LIMIT), truncated: rows.length > EXPORT_LIST_LIMIT };
+}
+
+/** The export file's structure version. A change to a section's shape bumps it. */
+export const EXPORT_VERSION = 'knowscroll-export.v1';
+
+/**
+ * Every module's export section for one person, keyed by module name. A module with nothing to say
+ * (all its stores are internal machinery) has no section: the file never names it.
+ */
+export async function exportPersonalData(
+  scope: PersonalScopeTx,
+  registry: readonly ModuleErasure[],
+  person: ExportPerson,
+): Promise<{ readonly version: typeof EXPORT_VERSION; readonly sections: Record<string, unknown> }> {
+  const sections: Record<string, unknown> = {};
+  for (const declaration of registry) {
+    if (declaration.export === undefined) throw new Error(`EXPORT_OWNER_MISSING: ${declaration.module}`);
+    const section = await declaration.export.read(scope, person);
+    if (Object.keys(section).length > 0) sections[declaration.module] = section;
+  }
+  return { version: EXPORT_VERSION, sections };
 }

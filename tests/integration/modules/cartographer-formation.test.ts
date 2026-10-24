@@ -8,14 +8,9 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { attemptsOf, signal } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
-import {
-  answerWith,
-  enableProductionScope,
-  fixtureClaimSelection,
-  fixtureProduction,
-  fixtureWriterDraft,
-} from '../support/generated-scroll.js';
+import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
+import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 
 /**
  * How reading becomes places: dust, then a system with its star, then a planet with its regions.
@@ -99,9 +94,7 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     const scrolls = [];
     for (const key of ['seasons', 'seasons-hemispheres', 'seasons-limits'] as const) {
       const recipe = TOPICS[key];
-      const production = fixtureProduction(database.db, (call) =>
-        answerWith(call === 1 ? fixtureClaimSelection : fixtureWriterDraft(recipe.interactive)),
-      );
+      const production = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
       expect(await production.produce(key, false, signal(), false)).toMatchObject({
         outcome: 'published',
         assetId: recipe.assetId,

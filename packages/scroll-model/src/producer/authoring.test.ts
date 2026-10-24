@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { compileAuthored } from './authoring.js';
+import { compileAuthored, NORMALISATION_CHECK } from './authoring.js';
+import { authoringReference } from './authoring-reference.js';
 import { AuthoredScroll, type AuthoredBlockType } from './authoring-schema.js';
 import type { AuthoringEvidence } from './authoring-bind.js';
 import type { DraftProvenance } from './draft.js';
@@ -378,6 +379,114 @@ describe('compileAuthored: the interactive blocks', () => {
     expect(refusal(outcome)).toEqual({
       stage: 'computation',
       issues: [{ code: 'sim_output_not_finite', path: 'blocks.3' }],
+    });
+  });
+
+  it('defaults an unknown layout or node kind, records it in the provenance and keeps real structure errors strict', () => {
+    const styled = structuredClone(diagram);
+    if (styled.type !== 'diagram') throw new Error('fixture');
+    styled.layout = 'horizontal';
+    styled.nodes = styled.nodes.map((node, index) => (index === 1 ? { ...node, kind: 'building' } : node));
+    const outcome = compile(scroll([styled]));
+    if (outcome.kind !== 'compiled') throw new Error(JSON.stringify(outcome));
+    const block = outcome.document.sections[0]?.blocks.at(-1);
+    expect(block).toMatchObject({
+      type: 'diagram',
+      data: { layout: 'flow-lr', nodes: [{ kind: 'entity' }, { kind: 'entity' }, { kind: 'entity' }] },
+    });
+    expect(outcome.internalProvenance.checks.filter((check) => check.name === NORMALISATION_CHECK)).toEqual([
+      {
+        name: NORMALISATION_CHECK,
+        version: 'scroll-authoring.v1',
+        verdict: 'pass',
+        reasonCodes: ['diagram_layout_defaulted_block_3', 'diagram_node_kind_defaulted_block_3'],
+      },
+    ]);
+
+    // A name that is allowed, in another case or with padding, is the value it names and is not a normalisation.
+    const named = structuredClone(styled);
+    if (named.type !== 'diagram') throw new Error('fixture');
+    named.layout = ' Radial ';
+    named.nodes = named.nodes.map((node) => ({ ...node, kind: 'Store' }));
+    const kept = compile(scroll([named]));
+    if (kept.kind !== 'compiled') throw new Error(JSON.stringify(kept));
+    expect(kept.document.sections[0]?.blocks.at(-1)).toMatchObject({
+      data: { layout: 'radial', nodes: [{ kind: 'store' }, { kind: 'store' }, { kind: 'store' }] },
+    });
+    expect(kept.internalProvenance.checks.map((check) => check.name)).not.toContain(NORMALISATION_CHECK);
+
+    // Only the style is forgiven: a frame that names a missing node is still refused.
+    const broken = structuredClone(styled);
+    if (broken.type !== 'diagram') throw new Error('fixture');
+    broken.frames[0] = { ...broken.frames[0], highlight: ['valve'] } as (typeof broken.frames)[number];
+    expect(refusal(compile(scroll([broken])))?.issues).toEqual([
+      { code: 'authoring_reference_unknown', path: 'blocks.3' },
+    ]);
+  });
+
+  describe('a ratio formula’s denominator', () => {
+    const ratio = (denominator: unknown): unknown => ({
+      type: 'simulation',
+      cites: ['e2'],
+      title: 'Pump load',
+      params: [{ key: 'strokes', label: 'Strokes per minute', min: 0, max: 10, step: 1, default: 3 }],
+      constants: [{ key: 'capacity', label: 'Cistern size', value: 4, unit: 'units' }],
+      outputs: [
+        { key: 'share', label: 'Share', decimals: 2, formula: { kind: 'ratio', numerator: 'strokes', denominator } },
+      ],
+      note: 'A simple model with invented numbers that ignores friction.',
+    });
+    const authoredWith = (denominator: unknown) =>
+      AuthoredScroll.safeParse({
+        title: 'How a harbour pump works',
+        dek: 'A small invented pump explains lifting water in simple steps.',
+        blocks: [{ type: 'heading', text: 'The pump' }, ...intro, ratio(denominator)],
+      });
+
+    it.each([
+      ['the key of a constant', 'capacity'],
+      ['a plain number', 4],
+    ])('accepts %s and compiles it to a ratio', (_label, denominator) => {
+      const parsed = authoredWith(denominator);
+      if (!parsed.success) throw new Error(JSON.stringify(parsed.error.issues));
+      const outcome = compile(parsed.data);
+      if (outcome.kind !== 'compiled') throw new Error(JSON.stringify(outcome));
+      const block = outcome.document.sections[0]?.blocks.at(-1);
+      expect(block?.type === 'simulation' && block.data.outputs[0]?.formula).toEqual({
+        kind: 'ratio',
+        numerator: 'strokes',
+        denominator,
+      });
+    });
+
+    it.each([
+      ['a nested formula', { kind: 'product', factors: ['capacity', 2] }],
+      ['an expression written as text', 'capacity * 2'],
+    ])('refuses %s at the operand, where the repair can name it', (_label, denominator) => {
+      const parsed = authoredWith(denominator);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.path).toEqual(['blocks', 3, 'outputs', 0, 'formula', 'denominator']);
+    });
+
+    it('is described to the writer as a number or a key, with the output-first way to divide by a computed value', () => {
+      const reference = authoringReference(['simulation']);
+      expect(reference).toContain('never an expression, never an object and never a nested formula');
+      expect(reference).toContain('first make it a constant or an earlier output');
+      // The example in the reference is itself a ratio over a constant's key, and it compiles.
+      const example = JSON.parse((reference.split('\n')[0] ?? '').replace(/^simulation: /u, '')) as Block;
+      const parsed = AuthoredScroll.safeParse({
+        title: 'How a harbour pump works',
+        dek: 'A small invented pump explains lifting water in simple steps.',
+        blocks: [{ type: 'heading', text: 'The pump' }, ...intro, example],
+      });
+      if (!parsed.success) throw new Error(JSON.stringify(parsed.error.issues));
+      const outcome = compile(parsed.data);
+      if (outcome.kind !== 'compiled') throw new Error(JSON.stringify(outcome));
+      const block = outcome.document.sections[0]?.blocks.at(-1);
+      expect(block?.type === 'simulation' && block.data.outputs.map((output) => output.formula.kind)).toEqual([
+        'product',
+        'ratio',
+      ]);
     });
   });
 

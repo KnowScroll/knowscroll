@@ -120,6 +120,27 @@ Scope end or authority refusal synchronously purges private snapshots, listeners
 
 Authored protocol fixtures cover scope-object isolation, synchronous purge and late replies, CAS/ABA/replay/coalescing, uncertain acknowledgements, required ACK rereads and resource caps. Automated verification runs in Actions only. This source does not establish mounted Keep UX, native/runtime acceptance, a response/lock UX budget, or a production latency SLO; those remain separate consumer/review gates after the actual HTTP probes.
 
+## Account sessions, export and deletion (#246, D-043)
+
+- `createAccountSessionsSession(scope)`: the person's live sessions (coarse label, last use, current), `end(id)` and
+  `endOthers()` then reread; a session already gone counts as ended; a failure keeps the list and says so.
+- `createDataExportsSession(scope, newId)`: receipts, `request()` (a fresh id each time), `download(id, open)`
+  which mints a one-time link and hands its API-relative path to the platform's `open` once; the path is never
+  kept in state.
+- `requestAccountDeletion(scope, deps)`: remembers the receipt id **before** sending, sends the confirmed request
+  with the epoch the person saw, and on acceptance ends the scope here (`manager.endAfterAccountDeletion()`).
+  A refusal forgets the receipt; no answer keeps it, so it can be asked about.
+- `AccountScopeManager.deletion` (`createDeletionReceiptSession`): the device's receipt, read without a session
+  through `/auth/deletion/{id}` (`DeletionReceiptClient`), kept outside every scope in the key-value store
+  (`ks.deletion.receipt`, not purged by a scope ending). An unknown receipt is forgotten: that request never arrived.
+  `signed_out.reason` gains `account_deleted`.
+
+## Operator screen state (#248, D-044)
+
+- `createOperatorSession(scope)`: the panels (`loading`, `ready` with `readAt` and `stale`, `unavailable`, or `not_operator` on the
+  server's 404) and one journey lookup (`idle`, `invalid` for input that is not an ID and is never sent, `loading`, `found`,
+  `not_found`, `unavailable`). Only the newest lookup shows. Read-only.
+
 ## Manager-owned selective Clear (#345)
 
 `AccountScopeManager.privacy` is an in-memory controller outside the provider's keyed scope subtree.
@@ -175,6 +196,15 @@ is not installed by this change: missing/unsupported services remain unavailable
 coverage/admission authority stays server-owned. Authored protocol/component/exported-browser
 fixtures run in Actions only and do not establish real formation, approved mappings, generated
 content, device parity or populated dev acceptance.
+
+## Dust read (#238)
+
+`readDustCues(scope, signal?)` calls `POST /v1/universe/emerging/read` and returns `ready` with
+opaque cue IDs or a typed `unavailable` reason (`network`, `authority`, `invalid`,
+`temporarily_unavailable`). The reply must name this universe and epoch. A cue is not a place: it
+has no label, topic or count, and the read never forms anything. Nothing is cached or retried here;
+the Universe view session reads again on foreground and when the geography revision changes.
+Status: implemented, CI-verified.
 
 ## Durable formation presentation client (#363)
 
@@ -299,6 +329,29 @@ batches have unknowable original generation: adopting v2 explicitly discards/cou
 retains the disclosure, and removes the old key without destroying an existing v2 queue. Missing
 observations remain unknown, never inferred reading. Storage errors degrade to memory-only delivery.
 
-Web localStorage remains subject to quota/crash loss; native scope storage is still memory-only
-and is not crash-durable. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
+Web localStorage remains subject to quota/crash loss; native scope storage is kept in encrypted
+platform storage (`apps/client/platform/secure-key-value-store.ts`, D-045) and is durable a moment
+after a write, not at it, so a process killed in that moment loses that write. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
 hosted Actions only. They do not establish real service qualification, native parity or deployment.
+
+## Talk and share links (#242, D-042)
+
+All of these are pure controllers over `scope.api`. They hold no token or body in a query cache or storage, and
+they end with the scope. *Implemented; exercised in browsers locally, not yet on dev.*
+
+- `createConversationThread(scope, ref, options)`: reads the snapshot, then catches up with `conversations/changes`
+  from the stored cursor. `send(text)` shows a bubble as `sending`, then `accepted`, `unconfirmed` (the outcome is
+  unknown: the same command ID is kept and `retry()` sends it again) or `not_sent` (a definite refusal). It marks
+  read, mutes and leaves. When a catch-up page first says `ended`, it rereads the snapshot, so a deleted friend shows
+  as "Deleted account". `mergeMessages` orders by sequence and drops duplicates, so a hint, a poll and a send
+  answer can arrive in any order.
+- `createShareSession(scope, target, origin)`: lists friends (the roster plus the inbox, to find an open
+  conversation), starts a conversation if needed and sends the card for the exact asset revision, with one command
+  ID per intent. `copyLink()` creates a public link and returns its URL once; `stopLink()` revokes it.
+- `createSharedLinksSession(scope)`: lists the person's live links and revokes one.
+- `readInboxPage`, `findConversation`, `blockFriend` (Talk's menu), and the formatting helpers in
+  `talk-format.ts` (`describeMessage`, `inboxRowView`, `listTime`, `dayLabel`).
+- `account-scope-socket.ts` subscribes to both `universe` and `inbox`, keeps the highest revision per kind and
+  invalidates `scope.queryKey('talk')` (`TALK_QUERY_KEY`) on an inbox hint.
+- `@knowscroll/client-core/talk-fixture` (`src/test-support/talk-fixture.ts`) is a labelled in-memory Talk server for tests (it can fail the next call
+  as network, unavailable, server or lost response). It never ships in a build.

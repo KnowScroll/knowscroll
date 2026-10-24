@@ -1,12 +1,3 @@
-import { createHash } from 'node:crypto';
-import pg from 'pg';
-import type { PgBoss } from 'pg-boss';
-import { makeWithCutroomScope } from '../../infrastructure/postgres/cutroom-scope.js';
-import { makeEnqueueCutroom } from '../../infrastructure/jobs/enqueue-cutroom.js';
-import { makeCutroomB } from '../application/cutroom.js';
-import { postgresCutroomLedger } from './postgres-cutroom-ledger.js';
-import { makeCutroomPool } from './cutroom-pool.js';
-import type { CutroomB, CutroomOwnerApproval, CutroomBusinessLock, WithCutroomScope } from '../public.js';
 import type { Kysely } from 'kysely';
 import type { ReasoningSettings } from '../../infrastructure/config/index.js';
 import { uuidv7 } from '../../infrastructure/ids/index.js';
@@ -88,15 +79,25 @@ export { makeProductionAttemptLedger } from './postgres-production-ledger.js';
 /** Fifteen minutes between opportunistic purges of expired protected requests. */
 const PURGE_INTERVAL_MS = 15 * 60 * 1000;
 
-/** Harness settings from the worker's reasoning configuration. */
+/** Harness settings for the personal roles: each person's scope is bounded by the per-scope cap. */
 export function harnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
   return {
-    caps: settings.caps,
+    caps: { global: settings.caps.global, scope: settings.caps.scope, roleDefault: settings.caps.roleDefault },
     maxRequestBytes: settings.maxRequestBytes,
     requestRetentionSeconds: settings.requestRetentionSeconds,
     purgeIntervalMs: PURGE_INTERVAL_MS,
     dispatchedBy,
   };
+}
+
+/**
+ * Harness settings for the nonpersonal production scope. It writes the library for everyone, so its
+ * scope cap is the larger production cap; the global and role caps are the same as for personal roles
+ * and still bound it.
+ */
+export function productionHarnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
+  const personal = harnessSettings(settings, dispatchedBy);
+  return { ...personal, caps: { ...personal.caps, scope: settings.caps.productionScope } };
 }
 
 /**
@@ -405,127 +406,11 @@ export function reasoningProviders(
             enabled: settings.productionEnabled,
             model: configuredModelPort(settings),
             logEvent,
-            settings: harnessSettings(settings, `worker:${process.pid}`),
+            settings: productionHarnessSettings(settings, `worker:${process.pid}`),
           }),
         ),
     },
   ];
 }
 
-/** B prerequisite ONLY; no normal process binding/root seed/approval/principal/transport.
- * connectPool must acquire a separate bounded dedicated session; never a world transaction.
- */
-export function cutroomBFor(
-  db: Kysely<Database>,
-  boss: PgBoss,
-  options: {
-    readonly enabled?: boolean;
-    readonly approvals?: readonly CutroomOwnerApproval[];
-    readonly lockBusiness?: CutroomBusinessLock;
-    readonly connectPool?: () => Promise<pg.PoolClient>;
-    readonly now?: () => Date;
-    readonly withScope?: WithCutroomScope;
-  } = {},
-): CutroomB {
-  const enabled = options.enabled ?? false;
-  const pool = options.connectPool
-    ? makeCutroomPool(options.connectPool)
-    : {
-        claim: () => Promise.resolve({ kind: 'held', reason: 'needs_operator' } as const),
-        read: () => Promise.resolve({ kind: 'held', reason: 'needs_operator' } as const),
-        release: () => Promise.resolve({ kind: 'held', reason: 'needs_operator' } as const),
-      };
-  return makeCutroomB({
-    withScope: options.withScope ?? makeWithCutroomScope(db, { enabled, lockTimeoutMs: 5000 }),
-    ledger: postgresCutroomLedger(makeEnqueueCutroom(boss), options.now),
-    pool,
-    lockBusiness: options.lockBusiness ?? (() => Promise.resolve(false)),
-    approvals: options.approvals ?? [],
-    enabled,
-    now: options.now ?? (() => new Date()),
-    sha256: (text) => createHash('sha256').update(text, 'utf8').digest('hex'),
-    byteLength: (text) => Buffer.byteLength(text, 'utf8'),
-  });
-}
-export { makeWithCutroomScope, makeEnqueueCutroom, postgresCutroomLedger, makeCutroomPool, makeCutroomB };
-export type {
-  CutroomBPorts,
-  CutroomLedger,
-  CutroomPool,
-  CutroomNotSent,
-  CutroomPoolOperation,
-} from '../application/cutroom-ports.js';
-
-import { makeWithCutroomAccountingScope } from '../../infrastructure/postgres/cutroom-scope.js';
-import { makeEnqueueCutroomAccounting } from '../../infrastructure/jobs/enqueue-cutroom.js';
-import { makeCutroomExecutionFoundation, consumeCutroomDispatchPermit } from '../application/cutroom-execution.js';
-import { postgresCutroomExecution } from './postgres-cutroom-execution.js';
-import { cutroomAccountingQueue } from '../events.js';
-import type { CutroomDispatchPreflight, CutroomReviewRecheck } from '../application/cutroom-execution-ports.js';
-/** C1 unmounted composition seam. No provider/HTTP/fal/pool action, approval mint, root seed or dispatcher. */
-export function cutroomExecutionFor(
-  db: Kysely<Database>,
-  boss: PgBoss,
-  options: {
-    readonly enabled?: boolean;
-    readonly recheckReview?: CutroomReviewRecheck;
-    readonly preflights?: readonly CutroomDispatchPreflight[];
-    readonly now?: () => Date;
-  } = {},
-) {
-  const enabled = options.enabled ?? false;
-  return makeCutroomExecutionFoundation({
-    enabled,
-    withScope: makeWithCutroomScope(db, { enabled, lockTimeoutMs: 5000 }),
-    withAccountingScope: makeWithCutroomAccountingScope(db, { enabled, lockTimeoutMs: 5000 }),
-    store: postgresCutroomExecution(
-      makeEnqueueCutroom(boss),
-      makeEnqueueCutroomAccounting(boss, cutroomAccountingQueue),
-      options.now,
-    ),
-    recheckReview: options.recheckReview ?? (() => Promise.resolve(undefined)),
-    preflights: options.preflights ?? [],
-    now: options.now ?? (() => new Date()),
-  });
-}
-export {
-  makeWithCutroomAccountingScope,
-  makeEnqueueCutroomAccounting,
-  makeCutroomExecutionFoundation,
-  consumeCutroomDispatchPermit,
-  postgresCutroomExecution,
-};
-
-/** Unmounted/default-disabled metadata preparation; separate from B/accounting factories. */
-export { makeWithCutroomPreparationScope } from '../../infrastructure/postgres/cutroom-scope.js';
-
 export { clearReasoning } from './erasure.js';
-
-/** Connected Cutroom source composition only; actual approvals/profile/funds/function ACL are external. */
-export { makeCutroomSettlement } from '../application/cutroom-settlement.js';
-export {
-  postgresCutroomSettlement,
-  cutroomMaintenanceFor,
-  cutroomPoolWorkReader,
-} from './postgres-cutroom-settlement.js';
-export { makeCutroomSettlementPool } from './cutroom-pool.js';
-export { makeEnqueueCutroomMaintenance } from '../../infrastructure/jobs/enqueue-cutroom.js';
-
-/** Dedicated pool sessions only; never pass a world transaction as this connection. */
-export function cutroomPoolConnections(settings: {
-  readonly url: string;
-  readonly applicationName: string;
-  readonly statementTimeoutMs: number;
-}) {
-  const pool = new pg.Pool({
-    connectionString: settings.url,
-    application_name: settings.applicationName,
-    max: 1,
-    statement_timeout: settings.statementTimeoutMs,
-    connectionTimeoutMillis: 5000,
-    idleTimeoutMillis: 10000,
-  });
-  pool.on('error', () => undefined);
-  return { connect: () => pool.connect(), close: () => pool.end() };
-}
-export { reasoningCutroomStores, reasoningCutroomNonRowStores } from './cutroom-store-inventory.js';

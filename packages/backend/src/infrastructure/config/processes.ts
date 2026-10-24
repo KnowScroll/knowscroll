@@ -87,6 +87,15 @@ export interface ApiConfig extends ReleaseIdentity {
   /** How long a socket subscription's authorisation may be reused before it is rechecked. */
   readonly socketAuthorisationCacheMs: number;
   readonly identity: IdentitySettings;
+  /**
+   * Addresses (or one-`*` patterns) whose accounts may use the operator routes and the Operator
+   * screen (`KS_OPERATOR_ACCOUNTS`, D-044). Empty means nobody can.
+   */
+  readonly operatorAccounts: readonly string[];
+  /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
+  readonly supplyCreateDailyCap: number;
+  /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
+  readonly supplyPlannerCreateDailyCap: number;
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -109,30 +118,18 @@ export interface ContentOperatorConfig {
   readonly database: DatabaseSettings;
 }
 
-export interface CutroomCommissioningSettings {
-  readonly enabled: boolean;
-  readonly packetPath?: string;
-  readonly origin?: string;
-  readonly artifactRoot?: string;
-  readonly mediaRoot?: string;
-  readonly evidenceFunctionSha256?: string;
-  readonly poolDatabase?: DatabaseSettings;
-}
-export interface CutroomReceivingSettings {
-  readonly enabled: boolean;
-  readonly packetPath?: string;
-  readonly stagingRoot?: string;
-  readonly mediaRoot?: string;
-  readonly ffprobePath?: string;
-}
 export interface WorkerConfig extends ReleaseIdentity {
-  readonly cutroom: CutroomCommissioningSettings;
-  readonly receiving?: CutroomReceivingSettings;
   /** Planner execution gate; default off until a separately approved role allowance. */
   readonly plannerEnabled: boolean;
   readonly cartographerEnabled: boolean;
   /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
   readonly jevEnabled: boolean;
+  /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
+  readonly supplyCreateDailyCap: number;
+  /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
+  readonly supplyPlannerCreateDailyCap: number;
+  /** The production scope generation the `content.produce-scroll` consumer works under. */
+  readonly scrollProductionGeneration: number;
   readonly database: DatabaseSettings;
   readonly shutdownGraceMs: number;
   /** Personal-scope lock wait; always shorter than the statement timeout. */
@@ -165,7 +162,14 @@ export interface ReasoningSettings {
     readonly requestTimeoutMs: number;
     readonly quotaFloorPercent: number;
   };
-  readonly caps: { readonly global: ReasoningCap; readonly scope: ReasoningCap; readonly roleDefault: ReasoningCap };
+  readonly caps: {
+    readonly global: ReasoningCap;
+    /** Per personal scope (one person's universe). */
+    readonly scope: ReasoningCap;
+    /** The nonpersonal production scope (`scroll-supply`), which seeds and extends the library. */
+    readonly productionScope: ReasoningCap;
+    readonly roleDefault: ReasoningCap;
+  };
   readonly maxRequestBytes: number;
   readonly requestRetentionSeconds: number;
 }
@@ -183,6 +187,24 @@ export interface MigrateConfig {
   readonly world: string;
   readonly database: DatabaseSettings;
 }
+
+/**
+ * `KS_SUPPLY_CREATE_DAILY_CAP`: how many shared Scroll productions Quartermaster's Create may start
+ * per UTC day (each is one writer call and at most one repair). 0 turns Create off, so a request for
+ * missing supply closes honestly. Default 20 in `local`, 0 in every other world (D-037).
+ */
+const supplyCreateCapVariable = z.coerce.number().int().min(0).max(500).optional();
+
+function supplyCreateDailyCap(configured: number | undefined, world: string): number {
+  return configured ?? (world === 'local' ? 20 : 0);
+}
+
+/**
+ * `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP`: the productions the Planner's own demand may start per UTC day.
+ * It is counted apart from people's asks, so the Planner cannot use up what a person's explicit ask
+ * needs, and it is never above the cap for people: switching Create off switches it off too. Default 5.
+ */
+const supplyPlannerCapVariable = z.coerce.number().int().min(0).max(500).default(5);
 
 const databaseVariables = {
   DATABASE_URL: PostgresUrlSchema,
@@ -235,6 +257,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
       KS_AUTH_ADAPTER: z.enum(['session', 'test-bearer']).default('session'),
       KS_SOCKET_AUTH_CACHE_MS: z.coerce.number().int().min(0).max(30_000).default(30_000),
+      KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
+      KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
     }),
     pick(env, [
       'DATABASE_URL',
@@ -248,9 +272,11 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SCOPE_LOCK_TIMEOUT_MS',
       'KS_AUTH_ADAPTER',
       'KS_SOCKET_AUTH_CACHE_MS',
+      'KS_SUPPLY_CREATE_DAILY_CAP',
+      'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
     ]),
   );
-  const [release, parsed, identity] = combineChecks(
+  const [release, parsed, identity, operatorAccounts] = combineChecks(
     checkReleaseIdentity(env),
     processCheck,
     checkIdentitySettings(
@@ -258,6 +284,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       { nodeEnv: env['NODE_ENV'] ?? 'development', world: env['KS_WORLD'] ?? '' },
       processCheck.ok ? processCheck.value.PORT : 0,
     ),
+    checkOperatorAccounts(env, env['KS_WORLD'] ?? ''),
   );
   crossChecks([
     [
@@ -280,6 +307,9 @@ export function readApiConfig(env: Environment): ApiConfig {
     authAdapter: parsed.KS_AUTH_ADAPTER,
     socketAuthorisationCacheMs: parsed.KS_SOCKET_AUTH_CACHE_MS,
     identity,
+    operatorAccounts,
+    supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
+    supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }
@@ -383,6 +413,30 @@ function checkIdentitySettings(
   };
 }
 
+const MAX_OPERATOR_ACCOUNTS = 20;
+
+/**
+ * Who may use the operator routes (`KS_OPERATOR_ACCOUNTS`, D-044): a comma-separated list of
+ * addresses, each in the grammar of `KS_OPERATOR_SIGN_IN_PATTERN` (one address, at most one `*` in
+ * the local part, lower case). A pattern with `*` is accepted only in `OPERATOR_WORLDS`; live takes
+ * exact addresses only. Unset: on `dev` with operator sign-in enabled, the sign-in pattern (every
+ * disposable test account may look); everywhere else nobody.
+ */
+function checkOperatorAccounts(env: Environment, world: string): Checked<readonly string[]> {
+  const configured = env['KS_OPERATOR_ACCOUNTS'];
+  if (configured === undefined || configured === '') {
+    const pattern = env['KS_OPERATOR_SIGN_IN_PATTERN'];
+    const signInOnDev = world === 'dev' && env['KS_ALLOW_OPERATOR_SIGN_IN'] === '1' && pattern;
+    return { ok: true, value: signInOnDev ? [signInOnDev] : [] };
+  }
+  const entries = configured.split(',').map((entry) => entry.trim());
+  if (entries.length > MAX_OPERATOR_ACCOUNTS || entries.some((entry) => operatorAddressMatcher(entry) === undefined))
+    return { ok: false, problems: ['KS_OPERATOR_ACCOUNTS: invalid_format'] };
+  if (entries.some((entry) => entry.includes('*')) && !OPERATOR_WORLDS.includes(world))
+    return { ok: false, problems: ['KS_OPERATOR_ACCOUNTS: wildcard_refused_in_this_world'] };
+  return { ok: true, value: entries };
+}
+
 /**
  * The operator sign-in switch (D-007, review m2/m3): `KS_ALLOW_OPERATOR_SIGN_IN` is unset or
  * exactly `1`; `1` is accepted only in an allow-listed world (`OPERATOR_WORLDS`: dev, stage, ci,
@@ -460,6 +514,10 @@ const reasoningVariables = z.object({
   KS_REASONING_GLOBAL_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
   KS_REASONING_SCOPE_REQUESTS_PER_DAY: positiveInteger(60, 1_000_000),
   KS_REASONING_SCOPE_TOKENS_PER_DAY: positiveInteger(600_000, 1_000_000_000),
+  // The production scope writes the whole library (about 70 writer requests, 1.4M tokens) and every
+  // Create job after it, so it has its own, larger cap. The global and role caps still bound it.
+  KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
+  KS_REASONING_PRODUCTION_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
   KS_REASONING_ROLE_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
   KS_REASONING_ROLE_TOKENS_PER_DAY: positiveInteger(2_000_000, 1_000_000_000),
   KS_REASONING_MAX_REQUEST_BYTES: positiveInteger(262_144, 262_144),
@@ -508,6 +566,10 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
         requestsPerDay: parsed.KS_REASONING_SCOPE_REQUESTS_PER_DAY,
         tokensPerDay: parsed.KS_REASONING_SCOPE_TOKENS_PER_DAY,
       },
+      productionScope: {
+        requestsPerDay: parsed.KS_REASONING_PRODUCTION_REQUESTS_PER_DAY,
+        tokensPerDay: parsed.KS_REASONING_PRODUCTION_TOKENS_PER_DAY,
+      },
       roleDefault: {
         requestsPerDay: parsed.KS_REASONING_ROLE_REQUESTS_PER_DAY,
         tokensPerDay: parsed.KS_REASONING_ROLE_TOKENS_PER_DAY,
@@ -555,42 +617,9 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_JEV_ENABLED: z.enum(['0', '1']).default('0'),
-        KS_CUTROOM_COMMISSIONING_ENABLED: z.enum(['0', '1']).default('0'),
-        KS_CUTROOM_RECEIVING_ENABLED: z.enum(['0', '1']).default('0'),
-        KS_CUTROOM_RECEIVING_PACKET: z
-          .string()
-          .regex(/^\/etc\/knowscroll\/[a-zA-Z0-9_./-]+$/)
-          .optional(),
-        KS_CUTROOM_RECEIVING_STAGING_ROOT: z.string().startsWith('/').optional(),
-        KS_CUTROOM_RECEIVING_MEDIA_ROOT: z.string().startsWith('/').optional(),
-        KS_CUTROOM_RECEIVING_FFPROBE_PATH: z.string().startsWith('/').default('/usr/bin/ffprobe'),
-        KS_CUTROOM_APPROVAL_PACKET: z
-          .string()
-          .regex(/^\/etc\/knowscroll\/[a-zA-Z0-9_./-]+$/)
-          .optional(),
-        KS_CUTROOM_ORIGIN: z
-          .string()
-          .url()
-          .refine((v) => {
-            const u = new URL(v);
-            return (
-              u.protocol === 'http:' &&
-              ['127.0.0.1', '[::1]'].includes(u.hostname) &&
-              u.username === '' &&
-              u.password === '' &&
-              u.pathname === '/' &&
-              !u.search &&
-              !u.hash
-            );
-          })
-          .optional(),
-        KS_CUTROOM_ARTIFACT_ROOT: z.string().startsWith('/').optional(),
-        KS_CUTROOM_MEDIA_ROOT: z.string().startsWith('/').optional(),
-        KS_CUTROOM_EVIDENCE_FUNCTION_SHA256: z
-          .string()
-          .regex(/^[0-9a-f]{64}$/)
-          .optional(),
-        KS_CUTROOM_POOL_DATABASE_URL: PostgresUrlSchema.optional(),
+        KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
+        KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
+        KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
         KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
@@ -599,18 +628,9 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_PLANNER_ENABLED',
         'KS_CARTOGRAPHER_ENABLED',
         'KS_JEV_ENABLED',
-        'KS_CUTROOM_COMMISSIONING_ENABLED',
-        'KS_CUTROOM_RECEIVING_ENABLED',
-        'KS_CUTROOM_RECEIVING_PACKET',
-        'KS_CUTROOM_RECEIVING_STAGING_ROOT',
-        'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
-        'KS_CUTROOM_RECEIVING_FFPROBE_PATH',
-        'KS_CUTROOM_APPROVAL_PACKET',
-        'KS_CUTROOM_ORIGIN',
-        'KS_CUTROOM_ARTIFACT_ROOT',
-        'KS_CUTROOM_MEDIA_ROOT',
-        'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
-        'KS_CUTROOM_POOL_DATABASE_URL',
+        'KS_SUPPLY_CREATE_DAILY_CAP',
+        'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
+        'KS_SCROLL_PRODUCTION_GENERATION',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
         'KS_DB_POOL_MAX',
@@ -626,65 +646,14 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
       'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
     ],
   ]);
-  if (parsed.KS_CUTROOM_COMMISSIONING_ENABLED === '1') {
-    const missing = [
-      'KS_CUTROOM_APPROVAL_PACKET',
-      'KS_CUTROOM_ORIGIN',
-      'KS_CUTROOM_ARTIFACT_ROOT',
-      'KS_CUTROOM_MEDIA_ROOT',
-      'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
-      'KS_CUTROOM_POOL_DATABASE_URL',
-    ].filter((k) => parsed[k as keyof typeof parsed] === undefined);
-    if (missing.length || !['dev', 'stage'].includes(release.world))
-      throw new ConfigurationError([
-        ...missing.map((k) => `${k}: required_when_enabled`),
-        ...(!['dev', 'stage'].includes(release.world)
-          ? ['KS_CUTROOM_COMMISSIONING_ENABLED: refused_in_this_world']
-          : []),
-      ]);
-  }
-  if (parsed.KS_CUTROOM_RECEIVING_ENABLED === '1') {
-    const missing = [
-      'KS_CUTROOM_RECEIVING_PACKET',
-      'KS_CUTROOM_RECEIVING_STAGING_ROOT',
-      'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
-    ].filter((k) => parsed[k as keyof typeof parsed] === undefined);
-    if (missing.length || !['dev', 'stage'].includes(release.world))
-      throw new ConfigurationError([
-        ...missing.map((k) => `${k}: required_when_enabled`),
-        ...(!['dev', 'stage'].includes(release.world) ? ['KS_CUTROOM_RECEIVING_ENABLED: refused_in_this_world'] : []),
-      ]);
-  }
   return {
     ...release,
-    receiving: {
-      enabled: parsed.KS_CUTROOM_RECEIVING_ENABLED === '1',
-      packetPath: parsed.KS_CUTROOM_RECEIVING_PACKET,
-      stagingRoot: parsed.KS_CUTROOM_RECEIVING_STAGING_ROOT,
-      mediaRoot: parsed.KS_CUTROOM_RECEIVING_MEDIA_ROOT,
-      ffprobePath: parsed.KS_CUTROOM_RECEIVING_FFPROBE_PATH,
-    },
-    cutroom: {
-      enabled: parsed.KS_CUTROOM_COMMISSIONING_ENABLED === '1',
-      packetPath: parsed.KS_CUTROOM_APPROVAL_PACKET,
-      origin: parsed.KS_CUTROOM_ORIGIN,
-      artifactRoot: parsed.KS_CUTROOM_ARTIFACT_ROOT,
-      mediaRoot: parsed.KS_CUTROOM_MEDIA_ROOT,
-      evidenceFunctionSha256: parsed.KS_CUTROOM_EVIDENCE_FUNCTION_SHA256,
-      ...(parsed.KS_CUTROOM_POOL_DATABASE_URL
-        ? {
-            poolDatabase: {
-              url: parsed.KS_CUTROOM_POOL_DATABASE_URL,
-              applicationName: `knowscroll-cutroom-pool-${release.world}`,
-              poolMax: 1,
-              statementTimeoutMs: 10000,
-            },
-          }
-        : {}),
-    },
     plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (release.world === 'local' ? '1' : '0')) === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     jevEnabled: parsed.KS_JEV_ENABLED === '1',
+    supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
+    supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
+    scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,
     scopeLockTimeoutMs: parsed.KS_SCOPE_LOCK_TIMEOUT_MS,

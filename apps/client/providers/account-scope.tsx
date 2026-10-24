@@ -144,6 +144,24 @@ export function useAccountScope(): { readonly state: AccountScopeState; readonly
   return { state, manager };
 }
 
+/**
+ * Like `useAccountScope`, but without the provider it answers "signed out" (a screen rendered
+ * alone, as route tests do) instead of throwing. For screens whose signed-out state is already a
+ * complete screen; `manager` is `undefined` then.
+ */
+export function useAccountScopeIfPresent(): {
+  readonly state: AccountScopeState;
+  readonly manager: AccountScopeManager | undefined;
+} {
+  const manager = useContext(AccountScopeContext);
+  const state = useSyncExternalStore(
+    manager?.subscribe ?? noSubscription,
+    manager?.getState ?? signedOutState,
+    manager?.getState ?? signedOutState,
+  );
+  return { state, manager: manager ?? undefined };
+}
+
 /** The signed-in person's initial for the avatar, or `undefined` when nobody is signed in. */
 export function useAccountInitial(): string | undefined {
   const manager = useContext(AccountScopeContext);

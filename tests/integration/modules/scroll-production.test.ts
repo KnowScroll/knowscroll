@@ -151,12 +151,22 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const repair = p.fixture.calls[1]?.request;
     expect(primary?.user).not.toContain('<previous-answer>');
     expect(repair?.system).toContain('blocks[2]: copied_passage');
-    expect(repair?.system).toContain('Write every sentence of this block again from scratch');
+    expect(repair?.system).toContain('Rewrite only the sentences of this block that contain one');
     // The refused answer travels as escaped, delimited data in the user text, never in the instructions.
     expect(repair?.system).toContain('repeated as data in the <previous-answer> block');
     expect(repair?.system).not.toContain('CANARYWORD');
     expect(repair?.user).toContain('<previous-answer>\n{"title":"How a lighthouse guides ships"');
     expect(repair?.user).toContain('CANARYWORD');
+    // The copied words themselves (public research text) travel as delimited data, not as an instruction.
+    expect(repair?.system).toContain('the <repair-notes> block there holds facts about it');
+    expect(repair?.system).not.toContain('a prism ring around');
+    expect(repair?.user).toContain(
+      '<repair-notes>\nEach line names the words of your text that also appear in the source passages',
+    );
+    expect(repair?.user).toContain(
+      'blocks[2] copies: "a prism ring around the flame gathers the light into a single beam that sweeps across the water"',
+    );
+    expect(primary?.user).not.toContain('<repair-notes>');
 
     const attempts = await database.db
       .selectFrom('reasoning.production_attempts')
@@ -172,6 +182,45 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     expect(kept).toMatchObject({ reason: 'OUTPUT_SCHEMA_MISMATCH', answer_kind: 'answer', truncated: false });
     expect(kept?.issues).toEqual([expect.objectContaining({ path: 'blocks[2]', code: 'copied_passage' })]);
     expect(kept?.answer_text).toContain('CANARYWORD');
+  });
+
+  it('sends no repair notes for a finding that is not about copying', async () => {
+    const p = setup((sequence) => answer(sequence === 1 ? authored({ drop: 'diagram' }) : authored()));
+    expect((await p.produce('seasons', false, signal())).outcome).toBe('published');
+    const repair = p.fixture.calls[1]?.request;
+    expect(repair?.user).toContain('<previous-answer>');
+    expect(repair?.user).not.toContain('<repair-notes>');
+    expect(repair?.system).not.toContain('repair-notes');
+  });
+
+  it('publishes a diagram whose layout and node kind are not allowed values, and records the defaults in the provenance', async () => {
+    const base = authored();
+    const styled = {
+      ...base,
+      blocks: base.blocks.map((block) =>
+        block.type === 'diagram'
+          ? {
+              ...block,
+              layout: 'horizontal',
+              nodes: block.nodes.map((node, index) => (index === 1 ? { ...node, kind: 'building' } : node)),
+            }
+          : block,
+      ),
+    };
+    const p = setup(() => answer(styled));
+    const result = await p.produce('seasons', false, signal());
+    expect(result.outcome).toBe('published');
+    expect(p.fixture.calls).toHaveLength(1);
+    const stored = await database.db
+      .selectFrom('content.asset_provenance')
+      .select('provenance')
+      .where('asset_id', '=', result.assetId ?? '')
+      .executeTakeFirstOrThrow();
+    const checks = (stored.provenance as { checks: { name: string; reasonCodes: string[] }[] }).checks;
+    expect(checks.find((check) => check.name === 'authoring-normalisation')?.reasonCodes).toEqual([
+      'diagram_layout_defaulted_block_6',
+      'diagram_node_kind_defaulted_block_6',
+    ]);
   });
 
   it('rejects after the repair also fails, keeps both refused answers redacted and lists them for the operator', async () => {
@@ -480,7 +529,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       wrong_prompt_version:
         "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','\"scroll-writer.foreign\"') where asset_id=new.asset_id",
       previous_prompt_version:
-        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','\"scroll-writer.v11\"') where asset_id=new.asset_id",
+        "update content.asset_provenance set provenance=jsonb_set(provenance,'{production,promptVersion}','\"scroll-writer.v12\"') where asset_id=new.asset_id",
       wrong_document_version:
         "update content.asset_revisions set document_version='scroll-document.foreign' where asset_id=new.asset_id",
       wrong_provenance_version:

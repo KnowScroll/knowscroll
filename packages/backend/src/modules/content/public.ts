@@ -1,4 +1,3 @@
-import type { makeCommission } from './production/commission.js';
 /**
  * Content's public surface for other modules and the apps: the read ports experience and evidence
  * use, and the admission use case's types. Everything here is framework-free; the ports are
@@ -8,6 +7,8 @@ import type { makeCommission } from './production/commission.js';
  * Content is shared, not personal. Reads use the caller transaction; admission writes require
  * an operator-owned admission capability and never record who consumed content.
  */
+import type { z } from 'zod';
+import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
@@ -69,7 +70,7 @@ export type ReadScrollReadingFacts = (
 export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts');
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
-export { CONCEPT_CATALOGUE_VERSION, CONCEPTS } from './domain/concepts.js';
+export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
 /** Which Scene family draws a system, star or planet; defined by the library plan. */
 export { sceneFamilyOf } from './domain/library/index.js';
 export {
@@ -123,8 +124,46 @@ export function isReadingInteractionAllowed(blockType: string, interactionKind: 
   return declared[blockType]?.includes(interactionKind) === true;
 }
 
+/**
+ * Scroll production as shared worker jobs (D-037): the queue and its job, and the two reads
+ * Quartermaster makes. A request is commissioned by choosing a library recipe by code and sending its
+ * job in the request's own transaction; the shared run's standing is read without any lock.
+ */
+export {
+  produceScrollQueue,
+  produceScrollJob,
+  produceScrollSingletonKey,
+  ProduceScrollJobSchema,
+  type ProduceScrollJob,
+} from './production/events.js';
+export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
+export { libraryRecipes, planLibraryProduction } from './domain/library/serving.js';
+export type {
+  CatalogueBrief,
+  LibraryProductionPlan,
+  LibraryRecipeStatus,
+  ProductionSend,
+  ScrollProductionReading,
+  ScrollProductionState,
+  ScrollRecipeChoice,
+} from './domain/library/serving.js';
+/** Chooses the library recipe a missing-supply request commissions; read inside the caller's personal transaction. */
+export type ChooseScrollRecipe = (scope: PersonalScopeTx, brief: CatalogueBrief) => Promise<ScrollRecipeChoice>;
+export const CHOOSE_SCROLL_RECIPE = Symbol('content.chooseScrollRecipe');
+/**
+ * Where one recipe's production stands (`stopped` for a key the plan does not hold) and the take a
+ * send for it should name.
+ */
+export type ReadScrollProduction = (scope: PersonalScopeTx, recipe: string) => Promise<ScrollProductionReading>;
+export const READ_SCROLL_PRODUCTION = Symbol('content.readScrollProduction');
+
 /** Code-selected production topics and predictable model-request ceiling; no research is exported. */
-export { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from './production/topics.js';
+export {
+  parseScrollTopic,
+  MAX_TAKES_PER_RECIPE,
+  REQUEST_BOUND_PER_TOPIC,
+  SCROLL_PRODUCTION_VERSION,
+} from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';
 export type { ProduceScrollResult } from './production/types.js';
 export {
@@ -145,6 +184,7 @@ import type {
   ContinuityAdmission,
 } from './domain/discovery.js';
 import type { AdmissionTx } from './application/ports.js';
+import type { CatalogueBrief, ScrollProductionReading, ScrollRecipeChoice } from './domain/library/serving.js';
 export type ReadDiscoveryCandidates = (
   scope: PersonalScopeTx,
   query: EncounterQuery,
@@ -253,21 +293,30 @@ export type LockRegionEncounterCandidates = (
 export const READ_REGION_ENCOUNTER_CANDIDATES = Symbol('content.readRegionEncounterCandidates');
 export const LOCK_REGION_ENCOUNTER_CANDIDATES = Symbol('content.lockRegionEncounterCandidates');
 
-/** Backend-internal Cutroom prerequisite; pure preparation, no commissioned content or permission. */
-export {
-  CUTROOM_COMMISSION_POLICY,
-  CutroomCommissionScriptSchema,
-  CutroomApprovalReferenceSchema,
-  lintCutroomCommission,
-  prepareCutroomCommission,
-} from './production/commission-contracts.js';
-export type {
-  CutroomCommissionScript,
-  CutroomCommissionRefusal,
-  CutroomCommissionRun,
-  CutroomObservedRun,
-  ValidateCutroomRemoteChain,
-} from './production/commission-contracts.js';
+/** One exact content revision, as a message card or share link names it. */
+export interface ContentRef {
+  readonly assetId: string;
+  readonly assetRevision: number;
+}
+
+/** What a card or link shows of one exact revision: available, corrected (original ref kept) or unavailable. */
+export type ShareableContent = z.infer<typeof ConversationContentProjectionSchema>;
+
+/**
+ * Port: public metadata of exact revisions (at most 100), read inside the caller's personal
+ * transaction (a pair-locked shared scope carries one too). Gives each ref `available`,
+ * `corrected` (original ref kept, current revision's metadata attached) or `unavailable`. It
+ * decides nothing about who may see a card.
+ */
+export type ReadShareableContent = (
+  scope: PersonalScopeTx,
+  refs: readonly ContentRef[],
+) => Promise<readonly ShareableContent[]>;
+export const READ_SHAREABLE_CONTENT = Symbol('content.readShareableContent');
+
+/** The same read for a visitor with no account: shared content only, outside any transaction. */
+export type ReadPublicContent = (refs: readonly ContentRef[]) => Promise<readonly ShareableContent[]>;
+export const READ_PUBLIC_CONTENT = Symbol('content.readPublicContent');
 
 /** Minimized current immutable facts, bounded by canonical document validation. No rendering grant. */
 export type KeepPositionTarget =
@@ -287,111 +336,3 @@ export type LockKeepPositionTarget = (
   ref: unknown,
 ) => Promise<KeepPositionTarget | undefined>;
 export const LOCK_KEEP_POSITION_TARGET = Symbol('content.lockKeepPositionTarget');
-
-/** Optional unmounted B business prerequisite; no dispatch/publication/Supply binding. */
-export type { CommissionBusiness, CommissionStore, CommissionPorts } from './production/commission-ports.js';
-export type CommissionCutroom = ReturnType<typeof makeCommission>;
-
-/** C1 source-review packet, never consumer metadata or human-approval authority. */
-export {
-  prepareCommissionReview,
-  reelFingerprint,
-  normalizeReelNarration,
-  checkReelCorpus,
-} from './production/commission-review.js';
-export type {
-  ReelTemplateDescriptor,
-  ReelArgumentDescriptor,
-  ReelCorpusRecord,
-  ReelCorpusManifest,
-  CommissionReviewDraft,
-  CommissionReviewPacket,
-  CommissionReviewPreparation,
-  CommissionHumanApproval,
-  CommissionReviewVerdict,
-  CommissionReviewStore,
-} from './production/commission-review-ports.js';
-
-/** Default-disabled snapshot preapproval only. No live corpus/approval registry or normal binding. */
-export { makeCommissionPreparation } from './production/commission-review.js';
-export type { CommissionPreparationStore } from './production/commission-review-ports.js';
-
-/** Pure pinned chain metadata only; no remote, settlement or publication authority. */
-export { validatePinnedCutroomChain } from './production/commission-chain.js';
-export { CUTROOM_CHAIN_UPSTREAM_REVISION, CUTROOM_CHAIN_LIMITS } from './production/commission-contracts.js';
-export type {
-  CutroomChainInput,
-  CutroomChainStatusSnapshot,
-  CutroomChainResultSnapshot,
-  CutroomChainRecordSnapshot,
-  CutroomChainReport,
-  CutroomChainLabel,
-} from './production/commission-contracts.js';
-
-export { CUTROOM_CHAIN_COLLECTION_LIMITS } from './production/commission-contracts.js';
-export type {
-  CutroomChainCollector,
-  CutroomChainCollectorSettings,
-  CutroomChainCollection,
-} from './production/commission-contracts.js';
-
-/** Sanitized evidence data/ports only; no adapter or dispatch/settlement factory here. */
-export type {
-  CutroomCollectedChain,
-  CutroomChainSnapshotCollection,
-  CutroomChainSnapshotCollector,
-} from './production/commission-contracts.js';
-export type {
-  ChainDocument,
-  ChainDocumentKind,
-  ChainSnapshotHeader,
-  SealedChainSnapshot,
-  StoredChainSnapshot,
-  ChainSnapshotSelector,
-  ChainStoreRefusal,
-  ChainStoreResult,
-  CommissionChainStore,
-  CommissionChainStorePorts,
-  CommissionChainSnapshots,
-} from './production/commission-chain-store-ports.js';
-
-export type { Commissioning, CommissioningPorts } from './production/commissioning-ports.js';
-export type { CommissionPublication, CommissionPublicationResult } from './production/commission-publication-ports.js';
-export {
-  parseCommissionReviewPacket,
-  parseCommissionReviewDraft,
-  CommissionHumanApprovalSchema,
-  ReelCorpusManifestSchema,
-} from './production/commission-review.js';
-
-export { parseCommissioningSetup } from './production/commissioning.js';
-export type { CommissioningSetup } from './production/commissioning.js';
-export {
-  CommissionReceiveSetupSchema,
-  CommissionReceivePayloadSchema,
-  CommissionReceiveBindingSchema,
-  ReceiveWorkSchema,
-  ReceiveRecoveryWorkSchema,
-  receiveCutroomQueue,
-  recoverReceiveCutroomQueue,
-} from './production/commission-receive-contracts.js';
-export type {
-  CommissionReceiveSetup,
-  CommissionReceivePayload,
-  CommissionReceiveBinding,
-} from './production/commission-receive-contracts.js';
-export type {
-  CommissionReceive,
-  CommissionReceivePorts,
-  ReceiveResult,
-  ReceiveEnvelope,
-  ReceiveReceipt,
-  ReceiveScopeTx,
-  WithReceiveScope,
-  ReceiveStore,
-  ReceiveRecord,
-  ReceiveMedia,
-  ReceiveMediaProof,
-  CommissionReceiveOrigin,
-} from './production/commission-receive-ports.js';
-export { makeCommissionReceiveExport } from './production/commission-receive-export.js';

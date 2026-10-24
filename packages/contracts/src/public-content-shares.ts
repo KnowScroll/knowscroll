@@ -21,9 +21,9 @@ export const PublicContentSharePreviewSchema = socialJsonData(
   ]),
 );
 
-/** Declarations only, outside private /v1. This JSON endpoint carries tokens in its body, never
- * an ordinary API URL. The separately reviewed GET /s/:token HTML landing is the dedicated URL
- * exception and must isolate proxy/history/referrer/OG/log handling. No wildcard auth opt-out. */
+/** Outside private /v1. This JSON endpoint carries tokens in its body, never an ordinary API URL.
+ * The GET /s/:token HTML landing (rendered by the API) is the dedicated URL exception and isolates
+ * proxy/history/referrer/OG/log handling. No wildcard auth opt-out. */
 export const publicContentSharesContract = {
   preview: oc
     .route({

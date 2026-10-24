@@ -2,11 +2,13 @@ import { Redirect, useRouter } from 'expo-router';
 import { space } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
+import { DeletionReceiptPanel } from '../account/deletion-receipt-panel';
 import { AuthFrame } from './auth-frame';
 
 /**
  * A01 · Sign in (`/welcome`): the wordmark on the spatial ground, "Continue with email" and "I
- * have a sign-in link". No interest survey, no password. The export's "Other sign-in options"
+ * have a sign-in link". No interest survey, no password. A device that asked for its account to be
+ * deleted shows that deletion's receipt first. The export's "Other sign-in options"
  * placeholder is not drawn: there is no such option (a control without a backend is not shown).
  * A signed-in person goes straight to Explore.
  */
@@ -19,6 +21,7 @@ export function WelcomeScreen() {
       <Text variant="displayXl" color={space.label} heading={1}>
         KnowScroll
       </Text>
+      <DeletionReceiptPanel />
       <Text variant="body" color={space.label}>
         Thoughtful Reels and Scrolls. A universe that grows from what you explore.
       </Text>

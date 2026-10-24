@@ -1,0 +1,128 @@
+{
+  "id": "3ae8cae4-3b66-469c-8566-1312f2f5e92d",
+  "authoredBy": "claude (agent k240, #240)",
+  "approval": {
+    "ref": "D-030 delegated",
+    "approvedBy": "coordinator (delegated by owner, D-030)",
+    "approvedAt": "2026-10-24"
+  },
+  "recipe": "tides-spring-neap",
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-tides-spring-neap",
+    "narration": [
+      {
+        "text": "At low water, a wide sandy beach lies bare.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "At high water, the sea covers most of the same beach.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "Near a full Moon, high water climbs higher and low water falls lower.",
+        "claimIds": ["c3"]
+      },
+      {
+        "text": "These bigger swings are called spring tides, and they happen in every season.",
+        "claimIds": ["c3"]
+      },
+      {
+        "text": "Near a half Moon, the Moon and Sun pull from different angles.",
+        "claimIds": ["c4"]
+      },
+      {
+        "text": "Then high water is a little lower, low water a little higher, and the range is smaller.",
+        "claimIds": ["c4"]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "main"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "058cb4e3-cb0d-4dc6-9dc6-fb75106e24e6",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "058cb4e3-cb0d-4dc6-9dc6-fb75106e24e6",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "058cb4e3-cb0d-4dc6-9dc6-fb75106e24e6",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "058cb4e3-cb0d-4dc6-9dc6-fb75106e24e6",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-low-water",
+          "text": "a wide empty sandy beach at low tide, with wet sand and the sea far away",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-high-water",
+          "text": "the same wide sandy beach at high tide, with the sea covering most of it up to the dunes",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-full-moon",
+          "text": "a bright full Moon, large in the frame, above a moonlit silver sea at dusk",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-half-moon",
+          "text": "a half Moon, large in the frame, above a calm sea under a glowing dusk sky",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-nature",
+      "version": 2,
+      "text": "realistic nature documentary footage, vivid natural light, every shot clearly lit from its first frame, slow continuous camera drift"
+    },
+    "title": "Bigger tides, smaller tides",
+    "summary": "Why the sea rises and falls farther at some times of the month than at others, and what the Moon and Sun have to do with it."
+  }
+}

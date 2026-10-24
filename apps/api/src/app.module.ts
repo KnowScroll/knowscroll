@@ -23,11 +23,13 @@ import { createAuthLimiters } from './http/auth-rate-limit.js';
 import { selectCallers } from './http/callers.js';
 import { orpcModuleConfig } from './http/orpc.js';
 import { ProblemExceptionFilter } from './http/problems.js';
+import { accountWiring } from './modules/account.js';
 import { contentWiring } from './modules/content.js';
 import { sceneWiring } from './modules/scenes.js';
 import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
+import { operatorWiring } from './modules/operator.js';
 import { privacyWiring } from './modules/privacy.js';
 import { recordingWiring } from './modules/recording.js';
 import { socialWiring } from './modules/social.js';
@@ -104,12 +106,14 @@ export class AppModule {
         }),
         ...identityScopeOwnerProviders(),
         ...privacyWiring(resources.config.scopeLockTimeoutMs),
+        ...accountWiring,
+        ...operatorWiring(resources.config.operatorAccounts),
         ...recordingWiring,
         ...contentWiring,
         ...mediaWiring,
         ...experienceWiring,
         ...socialWiring,
-        ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+        ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
         ...evidenceWiring,
         ...sceneWiring,
         ScopeGateway,

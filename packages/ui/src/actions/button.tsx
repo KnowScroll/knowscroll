@@ -99,6 +99,11 @@ export interface ButtonProps {
   readonly busy?: boolean;
   readonly busyLabel?: string;
   readonly accessibilityHint?: string;
+  /**
+   * The accessible name when the visible text alone is ambiguous (one "Sign out" beside each
+   * device). It must contain the visible text (WCAG label in name); omitted, the visible text is the name.
+   */
+  readonly accessibilityLabel?: string;
   /** `link` for buttons that navigate (an `<a>` in the export). */
   readonly role?: 'button' | 'link';
   /** For links: the address. On the web the button becomes a real `<a href>` (Enter, new tab). */
@@ -128,6 +133,7 @@ export function Button({
   busy = false,
   busyLabel,
   accessibilityHint,
+  accessibilityLabel,
   role = 'button',
   href,
   fullWidth = false,
@@ -160,7 +166,7 @@ export function Button({
       pointerEvents={inert ? 'none' : 'auto'}
       {...(role === 'link' ? linkSemantics(href !== undefined) : { accessibilityRole: 'button' as const })}
       {...(toggled === undefined ? {} : toggleSemantics(toggled))}
-      accessibilityLabel={shown}
+      accessibilityLabel={accessibilityLabel ?? shown}
       accessibilityHint={accessibilityHint}
       aria-disabled={disabled}
       aria-busy={busy}

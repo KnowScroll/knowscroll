@@ -1,6 +1,6 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { projectSceneQueue, expireFormationQueue, recoverFormationQueue } from '../events.js';
@@ -59,3 +59,8 @@ scenesErasure.clearExploration = {
     return { module: 'scenes', status: 'completed', removed };
   },
 };
+
+scenesErasure.export = exportNothing(
+  scenesErasure,
+  'A rendering cache of the universe structure listed under geography.',
+);

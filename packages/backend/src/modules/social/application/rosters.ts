@@ -41,8 +41,7 @@ export function makeReadRoster(p: SocialPorts, requests: boolean) {
           time < c.started)
       )
         return refuse('unavailable');
-      const ceiling = c?.ceiling ?? (await p.rosters.ceiling(scope, q.filter));
-      const rows = ceiling ? await p.rosters.scan(scope, q.filter, c?.after, ceiling, SCAN_LIMIT + 1) : [],
+      const rows = await p.rosters.scan(scope, q.filter, c?.after, SCAN_LIMIT + 1),
         items: FriendPairView[] = [];
       let after = c?.after,
         more = rows.length > SCAN_LIMIT;
@@ -78,7 +77,7 @@ export function makeReadRoster(p: SocialPorts, requests: boolean) {
           filter: q.filter,
           snapshotRevision: revision,
           items,
-          ...(more && after && ceiling
+          ...(more && after
             ? {
                 next: {
                   scope: envelope.scope,
@@ -92,7 +91,6 @@ export function makeReadRoster(p: SocialPorts, requests: boolean) {
                     revision,
                     limit: q.limit,
                     after,
-                    ceiling,
                     started: c?.started ?? time,
                     until,
                   }),

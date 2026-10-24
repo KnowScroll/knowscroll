@@ -87,13 +87,14 @@ const Messages = z
       new Set(items.map((x) => x.messageId)).size === items.length &&
       items.every((x, i) => i === 0 || x.sequence > items[i - 1]!.sequence),
   );
-/** Authenticated/confidential, purpose+world+caller+epoch+membership+limit-bound server tokens.
- * No token grants authority; keep ephemeral, never logs/storage/notices. Expiry/rotation gives
- * refresh_required, never a silently substituted first page. A finite window has a captured
- * change ceiling; continuous appends cannot make one traversal unbounded. Runtime policy later. */
-export const ConversationInboxCursorSchema = z.string().regex(/^kci1_[A-Za-z0-9_-]{43,1024}$/);
-export const ConversationHistoryCursorSchema = z.string().regex(/^kch1_[A-Za-z0-9_-]{43,1024}$/);
-export const ConversationChangesCursorSchema = z.string().regex(/^kcc1_[A-Za-z0-9_-]{43,1024}$/);
+/** Opaque keyset positions: the inbox cursor holds the last row's activity time and conversation,
+ * the history cursor the oldest sequence already seen, the changes cursor the last change seen.
+ * They hold nothing the caller does not already have and grant nothing: every use rechecks
+ * membership, and a position that does not belong to the named conversation gives
+ * refresh_required, never a silently substituted first page. */
+export const ConversationInboxCursorSchema = z.string().regex(/^kci1_[A-Za-z0-9_-]{22,1024}$/);
+export const ConversationHistoryCursorSchema = z.string().regex(/^kch1_[A-Za-z0-9_-]{22,1024}$/);
+export const ConversationChangesCursorSchema = z.string().regex(/^kcc1_[A-Za-z0-9_-]{22,1024}$/);
 const Read = { version: Version, readId: UuidSchema };
 const ScopedRead = { ...Read, scope: ConversationScopeSchema };
 const Receipt = {
@@ -111,7 +112,7 @@ const continuation = <T extends z.ZodType>(cursor: T) =>
     z.strictObject({ kind: z.literal('more'), cursor }),
   ]);
 
-/** A deliberate current accepted friend1:1 only. Future backend reuses the private pair aggregate
+/** A deliberate current accepted friend 1:1 only. The backend reuses the private pair aggregate
  * as the SOLE shared locking authority, with a separate opaque conversation ID. Never lock pair
  * root then another conversation root. Leave/withdrawal ends that participation; re-friending
  * cannot silently revive old membership or command authority. No group/thread/invite protocol. */
@@ -132,12 +133,15 @@ export const ReadConversationInboxSchema = z.strictObject({
   cursor: ConversationInboxCursorSchema.optional(),
 });
 const OwnSettings = z.strictObject({ readThroughSequence: Counter, muted: z.boolean() });
+/** Present (true) only after the other person left: history stays readable, nothing more can be sent. */
+const Ended = z.literal(true).optional();
 export const DirectConversationSummarySchema = z
   .strictObject({
     conversation: DirectConversationRefSchema,
     peer: PublicPersonRefSchema,
     latestMessageSequence: Counter,
     own: OwnSettings,
+    ended: Ended,
     lastMessage: ConversationMessageSchema.optional(),
   })
   .refine(
@@ -185,6 +189,7 @@ export const DirectConversationSnapshotSchema = z.discriminatedUnion('status', [
       conversation: DirectConversationRefSchema,
       peer: PublicPersonRefSchema,
       own: OwnSettings,
+      ended: Ended,
       latestMessageSequence: Counter,
       messages: Messages,
       limit: Limit,
@@ -256,6 +261,7 @@ export const ConversationChangesPageSchema = z.discriminatedUnion('status', [
       conversation: DirectConversationRefSchema,
       limit: Limit,
       requestCursor: ConversationChangesCursorSchema,
+      ended: Ended,
       fromChangeSequence: Counter,
       throughChangeSequence: Counter,
       changes: z.array(ConversationChangeSchema).max(50),
@@ -298,8 +304,9 @@ export const SendConversationMessageSchema = z.strictObject({
   body: SendConversationBodySchema,
 });
 /** Historical acceptance only. Keep the identical command/body after an unknown outcome, even
- * if a later retry is rejected; no replacement UUID or automatic ambiguous resend. The future
- * adapter atomically commits message+receipt+requiredpg-bosswork; notices carry IDs only.
+ * if a later retry is rejected; no replacement UUID or automatic ambiguous resend. The backend
+ * commits the message, its receipt and the members' inbox hints in one transaction; hints carry
+ * IDs only and are disposable.
  * Read/receipt replay rechecks current pair/membership/block/source authority first. */
 export const ConversationMessageAcceptanceSchema = z.strictObject({
   ...Receipt,
@@ -379,7 +386,7 @@ export const ConversationLeaveAcceptanceSchema = z.strictObject({
   conversation: DirectConversationRefSchema,
 });
 
-/** Declarations only. ReadId/scope/selector/cursor/limit echoes must match the actual initiating
+/** Served by the API's conversations controller. ReadId/scope/selector/cursor/limit echoes must match the actual initiating
  * scope and nonregressive watermark in consumers. Syntax proves neither authority nor delivery.
  * Inbox order is last visible message commit time DESC, conversationId ASC; no private peer
  * preference/presence event changes that order. Snapshot+catch-up cursor share one root transaction.
@@ -411,7 +418,10 @@ export const conversationsContract = {
   leave: socialPost('/v1/social/conversations/leave', LeaveConversationSchema, ConversationLeaveAcceptanceSchema),
 };
 export type DirectConversationRef = z.infer<typeof DirectConversationRefSchema>;
+export type ConversationContentRef = z.infer<typeof ConversationContentRefSchema>;
+export type ConversationContentProjection = z.infer<typeof ConversationContentProjectionSchema>;
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
+export type DirectConversationSummary = z.infer<typeof DirectConversationSummarySchema>;
 export type SendConversationMessage = z.infer<typeof SendConversationMessageSchema>;
 export type ConversationChangesPage = z.infer<typeof ConversationChangesPageSchema>;
 

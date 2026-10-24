@@ -4,31 +4,23 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { makeWithPersonalScope, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalAuthority } from '../../identity/public.js';
 
-/** Exact immutable source binding. A document/media key alone cannot adopt another source. */
+/**
+ * The exact media a Reel revision was imported with. A document's media key alone cannot adopt
+ * another file: the import row names the media object, and its stored key and bytes must be a
+ * content-addressed local MP4 of a sane size.
+ */
 export async function readReelMediaBinding(
   trx: Transaction<Database>,
   ref: { readonly assetId: string; readonly assetRevision: number },
 ) {
   const rows = (
-    await sql<{
-      logical_key: string;
-      sha256: string;
-      size: string;
-      backend: string;
-      mime: string;
-      source: string;
-      expected_sha: string | null;
-      expected_bytes: string | null;
-    }>`
-    select m.logical_key,m.sha256,m.size_bytes::text size,m.backend,m.mime,bound.source,bound.expected_sha,bound.expected_bytes from (
-      select media_id,'legacy' source,null::text expected_sha,null::text expected_bytes from content.reel_imports where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision}
-      union all select media_id,'commission',publication_utf8::jsonb->>'mediaSha256',publication_utf8::jsonb->>'mediaBytes' from content.cutroom_publications where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision}
-      union all select media_id,'receive',payload_utf8::jsonb->'media'->>'sha256',payload_utf8::jsonb->'media'->>'sizeBytes' from content.cutroom_receive_receipts where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} and state='admitted'
-    ) bound join content.media_objects m on m.id=bound.media_id limit 2`.execute(trx)
+    await sql<{ logical_key: string; sha256: string; size: string; backend: string; mime: string }>`
+    select m.logical_key, m.sha256, m.size_bytes::text size, m.backend, m.mime
+    from content.reel_imports i join content.media_objects m on m.id = i.media_id
+    where i.asset_id = ${ref.assetId}::uuid and i.asset_revision = ${ref.assetRevision}`.execute(trx)
   ).rows;
   if (rows.length !== 1) return;
   const row = rows[0]!;
-  if (row.source !== 'legacy' && (row.expected_sha !== row.sha256 || row.expected_bytes !== row.size)) return;
   const size = Number(row.size);
   if (
     !/^[0-9a-f]{64}$/.test(row.sha256) ||

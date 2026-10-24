@@ -12,9 +12,16 @@ import type {
   BudgetCheck,
   LinkOrigin,
   LinkRecord,
+  LiveSession,
   SessionClient,
 } from '../application/ports.js';
-import { admitLink, SESSION_TTL_DAYS, SIGN_IN_LINK_TTL_MINUTES } from '../domain/policy.js';
+import {
+  admitLink,
+  SESSION_LIST_LIMIT,
+  SESSION_TOUCH_MINUTES,
+  SESSION_TTL_DAYS,
+  SIGN_IN_LINK_TTL_MINUTES,
+} from '../domain/policy.js';
 import type {
   AccountUniverse,
   PersonalScopeTx,
@@ -41,6 +48,18 @@ export async function readAccountUniverse(
     ])
     .where('account.id', '=', accountId)
     .executeTakeFirst();
+}
+
+/** Reads the address of an active account (read-only, no lock). One address per account. */
+export async function readAccountAddress(db: Kysely<Database>, accountId: string): Promise<string | undefined> {
+  const row = await db
+    .selectFrom('identity.email_addresses as email')
+    .innerJoin('identity.accounts as account', 'account.id', 'email.account_id')
+    .select('email.address')
+    .where('email.account_id', '=', accountId)
+    .where('account.status', '=', 'active')
+    .executeTakeFirst();
+  return row?.address;
 }
 
 /** Reads one universe's access state for its owner (read-only, no lock). */
@@ -77,7 +96,7 @@ export async function readUniverseAccess(
  * then writes an address's links or creates its account takes it first, so two links for one new
  * address, or two retries of one redemption, never create two accounts.
  */
-async function lockAddressIn(trx: Transaction<Database>, address: string): Promise<void> {
+export async function lockAddressIn(trx: Transaction<Database>, address: string): Promise<void> {
   await sql`select pg_advisory_xact_lock(hashtextextended(${`identity.address:${address}`}, 0))`.execute(trx);
 }
 
@@ -353,6 +372,7 @@ export async function issueSession(
     readonly tokenHash: string;
     readonly client: SessionClient;
     readonly issuedByCommand: string;
+    readonly deviceLabel?: string;
   },
 ): Promise<{ readonly expiresAt: Date }> {
   const trx = transactionOf(scope);
@@ -369,6 +389,8 @@ export async function issueSession(
       token_hash: session.tokenHash,
       client: session.client,
       issued_by_command: session.issuedByCommand,
+      device_label: session.deviceLabel ?? null,
+      last_used_at: sql<Date>`now()`,
       expires_at: sql<Date>`now() + make_interval(days => ${SESSION_TTL_DAYS})`,
     })
     .returning('expires_at')
@@ -398,6 +420,22 @@ export async function replaceCommandSessions(
 /** The live session behind a token hash, with its account's current universe and epoch. */
 export async function readActiveSession(db: Kysely<Database>, tokenHash: string): Promise<ActiveSession | undefined> {
   const row = await db
+    // Records use for Account's "Last used", at most every few minutes, in the same statement.
+    .with('touched', (touch) =>
+      touch
+        .updateTable('identity.sessions')
+        .set({ last_used_at: sql<Date>`now()` })
+        .where('token_hash', '=', tokenHash)
+        .where('revoked_at', 'is', null)
+        .where('expires_at', '>', sql<Date>`now()`)
+        .where((eb) =>
+          eb.or([
+            eb('last_used_at', 'is', null),
+            eb('last_used_at', '<', sql<Date>`now() - make_interval(mins => ${SESSION_TOUCH_MINUTES})`),
+          ]),
+        )
+        .returning('id'),
+    )
     .selectFrom('identity.sessions as session')
     .innerJoin('identity.accounts as account', 'account.id', 'session.account_id')
     .innerJoin('identity.universes as universe', 'universe.account_id', 'session.account_id')
@@ -448,7 +486,7 @@ export function makeRevokeSessions(db: Kysely<Database>) {
   return (request: {
     readonly sessionId: string;
     readonly accountId: string;
-    readonly everywhere: boolean;
+    readonly target: 'session' | 'every_session' | 'other_sessions';
     readonly reason: SessionEndReason;
   }) =>
     withTransaction(db, 'identity.sign-out', async (trx) => {
@@ -457,12 +495,33 @@ export function makeRevokeSessions(db: Kysely<Database>) {
         .set({ revoked_at: sql`now()`, revoked_reason: request.reason })
         .where('account_id', '=', request.accountId)
         .where('revoked_at', 'is', null);
-      if (!request.everywhere) update = update.where('id', '=', request.sessionId);
+      if (request.target === 'session') update = update.where('id', '=', request.sessionId);
+      if (request.target === 'other_sessions') update = update.where('id', '<>', request.sessionId);
       const result = await update.executeTakeFirst();
       const revoked = Number(result.numUpdatedRows);
       if (revoked > 0) await revokeAccountSockets(trx, request.accountId);
       return revoked;
     });
+}
+
+/** The account's live sessions, most recently used first (never a token or its hash). */
+export async function listLiveSessions(db: Kysely<Database>, accountId: string): Promise<readonly LiveSession[]> {
+  const rows = await db
+    .selectFrom('identity.sessions')
+    .select(['id', 'client', 'device_label', 'created_at', 'last_used_at'])
+    .where('account_id', '=', accountId)
+    .where('revoked_at', 'is', null)
+    .where('expires_at', '>', sql<Date>`now()`)
+    .orderBy(sql`coalesce(last_used_at, created_at)`, 'desc')
+    .limit(SESSION_LIST_LIMIT)
+    .execute();
+  return rows.map((row) => ({
+    id: row.id,
+    client: row.client as SessionClient,
+    deviceLabel: row.device_label,
+    signedInAt: row.created_at,
+    lastUsedAt: row.last_used_at,
+  }));
 }
 
 /** Rows one sweep batch deletes per table; a sweep runs at most this many batches per table. */
@@ -494,6 +553,36 @@ export function makeSweep(db: Kysely<Database>) {
       limit ${SWEEP_BATCH}
       for update skip locked
     )`;
+  // Export retirement: a ready file goes at its expiry (the receipt stays), a build stuck for half
+  // an hour is failed so Account offers Retry, and receipts themselves go after 30 days.
+  const expireExports = sql`
+    update identity.data_exports
+    set state = 'expired', payload = null, link_hash = null, link_expires_at = null
+    where id in (
+      select id from identity.data_exports
+      where state = 'ready' and expires_at <= now()
+      order by expires_at
+      limit ${SWEEP_BATCH}
+      for update skip locked
+    )`;
+  const failStuckExports = sql`
+    update identity.data_exports set state = 'failed'
+    where id in (
+      select id from identity.data_exports
+      where state = 'preparing' and requested_at < now() - interval '30 minutes'
+      order by requested_at
+      limit ${SWEEP_BATCH}
+      for update skip locked
+    )`;
+  const deleteOldExports = sql`
+    delete from identity.data_exports
+    where id in (
+      select id from identity.data_exports
+      where state <> 'preparing' and requested_at < now() - interval '30 days'
+      order by requested_at
+      limit ${SWEEP_BATCH}
+      for update skip locked
+    )`;
   async function inBatches(purpose: string, statement: typeof sweepLinks): Promise<number> {
     let removed = 0;
     for (let batch = 0; batch < SWEEP_BATCHES; batch += 1) {
@@ -507,5 +596,9 @@ export function makeSweep(db: Kysely<Database>) {
   return async () => ({
     links: await inBatches('identity.sweep-links', sweepLinks),
     sessions: await inBatches('identity.sweep-sessions', sweepSessions),
+    exports:
+      (await inBatches('identity.sweep-exports-expire', expireExports)) +
+      (await inBatches('identity.sweep-exports-stuck', failStuckExports)) +
+      (await inBatches('identity.sweep-exports-delete', deleteOldExports)),
   });
 }

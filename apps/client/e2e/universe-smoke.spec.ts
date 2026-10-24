@@ -1,6 +1,7 @@
 import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import { expect, test } from '@playwright/test';
 import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
+import { emptyInbox, INBOX_PATH } from './empty-inbox';
 /** Production-export consumer over authored HTTP fixtures. No established world/provider acceptance. */
 test('authoritative map/outline/travel and browser Back keep camera private and perform reads only', async ({
   page,
@@ -12,6 +13,7 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
     '/v1/universe/geography/deltas/read',
     '/v1/universe/scenes/manifest/read',
     '/v1/universe/scenes/chunks/read',
+    '/v1/universe/emerging/read',
     '/v1/experience/region/preview',
     '/v1/universe/formation/read',
   ]);
@@ -33,6 +35,10 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
         },
       });
     }
+    if (path === INBOX_PATH)
+      return route.fulfill({
+        json: emptyInbox(route.request().postDataJSON() as Record<string, unknown>, fixtureAccount.accountId),
+      });
     calls.push(path);
     // Fail at the actual HTTP boundary; unrelated bodyless requests are never draft fixtures.
     expect({ method: route.request().method(), path }).toEqual({ method: 'POST', path: expect.any(String) });
@@ -63,28 +69,27 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
     });
   });
   await page.goto('/universe');
-  await expect(page.getByRole('button', { name: 'Focus CI system 0, system' })).toBeVisible();
-  await page.getByRole('button', { name: 'Focus CI system 0, system' }).click();
-  await page.getByRole('button', { name: 'Focus CI planet 2, planet' }).click();
-  await expect(page.getByRole('button', { name: 'Travel to CI planet 3' })).toBeVisible();
-  await page.getByRole('button', { name: 'Travel to CI planet 3' }).click();
-  await expect(page.getByRole('heading', { name: 'CI planet 3', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'CI planet 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
   await page.getByRole('button', { name: 'List view', exact: true }).click();
-  await page.getByRole('button', { name: 'CI region 4 · region', exact: true }).click();
-  await page.getByRole('button', { name: 'Place details', exact: true }).click();
-  await expect(page.getByText('Encounters from this place aren’t available.')).toBeVisible();
+  await page.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0', exact: true }).click();
+  await expect(page.getByText('Encounters from this region aren’t available yet.')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('universe-region-card')).toHaveCount(0);
   expect(calls.every((path) => reads.has(path))).toBe(true);
   expect(calls.filter((path) => path.endsWith('/region/preview'))).toHaveLength(1);
-  await expect(page.getByRole('button', { name: 'Focus CI region 4, region', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeFocused();
   expect(await page.evaluate(() => JSON.stringify(history.state))).not.toMatch(/objectId|frame|seed|0199a000/);
   // Talk is an unmounted placeholder; this isolates tab lifetime from Keep's separate Saved reads.
   await page.getByRole('link', { name: 'Talk', exact: true }).click();
   await page.getByRole('link', { name: 'Universe', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'CI region 4', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
   expect(calls.every((path) => reads.has(path))).toBe(true);
 });
 
@@ -122,6 +127,10 @@ test('canonical region card opens displayed A through actual activation, then Ba
           policy: { on: true, generation: 1 },
         },
       });
+      return;
+    }
+    if (path === INBOX_PATH) {
+      await route.fulfill({ json: emptyInbox(body, fixtureAccount.accountId) });
       return;
     }
     calls.push({ path, body });
@@ -240,21 +249,19 @@ test('canonical region card opens displayed A through actual activation, then Ba
     await route.fulfill({ json: value });
   });
   await page.goto('/universe');
-  await page.getByRole('button', { name: 'List view', exact: true }).click();
-  await page.getByRole('button', { name: 'CI region 4 · region', exact: true }).click();
+  // From 1024 px the outline sits beside the map, always open (D02).
+  await page.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0', exact: true }).click();
+  const pin = page.getByRole('button', { name: 'CI region 4, a region', exact: true });
   const map = page.getByTestId('universe-map');
   await map.focus();
+  const before = await pin.boundingBox();
   await page.keyboard.press('ArrowRight');
-  const transforms = await map
-    .locator('svg g[transform]')
-    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('transform')));
-  expect(transforms.length).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Place details', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'CI region 4', exact: true });
-  await expect(dialog.getByRole('heading', { name: 'CI region 4', exact: true })).toBeFocused();
-  await expect(dialog.getByRole('heading', { name: metadata.title })).toBeVisible();
+  await expect.poll(async () => (await pin.boundingBox())?.x).not.toBe(before?.x);
+  const panned = await pin.boundingBox();
+  const card = page.getByTestId('universe-region-card');
+  await expect(card.getByText(metadata.title)).toBeVisible();
   expect(calls.some((c) => /region\/open|activate|observations/.test(c.path))).toBe(false);
-  await dialog.getByRole('button', { name: 'Open', exact: true }).click();
+  await card.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: metadata.title, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Got it', exact: true }).click();
   const article = page.getByTestId('scroll-article');
@@ -262,12 +269,10 @@ test('canonical region card opens displayed A through actual activation, then Ba
   await page.mouse.wheel(0, 420);
   await expect.poll(() => article.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'CI region 4', exact: true })).toBeVisible();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Focus CI region 4, region', exact: true })).toBeFocused();
-  expect(
-    await map.locator('svg g[transform]').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('transform'))),
-  ).toEqual(transforms);
+  await expect(page.getByRole('button', { name: 'Back to CI planet 2', exact: true })).toBeVisible();
+  await expect(card).toHaveCount(0);
+  await expect(pin).toBeFocused();
+  expect(await pin.boundingBox()).toEqual(panned);
   expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(1);
   expect(calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);
   expect(calls.some((c) => c.path === '/v1/experience/open')).toBe(false);
@@ -327,6 +332,10 @@ test('durable formation waits for an exact current claim after a lost reply, pre
           policy: { on: true, generation: 1 },
         },
       });
+      return;
+    }
+    if (path === INBOX_PATH) {
+      await route.fulfill({ json: emptyInbox(body, fixtureAccount.accountId) });
       return;
     }
     calls.push({ path, body });
@@ -397,10 +406,10 @@ test('durable formation waits for an exact current claim after a lost reply, pre
   await expect.poll(() => calls.filter((c) => c.path.endsWith('/formation/acknowledge')).length).toBe(1);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Focus CI planet 2, planet', exact: true })).toBeFocused();
+  await expect(page.getByTestId('universe-map')).toBeFocused();
   await page.getByRole('link', { name: 'Talk', exact: true }).click();
   await page.getByRole('link', { name: 'Universe', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'CI planet 2', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(calls.filter((c) => c.path.endsWith('/formation/claim'))).toHaveLength(2);
   expect(calls.filter((c) => c.path.endsWith('/formation/acknowledge'))).toHaveLength(1);

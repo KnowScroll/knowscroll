@@ -137,6 +137,15 @@ export const diagnosticCatalogue = {
     fields: ['requestId', 'method', 'route', 'reasonCode'],
   },
   'identity.operator_sign_in': { severity: 'by-call', module: 'identity', fields: ['outcome', 'reasonCode', 'error'] },
+  // Account deletion (D-043): outcomes and durations only. No account, universe or receipt id.
+  'identity.account_deletion_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },
+  'identity.account_deletion_processed': {
+    severity: 'info',
+    module: 'identity',
+    fields: ['outcome', 'durationMs'],
+  },
+  'identity.account_deletions_recovered': { severity: 'info', module: 'identity', fields: ['count'] },
+  'identity.data_export_built': { severity: 'info', module: 'identity', fields: ['outcome', 'durationMs'] },
   'reasoning.admission_refused': {
     severity: 'info',
     module: 'reasoning',
@@ -173,6 +182,13 @@ export const diagnosticCatalogue = {
     severity: 'by-call',
     module: 'content',
     fields: ['outcome', 'reasonCode', 'count', 'error'],
+  },
+  // One delivery of the production job of a library recipe: the recipe key (`context`), the final
+  // outcome and its first code, and how many paid attempts the job holds. Never a draft or research.
+  'content.scroll_production_finished': {
+    severity: 'info',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'count', 'durationMs'],
   },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
@@ -226,6 +242,11 @@ export const diagnosticCatalogue = {
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },
   'migrate.completed': { severity: 'info', module: 'migrate', fields: ['count', 'migration', 'durationMs'] },
   'migrate.failed': { severity: 'fatal', module: 'migrate', fields: ['migration', 'reasonCode', 'error'] },
+  // A step the migration could not finish but the release can run without (the ops reader role is missing).
+  'migrate.warning': { severity: 'warn', module: 'migrate', fields: ['reasonCode'] },
+  // Operator reads (D-044): who may look is checked on the server for every call. Counts and codes only.
+  'operator.read': { severity: 'info', module: 'operator', fields: ['route', 'outcome', 'count'] },
+  'operator.refused': { severity: 'warn', module: 'operator', fields: ['route', 'reasonCode'] },
 } as const satisfies Record<string, EventSpec>;
 
 export type DiagnosticEvent = keyof typeof diagnosticCatalogue;

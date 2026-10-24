@@ -10,6 +10,8 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/problems.ts` | `problemCatalogue` (code → HTTP status, fixed title), RFC 9457 `ProblemDetailsSchema`, `problemDetails()` |
 | `src/health.ts` | `GET /health` response and contract |
 | `src/identity.ts` | `/auth/*` sign-in and session routes, the link and session token shapes, the session cookie names (D-022) |
+| `src/account.ts` | Sessions (`GET /v1/account/sessions`, end one, end others), personal data export (`POST/GET /v1/account/exports`, one-time link), account deletion (`POST /v1/account/delete`) and the session-less deletion receipt routes under `/auth/deletion` (#246, D-043); `DELETED_ACCOUNT_LABEL` is the placeholder every shared surface shows for a deleted account |
+| `src/operator.ts` | Operator panels and one record's journey (`GET /v1/operator/panels`, `/v1/operator/journeys/{id}`): operators only, 404 for everyone else, IDs and codes only (#248, D-044) |
 | `src/privacy.ts` | Declaration-only selective Clear exploration intent/acceptance, current coarse status and closed local problems |
 | `src/recording.ts` | Declaration-only recording policy read/set, immutable original receipts, current generation and closed private problems (#376) |
 | `src/router.ts` | `apiContract`: every HTTP route the API serves |
@@ -1251,3 +1253,16 @@ strict public/private injection, unknown-send ambiguity, scope/incarnation/read 
 getter/secret canaries and converter-produced OpenAPI/problem metadata. Behavioral suites run
 only in Actions. No consumer, schema migration, lifecycle registry compatibility, export/deletion,
 shared-data policy, runtime deployment or account data mutation is implemented by these additions.
+
+## Conversations and share links, as mounted (#242, D-042)
+
+The declarations above are now served. Changes made with that slice:
+
+- `socket.ts`: `SCOPE_KINDS` is `universe` and `inbox`. The inbox scope is named by the caller's own universe ID.
+- `conversations.ts`: the inbox, history and changes cursor patterns accept 22 to 1024 characters, because the
+  server's cursors are short keyset tokens. The inbox summary, the snapshot and the changes page carry an optional
+  `ended: true` when the conversation is closed.
+- `content-shares.ts`: new `contentShares.list` (`POST /v1/social/content-shares/list`) returns the caller's live
+  links (at most 50: share ID, target, audience, creation and expiry time, content projection). It never returns a
+  token; the token is delivered once by `create`.
+- `openapi.test.ts` counts `list` as an additive declaration.

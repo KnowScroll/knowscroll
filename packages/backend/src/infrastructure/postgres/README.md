@@ -48,10 +48,7 @@ locked, without updating, the account row. A joined locking SELECT or an old REP
 snapshot cannot provide that guarantee. Existing personal root, transaction timeout, network,
 shared-root and capability lifetime protections remain in force. No peer personal root is locked.
 
-`makeWithCutroomReceiveScope` (#373) owns a separate live WeakMap for the Content receiving root.
-It locks only `content.cutroom_receiving_state`, re-reads enabled/generation after waiting, and
-expires the capability in `finally`. No root is seeded; process configuration and actual root
-admission must both be enabled. Historical recovery can read receipts under a disabled root,
-but cannot admit an asset. Paid/accounting/preparation/personal/copied/closed objects fail its
-getter. The generic type parameter avoids an infrastructure-to-module dependency; it does not
-replace the runtime live-map check. Transactions retain nested-transaction and external-I/O guards.
+Ops views over pg-boss (#248, D-044): `ops-job-views.ts` drops, creates and grants the `ops` views that read
+`pgboss.job` (`ops.jobs`, `ops.queue_backlog`, `ops.recent_errors`) and grants the SELECT-only `ks2_ops_reader` role
+the allowlisted views. `migrate.js` calls it around pg-boss's own start, because a view blocks pg-boss's schema
+upgrades. The other `ops` views are migration 0057.

@@ -22,10 +22,22 @@ import type { MailSender, ReceiptPorts, SessionPorts } from '../application/port
 import { makeRedeemSignIn } from '../application/redeem-sign-in.js';
 import { makeRequestSignIn } from '../application/request-sign-in.js';
 import { makePeekSignInLink } from '../application/peek-sign-in-link.js';
-import { makeResolveSession, makeSessionValid, makeSignOut, makeSweepSignInRecords } from '../application/sessions.js';
+import {
+  makeEndOtherSessions,
+  makeEndSession,
+  makeListSessions,
+  makeResolveSession,
+  makeSessionValid,
+  makeSignOut,
+  makeSweepSignInRecords,
+} from '../application/sessions.js';
 import { operatorAddressMatcher, signInLinkFor } from '../domain/policy.js';
 import {
+  END_OTHER_SESSIONS,
+  END_SESSION,
+  LIST_SESSIONS,
   PEEK_SIGN_IN_LINK,
+  READ_ACCOUNT_ADDRESS,
   READ_ACCOUNT_UNIVERSE,
   READ_UNIVERSE_ACCESS,
   REDEEM_SIGN_IN,
@@ -34,6 +46,7 @@ import {
   SESSION_VALID,
   SIGN_OUT,
   SWEEP_SIGN_IN_RECORDS,
+  type ReadAccountAddress,
   type ReadAccountUniverse,
   type ReadUniverseAccess,
   type SweepSignInRecords,
@@ -47,6 +60,7 @@ import {
   findAccountByAddress,
   findAccountById,
   issueSession,
+  listLiveSessions,
   lockAddress,
   lockLink,
   makeCreateEmailLink,
@@ -54,6 +68,7 @@ import {
   makeRevokeSessions,
   makeSweep,
   markAddressProved,
+  readAccountAddress,
   readAccountUniverse,
   readActiveSession,
   readLink,
@@ -76,6 +91,14 @@ export function identityProviders(tokens: { readonly database: symbol }) {
           readAccountUniverse(db, accountId),
     },
     {
+      provide: READ_ACCOUNT_ADDRESS,
+      inject: [tokens.database],
+      useFactory:
+        (db: Kysely<Database>): ReadAccountAddress =>
+        (accountId) =>
+          readAccountAddress(db, accountId),
+    },
+    {
       provide: READ_UNIVERSE_ACCESS,
       inject: [tokens.database],
       useFactory:
@@ -84,6 +107,11 @@ export function identityProviders(tokens: { readonly database: symbol }) {
           readUniverseAccess(db, accountId, universeId),
     },
   ];
+}
+
+/** The account-to-universe read over one database handle, for operator commands outside Nest. */
+export function accountUniverseReaderFor(db: Kysely<Database>): ReadAccountUniverse {
+  return (accountId) => readAccountUniverse(db, accountId);
 }
 
 const receiptPorts: ReceiptPorts = {
@@ -136,6 +164,7 @@ export function identityUseCases(deps: {
     readActiveSession: (tokenHash) => readActiveSession(deps.db, tokenHash),
     sessionStillValid: (session) => sessionStillValid(deps.db, session),
     revokeSessions: makeRevokeSessions(deps.db),
+    listLiveSessions: (accountId) => listLiveSessions(deps.db, accountId),
     secrets: cryptoSecrets,
   };
   return {
@@ -171,6 +200,9 @@ export function identityUseCases(deps: {
     resolveSession: makeResolveSession(sessionPorts),
     sessionValid: makeSessionValid(sessionPorts),
     signOut: makeSignOut(sessionPorts),
+    listSessions: makeListSessions(sessionPorts),
+    endSession: makeEndSession(sessionPorts),
+    endOtherSessions: makeEndOtherSessions(sessionPorts),
   };
 }
 
@@ -221,6 +253,9 @@ export function signInProviders(tokens: { readonly useCases: symbol }) {
     pick(RESOLVE_SESSION, 'resolveSession'),
     pick(SESSION_VALID, 'sessionValid'),
     pick(SIGN_OUT, 'signOut'),
+    pick(LIST_SESSIONS, 'listSessions'),
+    pick(END_SESSION, 'endSession'),
+    pick(END_OTHER_SESSIONS, 'endOtherSessions'),
   ];
 }
 
@@ -289,3 +324,5 @@ export {
 export type { RecordingPorts, RecordingStore } from './recording-providers.js';
 
 export { readRecordingLifecycle } from './recording-lifecycle.js';
+
+export { deleteAccountFor, dataExportFor } from './account-privacy-providers.js';

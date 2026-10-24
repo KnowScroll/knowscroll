@@ -6,7 +6,7 @@ import {
   clearCoreTransactionOf,
   assertCurrentClearRemovalVerified,
 } from '../../../infrastructure/postgres/privacy-scope.js';
-import { RECORDING_LIFECYCLE_PROTOCOL_SHA256, type ReadRecordingLifecycle, type ClearCoreTx } from '../public.js';
+import type { ReadRecordingLifecycle, ClearCoreTx } from '../public.js';
 const ownSnapshots = new WeakMap<PersonalScopeTx, Readonly<AccountAccess>>();
 /** Exactly the existing real own UPDATE, with a private success brand for lifecycle reads. */
 export const fenceOwnRecordingLifecycle: FenceOwnAccount = async (scope) => {
@@ -23,8 +23,8 @@ export const readRecordingLifecycle: ReadRecordingLifecycle = async (scope) => {
     return { kind: 'unavailable' };
   const result = await sql<{
     mode: number | null;
-    digest: string | null;
-  }>`select u.recording_lifecycle_protocol as mode,w.registry_sha256 as digest
+    witnessed: boolean;
+  }>`select u.recording_lifecycle_protocol as mode,w.universe_id is not null as witnessed
  from identity.universes u join identity.accounts a on a.id=u.account_id
  left join identity.recording_lifecycle_witnesses w on w.universe_id=u.id and w.privacy_epoch=u.privacy_epoch
   and w.account_id=u.account_id and w.protocol_version=1
@@ -35,18 +35,18 @@ export const readRecordingLifecycle: ReadRecordingLifecycle = async (scope) => {
   const row = result.rows[0];
   if (!row) return { kind: 'unavailable' };
   if (row.mode === null) return { kind: 'legacy_unknown' };
-  if (row.mode === 1 && row.digest === null) return { kind: 'not_ready' };
-  return row.mode === 1 && row.digest === RECORDING_LIFECYCLE_PROTOCOL_SHA256
-    ? { kind: 'fresh', protocolVersion: 1, registrySha256: RECORDING_LIFECYCLE_PROTOCOL_SHA256 }
-    : { kind: 'unavailable' };
+  return row.witnessed ? { kind: 'fresh', protocolVersion: 1 } : { kind: 'not_ready' };
 };
-/** Only the fixed current registry closure can establish the live proof consumed here.
- * The operation core timestamp is already written; the barrier is still held. */
+/**
+ * Installs the witness of the new epoch at the end of a selective Clear. Only the real erasure
+ * registry's runner can establish the proof asserted here. The operation's core timestamp is
+ * already written and the barrier is still held, so a failure rolls the whole Clear back.
+ */
 export async function recordClearLifecycle(scope: ClearCoreTx): Promise<void> {
   assertCurrentClearRemovalVerified(scope);
   const b = scope.binding;
-  await sql`insert into identity.recording_lifecycle_witnesses(universe_id,privacy_epoch,account_id,protocol_version,origin_kind,clear_operation_id,registry_sha256,verified_at)
- values(${b.universeId}::uuid,${b.toEpoch},${b.accountId}::uuid,1,'clear_core',${b.operationId}::uuid,${RECORDING_LIFECYCLE_PROTOCOL_SHA256},transaction_timestamp())`.execute(
+  await sql`insert into identity.recording_lifecycle_witnesses(universe_id,privacy_epoch,account_id,protocol_version,origin_kind,clear_operation_id,verified_at)
+ values(${b.universeId}::uuid,${b.toEpoch},${b.accountId}::uuid,1,'clear_core',${b.operationId}::uuid,transaction_timestamp())`.execute(
     clearCoreTransactionOf(scope),
   );
 }

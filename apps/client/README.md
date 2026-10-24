@@ -6,26 +6,32 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 
 ## Routes (coverage matrix, `docs/v2/discovery/design-screens.md`)
 
-| Route | File | Shows | Page title (web) |
-|---|---|---|---|
-| `/` | `app/index.tsx` | Redirects to `/explore` | — |
+| Route                                          | File                                          | Shows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Page title (web)                                      |
+| ---------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `/`                                            | `app/index.tsx`                               | Redirects to `/explore`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | —                                                     |
 | `/explore` | `app/(tabs)/explore.tsx` | Signed in: the current encounter as E01 (a full-bleed Reel) or E02 (a Scroll), with its one action set, format switch, ⋯ menu, share sheet, request sheet, continuation (edge tabs on a Reel, the end-of-article card on a Scroll), E08 ending and the plain states between (opening, waiting, offline, a path that changed, a saved place that needs a choice). Signed out: the first-arrival hint and the existing email sign-in route. | Explore |
-| `/universe` | `app/(tabs)/universe.tsx` | U01 empty universe | Universe |
-| `/conversations` | `app/(tabs)/conversations.tsx` | C01 empty Talk ("Talk" is the label) | Talk |
-| `/friends` | `app/friends/index.tsx` | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility | Friends |
-| `/friends/invite` | `app/friends/invite.tsx` | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in | Friend invitation |
+| `/universe`                                    | `app/(tabs)/universe.tsx`                     | U01 to U08 and D02: empty, dust, the map of systems, a system, a planet with its regions, the region card, list view, search, Lately, formation; `?focus=last` flies to the ship's place                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Universe                                              |
+| `/conversations`                               | `app/(tabs)/conversations.tsx`                | C01 Talk: the person's conversations, newest first, with the last message, unread dot and a muted mark; "No conversations yet" with Share something and Invite a friend when there are none; signed out shows the empty state                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Talk                                                  |
+| `/conversations/<id>`                          | `app/conversations/[conversationId].tsx`      | C02 one conversation (`?m=<membership>&r=<revision>` from the inbox, the share sheet or the landing; without them it is found through the inbox): messages and Reel/Scroll cards by day, live over the Talk hint, a composer, mute, leave and block in the menu, "Deleted account" when the other account is gone                                                                                                                                                                                                                                                                                                                                                                               | the friend's name                                     |
+| `/friends`                                     | `app/friends/index.tsx`                       | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Friends                                               |
+| `/friends/invite`                              | `app/friends/invite.tsx`                      | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Friend invitation                                     |
 | `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: filters, one card per kept item (tile, format, title, where you left off), corrected and withdrawn items, a plain empty state, and a detail with Resume and Start from the top. Scoped, bounded paging; a visible Remove with a five-second Undo. | Keep |
-| `/account` | `app/(tabs)/account/` | The account stack, reached from the avatar on every tab (D-006 c): signed in, the address with "Sign out" and "Sign out on every device"; signed out, "Sign in"; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
-| `/welcome` | `app/(auth)/welcome.tsx` | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226) | Welcome |
-| `/signin` | `app/(auth)/signin/index.tsx` | The email form (labelled field; invalid · sending · too many links · can't reach) | Sign in |
-| `/signin/link` | `app/(auth)/signin/link.tsx` | A01 link sent: the address from this session (never the URL), "Resend the link", "Use a different email" | Check your inbox |
-| `/redeem` | `app/(auth)/redeem.tsx` | Where a link lands (`/redeem#token=…`): the token is read from the fragment and removed from the address bar; one tap POSTs it (opening the link consumes nothing); without a link, a paste field | Finish signing in · Use your sign-in link |
-| `/recover` | `app/(auth)/recover.tsx` | A02: `?reason=link` "This link didn't work" (send a new link); otherwise "You were signed out" | This link didn't work · You were signed out |
-| `/scroll/<assetId>` | `app/scroll/[assetId].tsx` | A Scroll opened by its address (D-006 d; `?anchor=<blockId>` restores a block): opens the exposure, reads the negotiated document, activates, renders and records what is read (client-core's recorder), and restores the position by block on return. Signed out: the sign-in prompt; every other state (loading, "isn't available", "needs an app update", offline, error) has a screen. The article uses the full `packages/ui` `ScrollArticle` renderer and AccountScope block-state store. The dev evidence panel (`features/diagnostics/evidence-panel.tsx`) appears only when the build sets `EXPO_PUBLIC_KS_DEV_EVIDENCE=1` and `GET /health` names a world with operator tools; it is never consumer UI (D-040). | The Scroll's title |
-| `/gallery` | `app/gallery.tsx` | Developer component gallery and API health, only when built with `EXPO_PUBLIC_KS_GALLERY=1` (stable marker `testID="ks-component-gallery"`); otherwise "This page isn't here" | Component gallery |
-| `/gallery-scroll` | `app/gallery-scroll.tsx` | Developer Scroll gallery (fixture documents through `prepareScrollDocument` and `ScrollArticle`: `doc` = `bridges` (poster), `lighthouse` (editorial), `experiments` (every interactive and visual block), `fallback`; query `block`, `motion=reduce`, `scale=2`, `text=1` for the text version of diagrams), only when built with `EXPO_PUBLIC_KS_GALLERY=1` (marker `testID="ks-scroll-gallery"`); otherwise "This page isn't here" | Scroll gallery |
-| `/s/<token>` | none (reserved) | Share links (D-006 d). On the web the edge sends `/s/*` to the API's public page (D-008); the client's `/s/[token]` screen arrives with sharing (H01–H02). No route, group or catch-all may claim `/s` before then (`features/shell/route-map.test.ts`) | — |
-| anything else | `app/+not-found.tsx` | Not found, with "Go to Explore" | Page not found |
+| `/account/requests`                            | `app/(tabs)/account/requests.tsx`             | E07 Your requests: the person's own asks with their state (requested, preparing, ready, couldn't prepare, cancelled), Open when ready, Cancel while preparing, "may be out of date" when a refresh fails (#239)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Requests                                              |
+| `/account`                                     | `app/(tabs)/account/`                         | P01, the account stack, reached from the avatar on every tab (D-006 c): signed in, the address, the person's sessions (coarse device names and last use; Sign out of one asks once; "Sign out of other devices"), the settings that exist and "Sign out" of this device; signed out, "Sign in" and the receipt of an account deletion asked for here; API unreachable, "Try again". Back names where it goes ("Back to Keep")                                                                                                                                                                                                                                                                   | Account                                               |
+| `/account/privacy`                             | `app/(tabs)/account/privacy/index.tsx`        | P02 hub (phones, tablets): recording, History & export, Clear exploration, privacy controls other slices add (`features/privacy/privacy-extensions.ts`), Delete account. D05 (desktops): the settings list and one card per control on this one page                                                                                                                                                                                                                                                                                                                                                                                                                                            | Privacy & history                                     |
+| `/account/privacy/shared-links`                | `app/(tabs)/account/privacy/shared-links.tsx` | P02 "Shared links" (phones, tablets): every live link with its title, audience and expiry, and Stop sharing; on desktops it is a card of the Privacy page and the address redirects there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Shared links                                          |
+| `/account/privacy/export`, `/clear`, `/delete` | `app/(tabs)/account/privacy/*.tsx`            | The control of that name on a page of its own (phones, tablets); on desktops they redirect to `/account/privacy`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | History & export · Clear exploration · Delete account |
+| `/welcome`                                     | `app/(auth)/welcome.tsx`                      | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Welcome                                               |
+| `/signin`                                      | `app/(auth)/signin/index.tsx`                 | The email form (labelled field; invalid · sending · too many links · can't reach)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Sign in                                               |
+| `/signin/link`                                 | `app/(auth)/signin/link.tsx`                  | A01 link sent: the address from this session (never the URL), "Resend the link", "Use a different email"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Check your inbox                                      |
+| `/redeem`                                      | `app/(auth)/redeem.tsx`                       | Where a link lands (`/redeem#token=…`): the token is read from the fragment and removed from the address bar; one tap POSTs it (opening the link consumes nothing); without a link, a paste field                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Finish signing in · Use your sign-in link             |
+| `/recover`                                     | `app/(auth)/recover.tsx`                      | A02: `?reason=link` "This link didn't work" (send a new link); otherwise "You were signed out"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | This link didn't work · You were signed out           |
+| `/scroll/<assetId>`                            | `app/scroll/[assetId].tsx`                    | A Scroll opened by its address (D-006 d; `?anchor=<blockId>` restores a block): opens the exposure, reads the negotiated document, activates, renders and records what is read (client-core's recorder), and restores the position by block on return. Signed out: the sign-in prompt; every other state (loading, "isn't available", "needs an app update", offline, error) has a screen. The article uses the full `packages/ui` `ScrollArticle` renderer and AccountScope block-state store. In a world with operator tools (dev, stage, ci, local) a collapsed "Dev · evidence" panel shows the committed evidence watermark (`features/diagnostics/evidence-panel.tsx`; never consumer UI) | The Scroll's title                                    |
+| `/operator` | `app/operator/index.tsx` | The Operator screen (D-044), for an operator account of the world only: six panels over the allowlisted `ops` views (system overview with queue backlog, model outcomes and recent errors; journey search by ID; content production with refused answers and Reel orders; universe change; realtime delivery; privacy and retention). Not linked from any screen. Everyone else, a signed-out visitor included, sees the unknown-page screen, and the server answers them 404. Pieces Tier 0 has no source for show as unavailable | Operator |
+| `/gallery`                                     | `app/gallery.tsx`                             | Developer component gallery and API health, only when built with `EXPO_PUBLIC_KS_GALLERY=1` (stable marker `testID="ks-component-gallery"`); otherwise "This page isn't here"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Component gallery                                     |
+| `/gallery-scroll`                              | `app/gallery-scroll.tsx`                      | Developer Scroll gallery (fixture documents through `prepareScrollDocument` and `ScrollArticle`: `doc` = `bridges` (poster), `lighthouse` (editorial), `experiments` (every interactive and visual block), `fallback`; query `block`, `motion=reduce`, `scale=2`, `text=1` for the text version of diagrams), only when built with `EXPO_PUBLIC_KS_GALLERY=1` (marker `testID="ks-scroll-gallery"`); otherwise "This page isn't here"                                                                                                                                                                                                                                                           | Scroll gallery                                        |
+| `/s/<token>`                                   | none (served by the API)                      | H02 share landing. On the web the edge sends `/s/*` to the API, which renders an honest, script-free page (D-008, D-042). The client has no `/s/[token]` screen and no route, group or catch-all may claim `/s` (`features/shell/route-map.test.ts`). A native deep link is not built                                                                                                                                                                                                                                                                                                                                                                                                           | —                                                     |
+| anything else                                  | `app/+not-found.tsx`                          | Not found, with "Go to Explore"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Page not found                                        |
 
 Every page title reads "<title> · KnowScroll" (`platform/document-title.web.ts`, set when the
 screen gains focus; native screens have none).
@@ -52,7 +58,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/`: screens and their tests (`*.test.tsx`, jest-expo + React Native Testing Library;
   `features/shell/navigation.test.tsx` renders the real route tree with `expo-router/testing-library`;
   `features/shell/route-map.test.ts` checks the route files against the route map).
-- `platform/`: platform files (`document-title(.web).ts`) and their web tests
+- `platform/`: platform files (`document-title(.web).ts`, `scope-storage(.web).ts`, `session-tokens(.web).ts`) and their web tests
   (`*.web.test.tsx`, the `web` Jest project, jest-expo/web in jsdom).
 - `e2e/`: the Playwright web smoke over the static exports (`web-smoke.spec.ts` against `dist/`:
   links, Tab + Enter, modified clicks, page titles, focus order at 834 and 1440, no gallery;
@@ -64,6 +70,7 @@ exclude Reels, even though this controller has a working Reel player.
   article revision, in the account scope's storage), the capabilities this build declares
   (`capabilities.ts`, exported directly by the renderer registry). The route uses `packages/ui` `ScrollArticle` with AccountScope block state and a recorder observer; the resume keeper freezes before unmount closes visibility intervals. `features/diagnostics/evidence-panel.tsx` is the dev-only
   evidence view, off unless `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`, and then only where `GET /health` names a world with operator tools.
+- `features/operator/`: the Operator screen. It has its own flat grey look on purpose (`operator-theme.ts`), takes its state from client-core's `createOperatorSession`, and shows the unknown-page screen when the server says the account is not an operator.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
@@ -90,18 +97,17 @@ exclude Reels, even though this controller has a working Reel player.
 
 ## Commands
 
-| Command | Does |
-|---|---|
-| `pnpm --filter @knowscroll/contracts build` | Needed once before bundling: the web and native bundles read `@knowscroll/contracts` from its `dist/` (D-012); tests and type-checking read its sources |
-| `pnpm --filter @knowscroll/client build` | `expo export --platform web` into `dist/` (`web.output: "single"`: a static SPA served by Caddy at the site root, D-008) |
-| `pnpm --filter @knowscroll/client build:gallery` | The same export with the gallery (`EXPO_PUBLIC_KS_GALLERY=1`) into `dist-gallery/`, for comparing with `Components.html`; never shipped |
-| `pnpm --filter @knowscroll/client test` / `test:web` | The Jest projects / the Playwright smoke over `dist/` and `dist-gallery/`. Both run in GitHub Actions only (D-010); the `client` job installs Chromium there |
-| `npx expo start` / `npx expo run:android` | Development server / development build. Native builds read `EXPO_PUBLIC_KS_API_ORIGIN` (the world origin; HTTPS, or plain HTTP to `localhost`/`127.0.0.1`/`10.0.2.2` in development builds only) |
+| Command                                              | Does                                                                                                                                                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm --filter @knowscroll/contracts build`          | Needed once before bundling: the web and native bundles read `@knowscroll/contracts` from its `dist/` (D-012); tests and type-checking read its sources                                          |
+| `pnpm --filter @knowscroll/client build`             | `expo export --platform web` into `dist/` (`web.output: "single"`: a static SPA served by Caddy at the site root, D-008)                                                                         |
+| `pnpm --filter @knowscroll/client build:gallery`     | The same export with the gallery (`EXPO_PUBLIC_KS_GALLERY=1`) into `dist-gallery/`, for comparing with `Components.html`; never shipped                                                          |
+| `pnpm --filter @knowscroll/client test` / `test:web` | The Jest projects / the Playwright smoke over `dist/` and `dist-gallery/`. Both run in GitHub Actions only (D-010); the `client` job installs Chromium there                                     |
+| `npx expo start` / `npx expo run:android`            | Development server / development build. Native builds read `EXPO_PUBLIC_KS_API_ORIGIN` (the world origin; HTTPS, or plain HTTP to `localhost`/`127.0.0.1`/`10.0.2.2` in development builds only) |
 
 The native identifiers are `com.knowscroll.client` (distinct from the v1 `com.knowscroll.mobile`
 preview). `android/` and `ios/` are generated by `expo prebuild` and never committed. Native
 builds are not part of CI (CF-31). Automated suites run in GitHub Actions only (D-010).
-
 
 Native module host declarations: `expo-clipboard` is declared directly by this app for Friends' deliberate one-time invite copy and so Expo autolinking includes the module used by `packages/ui`'s code-copy control. TypeScript, the UI import, frozen lockfile and Android build remain checked.
 
@@ -110,7 +116,6 @@ Native module host declarations: `expo-clipboard` is declared directly by this a
 The interim direct Scroll session accepts only direct-open exposure lineage. A Composer
 ready/pending/exhausted response produces the existing controlled error state; the new Explore
 consumer will own those outcomes (#234). This compatibility guard adds no navigation UI.
-
 
 ## Encounter navigation (#234)
 
@@ -196,9 +201,9 @@ or Request Scroll actions. Existing ready siblings keep the normal navigation pa
 
 `features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
 real `supply.create/read/cancel` HTTP commands with the existing encounter capabilities. Private text
-is bounded to 500 characters; the current backend closes free-text requests as unsupported. Three
-explicit catalogue suggestions send their selected canonical intent, without interpreting private
-prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
+is bounded to 500 characters and is sent as a free-text ask: the server matches it to an exact
+catalogue topic or closes it as unsupported. Three explicit catalogue suggestions send their selected
+canonical intent, without interpreting private prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
 asset revision and latest authorised matching session revision; changed sources require a new choice.
 
 A deliberate send/cancel gets a fresh command ID. Unknown transport outcomes freeze the entire
@@ -208,44 +213,77 @@ reads while the request panel is foreground, stops on terminal/close/scope end, 
 explicitly. Reopening reads current status. Ready never interrupts playback: Open rechecks status,
 then uses the existing exact-revision return/open/activation flow. Cancel affects only the caller's
 waiter according to server authority; closing is not cancellation. Scope end clears all draft,
-frozen command, source, receipt, status and timers. There is no durable request list or production
+frozen command, source, receipt, status and timers. There is no production
 retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
 
-## Mounted own Universe (#238)
+`features/requests/requests-list-session.ts` is the memory-only session behind "Your requests"
+(`/account/requests`, E07). It reads `supply.list`, keeps the highest request revision it has seen of each
+ask, looks again every ten seconds while the list is visible and something is preparing, and keeps the last
+list marked out of date when a refresh fails. Cancel is the same command as in the request sheet, and an
+unconfirmed cancel is retried with its exact command ID. `RequestsList` and `useRequestsList` can be
+mounted anywhere; Keep's Requested view is meant to mount them. Closed-request copy lives in
+`request-copy.ts`: it says the request is closed and never names models, budgets or machinery.
 
-`/universe` now mounts `createUniverseSceneSession` through one view controller per actual
-AccountScope object. Focus/AppState starts and pauses its existing readonly QueryObserver; the
-scope's existing socket supplies hints. No polling, second socket, observation, exposure, command,
-provider, job or persistence is created by a map action. Same-scope camera/history (maximum32)
-returns exactly; scope end synchronously clears the controller, geometry cache and view. A fresh
-scope object with the same account/epoch never reuses that state. Capability replacement disposes
-old reads before starting one replacement; abort-ignoring replies remain fenced by accepted core.
+## Universe (#238)
 
-The layered SVG draws canonical scene-core numeric silhouettes and server anchors. Full/low and
-reduced motion keep identical targets. Geometry cache≤128/full vertices≤8192; viewport output≤64
-bodies/64 routes/32 labels. Crowded drawings explicitly offer the virtualised outline, where all
-accepted≤1000 places remain reachable. Native background pan/pinch and named zoom/fit controls,
-web map-only keys, ordinary44px targets and outline buttons provide the same navigation. Browser
-Back uses one same-address transient marker with no private frame/IDs in history. Panels close
-before a retained camera level; native/toolbar Back follows the same controller.
+Each capability is marked **planned**, **implemented** (in source, covered by CI) or **runtime-verified**
+(driven in a browser against a local PostgreSQL, API and worker with worlds formed through the real
+Geography and Scenes path and the CI fixture model; not on dev).
 
-Only accepted empty reads use the empty screen. Loading never implies a new planet. Last complete
-same-scope snapshots remain visibly stale on lag/network failure and retain their own labels;
-authority refusals clear private state. Unsupported drawing can retain the independently validated
-Geography outline. Canonical input/catch-up/8MiB accepted-data budgets remain unchanged; they do not
-promise a raw pre-decode network allocation bound.
+| Capability                                                                                   | Status                           |
+| -------------------------------------------------------------------------------------------- | -------------------------------- |
+| Overview with levels of detail, system, planet and region views, region card and Open/return | runtime-verified                 |
+| Dust cues and their note                                                                     | runtime-verified                 |
+| Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
+| Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
+| Formation story (U05), all five beats                                                        | runtime-verified                 |
+| Routes between planets (a target on each, "Route to ..." from a planet)                      | implemented                      |
+| Desktop outline panel (D02)                                                                  | runtime-verified                 |
+| Native persistence of the camera (memory only today)                                         | planned                          |
+| Friend's universe (U06), room stations, sky regions that merge quiet systems (U08)           | planned (no backend or data yet) |
 
-This first mounted slice covers overview/system/planet/region focus, place details, actual current
-same-system planet-route travel, outline and exact local Back. It does not draw prototype ML worlds,
-on-globe region positions, landmarks or cross-system routes absent from current descriptors. The
-current persisted global lattice and x/y/scale camera remain authoritative. Region encounter Open,
-Lately recency and once-only U05 presentation await their owning backend contracts/authority. The
-place card explicitly states encounter unavailability and offers only general Explore. Actual
-reading→formation, populated projection, visual/device performance and full U01–U08 parity are
-not established or closed by this source change. CI scenes are labelled authored protocol fixtures,
-not personal activity. Connected dev/native/physical acceptance remains coordinator work; the
-separately frozen fb2/schema28 writer experiment is not automatically replaced by this source.
+`/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
+float over it.
+
+- **Overview (U01, U08).** Every system as a star with orbits and planets. Level of detail follows
+  the system's size on screen (far: name only; mid: orbits and planet dots; near: planets). A tap
+  flies into a system; far away a first tap selects it and shows its card, and Open enters.
+  Labels never overlap (`placeLabels`); a label with no room is left out and its body keeps its
+  accessible name.
+- **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
+  persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
+  palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
+  the camera and opens its card with one encounter. Open goes through the real encounter engine and
+  Back returns to the same view with the card closed. The card offers Open and Close only: there is
+  no read yet for more encounters from a region.
+- **Routes.** Only the Cartographer's routes (between planets of one system) are drawn: a dashed
+  line with a 48 px target named "Route from A to B" in the system view, and a "Route to B" chip
+  on a planet. No line is drawn between regions.
+- **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn,
+  never labelled, never a destination; a tap explains them in one sentence.
+- **Lately, search, list.** Lately dims quiet places and sorts recent ones first (activity, never
+  existence). Search runs on the device over the person's own places and the query is not kept.
+  The list view is the full outline (the screen-reader primary); from 1024 px it is a permanent
+  panel (D02).
+- **Return.** The camera, lens and ship's place persist per device in the account scope's storage
+  (purged on logout, account switch and privacy reset). After three days away the camera starts
+  framed on everything with the ship parked and a "Return to ..." chip. `/universe?focus=last`
+  flies there.
+- **Formation (U05).** Plays once per committed transition (the server decides): dust, gathering,
+  protostar, star and orbit (new systems only), planet. Reduced motion shows the last frame.
+- **Never evidence.** Looking, panning, searching and choosing a pin create no observation, exposure
+  or command. Only the Reel or Scroll that Open starts is an encounter.
+
+Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on the web pans with
+arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
+token; reduced motion stops drift and plays the formation as one still.
+
+Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
+(pure placement), `overview-scene.tsx`, `system-scene.tsx`, `planet-scene.tsx` (drawing and targets),
+`universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
+`universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
+`formation-presentation.tsx`. Choices are in D-039.
 
 ## Mounted Keep lifecycle (#234/#246/#344)
 
@@ -318,8 +356,31 @@ decoded playback claim).
 
 Talk links to the real Friends interface outside the tab group. Mounted ephemeral client-core sessions
 use current reads, bounded explicit paging, same-body unknown retries and one-time invite delivery.
-No conversation, presence, visitor visibility or contacts upload is implied. See
+Presence, visitor visibility and contacts upload are not implied. See
 [`features/friends/README.md`](features/friends/README.md) for lifecycle, fragment and evidence boundaries.
+
+## Talk and sharing (#242, D-042)
+
+- `features/conversations/`: C01 (`conversations-screen.tsx`, `use-talk-inbox.ts`) and C02: `conversation-screen.tsx`
+  finds the conversation to open, `thread-view.tsx` is the open thread (notices, composer, options menu) around
+  `thread-header.tsx` and `message-list.tsx` (messages by day; it follows the end only for a reader who is there),
+  with `use-conversation-thread.ts`, `message-views.tsx`, `composer.tsx` and `conversation-menu.tsx`. The logic is
+  `createConversationThread` in client-core: first a snapshot, then catch-up reads from a cursor. A message the
+  person sends shows as sending, sent, "not confirmed" or "not sent", and a retry reuses the same command ID. The
+  draft is kept in the account scope's storage.
+- `features/sharing/`: `share-sheet-body.tsx` is what a sheet container renders for H01: it needs only the exact
+  asset revision, the title and a close callback. It reads the account scope and the API origin itself, and wraps
+  `share-sheet-content.tsx`, which switches between `share-menu.tsx` (Send to a conversation, Copy link, Share
+  elsewhere, Stop sharing this link) and `send-to-friend.tsx` (`friend-picker.tsx`, a note, Send, Retry). The container, the encounter's sheet, owns the header, pauses playback while the sheet is
+  open, restores it in `onClose` and keeps the sheet out of Back history (D-006 k). After "Open chat" the body
+  closes the sheet, then navigates through `platform/after-pending-back`: on the web the encounter removes its
+  history marker with an asynchronous Back, and an address pushed before it lands would be popped again.
+  `shared-links-section.tsx` is the P02 card and `shared-links-screen.tsx` its page, mounted through
+  `features/privacy/privacy-extensions.ts`.
+- A hint on the `inbox` scope invalidates the Talk queries (`TALK_QUERY_KEY`); a missed hint is recovered by the
+  30 second poll, focus and reconnect. The Talk tab shows an unread dot.
+- Not built: group conversations ("Explore with friends", #243), a new-message button, starting a conversation from a
+  friend's row, Report, a typing indicator and a native `/s` deep link.
 
 ## Pause and Resume personal recording (#381)
 
@@ -327,8 +388,8 @@ Privacy & history now mounts recording controls independently of Clear. The Acco
 session fails collection closed while checking, offline, backgrounded or awaiting an ambiguous
 choice. Global AppState and browser focus/storage signals reread current authority; toggles retain
 the same scope and privacy epoch. Browser storage signals are disposable hints, never authority.
-The native platform UUID source is installed before policy requests; native scoped storage remains
-memory-only and this change makes no crash-durability claim there.
+The native platform UUID source is installed before policy requests. Native scoped storage is
+encrypted platform storage (see "Native storage" below), durable a moment after each write.
 
 Discovery/revisit/navigation, region Open, offer/direct activation, explicit actions and Keep Remove
 capture their original known recording generation once. Transport retries preserve the entire body,
@@ -346,3 +407,20 @@ Authored protocol/component/browser fixtures cover these fences, unknown retries
 fresh activation. Execute suites only in Actions. Actual API/database evidence qualification,
 connected web/native/device journeys and final source composition/deployment remain Root-owned
 acceptance requirements. This source does not close full privacy, export or account deletion.
+
+## Native storage (#249, D-045)
+
+On Android and iOS the account scope's storage is `createSecureKeyValueStore` over `expo-secure-store`
+(`platform/secure-key-value-store.ts`, wired in `platform/scope-storage.ts`; _implemented, emulator-verified in
+the native lane's journey_). The session token and the sign-in verifier use the same secure store
+(`session-tokens.ts`, `sign-in-binding.ts`).
+
+- The store is synchronous, like `localStorage`: memory is the working copy and changes reach the platform through one
+  ordered queue. A change is durable a moment after the call. A failing backend (locked device, lost key) loses
+  persistence only: after a failed index read or write it stops writing values (the persisted index is never overwritten blind) and retries the index later.
+- It is bounded (256 keys, 1 MiB; the oldest written go first), so callers treat it as a cache that can miss.
+- Scope keys are purged when the scope ends (sign-out, account switch, Clear, account deletion). Mounting a scope also
+  removes what a killed run left under another account or epoch. The deletion receipt id is outside any scope.
+- The `expo-secure-store` config plugin keeps the data out of Android backups.
+- Test builds: `EXPO_PUBLIC_KS_TEST_API=1` (the native lane's test API, `docs/v2/engineering/native-lane.md`) lets the
+  client use plain HTTP to localhost and makes the Android manifest allow cleartext. Never set it for a build that ships.

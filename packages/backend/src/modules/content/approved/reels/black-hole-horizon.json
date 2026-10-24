@@ -1,0 +1,113 @@
+{
+  "id": "82f16fad-c9af-4c26-b6d4-d39be8f78525",
+  "authoredBy": "claude (agent k240, #240)",
+  "approval": {
+    "ref": "D-030 delegated",
+    "approvedBy": "coordinator (delegated by owner, D-030)",
+    "approvedAt": "2026-10-24"
+  },
+  "recipe": "black-hole-horizon",
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-black-hole-horizon",
+    "narration": [
+      {
+        "text": "A black hole is a dark sphere hanging in empty space.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "Its edge is a one-way boundary, not a solid wall.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "Hot gas circling outside it glows brightly.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "Its gravity bends that light into a bright ring around a dark shadow.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "Gravity pulls hardest on the nearest side of anything falling in.",
+        "claimIds": ["c3"]
+      },
+      {
+        "text": "A falling object is drawn out long and thin.",
+        "claimIds": ["c3"]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "supporting"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "f1b42f11-432b-4533-ad08-bba27304d457",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "f1b42f11-432b-4533-ad08-bba27304d457",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "f1b42f11-432b-4533-ad08-bba27304d457",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-black-sphere",
+          "text": "a dark round shadow inside a thick bright ring of glowing orange light that fills much of the frame",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-bright-ring",
+          "text": "a bright swirling disc of hot orange gas circling a dark round shadow, the glowing disc filling most of the frame",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-long-streak",
+          "text": "a long bright streak of glowing orange gas stretching toward a dark round shadow inside a glowing ring",
+          "type": "presence",
+          "claimId": "c3"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-space",
+      "version": 2,
+      "text": "bright, well-exposed space imagery like a planetarium film: the subject is large, lit and moving from the first frame, warm glowing colours, slow continuous camera drift, no fade in from black"
+    },
+    "title": "A boundary, not a surface",
+    "summary": "A black hole's edge is a one-way boundary, not a solid surface: what we see from far away, and what a falling object would feel."
+  }
+}

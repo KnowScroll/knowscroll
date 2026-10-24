@@ -11,6 +11,13 @@ export {
 export { createQueryClient, queryRetryDelay, shouldRetryQuery } from './query-client';
 export { healthQueryKey, healthQueryOptions } from './health';
 export {
+  createOperatorSession,
+  type OperatorJourneyState,
+  type OperatorPanelsState,
+  type OperatorSession,
+  type OperatorState,
+} from './operator-session';
+export {
   SCOPED_STORAGE_PREFIX,
   ScopeEndedError,
   createAccountScope,
@@ -18,6 +25,7 @@ export {
   memoryStore,
   purgeStorage,
   scopeIdOf,
+  scopeStoragePrefix,
   type AccountScope,
   type AccountScopeOptions,
   type ConnectScope,
@@ -31,13 +39,39 @@ export {
   type AccountScopeManagerOptions,
   type AccountScopeState,
   type SessionTokenStore,
+  type SignedOutReason,
   type SignInBinding,
 } from './account-scope-manager';
-export { connectScopeSocket, type SocketContext } from './account-scope-socket';
+export { TALK_QUERY_KEY, connectScopeSocket, type SocketContext } from './account-scope-socket';
+export { talkFailure, type TalkFailure } from './talk-failure';
+export { blockFriend, findConversation, readInboxPage, type InboxPage } from './talk-inbox';
+export {
+  createConversationThread,
+  mergeMessages,
+  type MessageBody,
+  type OutgoingMessage,
+  type ThreadController,
+  type ThreadOptions,
+  type ThreadState,
+} from './conversation-thread';
+export { dayKey, dayLabel, describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
+export {
+  createShareSession,
+  createSharedLinksSession,
+  type LinkStatus,
+  type SendStatus,
+  type ShareSession,
+  type ShareSessionOptions,
+  type ShareState,
+  type ShareTarget,
+  type SharedLinksSession,
+  type SharedLinksState,
+} from './share-session';
 export {
   createAuthClient,
   type AuthClient,
   type AuthClientOptions,
+  type DeletionReceiptOutcome,
   type PeekOutcome,
   type RedeemOutcome,
   type RequestLinkOutcome,
@@ -99,6 +133,8 @@ export {
 
 export { PRIVACY_CLEAR_ACKNOWLEDGEMENT, type PrivacyClearState, type PrivacyClearSession } from './privacy-clear';
 
+export { readDustCues, type DustCue, type DustRead } from './universe-emerging';
+
 export { createRegionPreviewSession, type RegionPreviewState, type AvailableRegionPreview } from './region-preview';
 
 export {
@@ -133,3 +169,19 @@ export {
   type RecordingPolicyState,
   type RecordingPolicySession,
 } from './recording-policy';
+
+export {
+  DELETION_RECEIPT_KEY,
+  createDeletionReceiptSession,
+  type DeletionReceiptSession,
+  type DeletionReceiptState,
+} from './deletion-receipt';
+
+export {
+  createAccountSessionsSession,
+  type AccountSessionsSession,
+  type AccountSessionsState,
+  type SessionsEnding,
+} from './account-sessions';
+export { createDataExportsSession, type DataExportsSession, type DataExportsState } from './data-exports';
+export { requestAccountDeletion, type AccountDeletionDeps, type AccountDeletionOutcome } from './account-deletion';

@@ -69,12 +69,9 @@ an empty own SSD database/codegen is separate from behavioral CI and runtime acc
 ## Fresh lifecycle protocol (0044, source prerequisite)
 
 Adds two empty eight-column stores and one nullable root mode (17 columns), with no historical
-initialization or existing table index. The canonical literal `fresh-recording-lifecycle.v1`
-registry/writer protocol hashes to
-`ebbec3bda043ab47c5566ebb29e80322e841f4dc15ef7940fc2ee4c053176dc1`; its immutable literal
-lives in `packages/backend/src/erasure-registry.ts`. It contains no circular code/SQL hashes.
-Birth is the actual mode1 root INSERT in createAccount. Existing NULL roots can elect mode1 only
-at verified current selective-Clear core completion, before releasing the barrier. Financial
+initialization or existing table index. Each witness was stamped with the digest of a registry
+manifest; 0051 removes that digest. Birth is the actual mode1 root INSERT in createAccount.
+Existing NULL roots can elect mode1 only at verified current selective-Clear core completion, before releasing the barrier. Financial
 completion is independent. Mode1/owner and witnesses are immutable; full erasure removes the
 witness without restoring authority. Certificates distinguish empty from real false and require
 actual eligible actions and completed receipts. Deferred checks inspect final exact rows.
@@ -87,7 +84,10 @@ this migration does not activate Pause or certify retained legacy channels.
 The two `prefer-bigint-over-smallint` exceptions in0044 cover only literal CHECK=1 format tags,
 not counters. No capacity or growing sequence relies on smallint.
 
-Pending0044 correction after hosted d5 failures: the fixed manifest includes the actual Planner and Geography runs.recording_account_id links, both erased with their owning run rows. The old c21 digest and failed source remain retained; no OLD/NEW compatibility or Conversations extension is installed. The exact0042 audit-identity function is replaced here using positional arguments solely to remove runtime PL/pgSQL name collisions; signatures, types and equality guards remain unchanged. All0001–0043 remain byte-exact.
+Correction made before 0044 was merged: the Planner and Geography `runs.recording_account_id`
+links are declared as account columns and erased with their owning run rows. The exact 0042 audit-identity
+function is replaced here using positional arguments only to remove runtime PL/pgSQL name collisions;
+signatures, types and equality guards are unchanged. All 0001-0043 remain byte-exact.
 
 
 Pending routing correction before0042 has reached a shared database: exactly three additive
@@ -99,16 +99,10 @@ historical and must be rebound after exact full44 candidate acceptance. No schem
 from this source correction.
 
 0047 adds `composer.buffers`: one worker-prepared next-move buffer per person and mode, pointing at an
-ordinary Composer decision, with optional stored Jev assessments. The new personal store and the job
-payload store `pgboss/composer.prepare-buffer` change the fresh-recording registry, so its digest becomes
-`d7942e43bb8211f37dfd08b4dfb6ac2e1b2543229a257f9c5ba850df135a1d10`. The same migration moves the places
-that repeat the digest (the witness table's CHECK and the birth trigger) to the new value and re-stamps
-every existing witness. Schema 44 is live on dev, and the application reads a witness with any other
-digest as an unavailable lifecycle, so without the re-stamp every existing account would fail its next
-recording-aware command until it ran Clear. Re-stamping is truthful: the new stores are empty for every
-existing universe. The witness guard trigger refuses all updates, so it is disabled for that one statement.
-Deploy the new binary with the migration: a process still holding the old digest sees the lifecycle as
-unavailable. Any later personal store repeats this step until the registry manifest is simplified.
+ordinary Composer decision, with optional stored Jev assessments. At that time every new personal store
+changed the registry digest pinned in the witness CHECK and the birth trigger, so 0047 swapped both and
+re-stamped every existing witness (the guard trigger, which refuses all updates, was disabled for that one
+statement). 0051 removes the digest, so no later store repeats this step.
 
 0048 adds Planner-originated demand to Supply: `origin`, `planner_run_id` and `planner_slot` on
 `supply.requests`, the `deferred` state, and two unique indexes: one plan opportunity is one demand, and
@@ -125,3 +119,43 @@ write to it, so the erasure inventory is unchanged. On `content.scroll_productio
 `claims_run_id`, closes any job still parked in the retired `claims` state as rejected, and replaces the
 state check without `claims` (`NOT VALID`, like the other vocabulary changes). Apply it together with the
 workers of recipe `scroll-production.v14`; no process of the previous recipe may run a job afterwards.
+
+0051 removes `registry_sha256` from `identity.recording_lifecycle_witnesses` and rewrites the birth trigger
+to insert without it. Dropping the column drops its CHECK. Every existing witness keeps its epoch, account,
+origin and clear operation, so accounts stamped by 0044 or 0047 stay `fresh`; the readers now look only for
+the row. The guard trigger is untouched and witnesses stay immutable. Apply with the new binary: a process
+of the previous recipe still selects the dropped column and fails with a database error (closed, never an
+unverified lifecycle) until it is replaced. Erasure completeness no longer depends on the witness: the
+schema inventory test and the inventory check inside every Clear prove it (D-050).
+
+0055 is the account privacy slice (#246, D-043). `identity.accounts` and `identity.universes` accept the
+status `deleting` (their checks are replaced `NOT VALID`); every existing check tests `status = 'active'`, so
+a deleting account is fenced everywhere without further changes. `identity.account_deletions` holds one
+operation per deletion: its id is chosen by the client and doubles as the receipt a signed-out device can
+still read, and when the work completes the row drops its account and universe links and stays as an audit row
+(id, two timestamps, a state) with no personal data. `identity.data_exports` holds one export file per row
+(at most five per account, a file removed at first download, expiry or account deletion; a download link is the
+SHA-256 of a one-time token). `identity.sessions` gains `device_label` and `last_used_at`. All new objects are
+additive, so an older process neither writes `deleting` nor reads the new columns. Apply with the new binary:
+a deployment without the worker's `identity.delete-account` consumer would leave deletions pending.
+
+0056 adds conversations and share links to the `social` schema (#242, D-042). It creates `conversations`,
+`conversation_members`, `messages`, `inbox_heads` and `content_shares`; nothing existing is altered, so an
+older process simply never touches them.
+
+- `conversations`: one open conversation per friendship lineage (`pair_id`, `lineage`); `pair_id` is nullable
+  with `on delete set null`, so a deleted friend leaves the conversation readable and closed (D-043).
+  `last_sequence` and `last_change_sequence` are counters that only grow.
+- `messages`: primary key `(conversation_id, sequence)`. A check allows exactly three shapes: text, a card for an
+  exact `(asset_id, asset_revision)` in `content.asset_revisions`, or a tombstone with no author. A partial
+  unique index on `(conversation_id, author_account_id, command_id)` makes a send idempotent.
+- `inbox_heads`: one revision per member, bumped inside the friendship lock for the Talk hint.
+- `content_shares`: only `token_hash` is stored (unique); `expires_at` and `revoked_at` decide availability.
+- Erasure: every table is in the Social inventory (`adapters/erasure.ts`): account deletion deletes links,
+  tombstones messages and closes conversations; exploration Clear keeps them all.
+
+Apply with the new binary. 0055 (#246) runs first; 0056 only needs the earlier Social tables (0028, 0040).
+
+0057 creates the `ops` views (#248, D-044): allowlisted columns over the owners' tables, `ops.safe_code`, and the journey
+view. Views only; no data. The views over pg-boss and the read-only role's grants are not here: `migrate.js` builds them
+after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.ts`).

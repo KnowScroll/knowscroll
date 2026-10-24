@@ -1,97 +1,237 @@
-import { useEffect, type ReactNode } from 'react';
-import { FlatList, Modal, Platform, StyleSheet, View } from 'react-native';
-import { Button, Text, useDisplay } from '@knowscroll/ui';
-import { content, overlay, spacing } from '@knowscroll/design-tokens';
-import type { UniverseViewSession } from './universe-session';
+import { useEffect, useRef } from 'react';
+import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
+import { Button, IconButton, Scrim, Text } from '@knowscroll/ui';
+import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
+import type { UniverseViewSession, UniverseViewState } from './universe-session';
 
-/** One modal host, with no separate history owner. Universe Back owns this overlay. */
-export function UniversePanel({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
-  const { breakpoint } = useDisplay();
+const ROW_HEIGHT = 52;
+const KIND_WORD = { system: 'System', star: 'Star', planet: 'Planet', region: 'Region' } as const;
+
+/**
+ * The accessible outline of the map (U02 and U08 "List view", D02's side panel): every place, in
+ * order, each a 48 px row that flies there. It is the screen-reader primary view and the way to
+ * reach anything the drawing cannot show.
+ */
+export function OutlineList({
+  session,
+  state,
+  index,
+  onChoose,
+}: {
+  readonly session: UniverseViewSession;
+  readonly state: UniverseViewState;
+  readonly index: UniverseIndex;
+  readonly onChoose?: () => void;
+}) {
+  const rows = outlineRows(index, state.lately);
+  const list = useRef<FlatList<OutlineRow>>(null);
+  const currentRow = rows.findIndex((row) => row.place.objectId === state.focusId);
+  // Open on the place the person is looking at, so the outline answers "where am I".
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const previous = document.activeElement;
-    const panel = document.querySelector<HTMLElement>('[data-testid="universe-panel"]');
-    const controls = () => panel?.querySelectorAll<HTMLElement>('button, a[href], input, [tabindex="0"]');
-    controls()?.[0]?.focus();
-    const trap = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const nodes = controls();
-      if (!nodes?.length) return;
-      const first = nodes[0]!,
-        last = nodes[nodes.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', trap);
-    return () => {
-      document.removeEventListener('keydown', trap);
-      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
-    };
-  }, []);
-  return (
-    <Modal visible transparent animationType="none" onRequestClose={close}>
-      <View style={[styles.host, breakpoint === 'desktop' ? styles.docked : null]}>
-        <View
-          testID="universe-panel"
-          role="dialog"
-          accessibilityLabel={title}
-          accessibilityViewIsModal
-          style={styles.panel}
+    if (currentRow > 0) list.current?.scrollToIndex({ index: currentRow, viewPosition: 0.3, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the list opens or the focus changes, not when Lately reorders it.
+  }, [state.focusId]);
+  const current = state.focusId ? index.byId.get(state.focusId) : undefined;
+  const ancestors = new Set<string>();
+  for (let place = current; place; place = index.byId.get(place.parentId)) ancestors.add(place.objectId);
+  const renderRow = ({ item }: { item: OutlineRow }) => {
+    const { place, depth } = item;
+    const isCurrent = place.objectId === state.focusId;
+    const trail = placeTrail(index, place);
+    const name = [
+      place.label,
+      trail.length
+        ? `${KIND_WORD[place.kind].toLowerCase()} in ${trail.join(', ')}`
+        : KIND_WORD[place.kind].toLowerCase(),
+      place.truthStatus === 'hypothetical' ? 'hypothetical' : undefined,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    return (
+      <View role="listitem">
+        <Pressable
+          testID={`universe-outline-${place.objectId}`}
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          accessibilityState={{ selected: isCurrent }}
+          onPress={() => {
+            session.focus(place.objectId);
+            onChoose?.();
+          }}
+          style={[
+            styles.row,
+            { paddingLeft: spacing[3] + depth * spacing[5] },
+            ancestors.has(place.objectId) ? styles.ancestor : null,
+            isCurrent ? styles.current : null,
+          ]}
         >
-          <Text variant="displayL" heading={2}>
-            {title}
+          <Text
+            variant={depth === 0 ? 'title' : 'bodyS'}
+            style={depth === 0 ? styles.systemName : null}
+            {...(depth < 2 ? { heading: (depth + 2) as 2 | 3 } : {})}
+          >
+            {place.label}
           </Text>
-          <Button label="Close" onPress={close} />
-          {children}
+          <Text variant="label" color={content.ink2}>
+            {KIND_WORD[place.kind]}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  };
+  return (
+    <FlatList
+      role="list"
+      accessibilityLabel="Places in your universe"
+      ref={list}
+      data={rows}
+      getItemLayout={(_, position) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * position, index: position })}
+      keyExtractor={(row) => row.place.objectId}
+      renderItem={renderRow}
+      initialNumToRender={16}
+      maxToRenderPerBatch={16}
+      windowSize={7}
+      style={styles.list}
+    />
+  );
+}
+
+/** The renderer's low-detail switch (U03 "Low detail"): flat silhouette and a plain list, same layout. */
+export function DrawingToggle({
+  session,
+  state,
+}: {
+  readonly session: UniverseViewSession;
+  readonly state: UniverseViewState;
+}) {
+  const simple = state.detail === 'low';
+  return (
+    <Button
+      label="Simple drawing"
+      size="sm"
+      variant={simple ? 'ink' : 'default'}
+      toggled={simple}
+      onPress={() => session.configure({ detail: simple ? 'full' : 'low', reducedMotion: state.reducedMotion })}
+    />
+  );
+}
+
+/**
+ * U02 / U08 "List view" as a sheet on phones: the same outline, with the Lately lens on top. Back
+ * belongs to the Universe (hardware Back, Escape and browser Back all close it through the
+ * session), so the sheet adds no history entry of its own that could undo the choice made in it.
+ */
+export function UniverseListSheet({
+  session,
+  state,
+  index,
+}: {
+  readonly session: UniverseViewSession;
+  readonly state: UniverseViewState;
+  readonly index: UniverseIndex;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      onRequestClose={() => {
+        session.back();
+      }}
+    >
+      <View style={styles.host}>
+        <Scrim onPress={() => session.back()} testID="universe-list-scrim" />
+        <View
+          testID="universe-list-sheet"
+          role="dialog"
+          aria-label="Your universe"
+          accessibilityViewIsModal
+          style={[styles.sheet, { paddingBottom: spacing[7] + insets.bottom }]}
+        >
+          <View style={styles.grab} aria-hidden importantForAccessibility="no-hide-descendants" />
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetTitle}>
+              <Text variant="displayL" heading={2}>
+                Your universe
+              </Text>
+            </View>
+            <IconButton icon="close" label="Close list view" onPress={() => session.back()} />
+          </View>
+          <View style={styles.lens}>
+            <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
+              {state.lately
+                ? 'Lately on: places with recent activity come first in each group.'
+                : 'Every place, in order. Turn on Lately to see recent activity first.'}
+            </Text>
+            <Button
+              label="Lately"
+              size="sm"
+              variant={state.lately ? 'ink' : 'default'}
+              toggled={state.lately}
+              onPress={() => session.setLately(!state.lately)}
+            />
+          </View>
+          <View style={styles.drawing}>
+            <Text variant="bodyS" color={content.ink2} style={styles.lensText}>
+              A flat drawing for slow devices. Every place stays where it is.
+            </Text>
+            <DrawingToggle session={session} state={state} />
+          </View>
+          <View style={styles.sheetList}>
+            <OutlineList session={session} state={state} index={index} />
+          </View>
         </View>
       </View>
     </Modal>
   );
 }
-export function UniverseOutline({ session }: { session: UniverseViewSession }) {
-  const places = session.places();
-  return (
-    <UniversePanel title="Universe outline" close={() => session.back()}>
-      <FlatList
-        style={styles.list}
-        data={places}
-        keyExtractor={(p) => p.id}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-        windowSize={5}
-        accessibilityLabel="Established places"
-        renderItem={({ item }) => {
-          const parent = places.find((p) => p.id === item.parentId);
-          return (
-            <View style={styles.row}>
-              <Button label={`${item.label} · ${item.kind}`} onPress={() => session.focus(item.id)} />
-              <Text variant="meta">
-                {parent ? `In ${parent.label}. ` : ''}
-                {item.truthStatus === 'hypothetical' ? 'Hypothetical.' : ''}
-              </Text>
-            </View>
-          );
-        }}
-      />
-    </UniversePanel>
-  );
-}
+
 const styles = StyleSheet.create({
-  host: { flex: 1, justifyContent: 'flex-end', backgroundColor: overlay.scrim },
-  docked: { alignItems: 'flex-end', justifyContent: 'center' },
-  panel: {
+  host: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    zIndex: layer.sheet,
+    gap: spacing['3.5'],
     backgroundColor: content.paper,
-    padding: spacing[5],
-    gap: spacing[3],
+    borderTopWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing['2.5'],
+    maxHeight: '85%',
     width: '100%',
     maxWidth: 560,
-    maxHeight: '85%',
+    alignSelf: 'center',
   },
-  list: { height: 360 },
-  row: { paddingVertical: spacing[2], gap: spacing[1] },
+  grab: {
+    alignSelf: 'center',
+    width: dimension.grabHandle.width,
+    height: dimension.grabHandle.height,
+    borderRadius: dimension.grabHandle.radius,
+    backgroundColor: content.ink,
+    opacity: 0.25,
+  },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[3] },
+  sheetTitle: { flex: 1 },
+  list: { flexGrow: 0 },
+  sheetList: { maxHeight: 420 },
+  drawing: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], justifyContent: 'space-between' },
+  lens: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], justifyContent: 'space-between' },
+  lensText: { flex: 1 },
+  row: {
+    height: ROW_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[3],
+    paddingRight: spacing[3],
+    borderRadius: radius.md,
+    cursor: 'pointer' as const,
+  },
+  ancestor: { backgroundColor: content.paper2 },
+  current: { backgroundColor: content.continue },
+  systemName: { fontSize: 18, lineHeight: 24 },
 });

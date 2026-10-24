@@ -7,6 +7,7 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import {
   PEEK_SIGN_IN_LINK,
   REDEEM_SIGN_IN,
+  deviceLabelOf,
   REQUEST_SIGN_IN,
   RESOLVE_SESSION,
   SIGN_OUT,
@@ -151,6 +152,7 @@ export class AuthController {
         token: input.token,
         commandId: input.commandId,
         client: input.client,
+        deviceLabel: deviceLabelOf(request.headers['user-agent'], input.client),
         ...(input.codeVerifier === undefined ? {} : { codeVerifier: input.codeVerifier }),
       });
       if (result.kind === 'refused') {

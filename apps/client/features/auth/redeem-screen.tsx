@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { TextInput, StyleSheet } from 'react-native';
 import { borderWidth, content, radius, space, spacing, target } from '@knowscroll/design-tokens';
-import type { PeekOutcome } from '@knowscroll/client-core';
+import type { AccountScopeState, PeekOutcome } from '@knowscroll/client-core';
 import { Banner, Button, Text, useTypeStyle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { tokenFromLink, useSignInLinkToken } from '../../platform/sign-in-link';
@@ -14,6 +14,20 @@ type Failure =
   | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number | undefined }
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'refused' };
+
+/**
+ * The links this app run redeemed, each with the account it signed in. Signing in mounts a new
+ * account scope, which remounts this screen while the app link that opened it is still the current
+ * URL. While that account is still signed in, asking about the spent link again would answer
+ * "didn't work" and send the new session to the recover screen, so the screen goes to Explore
+ * instead. Once the person signs out or switches, a spent link is asked about like any other.
+ * Keyed by account, not scope: a privacy reset changes the scope and remounts the screen too.
+ */
+const redeemedBy = new Map<string, string>();
+
+function spentBySignedInAccount(state: AccountScopeState, token: string): boolean {
+  return state.status === 'signed_in' && redeemedBy.get(token) === state.scope.account.accountId;
+}
 
 /** What the server said about one token before redeeming it. */
 type Peeked = { readonly token: string; readonly outcome: PeekOutcome };
@@ -43,18 +57,26 @@ export function RedeemScreen() {
   const switching = state.status === 'signed_in';
   const peek = peeked !== undefined && peeked.token === token ? peeked.outcome : undefined;
 
+  const spentByCurrentSession = token !== undefined && spentBySignedInAccount(manager.getState(), token);
+
   useEffect(() => {
+    if (spentByCurrentSession) {
+      router.replace('/explore');
+      return undefined;
+    }
     if (token === undefined) return undefined;
     let current = true;
     void manager.peek(token).then((outcome) => {
       if (!current) return;
-      if (outcome.kind === 'link_invalid') router.replace('/recover?reason=link');
+      // A peek asked just before the redemption finished answers "invalid" for the spent link.
+      if (outcome.kind === 'link_invalid')
+        router.replace(spentBySignedInAccount(manager.getState(), token) ? '/explore' : '/recover?reason=link');
       else setPeeked({ token, outcome });
     });
     return () => {
       current = false;
     };
-  }, [manager, router, token, attempt]);
+  }, [manager, router, token, attempt, spentByCurrentSession]);
 
   const redeem = async () => {
     if (token === undefined || busy || peek?.kind !== 'usable') return;
@@ -69,6 +91,7 @@ export function RedeemScreen() {
     setBusy(false);
     switch (outcome.kind) {
       case 'signed_in':
+        redeemedBy.set(token, outcome.response.account.accountId);
         router.replace('/explore');
         return;
       case 'link_invalid':

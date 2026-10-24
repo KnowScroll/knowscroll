@@ -6,6 +6,7 @@ import {
   readOperatorConfig,
   readWorkerConfig,
   readWorkerOperatorConfig,
+  readReelOperatorConfig,
   readScrollProductionOperatorConfig,
 } from './index.js';
 
@@ -91,6 +92,92 @@ describe('process configuration', () => {
     expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).jevEnabled).toBe(false);
     expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: '1' }).jevEnabled).toBe(true);
     expect(() => readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: 'true' })).toThrow();
+  });
+  it('lets Create start productions by default only in the local world, bounded per day', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(worker({ KS_WORLD: 'local' }).supplyCreateDailyCap).toBe(20);
+    expect(api({ KS_WORLD: 'local' }).supplyCreateDailyCap).toBe(20);
+    for (const world of ['dev', 'stage', 'ci']) {
+      expect(worker({ KS_WORLD: world }).supplyCreateDailyCap).toBe(0);
+      expect(api({ KS_WORLD: world }).supplyCreateDailyCap).toBe(0);
+    }
+    expect(api({ KS_WORLD: 'dev', KS_SUPPLY_CREATE_DAILY_CAP: '8' }).supplyCreateDailyCap).toBe(8);
+    expect(worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '0' }).supplyCreateDailyCap).toBe(0);
+    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '501' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '-1' })).toThrow();
+  });
+  it('names the operator accounts from the list, or from the sign-in pattern on dev only', () => {
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    const signIn = { KS_ALLOW_OPERATOR_SIGN_IN: '1', KS_OPERATOR_SIGN_IN_PATTERN: '*@test.knowscroll.space' };
+    expect(api({ KS_WORLD: 'dev' }).operatorAccounts).toEqual([]);
+    expect(api({ KS_WORLD: 'dev', ...signIn }).operatorAccounts).toEqual(['*@test.knowscroll.space']);
+    expect(api({ KS_WORLD: 'stage', ...signIn }).operatorAccounts).toEqual([]);
+    expect(
+      api({ KS_WORLD: 'stage', KS_OPERATOR_ACCOUNTS: 'owner@example.com, *@test.knowscroll.space' }).operatorAccounts,
+    ).toEqual(['owner@example.com', '*@test.knowscroll.space']);
+    expect(api({ KS_WORLD: 'dev', ...signIn, KS_OPERATOR_ACCOUNTS: 'owner@example.com' }).operatorAccounts).toEqual([
+      'owner@example.com',
+    ]);
+  });
+  it('refuses a malformed operator list, and a wildcard on the live world', () => {
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(api({ KS_WORLD: 'live', KS_OPERATOR_ACCOUNTS: 'owner@example.com' }).operatorAccounts).toEqual([
+      'owner@example.com',
+    ]);
+    expect(configurationError(() => api({ KS_WORLD: 'live', KS_OPERATOR_ACCOUNTS: '*@example.com' })).problems).toEqual(
+      ['KS_OPERATOR_ACCOUNTS: wildcard_refused_in_this_world'],
+    );
+    for (const bad of ['Owner@Example.com', 'a*b*@example.com', 'not-an-address', 'owner@example.com,']) {
+      expect(configurationError(() => api({ KS_WORLD: 'dev', KS_OPERATOR_ACCOUNTS: bad })).problems, bad).toEqual([
+        'KS_OPERATOR_ACCOUNTS: invalid_format',
+      ]);
+    }
+  });
+  it('gives the Planner its own, smaller Create cap, five a day unless set', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(api({ KS_WORLD: 'dev' }).supplyPlannerCreateDailyCap).toBe(5);
+    expect(worker({ KS_WORLD: 'local' }).supplyPlannerCreateDailyCap).toBe(5);
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '2' }).supplyPlannerCreateDailyCap).toBe(2);
+    expect(api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '0' }).supplyPlannerCreateDailyCap).toBe(0);
+    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '501' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '-1' })).toThrow();
+  });
+  it('gives the production scope its own, larger daily caps and leaves the person and global caps alone', () => {
+    const caps = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).reasoning.caps;
+    expect(caps.productionScope).toEqual({ requestsPerDay: 200, tokensPerDay: 3_000_000 });
+    expect(caps.scope).toEqual({ requestsPerDay: 60, tokensPerDay: 600_000 });
+    expect(caps.global).toEqual({ requestsPerDay: 300, tokensPerDay: 3_000_000 });
+    const raised = readWorkerConfig({
+      DATABASE_URL: secretUrl,
+      KS_WORLD: 'local',
+      KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '400',
+      KS_REASONING_PRODUCTION_TOKENS_PER_DAY: '6000000',
+    }).reasoning.caps;
+    expect(raised.productionScope).toEqual({ requestsPerDay: 400, tokensPerDay: 6_000_000 });
+    expect(raised.scope).toEqual(caps.scope);
+    expect(
+      readScrollProductionOperatorConfig({
+        DATABASE_URL: secretUrl,
+        KS_WORLD: 'local',
+        KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '150',
+      }).reasoning.caps.productionScope.requestsPerDay,
+    ).toBe(150);
+    expect(() =>
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '0' }),
+    ).toThrow();
+  });
+  it('reads the production generation the Scroll consumer works under', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).scrollProductionGeneration).toBe(1);
+    expect(
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_SCROLL_PRODUCTION_GENERATION: '2' })
+        .scrollProductionGeneration,
+    ).toBe(2);
   });
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
@@ -353,6 +440,7 @@ describe('process configuration', () => {
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
+        productionScope: { requestsPerDay: 200, tokensPerDay: 3_000_000 },
         roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
       },
       maxRequestBytes: 262_144,
@@ -490,82 +578,41 @@ describe('process configuration', () => {
   });
 });
 
-describe('connected Cutroom worker activation is explicit and default-deny', () => {
+describe('the Reel operator commands read the pool from the world’s own database settings', () => {
   const inputs = {
     DATABASE_URL: secretUrl,
     KS_WORLD: 'dev',
-    KS_CUTROOM_COMMISSIONING_ENABLED: '1',
-    KS_CUTROOM_APPROVAL_PACKET: '/etc/knowscroll/cutroom/approved.json',
-    KS_CUTROOM_ORIGIN: 'http://127.0.0.1:7800',
-    KS_CUTROOM_ARTIFACT_ROOT: '/srv/cutroom/runs',
-    KS_CUTROOM_MEDIA_ROOT: '/srv/knowscroll/media',
-    KS_CUTROOM_EVIDENCE_FUNCTION_SHA256: 'a'.repeat(64),
-    KS_CUTROOM_POOL_DATABASE_URL: secretUrl,
+    KS_MEDIA_ROOT: '/srv/knowscroll/dev/media-v2',
+    KS_CUTROOM_ORIGIN: 'http://127.0.0.1:8797',
+    KS_CUTROOM_ARTIFACT_ROOT: '/srv/knowscroll/cutroom-pool/artifacts',
   };
-  it('has no implicit activation or pool credential when configuration is absent', () => {
-    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).cutroom;
-    expect(disabled.enabled).toBe(false);
-    expect(disabled.poolDatabase).toBeUndefined();
-    expect(readWorkerConfig(inputs).cutroom).toMatchObject({
-      enabled: true,
-      packetPath: '/etc/knowscroll/cutroom/approved.json',
-      poolDatabase: { poolMax: 1 },
-    });
-  });
-  it('requires every explicit dependency, restricts worlds/origin and redacts errors', () => {
-    for (const key of [
-      'KS_CUTROOM_APPROVAL_PACKET',
-      'KS_CUTROOM_ORIGIN',
-      'KS_CUTROOM_ARTIFACT_ROOT',
-      'KS_CUTROOM_MEDIA_ROOT',
-      'KS_CUTROOM_EVIDENCE_FUNCTION_SHA256',
-      'KS_CUTROOM_POOL_DATABASE_URL',
-    ]) {
-      const env = { ...inputs, [key]: undefined };
-      const error = configurationError(() => readWorkerConfig(env));
-      expect(error.problems.join(' ')).not.toContain('hunter2');
-    }
-    expect(() => readWorkerConfig({ ...inputs, KS_WORLD: 'local' })).toThrow();
-    for (const origin of [
-      'http://remote.example',
-      'https://127.0.0.1',
-      'http://user:secret@127.0.0.1',
-      'http://127.0.0.1/?key=secret',
-    ])
-      expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_ORIGIN: origin })).toThrow();
-    expect(() => readWorkerConfig({ ...inputs, KS_CUTROOM_APPROVAL_PACKET: '/tmp/untrusted.json' })).toThrow();
-  });
-});
 
-describe('CF62 receiving is separately default-deny and has no financial configuration dependency', () => {
-  const input = {
-    DATABASE_URL: secretUrl,
-    KS_WORLD: 'stage',
-    KS_CUTROOM_RECEIVING_ENABLED: '1',
-    KS_CUTROOM_RECEIVING_PACKET: '/etc/knowscroll/receiving/approved.json',
-    KS_CUTROOM_RECEIVING_STAGING_ROOT: '/srv/knowscroll/receive-staging',
-    KS_CUTROOM_RECEIVING_MEDIA_ROOT: '/srv/knowscroll/media',
-  };
-  it('keeps commissioning/provider disabled when receiving alone is configured', () => {
-    const disabled = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'dev' });
-    expect(disabled.receiving?.enabled).toBe(false);
-    const config = readWorkerConfig(input);
-    expect(config.receiving).toMatchObject({ enabled: true, ffprobePath: '/usr/bin/ffprobe' });
-    expect(config.cutroom.enabled).toBe(false);
-    expect(config.cutroom.poolDatabase).toBeUndefined();
-    expect(config.reasoning.provider).toBe('none');
+  it('points the world’s role and password at knowscroll_pool unless a pool URL is given', () => {
+    const config = readReelOperatorConfig(inputs);
+    expect(config).toMatchObject({
+      world: 'dev',
+      mediaRoot: '/srv/knowscroll/dev/media-v2',
+      cutroomOrigin: 'http://127.0.0.1:8797',
+      ffprobePath: '/usr/bin/ffprobe',
+    });
+    const pool = new URL(config.poolUrl);
+    expect(pool.pathname).toBe('/knowscroll_pool');
+    expect(pool.username).toBe('ks_api');
+    expect(pool.hostname).toBe('127.0.0.1');
+    const explicit = 'postgres://pool_user:other@127.0.0.1:5432/another_pool';
+    expect(readReelOperatorConfig({ ...inputs, KS_POOL_DATABASE_URL: explicit }).poolUrl).toBe(explicit);
   });
-  it('refuses absent trusted roots, unsupported worlds and untrusted packet paths without values in errors', () => {
-    for (const key of [
-      'KS_CUTROOM_RECEIVING_PACKET',
-      'KS_CUTROOM_RECEIVING_STAGING_ROOT',
-      'KS_CUTROOM_RECEIVING_MEDIA_ROOT',
-    ]) {
-      const error = configurationError(() => readWorkerConfig({ ...input, [key]: undefined }));
-      expect(error.problems.join(' ')).not.toContain('hunter2');
-    }
-    for (const world of ['local', 'ci', 'live'])
-      expect(() => readWorkerConfig({ ...input, KS_WORLD: world })).toThrow();
-    expect(() => readWorkerConfig({ ...input, KS_CUTROOM_RECEIVING_PACKET: '/tmp/approval.json' })).toThrow();
+
+  it('refuses a live world, a Cutroom that is not on loopback and a pool that is not a Postgres URL, naming no value', () => {
+    expect(configurationError(() => readReelOperatorConfig({ ...inputs, KS_WORLD: 'live' })).problems).toContain(
+      'KS_WORLD: operator_command_refused_in_this_world',
+    );
+    for (const origin of ['http://remote.example', 'https://127.0.0.1', 'http://user:secret@127.0.0.1'])
+      expect(() => readReelOperatorConfig({ ...inputs, KS_CUTROOM_ORIGIN: origin })).toThrow();
+    const error = configurationError(() => readReelOperatorConfig({ ...inputs, KS_POOL_DATABASE_URL: 'mysql://x' }));
+    expect(error.problems).toEqual(['KS_POOL_DATABASE_URL: must_be_a_postgres_url']);
+    expect(
+      configurationError(() => readReelOperatorConfig({ ...inputs, KS_MEDIA_ROOT: undefined })).problems.join(' '),
+    ).not.toContain('hunter2');
   });
 });

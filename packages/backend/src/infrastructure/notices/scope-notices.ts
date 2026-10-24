@@ -1,6 +1,7 @@
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
 import { z } from 'zod';
 import type { PersonalScopeTx } from '../../modules/identity/public.js';
+import type { Database } from '../postgres/database.js';
 import { transactionOf } from '../postgres/personal-scope.js';
 
 /** The PostgreSQL channel of scope-change hints. */
@@ -13,7 +14,7 @@ export const SCOPE_NOTICE_CHANNEL = 'ks_scope_changed';
  */
 export const ScopeNoticeSchema = z.object({
   v: z.literal(1),
-  scope: z.object({ kind: z.literal('universe'), id: z.uuid() }),
+  scope: z.object({ kind: z.enum(['universe', 'inbox']), id: z.uuid() }),
   revision: z.number().int().min(0),
   eventId: z.uuid(),
 });
@@ -38,4 +39,22 @@ export async function notifyScopeChanged(
   await sql`select pg_notify(${SCOPE_NOTICE_CHANNEL}, ${JSON.stringify(ScopeNoticeSchema.parse(notice))})`.execute(
     transactionOf(scope),
   );
+}
+
+/**
+ * Queues the hint of a person's inbox change in a transaction that holds the pair root lock. The
+ * hint names the recipient's own universe, so it reaches only that person's sockets; PostgreSQL
+ * delivers it after commit and drops it on rollback. The revision is the person's inbox revision.
+ */
+export async function notifyInboxChanged(
+  trx: Transaction<Database>,
+  change: { readonly universeId: string; readonly revision: number; readonly eventId: string },
+): Promise<void> {
+  const notice: ScopeNotice = {
+    v: 1,
+    scope: { kind: 'inbox', id: change.universeId },
+    revision: change.revision,
+    eventId: change.eventId,
+  };
+  await sql`select pg_notify(${SCOPE_NOTICE_CHANNEL}, ${JSON.stringify(ScopeNoticeSchema.parse(notice))})`.execute(trx);
 }

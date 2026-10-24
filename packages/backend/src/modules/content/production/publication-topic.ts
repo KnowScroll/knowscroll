@@ -18,19 +18,32 @@ import { WRITER_PROMPT_VERSION } from './writer.js';
 import { explanationUnitFor, parseScrollTopic, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
+const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
 const AttemptIdentity = z.object({
   attemptId: z.uuid(),
-  step: z.enum(['primary', 'repair']),
+  step: z.string().regex(SENT_STEP),
   state: z.enum(['succeeded', 'reconciled']),
   provider: z.literal('minimax'),
   model: z.enum(MINIMAX_MODELS),
 });
+/** The writer receipt records every attempt of the run, including those that sent nothing. */
 const WriterReceipt = z.object({
   role: z.literal('writer'),
   kind: z.literal('proposed'),
   attemptId: z.uuid(),
-  attempts: z.array(AttemptIdentity).min(1).max(2),
+  attempts: z.array(z.looseObject({ attemptId: z.uuid(), state: z.string() })).min(1),
 });
+
+/**
+ * Attempts that never reached the provider (a spent quota, a paused job) cost nothing and have no
+ * say over the answer: they are left out of the lineage a published Scroll must prove.
+ */
+export function isSentAttempt(attempt: { readonly state: string }): boolean {
+  return attempt.state !== 'reserved' && attempt.state !== 'not_sent';
+}
+
+/** `primary.2` is the second try of the primary step: the logical step is what the lineage names. */
+const logicalStep = (step: string): string => step.split('.')[0] ?? step;
 
 /** A published generated revision whose job, recipe, document and writer attempts all agree. */
 interface VerifiedPublication {
@@ -117,28 +130,32 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
   return { topic, production };
 }
 
-/** The job's single writer receipt names exactly the paid attempts the harness accounted. */
+/** The job's single writer receipt names exactly the sent attempts the harness accounted. */
 function matchesWriterAttempts(
   outcomes: unknown,
   attempts: readonly ProductionAttemptAccounting[],
   production: { readonly model: string; readonly attemptIds: readonly string[] },
 ): boolean {
-  const identities = z.array(AttemptIdentity).min(1).max(2).safeParse(attempts);
+  const identities = z.array(AttemptIdentity).min(1).max(2).safeParse(attempts.filter(isSentAttempt));
   const receipts = z.array(z.unknown()).safeParse(outcomes);
   if (!identities.success || !receipts.success) return false;
   const writers = receipts.data.filter((outcome) => z.object({ role: z.literal('writer') }).safeParse(outcome).success);
   const receipt = WriterReceipt.safeParse(writers[0]);
+  const recorded = receipt.success
+    ? z.array(AttemptIdentity).safeParse(receipt.data.attempts.filter(isSentAttempt))
+    : undefined;
   const final = identities.data.at(-1);
   return !(
     writers.length !== 1 ||
     !receipt.success ||
+    !recorded?.success ||
     final === undefined ||
-    identities.data[0]?.step !== 'primary' ||
-    (identities.data.length === 2 && final.step !== 'repair') ||
+    logicalStep(identities.data[0]?.step ?? '') !== 'primary' ||
+    (identities.data.length === 2 && logicalStep(final.step) !== 'repair') ||
     new Set(identities.data.map((attempt) => attempt.attemptId)).size !== identities.data.length ||
     identities.data.some((attempt) => attempt.model !== production.model) ||
     receipt.data.attemptId !== final.attemptId ||
-    JSON.stringify(receipt.data.attempts) !== JSON.stringify(identities.data) ||
+    JSON.stringify(recorded.data) !== JSON.stringify(identities.data) ||
     JSON.stringify(production.attemptIds) !== JSON.stringify(identities.data.map((attempt) => attempt.attemptId))
   );
 }

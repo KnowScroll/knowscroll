@@ -1,0 +1,128 @@
+{
+  "id": "53fcdbab-2ae5-4f40-a008-6f80fa4d0c61",
+  "authoredBy": "claude (agent k240, #240)",
+  "approval": {
+    "ref": "D-030 delegated",
+    "approvedBy": "coordinator (delegated by owner, D-030)",
+    "approvedAt": "2026-10-24"
+  },
+  "recipe": "stars-fusion",
+  "brief": {
+    "version": 1,
+    "worldId": "knowscroll-stars-fusion",
+    "narration": [
+      {
+        "text": "A star glows steadily in the dark of space.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "Gravity is always squeezing it inward.",
+        "claimIds": ["c1"]
+      },
+      {
+        "text": "Deep in its core, hydrogen joins to make helium and releases energy.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "That energy pushes outward and balances the squeeze.",
+        "claimIds": ["c2"]
+      },
+      {
+        "text": "A heavier star burns its fuel faster and shines for a shorter time.",
+        "claimIds": ["c3"]
+      },
+      {
+        "text": "A lighter star burns slowly and shines for far longer.",
+        "claimIds": ["c4"]
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "role": "main"
+      },
+      {
+        "id": "c2",
+        "role": "main"
+      },
+      {
+        "id": "c3",
+        "role": "supporting"
+      },
+      {
+        "id": "c4",
+        "role": "supporting"
+      }
+    ],
+    "claimSources": [
+      {
+        "claimId": "c1",
+        "assetId": "637df7a3-e65d-4c94-8205-36e95818e7f8",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c2",
+        "assetId": "637df7a3-e65d-4c94-8205-36e95818e7f8",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c3",
+        "assetId": "637df7a3-e65d-4c94-8205-36e95818e7f8",
+        "assetRevision": 1
+      },
+      {
+        "claimId": "c4",
+        "assetId": "637df7a3-e65d-4c94-8205-36e95818e7f8",
+        "assetRevision": 1
+      }
+    ],
+    "criteria": {
+      "mustShow": [
+        {
+          "id": "show-yellow-star",
+          "text": "a bright yellow star filling most of the frame, its surface glowing and slowly churning",
+          "type": "presence",
+          "claimId": "c1"
+        },
+        {
+          "id": "show-hot-gas",
+          "text": "a ball of glowing gas with a white-hot centre filling the frame, swirling slowly",
+          "type": "presence",
+          "claimId": "c2"
+        },
+        {
+          "id": "show-blue-star",
+          "text": "a large blue-white star filling most of the frame, blazing and flaring",
+          "type": "presence",
+          "claimId": "c3"
+        },
+        {
+          "id": "show-red-star",
+          "text": "a red star filling most of the frame, glowing warm orange-red with a slowly swirling surface",
+          "type": "presence",
+          "claimId": "c4"
+        }
+      ],
+      "mustNotShow": [
+        {
+          "id": "never-person",
+          "text": "a recognisable real-world public figure",
+          "type": "presence"
+        },
+        {
+          "id": "never-text",
+          "text": "written words or labels",
+          "type": "presence"
+        }
+      ],
+      "depictionPolicyVersion": "policy-3"
+    },
+    "style": {
+      "id": "style-knowscroll-space",
+      "version": 2,
+      "text": "bright, well-exposed space imagery like a planetarium film: the subject is large, lit and moving from the first frame, warm glowing colours, slow continuous camera drift, no fade in from black"
+    },
+    "title": "A star in balance",
+    "summary": "Why a star neither collapses nor blows apart: gravity squeezing in, fusion pushing out, and why heavier stars burn out sooner."
+  }
+}
