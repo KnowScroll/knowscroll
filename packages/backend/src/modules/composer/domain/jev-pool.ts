@@ -2,8 +2,12 @@ import { ASSESSMENT_LIFETIME_MS } from './buffer.js';
 import { refKey } from './policy.js';
 import type { EncounterRef, EncounterSnapshot, JevCriteria } from './types.js';
 
-/** Most assessments kept for one person; the newest stay. */
-export const JEV_POOL_LIMIT = 100;
+/**
+ * Most assessments kept for one person; the newest stay. Three calls of up to 20 candidates fit the
+ * 30 minutes of one subject. It also keeps the assessments stored with a buffer inside that table's
+ * 16 KiB check, whatever digits the model writes.
+ */
+export const JEV_POOL_LIMIT = 60;
 
 /**
  * The soonest Jev may be asked again about the subject a person is on. The shortlist drifts by a

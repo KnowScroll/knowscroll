@@ -98,5 +98,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0068_reasoning_background_class',
     sha256: '1a44386beecf585a90cad50c866174b2b0e5964ac31036a81c88f9768326eac5',
   },
-  { name: '0069_composer_jev_assessments', sha256: '45eec2cf516a26645702dbe8dcb1f3122d227cd3618e85eba8064d619d965267' },
+  { name: '0069_composer_jev_assessments', sha256: 'ac2229e5c4255e62ef836d0b40bc31b2b96e65ef5c53d7cdafd8d34c868184ff' },
 ];

@@ -210,7 +210,7 @@ person's pool, one row of `composer.jev_assessments`, which survives the buffer 
 - *What is kept.* What a call returned is added to the pool in the preparation's second transaction, before the
   checks that may skip the buffer, so a call whose session moved on while the model thought still serves the
   next preparation. The merge happens under the personal lock, so concurrent preparations of one person lose
-  nothing. The pool keeps the newest 100 entries.
+  nothing. The pool keeps the newest 60 entries.
 - *What ranks.* The stored entries of the subject, plus the new ones, for the candidates retrieved this time.
   They are stored in the buffer row as before, valid until the oldest of them expires, so the HTTP path can
   use them after the buffer's own 10 minutes.
@@ -227,7 +227,7 @@ logs the same.
 
 | Item | Detail |
 |---|---|
-| Tables | `composer.decisions` (0017), `composer.buffers` (0047), `composer.jev_assessments` (0069: one row per person, at most 100 entries, newest first) |
+| Tables | `composer.decisions` (0017), `composer.buffers` (0047), `composer.jev_assessments` (0069: one row per person, at most 60 entries, newest first) |
 | Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only) |
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |

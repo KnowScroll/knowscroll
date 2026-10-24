@@ -8,7 +8,7 @@
 -- model are stored once for the row: entries made under another version are never reused.
 -- Query shapes: one row by primary key when a preparation starts (read) and when it commits (merge).
 -- Locking: the personal root, as for composer.buffers; the merge reads and writes under it.
--- Growth: one row per universe, at most 100 entries (about 25 KiB), newest kept.
+-- Growth: one row per universe, at most 60 entries (about 14 KiB), newest kept.
 -- Retention: an entry is used for 30 minutes after it was assessed; expired entries are dropped
 -- when the row is next written. An idle person keeps one expired row until their next preparation
 -- or erasure.
@@ -24,8 +24,8 @@ create table composer.jev_assessments (
   model text not null check (char_length(model) between 1 and 128),
   entries jsonb not null check (
     jsonb_typeof(entries) = 'array'
-    and jsonb_array_length(entries) between 1 and 100
-    and octet_length(entries::text) <= 65536
+    and jsonb_array_length(entries) between 1 and 60
+    and octet_length(entries::text) <= 32768
   ),
   updated_at timestamptz not null default now()
 );

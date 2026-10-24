@@ -185,6 +185,6 @@ share of the global and the personal daily caps. Additive with a default of fals
 counted as asked-for, which is the old behaviour. The three roles' receipts written so far are marked in the same
 migration. Apply with the new binary; the generated database types change by the same line.
 
-0069 adds `composer.jev_assessments` (#231, D-058): one row per person with their recent Jev assessments (at most 100,
+0069 adds `composer.jev_assessments` (#231, D-058): one row per person with their recent Jev assessments (at most 60,
 each used for 30 minutes), so a candidate judged lately is not sent to the model again. A disposable cache, never
 evidence. Erased with the person's other Composer stores. Nothing is backfilled; no earlier writer exists.

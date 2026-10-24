@@ -168,6 +168,24 @@ describe('the pool after new assessments', () => {
     expect(merged.some((entry) => entry.assetId === `asset-${String(JEV_POOL_LIMIT + 19)}`)).toBe(false);
   });
 
+  it('keeps what a buffer stores inside that table’s 16 KiB check, whatever digits the model writes', () => {
+    const entries = Array.from({ length: JEV_POOL_LIMIT }, (_, index) => ({
+      assetId: `0199f0a0-0000-7000-8000-${String(index).padStart(12, '0')}`,
+      assetRevision: 12,
+      relevance: 0.12345678901234568,
+      appropriateness: 0.12345678901234568,
+      redundancy: 0.12345678901234568,
+    }));
+    const stored = JSON.stringify({
+      roleVersion: 'jev.1/hp2',
+      model: 'MiniMax-M3.1-Flash',
+      assessedAt: now.toISOString(),
+      expiresAt: now.toISOString(),
+      entries,
+    });
+    expect(new TextEncoder().encode(stored).length).toBeLessThan(16_384);
+  });
+
   it('is empty when nothing is left, which the store turns into no row', () => {
     expect(poolWith(poolOf([assessment(1, 40)]), poolOf([]), now).entries).toEqual([]);
   });
