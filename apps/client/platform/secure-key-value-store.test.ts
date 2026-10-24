@@ -75,16 +75,21 @@ describe('the persistent scope store', () => {
     expect(createSecureKeyValueStore(backend).keys()).toEqual(['ks.deletion.receipt']);
   });
 
-  it('applies changes in the order they were made: a write after a purge survives', async () => {
+  it('writes the final state of a key: a write after a purge survives, a purge after a write wins', async () => {
     const { backend, calls } = fakeBackend();
     const store = createSecureKeyValueStore(backend);
     store.setItem(`${scopeA}key`, 'old');
     store.removeItem(`${scopeA}key`);
     store.setItem(`${scopeA}key`, 'new');
     await store.flush();
-    const valueCalls = calls.filter((call) => !call.includes('ks.kv-index'));
-    expect(valueCalls.map((call) => call.split(' ')[0])).toEqual(['set', 'delete', 'set']);
+    expect(calls.filter((call) => call.startsWith('set ks.kv.'))).toHaveLength(1);
     expect(createSecureKeyValueStore(backend).getItem(`${scopeA}key`)).toBe('new');
+
+    store.removeItem(`${scopeA}key`);
+    store.setItem(`${scopeA}other`, 'x');
+    store.removeItem(`${scopeA}other`);
+    await store.flush();
+    expect(createSecureKeyValueStore(backend).keys()).toEqual([]);
   });
 
   it('writes a new key into the index before its value, and deletes a value before it leaves the index', async () => {
@@ -160,6 +165,71 @@ describe('the persistent scope store', () => {
     expect(reader.getItem('key')).toBeNull();
     failures.reads = false;
     expect(reader.getItem('key')).toBe('v');
+  });
+
+  it('never overwrites an index it could not read: it serves from memory, writes no values, and catches up when the index reads', async () => {
+    const { backend, items, failures } = fakeBackend();
+    const earlier = createSecureKeyValueStore(backend);
+    earlier.setItem(`${scopeA}old`, 'persisted');
+    await earlier.flush();
+    const indexBefore = items.get('ks.kv-index');
+
+    failures.reads = true;
+    const store = createSecureKeyValueStore(backend);
+    store.setItem(`${scopeA}new`, 'in memory');
+    await store.flush();
+    expect(store.getItem(`${scopeA}new`)).toBe('in memory');
+    expect(items.get('ks.kv-index')).toBe(indexBefore);
+    expect(names(items).filter((name) => name.startsWith('ks.kv.'))).toHaveLength(1); // only the earlier value
+
+    failures.reads = false;
+    store.setItem(`${scopeA}later`, 'also');
+    await store.flush();
+    expect([...store.keys()].sort()).toEqual([`${scopeA}later`, `${scopeA}new`, `${scopeA}old`].sort());
+    const restarted = createSecureKeyValueStore(backend);
+    expect(restarted.getItem(`${scopeA}old`)).toBe('persisted');
+    expect(restarted.getItem(`${scopeA}new`)).toBe('in memory');
+    expect(restarted.getItem(`${scopeA}later`)).toBe('also');
+  });
+
+  it('purges keys the earlier run persisted once the index can be read, and not a purged key that was re-set meanwhile', async () => {
+    const { backend, failures } = fakeBackend();
+    const earlier = createSecureKeyValueStore(backend);
+    earlier.setItem(`${scopeA}old`, '1');
+    earlier.setItem(`${scopeB}old`, '2');
+    await earlier.flush();
+
+    failures.reads = true;
+    const store = createSecureKeyValueStore(backend);
+    purgeStorage(store, scopeA); // cannot see the persisted keys yet
+    store.setItem(`${scopeB}old`, 'new');
+    failures.reads = false;
+    purgeStorage(store, scopeA);
+    await store.flush();
+    const restarted = createSecureKeyValueStore(backend);
+    expect(restarted.keys()).toEqual([`${scopeB}old`]);
+    expect(restarted.getItem(`${scopeB}old`)).toBe('new');
+  });
+
+  it('does not write a value after a failed index write, and writes both once the index can be written', async () => {
+    const { backend, items, calls, failures } = fakeBackend();
+    const store = createSecureKeyValueStore(backend);
+    store.setItem('first', '1');
+    await store.flush();
+    calls.length = 0;
+
+    failures.writes = true;
+    store.setItem('second', '2');
+    await store.flush();
+    failures.writes = false;
+    expect(calls.some((call) => call.startsWith('set ks.kv.') && !call.includes('ks.kv-index'))).toBe(false);
+    expect(items.get('ks.kv-index')).not.toContain('"second"');
+
+    store.setItem('third', '3');
+    await store.flush();
+    const restarted = createSecureKeyValueStore(backend);
+    expect([...restarted.keys()].sort()).toEqual(['first', 'second', 'third']);
+    expect(restarted.getItem('second')).toBe('2');
   });
 
   it('ignores a corrupt index', () => {

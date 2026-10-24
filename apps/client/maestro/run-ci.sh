@@ -127,7 +127,8 @@ fi
 # The three steps share one install and one address. Step 1 asks for the link through the screens; the
 # test API records the mail instead of sending it, and the link is read from that file and turned into
 # the app link (`knowscroll://redeem#token=...`). The token is single use and the database is thrown
-# away with the runner; it is masked in this log all the same.
+# away with the runner. GitHub masks it in this job's log; Maestro's own logs in the uploaded
+# artifacts still show it, which is harmless once the link is spent.
 mail_link_for() {
   local address="$1" link
   for _ in $(seq 1 30); do

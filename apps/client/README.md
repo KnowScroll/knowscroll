@@ -419,7 +419,7 @@ the native lane's journey_). The session token and the sign-in verifier use the 
 
 - The store is synchronous, like `localStorage`: memory is the working copy and changes reach the platform through one
   ordered queue. A change is durable a moment after the call. A failing backend (locked device, lost key) loses
-  persistence only.
+  persistence only: after a failed index read or write it stops writing values (the persisted index is never overwritten blind) and retries the index later.
 - It is bounded (256 keys, 1 MiB; the oldest written go first), so callers treat it as a cache that can miss.
 - Scope keys are purged when the scope ends (sign-out, account switch, Clear, account deletion). Mounting a scope also
   removes what a killed run left under another account or epoch. The deletion receipt id is outside any scope.

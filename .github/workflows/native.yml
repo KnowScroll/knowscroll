@@ -190,8 +190,13 @@ jobs:
             test "$marker" -eq 0 || { echo "EXPO_PUBLIC_KS_GALLERY is unset, but the bundle carries the developer gallery"; exit 1; }
           fi
           test "$origin" -ge 1 || { echo "the API origin $KS_API_ORIGIN is not in the bundle"; exit 1; }
+          manifest=$("$build_tools/aapt2" dump xmltree "$apk" --file AndroidManifest.xml)
+          # The secure store's backup rules keep its encrypted preferences out of Android backups (D-045).
+          for attribute in dataExtractionRules fullBackupContent; do
+            printf '%s\n' "$manifest" | grep -q "$attribute" || { echo "the manifest lacks $attribute (the expo-secure-store plugin sets it)"; exit 1; }
+          done
           # Cleartext HTTP is allowed in a build made for the test API, and only there.
-          cleartext=$("$build_tools/aapt2" dump xmltree "$apk" --file AndroidManifest.xml | grep -c 'usesCleartextTraffic.*true' || true)
+          cleartext=$(printf '%s\n' "$manifest" | grep -c 'usesCleartextTraffic.*true' || true)
           echo "- cleartext traffic allowed by the manifest: $cleartext (test API build: ${EXPO_PUBLIC_KS_TEST_API:-0})" >> "$GITHUB_STEP_SUMMARY"
           if [ "${EXPO_PUBLIC_KS_TEST_API:-0}" = "1" ]; then
             test "$cleartext" -ge 1 || { echo "a test API build must allow cleartext traffic to the emulator host"; exit 1; }
