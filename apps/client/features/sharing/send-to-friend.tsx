@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
-import type { SendStatus, ShareSession, ShareState } from '@knowscroll/client-core';
+import type { AvailabilityWord, SendStatus, ShareSession, ShareState } from '@knowscroll/client-core';
 import type { DirectConversationRef } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Text, useTypeStyle } from '@knowscroll/ui';
+import { Banner, Button, Icon, Text, useTypeStyle } from '@knowscroll/ui';
 import { FriendPicker } from './friend-picker';
+import { StepHeader } from './step-header';
 
 function NoteField({
   value,
@@ -61,7 +62,10 @@ function sendLabel(send: SendStatus, chosenName: string | undefined): string {
 function SentReceipt({ name, onOpen }: { readonly name: string; readonly onOpen: () => void }) {
   return (
     <View style={styles.receipt} accessibilityLiveRegion="polite">
-      <Text variant="bodyS">Sent to {name}</Text>
+      <View style={styles.sent}>
+        <Icon name="check" size={18} color={content.freshInk} />
+        <Text variant="ui">Sent to {name}</Text>
+      </View>
       <Button label="Open chat" size="sm" onPress={onOpen} />
     </View>
   );
@@ -73,10 +77,18 @@ export interface SendToFriendProps {
   readonly onBack: () => void;
   readonly onClose: () => void;
   readonly onOpenConversation: (conversation: DirectConversationRef) => void;
+  readonly availabilityOf: (personId: string) => AvailabilityWord | undefined;
 }
 
 /** H01's second view: choose a friend, add a note, send, and open the chat once it is sent. */
-export function SendToFriend({ session, state, onBack, onClose, onOpenConversation }: SendToFriendProps) {
+export function SendToFriend({
+  session,
+  state,
+  onBack,
+  onClose,
+  onOpenConversation,
+  availabilityOf,
+}: SendToFriendProps) {
   const { targets, send } = state;
   useEffect(() => {
     if (targets.status === 'loading' && targets.items.length === 0) void session.loadTargets();
@@ -87,17 +99,18 @@ export function SendToFriend({ session, state, onBack, onClose, onOpenConversati
   const locked = sending || send.status === 'unconfirmed' || send.status === 'sent';
   return (
     <View style={styles.section}>
-      <View style={styles.back}>
-        <Button label="Back" size="sm" variant="ghost" icon="back" onPress={onBack} disabled={locked} />
-        <Text variant="title" heading={2}>
-          Send to a conversation
-        </Text>
-      </View>
+      <StepHeader title="Send to a conversation" onBack={onBack} backDisabled={locked} />
       {send.status === 'sent' ? (
         <SentReceipt name={send.target.person.displayName} onOpen={() => onOpenConversation(send.conversation)} />
       ) : (
         <>
-          <FriendPicker targets={targets} selected={state.selected} locked={locked} onSelect={session.select} />
+          <FriendPicker
+            targets={targets}
+            selected={state.selected}
+            locked={locked}
+            onSelect={session.select}
+            availabilityOf={availabilityOf}
+          />
           {chosen === undefined ? null : <NoteField value={state.note} onChange={session.setNote} disabled={locked} />}
           <SendNotice send={send} />
           <Button
@@ -118,7 +131,7 @@ export function SendToFriend({ session, state, onBack, onClose, onOpenConversati
 
 const styles = StyleSheet.create({
   section: { gap: spacing[3] },
-  back: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  sent: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   field: { gap: spacing[1] },
   input: {
     minHeight: 48,

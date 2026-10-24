@@ -42,6 +42,7 @@ export function talkServer() {
   let peerDeleted = false;
   let readThrough = 0;
   let muted = false;
+  let availability: Body = { state: 'unknown' };
   let tokenCounter = 0;
   let invitation: { readonly name: string } | undefined;
   const invitationAnswers: unknown[] = [];
@@ -331,7 +332,7 @@ export function talkServer() {
           scope: scopeEnvelope,
           filter: 'friends',
           snapshotRevision: 1,
-          items: [{ state: 'friends', peer, pairRevision: 3, availability: { state: 'unknown' } }],
+          items: [{ state: 'friends', peer, pairRevision: 3, availability }],
         };
       case '/v1/social/pairs/read':
         return {
@@ -440,6 +441,10 @@ export function talkServer() {
     scope,
     requests,
     /** The next request to `path` fails this way. `lost_response` is handled by the server, then the answer is lost. */
+    /** The friend shows the word to friends (a lease of a minute); without it the server answers `unknown`. */
+    peerShowsAvailability(state: 'online' | 'recently_active') {
+      availability = { state, expiryRevision: 1, validForMs: 60_000 };
+    },
     failNext(path: string, ...kinds: Failure[]) {
       failures.set(path, [...(failures.get(path) ?? []), ...kinds]);
     },
