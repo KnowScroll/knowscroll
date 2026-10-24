@@ -1,5 +1,6 @@
 import { PgBoss, type Queue } from 'pg-boss';
 import type { DatabaseSettings } from '../config/index.js';
+import type { LogEvent } from '../observability/index.js';
 import { DEAD_LETTER_RETENTION_SECONDS, JOB_SCHEMA, deadLetterQueueName, type QueueDefinition } from './queues.js';
 
 /**
@@ -83,4 +84,37 @@ export async function applyQueueDeclarations(boss: PgBoss, queues: readonly Queu
     if (queue.schedule === undefined) await boss.unschedule(queue.name);
     else await boss.schedule(queue.name, queue.schedule.cron, queue.schedule.payload as object, { tz: 'UTC' });
   }
+}
+
+/**
+ * Removes the recurring schedule of every queue the release no longer declares.
+ *
+ * Purpose: `applyQueueDeclarations` registers a schedule only for the queues in the registry, but a
+ * queue that leaves the registry keeps its schedule row, and pg-boss goes on creating jobs that no
+ * consumer claims. The worker calls this at startup, after it registered its consumers, with the
+ * release's explicit queue registry.
+ *
+ * Inputs: a started pg-boss instance and the registry. Output: the schedules removed, as
+ * `{ queue, key }`. A schedule is kept when its queue name is in the registry, whatever its key.
+ * Authority: none; schedules are release configuration, not personal data. Side effects: deletes
+ * schedule rows and logs `jobs.schedule_removed` once per removal with the queue name.
+ *
+ * Failure/retry: idempotent. Workers that start together may race; the second delete finds nothing.
+ * A database error propagates and fails startup, and the restart tries again. The queue and the jobs
+ * it already holds are left alone.
+ */
+export async function removeUndeclaredSchedules(
+  boss: PgBoss,
+  declared: readonly QueueDefinition<unknown>[],
+  logEvent: LogEvent,
+): Promise<readonly { readonly queue: string; readonly key: string }[]> {
+  const declaredNames = new Set(declared.map((queue) => queue.name));
+  const removed: { readonly queue: string; readonly key: string }[] = [];
+  for (const schedule of await boss.getSchedules()) {
+    if (declaredNames.has(schedule.name)) continue;
+    await boss.unschedule(schedule.name, schedule.key);
+    removed.push({ queue: schedule.name, key: schedule.key });
+    logEvent('jobs.schedule_removed', { queue: schedule.name });
+  }
+  return removed;
 }

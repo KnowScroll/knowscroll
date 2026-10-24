@@ -5,9 +5,11 @@ import {
   makeEnqueueJob,
   createBoss,
   drainConsumers,
+  removeUndeclaredSchedules,
   startConsumers,
   type JobConsumer,
 } from '@knowscroll/backend/infrastructure/jobs';
+import { releaseQueues } from '@knowscroll/backend/job-queues';
 import { runProcess } from '@knowscroll/backend/infrastructure/lifecycle';
 import { FrameworkLogAdapter, createEventLog } from '@knowscroll/backend/infrastructure/observability';
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -56,6 +58,7 @@ async function main(): Promise<void> {
       );
       const consumers = app.get<readonly JobConsumer<unknown>[]>(JOB_CONSUMERS);
       await startConsumers(boss, consumers, logEvent);
+      await removeUndeclaredSchedules(boss, releaseQueues, logEvent);
       return {
         async stop() {
           await drainConsumers(boss, consumers.length, config.shutdownGraceMs, logEvent);

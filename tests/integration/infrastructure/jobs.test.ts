@@ -8,6 +8,7 @@ import {
   defineQueue,
   drainConsumers,
   jobConsumer,
+  removeUndeclaredSchedules,
   startConsumers,
 } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
@@ -98,6 +99,51 @@ describe('pg-boss queue declarations and consumers (real database)', () => {
       expect(await schedules()).toEqual([]);
     } finally {
       await boss.stop({ graceful: false });
+    }
+  });
+
+  it('removes the schedule of a queue the registry no longer declares, and keeps the declared ones', async () => {
+    const cron = { cron: '*/15 * * * *', payload: { v: 1, taskId: 'scheduled', holdMs: 0 } };
+    const declared = defineQueue({ ...fixtureQueue, schedule: cron });
+    const retired = defineQueue({ ...fixtureQueue, name: 'fixture.retired-task', schedule: cron });
+    const scheduledNames = async () =>
+      (await sql<{ name: string }>`select name from pgboss.schedule order by name`.execute(database.db)).rows.map(
+        (row) => row.name,
+      );
+    // An older release declared both queues; the current one declares only the first.
+    const install = createBoss(database.settings, 'install', diagnostics);
+    await install.start();
+    try {
+      await applyQueueDeclarations(install, [declared, retired]);
+    } finally {
+      await install.stop({ graceful: false });
+    }
+    expect(await scheduledNames()).toEqual(['fixture.retired-task', fixtureQueue.name]);
+
+    const events: { name: string; fields: unknown }[] = [];
+    const logged: LogEvent = (name, fields) => void events.push({ name, fields });
+    const worker = createBoss(database.settings, 'consumer', diagnostics);
+    await worker.start();
+    try {
+      await expect(removeUndeclaredSchedules(worker, [declared], logged)).resolves.toEqual([
+        { queue: 'fixture.retired-task', key: '' },
+      ]);
+      expect(await scheduledNames()).toEqual([fixtureQueue.name]);
+      expect(events).toEqual([{ name: 'jobs.schedule_removed', fields: { queue: 'fixture.retired-task' } }]);
+      // Running it again, as every restart does, finds nothing to remove.
+      await expect(removeUndeclaredSchedules(worker, [declared], logged)).resolves.toEqual([]);
+      expect(events).toHaveLength(1);
+      // The retired queue and its jobs are left alone.
+      expect(await worker.getQueue('fixture.retired-task')).not.toBeNull();
+    } finally {
+      await worker.stop({ graceful: false });
+    }
+    const cleanup = createBoss(database.settings, 'install', diagnostics);
+    await cleanup.start();
+    try {
+      await applyQueueDeclarations(cleanup, [fixtureQueue]);
+    } finally {
+      await cleanup.stop({ graceful: false });
     }
   });
 
