@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { listTime, threadRowView } from '@knowscroll/client-core';
 import type { ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Icon, RowLink, Tag, Text } from '@knowscroll/ui';
+import { Icon, RowLink, Text } from '@knowscroll/ui';
 import { threadHref } from './thread-links';
 
 /** A thread in Talk: the content it is about, who invited or what was said last. Reading it records nothing about anyone. */
@@ -35,7 +35,6 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
               <Text variant={view.unread ? 'ui' : 'bodyS'} numberOfLines={1} style={styles.grow}>
                 {view.title}
               </Text>
-              {view.invited ? <Tag variant="part" label="Invited" /> : null}
             </View>
             <Text variant="meta" color={content.ink2} numberOfLines={1}>
               {view.subtitle}

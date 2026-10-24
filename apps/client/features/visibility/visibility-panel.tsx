@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import type { AccountScope, PresencePreference, VisibilitySave } from '@knowscroll/client-core';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Skeleton, Text } from '@knowscroll/ui';
-import { RadioRow, SwitchRow } from './choice-rows';
+import { RadioRow, SegmentedChoice, SwitchRow } from './choice-rows';
 import { useVisibilitySession } from './use-visibility-session';
 
 const PRESENCE_CHOICES: readonly { value: PresencePreference; label: string; description: string }[] = [
@@ -166,23 +166,21 @@ export function VisibilityPanel({
             </Text>
           </View>
           {presence ? (
-            <View role="radiogroup" accessibilityLabel="Activity status" style={styles.group}>
+            <View style={styles.group}>
               <Text variant="label" color={content.ink2} heading={3}>
                 Activity status
               </Text>
-              {PRESENCE_CHOICES.map((choice) => (
-                <RadioRow
-                  key={choice.value}
-                  testID={`presence-${choice.value}`}
-                  label={choice.label}
-                  description={choice.description}
-                  checked={presence.preference === choice.value}
-                  disabled={busy}
-                  onPress={() => void session.setPresence(choice.value)}
-                />
-              ))}
+              <SegmentedChoice
+                label="Activity status"
+                testIDPrefix="presence"
+                options={PRESENCE_CHOICES}
+                value={presence.preference}
+                disabled={busy}
+                onChange={(value) => void session.setPresence(value)}
+              />
               <Text variant="meta" color={content.ink2}>
-                Never shows what you’re watching, only whether you’re around.
+                {PRESENCE_CHOICES.find((choice) => choice.value === presence.preference)?.description} Never shows what
+                you’re watching, only whether you’re around.
               </Text>
             </View>
           ) : null}

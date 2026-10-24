@@ -1,40 +1,98 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { PRIVACY_CLEAR_ACKNOWLEDGEMENT, type PrivacyClearState } from '@knowscroll/client-core';
-import { spacing } from '@knowscroll/design-tokens';
+import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
-import { Acknowledge } from '../account/settings-parts';
+import { Acknowledge, ConfirmBox, ReceiptCard, SettingsLabel, type ReceiptTone } from '../account/settings-parts';
 import { useAccountScope } from '../../providers/account-scope';
 
-const message = (state: PrivacyClearState): string => {
-  if (state.status === 'sending') return 'Sending your clear request…';
-  if (state.status === 'checking') return 'Checking the latest removal status…';
-  if (state.status === 'accepted') return 'Your clear request was accepted. Live removal has not been confirmed yet.';
-  if (state.status === 'unknown') return 'We could not confirm your request. It may already have been accepted.';
+interface Receipt {
+  readonly tone: ReceiptTone;
+  readonly title: string;
+  readonly text: string;
+}
+
+const REMOVED = [
+  'Your watch and read history.',
+  'Everything we worked out from it: your current interests and plans.',
+  'Your universe: every system, planet and region.',
+];
+const STAYS = [
+  'Keep items and their saved places.',
+  'Your conversations, threads, rooms and messages.',
+  'Your friends and sharing settings.',
+];
+
+/** What the removal is doing, as a receipt line; nothing before a request exists. */
+function receiptFor(state: PrivacyClearState): Receipt | undefined {
+  const preparing = (title: string, text: string): Receipt => ({ tone: 'preparing', title, text });
+  if (state.status === 'sending') return preparing('Sending', 'Sending your clear request…');
+  if (state.status === 'checking') return preparing('Checking', 'Checking the latest removal status…');
+  if (state.status === 'accepted')
+    return preparing('Accepted', 'Your clear request was accepted. Live removal has not been confirmed yet.');
+  if (state.status === 'unknown')
+    return {
+      tone: 'failed',
+      title: "We couldn't confirm your request",
+      text: 'We could not confirm your request. It may already have been accepted.',
+    };
   if (state.status === 'not_recorded')
     return state.retryOriginal
-      ? 'No receipt appeared in this check. Your original request may still arrive.'
-      : 'No clear request is recorded for this account.';
-  if (state.status === 'completed_live') return 'Live exploration removal is complete.';
+      ? {
+          tone: 'failed',
+          title: 'Not seen yet',
+          text: 'No receipt appeared in this check. Your original request may still arrive.',
+        }
+      : undefined;
+  if (state.status === 'completed_live')
+    return {
+      tone: 'done',
+      title: 'Cleared from KnowScroll',
+      text: 'Live exploration removal is complete. Your universe and history are gone from the app and our live systems.',
+    };
   if (state.status === 'failed')
-    return 'Live removal could not be verified. Check its status again; your request is retained.';
+    return {
+      tone: 'failed',
+      title: 'Removal not verified',
+      text: 'Live removal could not be verified. Check its status again; your request is retained.',
+    };
   if (state.status === 'pending') {
     if (state.phase === 'waiting_for_accounting')
-      return 'Some earlier activity is still finishing. Your removal request is retained.';
-    if (state.phase === 'verifying_live_removal') return 'Checking that live exploration data has been removed.';
-    return 'Your exploration history and universe are being removed.';
+      return preparing('Clearing', 'Some earlier activity is still finishing. Your removal request is retained.');
+    if (state.phase === 'verifying_live_removal')
+      return preparing('Clearing', 'Checking that live exploration data has been removed.');
+    return preparing('Clearing', 'Your exploration history and universe are being removed.');
   }
-  if (state.status === 'unavailable') return 'We could not check removal status. No completion is confirmed.';
-  return '';
-};
+  if (state.status === 'unavailable')
+    return {
+      tone: 'failed',
+      title: "Can't check",
+      text: 'We could not check removal status. No completion is confirmed.',
+    };
+  return undefined;
+}
+
+/** The plain line shown when nothing has been requested; also what a screen reader hears first. */
+function plainMessage(state: PrivacyClearState): string | undefined {
+  return state.status === 'not_recorded' && !state.retryOriginal
+    ? 'No clear request is recorded for this account.'
+    : undefined;
+}
 
 /**
  * P02 "Clear exploration": what is removed and what stays before one deliberate step, then honest
  * receipt states over the manager-owned controller (selective Clear, #345). Used on its own page
  * on phones (the page title names it: `titled={false}`) and as a card on desktops.
  */
-export function ClearPanel({ titled = true }: { readonly titled?: boolean }) {
+export function ClearPanel({
+  titled = true,
+  compact = false,
+}: {
+  readonly titled?: boolean;
+  /** The desktop card draws its words one size smaller (D05). */
+  readonly compact?: boolean;
+}) {
   const { manager, state: account } = useAccountScope();
   const privacy = manager.privacy;
   const state = useSyncExternalStore(privacy.subscribe, privacy.getState, privacy.getState);
@@ -45,46 +103,76 @@ export function ClearPanel({ titled = true }: { readonly titled?: boolean }) {
   }, [scope, privacy]);
   const busy = state.status === 'sending' || state.status === 'checking';
   const canConfirm = account.status === 'signed_in' && account.scope.active && state.canConfirm;
+  const receipt = receiptFor(state);
+  const plain = plainMessage(state);
+  const lineVariant = compact ? 'meta' : 'bodyS';
   return (
-    <View style={{ gap: spacing[4] }}>
+    <View style={{ gap: spacing[3] }}>
       {titled ? (
         <Text variant="title" heading={2}>
           Clear exploration
         </Text>
       ) : null}
-      <Text variant="body">
-        Removes your watch and read history, the interests and plans derived from it, and your universe.
+      <SettingsLabel>What's removed</SettingsLabel>
+      {REMOVED.map((line) => (
+        <Text key={line} variant={lineVariant}>
+          {line}
+        </Text>
+      ))}
+      <SettingsLabel>What stays</SettingsLabel>
+      {STAYS.map((line) => (
+        <Text key={line} variant={lineVariant}>
+          {line}
+        </Text>
+      ))}
+      <Text variant="meta" color={content.ink2}>
+        Friends who visit will see an empty universe. A new one grows from what you explore next. This cannot be undone.
       </Text>
-      <Text variant="body">
-        Keep items and their saved places stay. Your friends, sharing settings, conversations, threads, rooms and
-        messages stay.
-      </Text>
-      <Text variant="bodyS">This cannot be undone. A new universe can grow from what you explore next.</Text>
-      <Text variant="bodyS">
+      <Text variant="meta" color={content.ink2}>
         Context already sent to an AI provider cannot be recalled. Live removal does not confirm expiry of backups,
         provider copies or copies on offline devices. No expiry date is confirmed here.
       </Text>
-      {message(state) ? (
+      {receipt ? (
         <View accessibilityLiveRegion="polite">
-          <Text variant="bodyS">{message(state)}</Text>
+          <ReceiptCard tone={receipt.tone} state={receipt.title}>
+            <Text variant="meta">{receipt.text}</Text>
+            {state.receipt ? (
+              <Text variant="meta" color={content.ink2}>
+                Clear request recorded {new Date(state.receipt.recordedAt).toLocaleString()}
+              </Text>
+            ) : null}
+            {state.status === 'completed_live' ? (
+              <Text variant="meta" color={content.ink2}>
+                Backups: copies expire on their own and are not used to rebuild anything. Keep and conversations are
+                untouched.
+              </Text>
+            ) : null}
+          </ReceiptCard>
+        </View>
+      ) : plain ? (
+        <View accessibilityLiveRegion="polite">
+          <Text variant="meta" color={content.ink2}>
+            {plain}
+          </Text>
         </View>
       ) : null}
-      {state.receipt ? (
-        <Text variant="meta">Clear request recorded {new Date(state.receipt.recordedAt).toLocaleString()}</Text>
-      ) : null}
       {state.retryOriginal ? (
-        <Button
-          label="Retry the same clear request"
-          disabled={busy || account.status !== 'signed_in'}
-          onPress={() => {
-            void privacy.retryOriginal();
-          }}
-        />
+        <View style={{ alignItems: 'flex-start' }}>
+          <Button
+            label="Retry the same clear request"
+            size="sm"
+            disabled={busy || account.status !== 'signed_in'}
+            onPress={() => {
+              void privacy.retryOriginal();
+            }}
+          />
+        </View>
       ) : null}
       {account.status === 'signed_in' ? (
         <View style={{ alignItems: 'flex-start' }}>
           <Button
             label="Check removal status"
+            size="sm"
             variant="ghost"
             disabled={busy}
             onPress={() => {
@@ -103,7 +191,7 @@ export function ClearPanel({ titled = true }: { readonly titled?: boolean }) {
         <Text variant="bodyS">Sign in to manage your exploration history.</Text>
       )}
       {canConfirm ? (
-        <View style={{ gap: spacing[4], alignItems: 'flex-start' }}>
+        <ConfirmBox>
           <Acknowledge label="I understand this cannot be undone" checked={understood} onChange={setUnderstood} />
           <Button
             label="Clear exploration"
@@ -115,7 +203,7 @@ export function ClearPanel({ titled = true }: { readonly titled?: boolean }) {
               void privacy.confirm({ commandId: newCommandId(), confirmation: PRIVACY_CLEAR_ACKNOWLEDGEMENT });
             }}
           />
-        </View>
+        </ConfirmBox>
       ) : null}
     </View>
   );

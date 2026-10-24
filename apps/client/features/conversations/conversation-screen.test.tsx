@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { AccountScopeState } from '@knowscroll/client-core';
-import { conversation, id, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
+import { conversation, createdThread, id, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
 import { DisplayProvider } from '@knowscroll/ui';
 import { ConversationScreen } from './conversation-screen';
 
@@ -112,6 +112,62 @@ describe('conversation thread screen (labelled in-memory server)', () => {
     expect(screen.getByText('This is the bit I meant')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('link', { name: 'Open Reel' }));
     expect(mockPush).toHaveBeenCalledWith(`/reel/${content.assetId}`);
+    await finish(server);
+  });
+
+  it('puts messages that arrived while the connection was lost under one divider, and none without a loss', async () => {
+    const server = talkServer();
+    server.peerSays('before the loss');
+    await open(server);
+    await screen.findByText('before the loss');
+    server.peerSays('arrived live');
+    await server.scope.queryClient.refetchQueries();
+    await screen.findByText('arrived live');
+    expect(screen.queryByTestId('away-divider')).toBeNull();
+    server.failNext('/v1/social/conversations/changes', 'network');
+    await server.scope.queryClient.refetchQueries();
+    expect(await screen.findByText('Reconnecting…')).toBeOnTheScreen();
+    server.peerSays('while you were gone');
+    await server.scope.queryClient.refetchQueries();
+    await screen.findByText('while you were gone');
+    expect(screen.getByText('WHILE YOU WERE AWAY')).toBeOnTheScreen();
+    expect(screen.getAllByTestId('away-divider')).toHaveLength(1);
+    await finish(server);
+  });
+
+  it('turns the shared card into a thread with the other person, once, from the header', async () => {
+    const server = talkServer();
+    await open(server);
+    await screen.findByText('No messages yet. Say hello.');
+    expect(screen.queryByRole('button', { name: 'Start a thread' })).toBeNull();
+    const content = { assetId: id(77), assetRevision: 1 };
+    await server.scope.api.conversations.send({
+      version: 'direct-conversation.v1',
+      commandId: id(901),
+      conversation,
+      body: { kind: 'content', target: content },
+    });
+    await server.scope.queryClient.refetchQueries();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Start a thread' }));
+    expect(screen.getByText(/is invited and joins when they answer/)).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByLabelText('Thread name (optional)'), 'Batching');
+    await fireEvent.press(screen.getByRole('button', { name: 'Start thread' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Open thread' }));
+    expect(mockPush).toHaveBeenCalledWith(
+      `/threads/${createdThread.threadId}?m=${createdThread.membershipId}&r=${String(createdThread.membershipRevision)}`,
+    );
+    const created = server.requests.filter((request) => request.path.endsWith('/threads/create'));
+    expect(created).toHaveLength(1);
+    expect(created[0]?.body).toMatchObject({ root: content, friendPersonIds: [peer.personId], name: 'Batching' });
+    await finish(server);
+  });
+
+  it('offers no thread while the conversation has no shared card', async () => {
+    const server = talkServer();
+    server.peerSays('hello');
+    await open(server);
+    await screen.findByText('hello');
+    expect(screen.queryByRole('button', { name: 'Start a thread' })).toBeNull();
     await finish(server);
   });
 

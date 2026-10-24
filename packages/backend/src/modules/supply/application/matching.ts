@@ -119,7 +119,7 @@ export function makeMatchRequest(p: SupplyPorts, harness: ReasoningHarness): Mat
         updatedAt: p.now().toISOString(),
       };
       await p.store.finish(scope, next);
-      if (next.status === 'requested') await p.enqueue(scope, d.id, nextPoll(d.createdAt, p.now()));
+      if (next.status === 'requested') await p.enqueue(scope, d.id, nextPoll(d, p.now()));
       await p.notify(scope, revision, d.id);
     });
   };

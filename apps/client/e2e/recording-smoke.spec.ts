@@ -197,7 +197,8 @@ test('Pause unknown retry, necessary paused Save, and fresh activation after Res
     return route.fulfill({ status: 503, json: {} });
   });
   await page.goto('/account/privacy');
-  await page.getByRole('button', { name: 'Pause recording', exact: true }).click();
+  const recordingSwitch = page.getByRole('switch', { name: 'Shape my universe from what I watch' });
+  await recordingSwitch.click();
   await expect(page.getByRole('button', { name: 'Retry the same recording choice' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Resume recording', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Retry the same recording choice' }).click();
@@ -213,7 +214,7 @@ test('Pause unknown retry, necessary paused Save, and fresh activation after Res
   expect(observations).toEqual([]);
   await page.goto('/account/privacy');
   await page.getByRole('button', { name: 'Resume recording', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Pause recording', exact: true })).toBeVisible();
+  await expect(recordingSwitch).toBeChecked();
   await page.goto(`/scroll/${id(3)}`);
   await expect(page.getByTestId('scroll-article')).toBeVisible();
   await page.getByRole('button', { name: 'Back', exact: true }).click();

@@ -23,6 +23,7 @@ import {
   type ReelPositionHandle,
 } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
@@ -125,6 +126,7 @@ function ReadyReel({
 }) {
   const router = useRouter();
   const metrics = useEncounterMetrics();
+  const { preferences } = useDevicePreferences();
   const siblings = useFormatSiblings(scope, exposureId, 'reel');
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [saving, setSaving] = useState(false);
@@ -226,6 +228,7 @@ function ReadyReel({
       renderStage={renderStage}
       positionRef={positionRef}
       initialPositionMs={resume?.kind === 'reel' ? resume.positionMs : undefined}
+      initialMuted={!preferences.reelSound}
     >
       {(playback) => (
         <>

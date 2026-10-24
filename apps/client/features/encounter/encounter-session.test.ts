@@ -206,6 +206,70 @@ describe('actual encounter controller over CI transport fixtures', () => {
     },
   );
 
+  it('Somewhere new stops at the offers, activates nothing until one is picked, then opens that one (E08)', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.setOutcome('exhausted');
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'exhausted');
+      h.setOutcome('ready');
+      h.setBuffered(2);
+      expect(h.session.chooseDirection()).toBe(true);
+      await waitForPhase(h.session, 'ready_offer');
+      const choices = h.session.getState().choices!;
+      expect(choices).toHaveLength(3);
+      expect(commands(h, '/activate')).toHaveLength(1);
+      expect(h.session.canBack()).toBe(true);
+      h.session.pickDirection(choices[2]!.offerId);
+      await waitForPhase(h.session, 'active');
+      expect(commands(h, '/activate')).toHaveLength(2);
+      expect((commands(h, '/activate')[1]!.body.target as { offerId: string }).offerId).toBe(choices[2]!.offerId);
+      expect(h.session.getState().choices).toBeUndefined();
+      expect(h.session.getState().entry!.offer.offerId).toBe(choices[2]!.offerId);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('leaving the picker returns to the ending and activates nothing', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.setOutcome('exhausted');
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'exhausted');
+      h.setOutcome('ready');
+      h.setBuffered(1);
+      h.session.chooseDirection();
+      await waitForPhase(h.session, 'ready_offer');
+      expect(h.session.back()).toBe(true);
+      const state = h.session.getState();
+      expect(state.phase).toBe('exhausted');
+      expect(state.choices).toBeUndefined();
+      expect(commands(h, '/activate')).toHaveLength(1);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('with a single offer Somewhere new opens it at once', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.setOutcome('exhausted');
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'exhausted');
+      h.setOutcome('ready');
+      h.session.chooseDirection();
+      await waitForPhase(h.session, 'active');
+      expect(h.session.getState().choices).toBeUndefined();
+      expect(commands(h, '/activate')).toHaveLength(2);
+    } finally {
+      h.scope.end();
+    }
+  });
+
   it('rolls an unknown action back and retries its exact exposure-linked command', async () => {
     const h = harness();
     try {

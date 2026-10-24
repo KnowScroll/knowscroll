@@ -26,6 +26,8 @@ export function requestHarness() {
   let status: ContentRequestStatus = { ...fields, status: 'preparing', phase: 'requested' };
   let createFailure: boolean | 'too_many_open' = false;
   let cancelFailure = false;
+  let retryFailure: 'unknown' | 'refused' | 'too_many_open' | false = false;
+  let retryOutcome: 'retrying' | 'already_open' | 'not_retryable' = 'retrying';
   let withdrawn = false;
   let readGate: Promise<void> | undefined;
   let createGate: Promise<void> | undefined;
@@ -54,6 +56,29 @@ export function requestHarness() {
           revision: 4,
           replayed: false,
           outcome: 'cancelled',
+        });
+      }
+      if (path === '/v1/content/requests/retry') {
+        if (retryFailure === 'unknown') throw new Error('unknown_retry');
+        if (retryFailure === 'refused' || retryFailure === 'too_many_open') {
+          const code = retryFailure === 'refused' ? 'NOT_FOUND' : 'TOO_MANY_REQUESTS';
+          return new Response(JSON.stringify(problemDetails(code)), {
+            status: retryFailure === 'refused' ? 404 : 429,
+            headers: { 'content-type': 'application/problem+json' },
+          });
+        }
+        // The same request goes back to preparing at a higher revision, as the server does.
+        if (retryOutcome === 'retrying')
+          status = { ...fields, status: 'preparing', phase: 'preparing', requestRevision: status.requestRevision + 1 };
+        return json({
+          version: 'content-request-retry-receipt.v1',
+          commandId: body!.commandId,
+          requestId: status.requestId,
+          recordedAt: createdAt,
+          privacyEpoch: 1,
+          revision: 5,
+          replayed: false,
+          outcome: retryOutcome,
         });
       }
       if (request.method === 'POST') {
@@ -110,6 +135,12 @@ export function requestHarness() {
     },
     setCancelFailure: (value: boolean) => {
       cancelFailure = value;
+    },
+    setRetryFailure: (value: 'unknown' | 'refused' | 'too_many_open' | false) => {
+      retryFailure = value;
+    },
+    setRetryOutcome: (value: 'retrying' | 'already_open' | 'not_retryable') => {
+      retryOutcome = value;
     },
     setReadGate: (value: Promise<void> | undefined) => {
       readGate = value;

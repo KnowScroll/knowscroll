@@ -15,6 +15,7 @@ client). Not yet running on dev.
   only an exact catalogue member. Anything else closes honestly as `unsupported_request`.
 - Ask for the same explanation in the other format (a variant).
 - Read the state of one request or of their recent requests, and cancel one that is still preparing.
+- Try again a request that closed as "could not prepare" (`RetryRequest`, below).
 
 States a person sees: preparing (`requested` while their words are matched, `preparing` once work is
 under way), ready, unavailable with a coarse reason, cancelled. No percentages, no waiting times.
@@ -72,6 +73,29 @@ stable job ID per request, so a second run sends nothing new). It names IDs only
 Every look is a fresh authority check under the personal root: owner active, epoch, source, and the
 content's current admission. A redelivery changes nothing that is already decided.
 
+## Trying a request again
+
+`RetryRequest` reopens a request that closed as `could_not_prepare`: the same row and request ID, the same
+words and brief, a new wait. It decides the brief the way Create does (Reuse, then Join or Create), so it
+respects the day's Create cap, the open-request limit (`too_many_open`, no receipt) and the recipes still
+left. `retries` counts the retries (three at most) and `wait_started_at` starts the new wait: the wait limit,
+the read-time deadline and the resolver's poll slots count from it, and the poll job's identity names the
+retry, so a new chain never collides with the one that ended. `created_at` still says when it was asked.
+
+The command answers with an immutable receipt:
+
+| Outcome | Meaning |
+|---|---|
+| `retrying` | The request is waiting again, or already served from what exists. Read its status for which. |
+| `already_open` | It is still preparing or already ready. Nothing changed. |
+| `not_retryable` | It was cancelled or closed for another reason, its retries are used, it is a free-text ask that was never matched, or nothing can start now (the day's limit). Nothing changed. |
+
+A free-text ask that was never matched is not retried: its model attempt may have had an outcome nobody
+saw, and unknown outcomes are never resent. A retry never calls a model and never resends a paid attempt:
+a new production job is a new take of a recipe under Content's own rules (a recipe takes at most three
+takes). The Planner's demand is not a person's ask and is not retried (`not_found`). A foreign or unknown
+request is `not_found`.
+
 ## Free-text asks
 
 A free-text ask is stored as `matching` (no brief, no group, decision `pending`) and queues one resolver
@@ -87,8 +111,8 @@ this purpose.
 
 ## Entry points
 
-`CreateRequest`, `ReadRequest`, `ListRequests`, `CancelRequest` and `ResolveRequest` are framework-free
-ports; `supplyProviders` binds them. The API serves create, read, list and cancel
+`CreateRequest`, `ReadRequest`, `ListRequests`, `CancelRequest`, `RetryRequest` and `ResolveRequest` are framework-free
+ports; `supplyProviders` binds them. The API serves create, read, list, cancel and retry
 (`apps/api/src/http/supply.controller.ts`); the worker runs `ResolveRequest` as the
 `supply.resolve-request` consumer and the Planner calls `RecordPlannedDemand` inside its accepting
 transaction. Reading and listing change nothing.
@@ -123,7 +147,7 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 
 | Store | Role | Erasure |
 |---|---|---|
-| `supply.requests` | Private demand and waiter in one row: command, state, brief, group link, one ready binding. Person asks and Planner asks (`origin`). | Erased with the person (full erasure and Clear). |
+| `supply.requests` | Private demand and waiter in one row: command, state, brief, group link, one ready binding, retry count and the start of the current wait. Person asks and Planner asks (`origin`). | Erased with the person (full erasure and Clear). |
 | `supply.work` | Public shared group: SHA-256 key of a code-built brief, the recipe whose production it commissioned, who commissioned it (`person` or `planner`, for the two caps), `active`. No owner, no private context. | Survives erasure; it is public metadata. |
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
@@ -149,6 +173,7 @@ catch-up watermark.
 ## Verification
 
 - `tests/integration/modules/supply.test.ts`: receipts, sharing, cancel, source authority, erasure.
+- `tests/integration/modules/supply-create.test.ts` also covers retry: same request bound when the next take publishes, replay, `already_open`, a restarted wait, a free-text ask never retried, the day cap, the retry limit, cancelled and Reel asks, foreign and unknown requests.
 - `tests/integration/modules/supply-create.test.ts`: Create end to end with a fixture writer: one
   committed job, Join, one job for two briefs that choose one recipe, the daily cap, stopped and rejected
   recipes, the wait limit and the read-time deadline, planned demand (including never binding met content),
