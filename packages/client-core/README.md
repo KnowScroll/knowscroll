@@ -280,6 +280,12 @@ guarantee. Schema-validated UUID references compare case-insensitively without r
 values; command/read correlation IDs, opaque cursors and invite secrets remain exact. State is deeply frozen, ephemeral and independent for each scope object. No response,
 receipt, cursor or invite token is a query-cache payload, storage record, URL or log entry.
 
+`readGroups()` reads the first page of Blocked, Sent, Incoming and Friends one after another and keeps
+each in `state.groups`, ending on Friends so its paging stays live. A pair command may bind a row from any
+of those lists; every command clears them all, so an acknowledgement never supplies the new state.
+`showMore('incoming' | 'outgoing' | 'blocked')` adds the next page of that list in place (`state.moreOf` says which
+have one) without touching Friends' own page or cursors.
+
 `command(operation, draft)` adds one UUID and the contract version only after an explicit caller
 selection. Profile and invite changes require a current corresponding read. Friend requests bind
 the exact selected handle or resolved invite issuer; pair actions bind the selected pair/request
