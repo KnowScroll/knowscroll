@@ -67,6 +67,15 @@ describe('Saved immutable revision choices', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Remove from Keep' }));
     expect(remove).toHaveBeenCalledTimes(1);
   });
+  it('says Removing… on a normal card while its removal is in flight, and the menu cannot be opened again', async () => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <SavedCard item={available} failed={false} removing onOpen={jest.fn()} onRemove={jest.fn()} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('Removing…')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'More for Corrected CI fixture' })).toBeDisabled();
+  });
   it('shows Retry removal on the card itself after a failed removal', async () => {
     const remove = jest.fn();
     await render(

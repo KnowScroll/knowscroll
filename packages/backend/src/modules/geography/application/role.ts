@@ -31,6 +31,8 @@ export function cartographerRole(c: GeographyContext): ReasoningRole<GeographyPr
     id: 'geography.cartographer',
     version: 'cartographer2',
     maxOutputTokens: 8192,
+    // Runs because the person read, not because they asked: it stops at the background share of the budgets.
+    budgetClass: 'background',
     minContextItems: 1,
     instructions: [
       'Organise this person’s positively verified exploration, never their identity, belief or mastery. Reply with exactly one JSON object shaped {"version":"cartographer-proposal.v1","operations":[...]} holding 0 to 32 operations. "version" is required and must be exactly cartographer-proposal.v1. No tools, side effects or hidden reasoning.',

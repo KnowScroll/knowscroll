@@ -1,9 +1,11 @@
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../modules/identity/public.js';
 import {
+  backgroundShareOf,
   reservedTokensFor,
   type BudgetCap,
   type BudgetCaps,
+  type BudgetClass,
   type BudgetDimension,
   type ReportedUsage,
 } from '../domain/budgets.js';
@@ -88,6 +90,13 @@ export interface ReasoningRole<T> {
   readonly minContextItems?: number;
   /** The role's daily budget; defaults to the configured per-role cap. */
   readonly budget?: BudgetCap;
+  /**
+   * `background` for a role that runs because the person read or swiped, not because they asked
+   * for something. It then stops at its share of the global and the personal daily caps
+   * (`HarnessSettings.backgroundSharePercent`), so a person who only reads keeps the rest for
+   * what they ask for. Omitted means `interactive`: a role is never squeezed by default.
+   */
+  readonly budgetClass?: BudgetClass;
 }
 
 /** The business run the module is trying to complete (blueprint §15 "Three execution records"). */
@@ -545,6 +554,7 @@ interface Proposal<T, A> {
   readonly model: ModelPort;
   readonly descriptor: RunDescriptor;
   readonly caps: BudgetCaps;
+  readonly budgetClass: BudgetClass;
   readonly judge: (reply: ModelReply) => Judgement;
 }
 
@@ -554,15 +564,26 @@ function admittedProposal<T, A, S>(
   model: ModelPort,
 ): Proposal<T, A> {
   const { role } = input;
+  const { caps, backgroundSharePercent } = ports.settings;
+  const budgetClass = role.budgetClass ?? 'interactive';
   return {
     input,
     model,
     descriptor: describeRun(input, model),
     caps: {
-      global: ports.settings.caps.global,
-      scope: ports.settings.caps.scope,
-      role: role.budget ?? ports.settings.caps.roleDefault,
+      global: caps.global,
+      scope: caps.scope,
+      role: role.budget ?? caps.roleDefault,
+      ...(budgetClass === 'background'
+        ? {
+            background: {
+              global: backgroundShareOf(caps.global, backgroundSharePercent),
+              scope: backgroundShareOf(caps.scope, backgroundSharePercent),
+            },
+          }
+        : {}),
     },
+    budgetClass,
     judge: judgeWith(ports.redactRecorded, role.outputSchema, role.safeCustomIssues),
   };
 }
@@ -627,6 +648,7 @@ function planAttempt<T, A, S>(
     maxOutputTokens: role.maxOutputTokens,
     reservedTokens: reservedTokensFor(body.length, role.maxOutputTokens),
     caps: proposal.caps,
+    budgetClass: proposal.budgetClass,
     ...(causationAttemptId === undefined ? {} : { causationAttemptId }),
   };
 }

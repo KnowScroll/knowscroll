@@ -79,6 +79,13 @@ export function SavedCard({
           />
         )}
       </View>
+      {removing && !removeOnCard ? (
+        <View role="status">
+          <Text variant="meta" color={content.ink2}>
+            Removing…
+          </Text>
+        </View>
+      ) : null}
       {removeOnCard || (corrected && item.currentAssetRevision !== undefined) ? (
         <View style={styles.actions}>
           {corrected && item.currentAssetRevision !== undefined ? (
