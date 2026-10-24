@@ -9,6 +9,8 @@ export interface EncounterOrigin {
   readonly backLabel: string;
   /** The glyph before the words; a parked Reel by default. */
   readonly icon?: IconName;
+  /** `paper`: a cream pill with an ink edge (a place on the map); the default is the ink pill of E06. */
+  readonly tone?: 'ink' | 'paper';
 }
 
 /**
@@ -36,4 +38,19 @@ export function formatSwitchOrigin(
       ? ` at ${formatClock(previous.position.positionMs)}`
       : '';
   return { from: `From the ${word}${place}`, backLabel: `Back to ${word}` };
+}
+
+/**
+ * U04: an encounter opened from a region card says where it came from ("From Deployment · Inference
+ * & serving") and the chip is Back, which returns to the region with the stored camera. A format
+ * switch made since then is the nearer origin, so it wins.
+ */
+export function encounterOrigin(
+  trail: readonly EncounterEntry[],
+  entry: EncounterEntry,
+  regionLabel: string | undefined,
+): EncounterOrigin | undefined {
+  const switched = formatSwitchOrigin(trail, entry);
+  if (switched || regionLabel === undefined || regionLabel === '') return switched;
+  return { from: `From ${regionLabel}`, backLabel: 'Back to the map', icon: 'universe', tone: 'paper' };
 }

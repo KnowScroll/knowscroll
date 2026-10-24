@@ -131,7 +131,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let foreground = false;
   let busy = false;
   let work: Work | undefined;
-  let regionOrigin: { returnToMap: () => void; entry?: string; returned: boolean } | undefined;
+  let regionOrigin: { returnToMap: () => void; label: string; entry?: string; returned: boolean } | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
@@ -699,7 +699,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
-    openRegion(displayed: AvailableRegionPreview, returnToMap: () => void) {
+    openRegion(displayed: AvailableRegionPreview, label: string, returnToMap: () => void) {
       if (!valid() || work || busy || actionRunning || action !== undefined) return false;
       const preview = RegionEncounterPreviewResponseSchema.safeParse(displayed);
       if (
@@ -722,7 +722,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           ? { session: { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision } }
           : {}),
       });
-      regionOrigin = { returnToMap, returned: false };
+      regionOrigin = { returnToMap, label, returned: false };
       begin(
         async (fields) => {
           const raw = await scope.api.experience.openRegionEncounter({ ...input, ...fields });
@@ -1092,6 +1092,15 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     retryRemoval: removal.retry,
     retryAction() {
       void runAction();
+    },
+    /**
+     * U04: where this entry was opened from when it is the encounter a region card opened, for the chip
+     * that returns there. Gone once the person has returned or moved on to another entry.
+     */
+    regionOriginOf(entry: EncounterEntry): string | undefined {
+      return regionOrigin && !regionOrigin.returned && regionOrigin.entry === entry.exposureId
+        ? regionOrigin.label
+        : undefined;
     },
     canBack: () =>
       valid() && (state.choices !== undefined || (regionOrigin ? !regionOrigin.returned : history.canBack())),

@@ -52,14 +52,24 @@ export function PlanetScene({
   const landmarkKind: LandmarkKind = kindUnit < 0.5 ? 'lighthouse' : 'harbour';
   const landmarkRegion = regions[Math.floor(regionUnit * regions.length) % Math.max(1, regions.length)];
   const parked = regions.find(({ descriptor }) => descriptor.objectId === state.lastPlace?.id);
+  // U04: the region left through its card says so, until the person chooses it again.
+  const hereId = state.youWereHere;
+  const labelOf = (descriptor: SceneDescriptor) =>
+    descriptor.objectId === hereId ? `${descriptor.label} · you were here` : descriptor.label;
   const requests: LabelRequest[] = regions.map(({ descriptor, offset }) => ({
     id: descriptor.objectId,
     anchor: pinAt(offset),
     clearance: pinSize + 6,
-    width: labelWidth(descriptor.label, 18),
+    width: labelWidth(labelOf(descriptor), 18),
     height: PILL_HEIGHT,
     priority:
-      descriptor.objectId === selectedRegion?.objectId ? 3 : descriptor.objectId === state.lastPlace?.id ? 2 : 1,
+      descriptor.objectId === selectedRegion?.objectId
+        ? 3
+        : descriptor.objectId === hereId
+          ? 3
+          : descriptor.objectId === state.lastPlace?.id
+            ? 2
+            : 1,
   }));
   const labels = placeLabels(requests, size);
   return (
@@ -89,6 +99,7 @@ export function PlanetScene({
             y={pinAt(offset).y}
             size={pinSize}
             selected={descriptor.objectId === selectedRegion?.objectId}
+            here={descriptor.objectId === hereId}
           />
         ))}
         {parked ? <ShipGlyph x={pinAt(parked.offset).x + 30} y={pinAt(parked.offset).y - 26} /> : null}
@@ -103,8 +114,10 @@ export function PlanetScene({
             <MapLabel
               key={label.id}
               label={label}
-              text={region.label}
-              variant={region.objectId === selectedRegion?.objectId ? 'selected' : 'pill'}
+              text={labelOf(region)}
+              variant={
+                region.objectId === selectedRegion?.objectId ? 'selected' : region.objectId === hereId ? 'here' : 'pill'
+              }
             />
           );
         })}
@@ -114,7 +127,7 @@ export function PlanetScene({
             testID={`universe-focus-${descriptor.objectId}`}
             x={pinAt(offset).x}
             y={pinAt(offset).y}
-            label={descriptor.label}
+            label={labelOf(descriptor)}
             kind="region"
             hypothetical={descriptor.truthStatus === 'hypothetical'}
             selected={descriptor.objectId === selectedRegion?.objectId}

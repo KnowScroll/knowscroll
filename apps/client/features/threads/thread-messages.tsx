@@ -17,6 +17,7 @@ import {
 import type { ScenarioCard, ScenarioKind, ThreadEpisode, ThreadMessage } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, IconButton, Text } from '@knowscroll/ui';
+import { AwayDivider, firstAwayMessage } from '../conversations/message-views';
 import { BranchCard } from '../scenarios/branch-card';
 import type { AvailableMessage } from '../scenarios/message-step';
 import { SnippetCard } from './snippet-card';
@@ -246,6 +247,7 @@ export function ThreadMessages({
     return part === undefined ? undefined : `Part ${String(part)}`;
   };
   const mineOf = (message: ThreadMessage) => message.status === 'available' && message.author.personId === ownPersonId;
+  const awayFrom = firstAwayMessage(state.messages, state.awayAfterSequence);
   return (
     <ScrollView
       ref={scrollRef}
@@ -290,6 +292,7 @@ export function ThreadMessages({
                 </View>
               ) : (
                 <View key={entry.message.sequence} role="listitem" style={styles.item}>
+                  {entry.message.sequence === awayFrom ? <AwayDivider /> : null}
                   {entry.message.status === 'available' && !mineOf(entry.message) ? (
                     <Text variant="metaS" color={content.ink2}>
                       {entry.message.author.displayName}
