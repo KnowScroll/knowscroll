@@ -3,10 +3,13 @@ import type { Kysely } from 'kysely';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { FIND_ASSET_FOR_ACTION } from '@knowscroll/backend/modules/content';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
-import { READ_ROOM_REPORTS, type ReadRoomReports } from '@knowscroll/backend/modules/feedback';
 import { feedbackProviders, reportUseCases } from '@knowscroll/backend/modules/feedback/nest-providers';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
-import { READ_REPORTABLE_ROOM_MESSAGE } from '@knowscroll/backend/modules/rooms';
+import {
+  READ_REPORTABLE_ROOM_MESSAGE,
+  READ_ROOM_REPORTS,
+  type ReadRoomReports,
+} from '@knowscroll/backend/modules/rooms';
 import { roomsProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { READ_PUBLIC_PEOPLE, READ_REPORTABLE_MESSAGE } from '@knowscroll/backend/modules/social';
 import { socialPeopleProviders } from '@knowscroll/backend/modules/social/nest-providers';

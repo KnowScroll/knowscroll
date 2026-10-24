@@ -268,7 +268,7 @@ describe('Not interested (real PostgreSQL)', () => {
     try {
       const withScope = Symbol('test.withPersonalScope');
       const workerConfig = Symbol('test.workerConfig');
-      const { harness } = fixtureHarness(database.db, {});
+      const { harness } = fixtureHarness(database.db, { model: undefined });
       const values = new Map<symbol, unknown>([
         [withScope, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [workerConfig, { jevEnabled: false, reasoning: { minimax: { model: 'fixture-model-v1' } } }],

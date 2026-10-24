@@ -589,6 +589,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       ? (await feedback.retryNotInterested()).done
       : await feedback.markNotInterested(entry.offer.assetId, entry.exposureId);
     if (!saved || !valid() || history.current() !== entry) return saved;
+    // The sheet the row was in closes only once the save is kept; a failed save leaves it open to retry.
+    if (state.overlay) setOverlay(false);
     navigate({ mode: 'vertical', direction: 'next' });
     return true;
   }

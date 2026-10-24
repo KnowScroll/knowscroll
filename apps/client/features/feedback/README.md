@@ -24,3 +24,8 @@ How it takes part in the journey: "Not interested" saves, then moves to the next
 the constraint and returns to the Reel left behind (`session.undoNotInterested`). A report is saved on the device, sent with
 one command ID, and kept for a connection if there was no answer. Nothing here is consumption: opening the sheet, choosing
 and sending create no exposure, observation or Keep, and a report is never shown back to anyone.
+
+Tests: component tests beside each file, the encounter session's Not interested flow (`encounter/encounter-session.test.ts`), and the web
+smoke `apps/client/e2e/feedback-smoke.spec.ts` over the production export (Not interested and Undo, a content error with its receipt, an
+abuse report kept offline and sent again with the same command ID, and the Reel's right-click and Shift+F10 menu).
+

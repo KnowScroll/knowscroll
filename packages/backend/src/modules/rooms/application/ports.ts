@@ -7,7 +7,6 @@ import type {
   ValidateSnippetAnchor,
 } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
-import type { ReadRoomReports } from '../../feedback/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
@@ -386,6 +385,24 @@ export interface FriendLookup {
 export type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
 /** Everything the room use cases need. Built once by the composition root; nothing here is global. */
+/** One message of a room that people have reported, as its moderators may see it: why, how many times and when. */
+export interface RoomReportRow {
+  readonly messageId: string;
+  readonly categories: readonly string[];
+  readonly count: number;
+  readonly lastReportedAt: Date;
+}
+
+/**
+ * Port: the reports on messages of one room, newest first (D-055). It leaves out every report about the
+ * asking account's own words and never carries who reported, a note or the author. Who may ask is the
+ * Rooms module's check. Feedback implements it.
+ */
+export type ReadRoomReports = (
+  scope: PersonalScopeTx,
+  query: { readonly roomId: string; readonly excludingAccountId: string; readonly limit: number },
+) => Promise<readonly RoomReportRow[]>;
+
 export interface RoomPorts {
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;

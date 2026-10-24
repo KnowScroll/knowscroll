@@ -5,7 +5,7 @@ import {
   type FindAssetForAction,
 } from '../../content/public.js';
 import { FENCE_OWN_ACCOUNT, type FenceOwnAccount, type WithPersonalScope } from '../../identity/public.js';
-import { READ_REPORTABLE_ROOM_MESSAGE, type ReadReportableRoomMessage } from '../../rooms/public.js';
+import { READ_REPORTABLE_ROOM_MESSAGE, READ_ROOM_REPORTS, type ReadReportableRoomMessage } from '../../rooms/public.js';
 import {
   READ_PUBLIC_PEOPLE,
   READ_REPORTABLE_MESSAGE,
@@ -21,7 +21,7 @@ import {
   type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
 import { makeReportUseCases, type ReportUseCases } from '../application/file-report.js';
-import { READ_ROOM_REPORTS, REPORT_USE_CASES } from '../public.js';
+import { REPORT_USE_CASES } from '../public.js';
 import { readRoomReports, reportStore } from './postgres-reports.js';
 
 /** What the report use cases need from the rest of the system, chosen by the composition root. */

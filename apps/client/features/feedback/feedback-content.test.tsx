@@ -48,6 +48,12 @@ async function refusal(code: ProblemCode): Promise<unknown> {
     );
 }
 
+/** What the nth call of a mocked API method was given, as plain data. */
+function sentTo(mock: jest.Mock, call = 0): Record<string, unknown> {
+  const calls = mock.mock.calls as unknown as Record<string, unknown>[][];
+  return calls[call]![0]!;
+}
+
 /** The scopes a test made, ended after it so a report kept for a connection stops retrying. */
 const ending: (() => void)[] = [];
 afterEach(() => {
@@ -153,7 +159,7 @@ describe('the content error form', () => {
     await fireEvent.changeText(screen.getByTestId('feedback-note'), '“it” could also mean the street here?');
     await fireEvent.press(screen.getByTestId('feedback-send'));
     await waitFor(() => expect(feedback.reportContentError).toHaveBeenCalledTimes(1));
-    expect(feedback.reportContentError.mock.calls[0]![0]).toMatchObject({
+    expect(sentTo(feedback.reportContentError)).toMatchObject({
       target: { assetId: id(1), assetRevision: 2 },
       category: 'misleading',
       anchor: { kind: 'reel', positionMs: 31_000 },
@@ -171,7 +177,7 @@ describe('the content error form', () => {
     expect(screen.getByText('The whole thing')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('feedback-send'));
     await waitFor(() => expect(feedback.reportContentError).toHaveBeenCalledTimes(1));
-    expect(feedback.reportContentError.mock.calls[0]![0]).not.toHaveProperty('anchor');
+    expect(sentTo(feedback.reportContentError)).not.toHaveProperty('anchor');
   });
 
   it('goes back from a form to the menu', async () => {
@@ -195,7 +201,7 @@ describe('the abuse form', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'Harassment' }));
     await fireEvent.press(screen.getByTestId('feedback-send'));
     await waitFor(() => expect(feedback.reportAbuse).toHaveBeenCalledTimes(1));
-    expect(feedback.reportAbuse.mock.calls[0]![0]).toMatchObject({
+    expect(sentTo(feedback.reportAbuse)).toMatchObject({
       target: { kind: 'message', messageId: id(3) },
       category: 'harassment',
     });
@@ -268,12 +274,12 @@ describe('sending', () => {
     expect(await screen.findByLabelText('Couldn’t send. Nothing was lost. Try again.')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(reportAbuse).toHaveBeenCalledTimes(2));
-    expect(reportAbuse.mock.calls[1]![0].commandId).toBe(reportAbuse.mock.calls[0]![0].commandId);
+    expect(sentTo(reportAbuse, 1)['commandId']).toBe(sentTo(reportAbuse)['commandId']);
     // Changing the form after a failure is a different report.
     await fireEvent.changeText(await screen.findByTestId('feedback-note'), 'It happened again');
     await fireEvent.press(screen.getByTestId('feedback-send'));
     await waitFor(() => expect(reportAbuse).toHaveBeenCalledTimes(3));
-    expect(reportAbuse.mock.calls[2]![0].commandId).not.toBe(reportAbuse.mock.calls[0]![0].commandId);
+    expect(sentTo(reportAbuse, 2)['commandId']).not.toBe(sentTo(reportAbuse)['commandId']);
     expect(await screen.findByText('Report received')).toBeOnTheScreen();
   });
 
@@ -283,7 +289,7 @@ describe('sending', () => {
       ['NOT_FOUND', 'Can’t report this. It isn’t available any more.'],
     ] as const) {
       const error = await refusal(code);
-      const { scope } = setup({ reportAbuse: jest.fn(() => Promise.reject(error)) });
+      const { scope } = setup({ reportAbuse: jest.fn().mockRejectedValue(error) });
       const view = await render(
         <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
           <FeedbackContent scope={scope} target={{ kind: 'person', person: kiran }} start="abuse" onClose={jest.fn()} />

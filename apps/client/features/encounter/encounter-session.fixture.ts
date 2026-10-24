@@ -35,6 +35,7 @@ export function harness() {
   let activationFailure = false;
   let navigationStale = false;
   let actionFailure = false;
+  let feedbackFailure = false;
   let saved = false;
   let contextNotFound = false;
   let contextGate: Promise<void> | undefined;
@@ -152,6 +153,15 @@ export function harness() {
           path: '/media/fixture',
           expiresAt: '2099-10-20T18:00:00.000Z',
         });
+      if (path === '/v1/feedback/not-interested' || path === '/v1/feedback/not-interested/undo') {
+        if (feedbackFailure) throw new Error('Unknown feedback outcome');
+        return json({
+          commandId: body.commandId,
+          assetId: body.assetId,
+          ...(path.endsWith('/undo') ? {} : { expiresAt: '2026-11-07T12:00:00.000Z' }),
+          replayed: false,
+        });
+      }
       if (path === '/v1/actions') {
         if (actionFailure) throw new Error('Unknown action outcome');
         saved = body.kind === 'save';
@@ -208,6 +218,9 @@ export function harness() {
     },
     setActionFailure: (value: boolean) => {
       actionFailure = value;
+    },
+    setFeedbackFailure: (value: boolean) => {
+      feedbackFailure = value;
     },
     setContextNotFound: (value: boolean) => {
       contextNotFound = value;

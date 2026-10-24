@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { ReadRoomReports } from '../public.js';
+import type { ReadRoomReports } from '../../rooms/public.js';
 import type { ReportStore } from '../application/ports.js';
 
 /** `feedback.reports` (migration 0065), written in the reporter's personal transaction. */

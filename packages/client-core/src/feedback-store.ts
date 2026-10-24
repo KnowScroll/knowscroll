@@ -158,7 +158,8 @@ export function createFeedbackStore(options: FeedbackStoreOptions): FeedbackStor
   let retryTimer: unknown;
   let graceTimer: unknown;
   /** The step in flight or failed, with its command ID, so a retry repeats exactly it. */
-  let intent: { readonly step: 'mark' | 'undo'; readonly commandId: string; readonly resume: string | undefined } | undefined;
+  let intent:
+    { readonly step: 'mark' | 'undo'; readonly commandId: string; readonly resume: string | undefined } | undefined;
 
   function publish(patch: Partial<FeedbackState>): void {
     if (!scope.active) return;

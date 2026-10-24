@@ -22,16 +22,15 @@ const expiresAt = new Date('2026-11-07T12:00:00.000Z');
 function fixture(overrides: { lookup?: CommandLookup; admitted?: boolean; scopeRefusal?: 'epoch_changed' } = {}) {
   const receipts = new Map<string, { key: CommandKey; outcome?: Record<string, unknown> }>();
   const marked = new Set<string>();
-  const store: NotInterestedStore = {
-    mark: vi.fn((_scope, asset: string) => {
-      marked.add(asset);
-      return Promise.resolve(expiresAt);
-    }),
-    unmark: vi.fn((_scope, asset: string) => {
-      marked.delete(asset);
-      return Promise.resolve();
-    }),
-  };
+  const mark = vi.fn((_scope: PersonalScopeTx, asset: string) => {
+    marked.add(asset);
+    return Promise.resolve(expiresAt);
+  });
+  const unmark = vi.fn((_scope: PersonalScopeTx, asset: string) => {
+    marked.delete(asset);
+    return Promise.resolve();
+  });
+  const store: NotInterestedStore = { mark, unmark };
   const withPersonalScope: WithPersonalScope = (_authority, work) =>
     overrides.scopeRefusal
       ? Promise.resolve({ kind: 'refused', refusal: { kind: overrides.scopeRefusal } } as never)
@@ -60,7 +59,7 @@ function fixture(overrides: { lookup?: CommandLookup; admitted?: boolean; scopeR
     findAsset,
     store,
   };
-  return { ports, store, marked, receipts, findAsset };
+  return { ports, mark, unmark, marked, receipts, findAsset };
 }
 
 describe('Not interested', () => {
@@ -75,12 +74,12 @@ describe('Not interested', () => {
   });
 
   it('answers an identical retry from the receipt and marks nothing twice', async () => {
-    const { ports, store } = fixture();
+    const { ports, mark } = fixture();
     const set = makeSetNotInterested(ports);
     await set(authority, { commandId: id(20), assetId });
     const again = await set(authority, { commandId: id(20), assetId });
     expect(again).toMatchObject({ kind: 'applied', outcome: { replayed: true, assetId } });
-    expect(store.mark).toHaveBeenCalledTimes(1);
+    expect(mark).toHaveBeenCalledTimes(1);
   });
 
   it('refuses a command ID used for another asset', async () => {
@@ -94,13 +93,13 @@ describe('Not interested', () => {
   });
 
   it('writes nothing for an asset that is not admitted', async () => {
-    const { ports, receipts, store } = fixture({ admitted: false });
+    const { ports, receipts, mark } = fixture({ admitted: false });
     expect(await makeSetNotInterested(ports)(authority, { commandId: id(20), assetId })).toEqual({
       kind: 'refused',
       reason: 'asset_not_found',
     });
     expect(receipts.size).toBe(0);
-    expect(store.mark).not.toHaveBeenCalled();
+    expect(mark).not.toHaveBeenCalled();
   });
 
   it('never re-applies an outcome a newer release stored, and asks for a new ID after a reset', async () => {
@@ -114,8 +113,8 @@ describe('Not interested', () => {
       kind: 'refused',
       reason: 'command_key_reused',
     });
-    expect(newer.store.mark).not.toHaveBeenCalled();
-    expect(reset.store.mark).not.toHaveBeenCalled();
+    expect(newer.mark).not.toHaveBeenCalled();
+    expect(reset.mark).not.toHaveBeenCalled();
   });
 
   it('names a privacy reset or an unavailable universe when the scope refuses', async () => {
@@ -136,14 +135,14 @@ describe('Not interested', () => {
   });
 
   it('undoes what is not marked, and answers a retry from the receipt', async () => {
-    const { ports, store } = fixture();
+    const { ports, unmark } = fixture();
     const undo = makeUndoNotInterested(ports);
     expect(await undo(authority, { commandId: id(21), assetId })).toMatchObject({ kind: 'applied' });
     expect(await undo(authority, { commandId: id(21), assetId })).toMatchObject({
       kind: 'applied',
       outcome: { replayed: true },
     });
-    expect(store.unmark).toHaveBeenCalledTimes(1);
+    expect(unmark).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Undo and the mark apart: one command ID cannot be both', async () => {

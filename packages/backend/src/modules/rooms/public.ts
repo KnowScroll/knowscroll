@@ -27,7 +27,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
 import type { ContributeJob } from './events.js';
 import type { Result } from './application/ports.js';
 
-export type { Result as RoomResult, RoomRefusal } from './application/ports.js';
+export type { Result as RoomResult, RoomRefusal, ReadRoomReports, RoomReportRow } from './application/ports.js';
 export { contributeQueue, ContributeJobSchema, type ContributeJob } from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export type { RoomSeed } from './application/seeds.js';
@@ -98,3 +98,6 @@ export type ReadReportableRoomMessage = (
   messageId: string,
 ) => Promise<{ readonly roomId: string; readonly authorAccountId: string | null } | undefined>;
 export const READ_REPORTABLE_ROOM_MESSAGE = Symbol('rooms.readReportableRoomMessage');
+
+/** Bound by Feedback: the reports on one room's messages, for that room's moderators. */
+export const READ_ROOM_REPORTS = Symbol('rooms.readRoomReports');

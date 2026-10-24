@@ -16,7 +16,6 @@ import {
   type ValidateSnippetAnchor,
 } from '../../content/public.js';
 import { READ_VISITED_ASSETS, type ReadVisitedAssets } from '../../experience/public.js';
-import { READ_ROOM_REPORTS, type ReadRoomReports } from '../../feedback/public.js';
 import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
@@ -46,8 +45,10 @@ import { contributeQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
   READ_REPORTABLE_ROOM_MESSAGE,
+  READ_ROOM_REPORTS,
   ROOM_USE_CASES,
   type ContributeAsInhabitant,
+  type ReadRoomReports,
   type RoomUseCases,
 } from '../public.js';
 import { activityStore } from './postgres-activities.js';

@@ -458,6 +458,75 @@ describe('actual encounter controller over CI transport fixtures', () => {
   });
 });
 
+describe('Not interested from the encounter (P03, D-055)', () => {
+  it('saves first, closes the sheet, moves on, and Undo returns to the subject left behind', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      h.session.setOverlay(true);
+      await expect(h.session.notInterested()).resolves.toBe(true);
+      expect(h.session.getState().overlay).toBe(false);
+      expect(commands(h, '/not-interested')).toHaveLength(1);
+      expect(commands(h, '/not-interested')[0]!.body).toMatchObject({ assetId: first.offer.assetId });
+      await waitFor(() => expect(commands(h, '/navigate')).toHaveLength(1));
+      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({ mode: 'vertical', direction: 'next' });
+      await waitFor(() => expect(h.session.getState().entry?.exposureId).not.toBe(first.exposureId));
+      expect(h.session.feedback.getState().notInterested).toMatchObject({ status: 'acknowledged' });
+
+      await expect(h.session.undoNotInterested()).resolves.toBe(true);
+      expect(commands(h, '/not-interested/undo')).toHaveLength(1);
+      expect(commands(h, '/not-interested/undo')[0]!.body).toMatchObject({ assetId: first.offer.assetId });
+      expect(h.session.getState().entry?.exposureId).toBe(first.exposureId);
+      // Taking it back is not a new encounter: nothing was activated again.
+      expect(commands(h, '/activate')).toHaveLength(2);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('moves nothing and keeps the sheet open when the save is not confirmed, and Retry repeats the same command', async () => {
+    const h = harness();
+    try {
+      const first = await ready(h);
+      h.setFeedbackFailure(true);
+      h.session.setOverlay(true);
+      await expect(h.session.notInterested()).resolves.toBe(false);
+      expect(h.session.getState().overlay).toBe(true);
+      expect(h.session.getState().entry?.exposureId).toBe(first.exposureId);
+      expect(commands(h, '/navigate')).toHaveLength(0);
+      expect(h.session.feedback.getState().notInterested).toMatchObject({ status: 'failed', step: 'mark' });
+
+      h.setFeedbackFailure(false);
+      await expect(h.session.retryNotInterested()).resolves.toBe(true);
+      const sent = commands(h, '/not-interested');
+      expect(sent).toHaveLength(2);
+      expect(sent[1]!.body.commandId).toBe(sent[0]!.body.commandId);
+      expect(h.session.getState().overlay).toBe(false);
+      await waitFor(() => expect(commands(h, '/navigate')).toHaveLength(1));
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('opens the report menu as its own overlay owner and a form directly from the ⋯ menu', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      h.session.openFeedback();
+      expect(h.session.getState()).toMatchObject({ overlay: true, overlayOwner: 'feedback', feedbackStart: 'menu' });
+      h.session.setOverlay(false);
+      h.session.openFeedback('abuse');
+      expect(h.session.getState()).toMatchObject({ overlay: true, overlayOwner: 'feedback', feedbackStart: 'abuse' });
+      h.session.setOverlay(false);
+      expect(h.session.getState()).toMatchObject({ overlay: false, overlayOwner: undefined, feedbackStart: undefined });
+      // Opening the menu or a form sends nothing: only Send does.
+      expect(h.calls.filter((call) => call.path.startsWith('/v1/feedback'))).toHaveLength(0);
+    } finally {
+      h.scope.end();
+    }
+  });
+});
+
 describe('request overlay ownership', () => {
   it('parks before opening, creates no encounter or observations, and Back restores paused sound/position', async () => {
     const h = harness();

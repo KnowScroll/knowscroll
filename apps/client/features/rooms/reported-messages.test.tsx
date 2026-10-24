@@ -21,7 +21,7 @@ const report = {
   lastReportedAt: '2026-10-24T09:30:00.000Z',
 };
 
-async function show(reports: jest.Mock) {
+async function show(reports: (input: unknown) => Promise<unknown>) {
   const scope = { active: true, api: { rooms: { reports } } } as unknown as AccountScope;
   await render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
@@ -36,7 +36,7 @@ describe('the reported messages a moderator sees', () => {
   it('lists each message with its reasons and how often, and opens its discussion', async () => {
     const reports = jest.fn(() => Promise.resolve({ reports: [report] }));
     await show(reports);
-    expect(reports).toHaveBeenCalledWith({ version: 'rooms.v1', readId: expect.any(String), roomId });
+    expect(reports).toHaveBeenCalledWith({ version: 'rooms.v1', readId: expect.any(String) as string, roomId });
     const row = await screen.findByRole('link', {
       name: 'Message 4 in Where should it run?, reported 2 times',
     });
