@@ -65,6 +65,12 @@ ks_v2_cartographer_enabled_worlds: [dev]
 # Worlds whose worker asks Jev for a semantic assessment while preparing Explore buffers
 # (KS_JEV_ENABLED=1, #234). Without it, ranking uses the deterministic semantic fit.
 ks_v2_jev_enabled_worlds: [dev]
+# The share, in whole percent, of the global and the per-person daily model caps that background roles
+# (Jev, Cartographer, Planner: they run because a person read or swiped) may use together
+# (KS_REASONING_BACKGROUND_SHARE_PERCENT, #231, D-058). The rest is kept for what a person asks for: What-if,
+# a room ask, request matching, Scroll production. A world not listed gets the default of 50. The caps
+# themselves (300 requests a day for the world, 60 per person) stay at their defaults.
+ks_v2_reasoning_background_share_percent: { dev: 50 }
 # Worlds whose worker may run Scroll production (KS_REASONING_PRODUCTION_ENABLED=1, #232/#239). The
 # database root `reasoning.production_scopes` must also be enabled by an operator; both default off.
 ks_v2_production_enabled_worlds: [dev]

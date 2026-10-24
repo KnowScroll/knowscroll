@@ -16,17 +16,27 @@ import {
   composerBufferStore,
   composerBufferWorkerProviders,
   composerProviders,
+  jevPoolStore,
   makeComposerStore,
 } from '@knowscroll/backend/modules/composer/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceBufferSourceProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { READ_COMPOSER_CONTEXT } from '@knowscroll/backend/modules/personal-context';
 import { REASONING_HARNESS } from '@knowscroll/backend/reasoning';
-import { guardedModelPort } from '@knowscroll/backend/reasoning/nest-providers';
+import { guardedModelPort, type HarnessSettings } from '@knowscroll/backend/reasoning/nest-providers';
 import type { NavigationOutcome } from '@knowscroll/contracts';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureModelPort, type FixtureModelPort, type FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureHarness } from '../support/fixture-model.js';
+import {
+  attemptsOf,
+  echoRole,
+  fixtureContext,
+  fixtureHarness,
+  fixtureRun,
+  fixtureSettings,
+  signal,
+  systemAuthority,
+} from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { buildFromProviders } from '../support/providers.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
@@ -69,8 +79,11 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
   }
 
   /** The worker side, built from the real providers over the real harness; only the model is a fixture. */
-  function workerFor(jev?: { readonly model: FixtureModelPort }): { prepare: PrepareBuffer; calls: () => number } {
-    const { harness } = fixtureHarness(database.db, { model: jev?.model });
+  function workerFor(
+    jev?: { readonly model: FixtureModelPort },
+    settings?: HarnessSettings,
+  ): { prepare: PrepareBuffer; calls: () => number; harness: ReturnType<typeof fixtureHarness>['harness'] } {
+    const { harness } = fixtureHarness(database.db, { model: jev?.model, ...(settings ? { settings } : {}) });
     const values = new Map<symbol, unknown>([
       [WITH_SCOPE, withScope()],
       [WORKER_CONFIG, { jevEnabled: jev !== undefined, reasoning: { minimax: { model: 'fixture-model-v1' } } }],
@@ -86,6 +99,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
     return {
       prepare: buildFromProviders(providers, PREPARE_COMPOSER_BUFFER, values) as PrepareBuffer,
       calls: () => jev?.model.calls.length ?? 0,
+      harness,
     };
   }
 
@@ -664,6 +678,385 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       await openAndActivate(another);
       expect(await run(off, (await jobsFor(another.universeId))[0]!)).toMatchObject({ kind: 'prepared', jev: 'off' });
       expect(off.calls()).toBe(0);
+    });
+  });
+
+  describe('Jev reuses what it already paid for (D-058)', () => {
+    const SUBJECT_TOPIC = 'ci.jev.subject';
+    const attributeToSubject = () =>
+      sql`insert into content.encounter_topics(asset_id,asset_revision,topic_id,role,weight)
+        select a.id,a.revision,${SUBJECT_TOPIC},'primary',1 from content.assets a
+        where not exists (select 1 from content.encounter_topics t where t.asset_id=a.id and t.asset_revision=a.revision)`.execute(
+        database.db,
+      );
+    // A clean library of six explanations on one subject, fewer than a shortlist holds, so every eligible
+    // candidate is always on it and a test decides exactly which one is new. The Scrolls of the tests above
+    // are withdrawn and carried no topic, which would make each step its own subject.
+    beforeAll(async () => {
+      await sql`update content.assets set status='withdrawn'`.execute(database.db);
+      for (const title of ['Rivers', 'Tides', 'Volcanoes', 'Deserts', 'Forests', 'Reefs']) await admit(title);
+      await attributeToSubject();
+    });
+    const fitting = (refs: readonly string[]) => scores(() => [0.8, 0.7, 0.1])(refs);
+    /** The universe's Jev assessments as stored, newest first. */
+    const poolOf = async (universeId: string) =>
+      (
+        await sql<{
+          role_version: string;
+          model: string;
+          entries: { subject: string; assetId: string; assessedAt: string }[];
+        }>`select role_version,model,entries from composer.jev_assessments where universe_id=${universeId}::uuid`.execute(
+          database.db,
+        )
+      ).rows[0];
+    /** Moves every stored assessment `minutes` into the past, as if that much time had gone by. */
+    const ageAssessments = (universeId: string, minutes: number) =>
+      sql`update composer.jev_assessments set entries=(
+          select jsonb_agg(jsonb_set(entry,'{assessedAt}',to_jsonb(to_char(
+            ((entry->>'assessedAt')::timestamptz - make_interval(mins=>${minutes}::int)) at time zone 'UTC',
+            'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))))
+          from jsonb_array_elements(entries) entry)
+        where universe_id=${universeId}::uuid`.execute(database.db);
+    const latestJob = async (universeId: string) => (await jobsFor(universeId)).at(-1)!;
+    const jevRuns = async (universeId: string) =>
+      Number(
+        (
+          await sql<{
+            n: string;
+          }>`select count(*) as n from reasoning.business_runs where universe_id=${universeId}::uuid and purpose='jev-assessment'`.execute(
+            database.db,
+          )
+        ).rows[0]?.n ?? 0,
+      );
+    /** The refs of the candidates one fixture call was asked to assess. */
+    const askedAbout = (model: FixtureModelPort, call: number) =>
+      [...model.calls[call]!.request.user.matchAll(/ref="(c\d+)"/g)].map((match) => match[1]!);
+
+    it('a steady swiper pays for one assessment, not one per swipe', async () => {
+      const person = await seedPerson(database.db);
+      const model = jevModel(fitting);
+      const worker = workerFor({ model });
+      let { open, from } = await openAndActivate(person);
+      const results = [await run(worker, await latestJob(person.universeId))];
+      // 100 activations in the hour: each opens the next subject, activates it and has its buffer prepared.
+      for (let swipe = 1; swipe < 100; swipe += 1) {
+        const next = ready(await nextSubject(person, open, from));
+        ({ from } = await activate(person, next));
+        open = next;
+        results.push(await run(worker, await latestJob(person.universeId)));
+      }
+      expect(results.map((result) => (result.kind === 'prepared' ? result.jev : result.kind))).toEqual([
+        'assessed',
+        ...Array.from({ length: 99 }, () => 'reused'),
+      ]);
+      expect(worker.calls()).toBe(1);
+      // Only the one call reached the ledger, and only it started a Jev run.
+      expect(await jevRuns(person.universeId)).toBe(1);
+      expect(await attemptsOf(database.db, person.universeId)).toHaveLength(1);
+      // Every preparation still ranked with the stored assessments, not from the baseline alone.
+      const buffer = (await bufferOf(person.universeId))!;
+      expect(buffer.assessments?.entries.length).toBeGreaterThan(1);
+      expect((await decisionPayload(buffer.decision_id))?.input.semanticAssessments?.entries.length).toBeGreaterThan(1);
+    }, 120_000);
+
+    it('sends only the candidates without an assessment, once the subject’s last call is old enough', async () => {
+      const person = await seedPerson(database.db);
+      const model = jevModel(fitting);
+      const worker = workerFor({ model });
+      await openAndActivate(person);
+      await run(worker, await latestJob(person.universeId));
+      const first = askedAbout(model, 0);
+      expect(first.length).toBeGreaterThan(1);
+      const stored = (await poolOf(person.universeId))!.entries.map((entry) => entry.assetId).sort();
+      expect(stored).toHaveLength(first.length);
+
+      // A new explanation arrives. Right after the last call it is ranked as unassessed, not paid for.
+      await admit('Glaciers and ice sheets');
+      await attributeToSubject();
+      await expireBuffer(person.universeId);
+      expect(await run(worker, await latestJob(person.universeId))).toMatchObject({
+        kind: 'prepared',
+        jev: 'reused',
+        jevReason: 'recently_assessed',
+      });
+      expect(worker.calls()).toBe(1);
+
+      // Once the interval has passed, only the new one is sent.
+      await ageAssessments(person.universeId, 11);
+      await expireBuffer(person.universeId);
+      expect(await run(worker, await latestJob(person.universeId))).toMatchObject({
+        kind: 'prepared',
+        jev: 'assessed',
+      });
+      expect(worker.calls()).toBe(2);
+      expect(askedAbout(model, 1)).toEqual(['c1']);
+      expect((await poolOf(person.universeId))!.entries).toHaveLength(stored.length + 1);
+    });
+
+    it('asks again about everything once the assessments are 30 minutes old', async () => {
+      const person = await seedPerson(database.db);
+      const model = jevModel(fitting);
+      const worker = workerFor({ model });
+      await openAndActivate(person);
+      await run(worker, await latestJob(person.universeId));
+      const first = askedAbout(model, 0);
+      await ageAssessments(person.universeId, 31);
+      await expireBuffer(person.universeId);
+      expect(await run(worker, await latestJob(person.universeId))).toMatchObject({
+        kind: 'prepared',
+        jev: 'assessed',
+      });
+      expect(askedAbout(model, 1)).toHaveLength(first.length);
+      expect((await poolOf(person.universeId))!.entries).toHaveLength(first.length);
+    });
+
+    it('never reuses an assessment made for another subject, role version or model', async () => {
+      const person = await seedPerson(database.db);
+      const model = jevModel(fitting);
+      const worker = workerFor({ model });
+      await openAndActivate(person);
+      await run(worker, await latestJob(person.universeId));
+      expect(worker.calls()).toBe(1);
+
+      await sql`update composer.jev_assessments set entries=(select jsonb_agg(jsonb_set(entry,'{subject}','"en|topic:elsewhere"')) from jsonb_array_elements(entries) entry) where universe_id=${person.universeId}::uuid`.execute(
+        database.db,
+      );
+      await expireBuffer(person.universeId);
+      await run(worker, await latestJob(person.universeId));
+      expect(worker.calls()).toBe(2);
+      // The other subject's entries stay for their own half hour; this subject's are new.
+      expect(new Set((await poolOf(person.universeId))!.entries.map((entry) => entry.subject)).size).toBe(2);
+
+      await sql`update composer.jev_assessments set role_version='jev.0/hp1' where universe_id=${person.universeId}::uuid`.execute(
+        database.db,
+      );
+      await expireBuffer(person.universeId);
+      await run(worker, await latestJob(person.universeId));
+      expect(worker.calls()).toBe(3);
+      expect((await poolOf(person.universeId))!.role_version).toBe('jev.1/hp2');
+
+      await sql`update composer.jev_assessments set model='another-model' where universe_id=${person.universeId}::uuid`.execute(
+        database.db,
+      );
+      await expireBuffer(person.universeId);
+      await run(worker, await latestJob(person.universeId));
+      expect(worker.calls()).toBe(4);
+      expect((await poolOf(person.universeId))!.model).toBe('fixture-model-v1');
+    });
+
+    it('with the background share spent Jev falls back to the deterministic ranking, and a stored assessment still counts', async () => {
+      const spent: HarnessSettings = { ...fixtureSettings, backgroundSharePercent: 0 };
+      // A person with nothing stored: no call is admitted, the buffer is prepared from the baseline.
+      const fresh = await seedPerson(database.db);
+      await openAndActivate(fresh);
+      const refused = jevModel(fitting);
+      const bare = workerFor({ model: refused }, spent);
+      const freshJob = await latestJob(fresh.universeId);
+      const jobId = randomUUID();
+      expect(await bare.prepare(freshJob, { jobId, signal: new AbortController().signal })).toMatchObject({
+        kind: 'prepared',
+        jev: 'absent',
+        jevReason: 'budget_exhausted',
+      });
+      expect(refused.calls).toHaveLength(0);
+      expect(await attemptsOf(database.db, fresh.universeId)).toEqual([]);
+      const buffer = (await bufferOf(fresh.universeId))!;
+      expect(buffer.assessments).toBeNull();
+      expect(buffer.selection.length).toBeGreaterThan(0);
+      expect((await decisionPayload(buffer.decision_id))?.input.semanticAssessments).toBeUndefined();
+      // The run it opened ends cancelled, so nothing is left waiting.
+      expect(
+        (
+          await sql<{
+            state: string;
+          }>`select state from reasoning.business_runs where id=${jobId}::uuid`.execute(database.db)
+        ).rows[0]?.state,
+      ).toBe('cancelled');
+      // What a person asks for is untouched by the spent background share: it is admitted and sent (the
+      // Jev fixture model's answer is not the echo this role wants, which is beside the point here).
+      const asked = await bare.harness.propose(
+        {
+          run: fixtureRun(systemAuthority(fresh.universeId)),
+          role: echoRole,
+          context: fixtureContext,
+          limits: { allowRepair: false },
+        },
+        signal(),
+      );
+      expect(asked.kind).not.toBe('budget_exhausted');
+      expect(refused.calls).toHaveLength(1);
+      expect(await attemptsOf(database.db, fresh.universeId)).toHaveLength(1);
+
+      // A person who already has assessments keeps using them while a new call is refused.
+      const person = await seedPerson(database.db);
+      await openAndActivate(person);
+      await run(workerFor({ model: jevModel(fitting) }), await latestJob(person.universeId));
+      await admit('Canyons and gorges');
+      await attributeToSubject();
+      await ageAssessments(person.universeId, 11);
+      await expireBuffer(person.universeId);
+      const denied = jevModel(fitting);
+      expect(await run(workerFor({ model: denied }, spent), await latestJob(person.universeId))).toMatchObject({
+        kind: 'prepared',
+        jev: 'absent',
+        jevReason: 'budget_exhausted',
+      });
+      expect(denied.calls).toHaveLength(0);
+      const kept = (await bufferOf(person.universeId))!;
+      expect(kept.assessments?.entries.length).toBeGreaterThan(1);
+      expect((await decisionPayload(kept.decision_id))?.input.semanticAssessments?.entries.length).toBeGreaterThan(1);
+    });
+
+    it('a job whose session moved on during the call still keeps what it paid for', async () => {
+      const person = await seedPerson(database.db);
+      let { open, from } = await openAndActivate(person);
+      const job = await latestJob(person.universeId);
+      let moved = false;
+      const model = guardedModelPort(
+        fixtureModelPort({
+          label: 'composer-buffers',
+          model: 'fixture-model-v1',
+          script: async (call) => {
+            if (!moved) {
+              moved = true;
+              // While the model is thinking, the person swipes on: the preparation is superseded.
+              const next = ready(await nextSubject(person, open, from));
+              ({ from } = await activate(person, next));
+              open = next;
+            }
+            return fitting([...call.request.user.matchAll(/ref="(c\d+)"/g)].map((match) => match[1]!));
+          },
+        }),
+      );
+      const worker = workerFor({ model });
+      const jobId = randomUUID();
+      expect(await worker.prepare(job, { jobId, signal: new AbortController().signal })).toEqual({
+        kind: 'skipped',
+        reason: 'session_superseded',
+      });
+      expect((await poolOf(person.universeId))!.entries.length).toBeGreaterThan(1);
+      expect(
+        (
+          await sql<{
+            state: string;
+          }>`select state from reasoning.business_runs where id=${jobId}::uuid`.execute(database.db)
+        ).rows[0]?.state,
+      ).toBe('completed');
+      // The next preparation uses them instead of paying again.
+      expect(await run(worker, await latestJob(person.universeId))).toMatchObject({ kind: 'prepared', jev: 'reused' });
+      expect(worker.calls()).toBe(1);
+    });
+
+    it('concurrent preparations of one person merge their assessments instead of losing each other’s', async () => {
+      const person = await seedPerson(database.db);
+      const added = (index: number) => ({
+        roleVersion: 'jev.1/hp2',
+        model: 'fixture-model-v1',
+        entries: [
+          {
+            subject: 'en|topic:rivers',
+            assetId: `merge-asset-${String(index)}`,
+            assetRevision: 1,
+            relevance: 0.5,
+            appropriateness: 0.5,
+            redundancy: 0.5,
+            assessedAt: new Date().toISOString(),
+          },
+        ],
+      });
+      const stored = await Promise.all(
+        Array.from({ length: 8 }, (_, index) =>
+          withScope()(person.authority, (scope) => jevPoolStore.store(scope, added(index), new Date())),
+        ),
+      );
+      expect(stored.every((outcome) => outcome.kind === 'entered')).toBe(true);
+      expect((await poolOf(person.universeId))!.entries.map((entry) => entry.assetId).sort()).toEqual(
+        Array.from({ length: 8 }, (_, index) => `merge-asset-${String(index)}`),
+      );
+    });
+
+    it('a pool of an earlier privacy epoch is never read', async () => {
+      const person = await seedPerson(database.db);
+      await withScope()(person.authority, (scope) =>
+        jevPoolStore.store(
+          scope,
+          {
+            roleVersion: 'jev.1/hp2',
+            model: 'fixture-model-v1',
+            entries: [
+              {
+                subject: 'en|topic:rivers',
+                assetId: 'epoch-asset',
+                assetRevision: 1,
+                relevance: 0.5,
+                appropriateness: 0.5,
+                redundancy: 0.5,
+                assessedAt: new Date().toISOString(),
+              },
+            ],
+          },
+          new Date(),
+        ),
+      );
+      const read = (epoch: number) =>
+        withScope()({ ...person.authority, privacyEpoch: epoch }, (scope) => jevPoolStore.read(scope));
+      expect(await read(1)).toMatchObject({ kind: 'entered', value: { entries: [{ assetId: 'epoch-asset' }] } });
+      await database.db
+        .updateTable('identity.universes')
+        .set({ privacy_epoch: 2 })
+        .where('id', '=', person.universeId)
+        .execute();
+      expect(await read(2)).toMatchObject({ kind: 'entered', value: undefined });
+    });
+
+    it('the expired-row purge sweeps a pool with no entry left and keeps one that can still be used', async () => {
+      const person = await seedPerson(database.db);
+      const entry = (assetId: string) => ({
+        subject: 'en|topic:rivers',
+        assetId,
+        assetRevision: 1,
+        relevance: 0.5,
+        appropriateness: 0.5,
+        redundancy: 0.5,
+        assessedAt: new Date().toISOString(),
+      });
+      const pool = {
+        roleVersion: 'jev.1/hp2',
+        model: 'fixture-model-v1',
+        entries: [entry('purge-a'), entry('purge-b')],
+      };
+      const purge = () => withScope()(person.authority, (scope) => composerBufferStore.purgeExpired(scope, new Date()));
+      await withScope()(person.authority, (scope) => jevPoolStore.store(scope, pool, new Date()));
+      await purge();
+      expect(await poolOf(person.universeId)).toBeDefined();
+
+      // One entry past its 30 minutes does not matter while another can still be used.
+      await sql`update composer.jev_assessments set entries=jsonb_set(entries,'{0,assessedAt}',to_jsonb(to_char(
+          (now() - interval '31 minutes') at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
+        where universe_id=${person.universeId}::uuid`.execute(database.db);
+      await purge();
+      expect(await poolOf(person.universeId)).toBeDefined();
+
+      // Once every entry has lapsed the row goes, from a navigation's purge or from pruning.
+      await ageAssessments(person.universeId, 31);
+      await purge();
+      expect(await poolOf(person.universeId)).toBeUndefined();
+      await withScope()(person.authority, (scope) => jevPoolStore.store(scope, pool, new Date()));
+      await ageAssessments(person.universeId, 31);
+      await withScope()(person.authority, (scope) =>
+        makeComposerStore({ isOperator: () => true }).pruneComposerDecisions(scope, 100),
+      );
+      expect(await poolOf(person.universeId)).toBeUndefined();
+    });
+
+    it('Clear and full erasure remove the stored assessments with the rest of Composer’s store', async () => {
+      const person = await seedPerson(database.db);
+      await openAndActivate(person);
+      await run(workerFor({ model: jevModel(fitting) }), await latestJob(person.universeId));
+      expect(await poolOf(person.universeId)).toBeDefined();
+      const entered = await withScope()(person.authority, (scope) => eraseUniverse(scope, personalStores));
+      expect(entered.kind).toBe('entered');
+      expect(await poolOf(person.universeId)).toBeUndefined();
     });
   });
 });

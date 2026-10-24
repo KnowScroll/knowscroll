@@ -83,6 +83,7 @@ const PURGE_INTERVAL_MS = 15 * 60 * 1000;
 export function harnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
   return {
     caps: { global: settings.caps.global, scope: settings.caps.scope, roleDefault: settings.caps.roleDefault },
+    backgroundSharePercent: settings.backgroundSharePercent,
     maxRequestBytes: settings.maxRequestBytes,
     requestRetentionSeconds: settings.requestRetentionSeconds,
     purgeIntervalMs: PURGE_INTERVAL_MS,

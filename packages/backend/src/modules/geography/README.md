@@ -129,8 +129,10 @@ Context, Content's concept catalogue and Identity through their `public.ts`.
 `KS_CARTOGRAPHER_ENABLED=1` on the worker switches the role on (default 0). It is the only switch.
 Spend is bounded by the shared reasoning budgets and by the role's failure brake: five failed runs
 per UTC day stop its model calls, and the rules still form places. Runs are paced 30 seconds apart
-(`RUN_INTERVAL_MS` in `domain/pacing.ts`). The worker also needs
-`KS_REASONING_PROVIDER=minimax` and `MINIMAX_API_KEY`. With the switch off, a claimed run is
+(`RUN_INTERVAL_MS` in `domain/pacing.ts`). The role is a background role (D-058): it also stops at
+its share of the global and the person's daily budgets (`KS_REASONING_BACKGROUND_SHARE_PERCENT`, default 50),
+so a person who only reads keeps the rest of their allowance for what they ask for, and the rules still
+form places. The worker also needs `KS_REASONING_PROVIDER=minimax` and `MINIMAX_API_KEY`. With the switch off, a claimed run is
 released as `insufficient/disabled` without a model call and the person's cartography is not
 stranded: reading after the switch is on starts a new run. A run that older code parked as
 `blocked` with outcome `disabled` or `provider_unavailable` restarts on the next material change.

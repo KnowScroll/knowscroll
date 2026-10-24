@@ -16,7 +16,14 @@ import {
 import { plannerStore, makeCheckPlannerRecordingRun } from '@knowscroll/backend/modules/planner/nest-providers';
 import { personalRecordingReasoningHarnessFor } from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureHarness, fixtureSettings, silent, attemptsOf, signal } from '../support/fixture-model.js';
+import {
+  fixtureHarness,
+  fixtureSettings,
+  silent,
+  attemptsOf,
+  receiptClassesOf,
+  signal,
+} from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
 
@@ -795,6 +802,10 @@ describe('Geography current trusted-coverage consumer (real PostgreSQL CI fixtur
     await r.run(await job(p, s.activeRunId!), signal());
     expect(r.model.calls).toHaveLength(1);
     expect((await attemptsOf(database.db, p.universeId)).map((a) => a.state)).toEqual(['unknown']);
+    // The Cartographer runs because the person read, so its attempt counts against the background share.
+    expect(await receiptClassesOf(database.db, p.universeId)).toEqual([
+      { role_id: 'geography.cartographer', background: true },
+    ]);
     const suspended = await seedPerson(database.db);
     await coherent(suspended);
     const susp = runner(suspended),

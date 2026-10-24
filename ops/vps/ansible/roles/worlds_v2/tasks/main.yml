@@ -171,6 +171,10 @@
       KS_CARTOGRAPHER_ENABLED={{ '1' if item.name in ks_v2_cartographer_enabled_worlds else '0' }}
       # Worker only: Jev assesses Explore buffer shortlists (#234).
       KS_JEV_ENABLED={{ '1' if item.name in ks_v2_jev_enabled_worlds else '0' }}
+      # Worker and production operator only: the share of the global and per-person daily model caps that
+      # background roles (Jev, Cartographer, Planner) may use; the rest is kept for what a person asks for
+      # (#231, D-058).
+      KS_REASONING_BACKGROUND_SHARE_PERCENT={{ ks_v2_reasoning_background_share_percent[item.name] | default(50) }}
       # Worker and production operator only: Scroll production may run (#232, #239). The database
       # root reasoning.production_scopes must be enabled too.
       KS_REASONING_PRODUCTION_ENABLED={{ '1' if item.name in ks_v2_production_enabled_worlds else '0' }}

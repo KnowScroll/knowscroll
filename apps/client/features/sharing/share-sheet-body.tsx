@@ -13,6 +13,8 @@ export interface ShareSheetBodyProps {
   readonly target: ConversationContentRef;
   /** The title of what is shared. */
   readonly title: string;
+  /** Whether it is a Reel or a Scroll. */
+  readonly kind: 'reel' | 'scroll';
   /** Closes the sheet, restoring playback. Called before the app leaves for a conversation. */
   readonly onClose: () => void;
 }
@@ -23,7 +25,7 @@ export interface ShareSheetBodyProps {
  * restores it in `onClose` and keeps the sheet out of Back history (D-006 k). Opening a conversation or a thread
  * closes the sheet first, then navigates once the browser has finished that Back.
  */
-export function ShareSheetBody({ target, title, onClose }: ShareSheetBodyProps) {
+export function ShareSheetBody({ target, title, kind, onClose }: ShareSheetBodyProps) {
   const router = useRouter();
   const { state } = useAccountScope();
   const origin = appApiOrigin();
@@ -34,6 +36,7 @@ export function ShareSheetBody({ target, title, onClose }: ShareSheetBodyProps) 
       scope={state.scope}
       target={target}
       title={title}
+      kind={kind}
       origin={origin.baseUrl}
       onClose={onClose}
       onOpenConversation={(conversation) => {
