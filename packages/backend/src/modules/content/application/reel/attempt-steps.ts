@@ -24,6 +24,28 @@ export function summaryOf(attempt: ReelAttemptRecord): AttemptSummary {
   };
 }
 
+/**
+ * Whether an attempt still needs a person or a command: it has not been sent, may have been sent,
+ * is running, is waiting to be settled, or holds a claim that has not been given back. A written-off
+ * attempt is a decision already taken and counts as ended.
+ */
+export function isOpen(attempt: ReelAttemptRecord): boolean {
+  switch (attempt.state) {
+    case 'reserved':
+    case 'dispatched':
+    case 'unknown':
+      return true;
+    case 'succeeded':
+    case 'reconciled':
+      return attempt.finished === null || (attempt.paid && attempt.poolState !== 'settled');
+    case 'not_sent':
+    case 'failed':
+      return attempt.poolState === 'claimed';
+    case 'written_off':
+      return false;
+  }
+}
+
 export function poolIdentityOf(world: string, order: ReelOrderRecord, attempt: ReelAttemptRecord): PoolIdentity {
   return {
     requestId: attempt.requestId,

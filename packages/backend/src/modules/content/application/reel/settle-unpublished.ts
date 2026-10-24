@@ -1,10 +1,9 @@
 import { summaryOf, type AttemptSummary } from './attempt-steps.js';
-import { reelScriptDigest } from '../../domain/reel/request.js';
 import type { ReelUntil } from '../../domain/reel/script.js';
 import type { ReelPorts } from './ports.js';
 
 export type SettleUnpublishedResult =
-  | { readonly kind: 'refused'; readonly code: 'script_unknown' | 'no_attempt' | 'not_settleable' | 'pool_unavailable' }
+  | { readonly kind: 'refused'; readonly code: 'no_attempt' | 'not_settleable' | 'pool_unavailable' }
   | { readonly kind: 'settled'; readonly attempt: AttemptSummary; readonly costCents: number };
 
 /**
@@ -18,9 +17,7 @@ export function makeSettleUnpublished(p: ReelPorts) {
     readonly scriptName: string;
     readonly until: ReelUntil;
   }): Promise<SettleUnpublishedResult> => {
-    const script = p.scripts.get(command.scriptName);
-    if (script === undefined) return { kind: 'refused', code: 'script_unknown' };
-    const order = await p.ledger.findOrder(reelScriptDigest(script, command.until, p.sha256));
+    const order = await p.ledger.latestOrderOf(command.scriptName, command.until);
     const attempt = order && (await p.ledger.attemptsOf(order.id)).at(-1);
     if (!order || !attempt) return { kind: 'refused', code: 'no_attempt' };
     const facts = attempt.finished;

@@ -79,5 +79,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0051_recording_witness_without_digest',
     sha256: 'ed8656fe555082e5e8c8bd98b11edb1dd7959ba330cd6f1f273f788833016805',
   },
-  { name: '0053_reel_orders', sha256: 'c620770249c92050d92a2754ea505918e26b39f0005b7201fdd990c0c5e5dc93' },
+  { name: '0053_reel_orders', sha256: 'f3ff58a1dfb687c86d29686ed17dc97223fb40971fd7479d707a6f9e99ab8f52' },
 ];

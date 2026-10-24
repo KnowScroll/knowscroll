@@ -5,7 +5,14 @@ import {
   type ReelScript,
   type ReelUntil,
 } from '../../domain/reel/script.js';
-import { poolIdentityOf, reconcileAttempt, releaseClaim, summaryOf, type AttemptSummary } from './attempt-steps.js';
+import {
+  isOpen,
+  poolIdentityOf,
+  reconcileAttempt,
+  releaseClaim,
+  summaryOf,
+  type AttemptSummary,
+} from './attempt-steps.js';
 import { checkAgainstWorld, lintScript, type ScriptRefusal } from './assess.js';
 import type { ReelAttemptRecord, ReelOrderRecord, ReelPorts } from './ports.js';
 
@@ -22,6 +29,7 @@ export type OrderRefusalCode =
   | ScriptRefusal['code']
   | 'ceiling_invalid'
   | 'already_published'
+  | 'earlier_order_open'
   | 'last_attempt_ended'
   | 'engine_not_ready'
   | 'engine_refused'
@@ -94,6 +102,17 @@ function nextStep(order: ReelOrderRecord, attempts: readonly ReelAttemptRecord[]
       return ended(latest.finished.outcome);
     }
   }
+}
+
+/**
+ * An earlier order under this name, made from different content, whose last attempt has not
+ * ended. Changing a script must not leave a request unfollowed and its money unsettled.
+ */
+async function openEarlierOrder(p: ReelPorts, scriptName: string, until: ReelUntil, scriptSha256: string) {
+  const latest = await p.ledger.latestOrderOf(scriptName, until);
+  if (latest === undefined || latest.scriptSha256 === scriptSha256 || latest.assetId !== null) return undefined;
+  const last = (await p.ledger.attemptsOf(latest.id)).at(-1);
+  return last !== undefined && isOpen(last) ? { orderId: latest.id, attempt: last } : undefined;
 }
 
 /** The next take: past every take this world and the shared pool already know of. */
@@ -273,12 +292,15 @@ export function makeOrderReel(p: ReelPorts) {
     if (world.kind === 'refused') return refusedByScript(world);
     const { script } = linted.linted;
     const scriptSha256 = reelScriptDigest(script, command.until, p.sha256);
+    const earlier = await openEarlierOrder(p, command.scriptName, command.until, scriptSha256);
+    if (earlier !== undefined) return refused('earlier_order_open', earlier.attempt, { orderId: earlier.orderId });
     const order = await p.ledger.ensureOrder({
       scriptName: command.scriptName,
       recipeKey: script.recipe,
       until: command.until,
       scriptSha256,
       approvalRef: approvalReference(script),
+      script,
     });
     const attempts = await p.ledger.attemptsOf(order.id);
     const next = nextStep(order, attempts, command.retake);

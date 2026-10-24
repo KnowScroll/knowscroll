@@ -15,14 +15,14 @@ the plan grows, and every edit changes the digest. Each binding pins its own fac
 When a read finds a binding whose facet has vanished or changed meaning, it leaves that binding out of
 the returned mapping (the facet is unmapped), and never throws. Target identity and locators must
 still fit the immutable document, and a mismatch there is corrupt data and throws. Geography ignores
-supports whose meaning changed in the same way. *Implemented.*
+supports whose meaning changed in the same way. _Implemented._
 
 After a plan edit, the operator runs `dist/operator.js content readmit-coverage [--dry-run]`. It
 decides coverage again for every published generated Scroll revision through `admitRecipeCoverage`,
 one short transaction each: an unchanged decision appends nothing, a changed one appends a corrected
 head, and history is kept. It prints counts (`considered`, `appended`, `unchanged`, `skipped`). It
 uses shared content only (no provider, personal root or network) and is refused outside the operator
-worlds. *Implemented; not yet run against dev.*
+worlds. _Implemented; not yet run against dev._
 
 ## Scroll coverage
 
@@ -101,15 +101,15 @@ leaves it), and nothing here records who read what.
 
 ## Tables
 
-| Table                                                   | Migration                                  | Holds                                                                                                                                                                                                                                                                             | Erasure                    |
-| ------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `content.assets`                                        | `0003_content_assets`                      | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`withdrawn`) and the **current** revision                                                                                                                                                                          | None: shared content       |
-| `content.asset_revisions`                               | `0010_content_asset_revisions`             | One immutable row per admitted revision: `provenance_kind` (`authored_editorial` · `generated` · `cutroom_import`, D-005), the consumer document (`document_version`, `document`, `document_sha256`), `explanation_unit_id`, `language`, `title`, and the derived `reading_facts` | None: shared content       |
-| `content.asset_provenance`                              | `0010_content_asset_revisions`             | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them                            | None: shared content       |
-| `content.scroll_production_runs`                        | `0015_scroll_production`, key shape `0045` | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port                                                                                                                  | None: shared public supply |
-| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                    | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
-| `content.reel_orders` / `content.reel_attempts` | `0053_reel_orders` | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom" | None: shared public |
-| `content.media_objects` / `content.reel_imports` | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision | None: shared content |
+| Table                                                   | Migration                                        | Holds                                                                                                                                                                                                                                                                             | Erasure                    |
+| ------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `content.assets`                                        | `0003_content_assets`                            | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`withdrawn`) and the **current** revision                                                                                                                                                                          | None: shared content       |
+| `content.asset_revisions`                               | `0010_content_asset_revisions`                   | One immutable row per admitted revision: `provenance_kind` (`authored_editorial` · `generated` · `cutroom_import`, D-005), the consumer document (`document_version`, `document`, `document_sha256`), `explanation_unit_id`, `language`, `title`, and the derived `reading_facts` | None: shared content       |
+| `content.asset_provenance`                              | `0010_content_asset_revisions`                   | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them                            | None: shared content       |
+| `content.scroll_production_runs`                        | `0015_scroll_production`, key shape `0045`       | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port                                                                                                                  | None: shared public supply |
+| `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                          | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
+| `content.reel_orders` / `content.reel_attempts`         | `0053_reel_orders`                               | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom"                                                                                                           | None: shared public        |
+| `content.media_objects` / `content.reel_imports`        | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision                                                                                                                                                                                                     | None: shared content       |
 
 A revision’s document, provenance and identity are never updated; a content change is a new revision, and anything that rests on one (an exposure,
 a saved item) keeps pointing at exactly the bytes it presented.
@@ -126,7 +126,7 @@ The storage adapter validates derived reading facts against the canonical Scroll
 | `RenderScroll` (token `RENDER_SCROLL`)                       | experience                                                                 | Reads the stored consumer document (never provenance), parses it on the client path, and **negotiates** it for the capabilities the client declared (D-012): unsupported blocks become readable fallbacks, essential ones are reported. Parsed documents are cached (immutable, 32 entries)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `FindAssetForAction` (token `FIND_ASSET_FOR_ACTION`)         | experience actions                                                         | Does the asset exist, is it admitted, at which revision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `admitRecipeCoverage(ports, tx, recipe, ref)`                | The production publication hook only                                       | Inside the production transaction: lock the revision's coverage, read the stored document and provenance, derive the bindings from the recipe (`scroll-recipe-coverage.v1`) and append the next head, or return `not_admitted` with a code. Idempotent for an identical decision. No model call, no network, no personal root                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `readmitRecipeCoverage(ports, recipes, {dryRun})` | Operator command `dist/operator.js content readmit-coverage [--dry-run]` | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds |
+| `readmitRecipeCoverage(ports, recipes, {dryRun})`            | Operator command `dist/operator.js content readmit-coverage [--dry-run]`   | Lists every stored revision of generated Scrolls, finds each recipe by asset ID, and runs `admitRecipeCoverage` in its own short admission transaction. Idempotent. With `--dry-run` nothing is written. Returns counts; shared content only, refused outside the operator worlds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 `adapters/cutroom/wire-v1/` is the byte-for-byte vendored Cutroom wire schema (CF-61): not built,
 linted or formatted; verified by the `integrity` CI job.
@@ -342,19 +342,22 @@ names the library recipe whose Scroll is its twin, and every claim rests on that
 revision. The worker's `reel` operator commands (`apps/worker/src/reel-operator.ts`) take it from
 there:
 
-| Command | What it does | Spends money |
-| --- | --- | --- |
-| `reel check` | The product's own script checks and the repetition rule, offline | No |
-| `reel order --until plan` | A rehearsal: Cutroom plans the Reel and says what it would cost | No |
-| `reel order --until video` | Claims the ceiling in the shared pool, then sends one request | Up to the ceiling |
-| `reel follow` | Reads Cutroom's runs, records how the request ended, settles the claim, publishes the Reel | No |
-| `reel receive` | Publishes a Reel another world already paid for | No |
-| `reel status`, `reel write-off`, `reel settle` | Read the state, give up an uncertain attempt, close a held claim | No |
+| Command                                        | What it does                                                                               | Spends money      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
+| `reel check`                                   | The product's own script checks and the repetition rule, offline                           | No                |
+| `reel order --until plan`                      | A rehearsal: Cutroom plans the Reel and says what it would cost                            | No                |
+| `reel order --until video`                     | Claims the ceiling in the shared pool, then sends one request                              | Up to the ceiling |
+| `reel follow`                                  | Reads Cutroom's runs, records how the request ended, settles the claim, publishes the Reel | No                |
+| `reel receive`                                 | Publishes a Reel another world already paid for                                            | No                |
+| `reel status`, `reel write-off`, `reel settle` | Read the state, give up an uncertain attempt, close a held claim                           | No                |
 
 How it keeps its promises:
 
 - **Claim before order.** A paid attempt cannot leave `reserved` without a pool claim; the table's own
   check refuses it. The pool counts the whole ceiling until the request is settled at its real cost.
+- **The order keeps its script.** `content.reel_orders.script_json` is the exact approved script the order
+  was made from, so `follow` never depends on the file that ships later. A new order under the same name
+  waits until an earlier one, made from different content, has ended.
 - **One send, never a resend.** The exact bytes are stored before sending and a dispatch intent is
   committed first. A POST whose outcome is unknown is only looked up by request id; a run that exists is
   adopted, and nothing is ever sent twice. A retry is a new take, which is a new request id.

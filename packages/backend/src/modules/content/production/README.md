@@ -59,11 +59,11 @@ research. Decision D-032.
 
 ## State, locks and recovery
 
-| Stored table | Role | Main query | Lifetime |
-|---|---|---|---|
+| Stored table                                        | Role                                                                                                                                                                                                                    | Main query                             | Lifetime                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
 | `content.scroll_production_runs` (0015, 0045, 0050) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
-| `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
-| `reasoning.production_*` (0013, 0050) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
+| `content.asset_revisions` / `asset_provenance`      | Immutable admitted consumer bytes / internal evidence and generation lineage                                                                                                                                            | Asset + revision                       | Shared content; no account erasure                                     |
+| `reasoning.production_*` (0013, 0050)               | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis                                                                                                                         | Stable writer run UUID                 | Harness retention and liability policy                                 |
 
 No jobs are registered yet: the worker operator triggers the sequence (`docs/v2/operations/scroll-production.md`).
 Lock order: production root → production job row → asset advisory lock → asset rows. Short

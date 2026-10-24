@@ -101,19 +101,24 @@ export async function seedTwinScroll(
       ${'0'.repeat(64)}, ${twin.explanationUnitId}, 'en', '[Fixture] twin', '{}'::jsonb)`.execute(db);
 }
 
+type Operator = ReturnType<typeof composeReelOperator>;
+type Scripts = Parameters<typeof composeReelOperator>[3];
+
+export interface JoinedWorld {
+  readonly name: 'dev' | 'stage';
+  readonly db: TestDatabase<Database>;
+  readonly mediaRoot: string;
+  readonly operator: Operator;
+}
+
 export interface ReelWorld {
   readonly cutroom: FakeCutroom;
   readonly pool: TestPool;
   readonly root: string;
   /** A world (its database and operator) that orders from the shared fixture Cutroom and pool. */
-  join(
-    name: 'dev' | 'stage',
-    clock?: () => Date,
-  ): Promise<{
-    readonly db: TestDatabase<Database>;
-    readonly mediaRoot: string;
-    readonly operator: ReturnType<typeof composeReelOperator>;
-  }>;
+  join(name: 'dev' | 'stage', clock?: () => Date): Promise<JoinedWorld>;
+  /** Another operator over the same world, as after a release that ships other scripts. */
+  operatorWith(joined: JoinedWorld, scripts: Scripts): Operator;
   setPostMode(mode: PostMode): void;
   close(): Promise<void>;
 }
@@ -130,6 +135,26 @@ export async function createReelWorld(
   const cutroom = await startFakeCutroom(root, options.onPost);
   const pool = await createTestPool();
   const worlds: TestDatabase<Database>[] = [];
+  const operatorOn = (
+    db: TestDatabase<Database>,
+    name: string,
+    mediaRoot: string,
+    clock?: () => Date,
+    scripts?: Scripts,
+  ) =>
+    composeReelOperator(
+      db.db,
+      pool.client,
+      {
+        world: name,
+        cutroomOrigin: cutroom.origin,
+        cutroomArtifactRoot: cutroom.artifactRoot,
+        mediaRoot,
+        ffprobePath,
+        now: clock,
+      },
+      scripts,
+    );
   return {
     cutroom,
     pool,
@@ -140,16 +165,9 @@ export async function createReelWorld(
       worlds.push(db);
       const mediaRoot = join(root, `media-${name}`);
       await mkdir(mediaRoot, { recursive: true });
-      const operator = composeReelOperator(db.db, pool.client, {
-        world: name,
-        cutroomOrigin: cutroom.origin,
-        cutroomArtifactRoot: cutroom.artifactRoot,
-        mediaRoot,
-        ffprobePath,
-        now: clock,
-      });
-      return { db, mediaRoot, operator };
+      return { name, db, mediaRoot, operator: operatorOn(db, name, mediaRoot, clock) };
     },
+    operatorWith: (joined, scripts) => operatorOn(joined.db, joined.name, joined.mediaRoot, undefined, scripts),
     async close() {
       await cutroom.close();
       for (const db of worlds) await db.drop();

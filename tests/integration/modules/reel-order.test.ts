@@ -702,3 +702,47 @@ describe('a Reel that is made but not published', () => {
     expect(await row(db, sql`select id from content.assets where kind = 'reel'`)).toHaveLength(0);
   });
 });
+
+describe('a script edited while its order is open', () => {
+  it('cannot strand the order: following uses the script it was made from, and a new order waits', async () => {
+    const joined = await dev('stars-fusion');
+    await joined.operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
+    const requestId = requestIdOf('stars-fusion', 'video');
+
+    // A release ships the script reworded under the same name.
+    const shipped = new URL(
+      '../../../packages/backend/src/modules/content/approved/reels/stars-fusion.json',
+      import.meta.url,
+    );
+    const edited = JSON.parse(await readFile(shipped, 'utf8')) as { brief: { narration: { text: string }[] } };
+    const original = edited.brief.narration[1]!.text;
+    edited.brief.narration[1]!.text = 'Gravity is always trying to squeeze it inward.';
+    const after = world.operatorWith(joined, new Map([['stars-fusion', edited]]) as never);
+
+    expect(
+      await after.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false }),
+    ).toMatchObject({
+      kind: 'refused',
+      code: 'earlier_order_open',
+      attempt: { state: 'succeeded', poolState: 'claimed' },
+    });
+    expect(await after.status()).toMatchObject({
+      orders: [{ script: 'stars-fusion', until: 'video', current: false, attempts: [{ open: true }] }],
+      notOrdered: [],
+    });
+    expect(world.cutroom.posts).toHaveLength(1);
+
+    await world.cutroom.finishCompleted(requestId, { costCents: 58 });
+    expect(await after.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({
+      kind: 'finished',
+      settled: true,
+      published: { created: true },
+    });
+    const [provenance] = await row(
+      joined.db,
+      sql`select provenance -> 'brief' -> 'narration' -> 1 ->> 'text' as text from content.asset_provenance`,
+    );
+    expect(provenance).toEqual({ text: original });
+    expect(await world.pool.orders()).toMatchObject([{ state: 'settled', spent_cents: 58 }]);
+  });
+});

@@ -48,6 +48,9 @@ create table content.reel_orders (
   until text not null check (until in ('plan', 'video')),
   script_sha256 text not null unique check (script_sha256 ~ '^[0-9a-f]{64}$'),
   approval_ref text not null check (length(approval_ref) between 1 and 500),
+  -- The exact approved script this order was made from. Following the order never depends on the
+  -- script file that ships later.
+  script_json jsonb not null check (jsonb_typeof(script_json) = 'object' and octet_length(script_json::text) <= 65536),
   asset_id uuid,
   created_at timestamptz not null default clock_timestamp(),
   published_at timestamptz,
@@ -143,9 +146,9 @@ create trigger reel_attempt_guard before update or delete on content.reel_attemp
 create function content.reel_order_guard() returns trigger language plpgsql as $$
 begin
   if tg_op = 'DELETE'
-     or (new.id, new.script_name, new.recipe_key, new.until, new.script_sha256, new.approval_ref, new.created_at)
+     or (new.id, new.script_name, new.recipe_key, new.until, new.script_sha256, new.approval_ref, new.script_json, new.created_at)
         is distinct from
-        (old.id, old.script_name, old.recipe_key, old.until, old.script_sha256, old.approval_ref, old.created_at)
+        (old.id, old.script_name, old.recipe_key, old.until, old.script_sha256, old.approval_ref, old.script_json, old.created_at)
      or (old.asset_id is not null and (new.asset_id, new.published_at) is distinct from (old.asset_id, old.published_at))
   then
     raise check_violation using message = 'reel_order_immutable';

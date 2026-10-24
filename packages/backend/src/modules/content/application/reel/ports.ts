@@ -16,6 +16,8 @@ export interface ReelOrderRecord {
   readonly until: ReelUntil;
   readonly scriptSha256: string;
   readonly approvalRef: string;
+  /** The approved script this order was made from, as it was then. */
+  readonly script: ReelScript;
   /** The published Reel, once there is one. */
   readonly assetId: string | null;
 }
@@ -54,6 +56,7 @@ export interface NewReelOrder {
   readonly until: ReelUntil;
   readonly scriptSha256: string;
   readonly approvalRef: string;
+  readonly script: ReelScript;
 }
 
 export interface NewReelAttempt {
@@ -90,7 +93,8 @@ export type AttemptMove =
 export interface ReelLedger {
   /** The order for this script content, created once. */
   ensureOrder(order: NewReelOrder): Promise<ReelOrderRecord>;
-  findOrder(scriptSha256: string): Promise<ReelOrderRecord | undefined>;
+  /** The newest order of a script name at a stage, whatever its content was. */
+  latestOrderOf(scriptName: string, until: ReelUntil): Promise<ReelOrderRecord | undefined>;
   /** Attempts of an order, lowest take first. */
   attemptsOf(orderId: string): Promise<readonly ReelAttemptRecord[]>;
   /** Records a new attempt. `undefined` when that take or request id already exists. */
@@ -273,6 +277,5 @@ export interface ReelPorts {
   readonly catalogue: ReelCatalogue;
   readonly publisher: ReelPublisher;
   readonly sha256: (text: string) => string;
-  readonly newId: () => string;
   readonly now: () => Date;
 }

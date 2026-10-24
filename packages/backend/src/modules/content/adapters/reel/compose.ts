@@ -10,6 +10,7 @@ import { postgresReelCatalogue } from './postgres-catalogue.js';
 import { postgresReelLedger } from './postgres-ledger.js';
 import { postgresReelPublisher } from './postgres-publisher.js';
 import { poolOfSharedPool } from './pool.js';
+import type { ReelScript } from '../../domain/reel/script.js';
 import { reelScripts } from './scripts.js';
 
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
@@ -32,11 +33,17 @@ export interface ReelSettings {
  * database, Cutroom's loopback HTTP and the world's media folder. The caller owns both database
  * handles and closes them.
  */
-export function composeReelOperator(db: Kysely<Database>, poolDatabase: pg.Pool, settings: ReelSettings): ReelOperator {
+export function composeReelOperator(
+  db: Kysely<Database>,
+  poolDatabase: pg.Pool,
+  settings: ReelSettings,
+  /** The scripts that may be ordered; only tests pass another set. */
+  scripts: ReadonlyMap<string, ReelScript> = reelScripts,
+): ReelOperator {
   const newId = () => randomUUID();
   return makeReelOperator({
     world: settings.world,
-    scripts: reelScripts,
+    scripts,
     ledger: postgresReelLedger(db, newId),
     pool: poolOfSharedPool(poolDatabase),
     engine: cutroomEngine({ origin: settings.cutroomOrigin }),
@@ -49,7 +56,6 @@ export function composeReelOperator(db: Kysely<Database>, poolDatabase: pg.Pool,
     catalogue: postgresReelCatalogue(db),
     publisher: postgresReelPublisher(db),
     sha256,
-    newId,
     now: settings.now ?? (() => new Date()),
   });
 }

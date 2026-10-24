@@ -1,5 +1,6 @@
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import type { Database } from '../../../../infrastructure/postgres/database.js';
+import { ReelScriptSchema } from '../../domain/reel/script.js';
 import type { RunOutcome } from '../../domain/reel/chain.js';
 import type {
   AttemptMove,
@@ -18,6 +19,7 @@ interface OrderRow {
   until: 'plan' | 'video';
   script_sha256: string;
   approval_ref: string;
+  script_json: unknown;
   asset_id: string | null;
 }
 
@@ -49,6 +51,8 @@ const orderOf = (row: OrderRow): ReelOrderRecord => ({
   until: row.until,
   scriptSha256: row.script_sha256,
   approvalRef: row.approval_ref,
+  // Stored by this adapter from a parsed script; a row that no longer parses must stop the command.
+  script: ReelScriptSchema.parse(row.script_json),
   assetId: row.asset_id,
 });
 
@@ -133,17 +137,18 @@ function updateOf(move: AttemptMove): { readonly set: RawBuilder<unknown>; reado
 export function postgresReelLedger(db: Kysely<Database>, newId: () => string): ReelLedger {
   return {
     async ensureOrder(order) {
-      await sql`insert into content.reel_orders (id, script_name, recipe_key, until, script_sha256, approval_ref)
-        values (${newId()}::uuid, ${order.scriptName}, ${order.recipeKey}, ${order.until}, ${order.scriptSha256}, ${order.approvalRef})
+      await sql`insert into content.reel_orders (id, script_name, recipe_key, until, script_sha256, approval_ref, script_json)
+        values (${newId()}::uuid, ${order.scriptName}, ${order.recipeKey}, ${order.until}, ${order.scriptSha256}, ${order.approvalRef},
+          ${JSON.stringify(order.script)}::jsonb)
         on conflict (script_sha256) do nothing`.execute(db);
       const { rows } =
         await sql<OrderRow>`select * from content.reel_orders where script_sha256 = ${order.scriptSha256}`.execute(db);
       return orderOf(rows[0]!);
     },
 
-    async findOrder(scriptSha256) {
-      const { rows } =
-        await sql<OrderRow>`select * from content.reel_orders where script_sha256 = ${scriptSha256}`.execute(db);
+    async latestOrderOf(scriptName, until) {
+      const { rows } = await sql<OrderRow>`select * from content.reel_orders
+        where script_name = ${scriptName} and until = ${until} order by created_at desc, id desc limit 1`.execute(db);
       return rows[0] === undefined ? undefined : orderOf(rows[0]);
     },
 

@@ -1,8 +1,7 @@
 import { describeEnd, foldChain } from '../../domain/reel/chain.js';
-import { reelScriptDigest } from '../../domain/reel/request.js';
 import type { ReelUntil } from '../../domain/reel/script.js';
 import { summaryOf, readChain, reconcileAttempt, releaseClaim, type AttemptSummary } from './attempt-steps.js';
-import { lintScript } from './assess.js';
+import { lintReelScript } from './assess.js';
 import { publishFinishedReel, type FinishedChain } from './publish-step.js';
 import type { FinishedFacts, ReelAttemptRecord, ReelOrderRecord, ReelPorts } from './ports.js';
 
@@ -12,7 +11,7 @@ export interface FollowCommand {
 }
 
 export type FollowResult =
-  | { readonly kind: 'refused'; readonly code: 'script_unknown' | 'no_order' | 'no_attempt' }
+  | { readonly kind: 'refused'; readonly code: 'no_order' | 'no_attempt' }
   /** Nothing is running for this attempt. `note` says what the operator can do. */
   | { readonly kind: 'idle'; readonly attempt: AttemptSummary; readonly note: string }
   /** The request may have been sent; Cutroom has no run for it yet. Nothing is resent. */
@@ -148,14 +147,10 @@ async function recordFinish(
   return p.ledger.advance(attempt.id, { kind: 'finished', facts: factsOf(report) });
 }
 
-async function followRemote(
-  p: ReelPorts,
-  order: ReelOrderRecord,
-  reached: ReelAttemptRecord,
-  scriptName: string,
-): Promise<FollowResult> {
+async function followRemote(p: ReelPorts, order: ReelOrderRecord, reached: ReelAttemptRecord): Promise<FollowResult> {
   const held = (code: string): FollowResult => ({ kind: 'held', attempt: summaryOf(reached), code });
-  const linted = lintScript(p, scriptName);
+  // The script the order was made from, not whatever ships now.
+  const linted = lintReelScript(p, order.scriptName, order.script);
   if (linted.kind === 'refused') return held(linted.code);
   const chain = await readChain(p, reached.runId!);
   if (chain.kind !== 'chain') return held(chain.kind === 'absent' ? 'run_absent' : 'engine_unreachable');
@@ -183,9 +178,7 @@ async function followRemote(
  */
 export function makeFollowReel(p: ReelPorts) {
   return async (command: FollowCommand): Promise<FollowResult> => {
-    const script = p.scripts.get(command.scriptName);
-    if (script === undefined) return { kind: 'refused', code: 'script_unknown' };
-    const order = await p.ledger.findOrder(reelScriptDigest(script, command.until, p.sha256));
+    const order = await p.ledger.latestOrderOf(command.scriptName, command.until);
     if (order === undefined) return { kind: 'refused', code: 'no_order' };
     const attempt = (await p.ledger.attemptsOf(order.id)).at(-1);
     if (attempt === undefined) return { kind: 'refused', code: 'no_attempt' };
@@ -203,11 +196,11 @@ export function makeFollowReel(p: ReelPorts) {
       case 'unknown': {
         const looked = await reconcileAttempt(p, attempt);
         if (looked.kind !== 'reconciled') return { kind: 'unknown', attempt: summaryOf(attempt) };
-        return followRemote(p, order, looked.attempt, command.scriptName);
+        return followRemote(p, order, looked.attempt);
       }
       case 'succeeded':
       case 'reconciled':
-        return followRemote(p, order, attempt, command.scriptName);
+        return followRemote(p, order, attempt);
     }
   };
 }

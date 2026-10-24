@@ -33,21 +33,28 @@ export interface LintedScript {
 }
 
 /**
- * The offline half of every order: the script exists, passes the product's own checks, and shares
- * no fingerprint with a Reel v1 made (CF-63). No database, no network.
+ * The offline half of every order: the script passes the product's own checks and shares no
+ * fingerprint with a Reel v1 made (CF-63). No database, no network.
  */
-export function lintScript(
-  p: Pick<ReelPorts, 'scripts' | 'sha256'>,
-  scriptName: string,
+export function lintReelScript(
+  p: Pick<ReelPorts, 'sha256'>,
+  name: string,
+  script: ReelScript,
 ): { readonly kind: 'linted'; readonly linted: LintedScript } | ({ readonly kind: 'refused' } & ScriptRefusal) {
-  const script = p.scripts.get(scriptName);
-  if (script === undefined) return { kind: 'refused', code: 'script_unknown' };
   const findings = checkReelScript(script);
   if (findings.length > 0) return { kind: 'refused', code: 'script_findings', findings };
   const fingerprints = reelFingerprints(script.brief, p.sha256);
   const repetition = findRepetition(fingerprints, LEGACY_REELS_ON_RECORD);
   if (repetition !== undefined) return { kind: 'refused', code: 'repetition', repetition };
-  return { kind: 'linted', linted: { name: scriptName, script, fingerprints } };
+  return { kind: 'linted', linted: { name, script, fingerprints } };
+}
+
+/** The same, for a script that ships in this release, by the name an operator orders it by. */
+export function lintScript(p: Pick<ReelPorts, 'scripts' | 'sha256'>, scriptName: string) {
+  const script = p.scripts.get(scriptName);
+  return script === undefined
+    ? ({ kind: 'refused', code: 'script_unknown' } as const)
+    : lintReelScript(p, scriptName, script);
 }
 
 /**

@@ -13,11 +13,15 @@ in `packages/backend/src/modules/content/README.md` ("Reels from Cutroom").
   reports, which overcount real fal money, so real spend is lower.
 - **One order, one ceiling:** at most **75 cents** (Cutroom's own cap for one Reel). Open ceilings count in
   full until the order settles at its real cost.
-- **One paid order at a time.** Cutroom has one worker; runs take 13 to 41 minutes.
+- **One paid order at a time.** Cutroom has one worker; runs take 13 to 41 minutes. If several were open,
+  the pool would still refuse any claim that takes settled spend plus every open ceiling past 1017, so the
+  400 cents cannot be overspent by ordering faster than orders settle.
 - **Claim before order, settle once, never resend.** The command does these. You only choose the ceiling.
 - **Never restart Cutroom while an order is open** (`ks status` shows `openPoolOrders`). A restart can
   make Cutroom run the same job again after its lease and pay twice.
 - **No order for a script that fails `reel check`.** Rehearse first; it is free.
+- **Editing a script is safe at any time.** An order keeps the exact script it was made from, and `reel follow` uses
+  that copy. A new order under the same name waits until the earlier one has ended.
 - **Record every order in #240**, with the script and its settled cost (D-030).
 
 ## One-time setup
@@ -83,7 +87,8 @@ reel status
 ```
 
 `reel status` prints one JSON line: the world, whether Cutroom is ready, the pool budget
-(`capCents`, `committedCents`, `leftCents`) and each script's state. `pool` must not be `null`. If it
+(`capCents`, `committedCents`, `leftCents`), every order this world made with its attempts (`open: true` means it
+still needs a command or a decision), and `notOrdered`, the shipped scripts never touched. `pool` must not be `null`. If it
 is, the grant in step 3 or the pool URL is wrong (the URL is the world's `DATABASE_URL` with the database
 name `knowscroll_pool`; `KS_POOL_DATABASE_URL` overrides it). `engineReady` must be `true`.
 To check the file access: `sudo setpriv --reuid=ks2-dev --regid=ks2-dev --groups=ks-pool -- id` lists `ks-pool`.
@@ -216,6 +221,7 @@ not ready yet, 1 means failure (the command could not run).
 | `scroll_not_published`, `twin_unit_mismatch` | The twin Scroll is not admitted in this world at that revision. Produce it first |
 | `ceiling_invalid` | The ceiling is not a whole number from 1 to 75 |
 | `already_published` | The Reel exists. Nothing to do |
+| `earlier_order_open` | An earlier order under this name, made from different content (the script was edited), has not ended. Follow it to the end first; `reel follow` uses the script that order was made from |
 | `last_attempt_ended` | The last attempt ended without a Reel. `detail` is how. Add `--retake` to try again |
 | `pool_cap_exceeded` | The pool has less than the ceiling left. Use a smaller ceiling, or stop |
 | `pool_already_ordered` | Another world holds or has made this Reel. Use `reel receive` there |
