@@ -17,6 +17,9 @@ import only domain code. It has no behaviour, no storage and no model call.
 - `earth.ts`, `space.ts`, `machine-learning.ts`, `human-body.ts`, `computing.ts`, `history.ts`: one
   system each, with its planets, facets and recipes. The record key of a recipe is the operator key
   (`content produce-scroll --topic <key>`).
+- `continuity.ts`: which recipes form a series (ordered, 2 to 4 parts, one planet) and which are
+  related perspectives, by recipe key. `content admit-continuity` admits them (D-059). `continuity.test.ts`
+  checks them.
 - `serving.ts`: pure rules over the plan: which recipes serve a catalogue brief, a recipe's standing from
   its takes, which take a send should name, and what a library run queues.
 - `index.ts`: assembles the systems and the `RECIPES` record. `../../production/topics.ts` is a thin
@@ -43,6 +46,12 @@ import only domain code. It has no behaviour, no storage and no model call.
 - Every system has a `sceneFamily` and a planet may override it (`terraced.v1`, `ridged.v1` or
   `archipelago.v1`). The Scene projection draws from it, and a drawn object never changes family, so
   set it once when the system or planet is added. Earth's assignments are fixed by a test.
+- A series order must come from the briefs: declare it only where one recipe builds on the one before
+  it, and say why in a comment. A recipe is in at most one series, and is the source of at most one
+  related move (the model holds one related slot per source revision). Related moves point to a
+  different facet of the same planet, or to a planet the brief itself leans on; never to a series
+  neighbour. Series ids and part order never change for Scrolls already admitted: a changed
+  declaration becomes a new series revision.
 - Adding or renaming a facet, planet or system changes the catalogue digest. See "Library plan and
   concept catalogue" in `../../README.md`. Stored coverage stays readable; run `content readmit-coverage`
   afterwards to decide it again for the published Scrolls.
