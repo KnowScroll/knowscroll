@@ -100,10 +100,15 @@ export {
   type ScenarioSelection,
 } from './scenarios';
 export {
+  answerThreadInvitation,
+  composerAddressees,
   describeThreadMessage,
   findThread,
+  invitationCardView,
   readThreadSummaries,
   threadRowView,
+  type InvitationAnswer,
+  type InvitationCardView,
   type ThreadRowView,
 } from './thread-inbox';
 export {
@@ -284,6 +289,9 @@ export type {
   FriendsCommandDraft,
   FriendsFilter,
   FriendsPage,
+  FriendsPair,
+  FriendsGroups,
+  ShowMoreFilter,
   FriendsCursor,
   FriendsFailure,
   FriendsReadState,

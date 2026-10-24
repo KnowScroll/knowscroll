@@ -56,17 +56,20 @@ test('Friends keeps empty scans explicit, resolves a fragment privately and neve
   await page.goto(`/friends/invite#invite=${token}`);
   await expect(page.getByRole('heading', { name: 'Friend invitation', exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/friends\/invite$/);
-  await expect(page.getByText('No visible people in this part of the scan. Choose Next to continue.')).toBeVisible();
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
-  // A friend with unknown availability shows no word, and can be visited by public handle.
-  await expect(page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true })).toBeVisible();
-  await expect(page.getByText(/Online|Recently active|availability/)).toHaveCount(0);
+  // The invitation is checked before anything is asked: checking sends no request.
   await page.getByRole('button', { name: 'Check invitation', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: `Request friendship with ${peer.displayName}`, exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: `Send invite to ${peer.displayName}`, exact: true })).toBeEnabled();
   expect(calls.some((c) => c.path.endsWith('/friends/request'))).toBe(false);
   expect(calls.filter((c) => c.path.endsWith('/invites/resolve'))[0]?.body).toEqual({ version: 'sharing.v1', token });
+  // The list keeps an empty scan explicit, and shows a friend with unknown availability with no word.
+  await page.getByRole('button', { name: 'Back to friends', exact: true }).click();
+  await expect(page.getByText('No visible people in this part of the list. Show the next page.')).toBeVisible();
+  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await page.getByRole('button', { name: `Options for ${peer.displayName}`, exact: true }).click();
+  await expect(page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Online|Recently active|availability/)).toHaveCount(0);
   expect(await page.locator('body').textContent()).not.toContain(token);
   expect(await page.evaluate(() => JSON.stringify(window.history.state))).not.toContain(token);
   expect(
@@ -81,7 +84,7 @@ test('Friends keeps empty scans explicit, resolves a fragment privately and neve
   await expect(page.getByRole('button', { name: 'Back from Friends', exact: true })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(page.getByRole('button', { name: 'Refresh roster', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add a friend', exact: true })).toBeVisible();
   expect(calls.some((c) => /friends\/(request|accept)|invites\/(create|revoke)$/.test(c.path))).toBe(false);
 });
 

@@ -2,20 +2,23 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Platform, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import type {
   AccountScope,
   FriendsCommandDraft,
   FriendsCommandOperation,
-  FriendsFilter,
   FriendsSession,
 } from '@knowscroll/client-core';
 import { SharingHandleSchema } from '@knowscroll/contracts';
-import { borderWidth, content, layout, radius, spacing, target } from '@knowscroll/design-tokens';
-import { Banner, IconButton, StateBlock, Text, useTypeStyle } from '@knowscroll/ui';
+import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
+import { Banner, Button, IconButton, StateBlock, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
-import { FriendButton as Button, FriendControls, FriendIdentity, friendsStyles } from './friend-controls';
+import { AddFriendPanel } from './add-friend-panel';
+import { FriendField } from './friend-field';
+import { PairRow, type PairCommand } from './friend-rows';
+import { FriendsLinks, FriendsRoster } from './friends-roster';
+import type { InviteLinkStatus } from './invite-link-card';
 import { useAvailability } from './use-availability';
 import {
   discardInitialNativeFriendLink,
@@ -25,12 +28,6 @@ import {
 } from './friend-invite-link';
 import { useFriendsSession } from './use-friends-session';
 
-const filters: readonly { value: FriendsFilter; label: string }[] = [
-  { value: 'friends', label: 'Friends' },
-  { value: 'incoming', label: 'Incoming requests' },
-  { value: 'outgoing', label: 'Sent requests' },
-  { value: 'blocked', label: 'Blocked' },
-];
 function Section({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
     <View style={styles.section}>
@@ -41,57 +38,6 @@ function Section({ title, children }: { readonly title: string; readonly childre
     </View>
   );
 }
-function Field({
-  label,
-  value,
-  onChange,
-  maxLength,
-  secret = false,
-  disabled = false,
-  onSubmit,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly maxLength: number;
-  readonly secret?: boolean;
-  readonly disabled?: boolean;
-  readonly onSubmit?: () => void;
-}) {
-  const type = useTypeStyle('bodyS');
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={styles.field}>
-      <Text variant="uiS">{label}</Text>
-      <TextInput
-        accessibilityLabel={label}
-        value={value}
-        onChangeText={onChange}
-        maxLength={maxLength}
-        editable={!disabled}
-        secureTextEntry={secret}
-        autoComplete="off"
-        autoCapitalize="none"
-        autoCorrect={false}
-        spellCheck={false}
-        onSubmitEditing={onSubmit}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        allowFontScaling={false}
-        style={[
-          styles.input,
-          {
-            fontFamily: type.fontFamily,
-            fontSize: type.fontSize,
-            lineHeight: type.lineHeight,
-            borderColor: focused ? content.accent : content.ink,
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
 /** Outside the tab group: Friends is an explicit destination, never a fifth primary tab. */
 export function FriendsScreen({ invite = false }: { readonly invite?: boolean }) {
   const router = useRouter();
@@ -117,6 +63,7 @@ export function FriendsScreen({ invite = false }: { readonly invite?: boolean })
     <ScreenFrame
       tone="paper"
       title={invite ? 'Friend invitation' : 'Friends'}
+      showAccount={false}
       bodyOffset={spacing[6]}
       leading={<IconButton icon="back" label="Back from Friends" onPress={back} />}
     >
@@ -209,7 +156,7 @@ function FriendsView({
     if (!live()) return;
     await session.readInvites();
     if (!live()) return;
-    await session.selectFilter(session.getState().filter);
+    await session.readGroups();
     const current = session.getState();
     if (
       live() &&
@@ -227,7 +174,7 @@ function FriendsView({
       if (!scope.active || session.getState().status !== 'active') return;
       await session.readInvites();
       if (!scope.active || session.getState().status !== 'active') return;
-      await session.selectFilter('friends');
+      await session.readGroups();
     })();
     const clear = () => {
       resolvedToken.current = undefined;
@@ -328,10 +275,7 @@ function FriendsView({
       if (live()) setWorking(false);
     }
   }
-  const pairCommand = (
-    operation: 'accept' | 'decline' | 'cancel' | 'remove' | 'block' | 'unblock',
-    input: { peerPersonId: string; expectedPairRevision: number; requestId?: string },
-  ) => {
+  const pairCommand: PairCommand = (operation, input) => {
     const base = { peerPersonId: input.peerPersonId, expectedPairRevision: input.expectedPairRevision };
     if (operation === 'accept' || operation === 'decline' || operation === 'cancel') {
       if (input.requestId) void execute(operation, { ...base, requestId: input.requestId });
@@ -405,29 +349,152 @@ function FriendsView({
       : undefined;
   const pair =
     state.pair.status === 'ready' && state.pair.data.status === 'available' ? state.pair.data.pair : undefined;
-  const rosterItems = state.roster.status === 'ready' ? state.roster.data.items : [];
   const resolved =
     state.resolvedInvite.status === 'ready' && state.resolvedInvite.data.status === 'available'
       ? state.resolvedInvite.data
       : undefined;
+  const inviteStatus: InviteLinkStatus = invites?.status ?? 'none';
+  const copyable =
+    state.command.status === 'accepted' &&
+    state.command.operation === 'createInvite' &&
+    state.command.delivery === 'available';
+  const foundPair =
+    pair && lookupData?.person.personId.toLowerCase() === pair.peer.personId.toLowerCase() ? pair : undefined;
+  const addPanel = (
+    <AddFriendPanel
+      onClose={() => setPanel('roster')}
+      disabled={disabled}
+      inputsDisabled={blocked}
+      handle={{
+        value: handle,
+        onChange: setHandle,
+        canFind: SharingHandleSchema.safeParse(handle).success,
+        onFind: () => void lookup(),
+        searching: state.lookup.status === 'loading',
+        found: lookupData?.person,
+        unavailable:
+          state.lookup.status === 'unavailable' ||
+          (state.lookup.status === 'ready' && state.lookup.data.status === 'unavailable') ||
+          state.pair.status === 'unavailable' ||
+          (state.pair.status === 'ready' && state.pair.data.status === 'unavailable'),
+        canSend:
+          lookupData !== undefined &&
+          !mutationsDisabled &&
+          profile?.status === 'claimed' &&
+          pair?.state === 'none' &&
+          pair.peer.personId.toLowerCase() === lookupData.person.personId.toLowerCase() &&
+          pair.pairRevision === lookupData.pairRevision,
+        onSend: () => {
+          if (lookupData)
+            void execute('request', {
+              expectedPeerPersonId: lookupData.person.personId,
+              expectedPairRevision: lookupData.pairRevision,
+              target: { kind: 'handle', handle: lookupData.person.handle },
+            });
+        },
+        existing: foundPair ? (
+          <PairRow
+            pair={foundPair}
+            disabled={mutationsDisabled}
+            onCommand={pairCommand}
+            availability={availabilityOf(foundPair.peer.personId)}
+            onVisit={() => visitFriend(foundPair.peer.handle)}
+          />
+        ) : null,
+      }}
+      link={{
+        status: inviteStatus,
+        copyable: inviteStatus === 'active' && copyable,
+        canCreate: !mutationsDisabled && profile?.status === 'claimed',
+        disabled: invites === undefined || (inviteStatus === 'active' ? disabled : mutationsDisabled),
+        onCreate: () => {
+          if (invites) void execute('createInvite', { expectedInviteRevision: invites.inviteRevision });
+        },
+        onCopy: () => void copyLink(),
+        onRevoke: () => {
+          if (invites?.status === 'active')
+            void execute('revokeInvite', { linkId: invites.linkId, expectedInviteRevision: invites.inviteRevision });
+        },
+      }}
+      pasted={{
+        value: pasted,
+        onChange: (value) => {
+          setPasted(value);
+          resolvedToken.current = undefined;
+          selectionSerial.current++;
+          setInviteChecked(false);
+        },
+        onCheck: () => void resolve(),
+        checking: state.resolvedInvite.status === 'loading',
+        unavailable:
+          state.resolvedInvite.status === 'unavailable' ||
+          (state.resolvedInvite.status === 'ready' && state.resolvedInvite.data.status === 'unavailable'),
+        issuer: resolved && inviteChecked ? resolved.issuer : undefined,
+        canSend: !mutationsDisabled && profile?.status === 'claimed' && inviteChecked && !pasted,
+        onSend: () => {
+          const token = resolvedToken.current;
+          if (token && resolved)
+            void execute('request', {
+              expectedPeerPersonId: resolved.issuer.personId,
+              expectedPairRevision: resolved.pairRevision,
+              target: { kind: 'invite', token },
+            });
+        },
+      }}
+    />
+  );
+  const profilePanel = (
+    <Section title={profile?.status === 'claimed' ? 'Your public profile' : 'Choose your public profile'}>
+      <FriendField
+        label="Your handle"
+        value={profileHandle}
+        maxLength={24}
+        onChange={setProfileHandle}
+        disabled={blocked}
+      />
+      <Text variant="bodyS" color={content.ink2}>
+        3–24 lowercase letters or numbers; single dots and underscores can separate them.
+      </Text>
+      <FriendField
+        label="Display name"
+        value={displayName}
+        maxLength={80}
+        onChange={setDisplayName}
+        disabled={blocked}
+      />
+      <Button
+        label="Save profile"
+        variant="primary"
+        fullWidth
+        disabled={
+          mutationsDisabled ||
+          !profile ||
+          !SharingHandleSchema.safeParse(profileHandle).success ||
+          displayName.trim() !== displayName ||
+          !displayName
+        }
+        onPress={() => {
+          if (profile)
+            void execute('setProfile', {
+              expectedProfileRevision: profile.profileRevision,
+              handle: profileHandle,
+              displayName,
+            });
+        }}
+      />
+      <Button label="Back to friends" variant="ghost" fullWidth onPress={() => setPanel('roster')} />
+    </Section>
+  );
+  const editProfile = () => {
+    setProfileHandle(profile?.status === 'claimed' ? profile.person.handle : '');
+    setDisplayName(profile?.status === 'claimed' ? profile.person.displayName : '');
+    setPanel('profile');
+  };
   return (
     <View style={styles.stack}>
-      <Text variant="bodyS" color={content.ink2}>
-        Choose people by handle or an invite link. We never upload your contacts.
-      </Text>
-      <View style={styles.actions}>
-        <Button label="Add a friend" variant={panel === 'add' ? 'primary' : 'ghost'} onPress={() => setPanel('add')} />
-        <Button
-          label={profile?.status === 'claimed' ? 'Edit your profile' : 'Set up your profile'}
-          variant="ghost"
-          onPress={() => {
-            setProfileHandle(profile?.status === 'claimed' ? profile.person.handle : '');
-            setDisplayName(profile?.status === 'claimed' ? profile.person.displayName : '');
-            setPanel('profile');
-          }}
-        />
-        {panel !== 'roster' ? <Button label="Show roster" variant="ghost" onPress={() => setPanel('roster')} /> : null}
-      </View>
+      {panel === 'roster' ? (
+        <Button label="Add a friend" icon="plus" variant="primary" fullWidth onPress={() => setPanel('add')} />
+      ) : null}
       <View accessibilityLiveRegion="polite">
         {state.command.status === 'pending' ? <Text variant="bodyS">Sending your choice…</Text> : null}
         {state.command.status === 'unknown' ? (
@@ -454,6 +521,9 @@ function FriendsView({
         ) : null}
         {note ? <Text variant="bodyS">{note}</Text> : null}
       </View>
+      {needsRefresh ? (
+        <Button label="Refresh current status" variant="ghost" disabled={disabled} onPress={() => void refresh()} />
+      ) : null}
       {state.profile.status === 'unavailable' || state.invites.status === 'unavailable' ? (
         <Banner
           kind="offline"
@@ -461,305 +531,39 @@ function FriendsView({
           message="Refresh before editing your profile or invite link."
         />
       ) : null}
-      <Button
-        label="Refresh current status"
-        variant="ghost"
-        disabled={disabled}
-        onPress={() => {
-          void refresh();
-        }}
-      />
       {profile?.status === 'unclaimed' && panel !== 'profile' ? (
-        <Text variant="bodyS">Choose a public handle and name in Set up your profile before sending a request.</Text>
-      ) : null}
-      {panel === 'profile' ? (
-        <Section title={profile?.status === 'claimed' ? 'Your public profile' : 'Choose your public profile'}>
-          <Field
-            label="Your handle"
-            value={profileHandle}
-            maxLength={24}
-            onChange={setProfileHandle}
-            disabled={blocked}
-          />
-          <Text variant="bodyS" color={content.ink2}>
-            3–24 lowercase letters or numbers; single dots and underscores can separate them.
-          </Text>
-          <Field label="Display name" value={displayName} maxLength={80} onChange={setDisplayName} disabled={blocked} />
-          <Button
-            label="Save profile"
-            variant="primary"
-            disabled={
-              mutationsDisabled ||
-              !profile ||
-              !SharingHandleSchema.safeParse(profileHandle).success ||
-              displayName.trim() !== displayName ||
-              !displayName
-            }
-            onPress={() => {
-              if (profile)
-                void execute('setProfile', {
-                  expectedProfileRevision: profile.profileRevision,
-                  handle: profileHandle,
-                  displayName,
-                });
-            }}
-          />
-        </Section>
-      ) : null}
-      {panel === 'add' ? (
-        <Section title="Add a friend">
-          <Field
-            label="Their handle"
-            value={handle}
-            maxLength={24}
-            onChange={setHandle}
-            disabled={blocked}
-            onSubmit={() => {
-              void lookup();
-            }}
-          />
-          <Button
-            label="Find handle"
-            disabled={disabled || !SharingHandleSchema.safeParse(handle).success}
-            onPress={() => {
-              void lookup();
-            }}
-          />
-          {state.lookup.status === 'loading' ? <Text variant="bodyS">Checking handle…</Text> : null}
-          {state.lookup.status === 'unavailable' ||
-          (state.lookup.status === 'ready' && state.lookup.data.status === 'unavailable') ? (
-            <Text variant="bodyS">This person is unavailable. Check the handle or try again.</Text>
-          ) : null}
-          {lookupData ? (
-            <View style={styles.card}>
-              <FriendIdentity person={lookupData.person} />
-              <Button
-                label={`Send request to ${lookupData.person.displayName}`}
-                variant="primary"
-                disabled={
-                  mutationsDisabled ||
-                  profile?.status !== 'claimed' ||
-                  pair?.state !== 'none' ||
-                  pair.peer.personId.toLowerCase() !== lookupData.person.personId.toLowerCase() ||
-                  pair.pairRevision !== lookupData.pairRevision
-                }
-                onPress={() => {
-                  void execute('request', {
-                    expectedPeerPersonId: lookupData.person.personId,
-                    expectedPairRevision: lookupData.pairRevision,
-                    target: { kind: 'handle', handle: lookupData.person.handle },
-                  });
-                }}
-              />
-            </View>
-          ) : null}
-          {pair && lookupData?.person.personId.toLowerCase() === pair.peer.personId.toLowerCase() ? (
-            <FriendControls
-              pair={pair}
-              disabled={mutationsDisabled}
-              onCommand={pairCommand}
-              availability={availabilityOf(pair.peer.personId)}
-              onVisit={() => visitFriend(pair.peer.handle)}
-            />
-          ) : null}
-          {state.pair.status === 'unavailable' ||
-          (state.pair.status === 'ready' && state.pair.data.status === 'unavailable') ? (
-            <Text variant="bodyS">Current relationship is unavailable. Find the handle again before choosing.</Text>
-          ) : null}
-          <Field
-            label="Friend invite link"
-            value={pasted}
-            maxLength={2048}
-            secret
-            onChange={(value) => {
-              setPasted(value);
-              resolvedToken.current = undefined;
-              selectionSerial.current++;
-              setInviteChecked(false);
-            }}
-            disabled={blocked}
-            onSubmit={() => {
-              void resolve();
-            }}
-          />
-          <Button
-            label="Check invitation"
-            disabled={disabled}
-            onPress={() => {
-              void resolve();
-            }}
-          />
-          {state.resolvedInvite.status === 'loading' ? <Text variant="bodyS">Checking invitation…</Text> : null}
-          {state.resolvedInvite.status === 'unavailable' ||
-          (state.resolvedInvite.status === 'ready' && state.resolvedInvite.data.status === 'unavailable') ? (
-            <Text variant="bodyS">This invitation is unavailable. It may no longer work.</Text>
-          ) : null}
-          {resolved && inviteChecked ? (
-            <View style={styles.card}>
-              <FriendIdentity person={resolved.issuer} />
-              <Text variant="bodyS">
-                Opening or checking this link sends no request. They still choose whether to accept.
-              </Text>
-              <Button
-                label={`Request friendship with ${resolved.issuer.displayName}`}
-                variant="primary"
-                disabled={mutationsDisabled || profile?.status !== 'claimed' || !inviteChecked || !!pasted}
-                onPress={() => {
-                  const token = resolvedToken.current;
-                  if (token)
-                    void execute('request', {
-                      expectedPeerPersonId: resolved.issuer.personId,
-                      expectedPairRevision: resolved.pairRevision,
-                      target: { kind: 'invite', token },
-                    });
-                }}
-              />
-            </View>
-          ) : null}
-          <Section title="Your invite link">
-            <Text variant="bodyS">
-              Anyone with your link can ask to be your friend. Links last seven days unless you revoke them.
-            </Text>
-            {invites ? (
-              <>
-                <Text variant="bodyS">
-                  {invites.status === 'active'
-                    ? 'Your invite link is active.'
-                    : invites.status === 'none'
-                      ? 'You have no invite link yet.'
-                      : 'Your invite link is no longer active.'}
-                </Text>
-                <View style={styles.actions}>
-                  {invites.status === 'active' ? (
-                    <Button
-                      label="Revoke invite link"
-                      variant="ghost"
-                      disabled={mutationsDisabled}
-                      onPress={() => {
-                        void execute('revokeInvite', {
-                          linkId: invites.linkId,
-                          expectedInviteRevision: invites.inviteRevision,
-                        });
-                      }}
-                    />
-                  ) : (
-                    <Button
-                      label="Create invite link"
-                      disabled={mutationsDisabled || profile?.status !== 'claimed'}
-                      onPress={() => {
-                        void execute('createInvite', { expectedInviteRevision: invites.inviteRevision });
-                      }}
-                    />
-                  )}
-                  {invites.status === 'active' &&
-                  state.command.status === 'accepted' &&
-                  state.command.operation === 'createInvite' &&
-                  state.command.delivery === 'available' ? (
-                    <Button
-                      label="Copy invite link once"
-                      disabled={disabled}
-                      onPress={() => {
-                        void copyLink();
-                      }}
-                    />
-                  ) : null}
-                </View>
-                {invites.status === 'active' &&
-                !(
-                  state.command.status === 'accepted' &&
-                  state.command.operation === 'createInvite' &&
-                  state.command.delivery === 'available'
-                ) ? (
-                  <Text variant="bodyS">
-                    The secret link is not available again. If it was lost, revoke this link before creating another.
-                  </Text>
-                ) : null}
-              </>
-            ) : (
-              <Text variant="bodyS">Refresh your invite link status.</Text>
-            )}
-          </Section>
-        </Section>
-      ) : null}
-      <Section title={filters.find((filter) => filter.value === state.filter)!.label}>
-        <View style={styles.actions} role="group" accessibilityLabel="Friends roster filters">
-          {filters.map((filter) => (
-            <Button
-              key={filter.value}
-              label={filter.label}
-              toggled={state.filter === filter.value}
-              variant={state.filter === filter.value ? 'primary' : 'ghost'}
-              disabled={blocked || loadingRead}
-              onPress={() => {
-                void session.selectFilter(filter.value);
-              }}
-            />
-          ))}
+        <View style={styles.setup}>
+          <Text variant="bodyS">Choose a public handle and name before you send a request.</Text>
+          <Button label="Set up your profile" variant="ghost" onPress={editProfile} />
         </View>
-        {state.roster.status === 'idle' || state.roster.status === 'loading' ? (
-          <Text variant="bodyS">Loading this page…</Text>
-        ) : state.roster.status === 'unavailable' ? (
-          <Banner
-            kind="offline"
-            lead="This page couldn't be read."
-            message="Refresh to start a current list. A failed read does not mean there are no friends."
+      ) : null}
+      {panel === 'profile' ? profilePanel : null}
+      {panel === 'add' ? addPanel : null}
+      {panel === 'roster' ? (
+        <>
+          <FriendsRoster
+            groups={state.groups}
+            rosterStatus={state.roster.status}
+            canNext={state.canNext}
+            canPrevious={state.canPrevious}
+            moreOf={state.moreOf}
+            onShowMore={(filter) => void session.showMore(filter)}
+            disabled={mutationsDisabled}
+            availabilityOf={availabilityOf}
+            onCommand={pairCommand}
+            onVisit={visitFriend}
+            onNext={() => void session.nextPage()}
+            onPrevious={() => void session.previousPage()}
+            onRefresh={() => void refresh()}
           />
-        ) : (
-          <>
-            {rosterItems.length === 0 ? (
-              <Text variant="bodyS">
-                {state.canNext
-                  ? 'No visible people in this part of the scan. Choose Next to continue.'
-                  : state.canPrevious
-                    ? 'No visible people on this final page.'
-                    : 'No people to show in this list.'}
-              </Text>
-            ) : null}
-            {rosterItems.map((item) => (
-              <FriendControls
-                key={item.peer.personId}
-                pair={item}
-                disabled={mutationsDisabled}
-                onCommand={pairCommand}
-                availability={availabilityOf(item.peer.personId)}
-                onVisit={() => visitFriend(item.peer.handle)}
-              />
-            ))}
-          </>
-        )}
-        <View style={styles.actions}>
-          <Button
-            label="Previous page"
-            disabled={blocked || loadingRead || !state.canPrevious}
-            onPress={() => {
-              void session.previousPage();
-            }}
+          <FriendsLinks
+            profileLine={profile?.status === 'claimed' ? `@${profile.person.handle}` : 'Choose your handle and name'}
+            onOpenVisibility={() => router.push('/account/privacy/visibility')}
+            onEditProfile={editProfile}
           />
-          <Button
-            label="Next page"
-            disabled={blocked || loadingRead || !state.canNext}
-            onPress={() => {
-              void session.nextPage();
-            }}
-          />
-          <Button
-            label="Refresh roster"
-            variant="ghost"
-            disabled={blocked || loadingRead}
-            onPress={() => {
-              void session.refreshPage();
-            }}
-          />
-        </View>
-        <Text variant="meta" color={content.ink2}>
-          Previous returns through up to eight recent pages. Refresh starts a new current list.
-        </Text>
-      </Section>
-      <Text variant="bodyS" color={content.ink2}>
-        Who can visit your universe, and whether friends see you online, is in Privacy & history under Sharing &
-        visibility.
-      </Text>
-      {invite ? (
+        </>
+      ) : null}
+      {invite && panel !== 'roster' ? (
         <Button
           label="Back to Friends"
           role="link"
@@ -767,36 +571,18 @@ function FriendsView({
           variant="ghost"
           onPress={() => router.replace('/friends')}
         />
-      ) : (
-        <Button
-          label="Open an invitation"
-          role="link"
-          href="/friends/invite"
-          variant="ghost"
-          onPress={() => router.push('/friends/invite')}
-        />
-      )}
+      ) : null}
     </View>
   );
 }
 const styles = StyleSheet.create({
-  ...friendsStyles,
   body: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
   stack: { gap: spacing[5] },
+  setup: { gap: spacing[2], alignItems: 'flex-start' },
   section: {
     gap: spacing[4],
     paddingVertical: spacing[4],
     borderBottomWidth: borderWidth.hairline,
     borderBottomColor: content.rule,
-  },
-  field: { gap: spacing[2] },
-  input: {
-    color: content.ink,
-    backgroundColor: content.paper2,
-    minHeight: target.comfortable,
-    borderWidth: borderWidth.regular,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing['3.5'],
-    paddingVertical: spacing[3],
   },
 });
