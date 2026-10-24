@@ -127,6 +127,15 @@ describe('a branch card', () => {
     void view;
   });
 
+  it('lets the one who asked remove a branch that is still preparing, from the card', async () => {
+    const mine = await show(card(), true);
+    await fireEvent.press(screen.getByText('Remove'));
+    expect(mine.remove).toHaveBeenCalledTimes(1);
+    await screen.unmount();
+    await show(card());
+    expect(screen.queryByText('Remove')).toBeNull();
+  });
+
   it('draws another perspective with its lens and no hypothetical label unless it inherits one', async () => {
     await show(
       card({ kind: 'perspective', hypothetical: false, changes: [], kept: [], lens: 'the view of the person on call' }),

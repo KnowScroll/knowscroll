@@ -26,7 +26,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | D04 | Desktop room | matches | Room pane, discussion and Room extras as three panes (fixture). | fixture 1440x900 | [D04](fidelity/pairs/D04.jpg) |
 | D05 | Desktop Privacy | differs | Settings rail and four cards present; Recording is two buttons not a switch, body type is larger than drawn, and Notifications and Accessibility rows are missing. | dev 1440x900 | [D05](fidelity/pairs/D05.jpg) |
 | E01 | Reel playing | differs | Full-bleed video, Like/Save/Share/Ask rail, progress and title match; the topic tag is replaced by the ⋯ menu button, no transcript or caption toggle (see E09). | dev | [E01](fidelity/pairs/E01.jpg) |
-| E01 | Reel paused, offline, unavailable | matches | Fixed in #444: Offline adds Open something you kept; unavailable offers Next subject and Go to Keep (fixture). | fixture, #444 | [E01](fidelity/pairs/E01.jpg) |
+| E01 | Reel paused, offline, unavailable | differs | Unavailable fixed in #444 (Next subject, Go to Keep). Offline lacks the drawn Open something you kept: Keep is network-only, so offline it would land on a failed load (fixture). | fixture, #444 | [E01](fidelity/pairs/E01.jpg) |
 | E01 | Reel corrected note | missing | Needs contract: the exposure context has no correction field (D-054). | not reachable | [E01](fidelity/pairs/E01.jpg) |
 | E02 | Scroll opening | differs | Reading column, rail and Reel/Scroll switch match; generated Scrolls use the editorial opening, the poster card with cobalt shadow appears only for poster-template documents. | dev | [E02](fidelity/pairs/E02.jpg) |
 | E02 | Scroll text version and end card | matches | Text version toggle and end mark present. | dev | [E02](fidelity/pairs/E02.jpg) |
@@ -39,19 +39,19 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | E06 | Preparing segment, Back to Reel chip, ready toast | differs | Preparing stripe and ready notice with Later and Open exist; the From the Reel at 0:31 · Back to Reel chip on the Scroll is not drawn. | fixture | [E06](fidelity/pairs/E06.jpg) |
 | E07 | Requests list | matches | Fixed in #443: one line per ask with a chip; Open, Retry, Cancel on the chip or row (before: boxed cards with pre-chip words). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Requested in Keep | matches | Fixed in #443: Requested filter in Keep (before: only /account/requests). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
-| E07 | Couldn't prepare + Try again | matches | Fixed in #443: Try again and Ask differently in the sheet, Retry in the list (D-054). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
+| E07 | Couldn't prepare + Try again | matches | Fixed in #443: Try again and Ask differently in the sheet (`could_not_prepare` only); the list shows Ask differently and does not resend (D-054). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Can't be made, cancelled, exhausted | matches | Fixed in #443: Can't be made chip (new); cancelled dashed chip; exhausted says You've seen what's ready for now. | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Placed where the request was made | matches | Fixed in #443: Ready — the Scroll you asked for on the opened encounter. | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
-| E07 | Retry reuses the same request | missing | Needs contract: request.retry{requestId}; Try again sends a fresh request (D-054). | n/a | [E07](fidelity/pairs/E07.jpg) |
+| E07 | List retry and retry of the same request | missing | Needs contract: request.retry{requestId} (f252); until then Try again sends a fresh request from the sheet only (D-054). | n/a | [E07](fidelity/pairs/E07.jpg) |
 | E08 | Natural thread ending | matches | Yellow card, Keep a way back, Something different, Done for now, thread rows (fixture). | fixture | [E08](fidelity/pairs/E08.jpg) |
 | E08 | Way back kept, Something new | differs | Way back kept is drawn; the Somewhere new direction picker with coloured subject cards is not (Something different opens a new subject). | fixture | [E08](fidelity/pairs/E08.jpg) |
 | E09 | Narration, captions, illustrated range | missing | No client work possible: a Reel document carries captions: burned_in only, no caption track, transcript or timing (D-054). The range of variants is the asset's own picture. | contract | [E09](fidelity/pairs/E09.jpg) |
 | F01 | Friends list | differs | Roster is tabbed (Friends, Incoming, Sent, Blocked) with Refresh and paging buttons and long explanations; design is one list (Friends, Waiting, Blocked) with Add a friend as the one primary. | dev | [F01](fidelity/pairs/F01.jpg) |
 | F01 | Add a friend | differs | Handle and invite link are present; the found-person row, Send invite and invite-link card are plain. | dev | [F01](fidelity/pairs/F01.jpg) |
 | F02 | Visibility | differs | Visitors choice, what they can see and activity status exist; header, row styling and the Preview what <name> sees button differ. | dev | [F02](fidelity/pairs/F02.jpg) |
-| H01 | Share sheet (Scroll) | differs | Send to a conversation, Explore with friends, Copy link; the sheet header lacks the thumbnail and Part line, rows lack icon tiles and the drawn highlight; Share a moment is for Reels. | dev | [H01](fidelity/pairs/H01.jpg) |
-| H01 | Send to a conversation | differs | Picker with note and Send to <name> present; design adds search, recents with presence and a sent confirmation row. | dev | [H01](fidelity/pairs/H01.jpg) |
-| H01 | Explore with friends | differs | Thread name and friend checkboxes present; plain compared with the drawn flow. | dev | [H01](fidelity/pairs/H01.jpg) |
+| H01 | Share sheet (Scroll) | differs | Fixed in #450: header with a kind tile, the title and "Part 2 · Reel"; icon tiles; Explore with friends on the pale highlight; Copy link / Share elsewhere in one row. Left: the thumbnail is a kind glyph (the offer has no poster), the series name and "of 4" (the encounter does not carry them), and Share a moment (a moment is a message in a thread, so it needs one). | dev, fixture, fixed in #450 | [H01](fidelity/pairs/H01.jpg) |
+| H01 | Send to a conversation | differs | Fixed in #450: Back arrow and title, search, Recent and More friends groups, Online / Recently active only for friends who show it (else @handle), the Sent to name row with Open chat. Left: rooms are not in this list (a room is not a conversation here). | fixture, fixed in #450 | [H01](fidelity/pairs/H01.jpg) |
+| H01 | Explore with friends | matches | Fixed in #450: Thread name (the content title as its placeholder), search, Recent and More friends with the same availability words, the keep-your-own-place line and Create thread · N friends. | fixture, fixed in #450 | [H01](fidelity/pairs/H01.jpg) |
 | H02 | Public landing | matches | Fixed in #444: cobalt poster card with kind tag, pill buttons. | rendered page, #444 | [H02](fidelity/pairs/H02.jpg) |
 | H02 | Private, signed-in, corrected | differs | Rendered pages show a poster card; the signed-in page says nothing about who shared it (names stay off the page by design) and revoked/withdrawn share one neutral page. | rendered page | [H02](fidelity/pairs/H02.jpg) |
 | H02 | Revoked / withdrawn | differs | One neutral page by design; the drawn two reasons would reveal state. | dev | [H02](fidelity/pairs/H02.jpg) |
@@ -88,12 +88,12 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | V01 | Compact 320 and 200% text | differs | Compact phone is icon-only; the first-arrival hint covers the action rail until dismissed. | dev 320x640 | [D01](fidelity/pairs/D01.jpg) |
 | X01 | What if sheet | matches | Sheet, From chip, idea, We'll explore summary with Changed/Kept, Explore. | dev | [X01](fidelity/pairs/X01.jpg) |
 | X01 | Branch preparing in the thread | matches | Dashed branch card with Preparing. | dev | [X01](fidelity/pairs/X01.jpg) |
-| X02 | Branch cards | matches | Fixed in #455: Explore this is the card's one action; What if… and Remove are in ⋯ (Remove stays on a card that could not be prepared, as drawn); a speculative what-if carries a Speculative tag (D-056); and the card says "Opened by you" only to the member who opened its Scroll (the server tells each member their own list, never another's). | dev, fixture, fixed in #455 | [X02](fidelity/pairs/X02.jpg) |
+| X02 | Branch cards | matches | Fixed in #455: Explore this is the card's one action; What if… and Remove are in ⋯ (Remove stays on a card that is preparing or could not be prepared, as drawn); a speculative what-if carries a Speculative tag (D-056); and the card says "Opened by you" only to the member who opened its Scroll (the server tells each member their own list, never another's). | dev, fixture, fixed in #455 | [X02](fidelity/pairs/X02.jpg) |
 | X02 | Failed, dismissed, suggestion not made | not checked | Not reachable on dev without a failed branch; the branch-card tests cover them. | - | - |
 | X03 | Branch view | differs | Header, return chip, 1 · current chip, hypothetical frame present; a Scroll branch is drawn as paper article, the design shows a Reel branch. | dev | [X03](fidelity/pairs/X03.jpg) |
 | X04 | Branch map | not checked | The map sheet exists; it opens only after several branches, which dev does not have yet. | - | - |
 
-**Count: 36 matches, 34 differs, 5 missing**, and 9 not checked (84 rows).
+**Count: 35 matches, 35 differs, 5 missing**, and 9 not checked (84 rows).
 
 ## Fixed by the sweep
 

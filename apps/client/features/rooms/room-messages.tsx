@@ -174,9 +174,11 @@ function Bubble({
 }
 
 /**
- * One message and its ⋯ (R02). The ⋯ is not drawn until the pointer is over the message or the control has
- * focus, and a long press anywhere on the message opens the same sheet, so a quiet discussion is not a column
- * of buttons. It stays in the page for keyboards and screen readers, and takes no touch while it is hidden.
+ * One message and its ⋯ (R02). The ⋯ is not drawn until the pointer is over the message or the control
+ * itself has focus, and a long press anywhere on the message opens the same sheet, so a quiet discussion
+ * is not a column of buttons. It stays in the page, and keeps its touch, so keyboards, VoiceOver and
+ * TalkBack reach it (a pointer over the message reveals it before it can be clicked). Focus is the
+ * control's own: a Pressable around it would not hear a child's focus on the web.
  */
 function MessageLine({
   sequence,
@@ -198,20 +200,20 @@ function MessageLine({
       focusable={false}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
       onLongPress={hasActions ? onActions : undefined}
       style={styles.line}
       testID={`message-${String(sequence)}`}
     >
       <View style={styles.lineBody}>{children}</View>
       {hasActions ? (
-        <View
-          style={revealed ? null : styles.hidden}
-          pointerEvents={revealed ? 'auto' : 'none'}
-          testID={`message-options-${String(sequence)}`}
-        >
-          <IconButton icon="more" label="Message options" onPress={onActions} />
+        <View style={revealed ? null : styles.hidden} testID={`message-options-${String(sequence)}`}>
+          <IconButton
+            icon="more"
+            label="Message options"
+            onPress={onActions}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
         </View>
       ) : null}
     </Pressable>

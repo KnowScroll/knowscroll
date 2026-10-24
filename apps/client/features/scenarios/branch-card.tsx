@@ -192,7 +192,7 @@ export function BranchCard({
             onPress={() => onOpen(card)}
           />
         ) : null}
-        {failed && starterIsYou ? (
+        {(failed || card.status === 'preparing') && starterIsYou ? (
           <Button label="Remove" variant="ghost" size="sm" onPress={() => onRemove(card)} />
         ) : null}
         {card.status === 'ready' ? (

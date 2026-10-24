@@ -157,11 +157,11 @@ describe('Explore sheets', () => {
     try {
       await fireEvent.press(screen.getByRole('button', { name: 'Share' }));
       expect(await screen.findByRole('button', { name: 'Send to a conversation' })).toBeOnTheScreen();
-      expect(screen.getByRole('button', { name: 'Copy link' })).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Copy link / Share elsewhere' })).toBeOnTheScreen();
       expect(h.session.getState().overlayOwner).toBe('share');
       await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
       expect(h.session.getState().overlay).toBe(false);
-      expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Copy link / Share elsewhere' })).toBeNull();
     } finally {
       await app.unmount();
       h.scope.end();

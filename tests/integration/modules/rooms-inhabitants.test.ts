@@ -8,7 +8,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { fixtureHarness, fixtureModel, attemptsOf } from '../support/fixture-model.js';
+import { fixtureHarness, fixtureModel, attemptsOf, receiptClassesOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
 import {
   ask,
@@ -130,6 +130,10 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     expect(request.prompt_version).toMatch(/\S/);
     expect(request.attempt_id).not.toBeNull();
     expect((await attemptsOf(world.db, ravi.universeId)).map((attempt) => attempt.id)).toContain(request.attempt_id);
+    // A member asked for it, so it counts against the whole allowance, never the background share.
+    expect(await receiptClassesOf(world.db, ravi.universeId)).toEqual([
+      { role_id: 'rooms.skeptic', background: false },
+    ]);
     expect(model.calls).toHaveLength(1);
     // Suggesting is not making: no production, no evidence, nothing else queued.
     expect(await consumptionRows(world.db)).toBe(before);

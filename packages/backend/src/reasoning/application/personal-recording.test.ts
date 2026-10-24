@@ -218,6 +218,22 @@ describe('personal recording facade strict protocol (authored source fixtures on
     expect(c.enter).not.toHaveBeenCalled();
     expect(c.read).not.toHaveBeenCalled();
   });
+  it('carries a role’s budget class to the engine and refuses an unknown class before any scope work', async () => {
+    const accepted = denied();
+    const background = { ...input(), role: { ...input().role, budgetClass: 'background' as const } };
+    expect(await accepted.harness.proposePersonal(background, new AbortController().signal)).toEqual({
+      kind: 'refused',
+      reason: 'scope_refused',
+    });
+    expect(accepted.enter).toHaveBeenCalledOnce();
+    const unknown = denied();
+    const urgent = { ...input(), role: { ...input().role, budgetClass: 'urgent' } } as never;
+    expect(await unknown.harness.proposePersonal(urgent, new AbortController().signal)).toEqual({
+      kind: 'refused',
+      reason: 'run_invalid',
+    });
+    expect(unknown.enter).not.toHaveBeenCalled();
+  });
   it('fresh denied scope never reaches the engine private find, protected bytes, quota or send', async () => {
     const c = denied();
     expect(await c.harness.proposePersonal(input(), new AbortController().signal)).toEqual({

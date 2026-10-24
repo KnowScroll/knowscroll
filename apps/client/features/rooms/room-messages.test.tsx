@@ -155,21 +155,22 @@ describe('room messages', () => {
     expect(member.onStartThread).toHaveBeenCalledWith(card.messageId);
   });
 
-  it('keeps ⋯ off the message until the pointer is over it or it has focus, and takes no touch while hidden', async () => {
+  it('keeps ⋯ off the message until the pointer is over it or the control has focus, yet in the page for assistive tech', async () => {
     await show([text(1, ravi, 'plain'), card]);
-    // Present for keyboards and screen readers, but not drawn and not pressable.
-    expect(screen.getByRole('button', { name: 'Message options' })).toBeOnTheScreen();
-    const hidden = () => screen.getByTestId('message-options-4', { hidden: true });
-    expect(hidden()).toHaveStyle({ opacity: 0 });
-    expect(hidden().props.pointerEvents).toBe('none');
+    const options = () => screen.getByRole('button', { name: 'Message options' });
+    const wrapper = () => screen.getByTestId('message-options-4');
+    expect(options()).toBeOnTheScreen();
+    expect(wrapper()).toHaveStyle({ opacity: 0 });
     const line = screen.getByTestId('message-4');
     await fireEvent(line, 'hoverIn');
-    expect(hidden().props.pointerEvents).toBe('auto');
-    expect(hidden()).not.toHaveStyle({ opacity: 0 });
+    expect(wrapper()).not.toHaveStyle({ opacity: 0 });
     await fireEvent(line, 'hoverOut');
-    expect(hidden().props.pointerEvents).toBe('none');
-    await fireEvent(line, 'focus');
-    expect(hidden().props.pointerEvents).toBe('auto');
+    expect(wrapper()).toHaveStyle({ opacity: 0 });
+    // Tabbing to the control itself reveals it: focus is the button's, not the line's.
+    await fireEvent(options(), 'focus');
+    expect(wrapper()).not.toHaveStyle({ opacity: 0 });
+    await fireEvent(options(), 'blur');
+    expect(wrapper()).toHaveStyle({ opacity: 0 });
   });
 
   it('opens the same options with a long press on the message', async () => {
