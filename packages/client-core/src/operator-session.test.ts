@@ -110,7 +110,7 @@ describe('the Operator session', () => {
   });
 
   it('says so when no record carries the ID, and when the lookup could not be made', async () => {
-    let failure: unknown = notFound();
+    let failure: Error = notFound();
     const { owner } = fixture({ journey: () => Promise.reject(failure) });
     const session = createOperatorSession(owner);
     await session.lookUp(requestId);

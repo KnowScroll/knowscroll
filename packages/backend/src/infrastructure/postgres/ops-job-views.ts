@@ -35,7 +35,7 @@ export const OPS_READER_VIEWS: readonly string[] = [
 const JOB_VIEWS_IN_DROP_ORDER = ['recent_errors', 'queue_backlog', 'jobs'] as const;
 
 /** Drops the pg-boss views (and `recent_errors`, which reads them). Nothing to do when they are absent. */
-export async function dropOpsJobViews(db: Kysely<unknown>): Promise<void> {
+export async function dropOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
   for (const view of JOB_VIEWS_IN_DROP_ORDER) await sql`drop view if exists ${sql.table(`ops.${view}`)}`.execute(db);
 }
 
@@ -43,7 +43,7 @@ export async function dropOpsJobViews(db: Kysely<unknown>): Promise<void> {
  * Creates `ops.jobs`, `ops.queue_backlog` and `ops.recent_errors`. Needs pg-boss's schema and
  * migration 0057's views. Run after {@link dropOpsJobViews} and pg-boss's own start.
  */
-export async function createOpsJobViews(db: Kysely<unknown>): Promise<void> {
+export async function createOpsJobViews<DB>(db: Kysely<DB>): Promise<void> {
   await db.transaction().execute(async (trx) => {
     await sql`
       create view ops.jobs as
@@ -147,7 +147,7 @@ export async function createOpsJobViews(db: Kysely<unknown>): Promise<void> {
  * it: the owner creates it once (`docs/v2/operations/looking-at-the-system.md`) and the next
  * `migrate.js` run grants it. Returns `role_missing` when it does not exist yet.
  */
-export async function grantOpsReader(db: Kysely<unknown>): Promise<'granted' | 'role_missing'> {
+export async function grantOpsReader<DB>(db: Kysely<DB>): Promise<'granted' | 'role_missing'> {
   const found = await sql<{ present: boolean }>`
     select exists (select 1 from pg_roles where rolname = ${OPS_READER_ROLE}) as present`.execute(db);
   if (found.rows[0]?.present !== true) return 'role_missing';
