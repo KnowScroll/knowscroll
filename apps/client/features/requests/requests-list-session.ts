@@ -1,6 +1,5 @@
 import { apiProblem, type AccountScope } from '@knowscroll/client-core';
-import type { CancelContentRequest, ContentRequestList, CreateContentRequest } from '@knowscroll/contracts';
-import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
+import type { CancelContentRequest, ContentRequestList } from '@knowscroll/contracts';
 
 export type ListedRequest = ContentRequestList['requests'][number];
 
@@ -12,8 +11,6 @@ export interface RequestsListState {
   readonly stale: boolean;
   /** The request whose cancel is being sent, or was sent and not confirmed (a retry reuses its command). */
   readonly cancelling?: { readonly requestId: string; readonly phase: 'sending' | 'unknown' };
-  /** The closed request being asked again, or asked and not confirmed (a retry reuses its command). */
-  readonly retrying?: { readonly requestId: string; readonly phase: 'sending' | 'unknown' };
 }
 
 /** How often a visible list looks again while something is still being prepared. */
@@ -26,9 +23,7 @@ const initial = (): RequestsListState => ({ phase: 'loading', items: [], stale: 
  * server, never kept on the device. A newer read never loses to an older one, and no item moves back
  * to an older request revision. While visible and while any request is still preparing it looks again
  * on a quiet timer; reading creates no work. Cancel is the same command as in the request sheet, and an
- * unconfirmed cancel is retried with its exact command ID. Asking again after "Couldn't prepare" is a
- * fresh deliberate request with the same words and format (there is no command that reopens the closed
- * one); it too is retried with its exact command ID until the server answers.
+ * unconfirmed cancel is retried with its exact command ID.
  */
 export function createRequestsListSession(scope: AccountScope, newCommandId: () => string) {
   let state = initial();
@@ -37,7 +32,6 @@ export function createRequestsListSession(scope: AccountScope, newCommandId: () 
   let readSerial = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pendingCancel: CancelContentRequest | undefined;
-  let pendingRetry: { readonly requestId: string; readonly command: CreateContentRequest } | undefined;
   const listeners = new Set<() => void>();
   const valid = () => live && scope.active;
   const publish = (patch: Partial<RequestsListState>) => {
@@ -106,35 +100,11 @@ export function createRequestsListSession(scope: AccountScope, newCommandId: () 
     }
   }
 
-  async function runRetry() {
-    const pending = pendingRetry;
-    if (!valid() || !pending) return;
-    stopTimer();
-    publish({ retrying: { requestId: pending.requestId, phase: 'sending' } });
-    try {
-      const receipt = await scope.api.supply.create(pending.command);
-      if (!valid()) return;
-      if (receipt.commandId !== pending.command.commandId || receipt.privacyEpoch !== scope.account.privacyEpoch)
-        throw new Error('receipt_lineage');
-      pendingRetry = undefined;
-      publish({ retrying: undefined });
-      await refresh();
-    } catch (error) {
-      if (!valid()) return;
-      const problem = apiProblem(error);
-      const refused = problem !== undefined && problem.status >= 400 && problem.status < 500;
-      if (refused) pendingRetry = undefined;
-      publish({ retrying: refused ? undefined : { requestId: pending.requestId, phase: 'unknown' } });
-      schedule();
-    }
-  }
-
   scope.onEnd?.(() => {
     live = false;
     readSerial += 1;
     stopTimer();
     pendingCancel = undefined;
-    pendingRetry = undefined;
     state = { ...initial(), phase: 'ended' };
     listeners.forEach((listener) => listener());
     listeners.clear();
@@ -161,25 +131,6 @@ export function createRequestsListSession(scope: AccountScope, newCommandId: () 
       if (pendingCancel?.requestId !== requestId)
         pendingCancel = { version: 'content-request-cancel.v1', commandId: newCommandId(), requestId };
       void runCancel();
-    },
-    /** Asks again for a request that could not be prepared, with its own words and format. */
-    retry(requestId: string) {
-      if (!valid() || state.retrying?.phase === 'sending') return;
-      if (pendingRetry?.requestId !== requestId) {
-        const item = state.items.find((entry) => entry.status.requestId === requestId);
-        if (!item || item.status.status !== 'unavailable') return;
-        pendingRetry = {
-          requestId,
-          command: {
-            version: 'content-request.v1',
-            commandId: newCommandId(),
-            intent: { kind: 'topic', subject: { kind: 'text', text: item.title }, format: item.format },
-            language: 'en',
-            capabilities: ENCOUNTER_CAPABILITIES,
-          },
-        };
-      }
-      void runRetry();
     },
   };
 }

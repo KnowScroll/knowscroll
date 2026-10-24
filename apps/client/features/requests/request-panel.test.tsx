@@ -90,6 +90,11 @@ describe('E04 request panel', () => {
       expect(screen.getByLabelText("Can't be made")).toBeTruthy();
       expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
       expect(screen.getByRole('button', { name: 'Ask something else' })).toBeTruthy();
+      // A Reel or variant ask, or the daily cap, closes as budget_unavailable: permanent, so nothing to press again.
+      h.setStatus({ ...h.fields, requestRevision: 4, status: 'unavailable', reason: 'budget_unavailable' });
+      await act(() => h.session.refresh());
+      expect(screen.getByLabelText("Can't be made")).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());

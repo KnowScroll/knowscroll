@@ -12,9 +12,6 @@ export interface ReadyRequestTarget {
   readonly assetId: string;
 }
 
-/** Reasons a closed request can be asked again: the work failed, not the idea. */
-const retryable: ReadonlySet<string> = new Set(['could_not_prepare', 'budget_unavailable']);
-
 function chipStatus(status: ContentRequestStatus) {
   switch (status.status) {
     case 'preparing':
@@ -22,7 +19,7 @@ function chipStatus(status: ContentRequestStatus) {
     case 'ready':
       return 'ready';
     case 'unavailable':
-      return retryable.has(status.reason) ? 'failed' : 'unavailable';
+      return status.reason === 'could_not_prepare' ? 'failed' : 'unavailable';
     case 'cancelled':
       return 'cancelled';
   }
@@ -33,34 +30,19 @@ function requestLine(item: ListedRequest): string {
   return item.format === 'either' ? item.title : `${item.title}, as a ${formatWord[item.format]}`;
 }
 
-/** A closed ask that was already asked again (same words, same format, newer) has nothing left to retry. */
-function askedAgain(item: ListedRequest, all: readonly ListedRequest[]): boolean {
-  return all.some(
-    (other) =>
-      other.status.requestId !== item.status.requestId &&
-      other.title === item.title &&
-      other.format === item.format &&
-      other.status.createdAt > item.status.createdAt,
-  );
-}
-
 function RequestRow({
   item,
-  retryable,
   cancelling,
-  retrying,
   onOpen,
   onCancel,
-  onRetry,
+  onAskDifferently,
 }: {
   readonly item: ListedRequest;
-  /** False once the same ask was made again: the closed row then only says where it ended. */
-  readonly retryable: boolean;
   readonly cancelling: 'sending' | 'unknown' | undefined;
-  readonly retrying: 'sending' | 'unknown' | undefined;
   readonly onOpen: (target: ReadyRequestTarget) => void;
   readonly onCancel: () => void;
-  readonly onRetry: () => void;
+  /** Where a failed ask goes to be asked another way; the list cannot resend it (see below). */
+  readonly onAskDifferently?: () => void;
 }) {
   const { status } = item;
   const chip = chipStatus(status);
@@ -72,12 +54,6 @@ function RequestRow({
           status="ready"
           detail="Open"
           onPress={() => onOpen({ kind: status.content.metadata.kind, assetId: status.content.assetId })}
-        />
-      ) : chip === 'failed' && retryable ? (
-        <RequestStatusChip
-          status="failed"
-          detail={retrying === 'sending' ? 'Trying again' : 'Retry'}
-          onPress={onRetry}
         />
       ) : (
         <RequestStatusChip status={chip} />
@@ -100,8 +76,8 @@ function RequestRow({
           Cancelling wasn&apos;t confirmed. Press Cancel request to try the same request again.
         </Text>
       ) : null}
-      {retrying === 'unknown' ? (
-        <Text variant="bodyS">Asking again wasn&apos;t confirmed. Press Retry to send the same ask again.</Text>
+      {chip === 'failed' && onAskDifferently ? (
+        <Button label="Ask differently" variant="ghost" size="sm" onPress={onAskDifferently} />
       ) : null}
     </View>
   );
@@ -109,7 +85,10 @@ function RequestRow({
 
 /**
  * E07's "Your requests": the person's own asks with their current state, newest first, each with the
- * one action it has (Open when ready, Cancel while preparing). Calm words only: no percentages, no
+ * one action it has (Open when ready, Cancel while preparing, Ask differently after "Couldn't prepare").
+ * The list does not resend a closed ask: it knows the person's words but not whether they were a
+ * catalogue topic, a facet or a variant, so a resend could be a different request. The request sheet,
+ * which holds the exact ask, offers Try again; a `request.retry{requestId}` contract would let the list too. Calm words only: no percentages, no
  * waiting times. When a refresh fails the last known list stays, marked as possibly out of date.
  * Mount it anywhere the person looks for their requests; the session comes from `useRequestsList`.
  */
@@ -152,12 +131,10 @@ export function RequestsList({
         <RequestRow
           key={item.status.requestId}
           item={item}
-          retryable={!askedAgain(item, state.items)}
           cancelling={state.cancelling?.requestId === item.status.requestId ? state.cancelling.phase : undefined}
-          retrying={state.retrying?.requestId === item.status.requestId ? state.retrying.phase : undefined}
           onOpen={onOpen}
           onCancel={() => session.cancel(item.status.requestId)}
-          onRetry={() => session.retry(item.status.requestId)}
+          onAskDifferently={onAsk}
         />
       ))}
     </View>

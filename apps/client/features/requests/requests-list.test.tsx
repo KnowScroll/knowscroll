@@ -57,21 +57,23 @@ describe('E07 requests list', () => {
     }
   });
 
-  it("says couldn't prepare with Retry, and can't be made with nothing to retry", async () => {
-    const h = requestsListHarness([closedItem(20, 'could_not_prepare'), closedItem(21, 'unsupported_request')]);
-    const screen = await render(frame(<RequestsList session={h.session} onOpen={jest.fn()} />));
+  it("says couldn't prepare with Ask differently, and offers nothing for what can't be made", async () => {
+    const h = requestsListHarness([
+      closedItem(20, 'could_not_prepare'),
+      closedItem(21, 'unsupported_request'),
+      closedItem(22, 'budget_unavailable'),
+    ]);
+    const onAsk = jest.fn();
+    const screen = await render(frame(<RequestsList session={h.session} onOpen={jest.fn()} onAsk={onAsk} />));
     try {
       h.session.visible(true);
-      await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(2));
-      expect(screen.getByRole('button', { name: "Couldn't prepare · Retry" })).toBeTruthy();
-      expect(screen.getByLabelText("Can't be made")).toBeTruthy();
-      expect(screen.getAllByRole('button', { name: /Retry/ })).toHaveLength(1);
-      await fireEvent.press(screen.getByRole('button', { name: "Couldn't prepare · Retry" }));
-      await waitFor(() => expect(h.creates()).toHaveLength(1));
-      // Asked again: the new ask is listed, and the closed one no longer offers Retry.
       await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(3));
-      expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull();
       expect(screen.getByLabelText("Couldn't prepare")).toBeTruthy();
+      expect(screen.getAllByLabelText("Can't be made")).toHaveLength(2);
+      expect(screen.queryByRole('button', { name: /Retry|Try again/ })).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Ask differently' })).toHaveLength(1);
+      await fireEvent.press(screen.getByRole('button', { name: 'Ask differently' }));
+      expect(onAsk).toHaveBeenCalledTimes(1);
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());

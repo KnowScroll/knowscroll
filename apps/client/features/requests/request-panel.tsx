@@ -25,11 +25,11 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
   const [focused, setFocused] = useState(false);
   const editing = state.phase === 'draft';
   const status = state.status;
-  // The work failed, not the idea: the same ask can go again (E07 "Couldn't prepare").
+  // The work failed, not the idea: the same ask can go again (E07 "Couldn't prepare"). Other closed
+  // reasons are permanent or capped (a Reel or variant ask, the daily cap), so pressing again only
+  // makes another closed request.
   const couldBePreparedAgain =
-    state.phase === 'accepted' &&
-    status?.status === 'unavailable' &&
-    (status.reason === 'could_not_prepare' || status.reason === 'budget_unavailable');
+    state.phase === 'accepted' && status?.status === 'unavailable' && status.reason === 'could_not_prepare';
   return (
     <KeyboardAvoidingView
       style={styles.host}
