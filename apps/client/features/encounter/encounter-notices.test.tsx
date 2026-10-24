@@ -84,4 +84,24 @@ describe('request notices over an encounter', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Later' }));
     expect(f.dismissNotice).toHaveBeenCalledTimes(1);
   });
+
+  it('says the Scroll is the one that was asked for, only on that encounter', async () => {
+    const f = fixture({ status: undefined });
+    const entry = { ...f.entry, offer: { assetId: REQUEST } } as unknown as EncounterEntry;
+    const state = { phase: 'active', askedFor: { assetId: REQUEST, kind: 'scroll' } } as EncounterState;
+    const view = await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <EncounterNotices entry={entry} state={state} session={f.session} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('Ready — the Scroll you asked for')).toBeOnTheScreen();
+    await view.unmount();
+    const other = { ...f.entry, offer: { assetId: 'another-asset' } } as unknown as EncounterEntry;
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <EncounterNotices entry={other} state={state} session={f.session} />
+      </DisplayProvider>,
+    );
+    expect(screen.queryByText('Ready — the Scroll you asked for')).toBeNull();
+  });
 });
