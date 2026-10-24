@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import {
@@ -13,6 +14,13 @@ import { LIBRARY_RELATED, LIBRARY_SERIES } from '../domain/library/continuity.js
 import { RECIPES, RECIPE_KEYS, type RecipeKey } from '../domain/library/index.js';
 import { admitContinuity } from './continuity-admission.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
+
+/** A name-based (version 5 style) UUID of the content, so equal links have equal ids. */
+function deriveLinkId(content: string): string {
+  const hex = createHash('sha256').update(content).digest('hex');
+  const variant = ((Number.parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
 
 /** What `content admit-continuity` did, or in a dry run would do. */
 export interface LibraryContinuitySummary {
@@ -135,7 +143,9 @@ export function admitLibraryContinuityUseCase(db: Kysely<Database>) {
     let linksUnchanged = 0;
     const seriesSkipped: LibraryContinuitySummary['seriesSkipped'][number][] = [];
     for (const series of LIBRARY_SERIES) {
-      const result = await run(options.dryRun, (admitted, stored) => planSeries(series, admitted, stored));
+      const result = await run(options.dryRun, (admitted, stored) =>
+        planSeries(series, admitted, stored, deriveLinkId),
+      );
       if (result.unpublished.length > 0) {
         seriesSkipped.push({ seriesId: result.seriesId, unpublished: result.unpublished });
         continue;
@@ -145,7 +155,9 @@ export function admitLibraryContinuityUseCase(db: Kysely<Database>) {
       linksAdmitted += result.admission.links.length;
       linksUnchanged += result.unchangedLinks;
     }
-    const related = await run(options.dryRun, (admitted, stored) => planRelated(LIBRARY_RELATED, admitted, stored));
+    const related = await run(options.dryRun, (admitted, stored) =>
+      planRelated(LIBRARY_RELATED, admitted, stored, deriveLinkId),
+    );
     linksAdmitted += related.admission.links.length;
     linksUnchanged += related.unchangedLinks;
     return {

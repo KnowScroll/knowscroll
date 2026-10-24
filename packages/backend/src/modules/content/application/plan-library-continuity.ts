@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { ContinuityAdmission, ContinuityLink } from '../domain/discovery.js';
 import type { LibraryRelatedLink, LibrarySeries } from '../domain/library/continuity.js';
 import type { RecipeKey } from '../domain/library/index.js';
@@ -51,12 +50,11 @@ function sameRelation(a: ContinuityLink['relation'], b: ContinuityLink['relation
   return JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 }
 
-/** A link id any run derives alike, so a replay or a concurrent run is the same link, not a conflict. */
-function linkIdFor(link: Omit<ContinuityLink, 'linkId'>): string {
-  const hex = createHash('sha256').update(JSON.stringify(link)).digest('hex');
-  const variant = ((Number.parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-}
+/**
+ * Names a link from its content, so any run names the same link alike and a repeat or a concurrent run
+ * is the same link, not a conflict. The adapter supplies it (application code may not import Node built-ins).
+ */
+export type DeriveLinkId = (content: string) => string;
 
 /**
  * Decides which of the wanted links the store lacks. A link the store holds exactly is left alone;
@@ -65,6 +63,7 @@ function linkIdFor(link: Omit<ContinuityLink, 'linkId'>): string {
 function newLinks(
   wanted: readonly Omit<ContinuityLink, 'linkId' | 'revision' | 'authorityReference'>[],
   stored: StoredContinuity,
+  deriveLinkId: DeriveLinkId,
 ): { readonly links: ContinuityLink[]; readonly unchanged: number } {
   const links: ContinuityLink[] = [];
   let unchanged = 0;
@@ -82,7 +81,7 @@ function newLinks(
       continue;
     }
     const complete = { ...link, revision: (held?.revision ?? 0) + 1, authorityReference: LIBRARY_CONTINUITY_AUTHORITY };
-    links.push({ ...complete, linkId: linkIdFor(complete) });
+    links.push({ ...complete, linkId: deriveLinkId(JSON.stringify(complete)) });
   }
   return { links, unchanged };
 }
@@ -92,7 +91,12 @@ function newLinks(
  * revisions differ from the stored latest one), and a previous and a next link between neighbours.
  * A series with any part unpublished is skipped whole, because a series revision is a complete manifest.
  */
-export function planSeries(series: LibrarySeries, admitted: AdmittedScrolls, stored: StoredContinuity): SeriesPlan {
+export function planSeries(
+  series: LibrarySeries,
+  admitted: AdmittedScrolls,
+  stored: StoredContinuity,
+  deriveLinkId: DeriveLinkId,
+): SeriesPlan {
   const unpublished = series.parts.filter((key) => !admitted.has(key));
   if (unpublished.length > 0)
     return { seriesId: series.id, unpublished, admission: { series: [], links: [] }, unchangedLinks: 0 };
@@ -114,7 +118,7 @@ export function planSeries(series: LibrarySeries, admitted: AdmittedScrolls, sto
     });
     return [step(before, unit, 'next'), step(unit, before, 'previous')];
   });
-  const { links, unchanged } = newLinks(wanted, stored);
+  const { links, unchanged } = newLinks(wanted, stored, deriveLinkId);
   return {
     seriesId: series.id,
     unpublished: [],
@@ -128,6 +132,7 @@ export function planRelated(
   declared: readonly LibraryRelatedLink[],
   admitted: AdmittedScrolls,
   stored: StoredContinuity,
+  deriveLinkId: DeriveLinkId,
 ): RelatedPlan {
   const skipped: RelatedPlan['skipped'][number][] = [];
   const wanted: Parameters<typeof newLinks>[0][number][] = [];
@@ -146,6 +151,6 @@ export function planRelated(
       strength: RELATED_STRENGTH,
     });
   }
-  const { links, unchanged } = newLinks(wanted, stored);
+  const { links, unchanged } = newLinks(wanted, stored, deriveLinkId);
   return { admission: { series: [], links }, unchangedLinks: unchanged, skipped };
 }
