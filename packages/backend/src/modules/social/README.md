@@ -152,6 +152,16 @@ reading a thread add no exposure, observation or Keep.
 - **Talk** lists a person's threads (`threads/inbox`, newest activity first, at most 50). An invitation shows who
   asked and no message or count.
 
+### What other modules may do inside a thread (#244, D-049)
+
+The `scenarios` module (and later idea rooms) acts in a thread only through `THREAD_GUEST` (`application/thread-guest.ts`):
+`enter` and `enterAsMember` (the same membership and lineage checks a member's own command makes, then the thread's
+lock), `window` (the last messages, bounded, with the author reduced to "you" or "member"), `receipts` (find, begin,
+complete, keyed by the thread, so Clear does not forget them) and `announce` (the inbox hint). `READ_THREAD_STANDING` is a
+lock-free read of whether an account takes part now, for workers that recheck before applying a result;
+`ANNOUNCE_THREAD` tells every participant's inbox after a commit. None of them decides who may take part: that stays here.
+*Implemented.*
+
 ### Lock order
 
 Personal root, then the caller's own account gate (`fenceOwn`), then the thread's root (`social_thread`: the
@@ -240,7 +250,7 @@ share (never a heartbeat, a public ID or who the friends are). It names no other
 
 ## Related
 
-- Blueprint 02d sections 14 and 17; decisions D-042 (conversations and links), D-043 (deleted accounts), D-046
+- Blueprint 02d sections 14 and 17; decisions D-049 (what other modules may do in a thread), D-042 (conversations and links), D-043 (deleted accounts), D-046
   (threads and snippets), D-047 (sharing and visibility, availability, the friend visit).
 - Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`,
   `friend-pages.ts`, `socket.ts` (`presence_heartbeat`).

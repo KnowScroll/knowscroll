@@ -473,5 +473,33 @@ direct conversations and threads together; a thread row shows its people, the la
   "Explore with friends" (`features/sharing/explore-with-friends.tsx`: pick friends, name, "Create thread · N friends").
   The Reel and Scroll encounter screens can reuse `ShareMomentSheet` and `ShareFromScrollSheet` through the hooks in
   `features/threads/`. `ReelEncounter` passes `stageMaxHeight` to `ReelPlayer`; if the player's props change, adapt there.
-- Not built: What if and perspectives (#244), keep listening, a thread's own Like and Save (they stay on the full-screen
+- `thread-messages.tsx` merges the thread's branch cards into the timeline by the time they were made (`timeline`), shows a
+  visible ⋯ on each message and a **What if…** on each snippet card, and `thread-screen.tsx` adds What if… and Another
+  perspective above the message box. See the next section.
+- Not built: keep listening, a thread's own Like and Save (they stay on the full-screen
   encounter), thumbnails on episode cards, the multi-pane desktop thread (D03), native text selection for passages.
+
+## What if and Another perspective (#244, D-049)
+
+`features/scenarios/`. A member asks from the whole thread (the two buttons above the message box), from a message (its ⋯
+menu, `message-menu.tsx`) or from a shared moment or passage (the **What if…** on its card). All three open one sheet, an overlay
+rather than a route, so closing it returns to the same place in the thread. *Implemented; exercised in tests and a browser
+locally, not on dev.*
+
+- `scenario-sheet.tsx` (X01): the kind switch, a "From:" chip, "Your idea", then by what the controller says: thinking (with
+  "Write my own version"), one clear idea as a summary with Edit and **Explore**, a few suggested directions each with
+  **Explore this**, a confirm step ("Speculative scenario · not established science", **Create branch**) for an unclear or
+  speculative idea, the member's own complete request (what changes, what stays, or the lens), and a plain message when it is
+  blocked (no more branches for now, nothing to look up, offline). The words are kept on the device until a branch exists.
+  Asking never makes anything; only Explore, Explore this or Create branch does.
+- `branch-card.tsx` (X02): a dashed cobalt card for a what-if and anything below it, a solid raised card for a perspective on the
+  real subject; "Hypothetical" and the Changed and Kept chips; Preparing with a stripe, Ready with **Explore this**, **What if…**
+  (continue from this branch), and Remove for whoever asked; "Couldn't prepare this branch"; a quiet note when removed. It shows
+  nobody's position and no part number.
+- `use-scenarios.ts`: `useScenarioBoard` polls the branches every 20 seconds (5 while one is preparing) and on focus or
+  reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.
+  The controllers are `createScenarioBoard` and `createScenarioComposer` in client-core.
+- Exploring a ready branch opens `/threads/<id>/read/<assetId>?...&b=1`, the thread's own reader without the share control (a
+  snippet points into the thread's sequence, which a branch is not).
+- Not built: the branch sequence view (X03) and the history map (X04), a retry for a failed branch.
+

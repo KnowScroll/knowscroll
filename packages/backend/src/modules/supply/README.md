@@ -99,6 +99,24 @@ source refusals write no receipt. A fresh accepted demand, its receipt, the pers
 queued jobs commit together. A replay keeps the original request ID and receipt. Cancel changes only an
 open owned waiter; shared work and other waiters are untouched.
 
+## Orders for a thread's branch (D-049)
+
+A What if or Another perspective in a content thread (the `scenarios` module) is not a request of a person's
+and does not match the catalogue. When a member chooses a direction, the scenarios module hands Supply a
+code-built order and `COMMISSION_SCENARIO_ORDER` runs inside the member's transaction, after the thread's lock:
+
+- it takes the commissioning lock (last in the lock order), so the day's count and the orders it admits agree;
+- an order it already holds is commissioned again without counting twice, so a retry never spends the day;
+- otherwise it refuses with `day_cap` when the world's UTC day is full (`KS_SUPPLY_SCENARIO_DAILY_CAP`, 0 turns
+  it off) or `thread_cap` when the thread has had all the branches it may (`KS_SUPPLY_SCENARIO_THREAD_CAP`);
+- it records the order with Content (`RECORD_MADE_TO_ORDER_SCROLL`), writes a row in `supply.scenario_orders`
+  (order and thread, no person and no words) and sends the production job for take 1 (same identity, so a
+  repeat is never doubled).
+
+An order is its own work: never joined with another, never reused for another thread, not part of
+`supply.work` and not counted by the two Create caps above. The scenarios module's sweep sends later takes.
+*Implemented.*
+
 ## Tables, jobs and lock order
 
 | Store | Role | Erasure |
@@ -107,6 +125,7 @@ open owned waiter; shared work and other waiters are untouched.
 | `supply.work` | Public shared group: SHA-256 key of a code-built brief, the recipe whose production it commissioned, who commissioned it (`person` or `planner`, for the two caps), `active`. No owner, no private context. | Survives erasure; it is public metadata. |
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
+| `supply.scenario_orders` | The ledger of a thread's branch orders that the scenario caps count: order ID, thread ID, time. | Names no person; survives erasure. |
 
 States of `supply.requests`: `matching`, `requested`, `deferred` (Planner), `ready`, `unavailable`,
 `cancelled`.
@@ -135,6 +154,7 @@ catch-up watermark.
   job, recovery of open demand left from before Create, erasure, and free-text matching with a fixture model.
 - `tests/integration/modules/supply-planned.test.ts`, `planner-loop.test.ts`: the Planner's demand.
 - `tests/integration/release/requests-http.test.ts`: the installed API.
+- `application/scenario-orders.test.ts`, `tests/integration/modules/scenarios.test.ts`: the order, both caps and idempotence.
 
 CI fixtures only; real-provider runs are summarised in the pull request for #239.
 
