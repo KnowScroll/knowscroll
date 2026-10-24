@@ -1,4 +1,6 @@
-# Friends UI (#377 / parent #241)
+# Friends UI
+
+Related: #377, #241.
 
 `/friends` is outside the four-tab group. Talk's real Friends link opens it; the always-reachable
 Back control returns through router history, falling back to Talk. `/friends/invite` is the

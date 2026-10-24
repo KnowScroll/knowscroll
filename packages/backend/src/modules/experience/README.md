@@ -34,7 +34,9 @@ consumption evidence; an exposure remains bound to its immutable admitted revisi
 rendering stays Scroll-only. The separate media read port checks Reel exposure ownership/current epoch
 and admitted revision on every grant and byte-range request.
 
-## Navigation and actual activation (0018, #234 backend slice)
+## Navigating and activating encounters
+
+Status: implemented, CI-tested against real PostgreSQL. Related: migration 0018, #234.
 
 The API composition now binds discover/return open, all shared semantic navigation modes, offer
 activation, current context, Like/Unlike/Hide, and exact Saved hydration. Direct open/activate and
@@ -68,12 +70,12 @@ revision and explicitly reports corrected/withdrawn availability.
 | `sessions` | Own session ID, latest revision and declared capabilities/intent | One per session, bounded JSON; retained until full erasure |
 | `offers` | Immutable exact descriptors + owned decision FK, scoped session/intent index and same-session source FK | <=3 per committed decision; 32KiB descriptor; TTL is activation eligibility, not physical deletion |
 | `offer_activations` | Unique own offer -> one actual exposure | <=1 per activated offer; erase before offers/exposures |
-| `encounter_lineage` | Actual activated immutable revision/explanation/facets; scoped recent and explanation-time indexes plus facet GIN | One per actual exposure; recent read <=20 within24h, established probes <=100 units/16facets; retained history, no learning claim |
+| `encounter_lineage` | Actual activated immutable revision/explanation/facets; scoped recent and explanation-time indexes plus facet GIN | One per actual exposure; recent read <=20 within 24h, established probes <=100 units/16 facets; retained history, no learning claim |
 | `encounter_activity_inputs` | Current independent action/navigation flags and revisions, exact exposure key | One per actual exposure; baseline false never invents a measurement |
 | `action_state`, `action_links` | Current asset preferences/original credit pointers and immutable action audit | One state/asset + one link/action; only explicit commands; full erasure deletes before actions/exposures |
 | `navigation_transitions` | Actual activated destination/source and typed mode, source index | One per activated offer; H only deliberate series/related source, R only separated explicit return |
 
-Migration18 backfills only real retained activated metadata. Existing unknown measurements remain
+Migration 18 backfills only real retained activated metadata. Existing unknown measurements remain
 unknown. Full AccountScope erasure deletes evidence first, offer references before decisions, then
 exposure roots; shared content survives. The existing generic clear-all is **not** selective history
 clearing. Offers and sessions have no maintenance scheduler in this slice. Retained offers can delay
@@ -81,19 +83,21 @@ physical Composer decision pruning after its 30-day logical read expiry.
 
 Navigation's new receipt operation names satisfy the unchanged `<module>.<operation>` grammar
 (`experience.compose-open-v0`, `experience.navigate-v0`, `experience.activate-offer-v0` and
-`experience.encounter-action-v0`; outcomeVersion1). Legacy operation identities stay unchanged.
+`experience.encounter-action-v0`; outcome version 1). Legacy operation identities stay unchanged.
 A navigation receipt stores `navigation-receipt.v0`: immutable common outcome fields/status and
 ordered chosen/buffer offer IDs (<=3), well within the unchanged whole-receipt8KiB limit. Replay
 reads only those exact owned epoch/session/intent/decision-bound immutable offer descriptors, never
 current catalog metadata or context. It does not reapply offer TTL. The public wire remains full
-metadata. The independently bounded offer descriptor permits32KiB to accommodate all valid shared
+metadata. The independently bounded offer descriptor permits 32KiB to accommodate all valid shared
 metadata and conservative JSON escaping, without truncation or dropping Composer selections.
 Descriptor/binding/policy rewrites are refused by a database trigger; full AccountScope erasure
 removes the private receipt and offer references together. A missing/inconsistent replay reference
 is an internal availability refusal, never a silently rebuilt current result.
 
 
-### Navigation steps and worker-prepared buffers (#234)
+### Navigation steps and prepared buffers
+
+Related: #234.
 
 `application/navigation.ts` is the use case; its steps live in small files: `navigation-prepare.ts`
 (transaction 1: `startOf`, `storedBuffer`, `retrieve*` per mode, `rankingInput`), `navigation-receipt.ts`
@@ -113,7 +117,9 @@ answers the buffer worker's read-only questions (`experienceBufferSourceProvider
 session facts, and Hide). A subject move (vertical) never offers the explanation unit of the encounter it
 starts from.
 
-## Personal Context preparation (#235)
+## Reading Personal Context for ranking
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #235.
 
 Navigation's existing prepared-input capability now requires READ_COMPOSER_CONTEXT from the PC owner.
 The API and worker install that adapter through personalContextProviders. It reads the revisioned
@@ -131,7 +137,9 @@ no Content eligibility or consumption evidence; Supply separately rechecks curre
 its SHARE wait. The deliberate submission's session fence does not make later ordinary navigation
 revoke an accepted request. Existing experience/navigation/open reads retain their semantics.
 
-## Durable Keep place prerequisite (#246, migration0029)
+## Saved items and their places
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #246, migration 0029.
 
 Experience owns a private immutable Saved membership UUID and latest
 `experience.saved_places`. Existing real Saved rows receive identities only;
@@ -154,7 +162,7 @@ private results. UUID comparisons use relational identity; read target echoes
 preserve the initiating UUID spelling. There is no redirect to another revision.
 
 Set hashes the full original validated command under internal receipt operation
-`experience.keep-place-set`, outcomeVersion1, before contextual clamping. An
+`experience.keep-place-set`, outcome version 1, before contextual clamping. An
 identical authorised replay returns immutable acceptance before testing its old
 expected revision. Stored acceptance is strictly parsed and bound to command,
 entry, scope, epoch and original expected revision; impossible current place
@@ -168,42 +176,44 @@ revision. Place counters are safe bigint values; existing root integer capacity
 is checked before new effects. Reel clamps to the canonical immutable duration
 and preserves fractions; Scroll validates the actual top-level anchor and stores
 finite logical pixels without inventing server geometry. Later renderer layout
-clamps actual measured blocks. No copied universal60second policy exists.
+clamps actual measured blocks. No copied universal 60-second policy exists.
 Pending receipt, CAS place, position-free acceptance, one root increment and
 transactional disposable hint commit atomically. No action, exposure, Evidence,
 job, external I/O or provider work is created. No automatic stale overwrite.
 
 The SQL constraints close both position branches with guarded numeric casts and
-safe bounds. Migration29 backfills/validates/indexes under the migrator's one
+safe bounds. Migration 29 backfills/validates/indexes under the migrator's one
 transaction, with bounded lock/statement timeouts and documented narrow SQL-lint
 exceptions: actual rollout requires reviewed stopped-service/backup handling,
-not an online-maintenance promise. Existing0001..0028 and pool SQL are immutable.
+not an online-maintenance promise. Existing 0001..0028 and pool SQL are immutable.
 Codegen uses a fresh owned full ordered schema, never manual generated-type edits.
 
 All-data erasure explicitly deletes places before Saved across every retained
 scope version; existing receipts/jobs erasers remove old epochs too. Current
 eraseUniverse still deletes Keep. Exploration-clear preserving Keep, inactive
 account deletion, backups and local position purge require later explicit
-lifecycle/client work; Identity309 and registry inventory do not execute it.
+lifecycle/client work; Identity 309 and registry inventory do not execute it.
 There is no Keep worker/job. Old-scope generic work is refused at the scope gate.
 
-Canonical Content318 stored admission remains unchanged, including bounded CPU
+Canonical Content 318 stored admission remains unchanged, including bounded CPU
 proof work while the transaction is held. Worst-case valid-document transaction
 and installed HTTP latency are measured by authored Actions probes before a client consumer.
-The20 serial warm samples per operation/control follow three warmups, retain cold samples
+The 20 serial warm samples per operation/control follow three warmups, retain cold samples
 separately and report actual CPU/transaction/query/commit-return spans plus HTTP wall time.
-They include the existing full eight100×100-grid canonical proof, not a cheap parser or
+They include the existing full eight 100×100-grid canonical proof, not a cheap parser or
 prevalidated flag. Query spans include real lock waits; commit-return includes driver overhead.
 They establish neither production percentiles nor an accepted client response/lock budget. Actions fixtures cover real-PG CAS/receipt/identity/
 Content/membership races, rollback after receipt/place/hint, strict JSON, actual
 resume units, counter limits and all-epoch erasure. The thin API source mounts read/set without a worker or new business authority. No client
 journey, privacy completion, runtime rollout or full #246 acceptance is claimed.
 
-## Exact Saved membership removal (#246)
+## Removing a Saved item
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #246.
 
 `KEEP_REMOVAL_USE_CASE` / `keepRemovalUseCase` is a separate `keep-remove.v1`
 command mounted by the API. It strictly hashes the original command under
-`experience.keep-entry-remove`, outcomeVersion1. One real personal root and the
+`experience.keep-entry-remove`, outcome version 1. One real personal root and the
 actual Identity own-account UPDATE/fresh-authority fence precede receipt access.
 A valid immutable historical acknowledgement replays BEFORE looking for the
 membership the command already removed. A replay of A leaves a later Save's B
@@ -226,12 +236,14 @@ Actions-only real PG/pg-boss and installed HTTP fixtures cover replay after dele
 ABA/resave, corrected/withdrawn refs, current owner/account/epoch waits, duplicate
 commands, removal/Set ordering, receipt corruption/version refusal, post-write
 rollback and actual saved-channel correction retaining Like. No local suite,
-provider or owner-data operation is implied. The closed14-code removal HTTP family
+provider or owner-data operation is implied. The closed 14-code removal HTTP family
 contains only seven schema-owned issue tokens; no position/CAS/replacement metadata.
 This source endpoint does not migrate the app's legacy Unsave, supply Undo, complete
 selective privacy or establish real two-device/runtime acceptance.
 
-## Complete live Saved paging (#344)
+## Listing Saved items
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #344.
 
 `ReadSavedPage` consumes accepted `saved-page.v1` on the existing GET `/v1/saved`.
 The new use case locks/rechecks the current personal root and own account (and
@@ -244,7 +256,7 @@ The existing `(universe_id,saved_at DESC,asset_id ASC)` index supports keyset re
 Keys retain exact UTC microseconds as strings end to end; the SQL ordering uses
 the timestamp column, never its formatted alias, JavaScript Date or OFFSET.
 Continuation seeks the same timestamp's later UUID range, then older timestamps,
-with bounded LIMITs. At most101 keys are read, only100 identities and Content
+with bounded LIMITs. At most 101 keys are read, only 100 identities and Content
 metadata refs hydrated. The extra key is lookahead only. Filtering uses actual
 Content kind including withdrawn rows through its public read port, with at most
 100 candidates per request. An empty filtered window may have more; it does not
@@ -257,7 +269,7 @@ The API composes per-instance authenticated confidential five-minute cursors.
 Scope/filter/limit/purpose/epoch mismatches and expiry/rotation require a fresh
 traversal, never authority bypass. API-instance keys are separate from personal
 scopes and media grants. Domain code performs no crypto/network/config work.
-Actions-only real PostgreSQL fixtures cover160-row traversal,110 tied rows,
+Actions-only real PostgreSQL fixtures cover 160-row traversal, 110 tied rows,
 submillisecond boundaries, late kind matches, withdrawal, deleted/resaved anchors,
 100-ref budgets, unchanged activity/root state and current authority after real
 root/account lock waits. Complete deployed/UI acceptance remains under #344.
@@ -270,10 +282,12 @@ Every chosen and buffered regional discovery offer carries an immutable private 
 
 The concrete personal erasure inventory includes `offer_region_constraints`, removed before offers across all epochs by both full erasure and selective Clear. Saved items, Saved places and shared Content projection survive selective Clear. Historical Geography IDs deliberately have no live Geography FK because Geography erases earlier in the registry; activation always rechecks live Geography instead. Content mapping FKs retain the exact immutable accounting of selection, never permission to activate an old mapping.
 
-Schema0037 adds structural compatibility guards. Old writers cannot bind a regional offer without the new transaction-local protocol marker or commit a generic vertical child that sheds its parent Region. The new adapter sets the marker only after consuming an unforgeable one-use live-scope/offer permit minted after current authority checks; the marker alone is not business authority and disappears on commit/rollback. Ordinary legacy offers keep their behavior. A rolling downgrade is unsupported: incompatible processes must be stopped, and the existing exact schema release guard must refuse old code against schema37. These guards do not retroactively give an old process the new read/receipt replay checks.
+Schema 0037 adds structural compatibility guards. Old writers cannot bind a regional offer without the new transaction-local protocol marker or commit a generic vertical child that sheds its parent Region. The new adapter sets the marker only after consuming an unforgeable one-use live-scope/offer permit minted after current authority checks; the marker alone is not business authority and disappears on commit/rollback. Ordinary legacy offers keep their behavior. A rolling downgrade is unsupported: incompatible processes must be stopped, and the existing exact schema release guard must refuse old code against schema 37. These guards do not retroactively give an old process the new read/receipt replay checks.
 
 
-## Recording provenance prerequisite (#381, source only)
+## Recording provenance on commands, offers and sessions
+
+Status: implemented in source and CI; not exercised on a running system. Related: #381.
 
 The command/offer/session hooks implement the reviewed recording design without exposing a
 Pause controller or toggle. The immutable original optional `recordingGeneration` participates
@@ -290,8 +304,8 @@ narrow it. Each of at most three offers retains that intent origin. H/R requires
 actual activation to be eligible in the same generation. Old source exposures gain no H without an
 actual same-generation activation. Routing/opening/grants alone never qualify consumption.
 
-The original provider composition is a **legacy initial1/on compatibility composition**. Its real
-recording fence refuses collection after any toggle, even if a fresh command supplies generation3.
+The original provider composition is a **legacy initial 1/on compatibility composition**. Its real
+recording fence refuses collection after any toggle, even if a fresh command supplies generation 3.
 It does not provide v2 recording readiness. The explicit recording-aware composition requires
 `options.recordingEffects` naming a complete `ExperienceRecordingEffects` provider. Missing or
 incomplete methods refuse factory construction; there is no empty success implementation. Evidence
@@ -328,7 +342,7 @@ aggregate-qualified flag.
 uncertified, never false. Neither current Saved/Like flags nor the newest action proves uniqueness:
 a retained committed E1 positive may coexist with a pending old retraction and a later E2 pointer.
 Recording-aware positive credit therefore stays unavailable for uncertified channels. The safe next
-seam is an explicitly allocated initial1/on durable finite-page certification over real committed
+seam is an explicitly allocated initial 1/on durable finite-page certification over real committed
 sources and pending-work convergence, with an authenticated epoch/generation-bound ceiling/cursor,
 fixed page budgets and typed unknown/overflow. A toggle invalidates incomplete work; it cannot
 repair old inputs after resume. No certification operation, historical scan/backfill or implicit
@@ -344,7 +358,9 @@ include `apps/api/src/modules/experience.ts`, `apps/api/src/modules/evidence.ts`
 Evidence provider selection and the recording-aware client/recorder wiring; none is activated by
 this source slice.
 
-## Fresh lifecycle channel certification (0044; source only)
+## Certifying a recording lifecycle channel
+
+Status: implemented in source and CI; not exercised on a running system. Related: migration 0044.
 
 The separately allocated fresh-lifecycle protocol now enables genuinely new roots and verified
 current Clear cores, while retained legacy channel certification remains unavailable. A real
@@ -374,13 +390,13 @@ consumer control or installed recording journey is accepted by this source slice
 ### Retained recording routing facts
 
 Routing history reads both legacy actual encounters and recording segments with a non-null first
-eligible activation. Each scoped time-index lane reads at most20 raw rows in the last24hours;
+eligible activation. Each scoped time-index lane reads at most 20 raw rows in the last 24 hours;
 the at-most40 rows merge by exact activation timestamp/exposure, deduplicate exposures, and return
-at most20. Duplicate generations can exhaust a lane: there is no refill or completeness claim.
+at most 20. Duplicate generations can exhaust a lane: there is no refill or completeness claim.
 Recording attribution wins an exact legacy tie. No current-generation filter relabels retained
 facts; paused reads retain old eligible history while paused activations and correction-only
-segments add no encounter. The unreleased0042 includes scoped recent/unit indexes and a partial
+segments add no encounter. The unreleased 0042 includes scoped recent/unit indexes and a partial
 facet-expression GIN. Established unit probes are exact; facet probes preserve ANY encountered
-unit semantics, independently of the candidate unit. At most100 candidates/16facets and100 asset
+unit semantics, independently of the candidate unit. At most 100 candidates/16 facets and 100 asset
 IDs enter these probes. These are routing/novelty facts only: they neither qualify an exposure nor
 create Personal Context support, learning, credit, a session, or collection authority.

@@ -63,7 +63,9 @@ recorder at elapsed zero for a previously activated exposure. A fresh revisit mu
 exposure through the authorized encounter flow. Durable outbox batches already formed keep their
 original event IDs and retry behavior across parking; suspension does not dispose the scope outbox.
 
-## Readonly Universe session (#238)
+## Readonly Universe session
+
+Related: #238.
 
 `createUniverseSceneSession({ scope, capabilities, selection? })` owns a complete global Geography
 and a complete selected Scene in memory. Supply the actual AccountScope and an explicit bounded
@@ -101,7 +103,7 @@ available when the Scene cannot render.
 
 `UNIVERSE_SCENE_LIMITS` additionally bounds 128 chunks and 8 MiB of canonical serialized data across
 the displayed and candidate versions (at most two snapshots). Canonical per-document limits remain
-unchanged (262144 bytes, depth12, 12000 nodes, 100 objects/routes per chunk). Generic oRPC decodes JSON
+unchanged (262144 bytes, depth 12, 12000 nodes, 100 objects/routes per chunk). Generic oRPC decodes JSON
 before canonical validation: these are accepted/retained-data bounds, **not a pre-decode transport
 allocation guarantee**. Full/low/reduced-motion flags do not reduce wire cardinality or permit
 repeated oversized downloads.
@@ -120,7 +122,9 @@ Scope end or authority refusal synchronously purges private snapshots, listeners
 
 Authored protocol fixtures cover scope-object isolation, synchronous purge and late replies, CAS/ABA/replay/coalescing, uncertain acknowledgements, required ACK rereads and resource caps. Automated verification runs in Actions only. This source does not establish mounted Keep UX, native/runtime acceptance, a response/lock UX budget, or a production latency SLO; those remain separate consumer/review gates after the actual HTTP probes.
 
-## Account sessions, export and deletion (#246, D-043)
+## Account sessions, export and deletion (D-043)
+
+Related: #246.
 
 - `createAccountSessionsSession(scope)`: the person's live sessions (coarse label, last use, current), `end(id)` and
   `endOthers()` then reread; a session already gone counts as ended; a failure keeps the list and says so.
@@ -135,13 +139,17 @@ Authored protocol fixtures cover scope-object isolation, synchronous purge and l
   (`ks.deletion.receipt`, not purged by a scope ending). An unknown receipt is forgotten: that request never arrived.
   `signed_out.reason` gains `account_deleted`.
 
-## Operator screen state (#248, D-044)
+## Operator screen state (D-044)
+
+Related: #248.
 
 - `createOperatorSession(scope)`: the panels (`loading`, `ready` with `readAt` and `stale`, `unavailable`, or `not_operator` on the
   server's 404) and one journey lookup (`idle`, `invalid` for input that is not an ID and is never sent, `loading`, `found`,
   `not_found`, `unavailable`). Only the newest lookup shows. Read-only.
 
-## Manager-owned selective Clear (#345)
+## Manager-owned selective Clear
+
+Related: #345.
 
 `AccountScopeManager.privacy` is an in-memory controller outside the provider's keyed scope subtree.
 A deliberate `confirm({ commandId, confirmation: PRIVACY_CLEAR_ACKNOWLEDGEMENT })` sends exactly
@@ -166,12 +174,14 @@ private/raw-error logging is added. `completed_live` confirms only live removal,
 provider-copy or offline-device expiry claim. Tests use authored HTTP/auth fixtures and the actual
 manager/fenced transport; automated verification runs only in Actions.
 
-## Canonical region preview (#362)
+## Canonical region preview
+
+Related: #362.
 
 `createRegionPreviewSession({ scope, capabilities, newReadId })` owns one ephemeral read-only card
 per actual AccountScope object. It requires synchronous `onEnd`, parses the merged U04 contract,
 binds the exact read ID/region/object/Geography revision/capabilities/universe/epoch and rejects
-regressive root/Geography watermarks. Accepted decoded data is limited to32KiB; this is not a
+regressive root/Geography watermarks. Accepted decoded data is limited to 32KiB; this is not a
 pre-decode transport allocation guarantee. The card is frozen and is never a cache payload or
 storage record. No offer, activation, evidence, request, job or provider operation is created.
 
@@ -197,7 +207,9 @@ coverage/admission authority stays server-owned. Authored protocol/component/exp
 fixtures run in Actions only and do not establish real formation, approved mappings, generated
 content, device parity or populated dev acceptance.
 
-## Dust read (#238)
+## Dust read
+
+Related: #238.
 
 `readDustCues(scope, signal?)` calls `POST /v1/universe/emerging/read` and returns `ready` with
 opaque cue IDs or a typed `unavailable` reason (`network`, `authority`, `invalid`,
@@ -206,10 +218,12 @@ has no label, topic or count, and the read never forms anything. Nothing is cach
 the Universe view session reads again on foreground and when the geography revision changes.
 Status: implemented, CI-verified.
 
-## Durable formation presentation client (#363)
+## Formation presentation
+
+Related: #363.
 
 `createFormationPresentationSession` consumes the merged `formation-presentation.v1` protocol
-through the actual AccountScope. A pure, bounded32KiB accepted-data read must match its request,
+through the actual AccountScope. A pure, bounded 32KiB accepted-data read must match its request,
 capabilities, current scope/epoch/root and exact complete Geography/Scene selection. Every target
 must retain its actual creation transition, object revision, parent, kind, label and truth framing.
 No client infers a formation from the latest scene or an origin ID alone. Missing services remain
@@ -218,7 +232,7 @@ unavailable. A fresh claim command/nonce follows only a current, fresh, claimabl
 An immutable claimed receipt alone cannot start anything. Current active status must bind its
 exact claim and unrenewed expiry, the current projection/capabilities must still match, and the
 screen must be foreground. Conservative monotonic deadlines include elapsed request time and
-never extend the original300s freshness or30s claim. Mount wins synchronously once before timers.
+never extend the original 300s freshness or 30s claim. Mount wins synchronously once before timers.
 A64-entry local duplicate fence supplements the durable server uniqueness rule; it is neither a
 persistent shown journal nor cross-device authority. Route remounts reuse the scope's controller.
 
@@ -230,8 +244,8 @@ snapshot identity, explicit pending projection, failed read, authority loss, cha
 capabilities, expiry or background interrupts. This private certificate is purged with the scope.
 
 Unknown claim/acknowledgement outcomes retain the identical command/body and require explicit
-retry; focus never resends them. A later4xx cannot resolve an earlier ambiguous send. Completion
-requires an actual mounted2400ms full sequence or an actually mounted reduced-motion final still.
+retry; focus never resends them. A later 4xx cannot resolve an earlier ambiguous send. Completion
+requires an actual mounted 2400ms full sequence or an actually mounted reduced-motion final still.
 `completed` describes that local rendered surface, not durable acknowledgement success. Skip,
 background, route leave or projection/capability interruption stops locally and requests skipped.
 A pending shown acknowledgement is never replaced by skipped. Late terminal receipts retain the
@@ -248,9 +262,11 @@ Skip is the first focus stop, final status is polite and Done focuses the actual
 Protocol/component/browser cases are authored fixtures and run only in Actions. This source
 installs no durable backend/API/worker, creates no supported Geography, approves no mappings and
 proves no real cross-device, populated-dev or physical-device journey. Those remain acceptance
-requirements under363/238/237/222; models and paid roles remain separately controlled.
+requirements under 363/238/237/222; models and paid roles remain separately controlled.
 
-## Friends profile, pairs and invites (#377)
+## Friends profile, pairs and invites
+
+Related: #377.
 
 `createFriendsSession({ scope, newCommandId })` exposes `getState`/`subscribe` and explicit profile,
 exact-handle lookup, pair, invite-status and invite-resolution reads. Construction requires the
@@ -297,7 +313,9 @@ beginning. Stale/invalid continuations discard the window and require explicit R
 current/retained tokens are refused; the server authenticates finite advancing scan authority.
 Legacy `sharing.v1` contracts remain unchanged and are never a downgrade/fallback path.
 
-## Personal recording policy (#381)
+## Personal recording policy
+
+Related: #381.
 
 `recording-policy.ts` owns one session on each actual AccountScope. Current authority and ACKs are
 memory-only; only the minimal exact unresolved set command is kept in scoped storage for reload
@@ -334,7 +352,9 @@ platform storage (`apps/client/platform/secure-key-value-store.ts`, D-045) and i
 after a write, not at it, so a process killed in that moment loses that write. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
 hosted Actions only. They do not establish real service qualification, native parity or deployment.
 
-## Talk and share links (#242, D-042)
+## Talk and share links (D-042)
+
+Related: #242.
 
 All of these are pure controllers over `scope.api`. They hold no token or body in a query cache or storage, and
 they end with the scope. *Implemented; exercised in browsers locally, not yet on dev.*

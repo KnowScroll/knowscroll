@@ -1,6 +1,20 @@
 # @knowscroll/worker
 
-## Clear exploration maintenance (#345)
+## Startup and schedules
+
+The worker starts pg-boss as a `consumer`, builds the Nest context, registers every consumer of its
+explicit registry (`src/jobs.ts`) and then removes stale schedules. Recurring schedules are created
+by `dist/migrate.js` from the release's queue declarations (`releaseQueues`), and a queue that leaves
+the declarations keeps its schedule row, so pg-boss would go on creating jobs that no consumer claims.
+`removeUndeclaredSchedules` deletes every pg-boss schedule whose queue name is not in `releaseQueues`
+and logs `jobs.schedule_removed` once per removal with the queue name. It is idempotent, leaves the
+queue and its existing jobs alone and runs on every start, so workers that start together are safe.
+Status: implemented and covered by `tests/integration/infrastructure/jobs.test.ts` against real
+PostgreSQL.
+
+## Clear exploration maintenance
+
+Related: #345.
 
 The explicit consumer registry includes `identity.clear-exploration`. Its IDs-only payload
 locates an existing account-lifetime operation; durable core_done determines whether the
@@ -20,12 +34,14 @@ exact Clear transaction only after every owner reports `completed`. The worker a
 caller-provided registry or lookalike callback as lifecycle proof. Exact-set accounting and
 recovery retain their separate existing authority; they cannot reacquire core removal.
 
-This composition requires the durable core from PR348 and the reviewed current lifecycle/schema
+This composition requires the durable core from PR #348 and the reviewed current lifecycle/schema
 prerequisites; older installed schemas or an incomplete lifecycle cannot be certified by wiring.
 Actions installed-release fixtures exercise the normal API and worker with disposable data
 and no provider. Actual dev/stage privacy journeys require separate deployment evidence.
 
-## Account deletion and export (#246, D-043)
+## Account deletion and export (D-043)
+
+Related: #246.
 
 The registry also holds `identity.delete-account` (erases one accepted account deletion in one transaction
 through `eraseCurrentAccount`), `identity.recover-account-deletions` (every five minutes: hands pending, due
@@ -122,17 +138,19 @@ superseded intent, an unactivated offer or an old epoch is skipped. A redelivery
 U05 (#363) normally registers the fixed `scenes.expire-formation` consumer and five-minute UTC
 `scenes.recover-formation` scheduled consumer. They finalize only the exact current due claim as
 skipped, never create formation, grant animation, consume content or invoke a model/provider.
-Expiry has120s/three10s-backoff retries; recovery180s/three15s-backoff retries; both concurrency1,
+Expiry has 120s/three 10s-backoff retries; recovery 180s/three 15s-backoff retries; both concurrency 1,
 7d queued/2d settled plus declared dead letters. Recovery re-enters owner/epoch/root/Clear fences
-with250ms locks/2s statements and at most30s between-op work per delivery. Generated bigint ordinal
-pages read101/process100 against a captured ceiling; one required fixed advancing child commits
+with 250ms locks/2s statements and at most 30s between-op work per delivery. Generated bigint ordinal
+pages read 101/process 100 against a captured ceiling; one required fixed advancing child commits
 before any owner root acquisition. Live duplicate child cursors dedupe, final pages do not wake
 again, and overlapping scheduled passes may revisit due rows. Exhausted final delivery/root lock
 or crash leaves durable due state for the next finite pass. The ordinal-only global cursor has
 no personal UUID or per-account effect authority; full/Clear erases the personal row and all exact
 private expiry job states. Old late work cannot restore removed IDs or touch fresh-epoch data.
 
-## Original-generation personal recording composition (#381)
+## Personal recording composition
+
+Related: #381.
 
 The worker binds Identity's actual own-account adapter and `FENCE_PERSONAL_RECORDING`. The
 own-account adapter supplies the branded current lifecycle reader through the same actual gate;
