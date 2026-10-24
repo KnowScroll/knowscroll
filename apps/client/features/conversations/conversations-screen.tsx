@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { inboxRowView, listTime, type AccountScope } from '@knowscroll/client-core';
 import type { DirectConversationSummary } from '@knowscroll/contracts';
-import { borderWidth, content, dimension, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, dimension, layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, RowLink, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
@@ -63,7 +63,7 @@ function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
     );
   if (inbox.items.length === 0) return <EmptyTalk />;
   return (
-    <View>
+    <View style={styles.list}>
       {inbox.failed ? (
         <View style={styles.banner}>
           <Banner kind="offline" lead="Offline." message="This list may be out of date." />
@@ -119,6 +119,8 @@ export function ConversationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  /** On wide screens rows keep the reading measure; the multi-pane Talk is D01 to D05. */
+  list: { width: '100%', maxWidth: layout.measureDesktop },
   rowFrame: { borderBottomWidth: borderWidth.hairline, borderBottomColor: content.rule },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   rowText: { flex: 1, gap: spacing['0.5'] },
