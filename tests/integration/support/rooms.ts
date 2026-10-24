@@ -37,6 +37,7 @@ import {
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import type { ReasoningHarness } from '@knowscroll/backend/reasoning';
 import type { TestDatabase } from './database.js';
+import { roomReportsReader } from './feedback.js';
 import { befriend, seedFriend, talkCases, type Friend } from './talk.js';
 import { geographyReader } from './visit-world.js';
 
@@ -79,6 +80,7 @@ export async function roomWorld(
     readContent: readShareableContent,
     readSequence: readContentSequence,
     readVisited: readVisitedAssets,
+    readReports: roomReportsReader,
     validateSnippet: validateSnippetAnchor,
     resolveSnippet: resolveSnippetAnchor,
     readGeography: geographyReader(database.db),

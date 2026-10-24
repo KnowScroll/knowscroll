@@ -1,7 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
-import { ORPCError } from '@orpc/client';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import type { AccountScope, FeedbackTarget } from '@knowscroll/client-core';
+import { createApiClient, type AccountScope, type FeedbackTarget } from '@knowscroll/client-core';
 import { problemDetails, type ProblemCode } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { FeedbackContent } from './feedback-content';
@@ -26,10 +25,28 @@ const receipt = (commandId: string) => ({
   receivedAt: new Date().toISOString(),
   replayed: false,
 });
-const refusal = (code: ProblemCode) => {
+/** What the API client throws for a problem answer: the real error, made by answering a request with it. */
+async function refusal(code: ProblemCode): Promise<unknown> {
   const details = problemDetails(code);
-  return new ORPCError(code, { status: details.status, message: details.title, data: details });
-};
+  const api = createApiClient({
+    baseUrl: 'https://app.fixture.test',
+    fetch: () =>
+      Promise.resolve(
+        new Response(JSON.stringify(details), {
+          status: details.status,
+          headers: { 'content-type': 'application/problem+json' },
+        }),
+      ),
+  });
+  return api.feedback
+    .reportAbuse({ commandId: id(0), category: 'spam', target: { kind: 'person', personId: id(5) } })
+    .then(
+      () => {
+        throw new Error('the fixture answer was not a problem');
+      },
+      (error: unknown) => error,
+    );
+}
 
 /** The scopes a test made, ended after it so a report kept for a connection stops retrying. */
 const ending: (() => void)[] = [];
@@ -98,7 +115,9 @@ describe('the menu', () => {
     expect(screen.getByText('Attention, explained with a crowded sentence')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Not interested. Fewer like this one' }));
     expect(onNotInterested).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Report a content error. Something here seems wrong' })).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Report a content error. Something here seems wrong' }),
+    ).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Report abuse' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -239,8 +258,8 @@ describe('sending', () => {
   it('fails with a Retry that sends the same report again, and an edit starts a new one', async () => {
     const reportAbuse = jest
       .fn()
-      .mockRejectedValueOnce(refusal('SERVICE_UNAVAILABLE'))
-      .mockRejectedValueOnce(refusal('SERVICE_UNAVAILABLE'))
+      .mockRejectedValueOnce(await refusal('SERVICE_UNAVAILABLE'))
+      .mockRejectedValueOnce(await refusal('SERVICE_UNAVAILABLE'))
       .mockImplementation((input: { commandId: string }) => Promise.resolve(receipt(input.commandId)));
     const { scope } = setup({ reportAbuse });
     await show(scope, { kind: 'person', person: kiran }, 'abuse');
@@ -263,7 +282,8 @@ describe('sending', () => {
       ['TOO_MANY_REQUESTS', 'Too many reports today. Try again tomorrow.'],
       ['NOT_FOUND', 'Can’t report this. It isn’t available any more.'],
     ] as const) {
-      const { scope } = setup({ reportAbuse: jest.fn(() => Promise.reject(refusal(code))) });
+      const error = await refusal(code);
+      const { scope } = setup({ reportAbuse: jest.fn(() => Promise.reject(error)) });
       const view = await render(
         <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
           <FeedbackContent scope={scope} target={{ kind: 'person', person: kiran }} start="abuse" onClose={jest.fn()} />

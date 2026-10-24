@@ -178,3 +178,7 @@ after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.t
 earliest time that person's next Cartographer or Planner run may start. A settled run sets it, and the next run's wake
 waits for it. Nothing is backfilled or constrained, so an older process leaves it null (no wait). Apply with the new
 binary; the generated database types change by the same two lines.
+
+0065 is Feedback (D-055): `experience.not_interested` (a short-lived routing constraint, universe-keyed), `feedback.reports`
+(account-keyed reports to the safety team) and the `ops.feedback_reports` view. Additive; no earlier writer.
+

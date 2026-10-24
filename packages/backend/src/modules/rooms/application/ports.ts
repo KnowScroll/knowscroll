@@ -7,6 +7,7 @@ import type {
   ValidateSnippetAnchor,
 } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
+import type { ReadRoomReports } from '../../feedback/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
@@ -221,6 +222,13 @@ export interface DiscussionStore {
     lock: RoomLock,
     messageId: string,
   ): Promise<{ readonly discussionId: string; readonly message: MessageRow } | undefined>;
+  /** Where messages of this room sit: their discussion, its title and their number. Messages that are gone are absent. */
+  locate(
+    lock: RoomLock,
+    messageIds: readonly string[],
+  ): Promise<
+    ReadonlyMap<string, { readonly discussionId: string; readonly discussionTitle: string; readonly sequence: number }>
+  >;
   /** Hides or restores a message and gives it a fresh change number, so catch-up replaces the bubble. */
   setHidden(lock: RoomLock, discussionId: string, messageId: string, hiddenAt: Date | null): Promise<void>;
   saveSnippet(lock: RoomLock, messageId: string, anchor: StoredSnippetAnchor): Promise<void>;
@@ -391,6 +399,8 @@ export interface RoomPorts {
   readonly readContent: ReadContent;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
+  /** Reports on the room's messages, for its moderators (D-055). */
+  readonly readReports: ReadRoomReports;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
   /** The caller's own map, to place stations beside the systems it holds. */

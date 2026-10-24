@@ -109,6 +109,7 @@ export {
 export {
   createRoom,
   readRoomList,
+  readRoomReports,
   readRoomStations,
   type ModerateAction,
   type RoomController,

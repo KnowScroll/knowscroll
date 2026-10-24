@@ -21,8 +21,8 @@ import {
   type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
 import { makeReportUseCases, type ReportUseCases } from '../application/file-report.js';
-import { REPORT_USE_CASES } from '../public.js';
-import { reportStore } from './postgres-reports.js';
+import { READ_ROOM_REPORTS, REPORT_USE_CASES } from '../public.js';
+import { readRoomReports, reportStore } from './postgres-reports.js';
 
 /** What the report use cases need from the rest of the system, chosen by the composition root. */
 export interface FeedbackDeps {
@@ -61,9 +61,10 @@ export function reportUseCases(deps: FeedbackDeps): ReportUseCases {
   });
 }
 
-/** The API's report use cases. */
+/** The API's report use cases, and the read the Rooms module shows a room's moderators. */
 export function feedbackProviders(tokens: { readonly withPersonalScope: symbol }) {
   return [
+    { provide: READ_ROOM_REPORTS, useValue: readRoomReports },
     {
       provide: REPORT_USE_CASES,
       inject: [

@@ -16,6 +16,7 @@ import {
   type ValidateSnippetAnchor,
 } from '../../content/public.js';
 import { READ_VISITED_ASSETS, type ReadVisitedAssets } from '../../experience/public.js';
+import { READ_ROOM_REPORTS, type ReadRoomReports } from '../../feedback/public.js';
 import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
@@ -67,6 +68,8 @@ export interface RoomsDeps {
   readonly readContent: ReadShareableContent;
   readonly readSequence: ReadContentSequence;
   readonly readVisited: ReadVisitedAssets;
+  /** Reports on a room's messages, for its moderators; only the API serves that read. */
+  readonly readReports?: ReadRoomReports;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
   /** The caller's own map, for stations; the worker never reads stations. */
@@ -114,6 +117,10 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     readContent: deps.readContent,
     readSequence: deps.readSequence,
     readVisited: deps.readVisited,
+    readReports: (scope, query) => {
+      if (deps.readReports === undefined) throw new Error('ROOMS_REPORTS_NOT_CONFIGURED');
+      return deps.readReports(scope, query);
+    },
     ...gateSnippetAnchors(deps.checkAudience, deps.validateSnippet, deps.resolveSnippet),
     readGeography: deps.readGeography ?? (() => Promise.resolve({ kind: 'refused' as const })),
     newId: deps.newId ?? uuidv7,
@@ -178,6 +185,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         RESOLVE_SNIPPET_ANCHOR,
         READ_GEOGRAPHY_SCENE_INPUT,
         CHECK_ASSET_AUDIENCE,
+        READ_ROOM_REPORTS,
         tokens.enqueueJob,
       ],
       useFactory: (
@@ -193,6 +201,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         resolveSnippet: ResolveSnippetAnchor,
         readGeography: ReadGeographySceneInput,
         checkAudience: CheckAssetAudience,
+        readReports: ReadRoomReports,
         enqueue: EnqueueJob,
       ) =>
         roomUseCases({
@@ -208,6 +217,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
           resolveSnippet,
           readGeography,
           checkAudience,
+          readReports,
           enqueue,
         }),
     },

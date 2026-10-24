@@ -31,6 +31,7 @@ import {
 import { friendCommand, seedContent, seedFriend, seedFriends, talkCases, type Friend } from '../support/talk.js';
 
 const conversationVersion = 'direct-conversation.v1' as const;
+const version = 'rooms.v1' as const;
 
 describe('reports to the safety team (real PostgreSQL)', () => {
   let database: TestDatabase<Database>;
@@ -359,6 +360,65 @@ describe('reports to the safety team (real PostgreSQL)', () => {
       for (const hidden of [a.accountId, a.person.personId, a.person.handle, messageId, asset.assetId])
         expect(text).not.toContain(hidden);
       expect(section.reports.items[0]).toMatchObject({ title: 'Attention, explained (revision 2)' });
+    });
+
+    it('is shown to a room’s moderators as the reported message, why and how often, and to no one else in the room', async () => {
+      const { roomId, slug } = await seedRoom(world);
+      const [author, reporterOne, reporterTwo, moderator] = await Promise.all([
+        seedFriend(database.db, world.friends),
+        seedFriend(database.db, world.friends),
+        seedFriend(database.db, world.friends),
+        seedFriend(database.db, world.friends),
+      ]);
+      const outsider = await seedFriend(database.db, world.friends);
+      for (const person of [author, reporterOne, reporterTwo, moderator]) unwrap(await joinRoom(world, person, roomId));
+      await makeModerator(world, slug, moderator);
+      const discussionId = await startTopic(world, author, roomId, 'Where should it run?');
+      unwrap(await say(world, author, roomId, discussionId, 'words that get reported'));
+      unwrap(await say(world, moderator, roomId, discussionId, 'the moderator’s own words'));
+      const view = await readDiscussion(world, reporterOne, roomId, discussionId);
+      if (view.status !== 'ready') throw new Error('expected ready');
+      const [authored, moderated] = view.messages.map((message) => message.messageId);
+      world.clock.now = new Date(world.clock.now.getTime() + 1_000);
+      await reports.reportAbuse(
+        reporterOne.authority,
+        abuse({ kind: 'room_message', messageId: authored! }, { note: 'CI-PRIVATE-MODERATOR-VIEW-NOTE' }),
+      );
+      await reports.reportAbuse(
+        reporterTwo.authority,
+        abuse({ kind: 'room_message', messageId: authored! }, { category: 'spam' }),
+      );
+      // A report about the moderator's own words is not for the moderator to read.
+      await reports.reportAbuse(reporterOne.authority, abuse({ kind: 'room_message', messageId: moderated! }));
+
+      const read = (person: Friend) => world.rooms.reports(person.authority, { version, readId: randomUUID(), roomId });
+      const shown = unwrap(await read(moderator));
+      expect(shown.reports).toEqual([
+        {
+          messageId: authored,
+          discussionId,
+          discussionTitle: 'Where should it run?',
+          sequence: 1,
+          count: 2,
+          categories: ['harassment', 'spam'],
+          lastReportedAt: world.clock.now.toISOString(),
+        },
+      ]);
+      const text = JSON.stringify(shown);
+      for (const hidden of [
+        'CI-PRIVATE-MODERATOR-VIEW-NOTE',
+        reporterOne.accountId,
+        reporterTwo.accountId,
+        reporterOne.person.personId,
+        author.accountId,
+      ])
+        expect(text).not.toContain(hidden);
+      // A member who is not a moderator, and a stranger, get the same refusal as a room that is not there.
+      for (const person of [author, reporterOne, outsider])
+        expect(await read(person)).toEqual({ kind: 'refused', code: 'unavailable' });
+      expect(
+        await world.rooms.reports(moderator.authority, { version, readId: randomUUID(), roomId: randomUUID() }),
+      ).toEqual({ kind: 'refused', code: 'unavailable' });
     });
 
     it('is read by operators as ids, a category and whether a note exists, never the note', async () => {

@@ -421,3 +421,19 @@ caller's own `exposures` rows (`activated_at is not null`), and returns asset ID
 exposures, so a member's progress cannot reach another member. Opening a snippet or a thread creates no exposure; the
 Watch or Read the person presses does, through the ordinary open and activate commands. Clear removes the exposures,
 and with them the markers. *Implemented; runtime-verified locally.*
+
+## Not interested (#250, D-055)
+
+`POST /v1/feedback/not-interested` and `.../undo` (`NOT_INTERESTED_USE_CASES`, `setNotInterested` / `undoNotInterested`) keep one
+admitted asset out of the caller's offers for 14 days, or until Undo. Table `experience.not_interested` (0065): universe,
+epoch, asset, `marked_at`, `expires_at`; one row per asset, at most 500 per person (a write drops lapsed rows and the oldest
+past 500). Each command is one transaction under the personal root with a command receipt: an identical retry answers the
+stored outcome, another asset under the key is `COMMAND_KEY_REUSED`, a missing or withdrawn asset is `ASSET_NOT_FOUND` and
+writes nothing. Undo needs no asset check, and undoing what is not there still succeeds.
+
+It is a routing constraint and nothing more: `readHidden` (used by navigation, region encounters and the buffer serving
+recheck) returns the assets hidden for good **and** the ones marked and not yet lapsed, so Composer excludes them and a
+prepared buffer that holds one drifts and is ranked again. No action row, no observation, no job and no hint; Personal
+Context, the Planner and the Cartographer never read the table. Clear and full erasure delete the rows; the export lists the
+title and when it lapses. *Implemented; CI-verified against PostgreSQL; not yet run on dev.*
+

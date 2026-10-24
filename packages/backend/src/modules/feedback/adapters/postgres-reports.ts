@@ -1,5 +1,6 @@
 import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import type { ReadRoomReports } from '../public.js';
 import type { ReportStore } from '../application/ports.js';
 
 /** `feedback.reports` (migration 0065), written in the reporter's personal transaction. */
@@ -21,4 +22,23 @@ export const reportStore: ReportStore = {
         ${report.anchor === undefined ? null : JSON.stringify(report.anchor)}::jsonb, ${report.note ?? null},
         ${report.createdAt})`.execute(transactionOf(scope));
   },
+};
+
+/** Reports on one room's messages, one row per message. A moderator's own messages are left out of their view. */
+export const readRoomReports: ReadRoomReports = async (scope, query) => {
+  const rows = await sql<{ message_id: string; categories: string[]; sent: number; last_reported_at: Date }>`
+    select message_id, array_agg(distinct category order by category) as categories,
+      count(*)::int as sent, max(created_at) as last_reported_at
+    from feedback.reports
+    where room_id = ${query.roomId}::uuid and target_kind = 'room_message'
+      and (reported_account_id is null or reported_account_id <> ${query.excludingAccountId}::uuid)
+    group by message_id
+    order by max(created_at) desc, message_id
+    limit ${query.limit}`.execute(transactionOf(scope));
+  return rows.rows.map((row) => ({
+    messageId: row.message_id,
+    categories: row.categories,
+    count: row.sent,
+    lastReportedAt: row.last_reported_at,
+  }));
 };

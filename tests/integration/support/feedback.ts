@@ -3,7 +3,8 @@ import type { Kysely } from 'kysely';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { FIND_ASSET_FOR_ACTION } from '@knowscroll/backend/modules/content';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
-import { reportUseCases } from '@knowscroll/backend/modules/feedback/nest-providers';
+import { READ_ROOM_REPORTS, type ReadRoomReports } from '@knowscroll/backend/modules/feedback';
+import { feedbackProviders, reportUseCases } from '@knowscroll/backend/modules/feedback/nest-providers';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import { READ_REPORTABLE_ROOM_MESSAGE } from '@knowscroll/backend/modules/rooms';
 import { roomsProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
@@ -35,3 +36,9 @@ export function reportCases(db: Kysely<Database>, now: () => Date = () => new Da
     now,
   });
 }
+
+/** The read the Rooms module shows a room's moderators, as the API's composition root binds it. */
+export const roomReportsReader = provided<ReadRoomReports>(
+  feedbackProviders({ withPersonalScope: Symbol('unused') }),
+  READ_ROOM_REPORTS,
+);

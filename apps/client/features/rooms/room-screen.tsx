@@ -12,6 +12,7 @@ import { useAccountScope } from '../../providers/account-scope';
 import { ActivitiesSection } from './activities-section';
 import { AiLabel, ModeratorLabel } from './ai-label';
 import { discussionHref, isRoomId } from './room-links';
+import { ReportedMessages } from './reported-messages';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
 import { RoomWorkspaceContext } from './room-workspace-context';
 import { useRoom, useRoomActivities } from './use-room';
@@ -373,6 +374,7 @@ export function MemberBody({
             <Text variant="meta" color={content.ink2}>
               Pinning and removing messages are on each discussion. Nothing here changes anyone’s universe.
             </Text>
+            <ReportedMessages scope={scope} roomId={view.room.roomId} />
           </View>
         ) : null}
         <Button

@@ -6,7 +6,14 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { NotFoundScreen } from '../not-found/not-found-screen';
 import { JourneyCard } from './journey-card';
-import { OverviewCard, PrivacyCard, ProductionCard, RealtimeCard, UniverseChangeCard } from './operator-panels';
+import {
+  OverviewCard,
+  PrivacyCard,
+  ProductionCard,
+  RealtimeCard,
+  ReportsCard,
+  UniverseChangeCard,
+} from './operator-panels';
 import { Chip, Mono, Note, TextButton } from './operator-parts';
 import { columnsFor, operatorColor, operatorFont } from './operator-theme';
 
@@ -102,6 +109,7 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
           {slot(<UniverseChangeCard universeChange={panels.universeChange} />)}
           {slot(<RealtimeCard realtime={panels.realtime} />)}
           {slot(<PrivacyCard privacy={panels.privacy} />)}
+          {slot(<ReportsCard safety={panels.safety} />)}
         </View>
       )}
     </ScrollView>

@@ -189,18 +189,19 @@ export function ReelEncounter({
   const reelControls = useRef<ReelControls>(null);
   const retainedGrant = useMemo(() => session.mediaGrant(entry), [entry, session]);
   const onMove = useCallback((move: EncounterGestureMove) => session.gesture(move), [session]);
+  const onMenu = useCallback(() => session.openFeedback('menu'), [session]);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const pause = useCallback(() => reelPosition.current?.pause(), []);
   const visibility = useReelPageStage(scope, playable, pause);
   const renderStage = useCallback(
     (stage: ReactNode) => (
       <View ref={visibility.ref} onLayout={visibility.onLayout} style={styles.fill}>
-        <ReelGestureStage onMove={onMove} onToggle={() => reelControls.current?.toggle()}>
+        <ReelGestureStage onMove={onMove} onToggle={() => reelControls.current?.toggle()} onMenu={onMenu}>
           {stage}
         </ReelGestureStage>
       </View>
     ),
-    [onMove, visibility.ref, visibility.onLayout],
+    [onMove, onMenu, visibility.ref, visibility.onLayout],
   );
   const onMutedChange = useCallback(
     (muted: boolean) => {

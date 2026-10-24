@@ -18,6 +18,7 @@ import type {
   RoomMessageAcceptanceSchema,
   RoomMessageHidingAcceptanceSchema,
   RoomModerationAcceptanceSchema,
+  RoomReportsSchema,
   RoomSnippetOpeningSchema,
   RoomStationsSchema,
   RoomViewSchema,
@@ -56,6 +57,8 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof RoomMessageHidingAcceptanceSchema>>>;
+  /** The reports on this room's messages, for its moderators alone (D-055). */
+  reports(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReportsSchema>>>;
   readDiscussion(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionViewSchema>>>;
   history(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionHistoryPageSchema>>>;
   changes(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionChangesPageSchema>>>;

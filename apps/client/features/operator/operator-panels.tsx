@@ -336,6 +336,47 @@ export function PrivacyCard({ privacy }: { readonly privacy: OperatorPanelsRespo
   );
 }
 
+const TARGET_WORDS = {
+  asset: 'Reel or Scroll',
+  message: 'message',
+  room_message: 'room message',
+  person: 'person',
+} as const;
+
+/** 7 · Reports to the safety team: what each is about and when, never its note, its sender or the person reported. */
+export function ReportsCard({ safety }: { readonly safety: OperatorPanelsResponse['safety'] }) {
+  return (
+    <Card title="7 · Reports" source="ops.feedback_reports" testID="operator-reports">
+      <Piece piece={safety.reports} label="newest first">
+        {(reports) =>
+          reports.recent.length === 0 ? (
+            nothing('No report has been sent.')
+          ) : (
+            <>
+              <Mono>{reports.last24Hours} in the last 24 hours</Mono>
+              {reports.recent.map((report) => (
+                <Line key={report.reportId}>
+                  <Mono size={12} color={operatorColor.ink}>
+                    {report.kind === 'abuse' ? 'abuse' : 'content error'}
+                  </Mono>
+                  <Mono>{report.category}</Mono>
+                  <Mono>{TARGET_WORDS[report.targetKind]}</Mono>
+                  <Mono>{report.hasNote ? 'with a note' : 'no note'}</Mono>
+                  <Mono>{dayAndClockOf(report.createdAt)}</Mono>
+                </Line>
+              ))}
+            </>
+          )
+        }
+      </Piece>
+      <Note>
+        Ids, kinds and times only. A note is read from the table by the person acting on the report, and neither the
+        sender nor the person reported is shown.
+      </Note>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   rows: { gap: 2 },
   pair: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
