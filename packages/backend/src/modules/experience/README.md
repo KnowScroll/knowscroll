@@ -85,7 +85,7 @@ Navigation's new receipt operation names satisfy the unchanged `<module>.<operat
 (`experience.compose-open-v0`, `experience.navigate-v0`, `experience.activate-offer-v0` and
 `experience.encounter-action-v0`; outcome version 1). Legacy operation identities stay unchanged.
 A navigation receipt stores `navigation-receipt.v0`: immutable common outcome fields/status and
-ordered chosen/buffer offer IDs (<=3), well within the unchanged whole-receipt8KiB limit. Replay
+ordered chosen/buffer offer IDs (<=3), well within the unchanged whole-receipt 8KiB limit. Replay
 reads only those exact owned epoch/session/intent/decision-bound immutable offer descriptors, never
 current catalog metadata or context. It does not reapply offer TTL. The public wire remains full
 metadata. The independently bounded offer descriptor permits 32KiB to accommodate all valid shared
@@ -391,7 +391,7 @@ consumer control or installed recording journey is accepted by this source slice
 
 Routing history reads both legacy actual encounters and recording segments with a non-null first
 eligible activation. Each scoped time-index lane reads at most 20 raw rows in the last 24 hours;
-the at-most40 rows merge by exact activation timestamp/exposure, deduplicate exposures, and return
+the at most 40 rows merge by exact activation timestamp/exposure, deduplicate exposures, and return
 at most 20. Duplicate generations can exhaust a lane: there is no refill or completeness claim.
 Recording attribution wins an exact legacy tie. No current-generation filter relabels retained
 facts; paused reads retain old eligible history while paused activations and correction-only

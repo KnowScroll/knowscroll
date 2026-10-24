@@ -209,7 +209,7 @@ ReelPlayer sizes only its video stage from the measured frame width (portrait ra
 minimum 160px until a smaller measured page budget is supplied); scrolling consumers cap it at
 half their actual viewport. Playback controls have their own natural height below it. Its page consumer must
 provide reachable vertical overflow for captions/actions/navigation. The frame no longer assumes a
-whole-window-minus300px space budget. Layout changes do not replace the SDK player/source or reset
+whole-window minus 300px space budget. Layout changes do not replace the SDK player/source or reset
 sound/playhead. renderStage still receives video/poster only; app continuation buttons are siblings
 of the gesture responder inside the measured stage, never over the playback controls. FormatSwitch
 bounds its full state labels to the parent width and permits wrapping while preserving 44px targets.
