@@ -1,0 +1,230 @@
+{
+  "policyVersion": "cutroom-commission.v1",
+  "scriptVersion": "beam-angle-v2-2",
+  "title": "Why a slanting beam spreads out",
+  "evidence": {
+    "version": "cutroom-public-evidence.v1",
+    "sources": [
+      {
+        "id": "nasa-energy-budget",
+        "url": "https://science.nasa.gov/earth/earth-observatory/climate-and-earths-energy-budget/",
+        "retrievedAt": "2026-10-22T18:19:08.000Z",
+        "excerpt": "the light gets spread over larger and larger surface areas\nmore direct sunlight and to have longer days",
+        "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+      },
+      {
+        "id": "nasa-seasons",
+        "url": "https://spaceplace.nasa.gov/seasons/en/",
+        "retrievedAt": "2026-10-22T18:19:08.000Z",
+        "excerpt": "Earth's tilted axis causes the seasons.\nAs the poles are on opposite ends of Earth, they experience opposite timing for the seasons.",
+        "excerptSha256": "0bdf2449427a64e58f799ac7920b297188c9b13b237f2d2c51edbbb2a79237b3"
+      }
+    ],
+    "reviewRef": "proposed-beam-angle-v02-factual-review"
+  },
+  "claims": [
+    {
+      "id": "normal-beam-setup",
+      "role": "supporting",
+      "statement": "The normal-incidence beam-and-ground illustration starts with a flat receiving patch perpendicular to the incoming beam.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "tilted-footprint",
+      "role": "main",
+      "statement": "Tilting a flat receiving surface beneath a fixed beam increases the illuminated footprint area.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "unchanged-beam",
+      "role": "supporting",
+      "statement": "The illustrated change in footprint is a geometric change at the receiver, without an increase or decrease in the incoming beam power.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "beam-energy-density",
+      "role": "main",
+      "statement": "The same beam power distributed over a larger receiving area supplies less energy per unit area.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "midlatitude-winter-angle",
+      "role": "supporting",
+      "statement": "At a fixed northern middle latitude, the winter local-noon Sun is lower than the summer local-noon Sun.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "midlatitude-footprint",
+      "role": "supporting",
+      "statement": "A more oblique beam has a broader footprint on the receiving surface; this applies to the seasonal noon-angle comparison at a fixed northern middle latitude.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "annual-sunlight-angle",
+      "role": "main",
+      "statement": "Earth's tilted axis produces seasonal changes in the pattern of incoming sunlight angle as Earth travels around its orbit.",
+      "support": [
+        {
+          "sourceId": "nasa-seasons",
+          "excerptSha256": "0bdf2449427a64e58f799ac7920b297188c9b13b237f2d2c51edbbb2a79237b3"
+        }
+      ]
+    },
+    {
+      "id": "annual-daylight",
+      "role": "supporting",
+      "statement": "Earth's axial tilt also changes which hemisphere has longer days during the year.",
+      "support": [
+        {
+          "sourceId": "nasa-energy-budget",
+          "excerptSha256": "865a375825c291c860601d58cbb33cd4b3862f61c8391e11c426c0f72fe9a6c4"
+        }
+      ]
+    },
+    {
+      "id": "opposite-season-timing",
+      "role": "main",
+      "statement": "The two hemispheres have opposite seasonal timing as they alternately tilt toward the incoming sunlight.",
+      "support": [
+        {
+          "sourceId": "nasa-seasons",
+          "excerptSha256": "0bdf2449427a64e58f799ac7920b297188c9b13b237f2d2c51edbbb2a79237b3"
+        }
+      ]
+    }
+  ],
+  "narration": [
+    {
+      "text": "Picture one fixed beam of light falling straight onto a flat patch of ground.",
+      "claimIds": [
+        "normal-beam-setup"
+      ]
+    },
+    {
+      "text": "Now tilt the ground beneath it, and the same light spreads into a broader footprint.",
+      "claimIds": [
+        "tilted-footprint",
+        "unchanged-beam"
+      ]
+    },
+    {
+      "text": "Less energy reaches each small patch, although the beam itself has not become weaker.",
+      "claimIds": [
+        "beam-energy-density"
+      ]
+    },
+    {
+      "text": "At northern middle latitudes, winter's noon sunlight arrives lower and spreads wider than summer's.",
+      "claimIds": [
+        "midlatitude-winter-angle",
+        "midlatitude-footprint"
+      ]
+    },
+    {
+      "text": "Earth's tilted axis changes both sunlight angle and daylight length as the planet travels around its orbit.",
+      "claimIds": [
+        "annual-sunlight-angle",
+        "annual-daylight"
+      ]
+    },
+    {
+      "text": "The hemispheres take opposite turns toward the light, creating the familiar rhythm of summer and winter.",
+      "claimIds": [
+        "opposite-season-timing"
+      ]
+    }
+  ],
+  "criteria": {
+    "mustShow": [
+      {
+        "id": "fixed-beam",
+        "text": "A single straight-sided beam illuminates one flat ground patch viewed from a clear oblique camera angle.",
+        "type": "presence",
+        "claimId": "normal-beam-setup"
+      },
+      {
+        "id": "tilt-ground",
+        "text": "Tilt the receiving ground beneath a beam whose width and direction stay fixed; its illuminated footprint visibly broadens.",
+        "type": "event",
+        "claimId": "tilted-footprint"
+      },
+      {
+        "id": "spread-energy",
+        "text": "Carry the same small set of symbolic light markers across the broader footprint, illustrating lower marker density without a numerical heat measurement.",
+        "type": "event",
+        "claimId": "beam-energy-density"
+      },
+      {
+        "id": "round-earth",
+        "text": "At one fixed northern middle-latitude ground patch, compare local-noon winter and summer ray angles; the lower winter beam has a wider geometric footprint. Keep beam width, the ground patch and camera scale fixed; do not imply this comparison holds at every latitude or hour.",
+        "type": "event",
+        "claimId": "midlatitude-winter-angle"
+      },
+      {
+        "id": "axis-and-day",
+        "text": "Show the same tilted Earth axis through orbital positions and daylight arcs, illustrating changing solar angle and day length.",
+        "type": "event",
+        "claimId": "annual-sunlight-angle"
+      },
+      {
+        "id": "opposite-hemispheres",
+        "text": "Show the two hemispheres alternating toward the light as orbital position changes, with understated opposite seasonal landscape cues.",
+        "type": "event",
+        "claimId": "opposite-season-timing"
+      }
+    ],
+    "mustNotShow": [
+      {
+        "id": "no-written-labels",
+        "text": "Written labels, equations, watermarks, logos or text inside the generated shot art; this does not prohibit final engine-burned narration captions.",
+        "type": "presence"
+      },
+      {
+        "id": "no-public-figure",
+        "text": "Recognizable real people, celebrity likenesses, NASA insignia or an implication of institutional endorsement.",
+        "type": "presence"
+      },
+      {
+        "id": "no-bent-rays",
+        "text": "Light rays bending because the receiving surface tilts, or a brighter source being used to explain the broader footprint.",
+        "type": "presence"
+      }
+    ],
+    "depictionPolicyVersion": "policy-3"
+  },
+  "style": {
+    "id": "beam-geometry-poster",
+    "version": 1,
+    "text": "Original editorial science illustration: cream, ink, cobalt and restrained teal, clean solid forms and calm camera motion. Begin with a tangible beam-and-ground demonstration before the planetary view. Straight parallel light rays and a consistently oriented Earth axis carry the geometry. The light markers are an illustrative convention, not measured temperatures or a physical simulation. No source artwork, branded assets, faces, logos, in-shot writing, quizzes or inferred learning claims. Keep all six narration beats visually distinct; final captions are produced by the engine. Claims are beat-specific: each criterion binds a claim used by only one narration beat, so setup and change shots stay distinct."
+  }
+}
