@@ -87,13 +87,14 @@ const Messages = z
       new Set(items.map((x) => x.messageId)).size === items.length &&
       items.every((x, i) => i === 0 || x.sequence > items[i - 1]!.sequence),
   );
-/** Authenticated/confidential, purpose+world+caller+epoch+membership+limit-bound server tokens.
- * No token grants authority; keep ephemeral, never logs/storage/notices. Expiry/rotation gives
- * refresh_required, never a silently substituted first page. A finite window has a captured
- * change ceiling; continuous appends cannot make one traversal unbounded. Runtime policy later. */
-export const ConversationInboxCursorSchema = z.string().regex(/^kci1_[A-Za-z0-9_-]{43,1024}$/);
-export const ConversationHistoryCursorSchema = z.string().regex(/^kch1_[A-Za-z0-9_-]{43,1024}$/);
-export const ConversationChangesCursorSchema = z.string().regex(/^kcc1_[A-Za-z0-9_-]{43,1024}$/);
+/** Opaque keyset positions: the inbox cursor holds the last row's activity time and conversation,
+ * the history cursor the oldest sequence already seen, the changes cursor the last change seen.
+ * They hold nothing the caller does not already have and grant nothing: every use rechecks
+ * membership, and a position that does not belong to the named conversation gives
+ * refresh_required, never a silently substituted first page. */
+export const ConversationInboxCursorSchema = z.string().regex(/^kci1_[A-Za-z0-9_-]{22,1024}$/);
+export const ConversationHistoryCursorSchema = z.string().regex(/^kch1_[A-Za-z0-9_-]{22,1024}$/);
+export const ConversationChangesCursorSchema = z.string().regex(/^kcc1_[A-Za-z0-9_-]{22,1024}$/);
 const Read = { version: Version, readId: UuidSchema };
 const ScopedRead = { ...Read, scope: ConversationScopeSchema };
 const Receipt = {
@@ -132,12 +133,15 @@ export const ReadConversationInboxSchema = z.strictObject({
   cursor: ConversationInboxCursorSchema.optional(),
 });
 const OwnSettings = z.strictObject({ readThroughSequence: Counter, muted: z.boolean() });
+/** Present (true) only after the other person left: history stays readable, nothing more can be sent. */
+const Ended = z.literal(true).optional();
 export const DirectConversationSummarySchema = z
   .strictObject({
     conversation: DirectConversationRefSchema,
     peer: PublicPersonRefSchema,
     latestMessageSequence: Counter,
     own: OwnSettings,
+    ended: Ended,
     lastMessage: ConversationMessageSchema.optional(),
   })
   .refine(
@@ -185,6 +189,7 @@ export const DirectConversationSnapshotSchema = z.discriminatedUnion('status', [
       conversation: DirectConversationRefSchema,
       peer: PublicPersonRefSchema,
       own: OwnSettings,
+      ended: Ended,
       latestMessageSequence: Counter,
       messages: Messages,
       limit: Limit,

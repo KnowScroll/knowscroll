@@ -4,6 +4,7 @@ import {
   ConversationScopeSchema,
   DirectConversationRefSchema,
   ConversationContentRefSchema,
+  ConversationContentProjectionSchema,
   ShareableContentProjectionSchema,
 } from './conversations.js';
 import { socialPost } from './social-problems.js';
@@ -89,6 +90,26 @@ export const OwnContentShareSchema = z
     }),
   ])
   .refine((r) => r.status !== 'available' || r.selector.kind !== 'share' || r.selector.shareId === r.shareId);
+/** The person's own live links, newest first, at most 50: the way to see and stop what they shared.
+ * Revoked and expired links are not listed. The card shows what a link points at now, so a
+ * withdrawn asset reads as unavailable. */
+export const ListOwnContentSharesSchema = z.strictObject({ ...Read });
+export const OwnContentSharesSchema = z.strictObject({
+  ...Read,
+  scope: ConversationScopeSchema,
+  items: z
+    .array(
+      z.strictObject({
+        shareId: UuidSchema,
+        target: ConversationContentRefSchema,
+        audience: ContentShareAudienceSchema,
+        createdAt: z.iso.datetime(),
+        expiresAt: z.iso.datetime(),
+        content: ConversationContentProjectionSchema,
+      }),
+    )
+    .max(50),
+});
 /** Sensitive JSON only; no token in ordinary API URLs/logs/errors/receipts/notices/storage.
  * The dedicated future /s/:token landing must isolate proxy/referrer/OG handling. It does not
  * join a conversation/thread or create any receipt/exposure merely by resolving a link. */
@@ -120,8 +141,10 @@ export const contentSharesContract = {
     ContentShareRevocationAcceptanceSchema,
   ),
   own: socialPost('/v1/social/content-shares/read', ReadOwnContentShareSchema, OwnContentShareSchema),
+  list: socialPost('/v1/social/content-shares/list', ListOwnContentSharesSchema, OwnContentSharesSchema),
   resolve: socialPost('/v1/social/content-shares/resolve', ResolveContentShareSchema, ResolvedContentShareSchema),
 };
 export type ContentShareToken = z.infer<typeof ContentShareTokenSchema>;
 export type CreateContentShare = z.infer<typeof CreateContentShareSchema>;
 export type ResolvedContentShare = z.infer<typeof ResolvedContentShareSchema>;
+export type OwnContentShares = z.infer<typeof OwnContentSharesSchema>;

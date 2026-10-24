@@ -1439,6 +1439,45 @@ export interface SocialCommandBindings {
   pair_id: string;
 }
 
+export interface SocialContentShares {
+  asset_id: string;
+  asset_revision: number;
+  command_id: string;
+  conversation_id: string | null;
+  created_at: Timestamp;
+  expires_at: Timestamp;
+  owner_account_id: string;
+  revoked_at: Timestamp | null;
+  share_id: string;
+  token_hash: string;
+}
+
+export interface SocialConversationMembers {
+  account_id: string;
+  conversation_id: string;
+  left_at: Timestamp | null;
+  membership_id: string;
+  membership_revision: Generated<Int8>;
+  muted: Generated<boolean>;
+  read_through_sequence: Generated<Int8>;
+}
+
+export interface SocialConversations {
+  closed_at: Timestamp | null;
+  conversation_id: string;
+  created_at: Timestamp;
+  last_activity_at: Timestamp;
+  last_change_sequence: Generated<Int8>;
+  last_sequence: Generated<Int8>;
+  lineage: string;
+  pair_id: string;
+}
+
+export interface SocialInboxHeads {
+  account_id: string;
+  revision: Generated<Int8>;
+}
+
 export interface SocialInvites {
   account_id: string;
   created_at: Timestamp;
@@ -1447,6 +1486,20 @@ export interface SocialInvites {
   revision: Int8;
   revoked: Generated<boolean>;
   token_hash: string;
+}
+
+export interface SocialMessages {
+  asset_id: string | null;
+  asset_revision: number | null;
+  author_account_id: string | null;
+  body_text: string | null;
+  change_sequence: Int8;
+  command_id: string | null;
+  conversation_id: string;
+  message_id: string;
+  note: string | null;
+  recorded_at: Timestamp;
+  sequence: Int8;
 }
 
 export interface SocialPairs {
@@ -1640,7 +1693,12 @@ export interface DB {
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;
   "social.command_bindings": SocialCommandBindings;
+  "social.content_shares": SocialContentShares;
+  "social.conversation_members": SocialConversationMembers;
+  "social.conversations": SocialConversations;
+  "social.inbox_heads": SocialInboxHeads;
   "social.invites": SocialInvites;
+  "social.messages": SocialMessages;
   "social.pair_sides": SocialPairSides;
   "social.pairs": SocialPairs;
   "social.profiles": SocialProfiles;
