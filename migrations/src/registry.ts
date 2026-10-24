@@ -94,5 +94,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0062_idea_rooms', sha256: '69560c6e6b7c842d1252885e911d75c451c0f00521b2ae29618a2de527693b33' },
   { name: '0063_scenario_speculative', sha256: '4f6d6e8ff779dcc239a703a0db814fcdb4393ebf783d978b8c9bc81d7c1d3a32' },
   { name: '0064_room_activities', sha256: '90e8067c5778cf272f9cdb20b782650e58843a6c73c1c450df49a98db199cc0f' },
-  { name: '0065_feedback', sha256: 'fd3faeb1588f69a5575c3292e294a226be5e647ecc4b587453247771fe9a2317' },
+  { name: '0067_feedback', sha256: 'fd3faeb1588f69a5575c3292e294a226be5e647ecc4b587453247771fe9a2317' },
 ];

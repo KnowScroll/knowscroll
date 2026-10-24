@@ -179,7 +179,7 @@ earliest time that person's next Cartographer or Planner run may start. A settle
 waits for it. Nothing is backfilled or constrained, so an older process leaves it null (no wait). Apply with the new
 binary; the generated database types change by the same two lines.
 
-0065 is Feedback (D-055): `experience.not_interested` (a short-lived routing constraint, universe-keyed; it keeps the mark it
+0067 is Feedback (D-055): `experience.not_interested` (a short-lived routing constraint, universe-keyed; it keeps the mark it
 replaced so Undo of a second tap restores it), `feedback.reports` (account-keyed reports to the safety team; one abuse
 report per reporter and target; a report about a deleted account loses its pointer to the person and carries
 `retain_until`, 90 days after the deletion, for the `feedback.purge-reports` job) and the `ops.feedback_reports` view.
