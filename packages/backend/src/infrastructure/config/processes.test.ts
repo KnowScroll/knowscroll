@@ -108,6 +108,35 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '-1' })).toThrow();
   });
+  it('names the operator accounts from the list, or from the sign-in pattern on dev only', () => {
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    const signIn = { KS_ALLOW_OPERATOR_SIGN_IN: '1', KS_OPERATOR_SIGN_IN_PATTERN: '*@test.knowscroll.space' };
+    expect(api({ KS_WORLD: 'dev' }).operatorAccounts).toEqual([]);
+    expect(api({ KS_WORLD: 'dev', ...signIn }).operatorAccounts).toEqual(['*@test.knowscroll.space']);
+    expect(api({ KS_WORLD: 'stage', ...signIn }).operatorAccounts).toEqual([]);
+    expect(
+      api({ KS_WORLD: 'stage', KS_OPERATOR_ACCOUNTS: 'owner@example.com, *@test.knowscroll.space' }).operatorAccounts,
+    ).toEqual(['owner@example.com', '*@test.knowscroll.space']);
+    expect(api({ KS_WORLD: 'dev', ...signIn, KS_OPERATOR_ACCOUNTS: 'owner@example.com' }).operatorAccounts).toEqual([
+      'owner@example.com',
+    ]);
+  });
+  it('refuses a malformed operator list, and a wildcard on the live world', () => {
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(api({ KS_WORLD: 'live', KS_OPERATOR_ACCOUNTS: 'owner@example.com' }).operatorAccounts).toEqual([
+      'owner@example.com',
+    ]);
+    expect(configurationError(() => api({ KS_WORLD: 'live', KS_OPERATOR_ACCOUNTS: '*@example.com' })).problems).toEqual(
+      ['KS_OPERATOR_ACCOUNTS: wildcard_refused_in_this_world'],
+    );
+    for (const bad of ['Owner@Example.com', 'a*b*@example.com', 'not-an-address', 'owner@example.com,']) {
+      expect(configurationError(() => api({ KS_WORLD: 'dev', KS_OPERATOR_ACCOUNTS: bad })).problems, bad).toEqual([
+        'KS_OPERATOR_ACCOUNTS: invalid_format',
+      ]);
+    }
+  });
   it('gives the Planner its own, smaller Create cap, five a day unless set', () => {
     const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
     const api = (env: Record<string, string>) =>

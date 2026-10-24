@@ -242,6 +242,11 @@ export const diagnosticCatalogue = {
   'migrate.started': { severity: 'info', module: 'migrate', fields: ['count'] },
   'migrate.completed': { severity: 'info', module: 'migrate', fields: ['count', 'migration', 'durationMs'] },
   'migrate.failed': { severity: 'fatal', module: 'migrate', fields: ['migration', 'reasonCode', 'error'] },
+  // A step the migration could not finish but the release can run without (the ops reader role is missing).
+  'migrate.warning': { severity: 'warn', module: 'migrate', fields: ['reasonCode'] },
+  // Operator reads (D-044): who may look is checked on the server for every call. Counts and codes only.
+  'operator.read': { severity: 'info', module: 'operator', fields: ['route', 'outcome', 'count'] },
+  'operator.refused': { severity: 'warn', module: 'operator', fields: ['route', 'reasonCode'] },
 } as const satisfies Record<string, EventSpec>;
 
 export type DiagnosticEvent = keyof typeof diagnosticCatalogue;

@@ -135,6 +135,12 @@ export interface AccountUniverse {
  */
 export type ReadAccountUniverse = (accountId: string) => Promise<AccountUniverse | undefined>;
 
+/**
+ * Port: the normalised address of an active account, for deciding what that person may see (never
+ * for display, mail or logs). `undefined` when the account is missing or not active.
+ */
+export type ReadAccountAddress = (accountId: string) => Promise<string | undefined>;
+
 /** Current access of an account to one of its universes, read without a lock. */
 export interface UniverseAccess {
   readonly revision: number;
@@ -148,6 +154,7 @@ export type ReadUniverseAccess = (accountId: string, universeId: string) => Prom
 
 /** Injection tokens of identity's read ports (bound by the composition roots). */
 export const READ_ACCOUNT_UNIVERSE = Symbol('identity.readAccountUniverse');
+export const READ_ACCOUNT_ADDRESS = Symbol('identity.readAccountAddress');
 export const READ_UNIVERSE_ACCESS = Symbol('identity.readUniverseAccess');
 
 // ── Sign-in and sessions (S1.3, D-022) ──────────────────────────────────────────────────────

@@ -11,6 +11,13 @@ export {
 export { createQueryClient, queryRetryDelay, shouldRetryQuery } from './query-client';
 export { healthQueryKey, healthQueryOptions } from './health';
 export {
+  createOperatorSession,
+  type OperatorJourneyState,
+  type OperatorPanelsState,
+  type OperatorSession,
+  type OperatorState,
+} from './operator-session';
+export {
   SCOPED_STORAGE_PREFIX,
   ScopeEndedError,
   createAccountScope,

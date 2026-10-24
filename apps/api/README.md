@@ -15,6 +15,15 @@ together; the separately registered normal worker performs selective removal and
 accounting. Composition depends on the reviewed durable core in PR348. Source and installed
 Actions fixtures are separate from actual dev/stage privacy acceptance.
 
+## Operator routes (#248, D-044)
+
+`OperatorController` serves `GET /v1/operator/panels` (the six panels of the Operator screen) and
+`GET /v1/operator/journeys/{id}` (one record's timeline). They take the ordinary session and scope pipeline, then
+check on every call that the signed-in account is an operator of the world (`KS_OPERATOR_ACCOUNTS`, read from the
+account's address now). Anyone else gets the same 404 as an unknown route, and the refusal is logged as a code
+(`operator.refused`). The routes read the allowlisted `ops` views and change nothing. Module:
+`packages/backend/src/modules/operator/README.md`.
+
 ## Account: sessions, export and deletion (#246, D-043)
 
 `AccountController` serves `GET /v1/account/sessions`, `POST /v1/account/sessions/end` and `.../end-others`

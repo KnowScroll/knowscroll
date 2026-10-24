@@ -135,6 +135,12 @@ Authored protocol fixtures cover scope-object isolation, synchronous purge and l
   (`ks.deletion.receipt`, not purged by a scope ending). An unknown receipt is forgotten: that request never arrived.
   `signed_out.reason` gains `account_deleted`.
 
+## Operator screen state (#248, D-044)
+
+- `createOperatorSession(scope)`: the panels (`loading`, `ready` with `readAt` and `stale`, `unavailable`, or `not_operator` on the
+  server's 404) and one journey lookup (`idle`, `invalid` for input that is not an ID and is never sent, `loading`, `found`,
+  `not_found`, `unavailable`). Only the newest lookup shows. Read-only.
+
 ## Manager-owned selective Clear (#345)
 
 `AccountScopeManager.privacy` is an in-memory controller outside the provider's keyed scope subtree.

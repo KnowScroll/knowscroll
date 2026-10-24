@@ -58,6 +58,11 @@ a disposable `ks_it_*`/`knowscroll_fixture_*` DB, and marks content visibly. Ope
 sanitised result line; external errors never log URLs/paths/response text. Failed copy/probe/admission
 can leave an unreferenced object; never delete referenced bytes during rollback.
 
+`node dist/operator.js journey <id>` and `journey --account <accountId>` (`src/journey-operator.ts`, #248) print one
+record's timeline across modules, read from the `ops` views: IDs, states, codes and times only. `--json` prints one
+JSON line. Exit 0 found, 2 not found or bad usage, 1 failure. Read-only; it needs only `KS_WORLD` and `DATABASE_URL`.
+Runbook: `docs/v2/operations/looking-at-the-system.md`.
+
 `node dist/operator.js reel <check|order|follow|receive|status|write-off|settle> …` orders Reels from
 Cutroom and brings them in (`src/reel-operator.ts`; the use cases and the guarantees are in
 `packages/backend/src/modules/content/README.md`, "Reels from Cutroom"; the runbook is
