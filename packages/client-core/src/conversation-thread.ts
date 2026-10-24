@@ -68,19 +68,19 @@ export interface ThreadOptions {
   readonly newId: () => string;
 }
 
-const sortedBySequence = (messages: Iterable<ConversationMessage>) =>
+const sortedBySequence = <M extends { readonly sequence: number }>(messages: Iterable<M>) =>
   [...messages].sort((a, b) => a.sequence - b.sequence);
 
 /**
  * Messages by sequence. A tombstone is final: an older page fetched before a deletion must never
  * bring the deleted text back, so an `available` copy never replaces an `unavailable` one. Any
- * other later version replaces the earlier.
+ * other later version replaces the earlier. Works for direct and thread messages alike.
  */
-export function mergeMessages(
-  existing: readonly ConversationMessage[],
-  incoming: readonly ConversationMessage[],
-): readonly ConversationMessage[] {
-  const bySequence = new Map<number, ConversationMessage>();
+export function mergeMessages<M extends { readonly sequence: number; readonly status: 'available' | 'unavailable' }>(
+  existing: readonly M[],
+  incoming: readonly M[],
+): readonly M[] {
+  const bySequence = new Map<number, M>();
   for (const message of existing) bySequence.set(message.sequence, message);
   for (const message of incoming) {
     if (bySequence.get(message.sequence)?.status === 'unavailable' && message.status === 'available') continue;

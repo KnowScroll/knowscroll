@@ -400,3 +400,13 @@ facet-expression GIN. Established unit probes are exact; facet probes preserve A
 unit semantics, independently of the candidate unit. At most 100 candidates/16 facets and 100 asset
 IDs enter these probes. These are routing/novelty facts only: they neither qualify an exposure nor
 create Personal Context support, learning, credit, a session, or collection authority.
+
+## Visited episodes for threads (#243, D-046)
+
+`READ_VISITED_ASSETS` (`readVisitedAssets(scope, assetIds)`) answers one question for the caller only: which of these assets
+have an exposure that was **activated** in the caller's current universe and privacy epoch. Social's thread view uses it
+to mark each episode the person has played or read. It runs inside the caller's shared transaction, reads only the
+caller's own `exposures` rows (`activated_at is not null`), and returns asset IDs. It never reads another person's
+exposures, so a member's progress cannot reach another member. Opening a snippet or a thread creates no exposure; the
+Watch or Read the person presses does, through the ordinary open and activate commands. Clear removes the exposures,
+and with them the markers. *Implemented; runtime-verified locally.*
