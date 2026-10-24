@@ -6,12 +6,13 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { prepareBufferQueue } from '../events.js';
 
-/** Buffers reference decisions, so they are deleted first. */
+/** Buffers reference decisions, so they are deleted first. The Jev pool references nothing. */
 export const composerErasure = declareErasure({
   module: 'composer',
   tables: [
     { schema: 'composer', table: 'buffers', ownerColumn: 'universe_id' },
     { schema: 'composer', table: 'decisions', ownerColumn: 'universe_id' },
+    { schema: 'composer', table: 'jev_assessments', ownerColumn: 'universe_id' },
   ],
   nonRowStores: [
     {
@@ -24,11 +25,18 @@ export const composerErasure = declareErasure({
     const universeId = scope.authority.universeId;
     const buffers = await sql`delete from composer.buffers where universe_id=${universeId}::uuid`.execute(db);
     const decisions = await sql`delete from composer.decisions where universe_id=${universeId}::uuid`.execute(db);
+    const assessments = await sql`delete from composer.jev_assessments where universe_id=${universeId}::uuid`.execute(
+      db,
+    );
     const jobs = await deleteJobPayloads(scope, [prepareBufferQueue.name]);
     return {
       module: 'composer',
       status: 'completed',
-      removed: Number(buffers.numAffectedRows ?? 0) + Number(decisions.numAffectedRows ?? 0) + jobs,
+      removed:
+        Number(buffers.numAffectedRows ?? 0) +
+        Number(decisions.numAffectedRows ?? 0) +
+        Number(assessments.numAffectedRows ?? 0) +
+        jobs,
     };
   },
   clear: {
@@ -38,11 +46,18 @@ export const composerErasure = declareErasure({
       const universeId = scope.binding.universeId;
       const buffers = await sql`delete from composer.buffers where universe_id=${universeId}::uuid`.execute(db);
       const decisions = await sql`delete from composer.decisions where universe_id=${universeId}::uuid`.execute(db);
+      const assessments = await sql`delete from composer.jev_assessments where universe_id=${universeId}::uuid`.execute(
+        db,
+      );
       const jobs = await deleteClearJobPayloads(scope, [prepareBufferQueue.name]);
       return {
         module: 'composer',
         status: 'completed',
-        removed: Number(buffers.numAffectedRows ?? 0) + Number(decisions.numAffectedRows ?? 0) + jobs,
+        removed:
+          Number(buffers.numAffectedRows ?? 0) +
+          Number(decisions.numAffectedRows ?? 0) +
+          Number(assessments.numAffectedRows ?? 0) +
+          jobs,
       };
     },
   },

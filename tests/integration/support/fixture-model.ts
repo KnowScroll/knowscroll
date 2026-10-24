@@ -30,6 +30,8 @@ export const fixtureSettings: HarnessSettings = {
     scope: { requestsPerDay: 10_000, tokensPerDay: 100_000_000 },
     roleDefault: { requestsPerDay: 10_000, tokensPerDay: 100_000_000 },
   },
+  // Nothing is kept back by default; tests of the split set their own share.
+  backgroundSharePercent: 100,
   maxRequestBytes: 262_144,
   requestRetentionSeconds: 3_600,
   purgeIntervalMs: 60_000,

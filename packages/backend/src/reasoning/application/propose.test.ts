@@ -150,7 +150,8 @@ function memoryLedger(options: { keptAnswer?: string } = {}) {
     find: (_scopeId: string, _runId: string, step: string) => Promise.resolve(rows.get(step)),
     findLocked: (_scope: null, _runId: string, step: string) => Promise.resolve(rows.get(step)),
     admitRun: () => Promise.resolve({ kind: 'admitted' as const, fence: 1 }),
-    budgetUsage: () => Promise.resolve({ global: spend, role: spend, scope: spend }),
+    budgetUsage: () =>
+      Promise.resolve({ global: spend, role: spend, scope: spend, background: { global: spend, scope: spend } }),
     canStartRun: () => Promise.resolve(true),
     reserve: (_scope: null, reservation: Reservation) => {
       rows.set(reservation.step, {
@@ -229,6 +230,7 @@ function scriptedEngine(options: { replies: readonly string[]; maxRequestBytes?:
         scope: { requestsPerDay: 1_000, tokensPerDay: 1e9 },
         roleDefault: { requestsPerDay: 1_000, tokensPerDay: 1e9 },
       },
+      backgroundSharePercent: 100,
       maxRequestBytes: options.maxRequestBytes ?? 1_000_000,
       requestRetentionSeconds: 60,
       purgeIntervalMs: 1_000,
