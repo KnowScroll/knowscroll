@@ -23,14 +23,11 @@ interface Options {
   readonly message?: { authorAccountId: string } | undefined;
   readonly roomMessage?: { roomId: string; authorAccountId: string | null } | undefined;
   readonly person?: string | undefined;
-  /** The abuse report this account already sent about the target, if any. */
-  readonly earlier?: { reportId: string; createdAt: Date };
 }
 
 /** Ports over memory: the target reads answer what the test says, and every write is logged. */
 function fixture(options: Options = {}) {
   const inserted: NewReport[] = [];
-  const findEarlierAbuse = vi.fn(() => Promise.resolve(options.earlier));
   const receipts = new Map<string, { key: ReceiptKey; outcome?: Record<string, unknown> }>();
   const withScope: WithPersonalScope = (_authority, work) => work(scope).then((value) => ({ kind: 'entered', value }));
   const ports: ReportPorts = {
@@ -74,7 +71,6 @@ function fixture(options: Options = {}) {
       ),
     reports: {
       countSince: vi.fn(() => Promise.resolve(options.sentToday ?? 0)),
-      findEarlierAbuse,
       insert: (_scope, report) => {
         inserted.push(report);
         return Promise.resolve();
@@ -83,7 +79,7 @@ function fixture(options: Options = {}) {
     newId: () => id(99),
     now: () => now,
   };
-  return { ports, inserted, receipts, findEarlierAbuse, cases: makeReportUseCases(ports) };
+  return { ports, inserted, receipts, cases: makeReportUseCases(ports) };
 }
 
 const abuse = (target: unknown, commandId = id(20)) =>
@@ -209,34 +205,28 @@ describe('every report', () => {
     expect(inserted).toHaveLength(1);
   });
 
-  it('answers a repeat abuse report about the same target with the first receipt and writes nothing', async () => {
-    const earlier = { reportId: id(77), createdAt: new Date('2026-10-20T08:30:00.000Z') };
-    const { cases, inserted, receipts, findEarlierAbuse } = fixture({ earlier, sentToday: REPORTS_PER_WINDOW });
-    // Past the daily bound, a repeat is still answered: it adds nothing, so it costs nothing.
-    expect(await cases.reportAbuse(authority, abuse({ kind: 'person', personId: id(50) }, id(21)))).toEqual({
+  it('stores a new command about a target already reported as a new report, with its own receipt', async () => {
+    const { cases, inserted, receipts } = fixture();
+    const target = { kind: 'person', personId: id(50) };
+    expect(await cases.reportAbuse(authority, abuse(target, id(21)))).toMatchObject({
       kind: 'received',
-      outcome: { commandId: id(21), reportId: id(77), receivedAt: '2026-10-20T08:30:00.000Z', replayed: true },
+      outcome: { commandId: id(21), replayed: false },
     });
-    expect(inserted).toEqual([]);
-    expect(receipts.size).toBe(0);
-    expect(findEarlierAbuse).toHaveBeenCalledWith(
-      scope,
-      reporter,
-      expect.objectContaining({ targetKind: 'person', reportedAccountId: otherPerson }),
-    );
-  });
-
-  it('does not look for an earlier report on a content error: a Reel can have several errors', async () => {
-    const earlier = { reportId: id(77), createdAt: new Date('2026-10-20T08:30:00.000Z') };
-    const { cases, inserted, findEarlierAbuse } = fixture({ earlier });
-    const result = await cases.reportContentError(authority, {
-      commandId: id(22),
-      target: { assetId: id(10), assetRevision: 2 },
-      category: 'wrong',
+    // A month later, another reason and a note: the safety team must get it.
+    const again = {
+      ...abuse(target, id(22)),
+      category: 'hate' as const,
+      note: 'Threats, described.',
+    };
+    expect(await cases.reportAbuse(authority, again)).toMatchObject({
+      kind: 'received',
+      outcome: { commandId: id(22), replayed: false },
     });
-    expect(result).toMatchObject({ kind: 'received', outcome: { reportId: id(99), replayed: false } });
-    expect(inserted).toHaveLength(1);
-    expect(findEarlierAbuse).not.toHaveBeenCalled();
+    expect(inserted.map((report) => [report.category, report.note])).toEqual([
+      ['harassment', undefined],
+      ['hate', 'Threats, described.'],
+    ]);
+    expect(receipts.size).toBe(2);
   });
 
   it('refuses a command ID reused for another report', async () => {

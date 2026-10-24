@@ -40,22 +40,10 @@ export interface NewReport {
   readonly createdAt: Date;
 }
 
-/** The first abuse report an account sent about a target: what a repeat is answered with. */
-export interface EarlierReport {
-  readonly reportId: string;
-  readonly createdAt: Date;
-}
-
 /** `feedback.reports`, written inside the reporter's personal scope. */
 export interface ReportStore {
   /** How many reports the account has sent at or after `since`. */
   countSince(scope: PersonalScopeTx, accountId: string, since: Date): Promise<number>;
-  /** The abuse report this account already sent about the same Reel or Scroll, message or person, if any. */
-  findEarlierAbuse(
-    scope: PersonalScopeTx,
-    accountId: string,
-    target: Pick<NewReport, 'targetKind' | 'assetId' | 'messageId' | 'reportedAccountId'>,
-  ): Promise<EarlierReport | undefined>;
   insert(scope: PersonalScopeTx, report: NewReport): Promise<void>;
 }
 

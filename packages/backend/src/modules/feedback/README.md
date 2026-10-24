@@ -25,14 +25,14 @@ screen; a room's moderators read the reports on their room's messages (`POST /v1
 | `READ_ROOM_REPORTS` | Rooms' `reports` use case | One row per reported message of one room: reasons, how many different people reported it, the newest time (Rooms shows only its day). Leaves out reports on the asking moderator's own words; never the sender, the note or the author. |
 
 Both commands share one skeleton: gate, receipt lookup (identical retry answers the first receipt; another body under
-the key is `COMMAND_KEY_REUSED`), target access, a repeat check, the bound (25 per account per 24 hours,
+the key is `COMMAND_KEY_REUSED`), target access, the bound (25 per account per 24 hours,
 `TOO_MANY_REQUESTS`), then the receipt, the row and the stored outcome in one transaction. A missing, hidden, forbidden or
 own target is one `NOT_FOUND`. A refusal writes nothing. No job, no notice, no evidence.
 
-A **repeat** is a second abuse report by the same account about the same Reel or Scroll, message, room message or person:
-it is answered with the first report's receipt (its report ID and time) under the new command ID, and writes nothing, not
-even a receipt, so it never raises a count or uses the bound. The unique index `reports_one_abuse_per_target` holds it.
-A content error may repeat about one Reel, because it points at a place.
+Every command ID is its own report, also about a target the account reported before: a second report may carry
+another reason, a note, or something that happened later, and the safety team must get it. Only the same command ID
+replays (its first receipt). How many people reported a room message is counted in distinct reporters (`READ_ROOM_REPORTS`),
+so one person reporting twice does not raise what moderators see.
 
 ## Tables, jobs, lock order, erasure
 

@@ -18,8 +18,8 @@
 -- reports about messages in their room (never the reporter or the note).
 --   Reads: newest first (operators); a reporter's reports (daily bound, export); a room's reports
 --   (moderators); the rows naming an account (account deletion); the rows past retain_until (purge).
---   Growth: at most 25 reports per account per day; note at most 500 characters. One abuse report per
---   reporter and target: a repeat is answered with the first receipt and adds no row.
+--   Growth: at most 25 reports per account per day; note at most 500 characters. Every command is its own
+--   report, also about a target the account reported before: what it says may be new.
 --   Retention: kept while the reporter's account exists. When the reported person deletes their account,
 --   the report loses its pointer to them (reported_account_id null, a person target becomes
 --   'deleted_account') and is kept 90 days from that deletion (retain_until), then purged by the
@@ -94,11 +94,6 @@ create index reports_by_reporter on feedback.reports(reporter_account_id, create
 create index reports_by_room on feedback.reports(room_id, created_at desc) where room_id is not null;
 create index reports_by_reported on feedback.reports(reported_account_id) where reported_account_id is not null;
 create index reports_to_purge on feedback.reports(retain_until) where retain_until is not null;
--- A reporter tells us once about a target. The target is the Reel or Scroll, the message or the person, whichever
--- the row names; a content error may point at several places in one asset, so only abuse is limited.
-create unique index reports_one_abuse_per_target on feedback.reports(
-  reporter_account_id, target_kind, (coalesce(asset_id, message_id, reported_account_id))
-) where kind = 'abuse';
 
 create view ops.feedback_reports as
 select

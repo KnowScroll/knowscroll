@@ -12,18 +12,6 @@ export const reportStore: ReportStore = {
     return counted.rows[0]?.sent ?? 0;
   },
 
-  async findEarlierAbuse(scope, accountId, target) {
-    const targetId = target.assetId ?? target.messageId ?? target.reportedAccountId;
-    if (targetId === undefined) return undefined;
-    // The same expression as the unique index `reports_one_abuse_per_target`, so the probe is an index lookup.
-    const found = await sql<{ report_id: string; created_at: Date }>`
-      select report_id, created_at from feedback.reports
-      where kind = 'abuse' and reporter_account_id = ${accountId}::uuid and target_kind = ${target.targetKind}
-        and coalesce(asset_id, message_id, reported_account_id) = ${targetId}::uuid`.execute(transactionOf(scope));
-    const first = found.rows[0];
-    return first === undefined ? undefined : { reportId: first.report_id, createdAt: first.created_at };
-  },
-
   async insert(scope, report) {
     await sql`
       insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, asset_id,

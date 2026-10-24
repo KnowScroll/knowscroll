@@ -296,7 +296,7 @@ describe('reports to the safety team (real PostgreSQL)', () => {
       });
     });
 
-    it('answers a second report about the same message, person or Reel with the first receipt and adds nothing', async () => {
+    it('stores a second report about the same message, person or Reel as a new report with its own receipt', async () => {
       const { a, b } = await seedFriends(database.db, world.friends);
       const { messageId } = await conversationWithMessage(a, b);
       const targets: AbuseReportRequest['target'][] = [
@@ -305,51 +305,52 @@ describe('reports to the safety team (real PostgreSQL)', () => {
         { kind: 'asset', assetId: asset.assetId, assetRevision: 1 },
       ];
       for (const target of targets) {
-        const first = await reports.reportAbuse(b.authority, abuse(target));
+        const first = await reports.reportAbuse(b.authority, abuse(target, { category: 'spam' }));
         if (first.kind !== 'received') throw new Error('expected received');
-        world.clock.now = new Date(world.clock.now.getTime() + 3_600_000);
-        const second = abuse(target, { category: 'spam', note: 'a second time' });
-        expect(await reports.reportAbuse(b.authority, second)).toEqual({
-          kind: 'received',
-          outcome: {
-            commandId: second.commandId,
-            reportId: first.outcome.reportId,
-            receivedAt: first.outcome.receivedAt,
-            replayed: true,
-          },
-        });
-        // Nothing of the second is kept: not the reason, not the note, not a receipt.
+        // A month later: another reason, and a note that describes threats. The safety team must get it.
+        world.clock.now = new Date(world.clock.now.getTime() + 30 * 86_400_000);
+        const second = abuse(target, { category: 'harassment', note: 'Threats, described.' });
+        const answer = await reports.reportAbuse(b.authority, second);
+        if (answer.kind !== 'received') throw new Error('expected received');
+        expect(answer.outcome).toMatchObject({ commandId: second.commandId, replayed: false });
+        expect(answer.outcome.reportId).not.toBe(first.outcome.reportId);
+        expect(answer.outcome.receivedAt).toBe(world.clock.now.toISOString());
         expect(
           await sql`select 1 from receipts.personal_commands where universe_id = ${b.universeId}::uuid and command_id = ${second.commandId}::uuid`
             .execute(database.db)
             .then((result) => result.rows),
-        ).toEqual([]);
+        ).toHaveLength(1);
+        // The same command ID still replays the second receipt, not a third report.
+        expect(await reports.reportAbuse(b.authority, second)).toMatchObject({
+          kind: 'received',
+          outcome: { reportId: answer.outcome.reportId, replayed: true },
+        });
       }
-      const rows = await rowsBy(b.accountId);
-      expect(rows).toHaveLength(3);
-      expect(rows.every((row) => row.category === 'harassment' && row.note === null)).toBe(true);
-    });
-
-    it('keeps two content errors about one Reel: they can point at different places', async () => {
-      const person = await seedFriend(database.db, world.friends);
-      for (const positionMs of [1_000, 9_000])
-        expect(
-          await reports.reportContentError(person.authority, contentError({ anchor: { kind: 'reel', positionMs } })),
-        ).toMatchObject({ kind: 'received', outcome: { replayed: false } });
-      expect(await rowsBy(person.accountId)).toHaveLength(2);
+      const stored = (await rowsBy(b.accountId)).map((row) => `${row.target_kind}/${row.category}/${row.note ?? '-'}`);
+      expect(stored.sort()).toEqual(
+        [
+          'message/spam/-',
+          'message/harassment/Threats, described.',
+          'person/spam/-',
+          'person/harassment/Threats, described.',
+          'asset/spam/-',
+          'asset/harassment/Threats, described.',
+        ].sort(),
+      );
     });
   });
 
   describe('the bound', () => {
     it('allows 25 reports in 24 hours, refuses the next and writes nothing for it, then lets a day pass', async () => {
       const person = await seedFriend(database.db, world.friends);
-      // Content errors may repeat about one Reel (they can point at different places); abuse about one target may not.
+      const target = await seedFriend(database.db, world.friends);
+      // Reports about one person each count: a person who is being harassed may need to say so again.
       for (let sent = 0; sent < 25; sent++)
-        expect(await reports.reportContentError(person.authority, contentError())).toMatchObject({
-          kind: 'received',
-        });
-      const refused = contentError();
-      expect(await reports.reportContentError(person.authority, refused)).toEqual({
+        expect(
+          await reports.reportAbuse(person.authority, abuse({ kind: 'person', personId: target.person.personId })),
+        ).toMatchObject({ kind: 'received' });
+      const refused = abuse({ kind: 'person', personId: target.person.personId });
+      expect(await reports.reportAbuse(person.authority, refused)).toEqual({
         kind: 'refused',
         reason: 'too_many_reports',
       });
@@ -360,20 +361,7 @@ describe('reports to the safety team (real PostgreSQL)', () => {
           .then((result) => result.rows),
       ).toEqual([]);
       world.clock.now = new Date(world.clock.now.getTime() + 25 * 3_600_000);
-      expect(await reports.reportContentError(person.authority, refused)).toMatchObject({ kind: 'received' });
-    });
-
-    it('does not count a repeat abuse report, which adds nothing', async () => {
-      const person = await seedFriend(database.db, world.friends);
-      const target = await seedFriend(database.db, world.friends);
-      const aboutTarget = () => abuse({ kind: 'person', personId: target.person.personId });
-      expect(await reports.reportAbuse(person.authority, aboutTarget())).toMatchObject({ kind: 'received' });
-      for (let sent = 0; sent < 30; sent++)
-        expect(await reports.reportAbuse(person.authority, aboutTarget())).toMatchObject({
-          kind: 'received',
-          outcome: { replayed: true },
-        });
-      expect(await rowsBy(person.accountId)).toHaveLength(1);
+      expect(await reports.reportAbuse(person.authority, refused)).toMatchObject({ kind: 'received' });
     });
   });
 
@@ -488,7 +476,7 @@ describe('reports to the safety team (real PostgreSQL)', () => {
       ).toEqual({ kind: 'refused', code: 'unavailable' });
     });
 
-    it('counts different reporters for a room’s moderators, so one person cannot raise the number', async () => {
+    it('counts different people for a room’s moderators, so one person reporting twice cannot raise the number', async () => {
       const { roomId, slug } = await seedRoom(world);
       const [author, reporterOne, reporterTwo, moderator] = await Promise.all([
         seedFriend(database.db, world.friends),
@@ -509,35 +497,15 @@ describe('reports to the safety team (real PostgreSQL)', () => {
         return shown.reports.map((report) => report.count);
       };
 
-      // One person reporting again is a repeat: the same receipt, and the moderators still see one.
+      // One person reporting the message twice leaves two reports, and the moderators still see one person.
       const first = await reports.reportAbuse(reporterOne.authority, abuse(target));
       const again = await reports.reportAbuse(reporterOne.authority, abuse(target, { category: 'spam' }));
       if (first.kind !== 'received' || again.kind !== 'received') throw new Error('expected received');
-      expect(again.outcome.reportId).toBe(first.outcome.reportId);
+      expect(again.outcome.reportId).not.toBe(first.outcome.reportId);
+      expect(await rowsBy(reporterOne.accountId)).toHaveLength(2);
       expect(await countSeen()).toEqual([1]);
       await reports.reportAbuse(reporterTwo.authority, abuse(target));
       expect(await countSeen()).toEqual([2]);
-
-      // Whatever the table holds, the count is of people: a second row from the same reporter (the unique
-      // index is dropped for this check and put back) does not move it.
-      const [{ definition }] = (
-        await sql<{
-          definition: string;
-        }>`select pg_get_indexdef('feedback.reports_one_abuse_per_target'::regclass) as definition`.execute(database.db)
-      ).rows as [{ definition: string }];
-      await sql`drop index feedback.reports_one_abuse_per_target`.execute(database.db);
-      try {
-        await sql`insert into feedback.reports (report_id, reporter_account_id, kind, category, target_kind, message_id, room_id, reported_account_id, created_at)
-          values (${randomUUID()}::uuid, ${reporterOne.accountId}::uuid, 'abuse', 'spam', 'room_message', ${messageId}::uuid, ${roomId}::uuid, ${author.accountId}::uuid, now())`.execute(
-          database.db,
-        );
-        expect(await countSeen()).toEqual([2]);
-      } finally {
-        await sql`delete from feedback.reports where reporter_account_id = ${reporterOne.accountId}::uuid and category = 'spam'`.execute(
-          database.db,
-        );
-        await sql.raw(definition).execute(database.db);
-      }
     });
 
     it('is read by operators as ids, a category and whether a note exists, never the note', async () => {

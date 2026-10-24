@@ -6,7 +6,7 @@ import {
 } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { reportsExhausted, windowStart } from '../domain/reports.js';
-import type { EarlierReport, NewReport, ReceiptLookup, ReportKind, ReportPorts } from './ports.js';
+import type { NewReport, ReceiptLookup, ReportKind, ReportPorts } from './ports.js';
 
 export const CONTENT_ERROR_OPERATION = 'feedback.content-error';
 export const ABUSE_OPERATION = 'feedback.abuse';
@@ -64,28 +64,12 @@ function replayOrRefusal(lookup: ReceiptLookup): ReportResult | undefined {
 }
 
 /**
- * A second abuse report about the same target by the same account: the safety team already has the first,
- * so the answer is the first report's receipt, under the new command ID. It writes nothing, counts for
- * nothing against the daily bound and cannot raise how many people a room's moderators see.
- */
-function repeatOf(commandId: string, first: EarlierReport): ReportResult {
-  return {
-    kind: 'received',
-    outcome: ReportReceiptSchema.parse({
-      commandId,
-      reportId: first.reportId,
-      receivedAt: first.createdAt.toISOString(),
-      replayed: true,
-    }),
-  };
-}
-
-/**
  * The skeleton of every report. One transaction under the personal root and the reporter's own account:
  * receipt lookup (an identical retry answers the first receipt), the target as the caller may see it
- * (otherwise `target_unavailable`, the same answer for a missing, forbidden or own target), a repeat
- * abuse report about that target (answered with the first receipt), the daily bound, then the receipt,
- * the row and the stored outcome together. A refusal or a repeat writes nothing.
+ * (otherwise `target_unavailable`, the same answer for a missing, forbidden or own target), the daily
+ * bound, then the receipt, the row and the stored outcome together. A refusal writes nothing. A new
+ * command about a target already reported is a new report: what it says may be new (another reason, a
+ * note, a later event), so every command ID gets its own row and receipt.
  * Nothing else happens: nobody is notified, no job runs, and no evidence is recorded.
  */
 async function fileReport(ports: ReportPorts, authority: PersonalAuthority, spec: ReportSpec): Promise<ReportResult> {
@@ -103,8 +87,6 @@ async function fileReport(ports: ReportPorts, authority: PersonalAuthority, spec
     if (early !== undefined) return early;
     const target = await spec.resolve(scope, reporter);
     if (target === undefined) return refused('target_unavailable');
-    const earlier = spec.kind === 'abuse' ? await ports.reports.findEarlierAbuse(scope, reporter, target) : undefined;
-    if (earlier !== undefined) return repeatOf(spec.commandId, earlier);
     const now = ports.now();
     if (reportsExhausted(await ports.reports.countSince(scope, reporter, windowStart(now))))
       return refused('too_many_reports');
