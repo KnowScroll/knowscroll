@@ -24,7 +24,9 @@ tags:
     timeout: 90000
 - assertVisible: .*A blanket made of gas.*
 - takeScreenshot: journey-2-02-reel
-# The first-arrival hint is dismissed once and stays dismissed (journey 3 checks it after a restart).
+# The hint and the move buttons sit below the video. The hint is dismissed once and stays
+# dismissed (journey 3 checks it after a restart).
+- runFlow: scroll-down.yaml
 - assertVisible: Got it
 - tapOn: Got it
 - assertNotVisible: Got it

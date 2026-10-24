@@ -14,8 +14,10 @@ tags:
 # Explore opens a fresh encounter (a Reel or the Scroll, whichever Composer offers now); once one is
 # on screen, the hint that step 2 dismissed must not come back.
 - extendedWaitUntil:
-    visible: Next subject
+    visible: Keep this place
     timeout: 90000
+- runFlow: scroll-down.yaml
+- assertVisible: Next subject
 - assertNotVisible: Got it
 - takeScreenshot: journey-3-01-after-restart
 - tapOn:
@@ -40,5 +42,5 @@ tags:
 - extendedWaitUntil:
     visible: Nothing is ready to play yet.
     timeout: 60000
-- assertNotVisible: Next subject
+- assertNotVisible: Keep this place
 - takeScreenshot: journey-3-03-signed-out-after-restart
