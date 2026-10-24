@@ -42,11 +42,18 @@ import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
 import { makeStationReads } from '../application/stations.js';
 import { contributeQueue } from '../events.js';
-import { CONTRIBUTE_AS_INHABITANT, ROOM_USE_CASES, type ContributeAsInhabitant, type RoomUseCases } from '../public.js';
+import {
+  CONTRIBUTE_AS_INHABITANT,
+  READ_REPORTABLE_ROOM_MESSAGE,
+  ROOM_USE_CASES,
+  type ContributeAsInhabitant,
+  type RoomUseCases,
+} from '../public.js';
 import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
+import { readReportableRoomMessage } from './report-reads.js';
 import { gateSnippetAnchors } from './snippet-audience.js';
 
 /** What every room use case needs from the rest of the system, chosen by the composition root. */
@@ -152,9 +159,10 @@ export function contributeAsInhabitant(
 
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 
-/** The API's room use cases. */
+/** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
   return [
+    { provide: READ_REPORTABLE_ROOM_MESSAGE, useValue: readReportableRoomMessage },
     {
       provide: ROOM_USE_CASES,
       inject: [

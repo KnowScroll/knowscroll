@@ -14,6 +14,7 @@ import type { AccountDeletionTx, ClearCoreTx, PersonalScopeTx } from './modules/
 import { composerErasure } from './modules/composer/adapters/erasure.js';
 import { evidenceErasure } from './modules/evidence/adapters/erasure.js';
 import { experienceErasure } from './modules/experience/adapters/erasure.js';
+import { feedbackErasure } from './modules/feedback/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
 import { identityErasure } from './modules/identity/adapters/erasure.js';
 import { personalContextErasure } from './modules/personal-context/adapters/erasure.js';
@@ -43,6 +44,7 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
  */
 const moduleErasures = [
   roomsErasure,
+  feedbackErasure,
   // Scenarios refer to threads and messages, so they come before Social.
   scenariosErasure,
   socialErasure,

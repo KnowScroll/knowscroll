@@ -22,7 +22,7 @@ import type {
   RoomStationsSchema,
   RoomViewSchema,
 } from '@knowscroll/contracts';
-import type { PersonalAuthority } from '../identity/public.js';
+import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
 import type { ContributeJob } from './events.js';
 import type { Result } from './application/ports.js';
 
@@ -82,3 +82,16 @@ export const ROOM_USE_CASES = Symbol('rooms.useCases');
  */
 export type ContributeAsInhabitant = (job: ContributeJob, signal: AbortSignal) => Promise<void>;
 export const CONTRIBUTE_AS_INHABITANT = Symbol('rooms.contributeAsInhabitant');
+
+/**
+ * Port: a message of a room discussion the caller can see, for a report: its room and the account that
+ * wrote it (none for an AI inhabitant). A caller who is not a current member of the room, a message a
+ * moderator removed or that was deleted, and an unknown ID are all absent. Read inside the caller's
+ * personal transaction; it decides nothing else.
+ */
+export type ReadReportableRoomMessage = (
+  scope: PersonalScopeTx,
+  accountId: string,
+  messageId: string,
+) => Promise<{ readonly roomId: string; readonly authorAccountId: string | null } | undefined>;
+export const READ_REPORTABLE_ROOM_MESSAGE = Symbol('rooms.readReportableRoomMessage');

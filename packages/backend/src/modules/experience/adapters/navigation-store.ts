@@ -11,6 +11,7 @@ import { OfferRegionConstraintSchema } from '../application/navigation-ports.js'
 import { consumeRegionActivationPermit } from '../application/navigation.js';
 import type { ReadActivityLineage, ReadRoutingHistory } from '../public.js';
 import { readExposure } from './postgres-store.js';
+import { readNotInterested } from './not-interested-store.js';
 import { legacyRecording } from './recording-store.js';
 const own = (scope: PersonalScopeTx) => ({
   u: scope.authority.universeId,
@@ -156,6 +157,7 @@ export const bindOffer: NavigationPorts['bindOffer'] = async (scope, offerId, ex
     db,
   );
 };
+/** The assets the person has hidden for good or marked "Not interested" and that has not lapsed. */
 export const readHidden: NavigationPorts['readHidden'] = async (scope, ids) => {
   if (ids.length > 100 || new Set(ids).size !== ids.length) throw new Error('HIDE_QUERY_INVALID');
   if (!ids.length) return [];
@@ -165,7 +167,9 @@ export const readHidden: NavigationPorts['readHidden'] = async (scope, ids) => {
   }>`select asset_id from experience.action_state where universe_id=${u}::uuid and privacy_epoch=${e} and hidden and asset_id=any(${ids}::uuid[])`.execute(
     db,
   );
-  return r.rows.map((x) => x.asset_id);
+  const hidden = new Set(r.rows.map((x) => x.asset_id));
+  for (const assetId of await readNotInterested(scope, ids)) hidden.add(assetId);
+  return [...hidden];
 };
 export async function recordActivation(
   scope: PersonalScopeTx,

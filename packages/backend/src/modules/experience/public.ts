@@ -1,6 +1,7 @@
 import type { RecordingChannelsResult } from './application/ports.js';
 export type { RecordingChannelsResult } from './application/ports.js';
 import type { makeRemoveKeepEntry } from './application/keep-remove.js';
+import type { SetNotInterested, UndoNotInterested } from './application/not-interested.js';
 import type { makeReadKeepEntry, makeSetKeepPlace } from './application/keep-place.js';
 import type { ActivityLineage, RoutingHistory } from './application/navigation-ports.js';
 import type { EncounterAttribution } from '../content/public.js';
@@ -264,3 +265,15 @@ export type ReadRecordingChannelSelection = (
   input: { readonly assetId: string; readonly channel: 'saved' | 'liked' },
 ) => Promise<RecordingChannelSelection>;
 export const READ_RECORDING_CHANNEL_SELECTION = Symbol('experience.readRecordingChannelSelection');
+
+export type { NotInterestedRefusal, NotInterestedResult } from './application/not-interested.js';
+/**
+ * "Not interested" (P03, D-055): keeps one asset out of the caller's offers for a while, and takes it
+ * back. Each method takes the caller's claimed authority and a parsed body and rechecks authority
+ * itself. Neither writes evidence, an action or a job.
+ */
+export interface NotInterestedUseCases {
+  readonly set: SetNotInterested;
+  readonly undo: UndoNotInterested;
+}
+export const NOT_INTERESTED_USE_CASES = Symbol('experience.notInterestedUseCases');

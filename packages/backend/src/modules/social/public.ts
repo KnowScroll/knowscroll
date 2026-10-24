@@ -256,6 +256,18 @@ export type ReadBlockedAmong = (
   candidates: readonly string[],
 ) => Promise<ReadonlySet<string>>;
 export const READ_BLOCKED_AMONG = Symbol('social.readBlockedAmong');
+
+/**
+ * Port: a message the caller can see in a conversation or content thread, for a report: the account
+ * that wrote it. A caller who is not a current member, a message that is gone or tombstoned and an
+ * unknown ID are all absent. Read inside the caller's personal transaction; it decides nothing else.
+ */
+export type ReadReportableMessage = (
+  scope: PersonalScopeTx,
+  accountId: string,
+  messageId: string,
+) => Promise<{ readonly authorAccountId: string } | undefined>;
+export const READ_REPORTABLE_MESSAGE = Symbol('social.readReportableMessage');
 /**
  * What another module may do inside a thread (scenarios; later rooms): enter it as a member, read a
  * bounded window of its messages, keep receipts on it and tell the inboxes. It decides nothing about

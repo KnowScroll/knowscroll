@@ -28,6 +28,7 @@ import { contentWiring } from './modules/content.js';
 import { sceneWiring } from './modules/scenes.js';
 import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
+import { feedbackWiring } from './modules/feedback.js';
 import { identityWiring } from './modules/identity.js';
 import { operatorWiring } from './modules/operator.js';
 import { privacyWiring } from './modules/privacy.js';
@@ -116,6 +117,7 @@ export class AppModule {
         ...experienceWiring,
         ...socialWiring,
         ...roomsWiring,
+        ...feedbackWiring,
         ...scenarioWiring,
         ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
         ...evidenceWiring,
