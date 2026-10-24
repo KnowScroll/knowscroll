@@ -33,6 +33,7 @@ import { RemovalNotice } from '../saved/removal-notice';
 import { savedRemovalFor } from '../saved/saved-query';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { useEncounterMetrics } from '../encounter/encounter-metrics';
+import { useFormatSiblings } from '../encounter/use-format-siblings';
 import { ReelPage, useReelPageStage } from './reel-page';
 import { ActivatedReelView } from './activated-reel-view';
 
@@ -124,6 +125,7 @@ function ReadyReel({
 }) {
   const router = useRouter();
   const metrics = useEncounterMetrics();
+  const siblings = useFormatSiblings(scope, exposureId, 'reel');
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [saving, setSaving] = useState(false);
   const removal = useMemo(() => savedRemovalFor(scope, newCommandId), [scope]);
@@ -237,9 +239,12 @@ function ReadyReel({
               {document.fixture ? <Tag label="Fixture video" variant="onDark" /> : null}
               <FormatSwitch
                 selected="reel"
-                availability={{ scroll: 'unavailable' }}
+                availability={siblings.availability}
                 showIcons
-                onSelect={() => undefined}
+                onSelect={(to) => {
+                  const assetId = siblings.assetIds[to];
+                  if (assetId !== undefined) router.push(`/${to}/${assetId}`);
+                }}
               />
             </View>
             <RemovalNotice removal={removalState} undo={() => removal.undo()} retry={() => removal.retry()} />

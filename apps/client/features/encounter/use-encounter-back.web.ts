@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { notePendingBack } from '../../platform/after-pending-back';
 import type { EncounterSession } from './encounter-session';
 
 let markerSequence = 0;
@@ -20,6 +21,7 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
         // One pop is enough: several publishes can land before the popstate that removes the marker.
         else if (!needsBack && hasMarker() && !ignored.current) {
           ignored.current = true;
+          notePendingBack();
           window.history.back();
         }
       };

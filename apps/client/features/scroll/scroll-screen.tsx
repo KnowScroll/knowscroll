@@ -16,6 +16,7 @@ import {
   type ScrollPositionHandle,
 } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
+import { useFormatSiblings } from '../encounter/use-format-siblings';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { useKeepSurface } from '../saved/use-keep-surface';
@@ -66,6 +67,8 @@ function Frame({ children }: { readonly children: React.ReactNode }) {
 function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedScroll }) {
   const insets = useSafeAreaInsets();
   const back = useBack();
+  const router = useRouter();
+  const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
   const params = useLocalSearchParams<{ anchor?: string | string[] }>();
   useDocumentTitle(scroll.document.title);
   const [recorder] = useState(() =>
@@ -139,7 +142,15 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       <View style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
         <IconButton icon="back" label="Back" onPress={back} />
         <View style={styles.spacer} />
-        <FormatSwitch selected="scroll" availability={{ reel: 'unavailable' }} showIcons onSelect={() => undefined} />
+        <FormatSwitch
+          selected="scroll"
+          availability={siblings.availability}
+          showIcons
+          onSelect={(to) => {
+            const assetId = siblings.assetIds[to];
+            if (assetId !== undefined) router.push(`/${to}/${assetId}`);
+          }}
+        />
       </View>
       <ActivatedScrollView
         scope={scope}

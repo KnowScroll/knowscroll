@@ -546,7 +546,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     if (overlay) history.park();
     else {
       const entry = history.current();
-      if (entry) entry.restored = true;
+      if (entry) {
+        entry.restored = true;
+        // A sheet is not a departure: a Reel that was playing under it plays on when it closes.
+        entry.resumePlaying = entry.position?.kind === 'reel' && entry.position.playing;
+      }
     }
     requests.visible(overlay && overlayOwner === 'request' && foreground);
     publish({

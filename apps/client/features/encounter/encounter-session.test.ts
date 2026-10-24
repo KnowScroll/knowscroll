@@ -314,6 +314,28 @@ describe('actual encounter controller over CI transport fixtures', () => {
     }
   });
 
+  it('a Reel that was playing under a sheet plays on when it closes, but a parked entry returns paused', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const entry = h.session.getState().entry!;
+      h.session.bindSurface(entry, {
+        capture: () => ({ kind: 'reel', positionMs: 5000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.setOverlay(true);
+      expect(entry.resumePlaying).toBeFalsy();
+      h.session.setOverlay(false);
+      expect(entry.resumePlaying).toBe(true);
+      // Leaving (a tab detour, Back, another subject) is not a sheet closing.
+      h.session.bindSurface(entry, { capture: () => undefined, pause: jest.fn() });
+      h.session.park(entry);
+      expect(entry.resumePlaying).toBe(false);
+    } finally {
+      h.scope.end();
+    }
+  });
+
   it('a context refetch that a newer one replaced is not "offline"', async () => {
     const h = harness();
     try {

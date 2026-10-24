@@ -1,11 +1,11 @@
-import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layout, opacity, radius, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Icon, Tag, Text, type IconName } from '@knowscroll/ui';
-import { appApiOrigin } from '../../platform/api';
+import { afterPendingBack } from '../../platform/after-pending-back';
+import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { RequestPanel } from '../requests/request-panel';
 import { continuationIntent, continuationLabel, type ReadyContinuation } from './continuation-intent';
 import { EncounterOverlay } from './encounter-overlay';
@@ -228,7 +228,7 @@ function MoreSheet({ state, session }: { readonly state: EncounterState; readonl
           href="/account"
           onPress={() => {
             close();
-            router.navigate('/account');
+            afterPendingBack(() => router.navigate('/account'));
           }}
         />
       </View>
@@ -237,50 +237,24 @@ function MoreSheet({ state, session }: { readonly state: EncounterState; readonl
   );
 }
 
-/** The route a copied link opens: the encounter's own address, which names admitted shared content only. */
-function contentLink(entry: EncounterEntry): string | undefined {
-  const origin = appApiOrigin();
-  return origin.ok ? `${origin.baseUrl}/${entry.kind}/${entry.offer.assetId}` : undefined;
-}
-
-function canShareElsewhere(): boolean {
-  return Platform.OS !== 'web' || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
-}
-
 /**
- * H01, as far as sharing exists: copy the address of this Reel or Scroll, or hand it to the
- * system share sheet. No friends or conversations are listed until those exist. Playback pauses
- * while the sheet is open and resumes where it was (D-006 k).
+ * H01: send to a conversation, copy the link, or hand it to the system share sheet, all in the
+ * sharing feature's body. Playback pauses while the sheet is open and resumes where it was when
+ * it closes (D-006 k).
  */
 function ShareSheet({ state, session }: { readonly state: EncounterState; readonly session: EncounterSession }) {
-  const [copied, setCopied] = useState(false);
   const entry = state.entry;
   if (!entry) return null;
-  const link = contentLink(entry);
-  const title = entry.offer.metadata.title;
+  const close = () => session.setOverlay(false);
   const part = entry.context.series ? ` · Part ${String(entry.context.series.part)}` : '';
+  const title = entry.offer.metadata.title;
   return (
-    <SheetPanel title="Share" subtitle={`${title}${part}`} onClose={() => session.setOverlay(false)}>
-      <View style={styles.menu}>
-        <MenuRow
-          icon="link"
-          label={copied ? 'Link copied' : 'Copy link'}
-          disabled={link === undefined}
-          onPress={() => {
-            if (link === undefined) return;
-            void Clipboard.setStringAsync(link).then(() => setCopied(true));
-          }}
-        />
-        {link !== undefined && canShareElsewhere() ? (
-          <MenuRow
-            icon="share"
-            label="Share elsewhere"
-            onPress={() => {
-              void Share.share(Platform.OS === 'ios' ? { url: link } : { message: `${title} ${link}`, title });
-            }}
-          />
-        ) : null}
-      </View>
+    <SheetPanel title="Share" subtitle={`${title}${part}`} onClose={close}>
+      <ShareSheetBody
+        target={{ assetId: entry.offer.assetId, assetRevision: entry.offer.assetRevision }}
+        title={title}
+        onClose={close}
+      />
     </SheetPanel>
   );
 }

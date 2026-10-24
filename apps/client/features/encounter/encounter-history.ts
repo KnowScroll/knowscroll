@@ -13,6 +13,11 @@ export type EncounterEntry = {
   /** Keep positions never enter the legacy asset/revision-only resume store. */
   keepOrigin?: boolean;
   restored: boolean;
+  /**
+   * Set only when a sheet over a playing Reel closes: the Reel never left, so playback resumes where it
+   * was (D-006 k). Back, a trail jump and a tab detour return paused. Cleared when the entry is parked.
+   */
+  resumePlaying?: boolean;
   started: boolean;
   suspended: boolean;
   disposed: boolean;
@@ -107,6 +112,7 @@ export function createEncounterHistory(
       entry.suspended = true;
     }
     entry.surface = undefined;
+    entry.resumePlaying = false;
   };
   const endEntry = (entry: EncounterEntry) => {
     if (entry.disposed) return;

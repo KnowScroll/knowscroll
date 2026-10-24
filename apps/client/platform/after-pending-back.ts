@@ -5,3 +5,6 @@
 export function afterPendingBack(run: () => void): void {
   run();
 }
+
+/** The encounter has just asked the browser to go Back. Nothing to track on native. */
+export function notePendingBack(): void {}

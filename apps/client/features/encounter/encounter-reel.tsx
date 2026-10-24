@@ -198,6 +198,7 @@ export function ReelEncounter({
       renderStage={renderStage}
       positionRef={reelPosition}
       initialPositionMs={entry.position?.kind === 'reel' ? entry.position.positionMs : entry.restored ? 0 : undefined}
+      initialPlaying={entry.resumePlaying === true}
       initialMuted={entry.muted ?? (entry.position?.kind === 'reel' ? entry.position.muted : false)}
       onMutedChange={onMutedChange}
     >

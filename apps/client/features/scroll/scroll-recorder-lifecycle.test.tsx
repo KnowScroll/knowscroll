@@ -1,5 +1,6 @@
 import { StrictMode, type useEffect } from 'react';
 import { AppState } from 'react-native';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import {
   createAccountScope,
@@ -105,6 +106,9 @@ describe('the direct Scroll recorder lifecycle', () => {
       store: memoryStore(),
       authorization: () => undefined,
       fetch: async (request) => {
+        // The format switch reads the exposure context; this fixture has no twin to report.
+        if (request.url.endsWith('/context'))
+          return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
         if (!request.url.endsWith('/v1/privacy/recording/read'))
           throw new Error('Only the current-policy fixture is expected');
         const input = (await request.json()) as { readId: string; target: unknown };
@@ -125,9 +129,11 @@ describe('the direct Scroll recorder lifecycle', () => {
     try {
       const app = await render(
         <StrictMode>
-          <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-            <ScrollScreen />
-          </DisplayProvider>
+          <QueryClientProvider client={mockScope.queryClient}>
+            <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+              <ScrollScreen />
+            </DisplayProvider>
+          </QueryClientProvider>
         </StrictMode>,
       );
       const lifecycle = mockRecorders.find((candidate) => candidate.start.mock.calls.length > 0);

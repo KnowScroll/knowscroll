@@ -78,6 +78,11 @@ export interface ReelPlayerProps {
   readonly active: boolean;
   /** Mount-only restore intent in milliseconds. Non-finite values become zero. */
   readonly initialPositionMs?: number;
+  /**
+   * Mount-only: the Reel was playing under a sheet that has just closed, so it plays on once its
+   * source is ready and the stage is visible. Never set for a return from anywhere else (D-006 k).
+   */
+  readonly initialPlaying?: boolean;
   /** Mount-only sound preference; the encounter owner retains it only for that entry. */
   readonly initialMuted?: boolean;
   /** Explicit sound changes only; never called for the temporary source-replacement mute. */
@@ -118,6 +123,7 @@ export function ReelPlayer({
   active,
   initialPositionMs,
   initialMuted,
+  initialPlaying,
   onMutedChange,
   positionRef,
   renderStage,
@@ -146,7 +152,7 @@ export function ReelPlayer({
   const ended = useRef(false);
   const hasSource = useRef(false);
   const clearPositionRef = useRef<() => void>(() => undefined);
-  const playbackIntent = useRef(false);
+  const playbackIntent = useRef(initialPlaying === true);
   const replacing = useRef(false);
   const needsRefresh = useRef(true);
   const loaded = useRef(false);
@@ -232,6 +238,8 @@ export function ReelPlayer({
       observeMediaVisibility(view.current, (value) => {
         if (ended.current) return;
         visible.current = value;
+        // A resume owed from a closed sheet starts once the stage is both visible and restored.
+        if (value && playbackIntent.current && activeRef.current && installedSource.current?.restored) player.play();
         if (!value) {
           playbackIntent.current = false;
           pausePlayback(player);

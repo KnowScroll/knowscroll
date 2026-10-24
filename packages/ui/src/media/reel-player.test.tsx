@@ -645,6 +645,21 @@ describe('local Reel positions', () => {
     await rendered.unmount();
   });
 
+  it('plays on once its source is restored when a sheet it was playing under has closed, and only then', async () => {
+    const f = fixture();
+    f.player.status = 'loading';
+    const rendered = await renderOn(<ReelPlayer {...f.props} initialPositionMs={8125} initialPlaying />);
+    expect(f.player.play).not.toHaveBeenCalled();
+    await act(async () => {
+      f.player.status = 'readyToPlay';
+      f.listeners.get('statusChange')?.({ status: 'readyToPlay' });
+      await Promise.resolve();
+    });
+    expect(f.seeks).toHaveBeenCalledWith(8.125);
+    expect(f.player.play).toHaveBeenCalledTimes(1);
+    await rendered.unmount();
+  });
+
   it('retains the initial restore intent when Retry happens before the SDK has ever been ready', async () => {
     const f = fixture();
     f.player.status = 'loading';

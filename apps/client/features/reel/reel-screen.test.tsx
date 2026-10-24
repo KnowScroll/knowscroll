@@ -34,11 +34,12 @@ jest.mock('@knowscroll/ui', () => ({
       : (props.children ?? null),
   ),
 }));
+const mockPush = jest.fn();
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
     useLocalSearchParams: () => ({ assetId: '0199a000-0000-7000-8000-0000000000a1' }),
-    useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),
+    useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn(), push: mockPush }),
     useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   };
 });
@@ -131,6 +132,7 @@ describe('retained encounter sound intent (CI player seam)', () => {
 
 const ID = '0199a000-0000-7000-8000-0000000000a1';
 const EXPOSURE = '0199a000-0000-7000-8000-0000000000e1';
+const TWIN = '0199a000-0000-7000-8000-0000000000a2';
 const account = { accountId: ID, universeId: EXPOSURE, privacyEpoch: 1, email: 'reel@screen.test' };
 const direct = {
   commandId: ID,
@@ -206,6 +208,8 @@ async function mount(
     action?: () => Promise<Response>;
     saved?: boolean;
     keepRead?: () => Response;
+    /** The exposure context reports a ready Scroll of the same explanation. */
+    twin?: boolean;
   } = {},
 ) {
   const paths: string[] = [];
@@ -250,6 +254,22 @@ async function mount(
             activatedAt: '2026-10-20T10:00:00.000Z',
             revision: 0,
             replayed: false,
+          }),
+        );
+      if (path.endsWith('/context'))
+        return Promise.resolve(
+          json({
+            exposureId: EXPOSURE,
+            assetId: ID,
+            assetRevision: 1,
+            revision: 1,
+            actions: { saved: false, liked: false, hidden: false },
+            variants: options.twin ? [{ status: 'ready', kind: 'scroll', assetId: TWIN, assetRevision: 1 }] : [],
+            continuations: {
+              seriesNext: { status: 'unavailable', reason: 'series_boundary' },
+              seriesPrevious: { status: 'unavailable', reason: 'series_boundary' },
+              related: { status: 'unavailable', reason: 'no_related_ready' },
+            },
           }),
         );
       if (path === '/v1/saved')
@@ -328,6 +348,26 @@ describe('direct Reel response boundaries', () => {
   });
   afterEach(() => {
     if (originalAppState) Object.defineProperty(AppState, 'currentState', originalAppState);
+  });
+
+  it('offers the twin format from the exposure context and opens it, creating nothing', async () => {
+    mockPush.mockClear();
+    const app = await mount({ twin: true });
+    const scroll = await screen.findByRole('radio', { name: 'Scroll' });
+    expect(scroll).not.toBeDisabled();
+    expect(app.paths).toContain('/v1/experience/exposures/' + EXPOSURE + '/context');
+    await fireEvent.press(scroll);
+    expect(mockPush).toHaveBeenCalledWith(`/scroll/${TWIN}`);
+    // Reading availability opens and activates nothing more.
+    expect(app.paths.filter((path) => path === '/v1/experience/open')).toHaveLength(1);
+    expect(app.paths.filter((path) => path === '/v1/experience/activate')).toHaveLength(1);
+    await app.unmount();
+  });
+
+  it('says plainly that the other format is unavailable when no twin exists', async () => {
+    const app = await mount();
+    expect(await screen.findByRole('radio', { name: 'Scroll · unavailable' })).toBeDisabled();
+    await app.unmount();
   });
 
   it.each(discovery)('refuses discovery $status without minting a grant or activating', async (reply) => {
