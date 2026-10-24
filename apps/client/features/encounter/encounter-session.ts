@@ -28,6 +28,7 @@ import type {
   NavigationOutcome,
 } from '@knowscroll/contracts';
 import { parseDocument } from '@knowscroll/scroll-model';
+import { afterPendingBack } from '../../platform/after-pending-back';
 import { createRequestSession, type RequestMode } from '../requests/request-session';
 import { savedRemovalFor, type SavedRemovalState } from '../saved/saved-query';
 import type { EncounterGestureMove } from './gestures/arbitration';
@@ -952,7 +953,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         history.park();
         releaseCheckpoint();
         publish({ overlay: false, overlayOwner: undefined });
-        origin.returnToMap();
+        // The encounter's own history marker is popped by an asynchronous Back; the map is opened after it lands.
+        afterPendingBack(origin.returnToMap);
         return true;
       }
       if (work || busy) return false;
