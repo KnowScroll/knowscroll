@@ -377,6 +377,16 @@ describe('the API contract', () => {
       '/v1/social/conversations/mark-read': ['post'],
       '/v1/social/conversations/mute': ['post'],
       '/v1/social/conversations/leave': ['post'],
+      '/v1/social/threads/create': ['post'],
+      '/v1/social/threads/read': ['post'],
+      '/v1/social/threads/history': ['post'],
+      '/v1/social/threads/changes': ['post'],
+      '/v1/social/threads/send': ['post'],
+      '/v1/social/threads/respond': ['post'],
+      '/v1/social/threads/mark-read': ['post'],
+      '/v1/social/threads/leave': ['post'],
+      '/v1/social/threads/inbox': ['post'],
+      '/v1/social/threads/snippets/open': ['post'],
       '/v1/social/content-shares/create': ['post'],
       '/v1/social/content-shares/revoke': ['post'],
       '/v1/social/content-shares/read': ['post'],
@@ -413,9 +423,10 @@ describe('the API contract', () => {
     const visit = JSON.stringify(document.paths?.['/v1/social/visits/read']?.post?.responses?.['200']);
     for (const field of [
       'publicSystemId',
+      'publicPlanetId',
+      'planets',
       'list.v1',
       'pairRevision',
-      'visibilityRevision',
       'publishedProjectionRevision',
     ])
       expect(visit).toContain(field);
@@ -434,6 +445,8 @@ describe('the API contract', () => {
       'branch',
       'lastSeenAt',
       'hiddenCount',
+      'visibilityRevision',
+      'systemId',
     ])
       expect(visit).not.toContain(`"${field}"`);
     expect(visit).toContain('"additionalProperties":false');

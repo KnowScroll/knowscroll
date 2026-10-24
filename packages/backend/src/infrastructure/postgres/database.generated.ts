@@ -1440,13 +1440,25 @@ export interface SocialContentShares {
   token_hash: string;
 }
 
+export interface SocialContentThreads {
+  created_at: Timestamp;
+  name: string | null;
+  root_asset_id: string;
+  root_asset_revision: number;
+  starter_account_id: string | null;
+  thread_id: string;
+}
+
 export interface SocialConversationMembers {
   account_id: string;
   conversation_id: string;
+  invited_by_account_id: string | null;
+  invited_lineage: string | null;
   left_at: Timestamp | null;
   membership_id: string;
   membership_revision: Generated<Int8>;
   muted: Generated<boolean>;
+  pending: Generated<boolean>;
   read_through_sequence: Generated<Int8>;
 }
 
@@ -1454,6 +1466,7 @@ export interface SocialConversations {
   closed_at: Timestamp | null;
   conversation_id: string;
   created_at: Timestamp;
+  kind: Generated<string>;
   last_activity_at: Timestamp;
   last_change_sequence: Generated<Int8>;
   last_sequence: Generated<Int8>;
@@ -1490,6 +1503,23 @@ export interface SocialMessages {
   sequence: Int8;
 }
 
+export interface SocialMessageSnippets {
+  block_id: string | null;
+  block_label: string | null;
+  block_type: string | null;
+  block_version: number | null;
+  end_ms: number | null;
+  kind: string;
+  message_id: string;
+  quote: string | null;
+  quote_hash: string | null;
+  range_end: number | null;
+  range_start: number | null;
+  settings: Json | null;
+  settings_description: string | null;
+  start_ms: number | null;
+}
+
 export interface SocialPairs {
   accepted_lineage: string | null;
   current_request_id: string | null;
@@ -1505,6 +1535,12 @@ export interface SocialPairSides {
   pair_id: string;
   public_revision: Generated<Int8>;
   public_state: Generated<string>;
+}
+
+export interface SocialPresence {
+  account_id: string;
+  last_seen_at: Timestamp;
+  window_token: Int8;
 }
 
 export interface SocialProfiles {
@@ -1539,6 +1575,41 @@ export interface SocialRosterHeads {
   kind: string;
   owner_account_id: string;
   revision: Generated<Int8>;
+}
+
+export interface SocialVisibilityAudience {
+  friend_account_id: string;
+  owner_account_id: string;
+}
+
+export interface SocialVisibilitySettings {
+  account_id: string;
+  audience: Generated<string>;
+  presence_preference: Generated<string>;
+  presence_revision: Generated<Int8>;
+  visibility_revision: Generated<Int8>;
+}
+
+export interface SocialVisitPlanets {
+  label: string;
+  planet_id: string;
+  public_planet_id: string;
+  system_id: string;
+  universe_id: string;
+}
+
+export interface SocialVisitPublications {
+  geography_revision: Int8;
+  projection_token: Int8;
+  refreshed_at: Timestamp;
+  universe_id: string;
+}
+
+export interface SocialVisitSystems {
+  label: string;
+  public_system_id: string;
+  system_id: string;
+  universe_id: string;
 }
 
 export interface SupplyRequests {
@@ -1681,17 +1752,25 @@ export interface DB {
   "scenes.state": ScenesState;
   "social.command_bindings": SocialCommandBindings;
   "social.content_shares": SocialContentShares;
+  "social.content_threads": SocialContentThreads;
   "social.conversation_members": SocialConversationMembers;
   "social.conversations": SocialConversations;
   "social.inbox_heads": SocialInboxHeads;
   "social.invites": SocialInvites;
+  "social.message_snippets": SocialMessageSnippets;
   "social.messages": SocialMessages;
   "social.pair_sides": SocialPairSides;
   "social.pairs": SocialPairs;
+  "social.presence": SocialPresence;
   "social.profiles": SocialProfiles;
   "social.requests": SocialRequests;
   "social.roster_entries": SocialRosterEntries;
   "social.roster_heads": SocialRosterHeads;
+  "social.visibility_audience": SocialVisibilityAudience;
+  "social.visibility_settings": SocialVisibilitySettings;
+  "social.visit_planets": SocialVisitPlanets;
+  "social.visit_publications": SocialVisitPublications;
+  "social.visit_systems": SocialVisitSystems;
   "supply.requests": SupplyRequests;
   "supply.work": SupplyWork;
 }

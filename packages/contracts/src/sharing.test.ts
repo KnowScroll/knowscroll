@@ -13,6 +13,7 @@ import {
   LookupSharingPersonSchema,
   OwnFriendInvitesSchema,
   OwnSharingProfileSchema,
+  PresenceHeartbeatAckSchema,
   PublicPersonRefSchema,
   ReadFriendRequestsSchema,
   ReadFriendsSchema,
@@ -29,6 +30,7 @@ import {
   SharingPersonLookupSchema,
   SharingProfileAcceptanceSchema,
   SharingVisibilityAcceptanceSchema,
+  SharingVisibilitySchema,
   VisitorWorldSnapshotSchema,
   problemDetails,
   sharingContract,
@@ -79,8 +81,17 @@ const visit = {
   capabilities,
   status: 'available',
   owner: person,
-  authority: { pairRevision: 7, visibilityRevision: 4, publishedProjectionRevision: 2 },
-  projection: { presentation: 'list.v1', systems: [{ publicSystemId: id(6), label: 'Fixture shared system' }] },
+  authority: { pairRevision: 7, publishedProjectionRevision: 2 },
+  projection: {
+    presentation: 'list.v1',
+    systems: [
+      {
+        publicSystemId: id(6),
+        label: 'Fixture shared system',
+        planets: [{ publicPlanetId: id(9), label: 'Fixture shared planet' }],
+      },
+    ],
+  },
 };
 
 function refusesExtras(
@@ -363,17 +374,20 @@ describe('bounded Friends and visibility declarations', () => {
     expect(
       VisitorWorldSnapshotSchema.safeParse({
         ...visit,
-        projection: { ...visit.projection, systems: [{ publicSystemId: id(6), label: 'विज्ञान' }] },
+        projection: { ...visit.projection, systems: [{ publicSystemId: id(6), label: 'विज्ञान', planets: [] }] },
       }).success,
     ).toBe(true);
     for (const control of ['\u0080', '\u0085', '\u009f'])
       expect(
         VisitorWorldSnapshotSchema.safeParse({
           ...visit,
-          projection: { ...visit.projection, systems: [{ publicSystemId: id(6), label: `A${control}B` }] },
+          projection: {
+            ...visit.projection,
+            systems: [{ publicSystemId: id(6), label: `A${control}B`, planets: [] }],
+          },
         }).success,
       ).toBe(false);
-    const read = { version: 'sharing.v1', target, capabilities, expected: visit.authority };
+    const read = { version: 'sharing.v1', target, capabilities };
     expect(ReadVisitorWorldSchema.parse(read)).toEqual(read);
     expect(
       VisitorWorldSnapshotSchema.parse({ ...envelope, target, capabilities, status: 'unavailable' }),
@@ -391,8 +405,13 @@ describe('bounded Friends and visibility declarations', () => {
       { presentations: ['list.v1'], privateScene: true },
     ])
       expect(ReadVisitorWorldSchema.safeParse({ ...read, capabilities }).success).toBe(false);
+    // A visitor never states or learns the owner's settings revision.
+    expect(ReadVisitorWorldSchema.safeParse({ ...read, expected: visit.authority }).success).toBe(false);
     expect(
-      ReadVisitorWorldSchema.safeParse({ ...read, expected: { ...visit.authority, visibilityRevision: 0 } }).success,
+      VisitorWorldSnapshotSchema.safeParse({
+        ...visit,
+        authority: { ...visit.authority, visibilityRevision: 4 },
+      }).success,
     ).toBe(false);
     expect(
       VisitorWorldSnapshotSchema.safeParse({ ...visit, target: { kind: 'person', personId: id(8) } }).success,
@@ -404,6 +423,16 @@ describe('bounded Friends and visibility declarations', () => {
       VisitorWorldSnapshotSchema.safeParse({
         ...visit,
         projection: { ...visit.projection, systems: [visit.projection.systems[0], visit.projection.systems[0]] },
+      }).success,
+    ).toBe(false);
+    // A planet cannot reuse its system's public identity either.
+    expect(
+      VisitorWorldSnapshotSchema.safeParse({
+        ...visit,
+        projection: {
+          ...visit.projection,
+          systems: [{ ...visit.projection.systems[0], planets: [{ publicPlanetId: id(6), label: 'Same identity' }] }],
+        },
       }).success,
     ).toBe(false);
     for (const field of [
@@ -442,7 +471,38 @@ describe('bounded Friends and visibility declarations', () => {
         }).success,
         field,
       ).toBe(false);
+      const [system] = visit.projection.systems;
+      expect(
+        VisitorWorldSnapshotSchema.safeParse({
+          ...visit,
+          projection: {
+            ...visit.projection,
+            systems: [{ ...system, planets: [{ ...system!.planets[0], [field]: 'private-fixture' }] }],
+          },
+        }).success,
+        field,
+      ).toBe(false);
     }
+  });
+
+  it('shows an owner their own systems by private ID and never lets a visitor see one', () => {
+    const own = {
+      ...envelope,
+      visibilityRevision: 1,
+      audience: { mode: 'nobody' },
+      systems: [{ systemId: id(6), label: 'Fixture system', shared: false }],
+    };
+    expect(SharingVisibilitySchema.parse(own)).toEqual(own);
+    expect(SharingVisibilitySchema.safeParse({ ...own, sharedSystemIds: [id(6)] }).success).toBe(false);
+    expect(SharingVisibilitySchema.safeParse({ ...own, systems: [{ ...own.systems[0], shared: 'yes' }] }).success).toBe(
+      false,
+    );
+    expect(
+      SharingVisibilitySchema.safeParse({ ...own, systems: [{ ...own.systems[0], label: ' padded ' }] }).success,
+    ).toBe(false);
+    // The heartbeat answer carries nothing a person could read their sharing state from.
+    expect(PresenceHeartbeatAckSchema.parse({ ok: true })).toEqual({ ok: true });
+    expect(PresenceHeartbeatAckSchema.safeParse({ ok: false, code: 'HIDDEN' }).success).toBe(false);
   });
 
   it('uses fixed sanitised sharing problems with no peer denial distinctions', () => {

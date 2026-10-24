@@ -64,7 +64,8 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 | `src/http/auth-rate-limit.ts` | In-process limits of the sign-in routes per client address and per process (the per-address link limit is identity's, in the database) |
 | `src/http/problems.ts` | The one outcome → HTTP mapping: oRPC errors, Nest exceptions and body-parser errors become `application/problem+json`; lock waits, timeouts, deadlocks and serialisation failures become a 503 with `Retry-After`, logged once as `http.retryable_failure` with their code; unexpected errors are logged once and answered with `INTERNAL` |
 | `src/http/request-context.ts` | Server-generated request ID (`x-request-id`) and `http.request_completed` with the route template |
-| `src/realtime/scope.gateway.ts` | Socket.IO on `/socket.io`: authenticated connections (native: the bearer token in `auth.token`; web: the session cookie, only from `KS_PUBLIC_ORIGIN`); `subscribe_scope` joins first, then checks session validity and current access and leaves when refused (error ack on failure); every relayed hint re-authorised per socket (session and access, cache ≤ 30 s): `scope_revoked` for a dropped subscription, a disconnect for an invalid session; `revokeAccountSockets` notices disconnect an account's sockets; after a relay reconnect every socket is closed and must authenticate again; no socket commands |
+| `src/http/visibility.controller.ts` | `GET/POST /v1/social/visibility`, `GET/POST /v1/social/presence/preference` and `POST /v1/social/visits/read` over `VISIBILITY_USE_CASES`: private/no-store, every answer parsed again and bound to the caller's account and epoch (and a visit answer to the person asked for). A refused visit is the one `unavailable` snapshot, never a problem that says why (D-047) |
+| `src/realtime/scope.gateway.ts` | Socket.IO on `/socket.io`: authenticated connections (native: the bearer token in `auth.token`; web: the session cookie, only from `KS_PUBLIC_ORIGIN`); `subscribe_scope` joins first, then checks session validity and current access and leaves when refused (error ack on failure); every relayed hint re-authorised per socket (session and access, cache ≤ 30 s): `scope_revoked` for a dropped subscription, a disconnect for an invalid session; `revokeAccountSockets` notices disconnect an account's sockets; after a relay reconnect every socket is closed and must authenticate again; the one thing a client says over a socket is `presence_heartbeat`, answered `{ ok: true }` whether or not availability is shared, stored only for a person who chose to show it, and ignored when it follows the last by less than 10 s on one socket; no other socket commands |
 | `src/http/supply.controller.ts` | Scoped create/read/cancel adapters: immutable command receipts, current private request status and exhaustive sanitised refusal mapping |
 | `src/http/geography.controller.ts` | Current own-world snapshot/catch-up reads; admitted caller authority only, no Cartographer request or transition acknowledgement |
 | `src/http/observations.controller.ts` | Legacy `POST /v1/observations/batch` and versioned `POST /v1/observations/recording-batch` (stored, not projected), plus the dev-only evidence diagnostics read (world allow-list; 404 elsewhere) |
@@ -353,3 +354,14 @@ available" page with status 200, naming nobody. A read failure renders a "try ag
 `scope.gateway.ts` subscribes the new `inbox` scope (named by the caller's universe ID) and acks it with
 the member's `inbox_heads` revision. Tests: `tests/integration/release/conversations-http.test.ts` runs the
 installed API, a typed client, a Socket.IO hint, recovery after a missed hint and the landing states.
+
+### Content threads (#243, D-046)
+
+`ThreadsController` mounts private POSTs under `/v1/social/threads/`: `create`, `read`, `history`, `changes`, `send`,
+`respond`, `mark-read`, `leave`, `inbox` and `snippets/open`. The session, `Origin` and `X-KS-Scope` pipeline is the one
+the other Social routes use (`request-context.ts` admits the `threads/...` paths). Each handler calls `THREAD_USE_CASES` and
+maps a refusal to the closed Social problem family. Membership, friendship lineage, blocks, snippet validity and the
+one-failing-friend rule are decided in the use cases. No handler waits for a model or a network call, and no answer
+carries any member's position or seen marker. The scope gateway needs no change: a thread bumps the same `inbox_heads`
+and hints the same `inbox` scope. Tests: `tests/integration/release/threads-http.test.ts` runs the installed API against
+a real PostgreSQL. *Implemented. Not yet run on dev.*

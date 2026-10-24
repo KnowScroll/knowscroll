@@ -14,7 +14,10 @@ API client, the hint socket and local stores) with the sign-in client, and the i
 | `src/account-scope-manager.ts` | `createAccountScopeManager()`: the single owner of the current scope. `start()` reads the session; `peek()` (whose account a link opens, masked); `redeem()` (the current scope ends **before** the redemption is sent, so nothing it starts can go out with the next credential; a failed redemption remounts the session's scope; native sends the verifier of `SignInBinding`), `refresh()` (a new privacy epoch → a new scope; a refused session → `signed_out: session_ended`), `signOut()` (web: only when the server answered, since only it clears the HttpOnly cookie; native: always drops the secure-store token), `requestLink()` (native: with the S256 challenge of `SignInBinding`); state `starting · signed_out · unavailable · signed_in` for `useSyncExternalStore` |
 | `src/scroll-state/` | `createScopedBlockStateStore(scope.storage)`: reader state of Scroll blocks by `(assetId, revision, blockId)` in the AccountScope's own storage, so it is purged when the scope ends. Reads go through the scroll-model `BlockState` schema (anything else is forgotten), writes over 1 KiB are ignored, the newest four revisions of a block are kept, and `earlier()` lets a new revision say it started over. Structurally the `ScrollBlockStateStore` of `@knowscroll/ui`. Personal simulation values never leave the device: nothing here sends anything, and a snippet carries one only when its sender explicitly includes it (`buildBlockStateSnapshot`) |
 | `src/sign-in-binding.ts` | `base64UrlOfBytes`, `base64UrlOfBase64`: the encodings of the native verifier and its S256 challenge (RFC 7636; the app's `platform/sign-in-binding.ts` keeps the verifier in the secure store) |
-| `src/account-scope-socket.ts` | `connectScopeSocket()`: Socket.IO on the API origin (native: the scope's bearer in `auth.token`; web: the same-origin cookie; both name the scope in `auth.scope`, and a `SCOPE_MISMATCH` refusal makes the manager reread the session), subscribed to the scope's universe; `scope_changed` above the highest revision seen, or `scope_resync`, invalidates the scope's queries; "io server disconnect" makes the manager recheck the session |
+| `src/account-scope-socket.ts` | `connectScopeSocket()`: Socket.IO on the API origin (native: the scope's bearer in `auth.token`; web: the same-origin cookie; both name the scope in `auth.scope`, and a `SCOPE_MISMATCH` refusal makes the manager reread the session), subscribed to the scope's universe; `scope_changed` above the highest revision seen, or `scope_resync`, invalidates the scope's queries; "io server disconnect" makes the manager recheck the session. While connected and visible (`context.visible`) it sends `presence_heartbeat` every 20 s; the server stores it only for a person who chose to show availability |
+| `src/visibility-session.ts` | `createVisibilitySession()`: F02. One command carries the whole page (audience, chosen friends, shared systems), changes made while a save is in flight fold into one following save, a failed save keeps the page and offers Retry, and a stale or refused one rereads what the server holds. Availability is its own command with its own revision |
+| `src/visit-session.ts` | `createVisitSession()`: U06. One list in memory, replaced by every read and dropped the moment a read says the visit is not available; rereads every 15 s while the screen is open; keeps the last list for two minutes without an answer, then drops it. Nothing is cached or persisted, and a visit is never evidence |
+| `src/availability-session.ts` | `createAvailabilitySession()`: friends' "Online" and "Recently active" for the Friends screen. Each word lives for the server's lease counted from when the read started and then stops, even with no further read; hidden, expired and unknown are the same silence |
 | `src/auth-client.ts` | `createAuthClient()`: the `/auth/*` routes as typed outcomes (`requested · invalid_address · rate_limited(retryAfter) · unavailable`, `signed_in · link_invalid · refused · unavailable`), never throwing; anything that is not the contract's answer counts as `unavailable` |
 | `src/recorder/` | Shared Scroll/Reel reading infrastructure. Pure visibility/playback trackers emit bounded `interaction.v1` summaries only for current eligible activation lineage. The scope owns an immutable original-generation `observation-batch.v2` outbox; strict correlated ACKs decide terminal intake, never qualification. See the recording policy section below for legacy migration, loss and lifecycle boundaries. |
 
@@ -375,3 +378,20 @@ they end with the scope. *Implemented; exercised in browsers locally, not yet on
   invalidates `scope.queryKey('talk')` (`TALK_QUERY_KEY`) on an inbox hint.
 - `@knowscroll/client-core/talk-fixture` (`src/test-support/talk-fixture.ts`) is a labelled in-memory Talk server for tests (it can fail the next call
   as network, unavailable, server or lost response). It never ships in a build.
+
+## Content threads and snippets (#243, D-046)
+
+Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemented; exercised in browsers locally, not yet on dev.*
+
+- `createContentThread({scope, thread, newId})`: `load` reads a snapshot (an invitation, an unavailable answer, or the
+  ready thread with messages, people, episodes and the caller's own visited markers); `refresh` catches up from the
+  cursor (a lost hint only delays an update, and a stale cursor starts over); `send` shows one bubble that becomes
+  `accepted`, `unconfirmed` (the retry reuses the command ID) or `not_sent`; `respond('join' | 'decline')` keeps one command
+  ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
+  episode or anything of another member.
+- `createExploreWithFriends(...)`: lists friends, creates the thread with one command ID per intent, and reports
+  `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
+- `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
+- `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
+- `overlayBlockState` (`scroll-state/snippet-overlay.ts`): the sender's block settings, shown without writing the reader's own.
+- The Talk fixture serves `threads/create` and the thread reads for tests; it is a labelled fixture.

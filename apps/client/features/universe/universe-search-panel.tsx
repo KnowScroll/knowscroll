@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import { borderWidth, content, radius, space, spacing, target } from '@knowscroll/design-tokens';
 import { Button, Icon, Text } from '@knowscroll/ui';
 import { searchPlaces } from './universe-search';
-import type { UniverseViewSession } from './universe-session';
+import type { UniverseMapSession } from './universe-session';
 
 const KIND_WORD = { system: 'System', star: 'Star', planet: 'Planet', region: 'Region' } as const;
 
@@ -12,7 +12,15 @@ const KIND_WORD = { system: 'System', star: 'Star', planet: 'Planet', region: 'R
  * flies there and Back returns to where they were looking. Search runs on this device and the query
  * is neither sent nor kept.
  */
-export function UniverseSearchPanel({ session }: { readonly session: UniverseViewSession }) {
+export function UniverseSearchPanel({
+  session,
+  owner,
+}: {
+  readonly session: UniverseMapSession;
+  /** A friend's name, when the places searched are theirs. */
+  readonly owner?: string;
+}) {
+  const subject = owner === undefined ? 'your universe' : `${owner}’s universe`;
   const [query, setQuery] = useState('');
   const results = useMemo(() => searchPlaces(session.places(), query), [session, query]);
   return (
@@ -25,8 +33,8 @@ export function UniverseSearchPanel({ session }: { readonly session: UniverseVie
             value={query}
             onChangeText={setQuery}
             role="searchbox"
-            accessibilityLabel="Search your universe"
-            placeholder="Search your universe"
+            accessibilityLabel={`Search ${subject}`}
+            placeholder={`Search ${subject}`}
             placeholderTextColor={content.ink2}
             returnKeyType="search"
             autoCorrect={false}

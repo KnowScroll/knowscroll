@@ -56,6 +56,40 @@ export {
 } from './conversation-thread';
 export { dayKey, dayLabel, describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
 export {
+  createContentThread,
+  type ContentThreadController,
+  type ContentThreadOptions,
+  type ContentThreadState,
+  type OutgoingThreadMessage,
+} from './content-thread';
+export {
+  describeThreadMessage,
+  findThread,
+  readThreadSummaries,
+  threadRowView,
+  type ThreadRowView,
+} from './thread-inbox';
+export {
+  createExploreWithFriends,
+  type CreateStatus,
+  type ExploreWithFriendsOptions,
+  type ExploreWithFriendsSession,
+  type ExploreWithFriendsState,
+} from './explore-with-friends';
+export {
+  MAX_PASSAGE_CHARS,
+  MIN_RANGE_MS,
+  formatClock,
+  formatRange,
+  initialRange,
+  nudgeRange,
+  passageOf,
+  sentenceRanges,
+  setRangeEnd,
+  type PassageRange,
+  type ReelRange,
+} from './thread-snippets';
+export {
   createShareSession,
   createSharedLinksSession,
   type LinkStatus,
@@ -112,6 +146,7 @@ export {
   type EarlierBlockState,
   type ScrollBlockKey,
   type ScrollBlockStateStore,
+  overlayBlockState,
 } from './scroll-state';
 export {
   createUniverseSceneSession,
@@ -142,6 +177,32 @@ export {
   type FormationPresentationState,
   type FormationPresentationSession,
 } from './formation-presentation';
+
+export {
+  createVisibilitySession,
+  type AudienceMode,
+  type PresencePreference,
+  type VisibilityDraft,
+  type VisibilitySave,
+  type VisibilitySession,
+  type VisibilityState,
+} from './visibility-session';
+export {
+  createVisitSession,
+  VISIT_POLL_MS,
+  VISIT_STALE_MS,
+  type VisitedSystem,
+  type VisitSession,
+  type VisitState,
+  type VisitTarget,
+} from './visit-session';
+export {
+  createAvailabilitySession,
+  AVAILABILITY_POLL_MS,
+  type AvailabilitySession,
+  type AvailabilityState,
+  type AvailabilityWord,
+} from './availability-session';
 
 export { createFriendsSession } from './friends-session';
 export { createFriendsHttp, FriendsHttpError, FRIENDS_LIMITS } from './friends-http';

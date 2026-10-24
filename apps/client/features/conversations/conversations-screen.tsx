@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { inboxRowView, listTime, type AccountScope } from '@knowscroll/client-core';
+import { inboxRowView, listTime, threadRowView, type AccountScope } from '@knowscroll/client-core';
 import type { DirectConversationSummary } from '@knowscroll/contracts';
 import { borderWidth, content, dimension, layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, RowLink, Skeleton, StateBlock, Text } from '@knowscroll/ui';
@@ -10,6 +10,8 @@ import { EmptyTalk } from './empty-talk-screen';
 import { PersonAvatar } from './person-avatar';
 import { conversationHref } from './conversation-links';
 import { useTalkInbox } from './use-talk-inbox';
+import { ThreadRow } from '../threads/thread-row';
+import { useThreadInbox } from '../threads/use-thread-inbox';
 
 function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
   const router = useRouter();
@@ -52,8 +54,9 @@ function InboxRow({ item }: { readonly item: DirectConversationSummary }) {
 
 function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
   const inbox = useTalkInbox(scope);
-  if (inbox.loading) return <Skeleton rows={4} label="Loading conversations" />;
-  if (inbox.failed && inbox.items.length === 0)
+  const threads = useThreadInbox(scope);
+  if (inbox.loading || threads.loading) return <Skeleton rows={4} label="Loading conversations" />;
+  if (inbox.failed && inbox.items.length === 0 && threads.items.length === 0)
     return (
       <StateBlock
         title="Can't load conversations"
@@ -61,18 +64,31 @@ function SignedInTalk({ scope }: { readonly scope: AccountScope }) {
         actions={[{ label: 'Try again', onPress: inbox.retry }]}
       />
     );
-  if (inbox.items.length === 0) return <EmptyTalk />;
+  if (inbox.items.length === 0 && threads.items.length === 0) return <EmptyTalk />;
+  // Direct conversations and threads share one list, newest activity first.
+  const rows = [
+    ...inbox.items.map((item) => ({
+      key: item.conversation.conversationId,
+      at: inboxRowView(item).at?.getTime() ?? 0,
+      node: <InboxRow item={item} />,
+    })),
+    ...threads.items.map((item) => ({
+      key: item.thread.threadId,
+      at: threadRowView(item).at.getTime(),
+      node: <ThreadRow item={item} />,
+    })),
+  ].sort((first, second) => second.at - first.at);
   return (
     <View style={styles.list}>
-      {inbox.failed ? (
+      {inbox.failed || threads.failed ? (
         <View style={styles.banner}>
           <Banner kind="offline" lead="Offline." message="This list may be out of date." />
         </View>
       ) : null}
       <View role="list" accessibilityLabel="Conversations">
-        {inbox.items.map((item) => (
-          <View key={item.conversation.conversationId} role="listitem">
-            <InboxRow item={item} />
+        {rows.map((row) => (
+          <View key={row.key} role="listitem">
+            {row.node}
           </View>
         ))}
       </View>

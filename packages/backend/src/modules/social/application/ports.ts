@@ -8,6 +8,8 @@ import type {
   FenceOwnAccount,
 } from '../../identity/public.js';
 import type { Pair, Operation } from '../domain/friends.js';
+import type { PresencePreference, PresenceRecord } from '../domain/presence.js';
+import type { VisibilityStore } from './visibility-store.js';
 export type SocialRefusal =
   'invalid_input' | 'unavailable' | 'stale_revision' | 'command_key_reused' | 'unsupported' | 'counter_exhausted';
 export type Result<T> =
@@ -17,8 +19,11 @@ export interface Profile {
   person: PublicPersonRef;
   revision: number;
 }
-export interface PairLock {
+/** A locked shared root: the friendship (`PairLock`) or a content thread. */
+export interface SharedLock {
   shared: SharedScopeTx;
+}
+export interface PairLock extends SharedLock {
   pair: Pair;
 }
 export interface Binding {
@@ -42,11 +47,11 @@ export interface SocialStore {
   binding(lock: PairLock, actor: string, operation: Operation, command: string): Promise<Binding | undefined>;
   bind(lock: PairLock, actor: string, operation: Operation, command: string, binding: Binding): Promise<void>;
   findReceipt(
-    scope: PersonalScopeTx | PairLock,
+    scope: PersonalScopeTx | SharedLock,
     key: ReceiptKey,
   ): Promise<{ kind: 'new' } | { kind: 'replay'; outcome: unknown } | { kind: 'refused'; code: SocialRefusal }>;
-  beginReceipt(scope: PersonalScopeTx | PairLock, key: ReceiptKey): Promise<void>;
-  receipt(scope: PersonalScopeTx | PairLock, key: ReceiptKey, outcome: object): Promise<void>;
+  beginReceipt(scope: PersonalScopeTx | SharedLock, key: ReceiptKey): Promise<void>;
+  receipt(scope: PersonalScopeTx | SharedLock, key: ReceiptKey, outcome: object): Promise<void>;
 }
 export type RosterKind = 'friends' | 'incoming' | 'outgoing' | 'blocked';
 export interface RosterCertificate {
@@ -70,6 +75,8 @@ export interface RosterCandidate {
   requestId: string | null;
   expiresAt: string | null;
   eligible: boolean;
+  /** What the peer chose to show and their last heartbeat; only a friends page turns it into a word. */
+  presence: { preference: PresencePreference; record: PresenceRecord | undefined };
 }
 export interface RosterStore {
   head(scope: PersonalScopeTx, filter: RosterKind): Promise<number>;
@@ -98,6 +105,7 @@ export interface SocialPorts {
   cursor: RosterCursorCodec;
   secret(): string;
   digest(secret: string): string;
+  visibility: VisibilityStore;
 }
 export const refuse = (code: SocialRefusal): Result<never> => ({ kind: 'refused', code });
 /** The scope every conversation and share answer names: the caller's account and epoch. */
@@ -105,6 +113,14 @@ export const conversationEnvelope = (scope: PersonalScopeTx) => {
   if (scope.authority.actor.kind !== 'account') throw new Error('SOCIAL_ACCOUNT_REQUIRED');
   return {
     version: 'direct-conversation.v1' as const,
+    scope: { accountId: scope.authority.actor.accountId, privacyEpoch: scope.authority.privacyEpoch },
+  };
+};
+/** The scope every content-thread answer names: the caller's account and epoch. */
+export const threadEnvelope = (scope: PersonalScopeTx) => {
+  if (scope.authority.actor.kind !== 'account') throw new Error('SOCIAL_ACCOUNT_REQUIRED');
+  return {
+    version: 'content-thread.v1' as const,
     scope: { accountId: scope.authority.actor.accountId, privacyEpoch: scope.authority.privacyEpoch },
   };
 };
