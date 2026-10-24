@@ -12,6 +12,7 @@ import {
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import { socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { seedKeepFixture } from '../support/keep-fixture.js';
 import { everyStoreSeeder } from '../support/every-store.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import type { FixturePerson } from '../support/fixtures.js';
@@ -122,12 +123,56 @@ describe('personal data export (real database)', () => {
       ).kind,
     ).toBe('ok');
 
+    // Two kept items with a place in them. The stored places name a block id and a millisecond offset.
+    const reel = await seedKeepFixture(database.db, 'reel', owner);
+    await database.db
+      .insertInto('experience.saved_places')
+      .values({
+        universe_id: owner.universeId,
+        saved_entry_id: reel.entry.savedEntryId,
+        place_revision: '1',
+        position: JSON.stringify({ kind: 'reel', positionMs: 31_400 }),
+      })
+      .execute();
+    const scroll = await database.db
+      .selectFrom('content.assets as asset')
+      .innerJoin('content.asset_revisions as revision', 'revision.asset_id', 'asset.id')
+      .select(['asset.id as assetId', 'revision.revision', 'revision.reading_facts'])
+      .where('asset.kind', '=', 'scroll')
+      .where('asset.status', '=', 'admitted')
+      .executeTakeFirstOrThrow();
+    const blocks = (scroll.reading_facts as { blocks: { id: string }[] }).blocks;
+    const second = blocks[1];
+    if (second === undefined) throw new Error('the starter Scroll needs two blocks');
+    const kept = await database.db
+      .insertInto('experience.saved_items')
+      .values({
+        universe_id: owner.universeId,
+        asset_id: scroll.assetId,
+        asset_revision: scroll.revision,
+        saved_at: new Date(),
+      })
+      .returning('saved_entry_id')
+      .executeTakeFirstOrThrow();
+    await database.db
+      .insertInto('experience.saved_places')
+      .values({
+        universe_id: owner.universeId,
+        saved_entry_id: kept.saved_entry_id,
+        place_revision: '1',
+        position: JSON.stringify({ kind: 'scroll', blockId: second.id, offsetWithinBlock: 12 }),
+      })
+      .execute();
+
     const { text } = await exportOf(owner);
     const file = JSON.parse(text) as { version: string; sections: Record<string, Record<string, unknown>> };
 
-    // Every module is in the file, even when its section is empty.
+    // A module with nothing to say is not in the file: the internal ones are never named.
     expect(file.version).toBe('knowscroll-export.v1');
-    expect(Object.keys(file.sections).sort()).toEqual(personalStores.map((declaration) => declaration.module).sort());
+    expect(Object.keys(file.sections).sort()).toEqual(['experience', 'geography', 'identity', 'social', 'supply']);
+    for (const internal of personalStores.map((declaration) => declaration.module))
+      if (!['experience', 'geography', 'identity', 'social', 'supply'].includes(internal))
+        expect(text, `${internal} is internal`).not.toContain(`"${internal}"`);
     expect(file.sections['identity']).toMatchObject({ account: { recordingOn: true } });
     expect(file.sections['social']).toMatchObject({
       profile: { handle: 'export.owner', displayName: 'Owner Display' },
@@ -142,6 +187,21 @@ describe('personal data export (real database)', () => {
     };
     expect(experience.encounters.items.length).toBeGreaterThan(0);
     expect(experience.reactions.items.length).toBeGreaterThan(0);
+    // Where they left off, in words: the stored position (block id, offsets) never leaves.
+    expect((experience as unknown as { saved: { items: unknown[] } }).saved.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: '[Fixture] Keep HTTP Reel',
+          format: 'reel',
+          place: { kind: 'reel', position: 'at 0:31' },
+        }),
+        expect.objectContaining({
+          format: 'scroll',
+          place: { kind: 'scroll', position: `part 2 of ${String(blocks.length)}` },
+        }),
+      ]),
+    );
+    expect(text).not.toContain(second.id);
 
     // Nothing of the friend, and no identifier of anyone, including the owner's own.
     for (const forbidden of [
@@ -163,6 +223,68 @@ describe('personal data export (real database)', () => {
     expect(withoutAddress).not.toMatch(UUID);
     expect(withoutAddress).not.toMatch(/[0-9a-f]{64}/);
     expect(withoutAddress).not.toMatch(/ksl_|kss_|kse_/);
+    // Every key in the file is one the person reads as a word; no internal key or identifier name.
+    const keys = new Set<string>();
+    const collect = (value: unknown): void => {
+      if (Array.isArray(value)) value.forEach(collect);
+      else if (value !== null && typeof value === 'object')
+        for (const [key, inner] of Object.entries(value)) {
+          keys.add(key);
+          collect(inner);
+        }
+    };
+    collect(file);
+    const readable = new Set([
+      'account',
+      'accountCreatedAt',
+      'action',
+      'askedAt',
+      'at',
+      'blocked',
+      'connections',
+      'createdAt',
+      'device',
+      'displayName',
+      'encounters',
+      'experience',
+      'expiresAt',
+      'format',
+      'friends',
+      'geography',
+      'handle',
+      'identity',
+      'invitation',
+      'items',
+      'kind',
+      'label',
+      'lastUsedAt',
+      'openedAt',
+      'place',
+      'places',
+      'position',
+      'profile',
+      'reactions',
+      'recordingOn',
+      'requests',
+      'requestsReceived',
+      'requestsSent',
+      'revoked',
+      'saved',
+      'savedAt',
+      'sections',
+      'signedInAt',
+      'signedInDevices',
+      'social',
+      'started',
+      'state',
+      'supply',
+      'text',
+      'title',
+      'truncated',
+      'version',
+      'email',
+    ]);
+    expect([...keys].filter((key) => !readable.has(key))).toEqual([]);
   });
 
   it('is idempotent by id, keeps one in flight, refuses another person’s id, and keeps five', async () => {

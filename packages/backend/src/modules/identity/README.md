@@ -445,9 +445,10 @@ recovered; native keeps its receipt id in memory only until the platform has a p
 transaction (asking again while one prepares returns that one; the newest five are kept). The worker builds the
 file inside the person's locked scope: every module's `export.read` returns bounded sections of that
 person's own records in readable fields (titles and times, never IDs, hashes, tokens, scores, prompts or
-another person's data: Social reports counts, not friends). The file is JSON, at most 8 MiB, stored on the
+another person's data: Social reports counts, not friends). A Keep place is words ("at 0:31", "part 2 of 5"), never the stored position. A module with nothing to say (all its stores are internal) has no section, so the file never names `composer`, `planner` or the like. The file is JSON, at most 8 MiB, stored on the
 export row. `POST /v1/account/exports/link` mints a link (`/auth/exports/kse_…`, 60 seconds, one use, stored
 only as a hash); `GET /auth/exports/{token}` needs no session, hands the file over as an attachment and
-removes it from the row in the same transaction, and only for an account that is still active. Clear removes
+removes it from the row in the same transaction, and only for an account that is still active. Every other
+method, HEAD included, answers 405 and spends nothing, so a link prefetcher cannot use up the one download. Clear removes
 the person's exports (an export is a copy of the history Clear removes). Readable HTML is not built: one JSON
 file is the portable format.

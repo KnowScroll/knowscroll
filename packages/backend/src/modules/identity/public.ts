@@ -559,10 +559,6 @@ export type RetryAccountDeletion = (
   receiptId: string,
 ) => Promise<{ readonly kind: 'queued' } | { readonly kind: 'completed' } | { readonly kind: 'not_found' }>;
 
-export const REQUEST_ACCOUNT_DELETION = Symbol('identity.requestAccountDeletion');
-export const READ_ACCOUNT_DELETION = Symbol('identity.readAccountDeletion');
-export const RETRY_ACCOUNT_DELETION = Symbol('identity.retryAccountDeletion');
-
 export type DataExportState = 'preparing' | 'ready' | 'downloaded' | 'expired' | 'failed';
 
 /** One export receipt (P02 "Export receipts"). */
@@ -612,9 +608,6 @@ export type ConsumeDataExportLink = (
   token: string,
 ) => Promise<{ readonly kind: 'file'; readonly bytes: Uint8Array } | { readonly kind: 'gone' }>;
 
-export const REQUEST_DATA_EXPORT = Symbol('identity.requestDataExport');
-export const LIST_DATA_EXPORTS = Symbol('identity.listDataExports');
-export const MINT_DATA_EXPORT_LINK = Symbol('identity.mintDataExportLink');
 export const CONSUME_DATA_EXPORT_LINK = Symbol('identity.consumeDataExportLink');
 
 export {

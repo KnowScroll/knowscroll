@@ -30,8 +30,8 @@ first v2 deploy to a world stops v1 there; a rollback to a v1 release brings v1 
 | v1 (left as it is) | `knowscroll_test_dev`, `ks_dev`, `dev/media`, `dev.env` | `knowscroll_test_stage`, … | — |
 
 The v1 databases, roles, media, env files and units are not changed or dropped. The shared Reel
-pool `knowscroll_pool` is not reachable by the v2 roles (S4.3 decides how v2 uses it); it is backed
-up nightly with the v2 databases.
+pool `knowscroll_pool` is reachable by a v2 role only after `GRANT ks_pool_client TO ks2_<world>` (the Reel
+runbook, `cutroom-and-spend.md`); it is backed up nightly with the v2 databases.
 
 ## The v2 release contract
 

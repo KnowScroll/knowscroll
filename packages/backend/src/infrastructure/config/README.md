@@ -43,22 +43,9 @@ forms every place the rules entitle when the model fails or answers badly. Witho
 switch off, no model run starts: a claimed run applies the rules (provider missing) or is released
 (`disabled`), and later reading starts a new run, so nobody is stranded.
 
-Connected Cutroom worker source is off by default (`KS_CUTROOM_COMMISSIONING_ENABLED=0`). Enabling
-it is permitted only for `dev`/`stage` and requires every explicit dependency:
-`KS_CUTROOM_APPROVAL_PACKET` (canonical root-owned non-writable-by-others regular file below
-`/etc/knowscroll/`, at most1MiB), fixed HTTP loopback `KS_CUTROOM_ORIGIN`, absolute
-`KS_CUTROOM_ARTIFACT_ROOT` and `KS_CUTROOM_MEDIA_ROOT`, reviewed installed
-`KS_CUTROOM_EVIDENCE_FUNCTION_SHA256`, and separate `KS_CUTROOM_POOL_DATABASE_URL` (credential,
-never printed). The packet contains independently obtained actual complete corpus/individual
-human approvals and current installed profile/sole-writer/funds attestations; source does not
-create or renew them. SESSION principal/world, current admission generation and exact bound
-receipt are checked again by the operation. The flag/configuration alone is never a provider
-permit. No API or client activation input is added.
-
-CF62 receiving is independently off (`KS_CUTROOM_RECEIVING_ENABLED=0`). Enabling only for
-`dev`/`stage` requires `KS_CUTROOM_RECEIVING_PACKET` (same bounded canonical Root-owned file
-intake), `KS_CUTROOM_RECEIVING_STAGING_ROOT` and `KS_CUTROOM_RECEIVING_MEDIA_ROOT`.
-`KS_CUTROOM_RECEIVING_FFPROBE_PATH` defaults `/usr/bin/ffprobe`. There is no origin URL, artifact
-opener, provider key, pool database or evidence-function dependency. The Root registry and
-independent current DB receiving root/generation remain mandatory; this flag does not approve
-a script, infer provenance, renew a clock or enable paid commissioning.
+The Reel operator commands (`readReelOperatorConfig`, `dist/operator.js reel …`) read the media-import
+settings (`KS_MEDIA_ROOT`, loopback `KS_CUTROOM_ORIGIN`, `KS_CUTROOM_ARTIFACT_ROOT`, optional
+`KS_FFPROBE_PATH`) and the shared pool. The pool is `KS_POOL_DATABASE_URL` (a credential, never
+printed) or, when unset, the world's own `DATABASE_URL` with its database name replaced by
+`knowscroll_pool`. Refused outside the operator worlds. The worker service reads none of these: it
+orders nothing.
