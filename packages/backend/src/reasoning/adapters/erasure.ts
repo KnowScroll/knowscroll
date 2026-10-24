@@ -6,7 +6,7 @@ import {
   clearAccountingTransactionOf,
 } from '../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import type { ModuleErasure } from '../../infrastructure/erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../infrastructure/postgres/personal-scope.js';
 import { PRIVACY_ACCOUNTING_CODES } from './ledger-values.js';
 
@@ -344,3 +344,8 @@ export const clearReasoning: ClearReasoning = {
     return pending ? 'pending' : retained ? 'verified_retained' : 'verified';
   },
 };
+
+reasoningErasure.export = exportNothing(
+  reasoningErasure,
+  'Model requests, answers and provider accounting: internal machinery and provider data.',
+);

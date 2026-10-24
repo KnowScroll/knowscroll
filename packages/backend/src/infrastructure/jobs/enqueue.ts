@@ -1,6 +1,8 @@
 import { fromKysely, type PgBoss } from 'pg-boss';
 import { z } from 'zod';
+import type { Transaction } from 'kysely';
 import type { PersonalScopeTx } from '../../modules/identity/public.js';
+import type { Database } from '../postgres/database.js';
 import { transactionOf } from '../postgres/personal-scope.js';
 import type { QueueDefinition } from './queues.js';
 
@@ -119,5 +121,25 @@ export function makeEnqueueJob(boss: PgBoss): EnqueueJob {
     if (id === null && duplicate === 'ignore') return;
     if (id === null) throw new Error(`pg-boss did not create a job on ${queue.name}`);
     if (jobId !== undefined && id !== jobId) throw new Error('JOB_ID_MISMATCH');
+  };
+}
+
+/**
+ * The job port for maintenance that holds a transaction but no personal root: recovery passes and
+ * a retry that anyone holding a deletion receipt may ask for. The work it sends is idempotent and
+ * rechecks authority itself. As with `EnqueueJob`, the job is written through the caller's own
+ * transaction, so a rollback removes it.
+ */
+export type EnqueueInTransaction = <Payload>(
+  trx: Transaction<Database>,
+  queue: QueueDefinition<Payload>,
+  payload: Payload,
+) => Promise<void>;
+
+export function makeEnqueueInTransaction(boss: PgBoss): EnqueueInTransaction {
+  return async (trx, queue, payload) => {
+    const data = queue.payload.parse(payload) as object;
+    const id = await boss.send(queue.name, data, { db: fromKysely(trx) });
+    if (id === null) throw new Error(`pg-boss did not create a job on ${queue.name}`);
   };
 }

@@ -18,6 +18,7 @@ import {
   type RequestLinkOutcome,
 } from './auth-client';
 import { createQueryClient } from './query-client';
+import { createDeletionReceiptSession, type DeletionReceiptSession } from './deletion-receipt';
 import { createPrivacyClearSession, type PrivacyClearSession } from './privacy-clear';
 
 type Fetch = (input: Request, init?: RequestInit) => Promise<Response>;
@@ -47,12 +48,14 @@ export interface SignInBinding {
 /**
  * Who the app is acting for. `signed_out.reason`: `none` (never signed in here), `signed_out`
  * (the person signed out), `session_ended` (the server no longer accepts the session: expired,
- * revoked or signed out elsewhere; A02 "You were signed out"). `unavailable`: the API could not
+ * revoked or signed out elsewhere; A02 "You were signed out"), `account_deleted` (this device asked
+ * for the account to be deleted; its receipt is `deletion`). `unavailable`: the API could not
  * be asked (offline, down); nothing account-scoped is shown until it can be.
  */
+export type SignedOutReason = 'none' | 'signed_out' | 'session_ended' | 'account_deleted';
 export type AccountScopeState =
   | { readonly status: 'starting' }
-  | { readonly status: 'signed_out'; readonly reason: 'none' | 'signed_out' | 'session_ended' }
+  | { readonly status: 'signed_out'; readonly reason: SignedOutReason }
   | { readonly status: 'unavailable' }
   | { readonly status: 'signed_in'; readonly scope: AccountScope };
 
@@ -61,6 +64,14 @@ export interface AccountScopeManager {
   readonly getState: () => AccountScopeState;
   /** Manager-owned minimal Clear intent survives same-account privacy scope remounts. */
   readonly privacy: PrivacyClearSession;
+  /** This device's account-deletion receipt: read without a session, kept outside every scope. */
+  readonly deletion: DeletionReceiptSession;
+  /**
+   * The server accepted this device's account deletion, which ended every session: end the scope
+   * here too (stop its socket, fence its requests, clear its cache and storage, drop the native
+   * token) and show the signed-out state with the receipt.
+   */
+  readonly endAfterAccountDeletion: () => Promise<void>;
   readonly subscribe: (listener: () => void) => () => void;
   /** The query client of the current scope, or of the signed-out period (never shared between them). */
   readonly queryClient: () => QueryClient;
@@ -131,13 +142,12 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
   const fetchImplementation: Fetch = options.fetch ?? ((request, init) => globalThis.fetch(request, init));
   /** Native: this device's current bearer token, for the `/auth/*` routes only. */
   let token: string | undefined;
-  const auth =
-    options.auth ??
-    createAuthClient({
-      baseUrl: options.baseUrl,
-      fetch: fetchImplementation,
-      authorization: () => (token === undefined ? undefined : `Bearer ${token}`),
-    });
+  const realAuth = createAuthClient({
+    baseUrl: options.baseUrl,
+    fetch: fetchImplementation,
+    authorization: () => (token === undefined ? undefined : `Bearer ${token}`),
+  });
+  const auth: AuthClient = options.auth ?? realAuth;
   const listeners = new Set<() => void>();
   let state: AccountScopeState = { status: 'starting' };
   const newQueryClient = options.newQueryClient ?? createQueryClient;
@@ -196,7 +206,7 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     set({ status: 'signed_in', scope });
   }
 
-  async function signedOut(reason: 'none' | 'signed_out' | 'session_ended'): Promise<void> {
+  async function signedOut(reason: SignedOutReason): Promise<void> {
     generation += 1;
     privacy.reset();
     endCurrentScope();
@@ -297,9 +307,14 @@ export function createAccountScopeManager(options: AccountScopeManagerOptions): 
     },
   });
 
+  // The receipt routes are the real ones whatever stands in for the session routes in tests.
+  const deletion = createDeletionReceiptSession({ auth: realAuth, store: options.store });
+
   return {
     getState: () => state,
     privacy,
+    deletion,
+    endAfterAccountDeletion: () => signedOut('account_deleted'),
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

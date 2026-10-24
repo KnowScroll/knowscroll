@@ -47,11 +47,3 @@ locks sees an epoch changed by a preceding lifecycle transaction even if that tr
 locked, without updating, the account row. A joined locking SELECT or an old REPEATABLE READ
 snapshot cannot provide that guarantee. Existing personal root, transaction timeout, network,
 shared-root and capability lifetime protections remain in force. No peer personal root is locked.
-
-`makeWithCutroomReceiveScope` (#373) owns a separate live WeakMap for the Content receiving root.
-It locks only `content.cutroom_receiving_state`, re-reads enabled/generation after waiting, and
-expires the capability in `finally`. No root is seeded; process configuration and actual root
-admission must both be enabled. Historical recovery can read receipts under a disabled root,
-but cannot admit an asset. Paid/accounting/preparation/personal/copied/closed objects fail its
-getter. The generic type parameter avoids an infrastructure-to-module dependency; it does not
-replace the runtime live-map check. Transactions retain nested-transaction and external-I/O guards.

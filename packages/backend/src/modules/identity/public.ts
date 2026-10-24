@@ -153,6 +153,7 @@ export const READ_UNIVERSE_ACCESS = Symbol('identity.readUniverseAccess');
 // ── Sign-in and sessions (S1.3, D-022) ──────────────────────────────────────────────────────
 // The use cases are implemented in `application/` and built by `adapters/nest-providers.ts`.
 
+export { deviceLabelOf } from './domain/device-label.js';
 export {
   OPERATOR_WORLDS,
   SESSION_TTL_DAYS,
@@ -233,6 +234,8 @@ export interface RedeemSignInCommand {
   readonly client: SessionClient;
   /** Native: the verifier whose challenge the link was requested with (review m10). */
   readonly codeVerifier?: string;
+  /** Coarse device label for the session this redemption issues (`deviceLabelOf`). */
+  readonly deviceLabel?: string;
 }
 
 export type RedeemRefusal =
@@ -300,8 +303,13 @@ export type SignOut = (request: {
   readonly reason?: 'replaced';
 }) => Promise<{ readonly revoked: number }>;
 
-/** Use case: delete sign-in records past their retention (the scheduled sweep, review m12). */
-export type SweepSignInRecords = () => Promise<{ readonly links: number; readonly sessions: number }>;
+/** Use case: delete sign-in records and export files past their retention (the scheduled sweep, review m12). */
+export type SweepSignInRecords = () => Promise<{
+  readonly links: number;
+  readonly sessions: number;
+  /** Exports that expired, timed out or aged out. */
+  readonly exports: number;
+}>;
 
 /** Injection tokens of identity's sign-in use cases (bound by the composition roots). */
 export const REQUEST_SIGN_IN = Symbol('identity.requestSignIn');
@@ -465,3 +473,149 @@ export type RecordingLifecycle =
   | { readonly kind: 'unavailable' };
 export type ReadRecordingLifecycle = (scope: RecordingScopeTx) => Promise<RecordingLifecycle>;
 export const READ_RECORDING_LIFECYCLE = Symbol('identity.readRecordingLifecycle');
+
+// ── Sessions, export and account deletion (#246, D-043) ─────────────────────────────────────
+
+/** One live session as its owner sees it. No token, hash or address. */
+export interface SessionSummary {
+  readonly id: string;
+  readonly client: SessionClient;
+  /** Coarse and never empty: "Chrome on macOS", "KnowScroll on Android". */
+  readonly deviceLabel: string;
+  readonly signedInAt: Date;
+  readonly lastUsedAt: Date;
+  /** The session that made this request. */
+  readonly current: boolean;
+}
+
+/** Use case: the account's live sessions, newest use first (`application/sessions.ts`). */
+export type ListSessions = (caller: {
+  readonly accountId: string;
+  readonly sessionId: string;
+}) => Promise<readonly SessionSummary[]>;
+
+/** Use case: sign one other session out. The presented session is refused (`signOut` ends it). */
+export type EndSession = (request: {
+  readonly accountId: string;
+  readonly currentSessionId: string;
+  readonly sessionId: string;
+}) => Promise<{ readonly kind: 'ended' } | { readonly kind: 'not_found' } | { readonly kind: 'current_session' }>;
+
+/** Use case: sign out every session of the account except the presented one. */
+export type EndOtherSessions = (request: {
+  readonly accountId: string;
+  readonly currentSessionId: string;
+}) => Promise<{ readonly revoked: number }>;
+
+export const LIST_SESSIONS = Symbol('identity.listSessions');
+export const END_SESSION = Symbol('identity.endSession');
+export const END_OTHER_SESSIONS = Symbol('identity.endOtherSessions');
+
+declare const accountDeletionBrand: unique symbol;
+
+/**
+ * The capability of one open account-deletion transaction: the deleting universe is locked, then
+ * its account, then the operation row (after identity's address lock). `personal` is the scope the
+ * universe erasers take; it is a system scope on a universe in status `deleting`, which only this
+ * entry may open. Gone when the transaction ends.
+ */
+export interface AccountDeletionTx {
+  readonly [accountDeletionBrand]: true;
+  readonly operationId: string;
+  readonly accountId: string;
+  readonly universeId: string;
+  readonly personal: PersonalScopeTx;
+}
+
+export type RequestAccountDeletionResult =
+  | { readonly kind: 'accepted'; readonly receiptId: string; readonly requestedAt: Date }
+  | {
+      readonly kind: 'refused';
+      /**
+       * `receipt_in_use`: the receipt id belongs to another request. `epoch_changed`: the scope
+       * was stale. `unavailable`: the account is deleting, suspended or gone, or a Clear has not
+       * finished (the person tries again shortly).
+       */
+      readonly reason: 'receipt_in_use' | 'epoch_changed' | 'unavailable';
+    };
+
+/**
+ * Use case: delete the caller's account. One transaction fences it (status `deleting`, epoch
+ * advanced), ends every session and drops its sockets, records the operation and enqueues the
+ * erasure job. The data is removed by the worker; this answer only says the request is durable.
+ */
+export type RequestAccountDeletion = (
+  authority: PersonalAuthority,
+  request: { readonly receiptId: string },
+) => Promise<RequestAccountDeletionResult>;
+
+/** What a signed-out device may learn from its receipt: nothing about the person. */
+export type AccountDeletionState = 'in_progress' | 'needs_retry' | 'completed';
+
+export type ReadAccountDeletion = (receiptId: string) => Promise<AccountDeletionState | undefined>;
+
+/** Asks for the same deletion to be worked on again now. A completed one stays completed. */
+export type RetryAccountDeletion = (
+  receiptId: string,
+) => Promise<{ readonly kind: 'queued' } | { readonly kind: 'completed' } | { readonly kind: 'not_found' }>;
+
+export type DataExportState = 'preparing' | 'ready' | 'downloaded' | 'expired' | 'failed';
+
+/** One export receipt (P02 "Export receipts"). */
+export interface DataExportSummary {
+  readonly id: string;
+  readonly state: DataExportState;
+  readonly requestedAt: Date;
+  /** When a ready export stops being available; null until it is ready. */
+  readonly expiresAt: Date | null;
+}
+
+export type DataExportRefusal =
+  /** The id belongs to another request, or to another person's export. */
+  'id_in_use' | 'not_found' | 'not_ready' | 'scope_refused';
+
+/** Use case: ask for an export. Idempotent by id; one in flight at a time (the pending one is returned). */
+export type RequestDataExport = (
+  authority: PersonalAuthority,
+  request: { readonly exportId: string },
+) => Promise<
+  | { readonly kind: 'accepted'; readonly export: DataExportSummary }
+  | { readonly kind: 'refused'; readonly reason: DataExportRefusal }
+>;
+
+/** Use case: the caller's recent exports, newest first. Read-only. */
+export type ListDataExports = (
+  authority: PersonalAuthority,
+) => Promise<
+  | { readonly kind: 'ok'; readonly exports: readonly DataExportSummary[] }
+  | { readonly kind: 'refused'; readonly reason: DataExportRefusal }
+>;
+
+/** Use case: a download link for a ready export. The token is shown once and stored only as a hash. */
+export type MintDataExportLink = (
+  authority: PersonalAuthority,
+  request: { readonly exportId: string },
+) => Promise<
+  | { readonly kind: 'link'; readonly token: string; readonly expiresAt: Date }
+  | { readonly kind: 'refused'; readonly reason: DataExportRefusal }
+>;
+
+/**
+ * Use case: redeem a download link. The link needs no session (a browser follows it) and works
+ * once, for sixty seconds: the file is handed over and removed from the store in one transaction.
+ */
+export type ConsumeDataExportLink = (
+  token: string,
+) => Promise<{ readonly kind: 'file'; readonly bytes: Uint8Array } | { readonly kind: 'gone' }>;
+
+export const CONSUME_DATA_EXPORT_LINK = Symbol('identity.consumeDataExportLink');
+
+export {
+  DeleteAccountJobSchema,
+  BuildDataExportJobSchema,
+  buildDataExportQueue,
+  deleteAccountQueue,
+  recoverAccountDeletionsQueue,
+  type BuildDataExportJob,
+  type DeleteAccountJob,
+} from './events.js';

@@ -1,6 +1,6 @@
 import { sql } from 'kysely';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
-import type { ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { prepareBufferQueue } from '../events.js';
@@ -50,3 +50,5 @@ composerErasure.clearExploration = {
     };
   },
 };
+
+composerErasure.export = exportNothing(composerErasure, 'Internal ranking decisions and prepared next moves.');

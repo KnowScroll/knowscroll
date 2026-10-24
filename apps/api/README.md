@@ -13,8 +13,22 @@ The API only calls start/status. It does not erase data or wait for the worker i
 request. Start commits the epoch/barrier, lifetime receipt and required fixed pg-boss job
 together; the separately registered normal worker performs selective removal and exact-set
 accounting. Composition depends on the reviewed durable core in PR348. Source and installed
-Actions fixtures are separate from actual dev/stage privacy acceptance. Pause, export and
-account deletion remain separate programme work.
+Actions fixtures are separate from actual dev/stage privacy acceptance.
+
+## Account: sessions, export and deletion (#246, D-043)
+
+`AccountController` serves `GET /v1/account/sessions`, `POST /v1/account/sessions/end` and `.../end-others`
+(signing out another device; the presented session is refused with 409), `POST /v1/account/exports`,
+`GET /v1/account/exports`, `POST /v1/account/exports/link`, and `POST /v1/account/delete`. All take the
+ordinary session/scope pipeline. Deletion checks the epoch the person saw, accepts a durable operation (202)
+and clears the web cookie with the answer; the API never erases anything or waits for the worker. The two
+receipt routes `GET /auth/deletion/{receiptId}` and `POST /auth/deletion/retry`, and the download
+`GET /auth/exports/{token}` (`ExportDownloadController`), take no session: deletion ends every session and the
+receipt must still be readable, and a download link is the credential (one minute, one use, never cached).
+They share a per-client limiter of 120 requests per 15 minutes (`receiptPerClient`; in memory, a flood brake).
+Redeeming a sign-in link now stores the coarse device label computed from the `User-Agent`
+(`deviceLabelOf`). Verified by `tests/integration/release/account-http.test.ts` against the installed API
+and worker.
 
 The HTTP and live-hint API: Nest 12 with the Express adapter, oRPC contract handlers
 (`@orpc/nest`), RFC 9457 problem details, and a Socket.IO gateway for revision hints. Entry

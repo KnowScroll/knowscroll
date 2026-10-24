@@ -5,7 +5,8 @@ own code, and the backend composes those declarations into one list. Full erasur
 and the schema inventory all read that list.
 
 Status: implemented and covered by the integration tests against real PostgreSQL. Account
-deletion itself is not built; the registry only declares what it will have to remove.
+deletion and export read the same list (#246, D-043): implemented, and runtime-verified through the
+installed API and worker in `tests/integration/release/account-http.test.ts`.
 
 ## What a module declares
 
@@ -19,6 +20,8 @@ Each module exports a `ModuleErasure` from `adapters/erasure.ts`:
 | `nonRowStores` | Personal stores SQL cannot see: job payloads (`pgboss/<queue>`), media, mail held by a provider. |
 | `erase` | Full erasure of one universe, inside the locked personal scope. Idempotent. |
 | `clearExploration` | What selective Clear does: a disposition per store (`erase`, `preserve`, `redact_accounting`, `external_retention`) and its own eraser. Saved items, friends, sign-in and financial records are kept. |
+| `eraseAccount` | Account deletion only: removes the module's account-keyed rows and account links after every `erase` has run. Required when the module declares `accountTables`, or `accountColumns` outside its own `tables`. Idempotent. |
+| `export` | What the person's export holds: `covers` (stores `read` reports on), `omits` (stores left out, each with its reason) and `read(scope, person)`, which returns bounded plain-JSON sections of the person's own records. Helpers: `exportReading` (one omit reason for the rest), `exportNothing`, `boundedSection`. |
 
 ## How the registry is built
 
@@ -35,6 +38,20 @@ reference others first, identity last). It exports:
 erasers in order. `eraseExploration` first re-runs the schema inventory inside the Clear
 transaction and refuses to erase anything if it finds a problem, then runs every owner's Clear
 eraser and requires each to report `completed`.
+
+## Account deletion and export
+
+`accountLifecycleRegistry(modules)` runs at start-up in every process (`src/erasure-registry.ts`).
+It refuses a module that holds account-keyed stores without an `eraseAccount`, a module without an
+`export`, and an export that does not account for exactly the stores the module declares, so a new
+store cannot be forgotten by either. `eraseAccountData(scope, registry)` runs every module's `erase`
+and then every `eraseAccount` inside the deletion transaction, and `exportPersonalData` collects
+each module's export section inside the person's locked scope. The use cases and their
+lifecycles are in `modules/identity/README.md`.
+
+Account deletion removes the personal roots last: a foreign key from any store the registry missed
+makes the final `delete` fail and the transaction roll back, so a forgotten store stops deletion
+loudly instead of leaving a person's rows behind an account that is gone.
 
 ## Completeness is proved against the schema
 
@@ -55,9 +72,9 @@ runs it, and every Clear runs it again. It fails when:
 has no `pgboss/<queue>` store declared.
 
 Not in the registry: `identity.accounts` and `identity.universes` (the personal roots; account
-deletion is their lifecycle) and shared tables. A shared table has none of the links above, and each
-shared family keeps its own inventory and test that proves it: the Cutroom stores
-(`contentCutroomStores`, `reasoningCutroomStores`) and the Region projection
+deletion removes them after everything else) and shared tables. A shared table has none of the links above, and each
+shared family keeps its own inventory and test that proves it: the Reel order stores
+(`contentReelStores`) and the Region projection
 (`contentRegionStores`) survive both erasers by design.
 
 ## Recording witness

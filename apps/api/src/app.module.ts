@@ -23,6 +23,7 @@ import { createAuthLimiters } from './http/auth-rate-limit.js';
 import { selectCallers } from './http/callers.js';
 import { orpcModuleConfig } from './http/orpc.js';
 import { ProblemExceptionFilter } from './http/problems.js';
+import { accountWiring } from './modules/account.js';
 import { contentWiring } from './modules/content.js';
 import { sceneWiring } from './modules/scenes.js';
 import { evidenceWiring } from './modules/evidence.js';
@@ -104,6 +105,7 @@ export class AppModule {
         }),
         ...identityScopeOwnerProviders(),
         ...privacyWiring(resources.config.scopeLockTimeoutMs),
+        ...accountWiring,
         ...recordingWiring,
         ...contentWiring,
         ...mediaWiring,
