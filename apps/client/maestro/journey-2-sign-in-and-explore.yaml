@@ -1,6 +1,6 @@
 # Journey, step 2 of 3: the link opens the app, the person confirms whose account it is, then
-# Explore offers the fixture Reel, Next subject reaches the starter Scroll, Keep holds a place in
-# it, and Keep and Universe open. Content is the labelled fixture world of test-api/serve.mjs.
+# Explore offers the fixture Reel, Next subject reaches the starter Scroll, Save and Keep this place
+# hold it, and Keep and Universe open. Content is the labelled fixture world of test-api/serve.mjs.
 # The app keeps its state from step 1 (no clearState): the sign-in binding's verifier lives in
 # the platform secure store, and only the device that asked can redeem the link.
 # Env: LINK, the sign-in link (knowscroll://redeem#token=...).
@@ -36,6 +36,11 @@ tags:
     visible: Why the sky is blue
     timeout: 90000
 - takeScreenshot: journey-2-03-scroll
+# Save puts the Scroll in Keep; Keep this place then holds where the person is in it.
+- tapOn: Save
+- extendedWaitUntil:
+    visible: Keep this place
+    timeout: 30000
 - tapOn: Keep this place
 - extendedWaitUntil:
     visible: Latest saved place loaded.
@@ -43,6 +48,7 @@ tags:
     optional: true
 - tapOn:
     id: destination-saved
+- tapOn: Refresh Keep
 - extendedWaitUntil:
     visible: Why the sky is blue
     timeout: 60000
