@@ -288,6 +288,16 @@ export function RoomMessages({
           onPress={() => void controller.loadOlder()}
         />
       ) : null}
+      {state.messages.length === 0 && state.outgoing.length === 0 ? (
+        <View style={styles.quiet}>
+          <Text variant="ui" align="center">
+            It’s quiet here right now
+          </Text>
+          <Text variant="meta" color={content.ink2} align="center">
+            Say something, or ask an AI inhabitant. Inhabitants speak only when someone asks.
+          </Text>
+        </View>
+      ) : null}
       <View role="list" accessibilityLabel="Messages in this discussion" style={styles.messages}>
         {dividedByDay(state.messages).map((group) => (
           <View key={group.key + String(group.items[0]?.sequence)} style={styles.messages}>
@@ -380,6 +390,15 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   messages: { gap: spacing[3] },
+  quiet: {
+    gap: spacing[1],
+    padding: spacing[4],
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    backgroundColor: content.paper,
+    borderWidth: borderWidth.light,
+    borderColor: content.rule,
+  },
   item: { gap: spacing[1] },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   lineBody: { flex: 1 },

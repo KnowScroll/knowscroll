@@ -5,6 +5,7 @@ import { formatRange, talkFailure, type AccountScope } from '@knowscroll/client-
 import type { RoomSnippetOpening } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Skeleton, Text } from '@knowscroll/ui';
+import { afterPendingBack } from '../../platform/after-pending-back';
 import { newCommandId } from '../../platform/command-id';
 import { writeResume } from '../encounter/encounter-history';
 
@@ -48,7 +49,8 @@ export function RoomSnippetSheet({
 
   const go = (kind: 'reel' | 'scroll', assetId: string) => {
     onClose();
-    router.push(`/${kind}/${assetId}`);
+    // The sheet's close is a Back on the web; navigate once it has landed, or it would undo the push.
+    afterPendingBack(() => router.push(`/${kind}/${assetId}`));
   };
   return (
     <BottomSheet visible={messageId !== undefined} title="Shared moment" onClose={onClose}>

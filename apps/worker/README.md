@@ -113,6 +113,12 @@ productions Create may start per UTC day for people's asks (default 20 in `local
 resolver job for every ask that is still open from before Create existed and prints the counts. It is
 idempotent and calls no provider.
 
+`node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
+library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
+names an account a moderator of a room or takes the role back. Both write room rows only: no member, no message,
+no provider call. The `rooms.contribute` consumer answers a member's ask of an AI inhabitant with the personal
+harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`).
+
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
 `content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared

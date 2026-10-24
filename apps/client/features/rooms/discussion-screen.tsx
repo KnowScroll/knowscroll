@@ -12,6 +12,7 @@ import {
 import type { InhabitantId, ReelDocument, RoomMessage, SendRoomBody } from '@knowscroll/contracts';
 import { BottomSheet, Banner, Button, Skeleton, StateBlock, Text, type ReelPositionHandle } from '@knowscroll/ui';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
+import { afterPendingBack } from '../../platform/after-pending-back';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
@@ -175,7 +176,7 @@ function ReadyDiscussion({
   };
   const startThread = (messageId: string) =>
     void roomController.startDiscussion({ kind: 'message', discussionId, messageId }).then((created) => {
-      if (created !== undefined) router.push(discussionHref(roomId, created));
+      if (created !== undefined) afterPendingBack(() => router.push(discussionHref(roomId, created)));
     });
 
   return (
@@ -238,16 +239,6 @@ function ReadyDiscussion({
         onStartThread={startThread}
         onActions={setOptions}
       />
-      {state.messages.length === 0 && state.outgoing.length === 0 ? (
-        <View style={styles.quiet}>
-          <Text variant="ui" align="center">
-            It’s quiet here right now
-          </Text>
-          <Text variant="meta" color={content.ink2} align="center">
-            Say something, or ask an AI inhabitant. Inhabitants speak only when someone asks.
-          </Text>
-        </View>
-      ) : null}
       {view.canPost ? (
         <>
           <InhabitantBar
@@ -420,7 +411,6 @@ const styles = StyleSheet.create({
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
   sheet: { gap: spacing[3] },
-  quiet: { gap: spacing[1], padding: spacing[4], alignItems: 'center' },
   /** The episodes and the encounter keep the reading measure, centred, on wide screens (the multi-pane layout is D04). */
   column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
 });

@@ -6,6 +6,7 @@ import type { AccountScope, RoomController, RoomState } from '@knowscroll/client
 import type { RoomDiscussionSummary, RoomInhabitant, RoomJoinBlock, RoomView } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, IconButton, Skeleton, StateBlock, Tag, Text } from '@knowscroll/ui';
+import { afterPendingBack } from '../../platform/after-pending-back';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { AiLabel, ModeratorLabel } from './ai-label';
@@ -356,8 +357,9 @@ export function MemberBody({
         onStart={(start) =>
           void controller.startDiscussion(start).then((discussionId) => {
             if (discussionId === undefined) return;
+            // The sheet's close is a Back on the web; navigate once it has landed, or it would undo the push.
             setSharing(false);
-            router.push(discussionHref(view.room.roomId, discussionId));
+            afterPendingBack(() => router.push(discussionHref(view.room.roomId, discussionId)));
           })
         }
       />
