@@ -1,5 +1,6 @@
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
+import { spaceActivates } from '../../display/space-key';
 import { useFocusRing } from '../../display/focus-ring';
 import { Text } from '../../text/text';
 
@@ -20,17 +21,7 @@ export function TextVersionToggle({
   return (
     <Pressable
       {...focus.props}
-      {...(Platform.OS === 'web'
-        ? {
-            // RN Web gives switch Enter activation, but reserves Space activation for button roles.
-            onKeyDown: (event: { nativeEvent: unknown; preventDefault(): void }) => {
-              const key = event.nativeEvent as { key?: string; repeat?: boolean };
-              if (key.key !== ' ') return;
-              event.preventDefault();
-              if (!key.repeat) onChange(!on);
-            },
-          }
-        : {})}
+      {...spaceActivates(() => onChange(!on))}
       accessibilityRole="switch"
       accessibilityLabel="Text version of diagrams"
       accessibilityState={{ checked: on }}

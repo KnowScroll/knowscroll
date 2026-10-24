@@ -25,7 +25,9 @@ export function ReelGestureStage({
     const node = stage.current;
     if (node !== null && Date.now() < focusHandoverUntil) {
       focusHandoverUntil = 0;
-      node.focus({ preventScroll: true });
+      // Only when focus has nowhere to be: never pull it from a control the person has since moved to.
+      const holder = document.activeElement;
+      if (holder === null || holder === document.body) node.focus({ preventScroll: true });
     }
     return () => {
       if (node?.contains(document.activeElement) === true) focusHandoverUntil = Date.now() + FOCUS_HANDOVER_MS;

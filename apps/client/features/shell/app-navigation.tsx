@@ -35,15 +35,12 @@ export function destinationHref(destination: Destination): `/${Destination}` {
  * belongs to no tab, so nothing is current there except the rail's avatar.
  */
 export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProps) {
-  const router = useRouter();
   const { breakpoint } = useDisplay();
-  const initial = useAccountInitial();
   const { state: account } = useAccountScopeIfPresent();
   // Talk shows a dot (never a count) while a friend's message waits.
   const unread = useTalkInbox(account.status === 'signed_in' ? account.scope : undefined).unread;
   const routeName = state.routes[state.index]?.name;
   const active = asDestination(routeName);
-  const tone = routeName === 'universe' ? 'space' : 'paper';
   const select = (destination: Destination) => {
     const route = state.routes.find((candidate) => candidate.name === destination);
     if (route !== undefined) navigateToTab(route.key);
@@ -53,27 +50,14 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
     // The rail comes after the screens in the document (tab order: content, then navigation,
     // V01) and is drawn over the left edge, which the screens leave free (`sceneStyle`).
     return (
-      <View
-        style={[
-          styles.rail,
-          { width: railWidth(breakpoint) + insets.left, paddingTop: insets.top, paddingBottom: insets.bottom },
-        ]}
-      >
-        <NavRail
-          active={active}
-          onSelect={select}
-          hrefFor={destinationHref}
-          size={breakpoint === 'desktop' ? 'desktop' : 'tablet'}
-          tone={tone}
-          unread={unread}
-          account={{
-            onPress: () => router.navigate('/account'),
-            href: '/account',
-            current: routeName === 'account',
-            ...(initial === undefined ? {} : { initial }),
-          }}
-        />
-      </View>
+      <PrimaryRail
+        active={active}
+        accountCurrent={routeName === 'account'}
+        tone={routeName === 'universe' ? 'space' : 'paper'}
+        insets={insets}
+        unread={unread}
+        onSelect={select}
+      />
     );
   }
   return (
@@ -81,7 +65,61 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
       pointerEvents="box-none"
       style={[styles.slot, { height: layout.tabBarSlot + insets.bottom, paddingBottom: insets.bottom }]}
     >
-      <TabBar active={active} onSelect={select} hrefFor={destinationHref} tone={tone} unread={unread} />
+      <TabBar
+        active={active}
+        onSelect={select}
+        hrefFor={destinationHref}
+        tone={routeName === 'universe' ? 'space' : 'paper'}
+        unread={unread}
+      />
+    </View>
+  );
+}
+
+/**
+ * The navigation rail of tablets and desktops (V01): the four destinations, and on desktops the
+ * account avatar last. Screens outside the tab navigator (a thread, a conversation) draw it too,
+ * so the person is never without navigation (D03).
+ */
+export function PrimaryRail({
+  active,
+  accountCurrent,
+  tone,
+  insets,
+  unread,
+  onSelect,
+}: {
+  readonly active: Destination | null;
+  readonly accountCurrent: boolean;
+  readonly tone: 'paper' | 'space';
+  readonly insets: { readonly top: number; readonly bottom: number; readonly left: number };
+  readonly unread: boolean;
+  readonly onSelect: (destination: Destination) => void;
+}) {
+  const router = useRouter();
+  const { breakpoint } = useDisplay();
+  const initial = useAccountInitial();
+  return (
+    <View
+      style={[
+        styles.rail,
+        { width: railWidth(breakpoint) + insets.left, paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
+    >
+      <NavRail
+        active={active}
+        onSelect={onSelect}
+        hrefFor={destinationHref}
+        size={breakpoint === 'desktop' ? 'desktop' : 'tablet'}
+        tone={tone}
+        unread={unread}
+        account={{
+          onPress: () => router.navigate('/account'),
+          href: '/account',
+          current: accountCurrent,
+          ...(initial === undefined ? {} : { initial }),
+        }}
+      />
     </View>
   );
 }

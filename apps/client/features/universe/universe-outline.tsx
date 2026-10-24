@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, dialogHostSemantics, dialogSemantics, IconButton, Scrim, Text } from '@knowscroll/ui';
+import { Button, dialogHostSemantics, dialogSemantics, IconButton, Scrim, Text, usePageInert } from '@knowscroll/ui';
 import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
@@ -139,6 +139,7 @@ export function UniverseListSheet({
   readonly owner?: string;
 }) {
   const insets = useSafeAreaInsets();
+  usePageInert(true);
   const title = owner === undefined ? 'Your universe' : `${owner}’s universe`;
   return (
     <Modal

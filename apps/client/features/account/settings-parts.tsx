@@ -2,7 +2,7 @@ import { Link, type Href } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { borderWidth, content, radius, spacing, status, target } from '@knowscroll/design-tokens';
-import { Icon, PendingStripe, Text, useFocusRing } from '@knowscroll/ui';
+import { Icon, PendingStripe, spaceActivates, Text, useFocusRing } from '@knowscroll/ui';
 
 /** A small caps label above a group of rows ("Sessions", "Settings": P01's `.sec`). */
 export function SettingsLabel({ children }: { readonly children: string }) {
@@ -52,6 +52,22 @@ export function SettingsRow({ href, ...rest }: RowProps & { readonly href: Href 
         <RowBody {...rest} trailing={rest.trailing ?? <Icon name="forward" size={20} />} />
       </Pressable>
     </Link>
+  );
+}
+
+/** A settings row that opens something on this screen (a sheet) instead of another page. */
+export function SettingsActionRow({ onPress, ...rest }: RowProps & { readonly onPress: () => void }) {
+  const focus = useFocusRing('onLight');
+  return (
+    <Pressable
+      {...focus.props}
+      accessibilityRole="button"
+      accessibilityLabel={rest.title}
+      onPress={onPress}
+      style={{ ...styles.row, ...focus.style }}
+    >
+      <RowBody {...rest} trailing={rest.trailing ?? <Icon name="forward" size={20} />} />
+    </Pressable>
   );
 }
 
@@ -122,6 +138,7 @@ export function Acknowledge({
       accessibilityLabel={label}
       accessibilityState={{ checked }}
       aria-checked={checked}
+      {...spaceActivates(() => onChange(!checked))}
       onPress={() => onChange(!checked)}
       style={[styles.acknowledge, focus.style]}
     >

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
@@ -6,6 +6,7 @@ import { EncounterRail } from '../encounter/encounter-actions';
 import type { EncounterEntry } from '../encounter/encounter-history';
 import type { EncounterSession, EncounterState } from '../encounter/encounter-session';
 import { EncounterFormatSwitch } from '../encounter/encounter-top-bar';
+import { KeyboardMapSheet } from '../shell/keyboard-map';
 
 /** The Reel is a 9:16 card; it never grows wider than the column the player was drawn for. */
 const CARD_RATIO = 9 / 16;
@@ -82,6 +83,7 @@ export function ReelFrame({
   );
   const columnWidth = Math.min(areaWidth - 2 * spacing[5], Math.max(cardWidth + RAIL_ROOM, TOP_ROW_MIN_WIDTH));
   const idle = state.phase !== 'active';
+  const [keysOpen, setKeysOpen] = useState(false);
   return (
     <View
       testID={framed ? 'explore-desktop-frame' : undefined}
@@ -122,6 +124,8 @@ export function ReelFrame({
             onPress={() => session.navigate({ mode: 'vertical', direction: 'next' })}
           />
           <KeyHints />
+          <Button label="All shortcuts" variant="ghost" size="sm" onPress={() => setKeysOpen(true)} />
+          <KeyboardMapSheet visible={keysOpen} onClose={() => setKeysOpen(false)} />
         </View>
       ) : null}
     </View>
