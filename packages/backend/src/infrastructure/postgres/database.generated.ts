@@ -134,6 +134,18 @@ export interface ContentEncounterTopics {
   weight: number;
 }
 
+export interface ContentMadeToOrderScrolls {
+  asset_id: string;
+  brief: string;
+  created_at: Generated<Timestamp>;
+  explanation_unit_id: string;
+  framing: Json;
+  kicker: string;
+  mode: string;
+  pages: string[];
+  recipe: string;
+}
+
 export interface ContentMediaObjects {
   backend: string;
   created_at: Generated<Timestamp>;
@@ -1481,6 +1493,51 @@ export interface RoomsRooms {
   topic_kind: string;
 }
 
+export interface ScenariosDrafts {
+  created_at: Timestamp;
+  draft_id: string;
+  expires_at: Timestamp;
+  failure: string | null;
+  kind: string;
+  mode: string | null;
+  node_id: string | null;
+  options: Json | null;
+  origin_kind: string;
+  origin_message_id: string | null;
+  parent_node_id: string | null;
+  parent_revision: number;
+  privacy_epoch: number;
+  request_text: string;
+  requester_account_id: string;
+  requester_universe_id: string;
+  state: string;
+  thread_id: string;
+}
+
+export interface ScenariosNodes {
+  asset_id: string;
+  asset_revision: number | null;
+  asset_title: string | null;
+  assumptions: Json;
+  changes: Json;
+  created_at: Timestamp;
+  hypothetical: boolean;
+  kept: Json;
+  kind: string;
+  lens: string | null;
+  node_id: string;
+  origin_kind: string;
+  origin_message_id: string | null;
+  parent_node_id: string | null;
+  revision: number;
+  semantic_key: string;
+  started_by_account_id: string | null;
+  status: string;
+  thread_id: string;
+  title: string;
+  updated_at: Timestamp;
+}
+
 export interface ScenesChunks {
   chunk_id: string;
   payload: Json;
@@ -1752,6 +1809,12 @@ export interface SupplyRequests {
   work_id: string | null;
 }
 
+export interface SupplyScenarioOrders {
+  created_at: Generated<Timestamp>;
+  order_id: string;
+  thread_id: string;
+}
+
 export interface SupplyWork {
   active: Generated<boolean>;
   brief: Json;
@@ -1774,6 +1837,7 @@ export interface DB {
   "content.coverage_revisions": ContentCoverageRevisions;
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
+  "content.made_to_order_scrolls": ContentMadeToOrderScrolls;
   "content.media_objects": ContentMediaObjects;
   "content.reel_attempts": ContentReelAttempts;
   "content.reel_imports": ContentReelImports;
@@ -1872,6 +1936,8 @@ export interface DB {
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
   "rooms.rooms": RoomsRooms;
+  "scenarios.drafts": ScenariosDrafts;
+  "scenarios.nodes": ScenariosNodes;
   "scenes.chunks": ScenesChunks;
   "scenes.formation_presentations": ScenesFormationPresentations;
   "scenes.manifests": ScenesManifests;
@@ -1899,5 +1965,6 @@ export interface DB {
   "social.visit_publications": SocialVisitPublications;
   "social.visit_systems": SocialVisitSystems;
   "supply.requests": SupplyRequests;
+  "supply.scenario_orders": SupplyScenarioOrders;
   "supply.work": SupplyWork;
 }

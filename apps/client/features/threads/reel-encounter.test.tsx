@@ -7,11 +7,29 @@ import { ReelEncounter } from './reel-encounter';
 // player view, the recorder and route focus are stand-ins: no playback or backend is claimed.
 let mockFocused = true;
 jest.mock('expo-router', () => ({ useIsFocused: () => mockFocused }));
-const mockViewProps = jest.fn<void, [{ active: boolean }]>();
+const mockViewProps = jest.fn<
+  void,
+  [{ active: boolean; controls?: { tapToToggle?: boolean; controlsRef: unknown } }]
+>();
+const mockToggle = jest.fn();
+const mockSeekBy = jest.fn();
+const mockToggleMuted = jest.fn();
 jest.mock('../reel/activated-reel-view', () => ({
-  ActivatedReelView: (props: { active: boolean }) => {
+  ActivatedReelView: (props: {
+    active: boolean;
+    controls?: { controlsRef: { current: unknown } };
+    children?: (playback: unknown) => unknown;
+  }) => {
     mockViewProps(props);
-    return null;
+    if (props.controls) props.controls.controlsRef.current = { toggle: mockToggle, seekBy: mockSeekBy };
+    return props.children?.({
+      positionMs: 0,
+      durationMs: 20000,
+      playing: false,
+      status: 'ready',
+      muted: false,
+      toggleMuted: mockToggleMuted,
+    });
   },
 }));
 const mockRecorder = {
@@ -145,5 +163,21 @@ describe('a Reel played inside a thread or a snippet viewer', () => {
     await act(() => view.rerender(encounter(scope, false)));
     expect(lastActive()).toBe(false);
     expect(mockRecorder.discontinuity).toHaveBeenCalled();
+  });
+
+  it('draws its own compact controls, the only ones on the screen, wired to the player', async () => {
+    const scope = fixtureScope();
+    await render(encounter(scope));
+    await fireEvent.press(screen.getByRole('button', { name: 'Watch' }));
+    await waitFor(() => expect(lastActive()).toBe(true));
+    expect(mockViewProps.mock.calls.at(-1)?.[0].controls?.tapToToggle).toBe(false);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Back 10s' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Play' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Mute' }));
+
+    expect(mockSeekBy).toHaveBeenCalledWith(-10);
+    expect(mockToggle).toHaveBeenCalledTimes(1);
+    expect(mockToggleMuted).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,7 +3,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { RoleReceipt } from './types.js';
-import { SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
+import { SCROLL_PRODUCTION_VERSION } from './topics.js';
 
 export type CreateJobResult =
   | { readonly kind: 'job'; readonly row: ProductionRow; readonly created: boolean }
@@ -14,7 +14,8 @@ export type ProductionStage = 'research' | 'writer';
 
 export interface ProductionRow {
   readonly id: string;
-  readonly topic: ScrollTopic;
+  /** The recipe key: a library recipe's, or `order-…` for a Scroll ordered from code. */
+  readonly topic: string;
   readonly policy_version: string;
   /** Which attempt at the recipe at this version this job is (1 to {@link MAX_TAKES_PER_RECIPE}). */
   readonly take: number;
@@ -34,7 +35,7 @@ export interface ProductionRow {
 export function productionStore(db: Kysely<Database>) {
   return {
     /** The recipe's latest take at the current version. */
-    async read(topic: ScrollTopic): Promise<ProductionRow | undefined> {
+    async read(topic: string): Promise<ProductionRow | undefined> {
       return (
         await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} order by take desc limit 1`.execute(
           db,
@@ -55,7 +56,8 @@ export function productionStore(db: Kysely<Database>) {
      */
     async create(
       tx: Transaction<Database>,
-      topic: ScrollTopic,
+      topic: string,
+      assetId: string,
       generation: number,
       take: number,
     ): Promise<CreateJobResult> {
@@ -79,7 +81,7 @@ export function productionStore(db: Kysely<Database>) {
           return { kind: 'take_refused' };
       }
       const inserted =
-        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},${take},(select coalesce((select revision from content.assets where id=${TOPICS[topic].assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
+        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},${take},(select coalesce((select revision from content.assets where id=${assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
           tx,
         );
       if (inserted.rows[0]) return { kind: 'job', row: inserted.rows[0], created: true };

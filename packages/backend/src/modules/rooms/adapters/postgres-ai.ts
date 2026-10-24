@@ -34,7 +34,7 @@ const requestOf = (row: RequestColumns): AiRequestRow => ({
   createdAt: new Date(row.created_at),
 });
 
-/** Postgres AI inhabitant requests (migration 0063): the rate-bound ledger and the provenance of each contribution. */
+/** Postgres AI inhabitant requests (migration 0062): the rate-bound ledger and the provenance of each contribution. */
 export const aiStore: AiStore = {
   async countAsks(lock, query) {
     const row = await sql<{ room: string; person: string }>`

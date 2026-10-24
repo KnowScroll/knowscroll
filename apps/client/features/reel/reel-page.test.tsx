@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react-native';
+import { render, renderHook } from '@testing-library/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import * as SafeArea from 'react-native-safe-area-context';
 import { DisplayProvider } from '@knowscroll/ui';
 import { SignedInExplore } from '../explore/explore-screen';
 import { AppState, type AppStateStatus } from 'react-native';
+import { useEncounterMetrics } from '../encounter/encounter-metrics';
 import { harness } from '../encounter/encounter-session.fixture';
 import { createReelViewport, observeReelPageStage } from './reel-page';
 
@@ -216,7 +217,7 @@ describe('Explore page safe/tab composition', () => {
     [355, 130, 12],
     [768, 34, 0],
   ] as const)(
-    'at width%s excludes the real navigation slot and positive safe areas before measuring native stages',
+    'at width%s a full-bleed Reel keeps its chrome clear of the real navigation slot and positive safe areas',
     async (width, bottom, left) => {
       const h = harness();
       jest.spyOn(SafeArea, 'useSafeAreaInsets').mockReturnValue({ top: 24, bottom: 34, left: 12, right: 9 });
@@ -227,16 +228,22 @@ describe('Explore page safe/tab composition', () => {
           </QueryClientProvider>
         </DisplayProvider>,
       );
+      const metrics = await renderHook(() => useEncounterMetrics(), {
+        wrapper: ({ children }) => (
+          <DisplayProvider value={{ width, textScale: 1, reducedMotion: true }}>{children}</DisplayProvider>
+        ),
+      });
       try {
-        expect(screen.getByTestId('encounter-explore')).toHaveStyle({
-          paddingTop: 24,
-          paddingBottom: bottom,
-          paddingLeft: left,
-          paddingRight: 9,
-        });
-        expect(screen.getByTestId('encounter-page')).toHaveStyle({ flex: 1, minHeight: 0 });
+        // The video fills the screen; only the side safe areas pad the ground.
+        expect(app.getByTestId('encounter-explore')).toHaveStyle({ paddingLeft: left, paddingRight: 9 });
+        expect(app.getByTestId('encounter-explore')).not.toHaveStyle({ paddingTop: 24 });
+        // Chrome sits below the status bar and above the tab bar (or rail).
+        expect(metrics.result.current.top).toBe(24 + 12);
+        expect(metrics.result.current.bottom).toBe(bottom);
+        expect(metrics.result.current.side).toBe(16 + left);
         expect(h.calls).toHaveLength(0);
       } finally {
+        await metrics.unmount();
         await app.unmount();
         h.scope.end();
         jest.restoreAllMocks();

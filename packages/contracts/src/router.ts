@@ -4,6 +4,7 @@ import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
 import { threadsContract } from './threads.js';
 import { roomsContract } from './rooms.js';
+import { scenariosContract } from './scenarios.js';
 import { contentSharesContract } from './content-shares.js';
 import { friendPagesContract } from './friend-pages.js';
 import { formationPresentationContract } from './formation-presentation.js';
@@ -56,6 +57,7 @@ export const apiContract: {
   conversations: typeof conversationsContract;
   threads: typeof threadsContract;
   rooms: typeof roomsContract;
+  scenarios: typeof scenariosContract;
   contentShares: typeof contentSharesContract;
   publicContentShares: typeof publicContentSharesContract;
   scenes: { manifest: typeof readSceneManifestContract; chunk: typeof readSceneChunkContract };
@@ -107,6 +109,7 @@ export const apiContract: {
   conversations: conversationsContract,
   threads: threadsContract,
   rooms: roomsContract,
+  scenarios: scenariosContract,
   contentShares: contentSharesContract,
   publicContentShares: publicContentSharesContract,
   scenes: { manifest: readSceneManifestContract, chunk: readSceneChunkContract },

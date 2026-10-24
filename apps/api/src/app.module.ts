@@ -33,6 +33,7 @@ import { operatorWiring } from './modules/operator.js';
 import { privacyWiring } from './modules/privacy.js';
 import { recordingWiring } from './modules/recording.js';
 import { roomsWiring } from './modules/rooms.js';
+import { scenarioWiring } from './modules/scenarios.js';
 import { socialWiring } from './modules/social.js';
 import { ScopeGateway } from './realtime/scope.gateway.js';
 import { apiControllers } from './routes.js';
@@ -115,6 +116,7 @@ export class AppModule {
         ...experienceWiring,
         ...socialWiring,
         ...roomsWiring,
+        ...scenarioWiring,
         ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
         ...evidenceWiring,
         ...sceneWiring,

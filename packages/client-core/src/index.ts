@@ -63,6 +63,24 @@ export {
   type OutgoingThreadMessage,
 } from './content-thread';
 export {
+  chipText,
+  createScenarioBoard,
+  createScenarioComposer,
+  describeOption,
+  kindWord,
+  ownSelection,
+  subjectOfStatement,
+  type OwnRow,
+  type ScenarioAsk,
+  type ScenarioBlock,
+  type ScenarioBoardController,
+  type ScenarioBoardState,
+  type ScenarioComposerController,
+  type ScenarioComposerPhase,
+  type ScenarioComposerState,
+  type ScenarioSelection,
+} from './scenarios';
+export {
   describeThreadMessage,
   findThread,
   readThreadSummaries,

@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { notePendingBack } from '../../platform/after-pending-back';
 import type { EncounterSession } from './encounter-session';
 
 let markerSequence = 0;
@@ -17,8 +18,10 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
         const needsBack = state.overlay || session.canBack();
         if (needsBack && !hasMarker())
           window.history.pushState({ ...window.history.state, ksEncounter: marker.current }, '', window.location.href);
-        else if (!needsBack && hasMarker()) {
+        // One pop is enough: several publishes can land before the popstate that removes the marker.
+        else if (!needsBack && hasMarker() && !ignored.current) {
           ignored.current = true;
+          notePendingBack();
           window.history.back();
         }
       };
@@ -26,6 +29,8 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
       const pop = () => {
         if (ignored.current) {
           ignored.current = false;
+          // State may have changed while the marker was being removed (an overlay opened again).
+          sync();
           return;
         }
         // Back closes an overlay first or restores one retained entry, synchronously, without API work.

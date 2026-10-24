@@ -25,6 +25,7 @@ export {
   MediaRef,
   OpaqueId,
   ParamKey,
+  plainText,
   Revision,
   Sha256Hex,
 } from './primitives.js';

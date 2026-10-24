@@ -61,7 +61,7 @@ describe('S02 selected real Keep detail', () => {
     try {
       await waitFor(() => expect(screen.getByText('Paused at 0:31')).toBeOnTheScreen());
       expect(f.calls.every((p) => p.endsWith('/keep/read'))).toBe(true);
-      await fireEvent.press(screen.getByRole('button', { name: 'Resume saved place' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Resume where you left off' }));
       expect(open.mock.calls[0]?.[0]).toBe('resume');
       expect(open.mock.calls[0]?.[1]?.entry.savedEntryId).toBe(id(4));
       await fireEvent.press(screen.getByRole('button', { name: 'Start from the top' }));
@@ -85,7 +85,7 @@ describe('S02 selected real Keep detail', () => {
     try {
       await screen.findByText(/saved place isn't available/);
       expect(screen.queryByText('Paused at 0:31')).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Resume saved place' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Resume where you left off' })).toBeNull();
       expect(screen.getByRole('button', { name: 'Start from the top' })).toBeDisabled();
       await fireEvent.press(screen.getByRole('button', { name: 'Start from the top' }));
       expect(open).not.toHaveBeenCalled();
@@ -109,7 +109,7 @@ describe('S02 selected real Keep detail', () => {
     );
     try {
       await waitFor(() => expect(screen.getByText(/saved version's place isn't available/)).toBeOnTheScreen());
-      expect(screen.queryByRole('button', { name: 'Resume saved place' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Resume where you left off' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Remove from Keep' })).toBeNull();
       expect(open).not.toHaveBeenCalled();
     } finally {

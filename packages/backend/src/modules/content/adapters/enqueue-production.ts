@@ -1,11 +1,6 @@
 import type { PgBoss } from 'pg-boss';
 import { produceScrollJob, produceScrollQueue, produceScrollSingletonKey } from '../production/events.js';
-
-export type EnqueueScrollProduction = (
-  recipe: string,
-  take: number,
-  priority?: number,
-) => Promise<'queued' | 'already_queued'>;
+import type { EnqueueScrollProduction } from '../public.js';
 
 /**
  * Sends the production job of one library recipe outside any personal transaction: the operator's

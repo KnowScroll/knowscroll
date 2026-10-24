@@ -5,6 +5,7 @@ import {
   CANCEL_CONTENT_REQUEST,
   RESOLVE_CONTENT_REQUEST,
   RECORD_PLANNED_DEMAND,
+  COMMISSION_SCENARIO_ORDER,
 } from '../public.js';
 import { CHECK_REQUEST_SOURCE, type CheckRequestSource } from '../../experience/public.js';
 import {
@@ -14,6 +15,8 @@ import {
   READ_REGION_ENCOUNTER_CANDIDATES,
   READ_SCROLL_PRODUCTION,
   LOCK_CURRENT_ENCOUNTERS,
+  RECORD_MADE_TO_ORDER_SCROLL,
+  type RecordMadeToOrderScroll,
   produceScrollJob,
   produceScrollSingletonKey,
   produceScrollQueue,
@@ -33,6 +36,7 @@ import {
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
   type CheckPersonalOwnerActive,
+  type PersonalScopeTx,
   type WithPersonalScope,
 } from '../../identity/public.js';
 import { stableUuid, uuidv7 } from '../../../infrastructure/ids/index.js';
@@ -52,6 +56,8 @@ import {
   makeRecordPlannedDemand,
 } from '../application/requests.js';
 import { makeListRequests } from '../application/list.js';
+import { makeCommissionScenarioOrder } from '../application/scenario-orders.js';
+import { scenarioOrderStore } from './postgres-scenario-orders.js';
 import { makeMatchRequest } from '../application/matching.js';
 import { makeResolveRequest } from '../application/resolve.js';
 import { resolveSupplyQueue } from '../events.js';
@@ -66,8 +72,28 @@ export interface SupplySettings {
   readonly supplyPlannerCreateDailyCap: number;
 }
 
+/** What scenario Create reads from the API's configuration. */
+export interface ScenarioOrderSettings {
+  /** Branches Quartermaster may order per UTC day; 0 turns scenario Create off. */
+  readonly supplyScenarioDailyCap: number;
+  /** Branches one thread may have ordered over its life. */
+  readonly supplyScenarioThreadCap: number;
+}
+
 /** Priority of a person's production job over operator seeding (priority 0). */
 const REQUEST_PRIORITY = 10;
+
+/** Sends the production job of one take of a recipe in a person's transaction, ahead of operator seeding. */
+const sendProduction =
+  (enqueue: EnqueueJob) =>
+  (scope: PersonalScopeTx, recipe: string, take: number): Promise<void> => {
+    const job = produceScrollJob(recipe, take);
+    return enqueue(scope, produceScrollQueue, job, {
+      singletonKey: produceScrollSingletonKey(job),
+      duplicate: 'ignore',
+      priority: REQUEST_PRIORITY,
+    });
+  };
 
 /**
  * Supply's use cases for the API and the worker. `config` names the token of the process's
@@ -134,14 +160,7 @@ export function supplyProviders(t: {
             ? new Set(encounteredUnitsOf(snapshot))
             : new Set(query.units);
         },
-        enqueueProduction: (scope, recipe, take) => {
-          const job = produceScrollJob(recipe, take);
-          return enqueue(scope, produceScrollQueue, job, {
-            singletonKey: produceScrollSingletonKey(job),
-            duplicate: 'ignore',
-            priority: REQUEST_PRIORITY,
-          });
-        },
+        enqueueProduction: sendProduction(enqueue),
         readCandidates,
         readExact,
         lockCurrent,
@@ -218,3 +237,25 @@ export { makeMatchRequest } from '../application/matching.js';
 export { makeListRequests } from '../application/list.js';
 export { recoverOpenDemand, type RecoveredDemand } from './recover-open-demand.js';
 export type { SupplyPorts } from '../application/ports.js';
+
+/**
+ * Quartermaster's Create for a thread's chosen branch, for the API (a choice is an HTTP command).
+ * `enqueueJob` and `config` name the tokens of the process's job port and configuration
+ * (`ScenarioOrderSettings`). Needs content's `RECORD_MADE_TO_ORDER_SCROLL`.
+ */
+export function scenarioOrderProviders(t: { readonly enqueueJob: symbol; readonly config: symbol }) {
+  return [
+    {
+      provide: COMMISSION_SCENARIO_ORDER,
+      inject: [t.enqueueJob, t.config, RECORD_MADE_TO_ORDER_SCROLL],
+      useFactory: (enqueue: EnqueueJob, settings: ScenarioOrderSettings, recordOrder: RecordMadeToOrderScroll) =>
+        makeCommissionScenarioOrder({
+          store: scenarioOrderStore,
+          recordOrder,
+          enqueueProduction: sendProduction(enqueue),
+          caps: { perDay: settings.supplyScenarioDailyCap, perThread: settings.supplyScenarioThreadCap },
+          now: () => new Date(),
+        }),
+    },
+  ];
+}

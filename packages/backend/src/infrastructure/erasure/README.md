@@ -56,7 +56,9 @@ It refuses a module that holds account-keyed stores without an `eraseAccount`, a
 `export`, and an export that does not account for exactly the stores the module declares, so a new
 store cannot be forgotten by either. `eraseAccountData(scope, registry)` runs every module's `erase`
 and then every `eraseAccount` inside the deletion transaction, and `exportPersonalData` collects
-each module's export section inside the person's locked scope. The use cases and their
+each module's export section inside the person's locked scope. The export's `ExportPerson` carries `reach`, Content's
+check of which assets the person may still read: a module that names content by title in the file asks it, so a
+Scroll made for a thread the person left keeps no title there (the experience export lists it as "Withdrawn"). The use cases and their
 lifecycles are in `modules/identity/README.md`.
 
 Account deletion removes the personal roots last: a foreign key from any store the registry missed

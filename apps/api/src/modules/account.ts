@@ -3,6 +3,7 @@ import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
+import { CHECK_ASSET_AUDIENCE, type CheckAssetAudience } from '@knowscroll/backend/modules/content';
 import { CONSUME_DATA_EXPORT_LINK, type ConsumeDataExportLink } from '@knowscroll/backend/modules/identity';
 import { dataExportFor, deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { API_CONFIG, DATABASE, PG_BOSS } from '../tokens.js';
@@ -28,9 +29,17 @@ export const accountWiring = [
   },
   {
     provide: DATA_EXPORT,
-    inject: [DATABASE, PG_BOSS, API_CONFIG],
-    useFactory: (db: Kysely<Database>, boss: ReturnType<typeof createBoss>, config: ApiConfig): DataExportUseCases =>
-      dataExportFor(db, boss, { gather: exportCurrentPerson, lockTimeoutMs: config.scopeLockTimeoutMs }),
+    inject: [DATABASE, PG_BOSS, API_CONFIG, CHECK_ASSET_AUDIENCE],
+    useFactory: (
+      db: Kysely<Database>,
+      boss: ReturnType<typeof createBoss>,
+      config: ApiConfig,
+      audience: CheckAssetAudience,
+    ): DataExportUseCases =>
+      dataExportFor(db, boss, {
+        gather: (scope, person) => exportCurrentPerson(scope, person, audience),
+        lockTimeoutMs: config.scopeLockTimeoutMs,
+      }),
   },
   {
     // Redeeming a link needs no caller: the link is the credential.

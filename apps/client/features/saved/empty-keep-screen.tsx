@@ -5,7 +5,7 @@ import { Icon, StateBlock, Text } from '@knowscroll/ui';
 import { ScreenFrame } from '../shell/screen-frame';
 
 /** S01's empty tile: a dashed 72 px square with the Keep bookmark. */
-function KeepTile() {
+export function KeepTile() {
   return (
     <View style={styles.tile}>
       <Icon name="keep" size={32} strokeWidth={1.8} />

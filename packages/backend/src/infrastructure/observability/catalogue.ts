@@ -204,6 +204,8 @@ export const diagnosticCatalogue = {
     module: 'composer',
     fields: ['outcome', 'reasonCode', 'count', 'durationMs'],
   },
+  // Branches of content threads settled by the sweep (D-049): a count only, never a thread or a person.
+  'scenarios.branches_resolved': { severity: 'info', module: 'scenarios', fields: ['count'] },
   'evidence.reading_projected': {
     severity: 'info',
     module: 'evidence',

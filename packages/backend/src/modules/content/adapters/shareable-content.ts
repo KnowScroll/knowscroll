@@ -17,6 +17,7 @@ interface Row {
   current_title: string | null;
   current_summary: string | null;
   current_language: string | null;
+  ordered: boolean;
 }
 
 type Projection = z.infer<typeof ConversationContentProjectionSchema>;
@@ -28,7 +29,8 @@ type Projection = z.infer<typeof ConversationContentProjectionSchema>;
  *
  * Per ref: `available` (the revision is the current admitted one), `corrected` (admitted, but a
  * newer revision exists; both revisions' metadata are returned, the original ref is kept) or
- * `unavailable` (withdrawn, missing, or lacking a published summary). Input is limited to 100 refs.
+ * `unavailable` (withdrawn, missing, ordered for a thread, or lacking a published summary). Input is
+ * limited to 100 refs.
  */
 async function readMetadata(reader: Kysely<Database>, refs: readonly ContentRef[]): Promise<Projection[]> {
   if (refs.length > 100) throw new Error('SHAREABLE_CONTENT_LIMIT');
@@ -36,7 +38,8 @@ async function readMetadata(reader: Kysely<Database>, refs: readonly ContentRef[
   const result = await sql<Row>`
     select x."assetId", x."assetRevision", a.status, a.revision as current_revision, a.kind,
       r.title, d.summary, r.language,
-      rc.title as current_title, dc.summary as current_summary, rc.language as current_language
+      rc.title as current_title, dc.summary as current_summary, rc.language as current_language,
+      exists (select 1 from content.made_to_order_scrolls o where o.asset_id = x."assetId") as ordered
     from jsonb_to_recordset(${JSON.stringify(refs)}::jsonb) as x("assetId" uuid, "assetRevision" integer)
     left join content.assets a on a.id = x."assetId"
     left join content.asset_revisions r on r.asset_id = x."assetId" and r.revision = x."assetRevision"
@@ -64,7 +67,8 @@ export const makeReadPublicContent =
 
 function project(target: ContentRef, row: Row | undefined): Projection {
   const unavailable: Projection = { status: 'unavailable', target };
-  if (row?.status !== 'admitted' || row.kind === null) return unavailable;
+  // A Scroll ordered for a thread is not a card anywhere else: sharing it would show its premise.
+  if (row?.status !== 'admitted' || row.kind === null || row.ordered) return unavailable;
   if (row.title === null || row.summary === null || row.language === null) return unavailable;
   const metadata = { kind: row.kind, title: row.title, summary: row.summary, language: row.language };
   if (row.current_revision === target.assetRevision) return { status: 'available', target, metadata };

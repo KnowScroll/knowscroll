@@ -8,7 +8,7 @@
 -- so this migration has no table for them.
 -- Query shapes: a room's activities (open first, newest first); one activity by ID; the votes of one
 -- poll (a tally and the first voters); one person's vote in one poll.
--- Locking: the room's own root as in 0063 (FOR SHARE); a vote takes the activity row FOR SHARE and a
+-- Locking: the room's own root as in 0062 (FOR SHARE); a vote takes the activity row FOR SHARE and a
 -- moderator's close or removal takes it FOR UPDATE, so a vote can never land on a poll that has closed.
 -- Access: members read; a moderator creates, closes and removes; a member votes while the room is open
 -- and the poll is open. Nothing else grants access.

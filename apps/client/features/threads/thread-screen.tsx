@@ -10,7 +10,7 @@ import {
   type ContentThreadController,
   type ContentThreadState,
 } from '@knowscroll/client-core';
-import type { ContentThreadRef, ReelDocument, SendThreadBody } from '@knowscroll/contracts';
+import type { ContentThreadRef, ReelDocument, ScenarioCard, SendThreadBody } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Skeleton, StateBlock, type ReelPositionHandle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
@@ -18,6 +18,10 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
+import { AsksBar } from '../scenarios/asks-bar';
+import { ScenarioSheet } from '../scenarios/scenario-sheet';
+import { useScenarioBoard } from '../scenarios/use-scenarios';
+import { useThreadScenarios } from '../scenarios/use-thread-scenarios';
 import { EpisodeNavigator } from './episode-navigator';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
@@ -86,8 +90,13 @@ function ReadyThread({
   const [people, setPeople] = useState(false);
   const [menu, setMenu] = useState(false);
   const [moment, setMoment] = useState<ShareableMoment>();
+  const board = useScenarioBoard(scope, thread);
   const positionRef = useRef<ReelPositionHandle>(null);
-  const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length));
+  const {
+    ref: scrollRef,
+    onScroll,
+    follow,
+  } = useFollowEnd(`${String(state.messages.length)}:${String(board.state.cards.length)}`);
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));
@@ -99,6 +108,18 @@ function ReadyThread({
   const series = state.sequence === 'series';
   const current = episodes.find((episode) => episode.assetId === place.selected) ?? episodes[0];
   const ownPersonId = state.participants.find((participant) => participant.you)?.person.personId;
+  const scenarios = useThreadScenarios({
+    board: board.controller,
+    rootRevision: state.root?.target.assetRevision,
+    onBranchStarted: () => {
+      follow();
+      // The new card is below the fold: show it once the branches are read and laid out.
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 150);
+    },
+  });
+  const openBranch = (card: ScenarioCard) => {
+    if (card.content !== undefined) router.push(readInThreadHref(thread, card.content.assetId, { branch: true }));
+  };
   const rootSummary =
     state.root?.status === 'available' && state.root.target.assetId === current?.assetId
       ? state.root.metadata.summary
@@ -149,7 +170,14 @@ function ReadyThread({
         scrollRef={scrollRef}
         onScroll={onScroll}
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
+        branches={board.state.cards}
+        onOpenBranch={openBranch}
+        onContinueBranch={scenarios.continueBranch}
+        onRemoveBranch={scenarios.removeBranch}
+        onMessageMenu={scenarios.askFromMessage}
+        onAsk={scenarios.askFromMessage}
       />
+      <AsksBar onAsk={scenarios.askFromRoot} />
       <Composer
         name={
           state.participants
@@ -181,6 +209,13 @@ function ReadyThread({
           }}
         />
       )}
+      <ScenarioSheet
+        start={scenarios.start}
+        scope={scope}
+        thread={thread}
+        onClose={scenarios.close}
+        onChosen={scenarios.branchStarted}
+      />
       <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />
       <OptionsSheet
         visible={menu}

@@ -59,4 +59,32 @@ describe('browser Back consumes a local encounter step, overlays first', () => {
     expect(back).toHaveBeenCalledTimes(2);
     push.mockRestore();
   });
+
+  it('pops its marker once when several state changes land before the popstate (sheet action that navigates)', () => {
+    const listeners = new Set<() => void>();
+    let overlay = true;
+    const session = {
+      back: () => false,
+      canBack: () => false,
+      getState: () => ({ trail: [{}], overlay, phase: 'active', surfaceRevision: 0 }) as unknown as EncounterState,
+      subscribe: (callback: () => void) => {
+        listeners.add(callback);
+        return () => listeners.delete(callback);
+      },
+    } as unknown as EncounterSession;
+    function Host() {
+      useEncounterBack(session, true);
+      return null;
+    }
+    const back = jest.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const root = createRoot();
+    act(() => root.render(<Host />));
+    // The sheet closes and the action navigates in the same turn: two publishes, one marker.
+    overlay = false;
+    act(() => listeners.forEach((listener) => listener()));
+    act(() => listeners.forEach((listener) => listener()));
+    expect(back).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+    back.mockRestore();
+  });
 });

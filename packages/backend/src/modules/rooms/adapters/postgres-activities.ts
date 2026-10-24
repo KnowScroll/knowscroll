@@ -60,7 +60,7 @@ function activityOf(row: ActivityColumns): ActivityRow {
   };
 }
 
-/** Postgres polls, quizzes and votes (migration 0064). The use cases decide access; this only runs queries. */
+/** Postgres polls, quizzes and votes (migration 0063). The use cases decide access; this only runs queries. */
 export const activityStore: ActivityStore = {
   async list(lock, accountId, limit) {
     const rows = await sql<ActivityColumns & { voted: boolean }>`

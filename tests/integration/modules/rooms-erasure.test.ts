@@ -10,6 +10,7 @@ import { eraseCurrentAccount, exportCurrentPerson } from '@knowscroll/backend/er
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
@@ -126,7 +127,7 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
 
     // The export holds the person's own words and none of anyone else's.
     const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(erased.authority, (scope) =>
-      exportCurrentPerson(scope, { accountId: erased.accountId }),
+      exportCurrentPerson(scope, { accountId: erased.accountId }, openToEveryone),
     );
     if (exported.kind !== 'entered') throw new Error('export refused');
     const section = JSON.stringify(exported.value.sections['rooms']);
@@ -200,7 +201,7 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
 
     // The voter's export holds their own vote, with the words of the option they chose.
     const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(voter.authority, (scope) =>
-      exportCurrentPerson(scope, { accountId: voter.accountId }),
+      exportCurrentPerson(scope, { accountId: voter.accountId }, openToEveryone),
     );
     if (exported.kind !== 'entered') throw new Error('export refused');
     const section = JSON.stringify(exported.value.sections['rooms']);
