@@ -86,7 +86,7 @@ function NothingMoreReady({
               label="Another subject"
               icon="arrowUp"
               variant="primary"
-              onPress={() => session.open({ kind: 'discover' })}
+              onPress={() => session.chooseDirection()}
             />
             <Button
               label="Something you kept"
@@ -200,7 +200,7 @@ export function EncounterEnding({
                     session.act('save');
                   }}
                 />
-                <Button label="Something different" icon="arrowUp" onPress={() => session.open({ kind: 'discover' })} />
+                <Button label="Something different" icon="arrowUp" onPress={() => session.chooseDirection()} />
                 <Button label="Done for now" variant="ghost" onPress={onDone} />
               </View>
             </>
