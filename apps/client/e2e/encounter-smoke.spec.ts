@@ -512,3 +512,19 @@ test('a Scroll opened from the Reel by the format switch says where from, and th
   await expect(page.getByText('CI encounter fixture 1', { exact: true }).first()).toBeVisible();
   await expect(chip).toHaveCount(0);
 });
+
+test('V01: at 320 px the first-arrival hint stays clear of the action rail', async ({ page }) => {
+  await encounterFixture(page, 'reel', { viewport: { width: 320, height: 640 } });
+  await page.goto('/explore');
+  const hint = page.getByRole('note', { name: 'How to move around' });
+  await expect(hint).toBeVisible();
+  const hintBox = await hint.boundingBox();
+  if (!hintBox) throw new Error('The hint is measurable');
+  for (const name of [/^Like/, /^Save/, /^Share/, /^Ask/]) {
+    const box = await page.getByRole('button', { name }).first().boundingBox();
+    if (!box) throw new Error(`The ${String(name)} button is measurable`);
+    const across = Math.min(hintBox.x + hintBox.width, box.x + box.width) - Math.max(hintBox.x, box.x);
+    const down = Math.min(hintBox.y + hintBox.height, box.y + box.height) - Math.max(hintBox.y, box.y);
+    expect(across > 0 && down > 0, `${String(name)} is covered by the hint`).toBe(false);
+  }
+});

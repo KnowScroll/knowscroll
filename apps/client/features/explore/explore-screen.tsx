@@ -170,6 +170,7 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
                   session={session}
                   framed={framedReel}
                   areaWidth={windowWidth - railWidth(breakpoint) - asideWidth}
+                  back={backOrRoot}
                 >
                   {encounterView(framedReel)}
                   {openingNotice}
