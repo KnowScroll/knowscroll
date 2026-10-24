@@ -59,6 +59,8 @@ describe('route map', () => {
         '/recover',
         '/redeem',
         '/reel/[assetId]',
+        '/rooms/[roomId]',
+        '/rooms/[roomId]/t/[discussionId]',
         '/saved',
         '/scroll/[assetId]',
         '/signin',

@@ -39,6 +39,16 @@ export const SocialProblemIssueSchema = z.strictObject({
         'muted',
         'audience',
         'shareId',
+        'roomId',
+        'discussionId',
+        'inhabitant',
+        'start',
+        'friendPersonId',
+        'action',
+        'pinned',
+        'hidden',
+        'title',
+        'personId',
         'selector',
         'token',
         'unknown',
@@ -141,17 +151,31 @@ function problemResponses(
   return operation;
 }
 
+function privatePost<I extends z.ZodType, O extends z.ZodType>(
+  path: `/v1/${'social' | 'rooms'}/${string}`,
+  tag: 'social' | 'rooms',
+  input: I,
+  output: O,
+) {
+  return oc
+    .route({ method: 'POST', path, successStatus: 200, tags: [tag], spec: problemResponses })
+    .errors(errors)
+    .input(input)
+    .output(output);
+}
+
 /** Private JSON POST declarations. No route, authentication/cache policy or serializer is installed. */
 export function socialPost<I extends z.ZodType, O extends z.ZodType>(
   path: `/v1/social/${string}`,
   input: I,
   output: O,
 ) {
-  return oc
-    .route({ method: 'POST', path, successStatus: 200, tags: ['social'], spec: problemResponses })
-    .errors(errors)
-    .input(input)
-    .output(output);
+  return privatePost(path, 'social', input, output);
+}
+
+/** Idea-room POSTs share Social's closed problem set: a room refusal is as plain as a friend's. */
+export function roomsPost<I extends z.ZodType, O extends z.ZodType>(path: `/v1/rooms/${string}`, input: I, output: O) {
+  return privatePost(path, 'rooms', input, output);
 }
 export type SocialProblem = z.infer<typeof SocialProblemSchema>;
 

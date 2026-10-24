@@ -26,7 +26,13 @@ import {
 import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowscroll/backend/modules/social';
-import { visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
+import { socialPeopleProviders, visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
+import { roomsWorkerProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
+import {
+  CONTRIBUTE_AS_INHABITANT,
+  contributeQueue,
+  type ContributeAsInhabitant,
+} from '@knowscroll/backend/modules/rooms';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
@@ -145,6 +151,9 @@ export const jobWiring: Provider[] = [
   ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  // An AI inhabitant answers a member's ask through the personal harness; it reads people and content only.
+  ...socialPeopleProviders(),
+  ...roomsWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   {
     provide: PERSONAL_MATERIAL_CHANGE,
@@ -211,6 +220,7 @@ export const jobWiring: Provider[] = [
       CHECK_ASSET_AUDIENCE,
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
+      CONTRIBUTE_AS_INHABITANT,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
       PROJECT_ENCOUNTER_ACTIVITY,
@@ -236,6 +246,7 @@ export const jobWiring: Provider[] = [
       audience: CheckAssetAudience,
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
+      contributeAsInhabitant: ContributeAsInhabitant,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
       projectActivity: ProjectEncounterActivity,
@@ -317,6 +328,9 @@ export const jobWiring: Provider[] = [
           count: result.kind === 'prepared' ? result.offers : 0,
           durationMs: Math.round(performance.now() - startedAt),
         });
+      }),
+      jobConsumer(contributeQueue, async (payload, delivery) => {
+        await contributeAsInhabitant(payload, delivery.signal);
       }),
       jobConsumer(applyActionEvidenceQueue, async (payload) => {
         const result = await applyActionEvidence(payload);

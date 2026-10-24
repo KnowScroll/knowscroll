@@ -38,6 +38,8 @@ const compositionRoots = [
   '^apps/worker/src/supply-operator\\.ts$',
   // The journey inspector composes the read-only operator views (#248).
   '^apps/worker/src/journey-operator\\.ts$',
+  // The rooms operator seeds rooms and names moderators (D-051).
+  '^apps/worker/src/rooms-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

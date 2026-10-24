@@ -475,6 +475,27 @@ direct conversations and threads together; a thread row shows its people, the la
 - Not built: keep listening, a thread's own Like and Save (they stay on the full-screen
   encounter), thumbnails on episode cards, the multi-pane desktop thread (D03), native text selection for passages.
 
+## Idea rooms (#245, D-051)
+
+Routes: `/rooms/<id>` (R01 preview before joining, R02 room list after) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
+Talk (`/conversations`) lists the person's rooms and invitations under the conversations (D-006 o); a room has no tab.
+
+- `features/rooms/room-screen.tsx`: the dark room header, then either `PreviewBody` (who is here to help, the labelled
+  AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join) or `MemberBody`
+  (the discussions, pinned first; "Share into room" in `share-into-room-sheet.tsx`; moderator Pause and Resume; Leave).
+  No member, activity or online count is drawn anywhere.
+- `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
+  `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
+  composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
+  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked. `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
+  cannot be asked. `message-options-sheet.tsx` holds "Start a thread from this" and the moderator's remove and restore;
+  `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
+- `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite) and
+  `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pin, hide). Each command keeps its command ID until the
+  server answers. A discussion catches up on focus, on reconnect and every 20 seconds.
+- Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
+- Not built: room stations on the map and the desktop room (D04), polls and quizzes (R03), What-if, a focused snippet viewer,
+  sharing a Scroll passage back from a room, reports.
 ## What if and Another perspective (#244, D-049)
 
 `features/scenarios/`. A member asks from the whole thread (the two buttons above the message box), from a message (its ⋯

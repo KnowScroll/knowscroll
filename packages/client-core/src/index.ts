@@ -106,6 +106,25 @@ export {
   type ThreadRowView,
 } from './thread-inbox';
 export {
+  createRoom,
+  readRoomList,
+  type ModerateAction,
+  type RoomController,
+  type RoomOptions,
+  type RoomState,
+  type StartDiscussion,
+} from './room';
+export {
+  createRoomDiscussion,
+  mergeRoomMessages,
+  type AskOutcome,
+  type InhabitantStatus,
+  type OutgoingRoomMessage,
+  type RoomDiscussionController,
+  type RoomDiscussionOptions,
+  type RoomDiscussionState,
+} from './room-discussion';
+export {
   createExploreWithFriends,
   type CreateStatus,
   type ExploreWithFriendsOptions,
