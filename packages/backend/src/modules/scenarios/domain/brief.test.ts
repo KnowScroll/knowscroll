@@ -19,6 +19,16 @@ describe('framingOf', () => {
     });
   });
 
+  it('lists what an earlier branch assumed once, and not again as kept', () => {
+    const parent = { hypothetical: true, assumptions: [model] };
+    const framing = framingOf(stepOf({ kind: 'what_if', changes: [traffic], kept: [model] }, parent));
+    expect(framing).toEqual({
+      kind: 'hypothetical',
+      assumptions: [model.statement, traffic.statement],
+      kept: [],
+    });
+  });
+
   it('names the lens of a perspective on the real subject', () => {
     expect(framingOf(stepOf({ kind: 'perspective', changes: [], kept: [], lens: 'the operator’s view' }))).toEqual({
       kind: 'perspective',

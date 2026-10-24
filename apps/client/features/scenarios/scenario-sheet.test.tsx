@@ -83,6 +83,34 @@ async function ask(words = 'What if traffic increases tenfold?') {
   await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
 }
 
+describe('the What if… sheet from a message', () => {
+  it('asks which kind first, in the same sheet, then goes on to the idea with the same source', async () => {
+    const harness = scopeOf({});
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ScenarioSheet
+          start={{
+            origin: { kind: 'message', messageId: id(5) },
+            fromLabel: 'Ravi’s message',
+            quote: { authorName: 'Ravi', preview: 'What would change if the tilt were different?' },
+            parent: { kind: 'root', assetRevision: 1 },
+          }}
+          scope={harness.scope}
+          thread={thread}
+          onClose={jest.fn()}
+          onChosen={jest.fn()}
+        />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('What would change if the tilt were different?')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Your idea')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Another perspective' }));
+    expect(screen.getByText('FROM: RAVI’S MESSAGE')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Your idea')).toBeOnTheScreen();
+    expect(harness.calls).toEqual([]);
+  });
+});
+
 describe('the What if… sheet', () => {
   it('starts from where the request began, keeps the member’s words, and asks nothing until Continue', async () => {
     const { calls, stored } = await open({});

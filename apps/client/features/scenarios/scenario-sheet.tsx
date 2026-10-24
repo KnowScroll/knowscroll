@@ -12,16 +12,23 @@ import {
 import type { Assumption, ContentThreadRef, ScenarioCard, ScenarioKind, ScenarioOption } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Banner, BottomSheet, Button, Spinner, Tag, Text, useTypeStyle } from '@knowscroll/ui';
+import { MessageStep, type MessageQuote } from './message-step';
 import { useScenarioComposer } from './use-scenarios';
 
 /** Where a request starts: its kind, where in the thread it came from and what it continues. */
 export interface ScenarioStart {
-  readonly kind: ScenarioKind;
+  /** Absent when the request started from a message's menu: the member picks the kind first (`quote`). */
+  readonly kind?: ScenarioKind;
+  /** What the message says, shown above the choice of kind. */
+  readonly quote?: MessageQuote;
   readonly origin: ScenarioAsk['origin'];
   /** "the whole thread", "Ravi’s message", "a moment someone shared": the source in words (X01 "From:"). */
   readonly fromLabel: string;
   readonly parent: ScenarioAsk['parent'];
 }
+
+/** A start whose kind is known: the member picked it, or the entry point named it. */
+type KindedStart = ScenarioStart & { readonly kind: ScenarioKind };
 
 const MAX_WORDS = 500;
 const blockMessage: Record<ScenarioBlock, string> = {
@@ -66,7 +73,7 @@ function ComposeStep({
   onWords,
   onAsk,
 }: {
-  readonly start: ScenarioStart;
+  readonly start: KindedStart;
   readonly words: string;
   readonly onWords: (text: string) => void;
   readonly onAsk: (kind: ScenarioKind, text: string) => void;
@@ -377,7 +384,7 @@ function SheetBody({
   onClose,
   onChosen,
 }: {
-  readonly start: ScenarioStart;
+  readonly start: KindedStart;
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
   readonly onClose: () => void;
@@ -586,15 +593,29 @@ export function ScenarioSheet({
   readonly onClose: () => void;
   readonly onChosen: (card: ScenarioCard) => void;
 }) {
+  const [picked, setPicked] = useState<ScenarioKind>();
+  const close = () => {
+    setPicked(undefined);
+    onClose();
+  };
+  const kind = start?.kind ?? picked;
+  const choosingKind = start !== undefined && kind === undefined;
   return (
-    <BottomSheet visible={start !== undefined} title="What if…" onClose={onClose} testID="scenario-sheet">
-      {start === undefined ? null : (
+    <BottomSheet
+      visible={start !== undefined}
+      title={choosingKind ? 'From this message' : 'What if…'}
+      onClose={close}
+      testID="scenario-sheet"
+    >
+      {start === undefined ? null : kind === undefined ? (
+        <MessageStep quote={start.quote ?? { authorName: '', preview: '' }} onPick={setPicked} onCancel={close} />
+      ) : (
         <SheetBody
-          key={`${start.kind}:${JSON.stringify(start.origin)}`}
-          start={start}
+          key={`${kind}:${JSON.stringify(start.origin)}`}
+          start={{ ...start, kind }}
           scope={scope}
           thread={thread}
-          onClose={onClose}
+          onClose={close}
           onChosen={onChosen}
         />
       )}
@@ -639,9 +660,11 @@ const styles = StyleSheet.create({
   summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   chip: {
+    maxWidth: '100%',
+    flexShrink: 1,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1],
-    borderRadius: radius.pill,
+    borderRadius: radius.card,
     borderWidth: borderWidth.light,
     borderColor: content.ink,
   },

@@ -486,6 +486,12 @@ menu, `message-menu.tsx`) or from a shared moment or passage (the **What if…**
 rather than a route, so closing it returns to the same place in the thread. *Implemented; exercised in tests and a browser
 locally, not on dev.*
 
+Runtime-verified (web, 430 px, a local PostgreSQL, API and worker with the real model): asking from the whole thread and
+from a message's ⋯ menu, a speculative idea asking to be confirmed, the branch card preparing and then ready without a
+reload, a second member opening the same Scroll, and a what-if continued from a branch. Not driven on native.
+
+- `message-step.tsx` is the message menu (the quote and What if… / Another perspective). It is the first step of the one
+  sheet, not an overlay of its own: closing one overlay as another opens breaks the web's history handling.
 - `scenario-sheet.tsx` (X01): the kind switch, a "From:" chip, "Your idea", then by what the controller says: thinking (with
   "Write my own version"), one clear idea as a summary with Edit and **Explore**, a few suggested directions each with
   **Explore this**, a confirm step ("Speculative scenario · not established science", **Create branch**) for an unclear or
@@ -494,7 +500,7 @@ locally, not on dev.*
   Asking never makes anything; only Explore, Explore this or Create branch does.
 - `branch-card.tsx` (X02): a dashed cobalt card for a what-if and anything below it, a solid raised card for a perspective on the
   real subject; "Hypothetical" and the Changed and Kept chips; Preparing with a stripe, Ready with **Explore this**, **What if…**
-  (continue from this branch), and Remove for whoever asked; "Couldn't prepare this branch"; a quiet note when removed. It shows
+  (continue from this branch), and Remove for whoever asked; the long Changed and Kept chips wrap; "Couldn't prepare this branch"; a quiet note when removed. It shows
   nobody's position and no part number.
 - `use-scenarios.ts`: `useScenarioBoard` polls the branches every 20 seconds (5 while one is preparing) and on focus or
   reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.

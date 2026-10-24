@@ -10,7 +10,10 @@ evidence: asking, choosing, being shown a card and opening a branch's Scroll are
 real-world coverage for anyone.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL. **Runtime-verified** means
-used on a running system. This module is **implemented**. It is not yet runtime-verified and is not running on dev.
+used on a running system. This module is **implemented** and **runtime-verified locally**: on 24 Oct, in a browser over a local
+PostgreSQL, API and worker with the real `MiniMax-M3.1-Flash` model, two people in a thread on a generated Scroll made a
+What if, an Another perspective (from a message) and a What if on top of the first. Each became an admitted Scroll both
+people opened, with no coverage and no topic. It is not running on dev.
 
 ## What a member can do
 
@@ -111,5 +114,7 @@ budgets for the Planner.
   or left member blocks a late result; hypothetical inheritance; a perspective keeps its assumptions;
   hypothetical Scrolls carry no coverage; audience; caps; the sweep; the Planner never sees a name),
   `account-deletion.test.ts` (erasure).
-- All of the above use a labelled fixture model and production worker. Runtime evidence with the real model
-  is in the pull request for #244, not here.
+- All of the above use a labelled fixture model and production worker.
+- Runtime, real model: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
+  first take was rejected as `OUTPUT_SCHEMA_MISMATCH` and the sweep sent take 2, which published). Screenshots and numbers
+  are in the pull request for #244.

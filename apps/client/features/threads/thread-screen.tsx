@@ -25,7 +25,6 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
-import { MessageMenu } from '../scenarios/message-menu';
 import { ScenarioSheet, type ScenarioStart } from '../scenarios/scenario-sheet';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
 import { EpisodeNavigator } from './episode-navigator';
@@ -113,9 +112,12 @@ function ReadyThread({
   const [moment, setMoment] = useState<ShareableMoment>();
   const board = useScenarioBoard(scope, thread);
   const [start, setStart] = useState<ScenarioStart>();
-  const [menuFor, setMenuFor] = useState<AvailableMessage>();
   const positionRef = useRef<ReelPositionHandle>(null);
-  const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length));
+  const {
+    ref: scrollRef,
+    onScroll,
+    follow,
+  } = useFollowEnd(`${String(state.messages.length)}:${String(board.state.cards.length)}`);
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));
@@ -137,11 +139,13 @@ function ReadyThread({
           fromLabel: 'the whole thread',
           parent: { kind: 'root', assetRevision: rootRevision },
         });
-  const askFromMessage = (message: AvailableMessage, kind: ScenarioKind) => {
+  /** From a message's menu (no kind yet: the sheet asks) or straight from a snippet card's What if…. */
+  const askFromMessage = (message: AvailableMessage, kind?: ScenarioKind) => {
     if (rootRevision === undefined) return;
-    setMenuFor(undefined);
     setStart({
-      kind,
+      ...(kind === undefined
+        ? { quote: { authorName: message.author.displayName, preview: previewOf(message) } }
+        : { kind }),
       origin: { kind: 'message', messageId: message.messageId },
       fromLabel:
         message.body.kind === 'snippet' ? 'a shared moment or passage' : `${message.author.displayName}’s message`,
@@ -212,7 +216,7 @@ function ReadyThread({
         onOpenBranch={openBranch}
         onContinueBranch={continueBranch}
         onRemoveBranch={(card) => void board.controller.remove(card)}
-        onMessageMenu={setMenuFor}
+        onMessageMenu={askFromMessage}
         onAsk={askFromMessage}
       />
       <View style={styles.asks} accessibilityLabel="Explore other possibilities">
@@ -268,14 +272,13 @@ function ReadyThread({
         scope={scope}
         thread={thread}
         onClose={() => setStart(undefined)}
-        onChosen={() => void board.controller.load()}
-      />
-      <MessageMenu
-        visible={menuFor !== undefined}
-        authorName={menuFor?.author.displayName ?? ''}
-        preview={menuFor === undefined ? '' : previewOf(menuFor)}
-        onAsk={(kind) => menuFor !== undefined && askFromMessage(menuFor, kind)}
-        onClose={() => setMenuFor(undefined)}
+        onChosen={() => {
+          follow();
+          // The new card is below the fold: show it once the branches are read and laid out.
+          void board.controller.load().then(() => {
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 150);
+          });
+        }}
       />
       <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />
       <OptionsSheet

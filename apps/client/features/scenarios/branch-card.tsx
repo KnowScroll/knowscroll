@@ -160,9 +160,11 @@ const styles = StyleSheet.create({
   kicker: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], flexWrap: 'wrap' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   chip: {
+    maxWidth: '100%',
+    flexShrink: 1,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1],
-    borderRadius: radius.pill,
+    borderRadius: radius.card,
     borderWidth: borderWidth.light,
   },
   changed: { borderStyle: 'dashed', borderColor: status.hypothetical.edge, backgroundColor: content.paper },

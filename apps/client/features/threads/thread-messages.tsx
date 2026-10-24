@@ -75,6 +75,7 @@ function dividedByDay(entries: readonly Entry[]): Group[] {
 
 /** Where a branch began, in words: the whole thread, a shared moment or passage, or someone's message. */
 function startedLine(card: ScenarioCard, messages: readonly ThreadMessage[]): string {
+  if (card.parentNodeId !== undefined) return 'from another branch';
   if (card.origin === 'root' || card.originMessageId === undefined) return 'from the thread';
   if (card.origin === 'snippet') return 'from a shared moment or passage';
   const message = messages.find((candidate) => candidate.messageId === card.originMessageId);
