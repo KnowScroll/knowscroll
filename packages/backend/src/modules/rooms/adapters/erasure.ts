@@ -26,6 +26,8 @@ const LIFECYCLE = {
   'rooms.messages': 'the account authored messages become tombstones',
   'rooms.message_snippets': 'deleted with the author tombstoned message',
   'rooms.ai_requests': 'the asker link is cleared; a contribution stays with the room',
+  'rooms.activities': 'the creator link is cleared; the poll or quiz stays with the room',
+  'rooms.poll_votes': 'the account votes are deleted',
 } as const;
 
 /** Ends the asks of this universe's account that are still queued: their job is being erased. */
@@ -69,6 +71,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'messages', ownerColumn: 'author_account_id' },
     { schema: 'rooms', table: 'message_snippets', ownerColumn: 'message_id' },
     { schema: 'rooms', table: 'ai_requests', ownerColumn: 'requested_by_account_id' },
+    { schema: 'rooms', table: 'activities', ownerColumn: 'created_by_account_id' },
+    { schema: 'rooms', table: 'poll_votes', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -77,6 +81,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'discussions', column: 'started_by_account_id' },
     { schema: 'rooms', table: 'messages', column: 'author_account_id' },
     { schema: 'rooms', table: 'ai_requests', column: 'requested_by_account_id' },
+    { schema: 'rooms', table: 'activities', column: 'created_by_account_id' },
+    { schema: 'rooms', table: 'poll_votes', column: 'account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -131,6 +137,11 @@ export const roomsErasure: ModuleErasure = declareErasure({
           settled_at = case when state = 'queued' then now() else settled_at end
         where requested_by_account_id = ${account}::uuid`.execute(trx),
     );
+    removed += count(await sql`delete from rooms.poll_votes where account_id = ${account}::uuid`.execute(trx));
+    removed += count(
+      await sql`update rooms.activities set created_by_account_id = null
+        where created_by_account_id = ${account}::uuid`.execute(trx),
+    );
     removed += count(
       await sql`delete from rooms.invitations
         where invitee_account_id = ${account}::uuid or inviter_account_id = ${account}::uuid`.execute(trx),
@@ -164,7 +175,15 @@ const SHARED_WORDS = 'a Reel or Scroll';
 function exportRooms(declaration: ModuleErasure): ModuleExport {
   return exportReading(
     declaration,
-    ['rooms.members', 'rooms.discussions', 'rooms.messages', 'rooms.message_snippets', 'rooms.ai_requests'],
+    [
+      'rooms.members',
+      'rooms.discussions',
+      'rooms.messages',
+      'rooms.message_snippets',
+      'rooms.ai_requests',
+      'rooms.activities',
+      'rooms.poll_votes',
+    ],
     'An invitation is a notice between two members and holds no words of the person; the job queue is delivery bookkeeping.',
     async (scope, person) => {
       const trx = transactionOf(scope);
@@ -191,10 +210,32 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         select count(*) as n from rooms.ai_requests where requested_by_account_id = ${person.accountId}::uuid`.execute(
         trx,
       );
+      const votes = await sql<{ room: string; question: string; choice: string | null; voted_at: Date }>`
+        select room.name as room, activity.title as question, vote.voted_at,
+          (select option ->> 'text' from jsonb_array_elements(activity.definition -> 'options') option
+            where option ->> 'id' = vote.option_id) as choice
+        from rooms.poll_votes vote
+        join rooms.activities activity on activity.activity_id = vote.activity_id
+        join rooms.rooms room on room.room_id = activity.room_id
+        where vote.account_id = ${person.accountId}::uuid
+        order by vote.voted_at desc limit 500`.execute(trx);
+      const startedActivities = await sql<{ room: string; title: string; kind: string; created_at: Date }>`
+        select room.name as room, activity.title, activity.kind, activity.created_at
+        from rooms.activities activity join rooms.rooms room on room.room_id = activity.room_id
+        where activity.created_by_account_id = ${person.accountId}::uuid
+        order by activity.created_at desc limit 500`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);
       const askCount = Number(asks.rows[0]?.n ?? 0);
       // A person who never took part in a room has no section: the file does not name the module.
-      if (rooms.rows.length === 0 && started.rows.length === 0 && messageCount === 0 && askCount === 0) return {};
+      if (
+        rooms.rows.length === 0 &&
+        started.rows.length === 0 &&
+        messageCount === 0 &&
+        askCount === 0 &&
+        votes.rows.length === 0 &&
+        startedActivities.rows.length === 0
+      )
+        return {};
       return {
         rooms: rooms.rows.map((row) => ({
           name: row.name,
@@ -220,6 +261,18 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
             : { room: row.room, sentAt: row.recorded_at.toISOString(), text: row.body_text },
         ),
         inhabitantAsks: askCount,
+        pollVotes: votes.rows.map((row) => ({
+          room: row.room,
+          question: row.question,
+          ...(row.choice === null ? {} : { choice: row.choice }),
+          votedAt: row.voted_at.toISOString(),
+        })),
+        activitiesStarted: startedActivities.rows.map((row) => ({
+          room: row.room,
+          title: row.title,
+          kind: row.kind,
+          startedAt: row.created_at.toISOString(),
+        })),
       };
     },
   );

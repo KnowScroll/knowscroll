@@ -157,4 +157,52 @@ export class RoomsController {
       value(await this.useCases.ask(this.authority(request), input)),
     );
   }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.stations)
+  stationsRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.stations).handler(async ({ input }) =>
+      value(await this.useCases.stations(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.activities)
+  activitiesRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.activities).handler(async ({ input }) =>
+      value(await this.useCases.activities(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.readActivity)
+  readActivityRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.readActivity).handler(async ({ input }) =>
+      value(await this.useCases.readActivity(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.createActivity)
+  createActivityRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.createActivity).handler(async ({ input }) =>
+      value(await this.useCases.createActivity(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.votePoll)
+  votePollRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.votePoll).handler(async ({ input }) =>
+      value(await this.useCases.votePoll(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.moderateActivity)
+  moderateActivityRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.moderateActivity).handler(async ({ input }) =>
+      value(await this.useCases.moderateActivity(this.authority(request), input)),
+    );
+  }
 }

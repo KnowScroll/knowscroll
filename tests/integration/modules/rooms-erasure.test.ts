@@ -16,12 +16,16 @@ import { clearRecordingPerson, recordingPerson } from '../support/recording-pers
 import {
   ask,
   joinRoom,
+  makeModerator,
+  readActivity,
   readDiscussion,
   roomWorld,
   say,
   seedRoom,
+  startPoll,
   startTopic,
   unwrap,
+  votePoll,
   type RoomWorld,
 } from '../support/rooms.js';
 import { seedFriend, type Friend } from '../support/talk.js';
@@ -181,6 +185,57 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     expect(changes.changes.map((change) => change.message.status)).toEqual(['unavailable', 'unavailable']);
     const roomView = unwrap(await world.rooms.read(staying.authority, { version, readId: randomUUID(), roomId }));
     expect(roomView.status).toBe('member');
+  });
+
+  it('deletes a voter’s votes and leaves a deleted moderator’s poll to the room', async () => {
+    const { roomId, slug } = await seedRoom(world);
+    const moderator = await namedPerson();
+    const voter = await namedPerson();
+    const staying = await seedFriend(world.db, world.friends);
+    for (const person of [moderator, voter, staying]) unwrap(await joinRoom(world, person, roomId));
+    await makeModerator(world, slug, moderator);
+    const { activityId } = unwrap(await startPoll(world, moderator, roomId, ['Batching', 'Instances']));
+    unwrap(await votePoll(world, voter, roomId, activityId, 'o1'));
+    unwrap(await votePoll(world, staying, roomId, activityId, 'o1'));
+
+    // The voter's export holds their own vote, with the words of the option they chose.
+    const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(voter.authority, (scope) =>
+      exportCurrentPerson(scope, { accountId: voter.accountId }),
+    );
+    if (exported.kind !== 'entered') throw new Error('export refused');
+    const section = JSON.stringify(exported.value.sections['rooms']);
+    expect(section).toContain('"choice":"Batching"');
+    expect(section).toContain('At 10x requests, what would you try first?');
+
+    const erase = async (person: Friend) => {
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+    };
+    await erase(voter);
+    expect(await countOf('rooms.poll_votes', 'account_id', voter.accountId)).toBe(0);
+    let view = await readActivity(world, staying, roomId, activityId);
+    if (view.status !== 'ready' || view.activity.kind !== 'poll') throw new Error('expected a poll');
+    expect(view.activity.options.map((option) => option.votes)).toEqual([1, 0]);
+
+    // Deleting the moderator clears the creator link; the poll stays open and countable for the others.
+    await erase(moderator);
+    expect(await countOf('rooms.activities', 'created_by_account_id', moderator.accountId)).toBe(0);
+    expect(
+      await world.db
+        .selectFrom('rooms.activities')
+        .select('activity_id')
+        .where('activity_id', '=', activityId)
+        .execute(),
+    ).toHaveLength(1);
+    unwrap(await votePoll(world, staying, roomId, activityId, 'o2'));
+    view = await readActivity(world, staying, roomId, activityId);
+    if (view.status !== 'ready' || view.activity.kind !== 'poll') throw new Error('expected a poll');
+    expect(view.activity.options.map((option) => option.votes)).toEqual([0, 1]);
   });
 
   it('keeps the room through a Clear and cancels only the asks that were waiting', async () => {

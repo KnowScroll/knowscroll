@@ -160,6 +160,35 @@ export const roomStore: RoomStore = {
     return rows.rows.map((row) => ({ room: roomOf(row), standing: row.standing }));
   },
 
+  async forTopics(scope, accountId, topics) {
+    if (topics.length === 0) return [];
+    const wanted = new Set(topics.map((topic) => `${topic.kind}:${topic.id}`));
+    const ids = [...new Set(topics.map((topic) => topic.id))];
+    const rows = await sql<RoomColumns & { standing: 'member' | 'moderator' | 'invited' | 'none' }>`
+      select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
+        room.join_rule, room.status, room.inhabitants,
+        case
+          when member.role = 'moderator' then 'moderator'
+          when member.account_id is not null then 'member'
+          when exists (
+            select 1 from rooms.invitations invitation
+            join rooms.members inviter on inviter.room_id = invitation.room_id
+              and inviter.account_id = invitation.inviter_account_id and inviter.ended_at is null
+            where invitation.room_id = room.room_id and invitation.invitee_account_id = ${accountId}::uuid
+          ) then 'invited'
+          else 'none'
+        end as standing
+      from rooms.rooms room
+      left join rooms.members member on member.room_id = room.room_id
+        and member.account_id = ${accountId}::uuid and member.ended_at is null
+      where room.status <> 'closed' and room.topic_id = any(${ids}::text[])
+      order by room.name, room.room_id
+      limit 100`.execute(transactionOf(scope));
+    return rows.rows
+      .filter((row) => wanted.has(`${row.topic_kind}:${row.topic_id}`))
+      .map((row) => ({ room: roomOf(row), standing: row.standing }));
+  },
+
   async join(lock, accountId, now) {
     const trx = sharedTransactionOf(lock.shared);
     const joined = await trx

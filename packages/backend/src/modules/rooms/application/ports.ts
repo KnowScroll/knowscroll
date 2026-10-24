@@ -7,7 +7,9 @@ import type {
   ValidateSnippetAnchor,
 } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
+import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
+import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 
@@ -73,6 +75,12 @@ export interface RoomListRow {
   readonly standing: 'member' | 'moderator' | 'invited';
 }
 
+/** A room on the caller's map: where the caller stands in it (`none` for an outsider). */
+export interface RoomStationRow {
+  readonly room: RoomRow;
+  readonly standing: 'member' | 'moderator' | 'invited' | 'none';
+}
+
 export interface ReceiptKey {
   readonly commandId: string;
   readonly operation: string;
@@ -97,6 +105,15 @@ export interface RoomStore {
   memberOf(lock: RoomLock, accountId: string): Promise<MemberRow | undefined>;
   /** The caller's open rooms and open invitations, newest first. */
   listFor(scope: PersonalScopeTx, accountId: string): Promise<readonly RoomListRow[]>;
+  /**
+   * The rooms of these topics that are not closed, with the caller's standing in each, ordered by name.
+   * An unlocked read of rows that change rarely; it shows no member, count or activity.
+   */
+  forTopics(
+    scope: PersonalScopeTx,
+    accountId: string,
+    topics: readonly { readonly kind: 'system' | 'planet'; readonly id: string }[],
+  ): Promise<readonly RoomStationRow[]>;
   join(lock: RoomLock, accountId: string, now: Date): Promise<RoomRole>;
   end(lock: RoomLock, accountId: string, by: 'left' | 'removed', now: Date): Promise<void>;
   invite(lock: RoomLock, input: { inviteeAccountId: string; inviterAccountId: string; now: Date }): Promise<void>;
@@ -275,6 +292,60 @@ export interface AiStore {
   forJob(scope: PersonalScopeTx, requestId: string): Promise<AiRequestRow | undefined>;
 }
 
+// --- Optional room activity (R03) ---------------------------------------------------------
+
+export interface ActivityRow {
+  readonly activityId: string;
+  readonly roomId: string;
+  readonly kind: ActivityKind;
+  readonly title: string;
+  /** The stored definition as written; the use case checks its shape before serving it. */
+  readonly definition: StoredDefinition;
+  readonly state: ActivityState;
+  readonly createdAt: Date;
+}
+
+export interface NewActivityRow {
+  readonly activityId: string;
+  readonly kind: ActivityKind;
+  readonly title: string;
+  readonly definition: StoredDefinition;
+  readonly createdByAccountId: string;
+  readonly now: Date;
+}
+
+/** One option's votes: the exact count and the first voters, by account. */
+export interface OptionTally {
+  readonly optionId: string;
+  readonly votes: number;
+  readonly voterAccountIds: readonly string[];
+}
+
+/**
+ * Polls and quizzes of a room. Every method is one explicit query or write inside the room's lock; none
+ * decides access. A quiz stores nothing about anyone who reads it.
+ */
+export interface ActivityStore {
+  /** Activities in any state but `removed`, open first and then newest first, with whether the caller voted. */
+  list(
+    lock: RoomLock,
+    accountId: string,
+    limit: number,
+  ): Promise<readonly { readonly row: ActivityRow; readonly voted: boolean }[]>;
+  /** One activity by ID in this room, in any state (a removed one is still found so a moderator's retry is exact). */
+  load(lock: RoomLock, activityId: string, rowLock: 'none' | 'share' | 'update'): Promise<ActivityRow | undefined>;
+  create(lock: RoomLock, activity: NewActivityRow): Promise<void>;
+  setState(lock: RoomLock, activityId: string, state: 'closed' | 'removed', now: Date): Promise<void>;
+  /** Activities of this room that are open now. */
+  openCount(lock: RoomLock): Promise<number>;
+  /** Activities started in this room since `since`, in any state. */
+  startedSince(lock: RoomLock, since: Date): Promise<number>;
+  /** Records or replaces the person's vote. */
+  vote(lock: RoomLock, activityId: string, accountId: string, optionId: string, now: Date): Promise<void>;
+  yourVote(lock: RoomLock, activityId: string, accountId: string): Promise<string | undefined>;
+  tally(lock: RoomLock, activityId: string, votersPerOption: number): Promise<readonly OptionTally[]>;
+}
+
 // --- What the application needs from outside ----------------------------------------------
 
 /** A person the caller can name: a public profile, by account. */
@@ -302,6 +373,7 @@ export interface RoomPorts {
   readonly rooms: RoomStore;
   readonly discussions: DiscussionStore;
   readonly ai: AiStore;
+  readonly activities: ActivityStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
   readonly readContent: ReadContent;
@@ -309,6 +381,8 @@ export interface RoomPorts {
   readonly readVisited: ReadVisitedAssets;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
+  /** The caller's own map, to place stations beside the systems it holds. */
+  readonly readGeography: ReadGeographySceneInput;
   newId(): string;
   hash(operation: string, input: unknown): string;
   now(): Date;

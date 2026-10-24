@@ -14,6 +14,7 @@ import {
   type ValidateSnippetAnchor,
 } from '../../content/public.js';
 import { READ_VISITED_ASSETS, type ReadVisitedAssets } from '../../experience/public.js';
+import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
   FENCE_OWN_ACCOUNT,
@@ -27,6 +28,7 @@ import {
   type ReadFriendAccounts,
   type ReadPublicPeople,
 } from '../../social/public.js';
+import { makeActivities } from '../application/activities.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
 import { makeDiscussionCommands } from '../application/discussion-commands.js';
 import { makeDiscussionReads } from '../application/discussion-reads.js';
@@ -34,8 +36,10 @@ import { makeInhabitantCommands } from '../application/inhabitant-commands.js';
 import type { RoomPorts } from '../application/ports.js';
 import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
+import { makeStationReads } from '../application/stations.js';
 import { contributeQueue } from '../events.js';
 import { CONTRIBUTE_AS_INHABITANT, ROOM_USE_CASES, type ContributeAsInhabitant, type RoomUseCases } from '../public.js';
+import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
@@ -51,6 +55,8 @@ export interface RoomsDeps {
   readonly readVisited: ReadVisitedAssets;
   readonly validateSnippet: ValidateSnippetAnchor;
   readonly resolveSnippet: ResolveSnippetAnchor;
+  /** The caller's own map, for stations; the worker never reads stations. */
+  readonly readGeography?: ReadGeographySceneInput;
   /** Only the API enqueues the ask job; the worker consumes it and never sends one. */
   readonly enqueue?: EnqueueJob;
   readonly now?: () => Date;
@@ -65,6 +71,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     rooms: roomStore,
     discussions: discussionStore,
     ai: aiStore,
+    activities: activityStore,
     people: {
       async byAccounts(scope, accountIds) {
         const people = await deps.readPeople(scope, { accountIds });
@@ -92,6 +99,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     readVisited: deps.readVisited,
     validateSnippet: deps.validateSnippet,
     resolveSnippet: deps.resolveSnippet,
+    readGeography: deps.readGeography ?? (() => Promise.resolve({ kind: 'refused' as const })),
     newId: deps.newId ?? uuidv7,
     hash: (operation, input) => requestHash(operation, input as CanonicalJson),
     now: deps.now ?? (() => new Date()),
@@ -116,6 +124,8 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeDiscussionCommands(ports),
     ...makeDiscussionReads(ports),
     ...makeInhabitantCommands(ports),
+    ...makeStationReads(ports),
+    ...makeActivities(ports),
   };
 }
 
@@ -148,6 +158,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         READ_VISITED_ASSETS,
         VALIDATE_SNIPPET_ANCHOR,
         RESOLVE_SNIPPET_ANCHOR,
+        READ_GEOGRAPHY_SCENE_INPUT,
         tokens.enqueueJob,
       ],
       useFactory: (
@@ -160,6 +171,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
         readVisited: ReadVisitedAssets,
         validateSnippet: ValidateSnippetAnchor,
         resolveSnippet: ResolveSnippetAnchor,
+        readGeography: ReadGeographySceneInput,
         enqueue: EnqueueJob,
       ) =>
         roomUseCases({
@@ -172,6 +184,7 @@ export function roomsProviders(tokens: { readonly withPersonalScope: symbol; rea
           readVisited,
           validateSnippet,
           resolveSnippet,
+          readGeography,
           enqueue,
         }),
     },

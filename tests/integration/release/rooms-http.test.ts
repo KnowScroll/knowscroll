@@ -10,6 +10,7 @@ import { createEmptyDatabase } from '../support/empty-database.js';
 import { seedKeepSessions } from '../support/keep-fixture.js';
 import { freePort, startReleaseProcess, waitForHttp, type ReleaseProcess } from '../support/processes.js';
 import { seedFriends, talkCases, type Friend } from '../support/talk.js';
+import { seedAuthoredGeography } from '../support/visit-world.js';
 
 const version = 'rooms.v1' as const;
 const messageCanary = 'PRIVATE-ROOM-MESSAGE-CANARY';
@@ -134,6 +135,41 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
     const room = await clientOf(b).rooms.read({ version, readId: randomUUID(), roomId });
     if (room.status !== 'member') throw new Error('CI room view');
     expect(room.discussions[0]).toMatchObject({ discussionId: started.discussionId, pinned: true });
+  });
+
+  it('places a station beside the system of the person’s own map, and runs a poll to its close', async () => {
+    // The room's station: only on a map that holds its system; a person with no map has none.
+    expect(await clientOf(b).rooms.stations({ version, readId: randomUUID() })).toMatchObject({ stations: [] });
+    const seeded = await seedAuthoredGeography(db.db, b, [{ conceptId: slug, label: 'Machine learning', planets: [] }]);
+    const stations = await clientOf(b).rooms.stations({ version, readId: randomUUID() });
+    expect(stations.stations).toMatchObject([
+      { room: { roomId }, standing: 'member', placement: { systemId: seeded.systems[0]?.id } },
+    ]);
+
+    // A moderator's poll: members vote, change their mind, and the moderator closes it.
+    const created = await clientOf(a).rooms.createActivity({
+      version,
+      commandId: randomUUID(),
+      roomId,
+      activity: { kind: 'poll', prompt: 'Which first?', options: ['Batching', 'More instances'] },
+    });
+    const ids = { roomId, activityId: created.activityId };
+    await clientOf(b).rooms.votePoll({ version, commandId: randomUUID(), ...ids, optionId: 'o1' });
+    await clientOf(b).rooms.votePoll({ version, commandId: randomUUID(), ...ids, optionId: 'o2' });
+    const open = await clientOf(a).rooms.readActivity({ version, readId: randomUUID(), ...ids });
+    if (open.status !== 'ready' || open.activity.kind !== 'poll') throw new Error('CI poll view');
+    expect(open.activity.options.map((option) => option.votes)).toEqual([0, 1]);
+    await clientOf(a).rooms.moderateActivity({ version, commandId: randomUUID(), ...ids, action: 'close' });
+    const refused = await fetch(origin + '/v1/rooms/activities/vote', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${b.tokens.native}`,
+        'x-ks-scope': `${b.accountId}:1`,
+      },
+      body: JSON.stringify({ version, commandId: randomUUID(), ...ids, optionId: 'o1' }),
+    });
+    expect(SocialProblemSchema.parse(await refused.json()).code).toBe('SHARING_UNAVAILABLE');
   });
 
   it('answers a stranger in one shape and refuses an unauthenticated caller', async () => {
