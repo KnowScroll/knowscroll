@@ -64,6 +64,7 @@ describe('route map', () => {
         '/signin',
         '/signin/link',
         '/threads/[threadId]',
+        '/threads/[threadId]/b/[nodeId]',
         '/threads/[threadId]/read/[assetId]',
         '/threads/[threadId]/snippet/[messageId]',
         '/universe',
