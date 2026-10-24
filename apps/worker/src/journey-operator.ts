@@ -58,7 +58,7 @@ export async function journeyCommand(argv: readonly string[], print: Print, logE
       }
       const outcome = await readJourneyFor(database.db)(journeyId);
       logEvent('operator.read', {
-        route: 'cli.journey',
+        route: '/cli/journey',
         outcome: outcome.kind,
         ...(outcome.kind === 'found' ? { count: outcome.journey.steps.length } : {}),
       });
