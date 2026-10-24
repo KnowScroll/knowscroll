@@ -210,3 +210,9 @@ bounds its full state labels to the parent width and permits wrapping while pres
 
 Web visibility observes the video stage itself, excluding the wrapping controls from its half-visible
 threshold. A short-page height cap changes geometry only; the SDK/source/playhead remain mounted.
+
+### RowLink (#242)
+
+`RowLink` is one list row that is a link to a destination (Talk's conversations). It is at least 48 px tall, shows
+the focus ring on paper and, with `href`, is a real `<a>` on the web (Enter, middle-click, new tab). `label` is its
+whole accessible name. It draws no content of its own; the caller supplies the row.

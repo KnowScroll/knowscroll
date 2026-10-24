@@ -430,6 +430,27 @@ short, and keeps every money rule.
   that branch (it is held, not refused, when the record and result disagree). Run ids must be UUIDs, as
   every real run has been.
 
+## D-042 · 2026-10-24 · Conversations and share links (#242)
+
+Choices where blueprint §14 and §17 and the C01, C02, H01 and H02 artboards leave room:
+
+- **Two people per conversation.** This slice builds direct conversations only. Group threads come with "Explore with friends" (#243), which the share sheet already has a clean place for: it shows the option only when the caller passes a handler.
+- **A conversation lives as long as the friendship.** A conversation is tied to the friendship's lineage. Remove and Block end it for both people with no answer that says why. After a person leaves, the other keeps the history, sees "This conversation has ended" and cannot send (`ended` on the snapshot, the inbox row and the changes page).
+- **A conversation shows in Talk once it has a message.** Starting one is silent. Sending a Reel or Scroll starts it if needed.
+- **One lock, in the usual order.** A command takes the personal root, then both accounts' fences, then the friendship row, then the conversation rows. Counters (`last_sequence`, `last_change_sequence`) are incremented in SQL, so deleting an account can tombstone its messages without taking the friendship lock.
+- **Receipts as friends do.** Conversation commands use shared receipts keyed by the friendship. The same command id and body replays the same answer; a retry after an unknown outcome reuses the same id. A card names an exact asset revision, and a withdrawn or unavailable asset cannot be sent.
+- **Live in two layers.** A committed message, read or leave bumps `social.inbox_heads` for each member and sends one NOTIFY with the scope `inbox`, named by the person's own universe id. The socket is a hint. The client then reads the changes page from its cursor, so a missed hint costs nothing. Talk also polls every 30 s and refreshes on focus.
+- **Stateless cursors.** Inbox, history and changes cursors are base64url of a version, a number and an id. They are not signed, because each is only a position, and every read still checks that the caller is a member. The Friends roster cursor used a process-random AES key, so it died on restart and could not work across instances. It is now the same kind of plain keyset record (filter, limit, account, universe, epoch, head revision, last person), checked against the caller on use.
+- **Share links last 30 days.** A link names an exact asset revision. Only the SHA-256 of its token is stored. The token is returned once with the first answer. If that answer is lost, the retry says `unavailable`; the person stops that link and makes a new one. A link has an audience: public (anyone with the link sees public metadata) or one conversation (only its members).
+- **The landing is a page from the API.** `GET /s/<token>` returns HTML with no script, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`, `X-Robots-Tag: noindex` and a strict CSP. D-008 already sends `/s/*` to the API, so the edge needs no change. A person who is signed in sees "Reply in Talk" for a conversation link. A native deep link and a React Native `/s/[token]` screen wait for the native work.
+- **Unavailable looks the same.** Unknown, revoked, expired, withdrawn and "private to you" all show "This link is no longer available", name nobody and answer 200 on the same page (D-006 h). The preview shows only public metadata (title, kind, summary). It never shows who shared it, a note or private reading state.
+- **No typing indicator.** It would be a private behaviour signal for little value. Read state stays private: each person's `read_through_sequence` is theirs, and the other person sees only "Sent".
+- **Receiving is not reading.** Sending, receiving, opening a card and following a link add no exposure, observation, Keep or evidence row. A card's "Open Reel" starts an ordinary encounter.
+- **Deleted accounts (D-043).** `eraseAccount` deletes the person's share links, tombstones their messages with new change sequences and closes their conversations. The friendship row goes, so `conversations.pair_id` is nullable (`on delete set null`). The other person reads the closed conversation through their own scope, without a friendship lock, and sees "Deleted account" (`DELETED_ACCOUNT_LABEL`). Their own receipts apply. Export lists the person's own words, their shared links without tokens, and counts.
+- **Clear keeps conversations.** Clear exploration is about what a person explored. It never removes messages, cards or share links.
+- **Share is a sheet, not a screen.** The share sheet pauses playback while it is open and restores it, and is never in Back history (D-006 k). Copy link creates a public link the first time and offers "Stop sharing this link". P02 lists every live link with a Stop button.
+- **Not built:** group threads, a Report entry (P03), moderator and AI participants, read receipts, message edit and delete, a "new message" button in Talk, starting a conversation from a friend's row, a native `/s` deep link and Open Graph previews for private links.
+
 ## D-043 · 2026-10-24 · Account deletion, export and sessions (#246)
 
 Choices where the blueprint (§5, §19, §26) and the P01, P02 and D05 artboards leave room:

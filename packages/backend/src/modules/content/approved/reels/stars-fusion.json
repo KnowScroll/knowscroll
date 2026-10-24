@@ -80,25 +80,25 @@
       "mustShow": [
         {
           "id": "show-yellow-star",
-          "text": "a single bright yellow star glowing steadily in black space",
+          "text": "a bright yellow star filling most of the frame, its surface glowing and slowly churning",
           "type": "presence",
           "claimId": "c1"
         },
         {
           "id": "show-hot-gas",
-          "text": "a ball of glowing gas with a white-hot centre, filling the frame, in black space",
+          "text": "a ball of glowing gas with a white-hot centre filling the frame, swirling slowly",
           "type": "presence",
           "claimId": "c2"
         },
         {
           "id": "show-blue-star",
-          "text": "a single large blue-white star blazing in black space",
+          "text": "a large blue-white star filling most of the frame, blazing and flaring",
           "type": "presence",
           "claimId": "c3"
         },
         {
           "id": "show-red-star",
-          "text": "a single small dim red star glowing quietly in black space",
+          "text": "a red star filling most of the frame, glowing warm orange-red with a slowly swirling surface",
           "type": "presence",
           "claimId": "c4"
         }
@@ -119,8 +119,8 @@
     },
     "style": {
       "id": "style-knowscroll-space",
-      "version": 1,
-      "text": "realistic deep-space photography, high contrast, natural starlight, steady camera"
+      "version": 2,
+      "text": "bright, well-exposed space imagery like a planetarium film: the subject is large, lit and moving from the first frame, warm glowing colours, slow continuous camera drift, no fade in from black"
     },
     "title": "A star in balance",
     "summary": "Why a star neither collapses nor blows apart: gravity squeezing in, fusion pushing out, and why heavier stars burn out sooner."

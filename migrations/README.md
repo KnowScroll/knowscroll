@@ -139,6 +139,23 @@ SHA-256 of a one-time token). `identity.sessions` gains `device_label` and `last
 additive, so an older process neither writes `deleting` nor reads the new columns. Apply with the new binary:
 a deployment without the worker's `identity.delete-account` consumer would leave deletions pending.
 
+0056 adds conversations and share links to the `social` schema (#242, D-042). It creates `conversations`,
+`conversation_members`, `messages`, `inbox_heads` and `content_shares`; nothing existing is altered, so an
+older process simply never touches them.
+
+- `conversations`: one open conversation per friendship lineage (`pair_id`, `lineage`); `pair_id` is nullable
+  with `on delete set null`, so a deleted friend leaves the conversation readable and closed (D-043).
+  `last_sequence` and `last_change_sequence` are counters that only grow.
+- `messages`: primary key `(conversation_id, sequence)`. A check allows exactly three shapes: text, a card for an
+  exact `(asset_id, asset_revision)` in `content.asset_revisions`, or a tombstone with no author. A partial
+  unique index on `(conversation_id, author_account_id, command_id)` makes a send idempotent.
+- `inbox_heads`: one revision per member, bumped inside the friendship lock for the Talk hint.
+- `content_shares`: only `token_hash` is stored (unique); `expires_at` and `revoked_at` decide availability.
+- Erasure: every table is in the Social inventory (`adapters/erasure.ts`): account deletion deletes links,
+  tombstones messages and closes conversations; exploration Clear keeps them all.
+
+Apply with the new binary. 0055 (#246) runs first; 0056 only needs the earlier Social tables (0028, 0040).
+
 0057 creates the `ops` views (#248, D-044): allowlisted columns over the owners' tables, `ops.safe_code`, and the journey
 view. Views only; no data. The views over pg-boss and the read-only role's grants are not here: `migrate.js` builds them
 after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.ts`).

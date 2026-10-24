@@ -250,14 +250,7 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
       'UNSUPPORTED_MEDIA_TYPE',
     );
     await problem(await post(root + 'profile', { [canary]: 'x'.repeat(5000) }, headers(p)), 'PAYLOAD_TOO_LARGE');
-    for (const route of [
-      'friends/read',
-      'requests/read',
-      'visibility',
-      'conversations/start',
-      'content-shares/create',
-      'visits/read',
-    ]) {
+    for (const route of ['friends/read', 'requests/read', 'visibility', 'conversations/typing', 'visits/read']) {
       const response = await post(root + route, {}, headers(p));
       expect(response.status).toBe(404);
     }
@@ -479,7 +472,7 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
       expect(await socialRows()).toEqual(before);
     },
   );
-  it('mounts private versioned pages and revocable links; restart recovers receipts without re-delivering a secret', async () => {
+  it('mounts private versioned pages and revocable links; restart recovers receipts and cursors without re-delivering a secret', async () => {
     const before = await nonEvidence(),
       a = await person(),
       b = await person(),
@@ -527,10 +520,12 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
       delivery: { status: 'unavailable' },
     });
     expect(await socialRows()).toEqual(beforeRestart);
-    await problem(
-      await post(root + 'requests/page', { ...read, requestId: randomUUID(), cursor: page.next }, headers(b)),
-      'SHARING_UNAVAILABLE',
+    // A roster cursor holds no key: after a restart it continues the same traversal.
+    const continued = FriendPagesPageSchema.parse(
+      await ok(await post(root + 'requests/page', { ...read, requestId: randomUUID(), cursor: page.next }, headers(b))),
     );
+    expect(continued.items).toHaveLength(1);
+    expect(continued.items[0]?.peer.personId).not.toBe(page.items[0]?.peer.personId);
     const refresh = FriendPagesPageSchema.parse(
       await ok(await post(root + 'requests/page', { ...read, requestId: randomUUID(), limit: 50 }, headers(b))),
     );

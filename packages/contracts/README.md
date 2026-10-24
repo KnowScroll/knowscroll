@@ -1253,3 +1253,16 @@ strict public/private injection, unknown-send ambiguity, scope/incarnation/read 
 getter/secret canaries and converter-produced OpenAPI/problem metadata. Behavioral suites run
 only in Actions. No consumer, schema migration, lifecycle registry compatibility, export/deletion,
 shared-data policy, runtime deployment or account data mutation is implemented by these additions.
+
+## Conversations and share links, as mounted (#242, D-042)
+
+The declarations above are now served. Changes made with that slice:
+
+- `socket.ts`: `SCOPE_KINDS` is `universe` and `inbox`. The inbox scope is named by the caller's own universe ID.
+- `conversations.ts`: the inbox, history and changes cursor patterns accept 22 to 1024 characters, because the
+  server's cursors are short keyset tokens. The inbox summary, the snapshot and the changes page carry an optional
+  `ended: true` when the conversation is closed.
+- `content-shares.ts`: new `contentShares.list` (`POST /v1/social/content-shares/list`) returns the caller's live
+  links (at most 50: share ID, target, audience, creation and expiry time, content projection). It never returns a
+  token; the token is delivered once by `create`.
+- `openapi.test.ts` counts `list` as an additive declaration.

@@ -156,7 +156,7 @@ export function PrivacyScreen() {
 }
 
 /** One control on a page of its own (phones and tablets), back to the hub. */
-function SubPage({ title, children }: { readonly title: string; readonly children: ReactNode }) {
+export function SubPage({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   const router = useRouter();
   const desktop = useOnePage();
   if (desktop) return <Redirect href="/account/privacy" />;

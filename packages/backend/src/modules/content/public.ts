@@ -7,6 +7,8 @@
  * Content is shared, not personal. Reads use the caller transaction; admission writes require
  * an operator-owned admission capability and never record who consumed content.
  */
+import type { z } from 'zod';
+import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
@@ -290,6 +292,31 @@ export type LockRegionEncounterCandidates = (
 ) => Promise<boolean>;
 export const READ_REGION_ENCOUNTER_CANDIDATES = Symbol('content.readRegionEncounterCandidates');
 export const LOCK_REGION_ENCOUNTER_CANDIDATES = Symbol('content.lockRegionEncounterCandidates');
+
+/** One exact content revision, as a message card or share link names it. */
+export interface ContentRef {
+  readonly assetId: string;
+  readonly assetRevision: number;
+}
+
+/** What a card or link shows of one exact revision: available, corrected (original ref kept) or unavailable. */
+export type ShareableContent = z.infer<typeof ConversationContentProjectionSchema>;
+
+/**
+ * Port: public metadata of exact revisions (at most 100), read inside the caller's personal
+ * transaction (a pair-locked shared scope carries one too). Gives each ref `available`,
+ * `corrected` (original ref kept, current revision's metadata attached) or `unavailable`. It
+ * decides nothing about who may see a card.
+ */
+export type ReadShareableContent = (
+  scope: PersonalScopeTx,
+  refs: readonly ContentRef[],
+) => Promise<readonly ShareableContent[]>;
+export const READ_SHAREABLE_CONTENT = Symbol('content.readShareableContent');
+
+/** The same read for a visitor with no account: shared content only, outside any transaction. */
+export type ReadPublicContent = (refs: readonly ContentRef[]) => Promise<readonly ShareableContent[]>;
+export const READ_PUBLIC_CONTENT = Symbol('content.readPublicContent');
 
 /** Minimized current immutable facts, bounded by canonical document validation. No rendering grant. */
 export type KeepPositionTarget =
