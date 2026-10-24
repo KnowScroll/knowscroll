@@ -21,6 +21,7 @@ type Pending = { [K in FriendsCommandOperation]: { operation: K; input: FriendsI
 const empty = (status: 'active' | 'ended', filter: FriendsFilter): FriendsState =>
   freezeFriends({
     status,
+    groups: {},
     filter,
     profile: { status: 'idle' },
     lookup: { status: 'idle' },
@@ -173,7 +174,12 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       currentCursor = cursor;
       previous = history;
       // Published atomically with the ready page by read().
-      state = { ...state, canPrevious: previous.length > 0, canNext: !!reply.next };
+      state = {
+        ...state,
+        groups: { ...state.groups, [filter]: reply.items },
+        canPrevious: previous.length > 0,
+        canNext: !!reply.next,
+      };
     };
     if (filter === 'friends' || filter === 'blocked') await read('roster', 'friends', { ...input, filter }, apply);
     else await read('roster', 'requests', { ...input, filter }, apply);
@@ -218,9 +224,10 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       state.pair.data.status === 'available' &&
       sameFriendsId(state.pair.data.pair.peer.personId, body.peerPersonId)
         ? state.pair.data.pair
-        : state.roster.status === 'ready'
-          ? state.roster.data.items.find((p) => sameFriendsId(p.peer.personId, body.peerPersonId))
-          : undefined;
+        : [
+            ...(state.roster.status === 'ready' ? state.roster.data.items : []),
+            ...Object.values(state.groups).flat(),
+          ].find((p) => sameFriendsId(p.peer.personId, body.peerPersonId));
     if (!pair || pair.pairRevision !== body.expectedPairRevision) return false;
     if ('requestId' in body && (!('requestId' in pair) || !sameFriendsId(pair.requestId, body.requestId))) return false;
     return command.operation === 'accept' || command.operation === 'decline'
@@ -323,6 +330,9 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       resetPages();
       state = { ...state, filter };
       await page(undefined, []);
+    },
+    async readGroups() {
+      for (const filter of ['blocked', 'outgoing', 'incoming', 'friends'] as const) await session.selectFilter(filter);
     },
     refreshPage: () => page(undefined, []),
     async nextPage() {

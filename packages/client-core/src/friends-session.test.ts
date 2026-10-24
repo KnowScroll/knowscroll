@@ -586,6 +586,9 @@ function scanPair(filter: unknown, n = 0) {
         : {}),
   };
 }
+/** Each list holds a different person, as on the server: nobody is in two lists. */
+const listIndex = (input: Record<string, unknown>) =>
+  ['friends', 'outgoing', 'incoming', 'blocked'].indexOf(String(input.filter));
 describe('Friends v2 roster recovery session (authored fixtures)', () => {
   it('keeps empty scan continuations recoverable and performs one read per explicit Next', async () => {
     const h = fixture((_path, input) => {
@@ -611,6 +614,42 @@ describe('Friends v2 roster recovery session (authored fixtures)', () => {
     expect(h.calls).toHaveLength(3);
     expect(new Set(h.calls.map((c) => c.input.requestId)).size).toBe(3);
     expect(h.calls.every((c) => c.path === '/v1/social/friends/page')).toBe(true);
+    h.scope.end();
+  });
+  it('reads all four lists one after another for one list, ending on Friends so its paging stays live', async () => {
+    const h = fixture((_path, input) => scanPage(input, [scanPair(input.filter, listIndex(input))]));
+    await h.session.readGroups();
+    expect(h.calls.map((call) => call.input.filter)).toEqual(['blocked', 'outgoing', 'incoming', 'friends']);
+    const state = h.session.getState();
+    expect(Object.keys(state.groups).sort()).toEqual(['blocked', 'friends', 'incoming', 'outgoing']);
+    expect(state.groups.incoming).toEqual([scanPair('incoming', 2)]);
+    expect(state.filter).toBe('friends');
+    expect(state.roster).toMatchObject({ status: 'ready', data: { filter: 'friends' } });
+    h.scope.end();
+  });
+  it('lets a command bind a row from a list that is not the one being paged, and clears every list after it', async () => {
+    const h = fixture((path, input) =>
+      path.endsWith('/accept')
+        ? ack(input, 'friend.accept')
+        : scanPage(input, [scanPair(input.filter, listIndex(input))]),
+    );
+    await h.session.readGroups();
+    const incoming = scanPair('incoming', 2);
+    await h.session.command('accept', {
+      peerPersonId: incoming.peer.personId,
+      expectedPairRevision: incoming.pairRevision,
+      requestId: id(7),
+    });
+    expect(h.session.getState().command.status).toBe('accepted');
+    expect(h.session.getState().groups).toEqual({});
+    h.scope.end();
+  });
+  it('refuses a command for someone who is in none of the lists that were read', async () => {
+    const h = fixture((_path, input) => scanPage(input, [scanPair(input.filter)]));
+    await h.session.readGroups();
+    await h.session.command('block', { peerPersonId: id(999), expectedPairRevision: 2 });
+    expect(h.session.getState().command).toMatchObject({ status: 'rejected', reason: 'refresh_required' });
+    expect(h.calls.every((call) => call.path.endsWith('/page'))).toBe(true);
     h.scope.end();
   });
   it.each(['friends', 'incoming', 'outgoing', 'blocked'] as const)(

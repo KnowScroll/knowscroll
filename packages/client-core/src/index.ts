@@ -284,6 +284,8 @@ export type {
   FriendsCommandDraft,
   FriendsFilter,
   FriendsPage,
+  FriendsPair,
+  FriendsGroups,
   FriendsCursor,
   FriendsFailure,
   FriendsReadState,
