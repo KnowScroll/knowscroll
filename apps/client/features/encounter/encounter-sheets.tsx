@@ -133,6 +133,7 @@ function PathList({ state, session }: { readonly state: EncounterState; readonly
             accessibilityRole="button"
             accessibilityLabel={`${tag.label}: ${entry.offer.metadata.title}`}
             accessibilityState={{ selected: current, disabled: current }}
+            aria-disabled={current}
             aria-current={current ? 'step' : undefined}
             disabled={current}
             onPress={() => session.restore(entry.exposureId)}

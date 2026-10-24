@@ -77,7 +77,7 @@ function SettingsNav() {
   const { state } = useAccountScope();
   const focus = useFocusRing('onLight');
   return (
-    <View style={styles.nav} accessibilityRole="menu" accessibilityLabel="Settings">
+    <View style={styles.nav} role="navigation" aria-label="Settings">
       <Text variant="heading" heading={2}>
         Settings
       </Text>
@@ -86,7 +86,7 @@ function SettingsNav() {
           <Text variant="bodyS">Account</Text>
         </Pressable>
       </Link>
-      <View accessibilityState={{ selected: true }} style={[styles.navItem, styles.navCurrent]}>
+      <View aria-current="page" style={[styles.navItem, styles.navCurrent]}>
         <Text variant="bodyS" color={content.paper}>
           Privacy & history
         </Text>
@@ -106,7 +106,7 @@ function Desktop() {
     <View style={styles.desktop}>
       <SettingsNav />
       <View style={styles.cards}>
-        <Text variant="meta" color={content.ink2}>
+        <Text variant="meta" color={content.ink2} style={styles.lead}>
           Every action here says exactly what it changes, and reports done only when it is.
         </Text>
         <Card>
@@ -201,6 +201,9 @@ export function PrivacyDeleteScreen() {
   );
 }
 
+/** A card is at least this wide: two sit side by side from about 1280 px (D05), one fills a narrower page. */
+const CARD_MIN_WIDTH = 380;
+
 const styles = StyleSheet.create({
   page: { gap: spacing[1], paddingBottom: spacing[8] },
   note: { paddingTop: spacing[5] },
@@ -214,8 +217,12 @@ const styles = StyleSheet.create({
   },
   navCurrent: { backgroundColor: content.ink },
   navNote: { paddingTop: spacing[4] },
-  cards: { flex: 1, minWidth: 0, gap: spacing[4], maxWidth: 760 },
+  cards: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  lead: { flexBasis: '100%' },
   card: {
+    flexGrow: 1,
+    flexBasis: CARD_MIN_WIDTH,
+    minWidth: 0,
     gap: spacing[3],
     padding: spacing[5],
     borderWidth: borderWidth.regular,

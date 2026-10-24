@@ -113,8 +113,12 @@ function ActionGrid({ props, placement }: { props: EncounterActionsProps; placem
   );
 }
 
-/** The Reel's action rail: a column of on-media icon buttons with a word under each. */
-export function ActionRail(props: EncounterActionsProps) {
+/**
+ * The Reel's action rail: a column of icon buttons with a word under each. `media` (the default)
+ * draws them over the video; `paper` draws them beside a Reel card on the paper ground (D01).
+ */
+export function ActionRail(props: EncounterActionsProps & { readonly surface?: 'media' | 'paper' }) {
+  const onPaper = props.surface === 'paper';
   const display = useDisplay();
   const placement = encounterActionPlacement(display, props.dense);
   if (placement.arrangement === 'grid') return <ActionGrid props={props} placement={placement} />;
@@ -131,7 +135,7 @@ export function ActionRail(props: EncounterActionsProps) {
             <IconButton
               icon={spec.icon}
               label={spec.name ?? spec.word}
-              variant="onMedia"
+              variant={onPaper ? 'paper' : 'onMedia'}
               size={placement.compact ? 44 : 48}
               pressed={pressed}
               busy={spec.id === 'save' && props.saving === true}
@@ -140,7 +144,7 @@ export function ActionRail(props: EncounterActionsProps) {
             {placement.compact ? null : (
               // The word repeats the button's name, so assistive technology skips it.
               <View aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-                <Text variant="uiLabel" color={content.paper}>
+                <Text variant="uiLabel" color={onPaper ? content.ink : content.paper}>
                   {spec.word}
                 </Text>
               </View>

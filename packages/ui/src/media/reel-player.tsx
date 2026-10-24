@@ -16,6 +16,7 @@ import { Text } from '../text/text';
 import { useFocusRing } from '../display/focus-ring';
 import { Icon } from '../icons/icon';
 import { Spinner } from '../feedback/spinner';
+import { playbackToggleMarker } from './playback-marker';
 import { observeMediaVisibility } from './visibility';
 
 // expo-video exposes seeking as an imperative native SDK property.
@@ -524,6 +525,7 @@ export function ReelPlayer({
       {tapToToggle ? (
         <Pressable
           {...focus.props}
+          {...playbackToggleMarker}
           testID="reel-playback-toggle"
           accessibilityRole="button"
           accessibilityLabel={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}

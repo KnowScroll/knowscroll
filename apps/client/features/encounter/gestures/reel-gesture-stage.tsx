@@ -50,6 +50,8 @@ export function ReelGestureStage({
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: EncounterGestureMove) => void;
+  /** A keyboard action of the web stage (Space); touch has the player's own button. */
+  readonly onToggle?: () => void;
 }) {
   const { width } = useWindowDimensions();
   const responder = useMemo(() => createReelResponder(onMove, width), [onMove, width]);
