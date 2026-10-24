@@ -221,6 +221,7 @@ export function makeConversationReads(p: ConversationPorts) {
             conversation: refOf(entered),
             limit: query.limit,
             requestCursor: query.cursor,
+            ...(conversation.closed ? { ended: true } : {}),
             fromChangeSequence: position.afterChangeSequence,
             throughChangeSequence: through,
             changes,

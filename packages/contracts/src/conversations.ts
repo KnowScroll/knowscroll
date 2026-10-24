@@ -261,6 +261,7 @@ export const ConversationChangesPageSchema = z.discriminatedUnion('status', [
       conversation: DirectConversationRefSchema,
       limit: Limit,
       requestCursor: ConversationChangesCursorSchema,
+      ended: Ended,
       fromChangeSequence: Counter,
       throughChangeSequence: Counter,
       changes: z.array(ConversationChangeSchema).max(50),
@@ -416,7 +417,9 @@ export const conversationsContract = {
   leave: socialPost('/v1/social/conversations/leave', LeaveConversationSchema, ConversationLeaveAcceptanceSchema),
 };
 export type DirectConversationRef = z.infer<typeof DirectConversationRefSchema>;
+export type ConversationContentRef = z.infer<typeof ConversationContentRefSchema>;
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
+export type DirectConversationSummary = z.infer<typeof DirectConversationSummarySchema>;
 export type SendConversationMessage = z.infer<typeof SendConversationMessageSchema>;
 export type ConversationChangesPage = z.infer<typeof ConversationChangesPageSchema>;
 

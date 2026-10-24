@@ -33,7 +33,30 @@ export {
   type SessionTokenStore,
   type SignInBinding,
 } from './account-scope-manager';
-export { connectScopeSocket, type SocketContext } from './account-scope-socket';
+export { TALK_QUERY_KEY, connectScopeSocket, type SocketContext } from './account-scope-socket';
+export { talkFailure, type TalkFailure } from './talk-failure';
+export {
+  createConversationThread,
+  mergeMessages,
+  type MessageBody,
+  type OutgoingMessage,
+  type ThreadController,
+  type ThreadOptions,
+  type ThreadState,
+} from './conversation-thread';
+export { describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
+export {
+  createShareSession,
+  createSharedLinksSession,
+  type LinkStatus,
+  type SendStatus,
+  type ShareSession,
+  type ShareSessionOptions,
+  type ShareState,
+  type ShareTarget,
+  type SharedLinksSession,
+  type SharedLinksState,
+} from './share-session';
 export {
   createAuthClient,
   type AuthClient,
