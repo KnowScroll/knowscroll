@@ -101,7 +101,8 @@ describe('the writer instructions', () => {
     for (const rule of [
       '"blocks":[block, block, …]',
       'Every block carries "cites"',
-      'never reuse a phrase of more than four words',
+      'never use more than five words in a row from a passage',
+      'Put technical definitions, counts and lists',
       'A number may appear only if a cited passage states it',
       'Never name the source',
     ])
@@ -225,7 +226,7 @@ describe('the writer role', () => {
     });
     expect(role.effort).toBe('medium');
     expect(Object.isFrozen(role.safeCustomIssues)).toBe(true);
-    expect(role.safeCustomIssues?.['copied_passage']).toContain('from scratch');
+    expect(role.safeCustomIssues?.['copied_passage']).toContain('Rewrite only the sentences of this block');
     expect(Object.keys(role.safeCustomIssues ?? {})).toEqual(
       expect.arrayContaining([
         'format_required',
@@ -254,5 +255,63 @@ describe('the writer role', () => {
       (entry) => (entry as { params?: { safeCode?: string } }).params?.safeCode === 'copied_passage',
     );
     expect(issue?.path).toEqual(['blocks', 6]);
+  });
+
+  describe('repair notes: the copied words, named for the one repair', () => {
+    const copiedAnswer = (overrides: { readonly extra?: string } = {}) =>
+      JSON.stringify(
+        scroll([
+          ...BODY,
+          prose(`${SOURCE[1]} ${overrides.extra ?? 'And then some more words of its own.'}`, ['e2', 'e3']),
+        ]),
+      );
+
+    it('quotes each run of source words in the block that copied them, lower case and without punctuation', () => {
+      const notes = role.repairNotes?.(copiedAnswer());
+      const run = SOURCE[1]?.toLowerCase().replace(/[^a-z\s]/gu, '');
+      expect(notes).toContain(`blocks[6] copies: "${run}"`);
+      expect(notes).toContain('Rewrite only the sentences that contain them');
+      // The notes carry words of the research only, never the writer's own sentences.
+      expect(notes).not.toContain('some more words of its own');
+    });
+
+    it('names a run in a title, a list or a table cell as well, and caps the length of a run', () => {
+      const longRun = SOURCE.join(' ');
+      const answer = JSON.stringify({
+        ...scroll([...BODY, comparison]),
+        title: `${SOURCE[2]} and a lamp`.slice(0, 120),
+        blocks: [
+          { type: 'heading', text: 'The beam' },
+          ...BODY.slice(0, 4),
+          prose(longRun.slice(0, 590), ['e2', 'e3']),
+          {
+            ...comparison,
+            rows: [
+              [SOURCE[3], 'Fog'],
+              ['Clear', 'Some words'],
+            ],
+          },
+        ],
+      });
+      const notes = role.repairNotes?.(answer) ?? '';
+      expect(notes).toContain('title copies: ');
+      expect(notes).toMatch(/blocks\[5\] copies: "[a-z ]+ …"/u);
+      expect(notes).toContain('blocks[6] copies: ');
+    });
+
+    it.each([
+      ['an answer that is not JSON', 'not json at all'],
+      ['an answer that is not an authored Scroll', JSON.stringify({ title: 'x' })],
+      ['an answer that copies nothing', JSON.stringify(scroll([...BODY, comparison]))],
+    ])('has no notes for %s', (_label, answer) => {
+      expect(role.repairNotes?.(answer)).toBeUndefined();
+    });
+
+    it('has no notes when the refusal is not about copying', () => {
+      const answer = JSON.stringify(
+        scroll([...BODY, prose('A fresh line that cites a passage that does not exist.', ['e99'])]),
+      );
+      expect(role.repairNotes?.(answer)).toBeUndefined();
+    });
   });
 });

@@ -290,6 +290,7 @@ export interface ContentScrollProductionRuns {
   research: Generated<Json>;
   scope_generation: number;
   state: string;
+  take: Generated<number>;
   target_revision: number;
   topic: string;
   writer_output: Json | null;
@@ -798,7 +799,6 @@ export interface IdentityRecordingLifecycleWitnesses {
   origin_kind: string;
   privacy_epoch: number;
   protocol_version: number;
-  registry_sha256: string;
   universe_id: string;
   verified_at: Timestamp;
 }
@@ -1528,8 +1528,10 @@ export interface SupplyWork {
   brief: Json;
   canonical_key: string;
   closed_at: Timestamp | null;
+  commissioned_by: string | null;
   created_at: Generated<Timestamp>;
   id: string;
+  production_recipe: string | null;
 }
 
 export interface DB {

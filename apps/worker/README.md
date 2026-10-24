@@ -15,9 +15,9 @@ and commits the recovery marker with its fixed-queue wake. Completed operations 
 only their due exact-set accounting cleanup; they never reacquire core-removal authority.
 
 The Clear core callback is the closed `eraseCurrentExploration` runner from the actual backend
-erasure root. It verifies the frozen current owner registry, runs those actual owner removals and
-marks that exact Clear transaction only after successful verification. The worker accepts no
-caller-provided registry, digest or lookalike callback as lifecycle proof. Exact-set accounting and
+erasure root. It runs the schema inventory, runs the real registry's owner removals and marks that
+exact Clear transaction only after every owner reports `completed`. The worker accepts no
+caller-provided registry or lookalike callback as lifecycle proof. Exact-set accounting and
 recovery retain their separate existing authority; they cannot reacquire core removal.
 
 This composition requires the durable core from PR348 and the reviewed current lifecycle/schema
@@ -53,8 +53,25 @@ from the personal harness. Nonpersonal Scroll supply requires explicit worker co
 the database root enabled/generation gate; both default disabled. Shared sweep/purge/operator
 maintenance still records and resolves production liabilities while production is disabled.
 
+The `content.produce-scroll` consumer (`src/production-jobs.ts`, #239) runs the production use case for
+one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
+registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The
+`supply.resolve-request` consumer advances a person's request (a free-text match, the wait for
+production, binding) with the personal reasoning harness. `KS_SUPPLY_CREATE_DAILY_CAP` caps the
+productions Create may start per UTC day for people's asks (default 20 in `local`, 0 elsewhere);
+`KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5) caps the Planner's demand apart from it.
+
+`node dist/operator.js supply recover-open-demand [--dry-run]` (`src/supply-operator.ts`) sends one
+resolver job for every ask that is still open from before Create existed and prints the counts. It is
+idempotent and calls no provider.
+
+`node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
+the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
+`content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared
+database and pg-boss; no provider is called.
+
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
-[--dry-run] [--resume]`. It refuses worlds outside dev/stage/ci/local, defaults to
+[--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
 `MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
 explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
 `--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is

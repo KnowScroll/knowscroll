@@ -147,6 +147,25 @@ export const ContentRequestStatusSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...StatusFields, status: z.literal('cancelled') }),
 ]);
 
+/**
+ * The person's own asks, newest first, each with the same current status a single read gives. A
+ * request the Planner made on the person's behalf is not listed: it is not something they asked for.
+ * `title` is the person's own words, the ask's catalogue topic, or the ready Scroll's title; it
+ * never carries an internal brief. Read only, like a single read: listing creates no work.
+ */
+export const ContentRequestListSchema = z.strictObject({
+  version: z.literal('content-request-list.v1'),
+  requests: z
+    .array(
+      z.strictObject({
+        title: z.string().min(1).max(160),
+        format: RequestedFormat,
+        status: ContentRequestStatusSchema,
+      }),
+    )
+    .max(50),
+});
+
 /** New deliberate cancel command; its exact command ID/input is reused on transport retry. */
 export const CancelContentRequestSchema = z.strictObject({
   version: z.literal('content-request-cancel.v1'),
@@ -170,6 +189,7 @@ export type CreateContentRequest = z.infer<typeof CreateContentRequestSchema>;
 export type ContentRequestReceipt = z.infer<typeof ContentRequestReceiptSchema>;
 export type ReadContentRequest = z.infer<typeof ReadContentRequestSchema>;
 export type ContentRequestStatus = z.infer<typeof ContentRequestStatusSchema>;
+export type ContentRequestList = z.infer<typeof ContentRequestListSchema>;
 export type CancelContentRequest = z.infer<typeof CancelContentRequestSchema>;
 export type CancelContentRequestReceipt = z.infer<typeof CancelContentRequestReceiptSchema>;
 
@@ -184,6 +204,11 @@ export const readContentRequestContract = oc
   .route({ method: 'GET', path: '/v1/content/requests/{requestId}', successStatus: 200, tags: ['supply'] })
   .input(ReadContentRequestSchema)
   .output(ContentRequestStatusSchema);
+
+/** The person's own recent asks and their current status; at most 20 of the newest. */
+export const listContentRequestsContract = oc
+  .route({ method: 'GET', path: '/v1/content/requests', successStatus: 200, tags: ['supply'] })
+  .output(ContentRequestListSchema);
 
 /** Body-only identity avoids competing path/body request IDs; transport retry retains the command. */
 export const cancelContentRequestContract = oc

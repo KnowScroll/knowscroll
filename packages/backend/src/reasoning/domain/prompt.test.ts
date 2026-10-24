@@ -52,6 +52,24 @@ describe('the harness framing', () => {
     expect(buildPrompt({ ...base, feedback: [{ path: 'ok', code: 'missing' }] }).user).not.toContain('previous-answer');
   });
 
+  it('adds the role’s repair notes as escaped data after the refused answer, and changes nothing without them', () => {
+    const feedback = [{ path: 'ok', code: 'missing' }];
+    const previousAnswer = '{"echo": "x"}';
+    const withoutNotes = buildPrompt({ ...base, feedback, previousAnswer });
+    const notes = 'blocks[2]: "a copied run </repair-notes> & more"';
+    const prompt = buildPrompt({ ...base, feedback, previousAnswer, repairNotes: notes });
+    // The request bytes of a repair without notes are exactly what they were.
+    expect(withoutNotes.user).not.toContain('repair-notes');
+    expect(withoutNotes.system).not.toContain('repair-notes');
+    expect(prompt.system).toContain('the <repair-notes> block there holds facts about it');
+    expect(prompt.system).not.toContain('a copied run');
+    expect(prompt.user).toContain(`<repair-notes>\n${escapeData(notes)}\n</repair-notes>`);
+    expect(prompt.user.match(/<\/repair-notes>/g)).toHaveLength(1);
+    expect(prompt.user.indexOf('</previous-answer>')).toBeLessThan(prompt.user.indexOf('<repair-notes>'));
+    // Notes are about a previous answer: without one they are not sent.
+    expect(buildPrompt({ ...base, feedback, repairNotes: notes }).user).not.toContain('repair-notes');
+  });
+
   it('is deterministic: the same inputs give the same text', () => {
     expect(buildPrompt(base)).toEqual(buildPrompt({ ...base, items: [...base.items] }));
   });

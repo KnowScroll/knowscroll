@@ -3,6 +3,8 @@ import {
   AuthoredScroll,
   authoringReference,
   compileAuthored,
+  COPY_RUN_WORDS,
+  copiedRuns,
   REPAIR_HINTS,
   type AuthoredBlockType,
   type DraftProvenance,
@@ -19,7 +21,7 @@ import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';
  * publication's provenance. Bump it, together with `SCROLL_PRODUCTION_VERSION` (which makes a new
  * job per topic), whenever the instructions or the authored shape change.
  */
-export const WRITER_PROMPT_VERSION = 'scroll-writer.v12';
+export const WRITER_PROMPT_VERSION = 'scroll-writer.v13';
 
 /**
  * The rich block a recipe asks for besides prose. `comparison` is the quiet default; the others
@@ -59,7 +61,7 @@ const FORMAT_GUIDANCE: Readonly<Record<WriterFormat, string>> = {
 const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
   ...REPAIR_HINTS,
   copied_passage:
-    'Nine or more words in a row match a passage. Write every sentence of this block again from scratch, with different words and a different sentence structure.',
+    'Nine or more words in a row match a passage; the repair notes quote each such run. Rewrite only the sentences of this block that contain one, in your own words and with a different sentence structure, and keep the other sentences as they are.',
   reading_length_out_of_brief:
     'The Scroll must read in two to eight minutes: write about 450 to 600 words of prose, besides the interactive block.',
   format_required: 'Include the block the recipe asks for, as described in the instructions.',
@@ -80,7 +82,7 @@ export function writerInstructions(format: WriterFormat): string {
     'WRITING.',
     `- About 450 to 600 words of reader text in two or three short sections (each starts with a heading block), mostly paragraphs, ending with a callout of kind "limit" that says what the explanation cannot do. Title up to ${FIELD_LIMITS.titleChars} characters, dek up to ${FIELD_LIMITS.dekChars}.`,
     '- Teach: open with the question or surprise, explain the mechanism, give an example, name the common misunderstanding. Keep the caveats of the passages.',
-    '- Write every sentence fresh. The passages are checked mechanically: any run of nine words in a row (ignoring case and punctuation) that also appears in a passage fails the Scroll. So never reuse a phrase of more than four words from a passage, even for a technical idea: say it another way, change the sentence structure, merge or split sentences. Keep names and exact figures.',
+    '- Write every sentence fresh. The passages are checked mechanically: any run of nine words in a row (ignoring case and punctuation) that also appears in a passage fails the Scroll. So never use more than five words in a row from a passage. Put technical definitions, counts and lists (such as "two sets of X and two sets of Y") in your own words: change the order of the ideas and the structure of the sentence, not only a word or two, and merge or split sentences. Keep names and exact figures.',
     '- State only what the cited passages support. A number may appear only if a cited passage states it, written the same way; otherwise say it in words. Keep digits out of the title, dek and headings.',
     '- Never name the source, its publisher or a website, write no web addresses, and never refer to the passages, the sources or the citations in the text (no "the material says").',
     '- The brief gives the subject and the angle. Use only the block types listed below, whatever the brief says about layout.',
@@ -305,6 +307,68 @@ export function compileGeneratedScroll(
   };
 }
 
+/** The most blocks, runs per block and words per run a repair note names. */
+const NOTE_BLOCKS = 6;
+const NOTE_RUNS_PER_BLOCK = 3;
+const NOTE_RUN_WORDS = 40;
+
+/** The part of an authored Scroll a finding path (`title`, `dek`, `blocks.7`) points at. */
+function authoredPart(authored: AuthoredScroll, path: string): unknown {
+  if (path === 'title') return authored.title;
+  if (path === 'dek') return authored.dek;
+  const index = /^blocks\.(\d+)$/u.exec(path)?.[1];
+  return index === undefined ? undefined : authored.blocks[Number(index)];
+}
+
+/** The runs of the reader text in `part` that the copy check refuses, each shortened to a few lines of words. */
+function copiedIn(part: unknown, sources: readonly string[]): string[] {
+  return [...readerStrings(part)]
+    .flatMap((text) => copiedRuns(text, sources, COPY_RUN_WORDS))
+    .slice(0, NOTE_RUNS_PER_BLOCK)
+    .map((run) => {
+      const words = run.split(' ');
+      return words.length > NOTE_RUN_WORDS ? `${words.slice(0, NOTE_RUN_WORDS).join(' ')} …` : run;
+    });
+}
+
+/**
+ * What the repair is told about a copy finding: the copied words themselves. The runs are cut from
+ * the research text, which is public and the same text the check compared against, never from the
+ * model's own words; the harness sends them as delimited data. Rebuilt from the refused answer
+ * with the same compile that refused it, so it names exactly the blocks the findings name.
+ */
+function copyNotes(
+  previousAnswer: string,
+  provenance: DraftProvenance,
+  passages: readonly EvidencePassage[],
+  format: WriterFormat,
+): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(previousAnswer);
+  } catch {
+    return undefined;
+  }
+  const authored = AuthoredScroll.safeParse(parsed);
+  if (!authored.success) return undefined;
+  const outcome = compileGeneratedScroll(authored.data, provenance, passages, format);
+  if (outcome.kind !== 'refused') return undefined;
+  const sources = [...provenance.claims.map((claim) => claim.quote), ...provenance.material];
+  const lines = outcome.issues
+    .filter((issue) => issue.code === 'copied_passage')
+    .slice(0, NOTE_BLOCKS)
+    .flatMap((issue) => {
+      const runs = copiedIn(authoredPart(authored.data, issue.path), sources);
+      const where = issue.path.replace(/^blocks\.(\d+)$/u, 'blocks[$1]');
+      return runs.length === 0 ? [] : [`${where} copies: ${runs.map((run) => `"${run}"`).join(' | ')}`];
+    });
+  if (lines.length === 0) return undefined;
+  return [
+    'Each line names the words of your text that also appear in the source passages, lower case and without punctuation. Rewrite only the sentences that contain them and keep every other sentence as it is.',
+    ...lines,
+  ].join('\n');
+}
+
 /**
  * The writer role: one call that reads the offered passages and the brief and returns an authored
  * Scroll. The schema is the authored shape plus every producer and module check, so a refusal
@@ -324,6 +388,7 @@ export function writerRole(input: {
     maxOutputTokens: 16_000,
     effort: 'medium',
     repairWithPreviousAnswer: true,
+    repairNotes: (previousAnswer) => copyNotes(previousAnswer, input.provenance, input.passages, input.format),
     instructions: writerInstructions(input.format),
     outputSchema: AuthoredScroll.superRefine((authored, ctx) => {
       const outcome = compileGeneratedScroll(authored, input.provenance, input.passages, input.format);

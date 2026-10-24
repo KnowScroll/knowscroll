@@ -19,8 +19,10 @@ export const socialErasure: ModuleErasure = {
     { schema: 'social', table: 'roster_heads', column: 'owner_account_id' },
     { schema: 'social', table: 'roster_entries', column: 'owner_account_id' },
     { schema: 'social', table: 'roster_entries', column: 'peer_account_id' },
+    { schema: 'social', table: 'roster_entries', column: 'peer_person_id' },
     { schema: 'social', table: 'invites', column: 'account_id' },
     { schema: 'social', table: 'profiles', column: 'account_id' },
+    { schema: 'social', table: 'profiles', column: 'person_id' },
     { schema: 'social', table: 'pairs', column: 'low_account_id' },
     { schema: 'social', table: 'pairs', column: 'high_account_id' },
     { schema: 'social', table: 'pair_sides', column: 'account_id' },
@@ -28,5 +30,16 @@ export const socialErasure: ModuleErasure = {
     { schema: 'social', table: 'requests', column: 'recipient_account_id' },
     { schema: 'social', table: 'command_bindings', column: 'actor_account_id' },
   ],
+  erase: () => Promise.resolve({ module: 'social', status: 'completed', removed: 0 }),
+};
+
+/** Clearing exploration history keeps profiles, friendships and invites: nothing here is erased. */
+socialErasure.clearExploration = {
+  dispositions: Object.fromEntries([
+    ...socialErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...(socialErasure.accountTables ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...(socialErasure.accountColumns ?? []).map((t) => [`${t.schema}.${t.table}`, 'preserve']),
+    ...socialErasure.nonRowStores.map((s) => [`store:${s.name}`, 'preserve']),
+  ]) as Record<string, 'preserve'>,
   erase: () => Promise.resolve({ module: 'social', status: 'completed', removed: 0 }),
 };

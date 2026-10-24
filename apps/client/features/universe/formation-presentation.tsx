@@ -1,11 +1,15 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Modal, Platform, StyleSheet, View } from 'react-native';
-import Svg, { Circle, G, Path } from 'react-native-svg';
-import { Button, Text } from '@knowscroll/ui';
-import { space, spacing } from '@knowscroll/design-tokens';
+import { Modal, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Ellipse, G, Line } from 'react-native-svg';
+import { Button, Tag, Text } from '@knowscroll/ui';
+import { content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
 import type { SceneGeometry } from '@knowscroll/scene-core';
 import type { FormationPresentationState } from '@knowscroll/client-core';
 import type { FormationPresentationFact } from '@knowscroll/contracts';
+import { OrbitRing, PlanetGlyph, StarGlyph } from './universe-bodies';
+import { SpaceChip } from './space-chip';
+import { UniverseBackdrop } from './universe-backdrop';
 import type { UniverseViewSession } from './universe-session';
 
 /** Only a confirmed current claim can mount a surface. Pending/absent service is not a story. */
@@ -16,30 +20,36 @@ export function FormationPresentation({ session }: { session: UniverseViewSessio
     return <FormationSurface key={state.fact.transitionId} session={session} state={state} fact={state.fact} />;
   if (state.status === 'unavailable')
     return (
-      <View>
-        <Text variant="body" color={space.label}>
-          New-place views aren’t available right now.
-        </Text>
-        <Button
-          label="Refresh new-place view"
-          variant="space"
-          onPress={() => {
-            void controller.refresh();
-          }}
-        />
-      </View>
+      <Notice
+        text="New-place views aren’t available right now."
+        action="Refresh new-place view"
+        onAction={() => {
+          void controller.refresh();
+        }}
+      />
     );
   if (state.status === 'claim_unknown' || state.status === 'ack_unknown')
     return (
-      <View>
-        <Text variant="body" color={space.label}>
-          This map view couldn’t be confirmed. Retry when connected.
-        </Text>
-        <Button label="Retry map view" variant="space" onPress={() => controller.retry()} />
-      </View>
+      <Notice
+        text="This map view couldn’t be confirmed. Retry when connected."
+        action="Retry map view"
+        onAction={() => controller.retry()}
+      />
     );
   return null;
 }
+/** A quiet card over the map when the new-place story cannot be shown or confirmed. */
+function Notice({ text, action, onAction }: { text: string; action: string; onAction: () => void }) {
+  return (
+    <View pointerEvents="box-none" style={styles.noticeHost}>
+      <View style={styles.notice}>
+        <Text variant="bodyS">{text}</Text>
+        <Button label={action} variant="ink" size="sm" onPress={onAction} />
+      </View>
+    </View>
+  );
+}
+
 function FormationSurface({
   session,
   state,
@@ -50,6 +60,7 @@ function FormationSurface({
   fact: FormationPresentationFact;
 }) {
   const controller = session.formation;
+  const insets = useSafeAreaInsets();
   const [beat, setBeat] = useState(0);
   const planet = fact.sequence.kind === 'planet' ? fact.sequence.planetId : fact.targets[0]!.objectId;
   const descriptor = session.descriptors().find((d) => d.objectId === planet);
@@ -97,6 +108,9 @@ function FormationSurface({
   const final = state.reducedMotion || state.completed || beat === 4;
   const target = fact.targets.find((t) => t.objectId === planet)!;
   const pending = state.status === 'claim_unknown' || state.status === 'ack_unknown';
+  const systemLabel = newSystem ? fact.targets.find((t) => t.objectId === newSystem.systemId)!.label : undefined;
+  const starFor =
+    starDescriptor ?? session.descriptors().find((d) => d.kind === 'star' && d.parentId === descriptor?.parentId);
   return (
     <Modal visible transparent animationType="none" onRequestClose={() => controller.skip(fact)}>
       <View
@@ -106,89 +120,217 @@ function FormationSurface({
         accessibilityViewIsModal
         style={styles.host}
       >
-        <Button
-          label={state.completed ? 'Done' : 'Skip'}
-          variant="space"
-          onPress={() => (state.completed ? session.dismissFormation(fact) : controller.skip(fact))}
-        />
+        <UniverseBackdrop glow={false} />
+        <View style={[styles.corner, { top: insets.top + spacing[3] }]}>
+          <SpaceChip
+            label={state.completed ? 'Done' : 'Skip'}
+            variant={state.completed ? 'ghost' : 'solid'}
+            onPress={() => (state.completed ? session.dismissFormation(fact) : controller.skip(fact))}
+          />
+        </View>
         {geometry ? (
-          <Svg width="100%" height={300} viewBox="0 0 400 300" aria-hidden pointerEvents="none">
-            {!final
-              ? [0, 1, 2, 3, 4, 5].map((n) => (
-                  <Circle
-                    key={n}
-                    cx={80 + n * 45}
-                    cy={110 + (n % 3) * 30}
-                    r={2}
-                    opacity={beat === 0 ? 0.3 : 0.6}
-                    fill={space.label}
-                  />
-                ))
-              : null}
-            {starGeometry && (beat >= 2 || final) ? (
-              <G transform="translate(280 80) scale(0.65)">
-                <Path
-                  d={`M ${starGeometry.silhouette.map((v) => `${v.x},${v.y}`).join(' L ')} Z`}
-                  fill={space.star}
-                  stroke={space.label2}
-                  strokeWidth={1.5}
-                />
-              </G>
-            ) : null}
-            <G
-              transform={`translate(190 160) scale(${final ? 1.3 : beat < 2 ? 0.2 : newSystem && beat < 4 ? 0.55 : 1})`}
-              opacity={final ? 1 : beat === 0 ? 0.1 : 0.7}
-            >
-              <Path
-                d={`M ${geometry.silhouette.map((v) => `${v.x},${v.y}`).join(' L ')} Z`}
-                fill={geometry.palette === 'ochre' ? space.star : space.regionPin.fill}
-                stroke={space.label2}
-                strokeWidth={1.5}
-              />
-            </G>
-          </Svg>
+          <FormationDrawing
+            beat={final ? 4 : beat}
+            geometry={geometry}
+            seed={descriptor!.seed}
+            hasStar={Boolean(starFor)}
+            newSystem={Boolean(newSystem)}
+            systemLabel={systemLabel}
+            planetLabel={target.label}
+            low={Boolean(state.reducedMotion)}
+          />
         ) : (
           <Text variant="body" color={space.label}>
             The current drawing is unavailable.
           </Text>
         )}
-        {newSystem && (beat >= 3 || final) ? (
-          <Text variant="meta" color={space.label}>
-            {fact.targets.find((t) => t.objectId === newSystem.systemId)!.label}
-          </Text>
-        ) : null}
         {target.truthStatus === 'hypothetical' ? (
-          <Text variant="meta" color={space.label}>
-            Hypothetical
-          </Text>
+          <View style={styles.status}>
+            <Tag label="Hypothetical" variant="hypothetical" />
+          </View>
         ) : null}
         {final ? (
-          <View accessibilityLiveRegion="polite">
-            <Text variant="heading" color={space.label}>
-              A new place: {target.label}
+          <View accessibilityLiveRegion="polite" style={styles.caption}>
+            <Text variant="ui" color={space.onControl}>
+              {`A new place: ${target.label}`}
             </Text>
           </View>
         ) : null}
         {pending ? (
-          <>
+          <View style={styles.pending}>
             <Text variant="body" color={space.label}>
               This view couldn’t be confirmed.
             </Text>
             <Button label="Retry map view" variant="space" onPress={() => controller.retry()} />
-          </>
+          </View>
         ) : null}
       </View>
     </Modal>
   );
 }
+
+const BEAT_NOTE = [
+  'Dust drifts, scattered and slow',
+  'Gathering, spiralling inward',
+  'A protostar lights; the disc flattens',
+  'The star takes its first orbit',
+  'The planet settles',
+] as const;
+
+/**
+ * The 2.4 s storyboard of U05, drawn from the committed creation facts: dust drifts, gathers,
+ * lights a protostar, a star takes its orbit (new systems only), and the planet settles. It never
+ * says what the person learned. Under reduced motion only the last frame is drawn.
+ */
+function FormationDrawing({
+  beat,
+  geometry,
+  seed,
+  hasStar,
+  newSystem,
+  systemLabel,
+  planetLabel,
+  low,
+}: {
+  beat: number;
+  geometry: SceneGeometry;
+  seed: string;
+  hasStar: boolean;
+  newSystem: boolean;
+  systemLabel: string | undefined;
+  planetLabel: string;
+  low: boolean;
+}) {
+  const { width, height } = useWindowDimensions();
+  const stage = { width: Math.min(width, 560), height: Math.min(height * 0.62, 520) };
+  const cx = stage.width / 2,
+    cy = stage.height * 0.5;
+  const orbit = { rx: stage.width * 0.34, ry: stage.width * 0.12 };
+  const specks = Array.from({ length: 9 }, (_, step) => {
+    const angle = step * 2.4 + 0.5;
+    const pull = beat === 0 ? 1 : 0.55;
+    const distance = (34 + ((step * 53) % 90)) * pull;
+    return { x: cx + Math.cos(angle) * distance, y: cy + Math.sin(angle) * distance, angle };
+  });
+  const showStar = beat >= 3 || (!newSystem && beat >= 2 && hasStar);
+  const showPlanet = beat >= 4;
+  return (
+    <View
+      style={[styles.drawing, { width: stage.width, height: stage.height }]}
+      accessibilityLabel={BEAT_NOTE[beat]}
+      accessible={false}
+    >
+      <Svg width={stage.width} height={stage.height} aria-hidden pointerEvents="none">
+        {beat <= 1 ? (
+          <>
+            <Circle cx={cx} cy={cy} r={beat === 0 ? 138 : 92} fill={space.s1} opacity={0.6} />
+            {beat === 1 ? <Circle cx={cx} cy={cy} r={55} fill="#0E3A3F" opacity={0.6} /> : null}
+            {beat === 1 ? (
+              <Circle
+                cx={cx}
+                cy={cy}
+                r={84}
+                fill="none"
+                stroke={space.label}
+                strokeOpacity={0.3}
+                strokeDasharray="2 5"
+              />
+            ) : null}
+            {specks.map((speck, step) => (
+              <G key={step}>
+                {beat === 0 ? (
+                  <Line
+                    x1={speck.x}
+                    y1={speck.y}
+                    x2={speck.x + Math.cos(speck.angle) * 7}
+                    y2={speck.y + Math.sin(speck.angle) * 7}
+                    stroke={space.label}
+                    strokeOpacity={0.4}
+                  />
+                ) : null}
+                <Circle cx={speck.x} cy={speck.y} r={1.6 + (step % 3) * 0.4} fill={space.label} opacity={0.6} />
+              </G>
+            ))}
+          </>
+        ) : null}
+        {beat === 2 && !showStar ? (
+          <>
+            <Ellipse cx={cx} cy={cy} rx={stage.width * 0.24} ry={13} fill="#12525A" opacity={0.45} />
+            <Circle cx={cx} cy={cy} r={16} fill={space.star} opacity={0.25} />
+            <Circle cx={cx} cy={cy} r={8} fill={space.star} />
+          </>
+        ) : null}
+        {showStar ? (
+          <>
+            <OrbitRing cx={cx} cy={cy} rx={orbit.rx} ry={orbit.ry} />
+            <StarGlyph cx={cx} cy={cy} r={26} />
+          </>
+        ) : null}
+        {showPlanet ? (
+          <PlanetGlyph
+            cx={cx - orbit.rx * 0.78}
+            cy={cy + orbit.ry * 0.35}
+            r={low ? 26 : 24}
+            geometry={geometry}
+            seed={seed}
+            low
+          />
+        ) : null}
+      </Svg>
+      {showStar && systemLabel && beat >= 3 ? (
+        <View pointerEvents="none" style={[styles.systemLabel, { top: cy + orbit.ry + 22 }]}>
+          <Text variant="ui" color={space.label} align="center">
+            {systemLabel}
+          </Text>
+          <Text variant="label" color={space.label2} align="center">
+            A system
+          </Text>
+        </View>
+      ) : null}
+      {showPlanet ? (
+        <View
+          pointerEvents="none"
+          style={[styles.planetLabel, { left: cx - orbit.rx * 0.78 - 60, top: cy + orbit.ry * 0.35 + 30 }]}
+        >
+          <Text variant="spaceLabel" color={space.label} align="center">
+            {planetLabel}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  host: {
-    flex: 1,
-    backgroundColor: space.s0,
-    padding: spacing[5],
-    paddingTop: spacing[8],
-    alignItems: 'stretch',
+  host: { flex: 1, backgroundColor: space.s0, alignItems: 'center', justifyContent: 'center' },
+  corner: { position: 'absolute', right: spacing[4], zIndex: 2 },
+  drawing: { alignSelf: 'center' },
+  systemLabel: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 2 },
+  planetLabel: { position: 'absolute', width: 120, alignItems: 'center' },
+  status: { position: 'absolute', top: '70%' },
+  caption: {
+    position: 'absolute',
+    top: '68%',
+    backgroundColor: space.control,
+    paddingHorizontal: spacing[5],
+    minHeight: 48,
+    borderRadius: radius.pill,
     justifyContent: 'center',
-    gap: spacing[4],
   },
+  noticeHost: {
+    position: 'absolute',
+    left: spacing[4],
+    right: spacing[4],
+    bottom: layout.tabBarSlot + spacing[18],
+    alignItems: 'center',
+  },
+  notice: {
+    backgroundColor: content.paper,
+    borderRadius: radius.panel,
+    padding: spacing[4],
+    gap: spacing[2],
+    maxWidth: 460,
+    alignItems: 'flex-start',
+  },
+  pending: { position: 'absolute', bottom: spacing[12], alignItems: 'center', gap: spacing[3] },
 });

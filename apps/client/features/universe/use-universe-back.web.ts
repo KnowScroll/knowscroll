@@ -31,7 +31,7 @@ export function useUniverseBack(
         sync();
       };
       const key = (event: KeyboardEvent) => {
-        if (event.key === 'Escape' && session.getState().overlay) {
+        if (event.key === 'Escape' && (session.getState().overlay || session.getState().selectedId)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           session.back();

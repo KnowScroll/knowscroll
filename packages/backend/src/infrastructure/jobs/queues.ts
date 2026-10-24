@@ -40,6 +40,12 @@ export interface QueueDefinition<Payload> {
   readonly policy: QueuePolicy;
   readonly consumer: ConsumerPolicy;
   /**
+   * Work that must exist once at a time per `singletonKey` (pg-boss `exclusive`): a send with a key
+   * is refused while a job with that key is queued, retrying or active, and accepted again once it
+   * has completed or failed. Fixed when the queue is created.
+   */
+  readonly exclusive?: true;
+  /**
    * Recurring work: pg-boss sends `payload` on this cron expression (UTC). Registered by the
    * migrate command with the queue; the worker's pg-boss instance runs the schedule. A job's
    * work must be safe to run twice or late (a schedule is not an exactly-once timer).

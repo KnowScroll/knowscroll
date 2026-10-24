@@ -109,7 +109,7 @@ export class AppModule {
         ...mediaWiring,
         ...experienceWiring,
         ...socialWiring,
-        ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+        ...supplyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB, config: API_CONFIG }),
         ...evidenceWiring,
         ...sceneWiring,
         ScopeGateway,

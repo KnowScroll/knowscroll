@@ -6,8 +6,47 @@ writer's instructions and checks, the job state and the application of a result.
 transport, admission and the external attempt ledger.
 
 Status: the pipeline below is **implemented** and has been **runtime-verified** with real
-`MiniMax-M3.1-Flash` calls against a local database (summary in the pull request for #232). It is
-not yet running on dev.
+`MiniMax-M3.1-Flash` calls against a local database (summaries in the pull requests for #232 and
+#239). It runs as worker jobs (next section). Not yet running on dev.
+
+## Jobs, takes and who sends them
+
+Production is the `content.produce-scroll` job (`events.ts`), one per **recipe, recipe version and
+take**. The payload is IDs only: the recipe key, the version and the take. The queue is `exclusive`:
+a second send for the same recipe, version and take is refused while one is queued or running, and a
+finished or failed job never blocks a new send. The consumer (`job.ts`, wired in `apps/worker`) runs
+`makeProduceScroll` with resume on every delivery, so a redelivery after a crash continues the same
+business run and an attempt of unknown outcome is never resent. It runs only on a worker that holds the
+production grant (`KS_REASONING_PRODUCTION_ENABLED=1`); otherwise jobs wait in the queue.
+
+Who sends a job:
+
+- **Quartermaster Create** (`modules/supply`): inside a person's request transaction, with priority 10.
+- **The operator**: `content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
+  the jobs of recipes that need one, at priority 0, and `content production-status` lists every recipe.
+  `content produce-scroll --topic <key> [--take n]` runs one job directly through the same use case; it is
+  a debugging tool.
+
+A **take** is a new attempt at a recipe at the same recipe version. Take 1 always may start. A rejected
+job is final for its take, but take 2 (then 3) may start once every earlier take was rejected. Never after
+a published job or an unknown attempt, and never past three takes. Each take is its own business run with
+its own writer run and attempts, so nothing an earlier take sent is sent again. Senders pick the take from
+the recipe's standing (`domain/library/serving.ts`): `not_started` takes 1, `running` resumes the latest
+take, `retryable` (every take rejected, fewer than three) takes the next one, and `published` and `stopped`
+send nothing.
+
+When a daily budget or the provider's quota is used up, the run **pauses**: nothing is sent, the job stays
+open at its writer stage and the delivery completes. The next send for the recipe (an operator's library
+run, or a person who joins the group: Quartermaster sends the job again on every join) resumes it. A
+rejection is a verdict on the answer; a pause is not. Attempts that sent nothing stay in the ledger but
+are left out of a published Scroll's lineage, so a Scroll published after a pause is attributed to its
+topic and facets like any other. A run that keeps pausing uses up the step's four attempt slots
+(`attempts_exhausted`), and then the take is rejected.
+
+A failed research fetch (`dns_timeout`, `request_timeout`, `network_failed`, `http_refused`, or an error that
+is not a refusal) is also not a verdict. The job stays at `research`, no take is spent, and the delivery fails
+so the queue retries it with its backoff. Only `soft_404`, a refused host or an unusable page ends the take
+as rejected.
 
 ## The pipeline
 
@@ -15,7 +54,7 @@ not yet running on dev.
 operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 1 repair) ─▶ compile ─▶ publish
 ```
 
-1. **Job.** `makeProduceScroll` reserves one job per `(topic, SCROLL_PRODUCTION_VERSION)` in
+1. **Job.** `makeProduceScroll` reserves one job per `(topic, SCROLL_PRODUCTION_VERSION, take)` in
    `content.scroll_production_runs`, then fetches the recipe's public pages by code, never by the
    model, and freezes them on the job.
 2. **Evidence** (`evidence.ts`). The frozen page text is cut into passages of 40 to 600 characters
@@ -29,7 +68,10 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    comparison, timeline or sequence); the instructions describe only that block and the prose
    blocks. The harness allows one repair, which receives fixed, path-located findings and, because the
    writer opts in (`repairWithPreviousAnswer`), the refused answer as escaped, delimited data in the
-   user message so it can revise instead of rewriting.
+   user message so it can revise instead of rewriting. For a copy finding the writer also supplies
+   repair notes (`repairNotes`): the copied words themselves, cut from the research text with the same
+   check that refused the answer and sent in a `<repair-notes>` block, so the repair rewrites only
+   those sentences. The nine-word rule is unchanged.
 4. **Compile** (`compileGeneratedScroll`). Code converts the authored document into the canonical
    draft, derives the claim bindings from the citations and runs every check: structure, the
    simulation grid proof, numbers (a figure must appear in a passage the block cites; a chart plots
@@ -58,23 +100,23 @@ research. Decision D-032.
 
 | Stored table | Role | Main query | Lifetime |
 |---|---|---|---|
-| `content.scroll_production_runs` (0015, 0045, 0050) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version)`, UUID | Nonpersonal public supply; retained for correction, no account erasure |
+| `content.scroll_production_runs` (0015, 0045, 0050, 0052) | Authoritative, private job: research pages, the authored document and the cited claims once published, code-only outcomes, the revision pointer. States `research`, `writer`, then `published`, `rejected` or `unknown` | Unique `(topic, policy_version, take)` with take 1 to 3, UUID | Nonpersonal public supply; retained for correction, no account erasure |
 | `content.asset_revisions` / `asset_provenance` | Immutable admitted consumer bytes / internal evidence and generation lineage | Asset + revision | Shared content; no account erasure |
 | `reasoning.production_*` (0013, 0050) | The writer run, every possible paid attempt, and the refused answers kept 30 days for diagnosis | Stable writer run UUID | Harness retention and liability policy |
 
-No jobs are registered yet: the worker operator triggers the sequence (`docs/v2/operations/scroll-production.md`).
 Lock order: production root → production job row → asset advisory lock → asset rows. Short
 transactions freeze or apply data; no model or HTTP wait holds one. Every rejection and the final
 write require their expected stage under the root and job lock, so a delayed delivery reports the
 advanced job instead of acting on it. `--resume` continues the same frozen research and the same
 writer run through the ledger after a crash. An unknown attempt stays unknown and is never resent.
-A rerun reports the existing state; a terminal rejection stays rejected. A changed recipe is a new
-`SCROLL_PRODUCTION_VERSION` (and `WRITER_PROMPT_VERSION`), never an edit of an old job.
+A rerun reports the existing state; a terminal rejection stays rejected for its take. A changed recipe is
+a new `SCROLL_PRODUCTION_VERSION` (and `WRITER_PROMPT_VERSION`), never an edit of an old job.
 
 When a Scroll fails, `reasoning rejected` lists the refused answers with the validator's findings
 (`packages/backend/src/reasoning/README.md`); that is where to look first.
 
-Jobs: none. Notices: none. Erasure: nonpersonal supply, nothing to erase.
+Jobs: `content.produce-scroll` (above). Notices: none. Erasure: nonpersonal supply, nothing to erase.
+Operator steps: `docs/v2/operations/scroll-production.md`.
 
 The recipes the producer runs are the library plan in `../domain/library/` (one file per topic
 system); `topics.ts` is only its index. The recipe key, the brief, the research pages and the

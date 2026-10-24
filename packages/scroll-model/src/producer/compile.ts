@@ -10,7 +10,12 @@ import {
   type Section,
 } from '../document.js';
 import { addressedTexts, honestyIssues, type HonestyDocument } from '../internal/honesty.js';
-import { ScrollProvenance, SCROLL_PROVENANCE_SCHEMA_VERSION, type ProvenanceBinding } from '../internal/provenance.js';
+import {
+  ScrollProvenance,
+  SCROLL_PROVENANCE_SCHEMA_VERSION,
+  type CheckRecord,
+  type ProvenanceBinding,
+} from '../internal/provenance.js';
 import { issueFromSchema, uniqueIssues, type Issue } from '../issues.js';
 import { FIELD_LIMITS, SCROLL_LIMITS_VERSION } from '../limits.js';
 import { computeMeasures } from '../measures.js';
@@ -466,8 +471,12 @@ export function compileDraft(raw: unknown, provenance: DraftProvenance): Compile
   return 'kind' in analysis ? analysis : finishCompile(analysis);
 }
 
-/** Builds the consumer document and its internal provenance from a finished analysis, and checks them once more. */
-export function finishCompile(analysis: Analysis): CompileOutcome {
+/**
+ * Builds the consumer document and its internal provenance from a finished analysis, and checks
+ * them once more. `extraChecks` are records of work done before the draft stages (for example the
+ * authoring converter's normalisations) that belong in the revision's provenance.
+ */
+export function finishCompile(analysis: Analysis, extraChecks: readonly CheckRecord[] = []): CompileOutcome {
   const { draft, sections, bindings } = analysis;
   const publication = analysis.provenance.publication;
   const unsigned: Omit<ScrollDocument, 'integrity'> = {
@@ -512,12 +521,15 @@ export function finishCompile(analysis: Analysis): CompileOutcome {
     claims,
     sources: analysis.provenance.sources.filter((source) => sourceIds.has(source.sourceId)),
     bindings,
-    checks: [...DRAFT_STAGES, 'publish'].map((name) => ({
-      name,
-      version: SCROLL_CHECKS_VERSION,
-      verdict: 'pass',
-      reasonCodes: [],
-    })),
+    checks: [
+      ...[...DRAFT_STAGES, 'publish'].map((name) => ({
+        name,
+        version: SCROLL_CHECKS_VERSION,
+        verdict: 'pass',
+        reasonCodes: [],
+      })),
+      ...extraChecks,
+    ],
     production: analysis.provenance.production,
   });
   if (!internal.success || !claimsHaveSources(claims, analysis.provenance)) {

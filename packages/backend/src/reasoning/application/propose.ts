@@ -67,6 +67,15 @@ export interface ReasoningRole<T> {
    * production keeps refused answers, so a personal role never receives it.
    */
   readonly repairWithPreviousAnswer?: boolean;
+  /**
+   * Facts the role can derive from the refused answer that a fixed finding cannot carry (for the
+   * Scroll writer, which source words it copied). Called only when the repair carries the previous
+   * answer, with that answer's text; pure, deterministic and bounded by the harness. The harness
+   * escapes the result and sends it as delimited data (`<repair-notes>`) in the user message, never
+   * in the system text, so it may hold third-party text such as public research. Return
+   * `undefined` for no notes; a throw is treated as no notes.
+   */
+  readonly repairNotes?: (previousAnswer: string) => string | undefined;
   /** Fewer context items than this is refused before anything is reserved (default 0). */
   readonly minContextItems?: number;
   /** The role's daily budget; defaults to the configured per-role cap. */
@@ -231,6 +240,20 @@ function roleProblem<T>(role: ReasoningRole<T>): boolean {
     (role.minContextItems !== undefined && (!Number.isInteger(role.minContextItems) || role.minContextItems < 0)) ||
     (role.safeCustomIssues !== undefined && !validSafeCustomIssues(role.safeCustomIssues))
   );
+}
+
+/** The most characters of a role's repair notes the harness sends. */
+const MAX_REPAIR_NOTES_CHARS = 2_000;
+
+/** The role's notes about a refused answer, bounded; none when the role has none or fails to produce them. */
+function repairNotesOf<T>(role: ReasoningRole<T>, previousAnswer: string): string | undefined {
+  if (role.repairNotes === undefined) return undefined;
+  try {
+    const notes = role.repairNotes(previousAnswer);
+    return typeof notes === 'string' && notes.trim() !== '' ? notes.slice(0, MAX_REPAIR_NOTES_CHARS) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function runProblem<A>(run: ReasoningRun<A>): boolean {
@@ -593,7 +616,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
         scope: ports.settings.caps.scope,
         role: role.budget ?? ports.settings.caps.roleDefault,
       };
-      const encode = (feedback?: readonly OutputIssue[], previousAnswer?: string) => {
+      const encode = (feedback?: readonly OutputIssue[], previousAnswer?: string, repairNotes?: string) => {
         const text = buildPrompt({
           roleId: role.id,
           roleVersion: role.version,
@@ -602,6 +625,7 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
           items: context.items,
           ...(feedback === undefined ? {} : { feedback }),
           ...(previousAnswer === undefined ? {} : { previousAnswer }),
+          ...(repairNotes === undefined ? {} : { repairNotes }),
         });
         const body = model.encode({
           system: text.system,
@@ -656,7 +680,12 @@ export function makeScopedReasoningHarness<A, S>(ports: ExecutionPorts<A, S>): R
               attemptId: primary.attemptId,
             })
           : undefined;
-      const repairBody = encode(primary.issues, previousAnswer) ?? encode(primary.issues);
+      const notes = previousAnswer === undefined ? undefined : repairNotesOf(role, previousAnswer);
+      // The richest request that fits: answer and notes, then the answer alone, then the findings alone.
+      const repairBody =
+        encode(primary.issues, previousAnswer, notes) ??
+        encode(primary.issues, previousAnswer) ??
+        encode(primary.issues);
       if (repairBody === undefined) return invalid;
       const repair = outcomeOf(
         role.outputSchema,

@@ -13,8 +13,35 @@ export type EnqueueJob = <Payload>(
   scope: PersonalScopeTx,
   queue: QueueDefinition<Payload>,
   payload: Payload,
-  options?: { readonly startAfter?: Date; readonly jobId?: string },
+  options?: EnqueueOptions,
 ) => Promise<void>;
+
+/** Scheduling and identity of one job. Internal server metadata, never caller input. */
+export interface EnqueueOptions {
+  readonly startAfter?: Date;
+  /** A stable lowercase UUID: one job per ID while pg-boss retains it. */
+  readonly jobId?: string;
+  /**
+   * A key that makes the work unique while it is queued, retrying or active. Only for a queue declared
+   * `exclusive`, where a second send with the same key is refused by pg-boss.
+   */
+  readonly singletonKey?: string;
+  /**
+   * With `jobId` or `singletonKey`: a job with that identity already exists, so this send is a no-op
+   * instead of an error. For work that many senders ask for and that must exist once.
+   */
+  readonly duplicate?: 'ignore';
+  /** pg-boss priority, 0 to 100; higher is claimed first. */
+  readonly priority?: number;
+}
+
+const OPTION_KEYS: ReadonlySet<string | symbol> = new Set([
+  'startAfter',
+  'jobId',
+  'singletonKey',
+  'duplicate',
+  'priority',
+]);
 
 /**
  * Creates the job port over a started `producer` pg-boss instance. The payload is validated
@@ -27,6 +54,9 @@ export function makeEnqueueJob(boss: PgBoss): EnqueueJob {
     // into an omitted scheduling/identity fence. These options are internal server metadata.
     let startAfter: Date | undefined;
     let jobId: string | undefined;
+    let singletonKey: string | undefined;
+    let duplicate: 'ignore' | undefined;
+    let priority: number | undefined;
     if (options !== undefined) {
       let fields: PropertyDescriptorMap;
       try {
@@ -36,8 +66,7 @@ export function makeEnqueueJob(boss: PgBoss): EnqueueJob {
         )
           throw new Error('JOB_OPTIONS_INVALID');
         fields = Object.getOwnPropertyDescriptors(options);
-        if (Reflect.ownKeys(fields).some((key) => key !== 'startAfter' && key !== 'jobId'))
-          throw new Error('JOB_OPTIONS_INVALID');
+        if (Reflect.ownKeys(fields).some((key) => !OPTION_KEYS.has(key))) throw new Error('JOB_OPTIONS_INVALID');
         if (Object.values(fields).some((field) => !('value' in field) || !field.enumerable))
           throw new Error('JOB_OPTIONS_INVALID');
       } catch {
@@ -61,13 +90,33 @@ export function makeEnqueueJob(boss: PgBoss): EnqueueJob {
           throw new Error('JOB_ID_INVALID');
         jobId = value;
       }
+      if (fields.singletonKey) {
+        const value: unknown = fields.singletonKey.value;
+        if (typeof value !== 'string' || !/^[A-Za-z0-9:._-]{1,200}$/.test(value))
+          throw new Error('JOB_OPTIONS_INVALID');
+        singletonKey = value;
+      }
+      if (fields.duplicate) {
+        if (fields.duplicate.value !== 'ignore' || (jobId === undefined && singletonKey === undefined))
+          throw new Error('JOB_OPTIONS_INVALID');
+        duplicate = 'ignore';
+      }
+      if (fields.priority) {
+        const value: unknown = fields.priority.value;
+        if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 100)
+          throw new Error('JOB_OPTIONS_INVALID');
+        priority = value;
+      }
     }
     const data = queue.payload.parse(payload) as object;
     const id = await boss.send(queue.name, data, {
       db: fromKysely(transactionOf(scope)),
       ...(startAfter ? { startAfter } : {}),
       ...(jobId ? { id: jobId } : {}),
+      ...(singletonKey === undefined ? {} : { singletonKey }),
+      ...(priority === undefined ? {} : { priority }),
     });
+    if (id === null && duplicate === 'ignore') return;
     if (id === null) throw new Error(`pg-boss did not create a job on ${queue.name}`);
     if (jobId !== undefined && id !== jobId) throw new Error('JOB_ID_MISMATCH');
   };
