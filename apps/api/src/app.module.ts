@@ -29,6 +29,7 @@ import { sceneWiring } from './modules/scenes.js';
 import { evidenceWiring } from './modules/evidence.js';
 import { experienceWiring } from './modules/experience.js';
 import { identityWiring } from './modules/identity.js';
+import { operatorWiring } from './modules/operator.js';
 import { privacyWiring } from './modules/privacy.js';
 import { recordingWiring } from './modules/recording.js';
 import { socialWiring } from './modules/social.js';
@@ -106,6 +107,7 @@ export class AppModule {
         ...identityScopeOwnerProviders(),
         ...privacyWiring(resources.config.scopeLockTimeoutMs),
         ...accountWiring,
+        ...operatorWiring(resources.config.operatorAccounts),
         ...recordingWiring,
         ...contentWiring,
         ...mediaWiring,

@@ -109,6 +109,11 @@ export function identityProviders(tokens: { readonly database: symbol }) {
   ];
 }
 
+/** The account-to-universe read over one database handle, for operator commands outside Nest. */
+export function accountUniverseReaderFor(db: Kysely<Database>): ReadAccountUniverse {
+  return (accountId) => readAccountUniverse(db, accountId);
+}
+
 const receiptPorts: ReceiptPorts = {
   hashRequest: requestHash,
   findReceipt: findPersonalReceipt,
