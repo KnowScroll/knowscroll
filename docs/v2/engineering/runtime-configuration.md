@@ -154,7 +154,8 @@ tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it o
 
 `produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends the `content.produce-scroll`
 jobs of recipes that need one, and `production-status [--only <keys>]` lists every recipe's standing.
-Neither calls a provider or needs a key. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
+Neither calls a provider or needs a key. `admit-continuity [--dry-run]` admits the library plan's series and
+related moves between published Scrolls (D-059); it also needs only `KS_WORLD` and `DATABASE_URL`. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
 [--resume]` runs one job directly and needs the worker's reasoning variables
 (`KS_REASONING_PROVIDER=minimax`, `MINIMAX_API_KEY`, `KS_REASONING_PRODUCTION_ENABLED=1`,
 `KS_SCROLL_PRODUCTION_GENERATION`, and the production caps). One JSON line on stdout, diagnostics on
