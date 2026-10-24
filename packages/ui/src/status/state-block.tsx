@@ -93,13 +93,25 @@ function IconTile({ icon, edge }: { icon: IconName; edge: string }) {
   );
 }
 
-export function OfflineState({ body, onRetry }: { body: string; onRetry?: () => void }) {
+export function OfflineState({
+  body,
+  onRetry,
+  more = [],
+}: {
+  body: string;
+  onRetry?: () => void;
+  /** What else works offline (E01: "Open something you kept"), after Try again. */
+  more?: readonly StateAction[];
+}) {
   return (
     <StateBlock
       illustration={<IconTile icon="offline" edge={content.ink} />}
       title="You're offline"
       body={body}
-      actions={onRetry === undefined ? [] : [{ label: 'Try again', onPress: onRetry, variant: 'default' }]}
+      actions={[
+        ...(onRetry === undefined ? [] : [{ label: 'Try again', onPress: onRetry, variant: 'default' as const }]),
+        ...more,
+      ]}
     />
   );
 }

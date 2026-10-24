@@ -130,4 +130,19 @@ describe('StateBlock', () => {
     expect(screen.getByRole('header', { name: "Couldn't load Keep" })).toBeOnTheScreen();
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('lists what else works offline after Try again', async () => {
+    const keep = jest.fn();
+    await renderOn(
+      <OfflineState
+        body="Your place is kept."
+        onRetry={jest.fn()}
+        more={[{ label: 'Open something you kept', onPress: keep, variant: 'default' }]}
+      />,
+    );
+    const names = screen.getAllByRole('button').map((button) => button.props.accessibilityLabel as string);
+    expect(names).toEqual(['Try again', 'Open something you kept']);
+    await fireEvent.press(screen.getByRole('button', { name: 'Open something you kept' }));
+    expect(keep).toHaveBeenCalledTimes(1);
+  });
 });

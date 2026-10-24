@@ -94,7 +94,19 @@ export function EncounterStateScreen({
   if (phase === 'offline')
     return (
       <StateFrame>
-        <OfflineState body="Your place is kept. Try again when you're connected." onRetry={() => session.retry()} />
+        <OfflineState
+          body="Your place is kept. Try again when you're connected."
+          onRetry={() => session.retry()}
+          more={[
+            {
+              label: 'Open something you kept',
+              href: '/saved',
+              role: 'link',
+              onPress: () => router.navigate('/saved'),
+              variant: 'default',
+            },
+          ]}
+        />
       </StateFrame>
     );
   if (phase === 'error')
@@ -148,7 +160,7 @@ export function EncounterStateScreen({
           title="This isn't available anymore"
           body="It may have been withdrawn, or your access changed. Your other saved places are unaffected."
           actions={[
-            { label: 'Find something new', onPress: discover, variant: 'primary' },
+            { label: 'Next subject', onPress: discover, variant: 'primary' },
             {
               label: 'Go to Keep',
               href: '/saved',
