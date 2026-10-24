@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import {
@@ -34,16 +34,33 @@ import { FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT } from '../../identity/public.js'
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
 import { makeReadProfile, makeSetProfile } from '../application/profiles.js';
+import {
+  makeReadPresencePreference,
+  makeReadVisibility,
+  makeSetPresencePreference,
+  makeSetVisibility,
+} from '../application/visibility-settings.js';
+import { makeReadVisit, makeRefreshVisit } from '../application/visit.js';
+import type { RefreshPorts, VisibilityPorts } from '../application/visibility-ports.js';
+import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
+import { newOpaqueToken } from './opaque-token.js';
+import { recordHeartbeat, visibilityStore } from './postgres-visibility.js';
 import { makeLookupPerson, makeReadPair } from '../application/lookup-person.js';
 import { makePairCommand } from '../application/pairs.js';
 import {
   CONVERSATION_USE_CASES,
   READ_INBOX_REVISION,
+  RECORD_HEARTBEAT,
+  REFRESH_VISIT_PUBLICATION,
   SOCIAL_USE_CASES,
+  VISIBILITY_USE_CASES,
   THREAD_USE_CASES,
   type ConversationUseCases,
   type ReadInboxRevision,
+  type RecordHeartbeat,
+  type RefreshVisitPublication,
   type SocialUseCases,
+  type VisibilityUseCases,
   type ThreadUseCases,
 } from '../public.js';
 import { socialStore } from './postgres-store.js';
@@ -67,6 +84,7 @@ function socialPorts(deps: SocialDeps): SocialPorts {
     secret: () => `ksfi_${randomBytes(32).toString('base64url')}`,
     digest: (secret) => createHash('sha256').update(secret).digest('hex'),
     store: deps.store ?? socialStore,
+    visibility: visibilityStore,
     newId: deps.newId ?? uuidv7,
     now: deps.now ?? (() => new Date()),
     hash: (operation, input) => requestHash(operation, input as CanonicalJson),
@@ -108,6 +126,43 @@ export function conversationUseCases(
   };
 }
 
+/** Visitor settings, availability preference and the friend visit, over the same ports plus a read of the caller's own Geography. */
+export function visibilityUseCases(
+  deps: SocialDeps & { readGeography: ReadGeographySceneInput; newPublicId?: () => string },
+): VisibilityUseCases {
+  const ports: VisibilityPorts = {
+    ...socialPorts(deps),
+    readGeography: deps.readGeography,
+    newPublicId: deps.newPublicId ?? randomUUID,
+    newOpaqueToken,
+  };
+  return {
+    readVisibility: makeReadVisibility(ports),
+    setVisibility: makeSetVisibility(ports),
+    readPresencePreference: makeReadPresencePreference(ports),
+    setPresencePreference: makeSetPresencePreference(ports),
+    readVisit: makeReadVisit(ports),
+  };
+}
+
+/** The worker's redraw of a universe's published copy: scope, Geography and ids, and no friendship. */
+export function refreshVisitPublication(deps: {
+  withScope: WithPersonalScope;
+  readGeography: ReadGeographySceneInput;
+  now?: () => Date;
+  newPublicId?: () => string;
+}): RefreshVisitPublication {
+  const ports: RefreshPorts = {
+    withScope: deps.withScope,
+    visibility: visibilityStore,
+    readGeography: deps.readGeography,
+    newPublicId: deps.newPublicId ?? randomUUID,
+    newOpaqueToken,
+    now: deps.now ?? (() => new Date()),
+  };
+  return makeRefreshVisit(ports);
+}
+
 /** Content threads over the same ports plus the content and experience reads they need. */
 export function threadUseCases(
   deps: SocialDeps & {
@@ -142,8 +197,40 @@ export function readInboxRevision(db: Kysely<Database>): ReadInboxRevision {
     return Number(head?.revision ?? 0);
   };
 }
+/** Heartbeats are one statement on the pool: availability is account-keyed and takes no personal root. */
+export function heartbeatRecorder(db: Kysely<Database>): RecordHeartbeat {
+  return (accountId) => recordHeartbeat(db, accountId);
+}
+
+/** The worker's visit refresh, bound to the scope and the geography read the worker already has. */
+export function visitRefreshProviders(tokens: { readonly withPersonalScope: symbol }) {
+  return [
+    {
+      provide: REFRESH_VISIT_PUBLICATION,
+      inject: [tokens.withPersonalScope, READ_GEOGRAPHY_SCENE_INPUT],
+      useFactory: (withScope: WithPersonalScope, readGeography: ReadGeographySceneInput) =>
+        refreshVisitPublication({ withScope, readGeography }),
+    },
+  ];
+}
+
 export function socialProviders(tokens: { readonly withPersonalScope: symbol; readonly database: symbol }) {
   return [
+    {
+      provide: VISIBILITY_USE_CASES,
+      inject: [tokens.withPersonalScope, FENCE_ACCOUNT_PAIR, FENCE_OWN_ACCOUNT, READ_GEOGRAPHY_SCENE_INPUT],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fencePair: FenceAccountPair,
+        fenceOwn: FenceOwnAccount,
+        readGeography: ReadGeographySceneInput,
+      ) => visibilityUseCases({ withScope, fencePair, fenceOwn, readGeography }),
+    },
+    {
+      provide: RECORD_HEARTBEAT,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => heartbeatRecorder(db),
+    },
     {
       provide: CONVERSATION_USE_CASES,
       inject: [

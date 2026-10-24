@@ -5,7 +5,7 @@ import { PlanetScene } from './planet-scene';
 import { SystemScene } from './system-scene';
 import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
-import type { UniverseViewSession, UniverseViewState } from './universe-session';
+import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 const KEY_PAN = 60;
 const KEY_ZOOM = 1.25;
@@ -15,7 +15,7 @@ const KEY_ZOOM = 1.25;
  * responder only takes over once a finger has moved: a drag that starts on a place pans, a tap on
  * it selects it.
  */
-function cameraResponder(session: UniverseViewSession) {
+function cameraResponder(session: UniverseMapSession) {
   let origin: UniverseFrame = { x: 0, y: 0, scale: 1 };
   let startDistance = 0;
   const spread = (touches: readonly { pageX: number; pageY: number }[]) => {
@@ -51,7 +51,7 @@ export function UniverseStage({
   onSearch,
   onDust,
 }: {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   readonly onSearch: () => void;

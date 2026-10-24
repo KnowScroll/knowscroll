@@ -25,6 +25,8 @@ import {
 } from '@knowscroll/backend/modules/geography';
 import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
+import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowscroll/backend/modules/social';
+import { visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { resolveSupplyQueue, RESOLVE_CONTENT_REQUEST, type ResolveRequest } from '@knowscroll/backend/modules/supply';
 import {
@@ -123,6 +125,7 @@ export const jobWiring: Provider[] = [
   ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
+  ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   {
     provide: PERSONAL_MATERIAL_CHANGE,
@@ -168,6 +171,7 @@ export const jobWiring: Provider[] = [
     provide: JOB_CONSUMERS,
     inject: [
       PROJECT_SCENE,
+      REFRESH_VISIT_PUBLICATION,
       FORMATION_PRESENTATIONS,
       RUN_CARTOGRAPHER,
       PUBLISH_GEOGRAPHY_DELTA,
@@ -189,6 +193,7 @@ export const jobWiring: Provider[] = [
     ],
     useFactory: (
       projectScene: ProjectScene,
+      refreshVisit: RefreshVisitPublication,
       formation: FormationUseCases,
       runCartographer: RunCartographer,
       publishDelta: PublishGeographyDelta,
@@ -237,8 +242,12 @@ export const jobWiring: Provider[] = [
         },
         logEvent,
       ),
+      // After a projection, friends who may visit see what it drew: the published copy is redrawn in its
+      // own transaction (D-047). A universe that shares nothing is a no-op, and a failure retries the
+      // job, which re-projects nothing.
       jobConsumer(projectSceneQueue, async (payload) => {
         await projectScene(payload);
+        await refreshVisit({ universeId: payload.universeId, privacyEpoch: payload.privacyEpoch });
       }),
       jobConsumer(cartographyQueue, async (payload, delivery) => {
         await runCartographer(payload, delivery.signal);

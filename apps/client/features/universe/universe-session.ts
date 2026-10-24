@@ -427,3 +427,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
   };
 }
 export type UniverseViewSession = ReturnType<typeof createUniverseViewSession>;
+/**
+ * What the map is drawn from. A friend's universe (U06) is drawn and navigated the same way as your
+ * own, but has no formation story, so that part is not something the drawing needs.
+ */
+export type UniverseMapSession = Omit<UniverseViewSession, 'formation' | 'dismissFormation'>;

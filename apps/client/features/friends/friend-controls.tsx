@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { FriendsOutput } from '@knowscroll/client-core';
+import type { AvailabilityWord, FriendsOutput } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 
@@ -36,9 +36,15 @@ export function FriendControls({
   pair,
   disabled,
   onCommand,
+  availability,
+  onVisit,
 }: {
   readonly pair: Pair;
   readonly disabled: boolean;
+  /** What the friend lets this person see, while it is fresh; nothing when hidden, expired or unknown. */
+  readonly availability?: AvailabilityWord | undefined;
+  /** Opens the friend's universe (U06). The server decides whether anything is shown. */
+  readonly onVisit?: () => void;
   readonly onCommand: (
     operation: PairOperation,
     input: { peerPersonId: string; expectedPairRevision: number; requestId?: string },
@@ -55,7 +61,9 @@ export function FriendControls({
       <FriendIdentity person={pair.peer} />
       <Text variant="bodyS" color={content.ink2}>
         {pair.state === 'friends'
-          ? 'Friends · availability not shared'
+          ? availability === undefined
+            ? 'Friends'
+            : `Friends · ${availability === 'online' ? 'Online' : 'Recently active'}`
           : pair.state === 'incoming'
             ? 'Asking to be your friend'
             : pair.state === 'outgoing'
@@ -87,6 +95,14 @@ export function FriendControls({
             variant="ghost"
             disabled={disabled}
             onPress={action('cancel')}
+          />
+        ) : null}
+        {pair.state === 'friends' && onVisit ? (
+          <FriendButton
+            label={`Visit ${pair.peer.displayName}’s universe`}
+            variant="primary"
+            disabled={disabled}
+            onPress={onVisit}
           />
         ) : null}
         {pair.state === 'friends' ? (
