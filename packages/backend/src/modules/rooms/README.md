@@ -21,7 +21,10 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | Ask a labelled AI inhabitant to contribute (Explainer, Skeptic) | Implemented; runtime-verified |
 | Moderator: pin a discussion, hide or restore a message, pause or resume the room, remove an ordinary member | Implemented |
 | Operator: seed one room for each library system, name a moderator | Implemented |
-| What-if branches inside a room thread, reports, polls and quizzes (R03), the desktop layout (D04), room stations on the map | Planned (not in this slice) |
+| Find a room's station beside a system of their own map (U01, U02, the list view) and open it | Implemented; runtime-verified |
+| Moderator: start a poll or a quiz (R03); members vote in a poll (visible to the room, changeable until it closes) and read a quiz one question at a time; the moderator closes or removes it | Implemented; runtime-verified |
+| The desktop room (D04): the room, the open discussion and the room extras in three panes | Implemented (client); runtime-verified |
+| What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
 
@@ -34,16 +37,18 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `messages` | A person's text or card, an AI inhabitant's contribution, or a tombstone; `hidden_at` is a moderator's removal |
 | `message_snippets` | The anchor of a snippet message, copied from the exact revision when sent |
 | `ai_requests` | One row per ask of an inhabitant: the rate-bound ledger and the provenance of the contribution |
+| `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
+| `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
 
 Use cases (`public.ts`, `RoomUseCases`): `list`, `read`, `join`, `leave`, `invite`, `moderate`,
 `create` (a discussion), `readDiscussion`, `history`, `changes`, `send`, `openSnippet`, `pin`,
-`hideMessage`, `ask`. The worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue.
+`hideMessage`, `ask`, `stations`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. The worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue.
 Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`.
 
 Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribution text rules,
 cursors) <- `application/` (use cases over ports) <- `adapters/` (PostgreSQL, Nest providers, erasure).
 Other modules and the API import only `public.ts`. Rooms reads other modules only through their
-public ports: people and friends from Social (`READ_PUBLIC_PEOPLE`, `READ_FRIEND_ACCOUNTS`, and the
+public ports: the caller's own map from Geography (`READ_GEOGRAPHY_SCENE_INPUT`, for stations), people and friends from Social (`READ_PUBLIC_PEOPLE`, `READ_FRIEND_ACCOUNTS`, and the
 `snippetCard` presentation rule), content cards, sequences and snippet anchors from Content, a person's
 own visited markers from Experience, and the personal harness from Reasoning. It never reads Social's
 conversations or threads.
@@ -73,6 +78,33 @@ conversations or threads.
   with its own recorder, started by the person.
 - **Provenance.** A stored contribution names its inhabitant, kind, role version, prompt version, the
   model the worker is configured for and the reasoning attempt it came from (`ai_requests`).
+
+## Stations on a personal map (U01, U02)
+
+A room belongs to its topic, not to anyone's coordinates, so a station is not stored anywhere. `stations` reads the
+caller's own map through Geography's public scene input and places each non-closed room whose topic is a system (or a
+planet) that map holds as a factual place: `{ room, standing, placement: { systemId, planetId? } }`. The IDs are the
+map's own object IDs, so the client draws the station beside the scene object they name; the angle comes from the room's
+ID, so a station keeps its spot. The same room sits beside different places on different maps. A person with no map has
+no stations, a hypothetical place never carries one, a closed room is not shown, and the answer has no member, count,
+online or activity field. Asking reads, writes and enqueues nothing. No scene object or Geography row is added: persisting
+a placement would need a new scene-core kind and capability (D-051).
+
+## Optional room activity (R03)
+
+A moderator starts a poll (a question and two to five different options) or a quiz (one to five questions, each with two to
+four options and an explanation). Both live only inside the room: never in a feed, never required, never scored, never an input
+to a universe, and no observation or exposure is created by reading, voting or answering. An AI inhabitant has no path to
+start one. Bounds are exact under the room lock: five open at once and twenty started per room and UTC day (`rate_limited`
+beyond), definitions of at most 12 KiB.
+
+- **Poll.** One vote per person, visible to the room (the first 12 voters of an option are named; counts are exact). A new
+  command is a change of mind; the same command replays. A vote takes the activity row FOR SHARE and a close FOR UPDATE, so no
+  vote lands after a close. Voting needs an open poll in an open room.
+- **Quiz.** Served whole to members, answered on the device. There is no command that sends an answer, so the server never
+  holds an answer, a score or a position, and a reload starts over. The answers view shows the moderator's explanations.
+- **Moderation.** Close keeps the votes and shows them; remove hides it from everyone (a removed activity reads as
+  `unavailable`). Closing a closed poll is already what was asked.
 
 ## Access, receipts and lock order
 
@@ -115,11 +147,13 @@ ends as failed.
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
 | ai_requests | kept; asks still queued end as failed | the asker link is cleared and queued asks end as failed; an AI contribution a deleted person asked for stays with the room |
+| activities | kept | the creator link is cleared; the poll or quiz stays with the room |
+| poll_votes | kept | the person's votes are deleted |
 | pg-boss `rooms.contribute` | the universe's job payloads are deleted | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
 The export holds the person's rooms, the discussions they started and their own words (newest 2,000, with
-`truncated`), and how many times they asked an inhabitant; it names no other person and no AI text, and a
+`truncated`), how many times they asked an inhabitant, their poll votes (with the option's words) and the activities they started; it names no other person and no AI text, and a
 person who never took part in a room has no section.
 
 ## Failure and recovery
@@ -134,7 +168,8 @@ person who never took part in a room has no section.
 
 - Contracts: `packages/contracts/src/rooms.ts` (routes under `/v1/rooms/*`, sharing Social's problem
   family and private cache policy).
-- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`;
+- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`, `rooms-stations.test.ts`,
+  `rooms-activities.test.ts`, and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.
 - Operator: `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
   (`apps/worker/src/rooms-operator.ts`).

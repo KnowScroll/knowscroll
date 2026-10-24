@@ -129,7 +129,7 @@ function StationRows({
             accessibilityRole="button"
             accessibilityLabel={`${station.room.name}, a room station`}
             onPress={() => onStation?.(station.room.roomId)}
-            style={styles.row}
+            style={[styles.row, styles.stationRow]}
           >
             <Text variant="bodyS">{station.room.name}</Text>
             <Text variant="label" color={content.ink2}>
@@ -293,6 +293,7 @@ const styles = StyleSheet.create({
     cursor: 'pointer' as const,
   },
   rooms: { gap: spacing[1], paddingTop: spacing[3] },
+  stationRow: { paddingLeft: spacing[3] },
   roomsHeading: { paddingHorizontal: spacing[3] },
   ancestor: { backgroundColor: content.paper2 },
   current: { backgroundColor: content.continue },

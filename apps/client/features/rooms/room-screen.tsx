@@ -70,9 +70,12 @@ function Guidelines({ text }: { readonly text: string }) {
 function WhoIsHere({
   hasModerator,
   inhabitants,
+  stacked,
 }: {
   readonly hasModerator: boolean;
   readonly inhabitants: readonly RoomInhabitant[];
+  /** Each label above its words, for a narrow column (D04's left pane). */
+  readonly stacked?: boolean;
 }) {
   return (
     <View style={styles.who} role="list" accessibilityLabel="Who is here to help">
@@ -80,13 +83,17 @@ function WhoIsHere({
         Who’s here to help
       </Text>
       {hasModerator ? (
-        <View role="listitem" style={styles.whoRow}>
+        <View role="listitem" style={[styles.whoRow, stacked === true ? styles.whoRowStacked : null]}>
           <ModeratorLabel />
           <Text variant="bodyS">Keeps the discussion on track</Text>
         </View>
       ) : null}
       {inhabitants.map((entry) => (
-        <View key={entry.inhabitant} role="listitem" style={styles.whoRow}>
+        <View
+          key={entry.inhabitant}
+          role="listitem"
+          style={[styles.whoRow, stacked === true ? styles.whoRowStacked : null]}
+        >
           <AiLabel label={entry.label} />
           <Text variant="bodyS">{entry.blurb}</Text>
         </View>
@@ -299,7 +306,7 @@ export function MemberBody({
         <Text variant="bodyS" color={content.ink2}>
           {view.room.description}
         </Text>
-        <WhoIsHere hasModerator={view.hasModerator} inhabitants={view.inhabitants} />
+        <WhoIsHere hasModerator={view.hasModerator} inhabitants={view.inhabitants} stacked={rail === true} />
         {!view.canPost ? (
           <Banner
             kind="info"
@@ -550,6 +557,13 @@ const styles = StyleSheet.create({
   },
   who: { gap: spacing[2], paddingTop: spacing[2], borderTopWidth: borderWidth.hairline, borderTopColor: content.rule },
   whoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], minHeight: 44 },
+  whoRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: spacing['0.5'],
+    minHeight: 0,
+    paddingVertical: spacing[1],
+  },
   pinned: {
     gap: spacing[1],
     padding: spacing[3],

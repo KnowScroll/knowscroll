@@ -90,7 +90,9 @@ function PollForm({ onDraft }: { readonly onDraft: (draft: NewActivity | undefin
         />
       ))}
       {options.length < MAX_POLL_OPTIONS ? (
-        <Button label="Add an option" size="sm" variant="ghost" onPress={() => update(prompt, [...options, ''])} />
+        <View style={styles.add}>
+          <Button label="Add an option" size="sm" variant="ghost" onPress={() => update(prompt, [...options, ''])} />
+        </View>
       ) : null}
     </View>
   );
@@ -139,12 +141,14 @@ function QuizForm({ onDraft }: { readonly onDraft: (draft: NewActivity | undefin
             />
           ))}
           {question.options.length < MAX_QUIZ_OPTIONS ? (
-            <Button
-              label="Add an option"
-              size="sm"
-              variant="ghost"
-              onPress={() => change(index, { options: [...question.options, ''] })}
-            />
+            <View style={styles.add}>
+              <Button
+                label="Add an option"
+                size="sm"
+                variant="ghost"
+                onPress={() => change(index, { options: [...question.options, ''] })}
+              />
+            </View>
           ) : null}
           <FormField
             label={`Question ${String(index + 1)} answer, heading`}
@@ -168,12 +172,14 @@ function QuizForm({ onDraft }: { readonly onDraft: (draft: NewActivity | undefin
         </View>
       ))}
       {questions.length < MAX_QUIZ_QUESTIONS ? (
-        <Button
-          label="Add a question"
-          size="sm"
-          variant="ghost"
-          onPress={() => update(title, [...questions, blankQuestion()])}
-        />
+        <View style={styles.add}>
+          <Button
+            label="Add a question"
+            size="sm"
+            variant="ghost"
+            onPress={() => update(title, [...questions, blankQuestion()])}
+          />
+        </View>
       ) : null}
     </View>
   );
@@ -244,6 +250,7 @@ function ActivitySheet({ kind, controller, state, onClose, onStarted }: StartAct
 const styles = StyleSheet.create({
   sheet: { gap: spacing[3], paddingBottom: spacing[4] },
   form: { gap: spacing[3] },
+  add: { alignSelf: 'flex-start' },
   question: { gap: spacing[2], paddingTop: spacing[2] },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing[3] },
 });
