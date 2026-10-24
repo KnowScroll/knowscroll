@@ -14,11 +14,11 @@ Android builds and the emulator run only here, never on a developer's Mac.
 
 | How | When |
 |---|---|
-| Add the label **`run-native`** to a pull request | Always available. The lane runs on the label being added and on every later push to that PR (`opened`, `reopened`, `synchronize`, `labeled`); adding some other label to a labelled PR starts nothing. Pull requests build against the dev origin (`https://app.dev.knowscroll.space`) with the developer gallery. |
-| `gh workflow run native.yml --ref <branch> [-f api_origin=<https origin>] [-f gallery=true\|false]` | Only once `native.yml` is on `dev`, the default branch (GitHub lists a dispatchable workflow only from the default branch). `api_origin` is baked into the build (HTTPS only); `gallery=false` builds without the developer gallery and skips the gallery flows. |
+| Add the label **`run-native`** to a pull request | Always available. The lane runs on the label being added and on every later push to that PR (`opened`, `reopened`, `synchronize`, `labeled`); adding some other label to a labelled PR starts nothing. Pull requests build against the lane's test API (below) with the developer gallery. |
+| `gh workflow run native.yml --ref <branch> [-f api_origin=<https origin>] [-f gallery=true\|false]` | Only once `native.yml` is on `dev`, the default branch (GitHub lists a dispatchable workflow only from the default branch). `api_origin` is baked into the build: the default is the test API; an https origin builds a normal app and runs the signed-out flows only. `gallery=false` builds without the developer gallery and skips the gallery flows. |
 
-A run takes about 15 minutes of wall time: `apk` 8 to 11 minutes (Gradle with a warm cache is about 6; a cold cache is
-slower), `emulator` about 6 (boot, 4 to 5 flows). Hosted-runner minutes are free on this public repository.
+A run takes about 15 minutes of wall time without the test API: `apk` 8 to 11 minutes (Gradle with a warm cache is about 6; a cold cache is
+slower), `emulator` about 6 (boot, 4 to 5 flows). The test API adds its build and the journey to the `emulator` job. Hosted-runner minutes are free on this public repository.
 
 Follow a run with `gh run watch <id>`, and fetch the evidence with `gh run download <id> -D <folder>`
 (artifacts below). A newer push to the same ref cancels the older run; a pull-request event that does not
@@ -56,6 +56,33 @@ The emulator job can be re-run alone (**Re-run failed jobs**) without rebuilding
 | `emulator-screenshots` | every `takeScreenshot` PNG, plus `adb-final-screen.png` (an independent capture of the last screen) | 14 days |
 | `emulator-report` | `summary.md`, `device.txt`, `reports/<flow>.xml` (JUnit), `logs/<flow>.log` (Maestro output), `maestro/<flow>/…` (Maestro's artifact folders: commands, failure screenshots and hierarchies, device log), `logcat.txt` | 14 days |
 
+## The test API and the journey (#249, D-045)
+
+When the APK is built for the default origin `http://127.0.0.1:3399`, the `emulator` job also builds the API and
+worker release trees (`pnpm deploy`, as `checks` does), starts `apps/client/maestro/test-api/serve.mjs` over the
+job's PostgreSQL service (database `knowscroll_fixture_native`), and waits for `/health`. The script migrates,
+admits the authored starter Scroll ("Why the sky is blue"), imports one Reel made from generated colour-bar video
+through a fake Cutroom ("[Fixture] A blanket made of gas"; no provider, no spend), and starts the API with the fixture
+mail sender (mail goes to `mail.jsonl`, never uploaded) and native sign-in binding on. It is a fixture world: the
+configuration refuses all of this outside `ci` and `local`. `run-ci.sh` forwards the port with `adb reverse`.
+
+The build flag `EXPO_PUBLIC_KS_TEST_API=1` (set only for that origin) lets the client use plain HTTP to localhost and makes
+the manifest allow cleartext traffic (`plugins/test-api-cleartext.js`); the APK step fails if a test build lacks it or any
+other build has it.
+
+The journey is three Maestro runs on one install, joined by `run-ci.sh`:
+
+1. `journey-1-request-link`: signed-out Explore, Sign in, Continue with email, a fresh `journey-<time>@test.example`
+   address, "Check your inbox". The app binds the link to this device (verifier in the secure store).
+2. The script reads the link from the recorded mail and turns it into `knowscroll://redeem#token=...`.
+   `journey-2-sign-in-and-explore`: the link opens the app, "Continue as ...", the fixture Reel appears, the first-arrival
+   hint is dismissed, Next subject reaches the Scroll, Keep this place, Keep lists it, Universe opens.
+3. `journey-3-restart`: the app is stopped and started with its data: still signed in, the hint stays dismissed
+   (encrypted scope storage), Keep still lists the Scroll, the account screen shows the address; then Sign out, and another
+   restart finds a signed-out app (the stored token is gone).
+
+Artifacts add `test-api-logs` (the API, worker and operator logs).
+
 ## Flows (`apps/client/maestro/`)
 
 All flows start with `launchApp` and `clearState: true`, so each one is a cold start of a signed-out app.
@@ -67,6 +94,7 @@ All flows start with `launchApp` and `clearState: true`, so each one is a cold s
 | `gallery.yaml` (gallery builds) | `knowscroll://gallery` opens the developer gallery (marker `ks-component-gallery`), it scrolls to its last section, the system Back closes the bottom sheet without leaving the gallery, and a second Back returns to the shell. The API-health panel asks the baked-in origin; the flow does not depend on the answer, but the screenshot shows what the dev API reported | `gallery-01…06` (with `04b`, `04c`) |
 | `no-gallery.yaml` (builds without the gallery, i.e. `gallery=false`) | Runs instead of the two gallery flows: `knowscroll://gallery` reaches the not-found screen, not the gallery; its "Go to Explore" returns to the shell. With the APK step's bundle check this is the native counterpart of the client job's "the production export carries no developer gallery" | `no-gallery-01`, `no-gallery-02` |
 | `scroll-blocks.yaml` (gallery builds) | Placeholder. When the gallery has an element with testID **`gallery-scroll-blocks`** it opens it and takes a screenshot. Until the Scroll renderers (#230 part 2) add it, the flow logs a `KS-LANE-SKIP` line and checks nothing; `run-ci.sh` then reports it as **skipped**, never as passed | `scroll-blocks-01-section` |
+| `journey-1-request-link.yaml`, `journey-2-sign-in-and-explore.yaml`, `journey-3-restart.yaml` (test API builds) | The signed-in journey described above, as three runs chained by `run-ci.sh` (they need its address and link, so they never run on their own). Skipped, and reported as skipped, for an https-origin build | `journey-1-01…02`, `journey-2-01…05`, `journey-3-01…03` |
 
 Every flow begins with `runFlow: start-app.yaml` (a shared subflow, never run on its own): a cold start of the signed-out
 app and a wait for the shell. It also dismisses an Android "Pixel Launcher isn't responding" dialog if one appears: the
@@ -101,19 +129,15 @@ gallery build; the app does not crash while doing so.
 
 Cannot prove yet:
 
-- **Signed-in native journeys.** Native sign-in binding is off on every world (D-022, `KS_NATIVE_SIGN_IN_BINDING`),
-  and a mailed link cannot be read by a test. A signed-in flow needs a session on the device. The smallest change
-  that would allow it is to let operator sign-in links for the disposable `@test.knowscroll.space` accounts
-  (`KS_OPERATOR_SIGN_IN_PATTERN`, dev and stage only) be redeemed by the native client, for example by a
-  `knowscroll://redeem#token=…` deep link opened by the flow. That is an identity change, so it is the
-  coordinator's decision, not this lane's; until then every flow is signed out.
+- **Signed-in journeys against a deployed world.** The journey runs against the lane's own test API. Native sign-in binding
+  stays off on dev and stage (D-022, `KS_NATIVE_SIGN_IN_BINDING`), so no journey signs in there.
 - **A physical device**: real GPU, real keyboard and IME, gestures at speed, thermals, Hermes performance on phone
   hardware (the emulator runs x86_64 with a software GPU), push, deep-link verification by Android's
   App Links. The owner's phone remains the only physical-device evidence.
 - **iOS**: not built here; iPhone users use the web app for now.
 - **Store signing and release builds for distribution**: the APK is debug-signed on purpose.
 - **Other API levels, screen sizes and the tablet rail**: one AVD (API 35, pixel_6, 1080×2400).
-- **The server**: the app asks the dev origin only for diagnostics (the gallery's `/health`); no flow depends on it.
+- **A deployed server.** The journeys use fixture content on a disposable database; dev and stage are not exercised.
 
 ## Pins
 

@@ -36,6 +36,7 @@ export function EmailField({
         editable={!disabled}
         aria-labelledby="email-label"
         accessibilityLabel="Email address"
+        testID="email-field"
         {...(error === undefined ? {} : { 'aria-describedby': 'email-error', 'aria-invalid': true })}
         autoComplete="email"
         textContentType="emailAddress"
