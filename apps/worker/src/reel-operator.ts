@@ -42,7 +42,8 @@ async function run(command: string, values: Record<string, string | boolean | un
     }
     case 'follow': {
       if (script === '' || until === undefined) return undefined;
-      const waitSeconds = Math.min(Number(values['wait-seconds'] ?? 0), MAX_WAIT_SECONDS);
+      const requested = Number(values['wait-seconds'] ?? 0);
+      const waitSeconds = Number.isFinite(requested) && requested > 0 ? Math.min(requested, MAX_WAIT_SECONDS) : 0;
       const deadline = Date.now() + waitSeconds * 1000;
       for (;;) {
         const result = await reel.follow({ scriptName: script, until });
