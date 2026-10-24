@@ -43,7 +43,11 @@ explicit resume, so a paid answer already kept in the ledger is reused, never pa
 successor with a new business run takes over, once the Reasoning ledger says its attempt is settled
 or the run is two hours old. The attempt is never resent; it stays in the ledger as a liability.
 
-Budget does not block a run. When the person's day of tokens or the failure brake refuses the call,
+The Planner is a background role (D-058): besides the person's whole day it stops at its share of the global
+and the person's budgets (`KS_REASONING_BACKGROUND_SHARE_PERCENT`, default 50),
+so a person who only reads keeps the rest of their allowance for what they ask for.
+
+Budget does not block a run. When the person's day of tokens, their background share or the failure brake refuses the call,
 the run ends `insufficient` (`budget_exhausted` or `failure_brake`), its ledger run is closed
 `cancelled` so nothing is left admitted, and the next evidence starts a new run (paced), which asks
 again. The same happens when the ledger run behind a run is found closed or spent (`run_closed`,

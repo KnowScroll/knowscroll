@@ -188,7 +188,22 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           select id from reasoning.external_attempts
           where universe_id = ${scope.authority.universeId} and budget_window = ${today}
         )`.execute(trx);
-      return { global: spendOf(global.rows[0]), role: spendOf(role.rows[0]), scope: spendOf(personal.rows[0]) };
+      const backgroundGlobal = await sql<{ requests: string; tokens: string }>`
+        select ${receiptSpend} from reasoning.usage_receipts where budget_window = ${today} and background`.execute(
+        trx,
+      );
+      const backgroundPersonal = await sql<{ requests: string; tokens: string }>`
+        select ${receiptSpend} from reasoning.usage_receipts
+        where budget_window = ${today} and background and attempt_id in (
+          select id from reasoning.external_attempts
+          where universe_id = ${scope.authority.universeId} and budget_window = ${today}
+        )`.execute(trx);
+      return {
+        global: spendOf(global.rows[0]),
+        role: spendOf(role.rows[0]),
+        scope: spendOf(personal.rows[0]),
+        background: { global: spendOf(backgroundGlobal.rows[0]), scope: spendOf(backgroundPersonal.rows[0]) },
+      };
     },
 
     async canStartRun(scope, roleId) {
@@ -249,6 +264,7 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
           model: reservation.model,
           budget_window: today,
           reserved_tokens: reservation.reservedTokens,
+          background: reservation.budgetClass === 'background',
         })
         .execute();
     },

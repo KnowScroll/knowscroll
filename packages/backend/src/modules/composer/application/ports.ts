@@ -1,5 +1,6 @@
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import type { BufferKey, BufferedSelection, PreparedBuffer } from '../domain/buffer.js';
+import type { JevPool } from '../domain/jev-pool.js';
 import type {
   ComposerDecision,
   ComposerSnapshot,
@@ -91,8 +92,19 @@ export type ReleaseComposerBuffer = (
 ) => Promise<void>;
 /**
  * Deletes the person's buffer and its decision once nothing in it can be used again: it is past its
- * life and carries no still-valid assessment. Called by the navigation that would otherwise read it.
+ * life and carries no still-valid assessment. Also deletes the person's stored Jev assessments once every
+ * one is past its life. Called by the navigation that would otherwise read the buffer, and by
+ * `pruneComposerDecisions`.
  */
 export type PurgeExpiredComposerBuffer = (scope: PersonalScopeTx, now: Date) => Promise<void>;
 /** Enqueues, in the caller's transaction, the job that prepares the buffer for this key. */
 export type RequestBufferPreparation = (scope: PersonalScopeTx, key: BufferKey) => Promise<void>;
+
+/** The person's stored Jev assessments (`composer.jev_assessments`), expired or not; the caller applies the lifetimes. */
+export type ReadJevPool = (scope: PersonalScopeTx) => Promise<JevPool | undefined>;
+/**
+ * Adds assessments the model just produced to the person's pool, merged with what the pool holds at
+ * that moment (the caller holds the personal lock, so two preparations cannot lose each other's
+ * entries). Entries past their life and entries made by another role version or model are dropped.
+ */
+export type StoreJevAssessments = (scope: PersonalScopeTx, added: JevPool, now: Date) => Promise<void>;
