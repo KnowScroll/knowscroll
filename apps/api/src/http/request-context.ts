@@ -44,14 +44,18 @@ function isRecordingRequest(request: Pick<Request, 'method' | 'path'>): boolean 
   );
 }
 
-/** Select only the mounted profile/pair/invite and versioned page methods/paths, never the wider declared Social surface. */
+/**
+ * Select only the mounted Social methods and paths, never the wider declared surface: profiles,
+ * pairs, invites, rosters, conversations, share links and the public share preview.
+ */
 function isSocialRequest(request: Pick<Request, 'method' | 'path'>): boolean {
   return (
     (request.method === 'GET' && /^\/v1\/social\/(?:profile|invites)\/?$/i.test(request.path)) ||
     (request.method === 'POST' &&
-      /^\/v1\/social\/(?:profile|friends\/page|requests\/page|people\/lookup|pairs\/read|invites\/(?:resolve|create|revoke)|friends\/(?:request|accept|decline|cancel|remove|block|unblock))\/?$/i.test(
+      /^\/v1\/social\/(?:profile|friends\/page|requests\/page|people\/lookup|pairs\/read|invites\/(?:resolve|create|revoke)|friends\/(?:request|accept|decline|cancel|remove|block|unblock)|conversations\/(?:start|inbox|read|history|changes|send|send\/read|mark-read|mute|leave)|content-shares\/(?:create|revoke|read|list|resolve))\/?$/i.test(
         request.path,
-      ))
+      )) ||
+    (request.method === 'POST' && /^\/s\/preview\/?$/i.test(request.path))
   );
 }
 

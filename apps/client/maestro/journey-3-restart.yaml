@@ -1,0 +1,46 @@
+# Journey, step 3 of 3: the app is stopped and started again with its data intact. The session
+# token (platform secure store) and the account scope's storage (encrypted, per account) survive:
+# the person is still signed in, and the hint dismissed in step 2 stays dismissed. Then Sign out
+# ends the session for good: another restart finds a signed-out app.
+# Env: EMAIL, the address step 1 asked for.
+appId: com.knowscroll.client
+name: Journey 3 - restart keeps the session and the scope, sign-out ends them
+tags:
+  - journey
+---
+- stopApp
+- launchApp:
+    stopApp: true
+# Explore opens a fresh encounter (a Reel or the Scroll, whichever Composer offers now); once one is
+# on screen, the hint that step 2 dismissed must not come back.
+- extendedWaitUntil:
+    visible: Keep this place
+    timeout: 90000
+- runFlow: scroll-down.yaml
+- assertVisible: Next subject
+- assertNotVisible: Got it
+- takeScreenshot: journey-3-01-after-restart
+- tapOn:
+    id: destination-saved
+- extendedWaitUntil:
+    visible: Why the sky is blue
+    timeout: 60000
+- tapOn:
+    id: account-button
+- extendedWaitUntil:
+    visible: Signed in as
+    timeout: 60000
+- assertVisible: ${EMAIL}
+- takeScreenshot: journey-3-02-account
+- tapOn: Sign out
+- extendedWaitUntil:
+    visible: You're not signed in
+    timeout: 60000
+- stopApp
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: Nothing is ready to play yet.
+    timeout: 60000
+- assertNotVisible: Keep this place
+- takeScreenshot: journey-3-03-signed-out-after-restart

@@ -36,6 +36,8 @@ const compositionRoots = [
   '^apps/worker/src/production-jobs\\.ts$',
   '^apps/worker/src/library-operator\\.ts$',
   '^apps/worker/src/supply-operator\\.ts$',
+  // The journey inspector composes the read-only operator views (#248).
+  '^apps/worker/src/journey-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

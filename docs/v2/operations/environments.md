@@ -149,6 +149,13 @@ by mail (`not_disposable`). Each issue leaves an audit row: `select world, issue
 operator_source, account_id from ops.operator_sign_ins order by issued_at desc` (as
 `postgres` on `knowscroll_v2_<world>`); `operator_source` is `cli:<SUDO_USER>`.
 
+### Looking at the system (#248)
+
+`/operator` on the web app is the Operator screen for the accounts in the world's `KS_OPERATOR_ACCOUNTS`; on dev
+every `*@test.knowscroll.space` account qualifies until the list is set. `node dist/operator.js journey <id>` in the
+worker tree prints one record's timeline. The one-time `ks2_ops_reader` role for Grafana or psql is created by the
+owner. All of it is in `looking-at-the-system.md`.
+
 ### Reasoning operator commands (worker tree; S2.2)
 
 The model harness records every external call in an attempt ledger. A call whose outcome is

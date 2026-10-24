@@ -15,5 +15,5 @@ export const socialWiring: Provider[] = [
     useFactory: (db: Kysely<Database>, config: ApiConfig): FenceAccountPair =>
       accountAccessUseCases({ db, lockTimeoutMs: config.scopeLockTimeoutMs }).fenceAccountPair,
   },
-  ...socialProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  ...socialProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, database: DATABASE }),
 ];

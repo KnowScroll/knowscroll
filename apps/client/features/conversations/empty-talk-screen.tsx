@@ -1,8 +1,7 @@
 import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
-import { content, dimension } from '@knowscroll/design-tokens';
+import { content } from '@knowscroll/design-tokens';
 import { StateBlock } from '@knowscroll/ui';
-import { ScreenFrame } from '../shell/screen-frame';
 
 /** C01's two-bubble illustration (96 × 80): one cream, one yellow, ink outlines. */
 function TwoBubbles() {
@@ -27,35 +26,34 @@ function TwoBubbles() {
 }
 
 /**
- * C01 "Empty · first visit to Talk". Real conversations only, so there is nothing to list. "Share
- * something" goes to Explore; Friends opens its real roster/request interface. Conversations are not implemented yet.
+ * C01 "Empty · first visit to Talk": real conversations only, so there is nothing to list. A
+ * conversation starts when a Reel or Scroll is shared, so "Share something" goes to Explore;
+ * "Invite a friend" opens Friends.
  */
-export function EmptyTalkScreen() {
+export function EmptyTalk() {
   const router = useRouter();
   return (
-    <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
-      <StateBlock
-        illustration={<TwoBubbles />}
-        title="No conversations yet"
-        body="Conversations aren’t available yet. You can manage friends by handle or invitation link."
-        actionLayout="stretch"
-        actions={[
-          {
-            label: 'Share something',
-            variant: 'primary',
-            role: 'link',
-            href: '/explore',
-            onPress: () => router.navigate('/explore'),
-          },
-          {
-            label: 'Friends',
-            variant: 'default',
-            role: 'link',
-            href: '/friends',
-            onPress: () => router.push('/friends'),
-          },
-        ]}
-      />
-    </ScreenFrame>
+    <StateBlock
+      illustration={<TwoBubbles />}
+      title="No conversations yet"
+      body="Share a Reel or Scroll with a friend and the conversation starts here."
+      actionLayout="stretch"
+      actions={[
+        {
+          label: 'Share something',
+          variant: 'primary',
+          role: 'link',
+          href: '/explore',
+          onPress: () => router.navigate('/explore'),
+        },
+        {
+          label: 'Invite a friend',
+          variant: 'default',
+          role: 'link',
+          href: '/friends',
+          onPress: () => router.push('/friends'),
+        },
+      ]}
+    />
   );
 }

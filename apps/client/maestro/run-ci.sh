@@ -8,6 +8,9 @@
 #   KS_OUT      output folder (created): screenshots/, reports/, logs/, maestro/, logcat.txt, summary.md
 #   KS_GALLERY  "true" when the APK was built with EXPO_PUBLIC_KS_GALLERY=1 (default "false")
 #   KS_APP_ID   application id (default com.knowscroll.client)
+#   KS_TEST_API_ORIGIN  origin of the test API the APK was built for (http://127.0.0.1:<port>); when set, the
+#               emulator reaches it through `adb reverse` and the journey flows run (empty: they are skipped)
+#   KS_TEST_API_MAIL    the test API's recorded sign-in mail (mail.jsonl), where the journey reads its link
 # Needs `adb` and `maestro` on PATH. Never run it on a developer machine's emulator by accident:
 # it clears the app's data before every flow.
 set -uo pipefail
@@ -56,6 +59,13 @@ echo "Installing $KS_APK"
 adb install -r -t "$KS_APK" || { echo "adb install failed"; exit 1; }
 adb shell pm list packages "$app_id" | grep -q "package:$app_id" || { echo "$app_id is not installed"; exit 1; }
 
+# The test API runs on the runner; inside the emulator "127.0.0.1" is the emulator itself, so its port is forwarded.
+test_api_origin="${KS_TEST_API_ORIGIN:-}"
+if [ -n "$test_api_origin" ]; then
+  test_api_port="${test_api_origin##*:}"
+  adb reverse "tcp:$test_api_port" "tcp:$test_api_port" || { echo "adb reverse failed"; exit 1; }
+fi
+
 # Everything the device logs while the flows run (the buffer is enlarged so a slow run keeps its start).
 adb logcat -b all -G 16M > /dev/null 2>&1 || true
 adb logcat -c || true
@@ -69,16 +79,20 @@ trap 'kill "$logcat_pid" 2>/dev/null || true' EXIT
 results=()
 failed=0
 
+# run_flow <name> <file> [extra maestro arguments, e.g. -e KEY=value]; sets flow_status to the flow's exit status.
+flow_status=0
 run_flow() {
   local name="$1" file="$2" started status elapsed outcome
+  shift 2
   echo "::group::maestro: $name"
   started=$(date +%s)
   maestro test \
     --format junit --output "$KS_OUT/reports/$name.xml" \
     --test-output-dir "$KS_OUT/maestro/$name" \
     --debug-output "$KS_OUT/maestro/$name" \
-    "$file" 2>&1 | tee "$KS_OUT/logs/$name.log"
+    "$@" "$file" 2>&1 | tee "$KS_OUT/logs/$name.log"
   status=${PIPESTATUS[0]}
+  flow_status=$status
   elapsed=$(($(date +%s) - started))
   echo "::endgroup::"
   outcome="passed"
@@ -105,6 +119,45 @@ else
   echo "KS-LANE-SKIP gallery.yaml and scroll-blocks.yaml: this APK was built without EXPO_PUBLIC_KS_GALLERY=1"
   results+=("| gallery | skipped (APK built without the gallery) | - |" "| scroll-blocks | skipped (APK built without the gallery) | - |")
   run_flow no-gallery "$here/no-gallery.yaml"
+fi
+
+# ---------------------------------------------------------------------------------------------
+# Journey (test API): sign in with a bound link, explore, read, keep, restart, sign out
+# ---------------------------------------------------------------------------------------------
+# The three steps share one install and one address. Step 1 asks for the link through the screens; the
+# test API records the mail instead of sending it, and the link is read from that file and turned into
+# the app link (`knowscroll://redeem#token=...`). The token is single use and the database is thrown
+# away with the runner. GitHub masks it in this job's log; Maestro's own logs in the uploaded
+# artifacts still show it, which is harmless once the link is spent.
+mail_link_for() {
+  local address="$1" link
+  for _ in $(seq 1 30); do
+    link=$(jq -r --arg to "$address" 'select(.to == $to) | .link' "$KS_TEST_API_MAIL" 2>/dev/null | tail -n 1)
+    if [ -n "$link" ]; then
+      printf '%s' "$link" | sed -E 's#^https?://[^/]+/#knowscroll://#'
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+run_journey() {
+  local address="journey-$(date +%s)@test.example" link
+  run_flow journey-1-request-link "$here/journey-1-request-link.yaml" -e "EMAIL=$address"
+  if [ "$flow_status" -ne 0 ]; then return; fi
+  link=$(mail_link_for "$address") || { echo "journey: no sign-in mail for the address within 30 seconds"; failed=1; results+=("| journey-2-sign-in-and-explore | FAILED (no mail) | - |"); return; }
+  echo "::add-mask::${link#*token=}"
+  run_flow journey-2-sign-in-and-explore "$here/journey-2-sign-in-and-explore.yaml" -e "LINK=$link"
+  if [ "$flow_status" -ne 0 ]; then return; fi
+  run_flow journey-3-restart "$here/journey-3-restart.yaml" -e "EMAIL=$address"
+}
+
+if [ -n "$test_api_origin" ]; then
+  run_journey
+else
+  echo "KS-LANE-SKIP journey: this APK was not built for a test API"
+  results+=("| journey | skipped (APK not built for the test API) | - |")
 fi
 
 # ---------------------------------------------------------------------------------------------

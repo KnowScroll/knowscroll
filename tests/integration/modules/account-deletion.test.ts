@@ -20,6 +20,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { everyStoreSeeder } from '../support/every-store.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
+import { befriend, pairRevision, seedContent, seedFriend, talkCases } from '../support/talk.js';
 
 /**
  * Account deletion (#246, D-043) against a real PostgreSQL 16 database: the fence, the erasure of
@@ -37,7 +38,12 @@ const settings: IdentitySettings = {
 };
 
 /** Stores a fresh person is not expected to fill: accounting identities of unfinished model work. */
-const NOT_SEEDED = new Set(['identity.clear_liabilities', 'identity.account_deletions']);
+const NOT_SEEDED = new Set([
+  'identity.clear_liabilities',
+  'identity.account_deletions',
+  // Keyed by the friendship, not by an account: it outlives the deleted person for the one who remains.
+  'social.conversations',
+]);
 
 type EraseAccountData = Parameters<typeof deleteAccountFor>[2]['eraseAccountData'];
 
@@ -231,6 +237,39 @@ describe('account deletion (real database)', () => {
         commandId: randomUUID(),
         expectedInviteRevision: 0,
       });
+      // Talk: a friend, a conversation with a message each way and a shared link.
+      const talk = talkCases(database.db);
+      const buddy = await seedFriend(database.db, talk.friends);
+      const erasedAsFriend = { ...erased, person: erasedPerson };
+      await befriend(talk.friends, erasedAsFriend, buddy);
+      const started = await talk.talk.conversations.start(erased.authority, {
+        version: 'direct-conversation.v1',
+        commandId: randomUUID(),
+        peerPersonId: buddy.person.personId,
+        expectedPairRevision: await pairRevision(talk.friends, erasedAsFriend, buddy),
+      });
+      if (started.kind !== 'ok') throw new Error('conversation not started');
+      const talkContent = await seedContent(database.db);
+      expect(
+        (
+          await talk.talk.conversations.send(erased.authority, {
+            version: 'direct-conversation.v1',
+            commandId: randomUUID(),
+            conversation: started.value.conversation,
+            body: { kind: 'text', text: 'a message from the person who will delete their account' },
+          })
+        ).kind,
+      ).toBe('ok');
+      expect(
+        (
+          await talk.talk.shares.create(erased.authority, {
+            version: 'content-share.v1',
+            commandId: randomUUID(),
+            target: { assetId: talkContent.assetId, assetRevision: 1 },
+            audience: { kind: 'public_metadata' },
+          })
+        ).kind,
+      ).toBe('ok');
       await database.db
         .insertInto('receipts.shared_commands')
         .values({

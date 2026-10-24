@@ -6,6 +6,11 @@ import { UniverseIdSchema } from './ids.js';
  * hints only: no commands, no private content. A client that gets a hint (or a resync) refetches
  * through authorised HTTP reads.
  *
+ * Two scopes exist, both named by the caller's own universe ID. `universe` changes when the
+ * person's universe changes. `inbox` changes when a conversation the person belongs to has a new
+ * message or the person's own conversation settings change; its revision is the person's inbox
+ * revision. A peer's reading, muting or typing never moves it.
+ *
  * Client rules:
  * - Revisions only grow, but hints, acks, command responses and reads can arrive in any order and
  *   more than once: keep the **highest** revision seen per scope and refetch only when a hint is
@@ -26,7 +31,8 @@ export const socketEvents = {
 /** The socket path on the API origin (proxied by Caddy, D-008). */
 export const SOCKET_PATH = '/socket.io';
 
-export const ScopeRefSchema = z.object({ kind: z.literal('universe'), id: UniverseIdSchema });
+export const SCOPE_KINDS = ['universe', 'inbox'] as const;
+export const ScopeRefSchema = z.object({ kind: z.enum(SCOPE_KINDS), id: UniverseIdSchema });
 
 export const SubscribeScopeRequestSchema = z.object({ scope: ScopeRefSchema });
 

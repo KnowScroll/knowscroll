@@ -37,6 +37,7 @@ import {
   END_SESSION,
   LIST_SESSIONS,
   PEEK_SIGN_IN_LINK,
+  READ_ACCOUNT_ADDRESS,
   READ_ACCOUNT_UNIVERSE,
   READ_UNIVERSE_ACCESS,
   REDEEM_SIGN_IN,
@@ -45,6 +46,7 @@ import {
   SESSION_VALID,
   SIGN_OUT,
   SWEEP_SIGN_IN_RECORDS,
+  type ReadAccountAddress,
   type ReadAccountUniverse,
   type ReadUniverseAccess,
   type SweepSignInRecords,
@@ -66,6 +68,7 @@ import {
   makeRevokeSessions,
   makeSweep,
   markAddressProved,
+  readAccountAddress,
   readAccountUniverse,
   readActiveSession,
   readLink,
@@ -88,6 +91,14 @@ export function identityProviders(tokens: { readonly database: symbol }) {
           readAccountUniverse(db, accountId),
     },
     {
+      provide: READ_ACCOUNT_ADDRESS,
+      inject: [tokens.database],
+      useFactory:
+        (db: Kysely<Database>): ReadAccountAddress =>
+        (accountId) =>
+          readAccountAddress(db, accountId),
+    },
+    {
       provide: READ_UNIVERSE_ACCESS,
       inject: [tokens.database],
       useFactory:
@@ -96,6 +107,11 @@ export function identityProviders(tokens: { readonly database: symbol }) {
           readUniverseAccess(db, accountId, universeId),
     },
   ];
+}
+
+/** The account-to-universe read over one database handle, for operator commands outside Nest. */
+export function accountUniverseReaderFor(db: Kysely<Database>): ReadAccountUniverse {
+  return (accountId) => readAccountUniverse(db, accountId);
 }
 
 const receiptPorts: ReceiptPorts = {
