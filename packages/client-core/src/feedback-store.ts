@@ -49,15 +49,21 @@ export type ReportOutcome =
   | { readonly status: 'queued' }
   | { readonly status: 'refused'; readonly reason: 'unavailable' | 'too_many' | 'try_again' };
 
+/** What a step of "Not interested" came to: done once the server has said so, and the place to go back to. */
+export interface NotInterestedStep {
+  readonly done: boolean;
+  readonly resume: string | undefined;
+}
+
 export interface FeedbackStore {
   readonly getState: () => FeedbackState;
   readonly subscribe: (listener: () => void) => () => void;
   /** Keeps the asset out of the person's offers. True once the server has said so. */
   readonly markNotInterested: (assetId: string, resume?: string) => Promise<boolean>;
-  /** Repeats the step that failed with the same command ID. */
-  readonly retryNotInterested: () => Promise<boolean>;
-  /** Takes the last mark back. True once the server has said so; the caller then restores `resume`. */
-  readonly undoNotInterested: () => Promise<boolean>;
+  /** Repeats the step that failed (a save or an Undo) with the same command ID. */
+  readonly retryNotInterested: () => Promise<NotInterestedStep>;
+  /** Takes the last mark back. Once done, the caller restores `resume`. */
+  readonly undoNotInterested: () => Promise<NotInterestedStep>;
   /** Hides the acknowledgement; the constraint stays. */
   readonly dismissNotInterested: () => void;
   readonly sendReport: (report: QueuedReport) => Promise<ReportOutcome>;
@@ -291,17 +297,20 @@ export function createFeedbackStore(options: FeedbackStoreOptions): FeedbackStor
       };
     },
     markNotInterested: (assetId, resume) => runMark(assetId, newId(), resume),
-    retryNotInterested() {
+    async retryNotInterested() {
       const failed = state.notInterested;
-      if (failed.status !== 'failed' || intent === undefined) return Promise.resolve(false);
-      return failed.step === 'mark'
-        ? runMark(failed.assetId, intent.commandId, intent.resume)
-        : runUndo(failed.assetId, intent.commandId, intent.resume);
+      if (failed.status !== 'failed' || intent === undefined) return { done: false, resume: undefined };
+      const { commandId, resume } = intent;
+      const done =
+        failed.step === 'mark'
+          ? await runMark(failed.assetId, commandId, resume)
+          : await runUndo(failed.assetId, commandId, resume);
+      return { done, resume };
     },
-    undoNotInterested() {
+    async undoNotInterested() {
       const marked = state.notInterested;
-      if (marked.status !== 'acknowledged') return Promise.resolve(false);
-      return runUndo(marked.assetId, newId(), marked.resume);
+      if (marked.status !== 'acknowledged') return { done: false, resume: undefined };
+      return { done: await runUndo(marked.assetId, newId(), marked.resume), resume: marked.resume };
     },
     dismissNotInterested() {
       timers.clearTimeout(graceTimer);

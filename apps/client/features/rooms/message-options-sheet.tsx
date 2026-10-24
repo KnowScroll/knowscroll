@@ -12,19 +12,24 @@ import { actionsFor, cardWords } from './room-messages';
 export function MessageOptionsSheet({
   message,
   role,
+  ownPersonId,
   onClose,
   onStartThread,
   onHide,
   onRemoveAuthor,
+  onReport,
 }: {
   readonly message: RoomMessage | undefined;
   readonly role: 'member' | 'moderator';
+  readonly ownPersonId: string | undefined;
   readonly onClose: () => void;
   readonly onStartThread: (messageId: string) => void;
   readonly onHide: (messageId: string, hidden: boolean) => void;
   readonly onRemoveAuthor: (personId: string) => void;
+  /** Opens the report sheet for this message. */
+  readonly onReport: (message: RoomMessage) => void;
 }) {
-  const actions = message === undefined ? undefined : actionsFor(message, role);
+  const actions = message === undefined ? undefined : actionsFor(message, role, ownPersonId);
   const author = message?.status === 'available' && message.author.kind === 'person' ? message.author : undefined;
   const words = message === undefined ? undefined : cardWords(message);
   return (
@@ -67,6 +72,23 @@ export function MessageOptionsSheet({
               )}
               <Text variant="meta" color={content.ink2}>
                 Removing a message keeps its place. It doesn’t change anyone’s universe or position.
+              </Text>
+            </>
+          ) : null}
+          {actions.canReport ? (
+            <>
+              <Button
+                label="Report this message"
+                variant="ghost"
+                icon="alert"
+                onPress={() => {
+                  onClose();
+                  onReport(message);
+                }}
+              />
+              <Text variant="meta" color={content.ink2}>
+                Reports go to our safety team{role === 'moderator' ? '' : ' and the room’s moderators'}. The author
+                isn’t told.
               </Text>
             </>
           ) : null}

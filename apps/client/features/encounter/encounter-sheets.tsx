@@ -5,6 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layout, opacity, radius, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Icon, Tag, Text, type IconName } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
+import type { ContentErrorAnchor } from '@knowscroll/contracts';
+import type { FeedbackTarget } from '@knowscroll/client-core';
+import { FeedbackSheetBody } from '../feedback/feedback-sheet';
+import { NotInterestedRow } from '../feedback/feedback-parts';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { RequestPanel } from '../requests/request-panel';
 import { continuationIntent, continuationLabel, type ReadyContinuation } from './continuation-intent';
@@ -215,15 +219,14 @@ function MoreSheet({ state, session }: { readonly state: EncounterState; readonl
             }}
           />
         ) : null}
+        <NotInterestedRow run={session.notInterested} disabled={idle} />
         <MenuRow
-          icon="close"
-          label="Hide this encounter"
-          disabled={idle || state.actionPending === true || state.actionFailed === true}
-          onPress={() => {
-            close();
-            session.act('hide');
-          }}
+          icon="alert"
+          label="Report a content error"
+          disabled={idle}
+          onPress={() => session.openFeedback('content_error')}
         />
+        <MenuRow icon="shield" label="Report abuse" disabled={idle} onPress={() => session.openFeedback('abuse')} />
         <MenuRow
           icon="person"
           label="Account and settings"
@@ -261,6 +264,41 @@ function ShareSheet({ state, session }: { readonly state: EncounterState; readon
   );
 }
 
+/** What a report about the encounter in front names: the exact revision and the place the person was at. */
+function feedbackTargetOf(entry: EncounterEntry): FeedbackTarget {
+  const position = entry.position;
+  const anchor: ContentErrorAnchor | undefined =
+    position?.kind === 'reel'
+      ? { kind: 'reel', positionMs: Math.min(86_400_000, Math.max(0, Math.round(position.positionMs))) }
+      : position?.kind === 'scroll'
+        ? { kind: 'scroll', blockId: position.value.blockId }
+        : undefined;
+  return {
+    kind: 'asset',
+    assetId: entry.offer.assetId,
+    assetRevision: entry.offer.assetRevision,
+    title: entry.offer.metadata.title,
+    format: entry.kind,
+    ...(anchor === undefined ? {} : { anchor }),
+  };
+}
+
+/** P03 over the encounter: its menu (long-press or right-click) or a form (a row of ⋯). */
+function FeedbackSheet({ state, session }: { readonly state: EncounterState; readonly session: EncounterSession }) {
+  const entry = state.entry;
+  if (!entry) return null;
+  return (
+    <SheetPanel title="Feedback" onClose={() => session.setOverlay(false)}>
+      <FeedbackSheetBody
+        target={feedbackTargetOf(entry)}
+        start={state.feedbackStart ?? 'menu'}
+        onClose={() => session.setOverlay(false)}
+        onNotInterested={session.notInterested}
+      />
+    </SheetPanel>
+  );
+}
+
 /**
  * The encounter's overlays, one at a time: the ⋯ menu with the person's path, the share sheet
  * and the request composer. They are local overlays, never history entries; Back and Esc close
@@ -275,13 +313,22 @@ export function EncounterSheets({
 }) {
   if (!state.overlay || !state.entry) return null;
   const owner = state.overlayOwner;
-  const label = owner === 'request' ? 'Ask for something' : owner === 'share' ? 'Share' : 'More';
+  const label =
+    owner === 'request'
+      ? 'Ask for something'
+      : owner === 'share'
+        ? 'Share'
+        : owner === 'feedback'
+          ? 'Feedback'
+          : 'More';
   return (
     <EncounterOverlay label={label} presentation="sheet" onClose={() => session.back()}>
       {owner === 'request' ? (
         <RequestPanel session={session.requests} onClose={() => session.setOverlay(false)} />
       ) : owner === 'share' ? (
         <ShareSheet state={state} session={session} />
+      ) : owner === 'feedback' ? (
+        <FeedbackSheet state={state} session={session} />
       ) : (
         <MoreSheet state={state} session={session} />
       )}

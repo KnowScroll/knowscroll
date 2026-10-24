@@ -323,6 +323,7 @@ export {
   type FeedbackStore,
   type FeedbackStoreOptions,
   type NotInterestedState,
+  type NotInterestedStep,
   type QueuedReport,
   type ReportOutcome,
 } from './feedback-store';

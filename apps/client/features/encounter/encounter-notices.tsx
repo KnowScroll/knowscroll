@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderStyle as borderStyleTokens, borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, PendingStripe, Text } from '@knowscroll/ui';
+import { NotInterestedNotice } from '../feedback/not-interested-notice';
 import { unavailableCopy } from '../requests/request-copy';
 import { RemovalNotice } from '../saved/removal-notice';
 import type { EncounterEntry } from './encounter-history';
@@ -125,6 +126,11 @@ function ActionNotices({ entry, state, session }: Props) {
 export function EncounterNotices(props: Props) {
   return (
     <View style={styles.stack} pointerEvents="box-none">
+      <NotInterestedNotice
+        store={props.session.feedback}
+        onUndo={() => void props.session.undoNotInterested()}
+        onRetry={() => void props.session.retryNotInterested()}
+      />
       <RequestNotice entry={props.entry} session={props.session} />
       <ActionNotices {...props} />
     </View>

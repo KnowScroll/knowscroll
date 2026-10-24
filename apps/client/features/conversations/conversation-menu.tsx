@@ -19,6 +19,7 @@ export function ConversationMenu({
   onMute,
   onLeave,
   onBlock,
+  onReport,
 }: {
   readonly visible: boolean;
   readonly name: string;
@@ -30,6 +31,8 @@ export function ConversationMenu({
   readonly onMute: (muted: boolean) => void;
   readonly onLeave: () => void;
   readonly onBlock: () => void;
+  /** Opens the report sheet about the other person. Offered with Block: when there is no one, neither is. */
+  readonly onReport: () => void;
 }) {
   const [step, setStep] = useState<Step>('menu');
   const close = () => {
@@ -58,6 +61,18 @@ export function ConversationMenu({
               fullWidth
               onPress={() => setStep('leave')}
             />
+            {canBlock ? (
+              <Button
+                label={`Report ${name}`}
+                variant="ghost"
+                icon="alert"
+                fullWidth
+                onPress={() => {
+                  close();
+                  onReport();
+                }}
+              />
+            ) : null}
             {canBlock ? (
               <Button
                 label={`Block ${name}`}

@@ -115,7 +115,8 @@ describe('room messages', () => {
   it('collapses a message from someone the reader blocked into a marker that keeps its place and shows no words', async () => {
     await show([text(1, ravi, 'hello'), { messageId: id(104), sequence: 2, status: 'blocked' }]);
     expect(screen.getByText('A message from someone you blocked')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Message options' })).not.toBeOnTheScreen();
+    // Only the message that is still shown has options (to report it); the marker has none.
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
   });
 
   it('keeps a blocked author’s words collapsed for a moderator, with a way to show them and still moderate', async () => {
@@ -144,13 +145,19 @@ describe('room messages', () => {
     expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
   });
 
-  it('offers message options only where there is something to do: a card, or a moderator', async () => {
-    const member = await show([text(1, ravi, 'plain'), card]);
-    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
-    await fireEvent.press(screen.getByRole('button', { name: 'Message options' }));
+  it('offers message options only where there is something to do: a card, a moderator, or another person’s words to report', async () => {
+    const member = await show([text(1, ravi, 'plain'), card, text(5, asha, 'mine')]);
+    // Another person's plain message can be reported and their card can start a thread; your own has nothing to do.
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(2);
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Message options' })[1]!);
     expect(member.onActions).toHaveBeenCalledWith(card);
     await fireEvent.press(screen.getByTestId('start-thread'));
     expect(member.onStartThread).toHaveBeenCalledWith(card.messageId);
+  });
+
+  it('lets a member report an AI inhabitant’s message, which has no person to block', async () => {
+    await show([skeptic]);
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
   });
 
   it('gives a moderator the options on every message but never on a deleted account’s', async () => {
@@ -165,12 +172,24 @@ describe('room messages', () => {
     expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(2);
   });
 
-  it('decides the actions from the message and the role', () => {
-    expect(actionsFor(card, 'member')).toEqual({ canStartThread: true, canModerate: false });
-    expect(actionsFor(text(1, ravi, 'x'), 'moderator')).toEqual({ canStartThread: false, canModerate: true });
-    expect(actionsFor({ messageId: id(1), sequence: 1, status: 'unavailable' }, 'moderator')).toEqual({
+  it('decides the actions from the message, the role and whose message it is', () => {
+    expect(actionsFor(card, 'member', asha.personId)).toEqual({
+      canStartThread: true,
+      canModerate: false,
+      canReport: true,
+    });
+    expect(actionsFor(text(1, ravi, 'x'), 'moderator', asha.personId)).toEqual({
+      canStartThread: false,
+      canModerate: true,
+      canReport: true,
+    });
+    // Your own words and a marker have nothing to report.
+    expect(actionsFor(text(1, asha, 'x'), 'member', asha.personId).canReport).toBe(false);
+    expect(actionsFor({ messageId: id(1), sequence: 1, status: 'unavailable' }, 'moderator', asha.personId)).toEqual({
       canStartThread: false,
       canModerate: false,
+      canReport: false,
     });
+    expect(actionsFor(skeptic, 'member', asha.personId).canReport).toBe(true);
   });
 });

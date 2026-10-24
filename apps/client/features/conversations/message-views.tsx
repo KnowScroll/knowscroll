@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import type { ConversationContentProjection, ConversationMessage } from '@knowscroll/contracts';
 import type { OutgoingMessage } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
@@ -64,7 +65,54 @@ export function ContentCard({
   );
 }
 
-export function MessageBubble({ message, mine }: { readonly message: ConversationMessage; readonly mine: boolean }) {
+/**
+ * A received message that can be reported (P03): a long-press, or a right-click on the web, opens the
+ * report sheet, and a screen reader gets the same as a custom action. The conversation's own menu is the
+ * visible, keyboard route to report the person.
+ */
+function Reportable({
+  onReport,
+  style,
+  children,
+}: {
+  readonly onReport: (() => void) | undefined;
+  readonly style: ViewStyle | ViewStyle[];
+  readonly children: ReactNode;
+}) {
+  if (onReport === undefined) return <View style={style}>{children}</View>;
+  return (
+    <Pressable
+      onLongPress={onReport}
+      accessible={false}
+      accessibilityActions={[{ name: 'report', label: 'Report this message' }]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'report') onReport();
+      }}
+      {...(Platform.OS === 'web'
+        ? {
+            onContextMenu: (event: { preventDefault: () => void }) => {
+              event.preventDefault();
+              onReport();
+            },
+          }
+        : {})}
+      style={style}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+export function MessageBubble({
+  message,
+  mine,
+  onReport,
+}: {
+  readonly message: ConversationMessage;
+  readonly mine: boolean;
+  /** Opens the report sheet for this message; given only for another person's message. */
+  readonly onReport?: () => void;
+}) {
   if (message.status === 'unavailable')
     return (
       <View style={[styles.bubble, styles.removed, mine ? styles.mine : styles.theirs]}>
@@ -75,16 +123,19 @@ export function MessageBubble({ message, mine }: { readonly message: Conversatio
     );
   if (message.body.kind === 'content')
     return (
-      <View style={mine ? styles.mine : styles.theirs}>
+      <Reportable onReport={onReport} style={mine ? styles.mine : styles.theirs}>
         <ContentCard card={message.body.content} note={message.body.note} />
-      </View>
+      </Reportable>
     );
   return (
-    <View style={[styles.bubble, mine ? styles.mineBubble : styles.theirBubble, mine ? styles.mine : styles.theirs]}>
+    <Reportable
+      onReport={onReport}
+      style={[styles.bubble, mine ? styles.mineBubble : styles.theirBubble, mine ? styles.mine : styles.theirs]}
+    >
       <Text variant="bodyS" color={mine ? content.onAccent : content.ink} selectable>
         {message.body.text}
       </Text>
-    </View>
+    </Reportable>
   );
 }
 

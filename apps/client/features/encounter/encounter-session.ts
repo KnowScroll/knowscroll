@@ -5,6 +5,7 @@ import {
   freezeRecordingCommand,
   createReelRecorder,
   createScrollRecorder,
+  feedbackFor,
   ScopeEndedError,
   type AccountScope,
   type AvailableRegionPreview,
@@ -64,7 +65,9 @@ export interface EncounterState {
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   readonly overlay: boolean;
-  readonly overlayOwner?: 'path' | 'request' | 'share';
+  readonly overlayOwner?: 'path' | 'request' | 'share' | 'feedback';
+  /** Where the feedback sheet opens: its menu, or straight on a form (a long-press, or a row of ⋯). */
+  readonly feedbackStart?: 'menu' | 'content_error' | 'abuse';
   readonly surfaceRevision: number;
   readonly contextReady?: boolean;
   readonly keepPlace?: KeepPlaceState;
@@ -113,6 +116,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     handle.setPosition(position);
   });
   const removal = savedRemovalFor(scope, newId);
+  const feedback = feedbackFor({ scope, newId });
   const listeners = new Set<() => void>();
   let state: EncounterState = { phase: 'idle', trail: [], overlay: false, surfaceRevision: 0 };
   let live = true;
@@ -543,7 +547,11 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     setOverlay(false);
     return true;
   });
-  const setOverlay = (overlay: boolean, overlayOwner: 'path' | 'request' | 'share' = 'path') => {
+  const setOverlay = (
+    overlay: boolean,
+    overlayOwner: 'path' | 'request' | 'share' | 'feedback' = 'path',
+    feedbackStart?: 'menu' | 'content_error' | 'abuse',
+  ) => {
     if (overlay) history.park();
     else {
       const entry = history.current();
@@ -557,9 +565,48 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     publish({
       overlay,
       overlayOwner: overlay ? overlayOwner : undefined,
+      feedbackStart: overlay && overlayOwner === 'feedback' ? feedbackStart : undefined,
       surfaceRevision: state.surfaceRevision + (overlay ? 0 : 1),
     });
   };
+  const restore = (exposureId: string) => {
+    if (work || busy || !history.restore(exposureId)) return;
+    releaseCheckpoint();
+    contextSerial += 1;
+    requests.visible(false);
+    publish({ phase: 'active', outcome: undefined, overlay: false, overlayOwner: undefined });
+  };
+  /**
+   * "Not interested" on the encounter in front: saved first, then on to the next subject. A failed save
+   * moves nothing, and asking again repeats it with the same command ID. True once the move is under way.
+   */
+  async function notInterested() {
+    const entry = history.current();
+    if (!entry || !valid() || state.phase !== 'active' || busy || work || actionRunning) return false;
+    const failed = feedback.getState().notInterested;
+    const again = failed.status === 'failed' && failed.step === 'mark' && failed.assetId === entry.offer.assetId;
+    const saved = again
+      ? (await feedback.retryNotInterested()).done
+      : await feedback.markNotInterested(entry.offer.assetId, entry.exposureId);
+    if (!saved || !valid() || history.current() !== entry) return saved;
+    navigate({ mode: 'vertical', direction: 'next' });
+    return true;
+  }
+  /** Takes "Not interested" back and, if the person was moved on, returns them to where they were. */
+  async function undoNotInterested() {
+    const taken = await feedback.undoNotInterested();
+    if (taken.done && taken.resume !== undefined && valid()) restore(taken.resume);
+    return taken.done;
+  }
+  /** Repeats the save or the Undo that failed, with the same command ID. */
+  async function retryNotInterested() {
+    const failed = feedback.getState().notInterested;
+    if (failed.status !== 'failed') return false;
+    if (failed.step === 'mark') return notInterested();
+    const step = await feedback.retryNotInterested();
+    if (step.done && step.resume !== undefined && valid()) restore(step.resume);
+    return step.done;
+  }
   const navigate = (intent: Intent) => {
     const entry = history.current();
     if (
@@ -802,6 +849,18 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
       setOverlay(true, 'share');
     },
+    /**
+     * P03: the feedback sheet over the encounter, on its menu or straight on a form. An overlay like the
+     * others, so playback pauses under it and the position it captures is the moment a report points to.
+     */
+    openFeedback(start: 'menu' | 'content_error' | 'abuse' = 'menu') {
+      if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
+      setOverlay(true, 'feedback', start);
+    },
+    feedback,
+    notInterested,
+    undoNotInterested,
+    retryNotInterested,
     /** Opens the finished requested content from the ready notice, without a second tap on the sheet. */
     async openReadyRequest() {
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return false;
@@ -965,13 +1024,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       publish({ phase: 'active', outcome: undefined });
       return true;
     },
-    restore(exposureId: string) {
-      if (work || busy || !history.restore(exposureId)) return;
-      releaseCheckpoint();
-      contextSerial += 1;
-      requests.visible(false);
-      publish({ phase: 'active', outcome: undefined, overlay: false, overlayOwner: undefined });
-    },
+    restore,
     setOverlay,
     resumeCurrent() {
       if (!work && valid())

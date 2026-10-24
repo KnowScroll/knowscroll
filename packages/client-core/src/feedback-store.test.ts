@@ -109,12 +109,12 @@ describe('Not interested', () => {
     const { store, feedback } = fixture();
     await store.markNotInterested(assetId, 'exposure-1');
     const markId = feedback.notInterested.mock.calls[0]![0].commandId;
-    expect(await store.undoNotInterested()).toBe(true);
+    expect(await store.undoNotInterested()).toEqual({ done: true, resume: 'exposure-1' });
     expect(feedback.undoNotInterested).toHaveBeenCalledWith({ commandId: expect.any(String) as string, assetId });
     expect(feedback.undoNotInterested.mock.calls[0]![0].commandId).not.toBe(markId);
     expect(store.getState().notInterested).toEqual({ status: 'idle' });
     // Nothing is left to undo.
-    expect(await store.undoNotInterested()).toBe(false);
+    expect(await store.undoNotInterested()).toEqual({ done: false, resume: undefined });
   });
 
   it('keeps the same command ID when a failed save is retried', async () => {
@@ -122,7 +122,7 @@ describe('Not interested', () => {
     feedback.notInterested.mockRejectedValueOnce(new Error('offline'));
     expect(await store.markNotInterested(assetId)).toBe(false);
     expect(store.getState().notInterested).toEqual({ status: 'failed', assetId, step: 'mark' });
-    expect(await store.retryNotInterested()).toBe(true);
+    expect(await store.retryNotInterested()).toEqual({ done: true, resume: undefined });
     const [first, second] = feedback.notInterested.mock.calls.map((call) => call[0].commandId);
     expect(second).toBe(first);
     expect(store.getState().notInterested.status).toBe('acknowledged');
@@ -130,11 +130,11 @@ describe('Not interested', () => {
 
   it('keeps the same command ID when a failed Undo is retried, and stays acknowledged-less until it works', async () => {
     const { store, feedback } = fixture();
-    await store.markNotInterested(assetId);
+    await store.markNotInterested(assetId, 'exposure-1');
     feedback.undoNotInterested.mockRejectedValueOnce(new Error('offline'));
-    expect(await store.undoNotInterested()).toBe(false);
+    expect(await store.undoNotInterested()).toEqual({ done: false, resume: 'exposure-1' });
     expect(store.getState().notInterested).toEqual({ status: 'failed', assetId, step: 'undo' });
-    expect(await store.retryNotInterested()).toBe(true);
+    expect(await store.retryNotInterested()).toEqual({ done: true, resume: 'exposure-1' });
     const [first, second] = feedback.undoNotInterested.mock.calls.map((call) => call[0].commandId);
     expect(second).toBe(first);
     expect(store.getState().notInterested).toEqual({ status: 'idle' });

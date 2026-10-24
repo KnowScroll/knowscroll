@@ -6,6 +6,7 @@ import {
   createRoom,
   type AccountScope,
   type AskOutcome,
+  type FeedbackTarget,
   type RoomDiscussionController,
   type RoomDiscussionState,
 } from '@knowscroll/client-core';
@@ -32,6 +33,7 @@ import { ShareMomentSheet } from '../threads/share-moment-sheet';
 import { ThreadEncounter } from '../threads/thread-encounter';
 import { ThreadHeader } from '../threads/thread-chrome';
 import { InhabitantBar } from './inhabitant-bar';
+import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { MessageOptionsSheet } from './message-options-sheet';
 import { discussionHref, isRoomId, roomHref } from './room-links';
 import { RoomMessages } from './room-messages';
@@ -159,6 +161,7 @@ function ReadyDiscussion({
   const [moment, setMoment] = useState<ShareableMoment>();
   const [moderating, setModerating] = useState(false);
   const [options, setOptions] = useState<RoomMessage>();
+  const [reporting, setReporting] = useState<FeedbackTarget>();
   const [snippet, setSnippet] = useState<string>();
   const [lastAsk, setLastAsk] = useState<Exclude<AskOutcome, 'asked'>>();
   const [roomController] = useState(() => createRoom({ scope, roomId, newId: newCommandId }));
@@ -298,11 +301,29 @@ function ReadyDiscussion({
       <MessageOptionsSheet
         message={options}
         role={view.role}
+        ownPersonId={view.you.personId}
         onClose={() => setOptions(undefined)}
         onStartThread={startThread}
         onHide={(messageId, hidden) => void controller.hide(messageId, hidden)}
         onRemoveAuthor={(personId) => void controller.removeMember(personId).then(() => controller.refresh())}
+        onReport={(message) =>
+          setReporting({
+            kind: 'room_message',
+            messageId: message.messageId,
+            // An AI inhabitant is a role, not a person: there is no one to block.
+            ...(message.status === 'available' && message.author.kind === 'person'
+              ? {
+                  author: {
+                    personId: message.author.personId,
+                    displayName: message.author.displayName,
+                    handle: message.author.handle,
+                  },
+                }
+              : {}),
+          })
+        }
       />
+      <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
       <RoomSnippetSheet
         scope={scope}
         roomId={roomId}
