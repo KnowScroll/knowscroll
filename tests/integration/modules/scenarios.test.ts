@@ -7,7 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { createDatabase, makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -94,6 +94,14 @@ const instances = {
   kept: [model],
   lens: null,
   needsConfirmation: false,
+};
+const portal = {
+  title: 'What if a black hole were a portal?',
+  explanation: 'Reasons from a premise the physics does not support.',
+  changes: [{ subject: 'Black hole', statement: 'A black hole is a doorway to somewhere else' }],
+  kept: [],
+  lens: null,
+  needsConfirmation: true,
 };
 const operatorView = {
   title: 'The view of the person on call',
@@ -1199,6 +1207,152 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(Number(asked.n)).toBe(20);
       // Ravi has asked for none today.
       expect(await startDraft(b, bRef, root)).toMatchObject({ kind: 'ok' });
+    });
+  });
+
+  /** Tests that script the Planner leave the default one behind them. */
+  const planner = () => {
+    afterEach(() => {
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
+    });
+  };
+
+  describe('speculative status', () => {
+    planner();
+    it('is kept for a confirmed direction, carried to what is built below it, and not invented for a member’s own request', async () => {
+      const { a, aRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'direct', options: [portal] });
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      expect(first.node).toMatchObject({ speculative: true, hypothetical: true });
+      await prepare(first.node.nodeId);
+      const parent = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      const below = (overrides: Record<string, unknown>) => ({
+        parent: { kind: 'node', nodeId: first.node.nodeId, revision: parent?.revision },
+        ...overrides,
+      });
+      // The member's own words below it add no flag of their own, and keep the one that came down.
+      const own = unwrap(
+        await choose(a, aRef, unwrap(await startDraft(a, aRef, root, below({}))).draftId, {
+          kind: 'own',
+          changes: [latency],
+          kept: [],
+        }),
+      );
+      expect(own.node).toMatchObject({ speculative: true });
+      // Another perspective on it is still reasoning from the speculative premise.
+      plannerScript = () => answerWith({ mode: 'direct', options: [operatorView] });
+      const lens = unwrap(
+        await choose(a, aRef, await drafted(a, aRef, root, below({ kind: 'perspective', text: 'From the operator.' }))),
+      );
+      expect(lens.node).toMatchObject({ speculative: true, kind: 'perspective' });
+      // On the root, an own request with no flag is not speculative, and a plain direction is not either.
+      const plain = unwrap(
+        await choose(a, aRef, unwrap(await startDraft(a, aRef, root)).draftId, {
+          kind: 'own',
+          changes: [traffic],
+          kept: [],
+        }),
+      );
+      expect(plain.node).toMatchObject({ speculative: false });
+      const stored = await database.db
+        .selectFrom('scenarios.nodes')
+        .select(['node_id', 'speculative'])
+        .where(
+          'thread_id',
+          '=',
+          (
+            await database.db
+              .selectFrom('scenarios.nodes')
+              .select('thread_id')
+              .where('node_id', '=', first.node.nodeId)
+              .executeTakeFirstOrThrow()
+          ).thread_id,
+        )
+        .execute();
+      expect(stored.filter((row) => row.speculative)).toHaveLength(3);
+    });
+  });
+
+  describe('what a member was offered and has not made', () => {
+    planner();
+    const suggestionsOf = async (who: Friend, thread: ContentThreadRef) => {
+      const found = await list(who, thread);
+      return found.status === 'ready' ? found.suggestions : [];
+    };
+
+    it('lists the options of their own ready drafts, with no number and no branch, and nobody else’s', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, { ...portal }] });
+      await drafted(a, aRef, root);
+      const mine = await suggestionsOf(a, aRef);
+      expect(mine.map((suggestion) => [suggestion.optionId, suggestion.title, suggestion.speculative])).toEqual([
+        ['o1', batching.title, false],
+        ['o2', portal.title, true],
+      ]);
+      for (const suggestion of mine) {
+        expect(suggestion).toMatchObject({ kind: 'what_if' });
+        expect(suggestion).not.toHaveProperty('nodeId');
+        expect(suggestion).not.toHaveProperty('part');
+      }
+      expect(await suggestionsOf(b, bRef)).toEqual([]);
+      // Nothing was made by being offered.
+      expect(await cards(a, aRef)).toEqual([]);
+    });
+
+    it('leaves out a draft that is still thinking, one that failed, one that was chosen and one that expired', async () => {
+      const { a, aRef, root } = await begun();
+      // Thinking: started, not answered.
+      unwrap(await startDraft(a, aRef, root));
+      expect(await suggestionsOf(a, aRef)).toEqual([]);
+      // Chosen: made into a branch, so it is a card now and no longer an offer.
+      plannerScript = () => answerWith({ mode: 'options', options: [batching, instances] });
+      const chosen = await drafted(a, aRef, root);
+      expect(await suggestionsOf(a, aRef)).toHaveLength(2);
+      unwrap(await choose(a, aRef, chosen));
+      expect(await suggestionsOf(a, aRef)).toEqual([]);
+      // Expired: a draft that lived out its two hours.
+      const stale = await drafted(a, aRef, root, { text: 'What if traffic doubled again?' });
+      expect(await suggestionsOf(a, aRef)).toHaveLength(2);
+      await database.db
+        .updateTable('scenarios.drafts')
+        .set({ created_at: new Date(Date.now() - 3 * 3_600_000), expires_at: new Date(Date.now() - 1000) })
+        .where('draft_id', '=', stale)
+        .execute();
+      expect(await suggestionsOf(a, aRef)).toEqual([]);
+    });
+
+    it('leaves out an offer that would continue a branch that has been removed', async () => {
+      const { a, aRef, root } = await begun();
+      const first = unwrap(await choose(a, aRef, await drafted(a, aRef, root)));
+      await prepare(first.node.nodeId);
+      const ready = (await cards(a, aRef)).find((card) => card.nodeId === first.node.nodeId);
+      plannerScript = () => answerWith({ mode: 'direct', options: [{ ...batching, changes: [latency], kept: [] }] });
+      await drafted(a, aRef, root, {
+        text: 'And if the latency target tightened?',
+        parent: { kind: 'node', nodeId: first.node.nodeId, revision: ready?.revision },
+      });
+      expect(await suggestionsOf(a, aRef)).toMatchObject([{ parentNodeId: first.node.nodeId }]);
+      unwrap(
+        await scenarios.remove(a.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: aRef,
+          nodeId: first.node.nodeId,
+          revision: ready?.revision,
+        }),
+      );
+      expect(await suggestionsOf(a, aRef)).toEqual([]);
+    });
+
+    it('is nothing for a member who left', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      await drafted(b, bRef, root);
+      expect(await suggestionsOf(b, bRef)).toHaveLength(2);
+      unwrap(await threads.leave(b.authority, { version: threadVersion, commandId: randomUUID(), thread: bRef }));
+      expect(unwrap(await scenarios.list(b.authority, { version, readId: randomUUID(), thread: bRef }))).toMatchObject({
+        status: 'unavailable',
+      });
+      expect(await suggestionsOf(a, aRef)).toEqual([]);
     });
   });
 

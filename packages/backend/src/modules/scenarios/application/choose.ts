@@ -45,7 +45,13 @@ function requestOf(draft: DraftRow, selection: Choice['selection']): Chosen | un
   const option = draft.options?.find((candidate) => candidate.optionId === selection.optionId);
   if (draft.state !== 'ready' || option === undefined) return undefined;
   return {
-    request: { kind: draft.kind, changes: option.changes, kept: option.kept, lens: option.lens },
+    request: {
+      kind: draft.kind,
+      changes: option.changes,
+      kept: option.kept,
+      lens: option.lens,
+      speculative: option.needsConfirmation,
+    },
     title: option.title,
     explanation: option.explanation,
   };
@@ -108,6 +114,7 @@ export function makeChoose(p: ScenarioPorts) {
       kept: step.kept,
       assumptions: step.assumptions,
       hypothetical: step.hypothetical,
+      speculative: step.speculative,
       semanticKey,
       assetId,
       createdAt: p.now(),

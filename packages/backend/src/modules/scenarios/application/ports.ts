@@ -61,6 +61,8 @@ export interface NodeRow {
   readonly kept: readonly Assumption[];
   readonly assumptions: readonly Assumption[];
   readonly hypothetical: boolean;
+  /** Flagged speculative by the Planner and confirmed, or below a branch that was. */
+  readonly speculative: boolean;
   readonly semanticKey: string;
   readonly status: NodeStatus;
   readonly revision: number;
@@ -104,6 +106,8 @@ export interface ScenarioStore {
   /** FOR UPDATE. */
   lockNode(scope: PersonalScopeTx, nodeId: string): Promise<NodeRow | undefined>;
   listNodes(scope: PersonalScopeTx, threadId: string): Promise<readonly NodeRow[]>;
+  /** This member's ready, unexpired, unchosen drafts in the thread, newest first: the directions they have not made. */
+  listOpenDrafts(scope: PersonalScopeTx, accountId: string, threadId: string, now: Date): Promise<readonly DraftRow[]>;
   findLiveByMeaning(scope: PersonalScopeTx, threadId: string, semanticKey: string): Promise<NodeRow | undefined>;
   /** Sets `removed` and moves the revision. */
   removeNode(scope: PersonalScopeTx, nodeId: string): Promise<NodeRow>;

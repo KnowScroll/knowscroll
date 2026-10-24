@@ -13,9 +13,11 @@ export type ScenarioKind = 'what_if' | 'perspective';
 /** What a new branch inherits from the node it continues, or from the thread root (nothing, and not hypothetical). */
 export interface ParentFacts {
   readonly hypothetical: boolean;
+  /** The Planner marked a premise speculative somewhere on the way here: it stays marked below. */
+  readonly speculative: boolean;
   readonly assumptions: readonly Assumption[];
 }
-export const ROOT_PARENT: ParentFacts = { hypothetical: false, assumptions: [] };
+export const ROOT_PARENT: ParentFacts = { hypothetical: false, speculative: false, assumptions: [] };
 
 /** What a member (or the model, for them) asks of one step. */
 export interface StepRequest {
@@ -23,6 +25,8 @@ export interface StepRequest {
   readonly changes: readonly Assumption[];
   readonly kept: readonly Assumption[];
   readonly lens?: string | undefined;
+  /** The Planner flagged this direction as speculative and the member confirmed it. */
+  readonly speculative?: boolean | undefined;
 }
 
 export type StepRefusal =
@@ -48,6 +52,8 @@ export interface Step {
   readonly assumptions: readonly Assumption[];
   /** True for every what-if, and for everything below one, even a step that only changes the lens. */
   readonly hypothetical: boolean;
+  /** Flagged speculative here, or by an ancestor: a perspective below a speculative what-if is still reasoning from it. */
+  readonly speculative: boolean;
 }
 
 export type StepOutcome =
@@ -74,6 +80,7 @@ export function planStep(parent: ParentFacts, request: StepRequest): StepOutcome
         lens: request.lens,
         assumptions: parent.assumptions,
         hypothetical: parent.hypothetical,
+        speculative: parent.speculative,
       },
     };
   }
@@ -89,7 +96,14 @@ export function planStep(parent: ParentFacts, request: StepRequest): StepOutcome
   if (assumptions.length > MAX_ASSUMPTIONS) return { ok: false, refusal: 'too_many_assumptions' };
   return {
     ok: true,
-    step: { kind: 'what_if', changes: request.changes, kept: kept.items, assumptions, hypothetical: true },
+    step: {
+      kind: 'what_if',
+      changes: request.changes,
+      kept: kept.items,
+      assumptions,
+      hypothetical: true,
+      speculative: parent.speculative || request.speculative === true,
+    },
   };
 }
 

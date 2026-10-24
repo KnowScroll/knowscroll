@@ -59,6 +59,7 @@ const nodeOf = (row: NodeColumns): NodeRow => ({
   kept: Assumptions.parse(row.kept),
   assumptions: Assumptions.parse(row.assumptions),
   hypothetical: row.hypothetical,
+  speculative: row.speculative,
   semanticKey: row.semantic_key,
   status: row.status as NodeRow['status'],
   revision: row.revision,
@@ -183,6 +184,7 @@ export const scenarioStore: ScenarioStore = {
         kept: JSON.stringify(node.kept),
         assumptions: JSON.stringify(node.assumptions),
         hypothetical: node.hypothetical,
+        speculative: node.speculative,
         semantic_key: node.semanticKey,
         status: 'preparing',
         revision: 1,
@@ -221,6 +223,20 @@ export const scenarioStore: ScenarioStore = {
       .orderBy('node_id')
       .execute();
     return rows.map(nodeOf);
+  },
+
+  async listOpenDrafts(scope, accountId, threadId, now) {
+    const rows = await transactionOf(scope)
+      .selectFrom('scenarios.drafts')
+      .selectAll()
+      .where('requester_account_id', '=', accountId)
+      .where('thread_id', '=', threadId)
+      .where('state', '=', 'ready')
+      .where('expires_at', '>', now)
+      .orderBy('created_at', 'desc')
+      .orderBy('draft_id')
+      .execute();
+    return rows.map(draftOf);
   },
 
   async findLiveByMeaning(scope, threadId, semanticKey) {

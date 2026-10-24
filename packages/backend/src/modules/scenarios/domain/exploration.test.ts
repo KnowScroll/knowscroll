@@ -29,7 +29,7 @@ describe('planStep (blueprint §14: A_child = ApplyChange(A_parent, RequestedCha
   });
 
   it('keeps the parent assumptions exactly in a perspective, and names the lens', () => {
-    const parent: ParentFacts = { hypothetical: true, assumptions: [traffic, model] };
+    const parent: ParentFacts = { hypothetical: true, speculative: false, assumptions: [traffic, model] };
     const outcome = planStep(parent, { kind: 'perspective', changes: [], kept: [], lens: 'the operator’s view' });
     expect(outcome).toMatchObject({ ok: true, step: { kind: 'perspective', lens: 'the operator’s view' } });
     if (outcome.ok) {
@@ -39,7 +39,7 @@ describe('planStep (blueprint §14: A_child = ApplyChange(A_parent, RequestedCha
   });
 
   it('carries hypothetical status through every descendant, even a step that only changes the lens', () => {
-    const below: ParentFacts = { hypothetical: true, assumptions: [traffic] };
+    const below: ParentFacts = { hypothetical: true, speculative: false, assumptions: [traffic] };
     const lens = planStep(below, { kind: 'perspective', changes: [], kept: [], lens: 'the cost view' });
     expect(lens).toMatchObject({ ok: true, step: { hypothetical: true } });
     const deeper = planStep(below, { kind: 'what_if', changes: [latency], kept: [] });
@@ -49,7 +49,7 @@ describe('planStep (blueprint §14: A_child = ApplyChange(A_parent, RequestedCha
   it('does not make a perspective on the real subject hypothetical', () => {
     expect(planStep(ROOT_PARENT, { kind: 'perspective', changes: [], kept: [], lens: 'the cost view' })).toMatchObject({
       ok: true,
-      step: { hypothetical: false, assumptions: [] },
+      step: { hypothetical: false, speculative: false, assumptions: [] },
     });
   });
 
@@ -85,6 +85,7 @@ describe('planStep (blueprint §14: A_child = ApplyChange(A_parent, RequestedCha
   it('refuses a step that would pass the four premises a Scroll can state', () => {
     const full: ParentFacts = {
       hypothetical: true,
+      speculative: false,
       assumptions: [traffic, model, latency, { subject: 'Cost', statement: 'Each instance costs the same' }],
     };
     const added = planStep(full, {
@@ -100,8 +101,45 @@ describe('planStep (blueprint §14: A_child = ApplyChange(A_parent, RequestedCha
   });
 });
 
+describe('speculative status', () => {
+  it('marks a what-if the Planner flagged, and nothing else', () => {
+    expect(planStep(ROOT_PARENT, { kind: 'what_if', changes: [traffic], kept: [], speculative: true })).toMatchObject({
+      ok: true,
+      step: { speculative: true },
+    });
+    expect(planStep(ROOT_PARENT, { kind: 'what_if', changes: [traffic], kept: [] })).toMatchObject({
+      ok: true,
+      step: { speculative: false },
+    });
+    expect(planStep(ROOT_PARENT, { kind: 'perspective', changes: [], kept: [], lens: 'cost' })).toMatchObject({
+      ok: true,
+      step: { speculative: false },
+    });
+  });
+
+  it('is carried below a speculative branch, by a what-if and by a perspective alike', () => {
+    const below: ParentFacts = { hypothetical: true, speculative: true, assumptions: [traffic] };
+    expect(planStep(below, { kind: 'what_if', changes: [latency], kept: [] })).toMatchObject({
+      ok: true,
+      step: { speculative: true },
+    });
+    expect(planStep(below, { kind: 'perspective', changes: [], kept: [], lens: 'cost' })).toMatchObject({
+      ok: true,
+      step: { speculative: true },
+    });
+  });
+
+  it('is not taken away by a member who writes their own request below it', () => {
+    const below: ParentFacts = { hypothetical: true, speculative: true, assumptions: [traffic] };
+    expect(planStep(below, { kind: 'what_if', changes: [latency], kept: [], speculative: false })).toMatchObject({
+      ok: true,
+      step: { speculative: true },
+    });
+  });
+});
+
 describe('premises that come down from earlier branches', () => {
-  const below: ParentFacts = { hypothetical: true, assumptions: [traffic, model] };
+  const below: ParentFacts = { hypothetical: true, speculative: false, assumptions: [traffic, model] };
   const outcomeOf = (request: Parameters<typeof planStep>[1]) => planStep(below, request);
 
   it('refuses to keep a subject an earlier branch assumes in other words', () => {

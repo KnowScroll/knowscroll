@@ -77,6 +77,7 @@ describe('the Scenario Planner answer', () => {
   it('refuses a premise past what the earlier branches allow', () => {
     const parent: ParentFacts = {
       hypothetical: true,
+      speculative: false,
       assumptions: [
         traffic,
         model,
@@ -158,7 +159,7 @@ describe('the Scenario Planner context', () => {
   it('lists the premises that hold below an earlier branch', () => {
     const context = plannerContext({
       ...input,
-      parent: { hypothetical: true, assumptions: [traffic], title: 'Ten times the traffic' },
+      parent: { hypothetical: true, speculative: false, assumptions: [traffic], title: 'Ten times the traffic' },
     });
     expect(context.items[2]?.text).toContain('Branch: Ten times the traffic');
     expect(context.items[2]?.text).toContain(`- ${traffic.statement}`);

@@ -151,6 +151,8 @@ export const ScenarioCardSchema = z.strictObject({
   lens: plainText(3, 80).optional(),
   /** Every what-if, and everything below one, is hypothetical. A perspective on the real subject is not. */
   hypothetical: z.boolean(),
+  /** The Planner flagged the premise as running against established knowledge and the member confirmed it; so is everything below it. */
+  speculative: z.boolean(),
   /** What holds after this branch: the premises a continuation of it inherits (at most four). */
   assumptions: z.array(AssumptionSchema).max(4),
   startedBy: PublicPersonRefSchema.optional(),
@@ -197,6 +199,23 @@ export const ScenarioChoiceAcceptanceSchema = z.strictObject({
   reused: z.boolean(),
 });
 
+/**
+ * A direction the Planner proposed to this member and that they have not made into a branch: a ready draft's
+ * option, private to them, gone when the draft is (it lives two hours). It is not numbered and not a branch.
+ */
+export const ScenarioSuggestionSchema = z.strictObject({
+  draftId: UuidSchema,
+  optionId: z.string().regex(/^o[1-3]$/),
+  kind: ScenarioKindSchema,
+  /** The branch it would continue; absent when it continues the thread's root. */
+  parentNodeId: UuidSchema.optional(),
+  title: plainText(3, 120),
+  speculative: z.boolean(),
+});
+export type ScenarioSuggestion = z.infer<typeof ScenarioSuggestionSchema>;
+/** At most three kept drafts of three directions each. */
+export const MAX_SCENARIO_SUGGESTIONS = 9;
+
 export const ListScenariosSchema = z.strictObject({ ...Read, thread: ContentThreadRefSchema });
 export const ScenarioListSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
@@ -204,6 +223,8 @@ export const ScenarioListSchema = z.discriminatedUnion('status', [
     ...ScopedRead,
     status: z.literal('ready'),
     cards: z.array(ScenarioCardSchema).max(MAX_SCENARIO_CARDS),
+    /** The caller's own, never anyone else's. */
+    suggestions: z.array(ScenarioSuggestionSchema).max(MAX_SCENARIO_SUGGESTIONS),
   }),
 ]);
 export type ScenarioList = z.infer<typeof ScenarioListSchema>;

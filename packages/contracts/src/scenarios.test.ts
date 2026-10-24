@@ -4,8 +4,11 @@ import {
   ChooseScenarioSchema,
   MAX_SCENARIO_TEXT,
   ScenarioCardSchema,
+  MAX_SCENARIO_SUGGESTIONS,
   ScenarioDraftViewSchema,
+  ScenarioListSchema,
   ScenarioOptionSchema,
+  ScenarioSuggestionSchema,
   StartScenarioDraftSchema,
 } from './scenarios.js';
 
@@ -143,6 +146,7 @@ describe('what a draft and a branch show', () => {
       changes: [traffic],
       kept: [],
       hypothetical: true,
+      speculative: false,
       assumptions: [traffic],
       startedBy: person,
       status: 'preparing',
@@ -152,5 +156,35 @@ describe('what a draft and a branch show', () => {
     expect(ScenarioCardSchema.safeParse(card).success).toBe(true);
     for (const extra of [{ currentlyWatching: true }, { seen: true }, { position: 12 }, { visited: ['x'] }])
       expect(ScenarioCardSchema.safeParse({ ...card, ...extra }).success, JSON.stringify(extra)).toBe(false);
+  });
+});
+
+describe('what the member was offered and has not made', () => {
+  const suggestion = {
+    draftId: id(20),
+    optionId: 'o1',
+    kind: 'what_if',
+    title: 'What if the Sun became a black hole?',
+    speculative: true,
+  };
+  const list = { version: 'scenario.v1', readId: id(9), scope, status: 'ready', cards: [] };
+
+  it('is a title, a kind and where it would continue, with no number and no branch of its own', () => {
+    expect(ScenarioSuggestionSchema.safeParse(suggestion).success).toBe(true);
+    expect(ScenarioSuggestionSchema.safeParse({ ...suggestion, parentNodeId: id(8) }).success).toBe(true);
+    for (const extra of [{ part: 3 }, { nodeId: id(8) }, { episode: 2 }, { startedBy: person }])
+      expect(ScenarioSuggestionSchema.safeParse({ ...suggestion, ...extra }).success, JSON.stringify(extra)).toBe(
+        false,
+      );
+  });
+
+  it('is part of every ready list, and is bounded', () => {
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: [suggestion] }).success).toBe(true);
+    expect(ScenarioListSchema.safeParse(list).success).toBe(false);
+    const tooMany = Array.from({ length: MAX_SCENARIO_SUGGESTIONS + 1 }, () => suggestion);
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: tooMany }).success).toBe(false);
+    expect(
+      ScenarioListSchema.safeParse({ version: 'scenario.v1', readId: id(9), scope, status: 'unavailable' }).success,
+    ).toBe(true);
   });
 });
