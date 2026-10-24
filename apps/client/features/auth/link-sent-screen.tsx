@@ -1,10 +1,31 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { space } from '@knowscroll/design-tokens';
+import Svg, { Path, Rect } from 'react-native-svg';
+import { borderWidth, content } from '@knowscroll/design-tokens';
 import { Banner, Button, IconButton, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { AuthFrame } from './auth-frame';
 import { rateLimitMessage } from './rate-limit-copy';
+
+/** The yellow envelope of A01 "Link sent": a drawn glyph, hidden from assistive technology. */
+function Envelope() {
+  const stroke = borderWidth.regular;
+  return (
+    <Svg width={64} height={48} viewBox="0 0 64 48" aria-hidden importantForAccessibility="no-hide-descendants">
+      <Rect
+        x={2}
+        y={2}
+        width={60}
+        height={44}
+        rx={6}
+        fill={content.continue}
+        stroke={content.ink}
+        strokeWidth={stroke}
+      />
+      <Path d="M4 8 L32 28 L60 8" fill="none" stroke={content.ink} strokeWidth={stroke} strokeLinejoin="round" />
+    </Svg>
+  );
+}
 
 type Resent =
   | { readonly kind: 'sent' }
@@ -36,19 +57,21 @@ export function LinkSentScreen() {
   return (
     <AuthFrame
       pageTitle="Check your inbox"
+      ground="paper"
       leading={
         <IconButton
           icon="back"
           label="Back to the email form"
-          variant="onSpace"
+          variant="paper"
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/signin'))}
         />
       }
     >
-      <Text variant="displayL" color={space.label} heading={1}>
+      <Envelope />
+      <Text variant="displayL" heading={1}>
         Check your inbox
       </Text>
-      <Text variant="body" color={space.label}>
+      <Text variant="body">
         {email === undefined
           ? 'We sent a sign-in link to your email address. Open it on this device to continue.'
           : `We sent a sign-in link to ${email}. Open it on this device to continue.`}
@@ -70,18 +93,16 @@ export function LinkSentScreen() {
           label="Resend the link"
           busyLabel="Sending…"
           busy={busy}
-          variant="space"
-          surface="dark"
+          variant="default"
           fullWidth
           onPress={() => void resend()}
         />
       )}
       <Button
         label="Use a different email"
-        variant="ink"
+        variant="default"
         role="link"
         href="/signin"
-        surface="dark"
         fullWidth
         onPress={() => router.replace('/signin')}
       />

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Ellipse } from 'react-native-svg';
-import { layout, space, spacing } from '@knowscroll/design-tokens';
+import { content, layout, space, spacing } from '@knowscroll/design-tokens';
 import { useDocumentTitle } from '../../platform/document-title';
 
 /** A01's ground: one calm star with its glow rings and a hairline orbit. */
@@ -18,18 +18,22 @@ function CalmStar() {
 }
 
 /**
- * The frame of the sign-in and recovery screens (A01–A02): the dark spatial ground, safe areas,
- * one centred column no wider than the desktop entry card (V01: 480 px), and optionally the calm
- * star. Each screen names the page.
+ * The frame of the sign-in and recovery screens (A01–A02): safe areas, one centred column no wider
+ * than the desktop entry card (V01: 480 px), and optionally the calm star. The first screen
+ * (A01 sign-in) sits on the dark spatial ground; the screens after it (link sent, signed out, link
+ * failed) are drawn on paper. Each screen names the page.
  */
 export function AuthFrame({
   pageTitle,
   star = false,
+  ground = 'space',
   leading,
   children,
 }: {
   readonly pageTitle: string;
   readonly star?: boolean;
+  /** `space` is the dark ground of the first screen; `paper` is the cream ground of the screens after it. */
+  readonly ground?: 'space' | 'paper';
   readonly leading?: ReactNode;
   readonly children: ReactNode;
 }) {
@@ -38,7 +42,11 @@ export function AuthFrame({
   return (
     <View
       role="main"
-      style={[styles.ground, { paddingTop: insets.top + spacing[6], paddingBottom: insets.bottom + spacing[8] }]}
+      style={[
+        styles.ground,
+        ground === 'paper' ? styles.paper : null,
+        { paddingTop: insets.top + spacing[6], paddingBottom: insets.bottom + spacing[8] },
+      ]}
     >
       {leading === undefined ? null : <View style={styles.leading}>{leading}</View>}
       <View style={styles.column}>
@@ -55,6 +63,7 @@ export function AuthFrame({
 
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: layout.gutter + spacing[1] },
+  paper: { backgroundColor: content.paper },
   leading: { alignSelf: 'stretch', maxWidth: layout.entryCard, width: '100%', marginHorizontal: 'auto' },
   column: {
     flex: 1,
