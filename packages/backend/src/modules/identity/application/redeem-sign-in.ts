@@ -163,6 +163,7 @@ export function makeRedeemSignIn(ports: RedeemSignInPorts): RedeemSignIn {
           tokenHash: secret.hash,
           client: command.client,
           issuedByCommand: command.commandId,
+          ...(command.deviceLabel === undefined ? {} : { deviceLabel: command.deviceLabel }),
         });
         if (!replayed) await ports.completeReceipt(scope, command.commandId, stored);
         return {

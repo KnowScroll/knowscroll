@@ -137,6 +137,15 @@ export const diagnosticCatalogue = {
     fields: ['requestId', 'method', 'route', 'reasonCode'],
   },
   'identity.operator_sign_in': { severity: 'by-call', module: 'identity', fields: ['outcome', 'reasonCode', 'error'] },
+  // Account deletion (D-043): outcomes and durations only. No account, universe or receipt id.
+  'identity.account_deletion_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },
+  'identity.account_deletion_processed': {
+    severity: 'info',
+    module: 'identity',
+    fields: ['outcome', 'durationMs'],
+  },
+  'identity.account_deletions_recovered': { severity: 'info', module: 'identity', fields: ['count'] },
+  'identity.data_export_built': { severity: 'info', module: 'identity', fields: ['outcome', 'durationMs'] },
   'reasoning.admission_refused': {
     severity: 'info',
     module: 'reasoning',

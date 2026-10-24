@@ -22,9 +22,20 @@ import type { MailSender, ReceiptPorts, SessionPorts } from '../application/port
 import { makeRedeemSignIn } from '../application/redeem-sign-in.js';
 import { makeRequestSignIn } from '../application/request-sign-in.js';
 import { makePeekSignInLink } from '../application/peek-sign-in-link.js';
-import { makeResolveSession, makeSessionValid, makeSignOut, makeSweepSignInRecords } from '../application/sessions.js';
+import {
+  makeEndOtherSessions,
+  makeEndSession,
+  makeListSessions,
+  makeResolveSession,
+  makeSessionValid,
+  makeSignOut,
+  makeSweepSignInRecords,
+} from '../application/sessions.js';
 import { operatorAddressMatcher, signInLinkFor } from '../domain/policy.js';
 import {
+  END_OTHER_SESSIONS,
+  END_SESSION,
+  LIST_SESSIONS,
   PEEK_SIGN_IN_LINK,
   READ_ACCOUNT_UNIVERSE,
   READ_UNIVERSE_ACCESS,
@@ -47,6 +58,7 @@ import {
   findAccountByAddress,
   findAccountById,
   issueSession,
+  listLiveSessions,
   lockAddress,
   lockLink,
   makeCreateEmailLink,
@@ -136,6 +148,7 @@ export function identityUseCases(deps: {
     readActiveSession: (tokenHash) => readActiveSession(deps.db, tokenHash),
     sessionStillValid: (session) => sessionStillValid(deps.db, session),
     revokeSessions: makeRevokeSessions(deps.db),
+    listLiveSessions: (accountId) => listLiveSessions(deps.db, accountId),
     secrets: cryptoSecrets,
   };
   return {
@@ -171,6 +184,9 @@ export function identityUseCases(deps: {
     resolveSession: makeResolveSession(sessionPorts),
     sessionValid: makeSessionValid(sessionPorts),
     signOut: makeSignOut(sessionPorts),
+    listSessions: makeListSessions(sessionPorts),
+    endSession: makeEndSession(sessionPorts),
+    endOtherSessions: makeEndOtherSessions(sessionPorts),
   };
 }
 
@@ -221,6 +237,9 @@ export function signInProviders(tokens: { readonly useCases: symbol }) {
     pick(RESOLVE_SESSION, 'resolveSession'),
     pick(SESSION_VALID, 'sessionValid'),
     pick(SIGN_OUT, 'signOut'),
+    pick(LIST_SESSIONS, 'listSessions'),
+    pick(END_SESSION, 'endSession'),
+    pick(END_OTHER_SESSIONS, 'endOtherSessions'),
   ];
 }
 
@@ -289,3 +308,5 @@ export {
 export type { RecordingPorts, RecordingStore } from './recording-providers.js';
 
 export { readRecordingLifecycle } from './recording-lifecycle.js';
+
+export { deleteAccountFor, dataExportFor } from './account-privacy-providers.js';

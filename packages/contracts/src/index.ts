@@ -42,3 +42,5 @@ export * from './recording.js';
 export * from './friend-pages.js';
 
 export * from './public-content-shares.js';
+
+export * from './account.js';

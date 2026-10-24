@@ -120,6 +120,21 @@ Scope end or authority refusal synchronously purges private snapshots, listeners
 
 Authored protocol fixtures cover scope-object isolation, synchronous purge and late replies, CAS/ABA/replay/coalescing, uncertain acknowledgements, required ACK rereads and resource caps. Automated verification runs in Actions only. This source does not establish mounted Keep UX, native/runtime acceptance, a response/lock UX budget, or a production latency SLO; those remain separate consumer/review gates after the actual HTTP probes.
 
+## Account sessions, export and deletion (#246, D-043)
+
+- `createAccountSessionsSession(scope)`: the person's live sessions (coarse label, last use, current), `end(id)` and
+  `endOthers()` then reread; a session already gone counts as ended; a failure keeps the list and says so.
+- `createDataExportsSession(scope, newId)`: receipts, `request()` (a fresh id each time), `download(id, open)`
+  which mints a one-time link and hands its API-relative path to the platform's `open` once; the path is never
+  kept in state.
+- `requestAccountDeletion(scope, deps)`: remembers the receipt id **before** sending, sends the confirmed request
+  with the epoch the person saw, and on acceptance ends the scope here (`manager.endAfterAccountDeletion()`).
+  A refusal forgets the receipt; no answer keeps it, so it can be asked about.
+- `AccountScopeManager.deletion` (`createDeletionReceiptSession`): the device's receipt, read without a session
+  through `/auth/deletion/{id}` (`DeletionReceiptClient`), kept outside every scope in the key-value store
+  (`ks.deletion.receipt`, not purged by a scope ending). An unknown receipt is forgotten: that request never arrived.
+  `signed_out.reason` gains `account_deleted`.
+
 ## Manager-owned selective Clear (#345)
 
 `AccountScopeManager.privacy` is an in-memory controller outside the provider's keyed scope subtree.

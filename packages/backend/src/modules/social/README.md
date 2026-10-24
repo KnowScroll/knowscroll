@@ -37,8 +37,8 @@ is one coarse branch. Withdrawals against an inactive peer also refuse; no clean
 Migration0028 owns five tables, all account references RESTRICT. Request identity/expiry is immutable
 and subordinate account membership is SQL-checked. No private profile/activity metadata is stored.
 All account columns and lifetime tables are inventoried. Exploration clear retains them; registry
-inventory is not a deletion executor. Full deletion needs future reviewed Identity maintenance and
-shared-receipt purge capabilities. There are no scoped Social versions, jobs or caches in this slice.
+inventory is not a deletion executor; account deletion is Identity's lifecycle (`eraseAccount`, below).
+There are no scoped Social versions, jobs or caches in this slice.
 Any future scoped store must erase ALL versions/epochs and fence late workers before application.
 
 CI uses synthetic accounts in real disposable PostgreSQL. It is not two-account dev acceptance.
@@ -100,6 +100,18 @@ unavailable. A link never implicitly accepts friendship or restores withdrawn au
 
 All new tables and account-linked columns are in the Social erasure inventory. Selective Clear
 preserves populated index/invite/profile/pair state, while actor-epoch receipt binding still fences
-old grant commands. Full deletion remains a separately reviewed maintenance/purge operation.
+old grant commands.
+
+Account deletion (#246, D-043): `socialErasure.eraseAccount` runs inside Identity's deletion transaction.
+It deletes the roster entries and heads, invite, command bindings, pair sides, requests, pairs and profile
+that name the person; the friendship ends for the other person too, silently and without a placeholder,
+because nothing else in Social outlives it. Before the entries go it bumps every other person's affected roster
+head (owner, then kind, the heads' own lock order), so their lists refetch. `pairs` and `requests` reference each
+other with RESTRICT: the person's pairs let go of their requests first. Where shared history does remain
+(conversations, threads, rooms), its owner shows `DELETED_ACCOUNT_LABEL`, never a handle or an ID.
+
+The export (`socialErasure.export`) holds the person's own profile (handle, display name), how many people they
+are connected to (friends, requests received and sent, blocked) and the state of their invitation. It names no
+other person: a friend list is theirs to export.
 No token enters a URL, receipt, queue, hint or log. Hosted fixtures are synthetic accounts/PG;
 source/schema/static checks do not establish real populated dev/client/native acceptance.

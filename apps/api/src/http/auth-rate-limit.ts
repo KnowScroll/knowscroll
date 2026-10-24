@@ -49,16 +49,20 @@ export const authLimits = {
   signInPerClient: { max: 10, windowSeconds: 15 * 60 },
   /** Redemption and peek attempts by one client. */
   redeemPerClient: { max: 30, windowSeconds: 15 * 60 },
+  /** Deletion receipt reads and retries and export downloads by one client: polled, so wider. */
+  receiptPerClient: { max: 120, windowSeconds: 15 * 60 },
 } as const satisfies Record<string, WindowLimit>;
 
 export interface AuthLimiters {
   readonly signInPerClient: WindowLimiter;
   readonly redeemPerClient: WindowLimiter;
+  readonly receiptPerClient: WindowLimiter;
 }
 
 export function createAuthLimiters(now: () => number = Date.now): AuthLimiters {
   return {
     signInPerClient: new WindowLimiter(authLimits.signInPerClient, now),
     redeemPerClient: new WindowLimiter(authLimits.redeemPerClient, now),
+    receiptPerClient: new WindowLimiter(authLimits.receiptPerClient, now),
   };
 }

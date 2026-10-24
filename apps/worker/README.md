@@ -25,6 +25,16 @@ prerequisites; older installed schemas or an incomplete lifecycle cannot be cert
 Actions installed-release fixtures exercise the normal API and worker with disposable data
 and no provider. Actual dev/stage privacy journeys require separate deployment evidence.
 
+## Account deletion and export (#246, D-043)
+
+The registry also holds `identity.delete-account` (erases one accepted account deletion in one transaction
+through `eraseCurrentAccount`), `identity.recover-account-deletions` (every five minutes: hands pending, due
+deletions back to the queue) and `identity.build-export` (builds one export file through
+`exportCurrentPerson`). On a final failed delivery the consumer marks the receipt `needs_retry` (deletion) or
+the export `failed`, best effort: the recovery cron and a retry are the other ways out. Their payloads are IDs
+only (the operation or export id, never a person), and the logged outcomes carry no account, universe or
+receipt id. The sweep `identity.sweep-sign-in-records` also retires exports.
+
 Background worker: a Nest application context with no network listener. pg-boss claims jobs for
 the queues in the explicit consumer registry (`src/jobs.ts`); nothing is discovered by
 decorators. HTTP guards never run here, so every consumer's use case rechecks authority itself
