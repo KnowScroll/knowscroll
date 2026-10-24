@@ -18,7 +18,7 @@ export type DeletionReceiptState =
 /**
  * The receipt of this device's account deletion. Deletion ends every session, so the receipt is
  * read without one (`/auth/deletion/{id}`), and it lives outside any account scope: remembered in
- * the device's key-value store (web: kept; native: in memory until a persistent store exists)
+ * the device's key-value store (web: `localStorage`; native: encrypted platform storage, so it survives a restart)
  * before the request is sent, so a lost answer can still be recovered by asking about it.
  */
 export interface DeletionReceiptSession {

@@ -12,6 +12,8 @@
     "plugins": [
       "expo-router",
       "./plugins/font-scale-config-changes.js",
+      "./plugins/test-api-cleartext.js",
+      "expo-secure-store",
       [
         "expo-video",
         {
