@@ -5,12 +5,20 @@ import { expect } from 'vitest';
 import type { PublicPersonRef } from '@knowscroll/contracts';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
-import { makeReadPublicContent, readShareableContent } from '@knowscroll/backend/modules/content/nest-providers';
-import { conversationUseCases, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
+import {
+  makeReadPublicContent,
+  readContentSequence,
+  readShareableContent,
+  resolveSnippetAnchor,
+  validateSnippetAnchor,
+} from '@knowscroll/backend/modules/content/nest-providers';
+import { readVisitedAssets } from '@knowscroll/backend/modules/experience/nest-providers';
+import { conversationUseCases, socialUseCases, threadUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { seedPerson, type FixturePerson } from './fixtures.js';
 
 export type Friends = ReturnType<typeof socialUseCases>;
 export type Talk = ReturnType<typeof conversationUseCases>;
+export type Threads = ReturnType<typeof threadUseCases>;
 export type Friend = FixturePerson & { readonly person: PublicPersonRef };
 
 /** Friends and Talk use cases over one database; `clock.now` can be moved to test expiry. */
@@ -30,6 +38,14 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
       db,
       readContent: readShareableContent,
       readPublicContent: makeReadPublicContent(db),
+    }),
+    threads: threadUseCases({
+      ...deps,
+      readContent: readShareableContent,
+      readSequence: readContentSequence,
+      readVisited: readVisitedAssets,
+      validateSnippet: validateSnippetAnchor,
+      resolveSnippet: resolveSnippetAnchor,
     }),
   };
 }

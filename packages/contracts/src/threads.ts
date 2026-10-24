@@ -25,10 +25,8 @@ const Millis = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 /** Most friends one thread can be started with. */
 export const MAX_THREAD_FRIENDS = 8;
-/** A shared Reel moment is at least this long. */
+/** A shared Reel moment is at least this long; it can run to the end of the Reel. */
 export const MIN_SNIPPET_RANGE_MS = 1_000;
-/** A shared Reel moment is at most this long: a moment, not the whole Reel. */
-export const MAX_SNIPPET_RANGE_MS = 90_000;
 
 function isPublicLabel(value: string): boolean {
   return (

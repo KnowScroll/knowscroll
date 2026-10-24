@@ -21,7 +21,7 @@ import { canTakePart, invitable, isParticipant } from '../domain/threads.js';
 import type { InboxChange } from './conversation-ports.js';
 import { refuse, threadEnvelope, type Result } from './ports.js';
 import { enterThread, threadRefOf, type EnteredThread, type Entry } from './thread-gate.js';
-import type { ThreadMember, ThreadPorts } from './thread-ports.js';
+import type { ThreadMember, ThreadPorts, ThreadRow } from './thread-ports.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
 
@@ -130,11 +130,20 @@ export function makeThreadCommands(p: ThreadPorts) {
     return ok({ ...ContentThreadCreationSchema.parse(receipt.outcome), replayed: true });
   }
 
-  /** The checked anchor of a snippet send, or the refusal: an anchor that does not fit is invalid input, a source that is not current is unavailable. */
+  /**
+   * The checked anchor of a snippet send, or the refusal. A snippet points into the thread's own
+   * sequence (its root, or the units of the declared series it belongs to), so a thread cannot be made
+   * a place to post other content; an anchor that does not fit is invalid input, and a source that is
+   * not the current admitted revision is unavailable.
+   */
   async function checkSnippet(
     scope: PersonalScopeTx,
+    thread: ThreadRow,
     body: Extract<SendThreadBody, { kind: 'snippet' }>,
   ): Promise<Result<StoredSnippetAnchor>> {
+    const sequence = await p.readSequence(scope, thread.root);
+    const episodes = sequence === undefined ? [] : sequence.kind === 'single' ? [sequence.unit] : sequence.units;
+    if (!episodes.some((unit) => unit.assetId === body.target.assetId.toLowerCase())) return refuse('invalid_input');
     const checked = await p.validateSnippet(scope, body.target, anchorInput(body.anchor));
     if (checked.status === 'invalid') return refuse('invalid_input');
     if (checked.status === 'unavailable') return refuse('unavailable');
@@ -231,7 +240,7 @@ export function makeThreadCommands(p: ThreadPorts) {
         async decide(context) {
           const { scope, entered, now } = context;
           const body = command.body;
-          const snippet = body.kind === 'snippet' ? await checkSnippet(scope, body) : undefined;
+          const snippet = body.kind === 'snippet' ? await checkSnippet(scope, entered.thread, body) : undefined;
           if (snippet?.kind === 'refused') return snippet;
           return ok({
             write: async () => {

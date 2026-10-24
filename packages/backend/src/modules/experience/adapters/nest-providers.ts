@@ -315,3 +315,5 @@ export { savedPageUseCase } from './saved-page-providers.js';
 export { makeRegionEncounters } from '../application/region-encounter.js';
 export { makeNavigateEncounter, makeActivateOffer } from '../application/navigation.js';
 export type { NavigationPorts, StoredOffer } from '../application/navigation-ports.js';
+
+export { readVisitedAssets } from './visited-assets.js';

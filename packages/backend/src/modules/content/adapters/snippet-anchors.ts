@@ -1,4 +1,4 @@
-import { ReelDocumentSchema, MAX_SNIPPET_RANGE_MS, MIN_SNIPPET_RANGE_MS } from '@knowscroll/contracts';
+import { ReelDocumentSchema, MIN_SNIPPET_RANGE_MS } from '@knowscroll/contracts';
 import {
   deriveAnchorMap,
   describeBlockState,
@@ -152,8 +152,7 @@ export const validateSnippetAnchor: ValidateSnippetAnchor = async (scope, target
     if (head.kind !== 'reel') return { status: 'invalid' };
     const durationMs = await readReelDuration(trx, ref);
     if (durationMs === undefined) return { status: 'unavailable' };
-    const limits = { minMs: MIN_SNIPPET_RANGE_MS, maxMs: MAX_SNIPPET_RANGE_MS };
-    return reelRangeHolds(anchor.startMs, anchor.endMs, durationMs, limits)
+    return reelRangeHolds(anchor.startMs, anchor.endMs, durationMs, MIN_SNIPPET_RANGE_MS)
       ? { status: 'valid', anchor: { kind: 'reel_range', startMs: anchor.startMs, endMs: anchor.endMs } }
       : { status: 'invalid' };
   }
