@@ -379,6 +379,7 @@ describe('the API contract', () => {
       '/v1/social/content-shares/create': ['post'],
       '/v1/social/content-shares/revoke': ['post'],
       '/v1/social/content-shares/read': ['post'],
+      '/v1/social/content-shares/list': ['post'],
       '/v1/social/content-shares/resolve': ['post'],
     };
     expect(
@@ -1305,7 +1306,9 @@ describe('Social370 declaration OpenAPI metadata', () => {
       ...Object.values(apiContract.conversations).filter(
         (declaration) => declaration !== apiContract.conversations.readOwnSend,
       ),
-      ...Object.values(apiContract.contentShares),
+      ...Object.values(apiContract.contentShares).filter(
+        (declaration) => declaration !== apiContract.contentShares.list,
+      ),
     ];
     expect(declarations).toHaveLength(13);
     expect(new Set(declarations.map((x) => x['~orpc'].route.path)).size).toBe(13);
@@ -1495,8 +1498,8 @@ describe('friend-pages378 bounded scan declaration OpenAPI metadata', () => {
   });
 });
 
-describe('additive242 current-own-send and public-only preview OpenAPI', () => {
-  it('adds exactly two declarations without changing the original13 route/problem metadata', async () => {
+describe('additive242 current-own-send, own-link list and public-only preview OpenAPI', () => {
+  it('adds exactly three declarations without changing the original13 route/problem metadata', async () => {
     const generator = new OpenAPIGenerator({ schemaConverters: [makeSchemaConverter()] });
     const publicErrors = apiContract.publicContentShares.preview['~orpc'].errorMap;
     const privateErrors = apiContract.conversations.readOwnSend['~orpc'].errorMap;
@@ -1518,9 +1521,10 @@ describe('additive242 current-own-send and public-only preview OpenAPI', () => {
       },
     });
     const { readOwnSend, ...originalConversations } = apiContract.conversations;
+    const { list: ownShareList, ...originalContentShares } = apiContract.contentShares;
     const { publicContentShares, ...withoutPublic } = apiContract;
     const original = await generator.generate(
-      { ...withoutPublic, conversations: originalConversations },
+      { ...withoutPublic, conversations: originalConversations, contentShares: originalContentShares },
       {
         info: { title: 'KnowScroll API', version: '1' },
       },
@@ -1529,9 +1533,11 @@ describe('additive242 current-own-send and public-only preview OpenAPI', () => {
       Object.keys(document.paths ?? {})
         .filter((path) => !(path in (original.paths ?? {})))
         .sort(),
-    ).toEqual(['/s/preview', '/v1/social/conversations/send/read']);
+    ).toEqual(['/s/preview', '/v1/social/content-shares/list', '/v1/social/conversations/send/read']);
     expect(Object.values(originalConversations)).toHaveLength(9);
-    expect(Object.values(apiContract.contentShares)).toHaveLength(4);
+    expect(Object.values(originalContentShares)).toHaveLength(4);
+    expect(Object.values(apiContract.contentShares)).toHaveLength(5);
+    expect(ownShareList['~orpc'].errorMap).toEqual(apiContract.conversations.send['~orpc'].errorMap);
     expect(Object.values(apiContract.conversations)).toHaveLength(10);
     expect(Object.values(publicContentShares)).toHaveLength(1);
     expect(readOwnSend['~orpc'].errorMap).toEqual(apiContract.conversations.send['~orpc'].errorMap);

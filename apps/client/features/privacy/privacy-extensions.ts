@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router';
 import type { ComponentType } from 'react';
+import { SharedLinksSection } from '../sharing/shared-links-section';
 
 /**
  * A privacy control another slice owns, shown in P02 between Clear exploration and Delete account
@@ -16,5 +17,13 @@ export interface PrivacyExtension {
   readonly Panel: ComponentType;
 }
 
-/** Empty until the share slice (#242) adds revocation of share links. */
-export const privacyExtensions: readonly PrivacyExtension[] = [];
+/** The slices that add a privacy control, in the order the hub shows them. */
+export const privacyExtensions: readonly PrivacyExtension[] = [
+  {
+    id: 'shared-links',
+    title: 'Shared links',
+    description: 'See your public links and stop sharing them.',
+    href: '/account/privacy/shared-links',
+    Panel: SharedLinksSection,
+  },
+];
