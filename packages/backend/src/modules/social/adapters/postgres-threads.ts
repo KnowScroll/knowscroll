@@ -10,6 +10,7 @@ import {
 } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { StoredSnippetAnchor } from '../../content/public.js';
+import { releaseInvitees } from './invitee-links.js';
 import { selectLastMessages } from './postgres-conversations.js';
 import type {
   FriendStanding,
@@ -110,6 +111,7 @@ interface ThreadColumns {
   last_sequence: string;
   last_change_sequence: string;
   last_activity_at: Date | string;
+  created_at: Date | string;
   name: string | null;
   root_asset_id: string;
   root_asset_revision: number;
@@ -124,6 +126,7 @@ const threadOf = (row: ThreadColumns): ThreadRow => ({
   lastSequence: Number(row.last_sequence),
   lastChangeSequence: Number(row.last_change_sequence),
   lastActivityAt: new Date(row.last_activity_at),
+  createdAt: new Date(row.created_at),
 });
 
 function selectThreads(trx: Transaction<Database>, threadIds: readonly string[]) {
@@ -139,6 +142,7 @@ function selectThreads(trx: Transaction<Database>, threadIds: readonly string[])
       't.root_asset_id',
       't.root_asset_revision',
       't.starter_account_id',
+      't.created_at',
     ])
     .where('c.conversation_id', 'in', [...threadIds])
     .where('c.kind', '=', 'thread')
@@ -310,13 +314,8 @@ export const threadStore: ThreadStore = {
       .where('conversation_id', '=', lock.threadId)
       .where('account_id', '=', accountId)
       .execute();
-    // Whoever this person invited now stands on their own membership.
-    await trx
-      .updateTable('social.conversation_members')
-      .set({ invited_by_account_id: null, invited_lineage: null })
-      .where('conversation_id', '=', lock.threadId)
-      .where('invited_by_account_id', '=', accountId)
-      .execute();
+    // Whoever this person invited now stands on their own membership, unless their place had already ended.
+    await releaseInvitees(trx, accountId, now, lock.threadId);
   },
 
   async saveSnippet(lock, messageId, anchor) {
@@ -381,11 +380,14 @@ export const threadStore: ThreadStore = {
       select member.conversation_id
       from social.conversation_members member
       join social.conversations conversation on conversation.conversation_id = member.conversation_id
+      join social.content_threads thread on thread.thread_id = member.conversation_id
       join identity.accounts account on account.id = member.account_id
       join identity.universes universe on universe.account_id = member.account_id
       where member.account_id = ${accountId}::uuid and member.left_at is null
         and conversation.kind = 'thread' and ${memberStands}
-      order by conversation.last_activity_at desc, conversation.conversation_id asc
+      -- An invitation is ordered by when the thread began: when the others last talked is not theirs to see yet.
+      order by case when member.pending then thread.created_at else conversation.last_activity_at end desc,
+        conversation.conversation_id asc
       limit ${limit}`.execute(trx);
     const threadIds = listed.rows.map((row) => row.conversation_id);
     if (threadIds.length === 0) return [];

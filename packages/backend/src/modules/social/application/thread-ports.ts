@@ -24,6 +24,7 @@ export interface ThreadRow {
   readonly lastSequence: number;
   readonly lastChangeSequence: number;
   readonly lastActivityAt: Date;
+  readonly createdAt: Date;
 }
 
 export interface ThreadMember {

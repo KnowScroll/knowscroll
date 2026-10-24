@@ -283,7 +283,8 @@ export function makeThreadReads(p: ThreadPorts) {
             people: pending ? [row.inviter ?? DELETED_PERSON] : row.people,
             latestMessageSequence: pending ? 0 : row.thread.lastSequence,
             own: pending ? { readThroughSequence: 0, muted: row.own.muted } : own(row.own),
-            lastActivityAt: row.thread.lastActivityAt.toISOString(),
+            // Until the person joins, when the others last talked is not theirs to see.
+            lastActivityAt: (pending ? row.thread.createdAt : row.thread.lastActivityAt).toISOString(),
             ...(last ? { lastMessage: last } : {}),
           };
         });

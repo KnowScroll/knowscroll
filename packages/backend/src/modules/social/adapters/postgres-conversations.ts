@@ -296,7 +296,8 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
         'c.last_change_sequence',
         'c.last_activity_at',
         'c.closed_at',
-      ]);
+      ])
+      .where('c.kind', '=', 'direct');
     // Under a pair lock only that friendship's conversations are in reach.
     if ('shared' in reader) select = select.where('c.pair_id', '=', reader.pair.id);
     select =
@@ -365,6 +366,7 @@ async function selectInboxRows(trx: Transaction<Database>, accountId: string, qu
       'profile.handle',
       'profile.display_name',
     ])
+    .where('c.kind', '=', 'direct')
     .where('own.account_id', '=', accountId)
     .where('own.left_at', 'is', null)
     .where('c.last_sequence', '>', '0')

@@ -1,6 +1,7 @@
 import type {
   ConversationContentProjection,
   ContentThreadRef,
+  ContentThreadView,
   PublicPersonRef,
   SendThreadBody,
   ThreadEpisode,
@@ -106,246 +107,316 @@ const emptyState: ContentThreadState = {
  * stale starts over from a fresh snapshot.
  */
 export function createContentThread(options: ContentThreadOptions): ContentThreadController {
-  const { scope, thread, newId } = options;
-  const api = scope.api.threads;
-  const listeners = new Set<() => void>();
-  let state: ContentThreadState = emptyState;
-  let catchUpCursor: string | undefined;
-  let olderCursor: string | undefined;
-  let readThrough = 0;
-  let active = false;
-  let syncing: Promise<void> | undefined;
-  let syncAgain = false;
-  let marking = false;
-  let respondIntent: { readonly response: 'join' | 'decline'; readonly commandId: string } | undefined;
+  const session = new ContentThreadSession(options);
+  return {
+    getState: () => session.getState(),
+    subscribe: (listener) => session.subscribe(listener),
+    load: () => session.load(),
+    refresh: () => session.refresh(),
+    loadOlder: () => session.loadOlder(),
+    send: (body) => session.send(body),
+    retry: (commandId) => session.retry(commandId),
+    dismiss: (commandId) => session.dismiss(commandId),
+    setActive: (active) => session.setActive(active),
+    respond: (response) => session.respond(response),
+    leave: () => session.leave(),
+  };
+}
 
-  function publish(patch: Partial<ContentThreadState>): void {
-    if (!scope.active) return;
-    state = { ...state, ...patch };
-    for (const listener of [...listeners]) listener();
+type ReadyThreadView = Extract<ContentThreadView, { status: 'ready' }>;
+
+/** Drops bubbles whose message has arrived in order. */
+function settleOutgoing(
+  outgoing: readonly OutgoingThreadMessage[],
+  messages: readonly ThreadMessage[],
+): readonly OutgoingThreadMessage[] {
+  const have = new Set(messages.map((message) => message.sequence));
+  return outgoing.filter((entry) => entry.sequence === undefined || !have.has(entry.sequence));
+}
+
+class ContentThreadSession {
+  private state: ContentThreadState = emptyState;
+  private readonly scope: AccountScope;
+  private readonly thread: ContentThreadRef;
+  private readonly newId: () => string;
+  private readonly listeners = new Set<() => void>();
+  /** Where the next catch-up starts, and where the next page of older messages starts. */
+  private catchUpCursor: string | undefined;
+  private olderCursor: string | undefined;
+  private readThrough = 0;
+  private active = false;
+  private syncing: Promise<void> | undefined;
+  private syncAgain = false;
+  private marking = false;
+  private respondIntent: { readonly response: 'join' | 'decline'; readonly commandId: string } | undefined;
+
+  constructor(options: ContentThreadOptions) {
+    this.scope = options.scope;
+    this.thread = options.thread;
+    this.newId = options.newId;
   }
 
-  /** Drops bubbles whose message has arrived in order. */
-  function settle(messages: readonly ThreadMessage[]): readonly OutgoingThreadMessage[] {
-    const have = new Set(messages.map((message) => message.sequence));
-    return state.outgoing.filter((entry) => entry.sequence === undefined || !have.has(entry.sequence));
+  private get api() {
+    return this.scope.api.threads;
   }
 
-  function failed(error: unknown): void {
+  getState(): ContentThreadState {
+    return this.state;
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  }
+
+  private publish(patch: Partial<ContentThreadState>): void {
+    if (!this.scope.active) return;
+    this.state = { ...this.state, ...patch };
+    for (const listener of [...this.listeners]) listener();
+  }
+
+  private failed(error: unknown): void {
     const kind = talkFailure(error);
     if (kind === 'ended') return;
-    if (kind === 'unavailable') publish({ phase: 'unavailable' });
-    else if (state.phase === 'loading') publish({ phase: 'failed', offline: kind === 'offline' });
-    else publish({ offline: true });
+    if (kind === 'unavailable') this.publish({ phase: 'unavailable' });
+    else if (this.state.phase === 'loading') this.publish({ phase: 'failed', offline: kind === 'offline' });
+    else this.publish({ offline: true });
   }
 
-  async function load(): Promise<void> {
+  // --- Reading ---
+
+  async load(): Promise<void> {
     try {
-      const view = await api.read({ version: VERSION, readId: newId(), thread, limit: SNAPSHOT_LIMIT });
-      if (view.status === 'unavailable') {
-        publish({ phase: 'unavailable' });
-        return;
-      }
-      if (view.status === 'invitation') {
-        publish({
+      const view = await this.api.read({
+        version: VERSION,
+        readId: this.newId(),
+        thread: this.thread,
+        limit: SNAPSHOT_LIMIT,
+      });
+      if (view.status === 'unavailable') this.publish({ phase: 'unavailable' });
+      else if (view.status === 'invitation') {
+        this.publish({
           phase: 'invitation',
           name: view.name,
           root: view.root,
           invitedBy: view.invitedBy,
           offline: false,
         });
-        return;
+      } else {
+        this.applySnapshot(view);
+        void this.markRead();
       }
-      catchUpCursor = view.catchUpCursor;
-      olderCursor = view.history.kind === 'more' ? view.history.cursor : undefined;
-      readThrough = view.own.readThroughSequence;
-      const messages = mergeMessages(state.messages, view.messages);
-      publish({
-        phase: 'ready',
-        name: view.name,
-        root: view.root,
-        participants: view.participants,
-        sequence: view.sequence.kind,
-        episodes: view.episodes,
-        messages,
-        outgoing: settle(messages),
-        hasOlder: olderCursor !== undefined,
-        offline: false,
-      });
-      void markRead();
     } catch (error) {
-      failed(error);
+      this.failed(error);
     }
   }
 
-  async function catchUpOnce(): Promise<void> {
+  private applySnapshot(view: ReadyThreadView): void {
+    this.catchUpCursor = view.catchUpCursor;
+    this.olderCursor = view.history.kind === 'more' ? view.history.cursor : undefined;
+    this.readThrough = view.own.readThroughSequence;
+    const messages = mergeMessages(this.state.messages, view.messages);
+    this.publish({
+      phase: 'ready',
+      name: view.name,
+      root: view.root,
+      participants: view.participants,
+      sequence: view.sequence.kind,
+      episodes: view.episodes,
+      messages,
+      outgoing: settleOutgoing(this.state.outgoing, messages),
+      hasOlder: this.olderCursor !== undefined,
+      offline: false,
+    });
+  }
+
+  /** Reads from the last confirmed change until caught up; a cursor the server calls stale starts over. */
+  private async catchUpOnce(): Promise<void> {
     try {
-      while (catchUpCursor !== undefined) {
-        const page = await api.changes({
+      while (this.catchUpCursor !== undefined) {
+        const page = await this.api.changes({
           version: VERSION,
-          readId: newId(),
-          thread,
+          readId: this.newId(),
+          thread: this.thread,
           limit: CHANGES_LIMIT,
-          cursor: catchUpCursor,
+          cursor: this.catchUpCursor,
         });
         if (page.status === 'unavailable') {
-          publish({ phase: 'unavailable' });
+          this.publish({ phase: 'unavailable' });
           return;
         }
         if (page.status === 'refresh_required') {
-          await load();
+          await this.load();
           return;
         }
         const messages = mergeMessages(
-          state.messages,
+          this.state.messages,
           page.changes.map((change) => change.message),
         );
-        catchUpCursor = page.continuation.cursor;
-        publish({ messages, outgoing: settle(messages), offline: false });
+        this.catchUpCursor = page.continuation.cursor;
+        this.publish({ messages, outgoing: settleOutgoing(this.state.outgoing, messages), offline: false });
         if (page.continuation.kind === 'caught_up') break;
       }
-      void markRead();
+      void this.markRead();
     } catch (error) {
-      failed(error);
+      this.failed(error);
     }
   }
 
   /** One catch-up at a time; a request that arrives meanwhile asks for one more round afterwards. */
-  function catchUp(): Promise<void> {
-    if (syncing !== undefined) {
-      syncAgain = true;
-      return syncing;
+  private catchUp(): Promise<void> {
+    if (this.syncing !== undefined) {
+      this.syncAgain = true;
+      return this.syncing;
     }
-    syncing = catchUpOnce().finally(() => {
-      syncing = undefined;
-      if (syncAgain) {
-        syncAgain = false;
-        void catchUp();
+    this.syncing = this.catchUpOnce().finally(() => {
+      this.syncing = undefined;
+      if (this.syncAgain) {
+        this.syncAgain = false;
+        void this.catchUp();
       }
     });
-    return syncing;
+    return this.syncing;
   }
 
-  async function markRead(): Promise<void> {
-    const latest = state.messages.at(-1)?.sequence ?? 0;
-    if (!active || marking || latest <= readThrough || state.phase !== 'ready') return;
-    marking = true;
+  async refresh(): Promise<void> {
+    if (this.state.phase === 'unavailable') return;
+    if (this.catchUpCursor === undefined) await this.load();
+    else await this.catchUp();
+  }
+
+  async loadOlder(): Promise<void> {
+    const cursor = this.olderCursor;
+    if (cursor === undefined || this.state.loadingOlder) return;
+    this.publish({ loadingOlder: true });
     try {
-      const accepted = await api.markRead({ version: VERSION, commandId: newId(), thread, throughSequence: latest });
-      readThrough = Math.max(readThrough, accepted.acceptedThroughSequence);
+      const page = await this.api.history({
+        version: VERSION,
+        readId: this.newId(),
+        thread: this.thread,
+        limit: SNAPSHOT_LIMIT,
+        cursor,
+      });
+      if (page.status !== 'ready') {
+        this.publish({ loadingOlder: false });
+        if (page.status === 'unavailable') this.publish({ phase: 'unavailable' });
+        return;
+      }
+      this.olderCursor = page.continuation.kind === 'more' ? page.continuation.cursor : undefined;
+      this.publish({
+        messages: mergeMessages(this.state.messages, page.messages),
+        hasOlder: this.olderCursor !== undefined,
+        loadingOlder: false,
+      });
+    } catch (error) {
+      this.publish({ loadingOlder: false });
+      this.failed(error);
+    }
+  }
+
+  // --- Reading position ---
+
+  setActive(next: boolean): void {
+    this.active = next;
+    if (next) void this.markRead();
+  }
+
+  private async markRead(): Promise<void> {
+    const latest = this.state.messages.at(-1)?.sequence ?? 0;
+    if (!this.active || this.marking || latest <= this.readThrough || this.state.phase !== 'ready') return;
+    this.marking = true;
+    try {
+      const accepted = await this.api.markRead({
+        version: VERSION,
+        commandId: this.newId(),
+        thread: this.thread,
+        throughSequence: latest,
+      });
+      this.readThrough = Math.max(this.readThrough, accepted.acceptedThroughSequence);
     } catch {
       // Reading position is a convenience; the next refresh tries again.
     } finally {
-      marking = false;
+      this.marking = false;
     }
   }
 
-  const setOutgoing = (commandId: string, patch: Partial<OutgoingThreadMessage>) =>
-    publish({
-      outgoing: state.outgoing.map((entry) => (entry.commandId === commandId ? { ...entry, ...patch } : entry)),
-    });
+  // --- Sending ---
 
-  async function attempt(commandId: string, body: SendThreadBody): Promise<void> {
-    setOutgoing(commandId, { status: 'sending' });
+  async send(body: SendThreadBody): Promise<void> {
+    const commandId = this.newId();
+    this.publish({ outgoing: [...this.state.outgoing, { commandId, body, status: 'sending' }] });
+    await this.attempt(commandId, body);
+  }
+
+  async retry(commandId: string): Promise<void> {
+    const entry = this.state.outgoing.find((candidate) => candidate.commandId === commandId);
+    if (entry && (entry.status === 'unconfirmed' || entry.status === 'not_sent'))
+      await this.attempt(commandId, entry.body);
+  }
+
+  dismiss(commandId: string): void {
+    this.publish({
+      outgoing: this.state.outgoing.filter((entry) => entry.commandId !== commandId || entry.status !== 'not_sent'),
+    });
+  }
+
+  private setOutgoing(commandId: string, patch: Partial<OutgoingThreadMessage>): void {
+    this.publish({
+      outgoing: this.state.outgoing.map((entry) => (entry.commandId === commandId ? { ...entry, ...patch } : entry)),
+    });
+  }
+
+  private async attempt(commandId: string, body: SendThreadBody): Promise<void> {
+    this.setOutgoing(commandId, { status: 'sending' });
     try {
-      const accepted = await api.send({ version: VERSION, commandId, thread, body });
-      setOutgoing(commandId, { status: 'accepted', sequence: accepted.messageSequence });
+      const accepted = await this.api.send({ version: VERSION, commandId, thread: this.thread, body });
+      this.setOutgoing(commandId, { status: 'accepted', sequence: accepted.messageSequence });
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
-      setOutgoing(commandId, { status: kind === 'offline' ? 'unconfirmed' : 'not_sent' });
+      this.setOutgoing(commandId, { status: kind === 'offline' ? 'unconfirmed' : 'not_sent' });
       // A refusal may mean the place ended (removed, friendship ended): read again to find out.
-      if (kind === 'unavailable') void load();
+      if (kind === 'unavailable') void this.load();
       return;
     }
-    await catchUp();
+    await this.catchUp();
   }
 
-  return {
-    getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => void listeners.delete(listener);
-    },
-    load,
-    async refresh() {
-      if (state.phase === 'unavailable') return;
-      if (catchUpCursor === undefined) await load();
-      else await catchUp();
-    },
-    async loadOlder() {
-      const cursor = olderCursor;
-      if (cursor === undefined || state.loadingOlder) return;
-      publish({ loadingOlder: true });
-      try {
-        const page = await api.history({ version: VERSION, readId: newId(), thread, limit: SNAPSHOT_LIMIT, cursor });
-        if (page.status !== 'ready') {
-          publish({ loadingOlder: false });
-          if (page.status === 'unavailable') publish({ phase: 'unavailable' });
-          return;
-        }
-        olderCursor = page.continuation.kind === 'more' ? page.continuation.cursor : undefined;
-        publish({
-          messages: mergeMessages(state.messages, page.messages),
-          hasOlder: olderCursor !== undefined,
-          loadingOlder: false,
-        });
-      } catch (error) {
-        publish({ loadingOlder: false });
-        failed(error);
-      }
-    },
-    async send(body) {
-      const commandId = newId();
-      publish({ outgoing: [...state.outgoing, { commandId, body, status: 'sending' }] });
-      await attempt(commandId, body);
-    },
-    async retry(commandId) {
-      const entry = state.outgoing.find((candidate) => candidate.commandId === commandId);
-      if (entry && (entry.status === 'unconfirmed' || entry.status === 'not_sent'))
-        await attempt(commandId, entry.body);
-    },
-    dismiss(commandId) {
-      publish({
-        outgoing: state.outgoing.filter((entry) => entry.commandId !== commandId || entry.status !== 'not_sent'),
-      });
-    },
-    setActive(next) {
-      active = next;
-      if (next) void markRead();
-    },
-    async respond(response) {
-      if (state.responding) return false;
-      publish({ responding: true });
-      // The command ID is kept for each intent: after an unknown outcome the retry is the same command.
-      const intent = respondIntent?.response === response ? respondIntent : { response, commandId: newId() };
-      respondIntent = intent;
-      try {
-        await api.respond({ version: VERSION, commandId: intent.commandId, thread, response });
-        respondIntent = undefined;
-        publish({ responding: false });
-        if (response === 'join') await load();
-        else publish({ phase: 'unavailable' });
-        return true;
-      } catch (error) {
-        publish({ responding: false });
-        // A refusal means the invitation changed meanwhile; reading says how.
-        if (talkFailure(error) === 'unavailable') {
-          respondIntent = undefined;
-          await load();
-        } else failed(error);
-        return false;
-      }
-    },
-    async leave() {
-      try {
-        await api.leave({ version: VERSION, commandId: newId(), thread });
-        publish({ phase: 'unavailable' });
-        return true;
-      } catch (error) {
-        failed(error);
-        return false;
-      }
-    },
-  };
+  // --- Membership ---
+
+  async respond(response: 'join' | 'decline'): Promise<boolean> {
+    if (this.state.responding) return false;
+    this.publish({ responding: true });
+    // The command ID is kept for each intent: after an unknown outcome the retry is the same command.
+    const intent =
+      this.respondIntent?.response === response ? this.respondIntent : { response, commandId: this.newId() };
+    this.respondIntent = intent;
+    try {
+      await this.api.respond({ version: VERSION, commandId: intent.commandId, thread: this.thread, response });
+      this.respondIntent = undefined;
+      this.publish({ responding: false });
+      if (response === 'join') await this.load();
+      else this.publish({ phase: 'unavailable' });
+      return true;
+    } catch (error) {
+      this.publish({ responding: false });
+      // A refusal means the invitation changed meanwhile; reading says how.
+      if (talkFailure(error) === 'unavailable') {
+        this.respondIntent = undefined;
+        await this.load();
+      } else this.failed(error);
+      return false;
+    }
+  }
+
+  async leave(): Promise<boolean> {
+    try {
+      await this.api.leave({ version: VERSION, commandId: this.newId(), thread: this.thread });
+      this.publish({ phase: 'unavailable' });
+      return true;
+    } catch (error) {
+      this.failed(error);
+      return false;
+    }
+  }
 }

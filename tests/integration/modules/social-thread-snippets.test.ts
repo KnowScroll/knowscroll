@@ -15,7 +15,15 @@ import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
-import { befriend, consumptionRows, seedFriend, talkCases, withdraw, type Friend } from '../support/talk.js';
+import {
+  befriend,
+  consumptionRows,
+  friendCommand,
+  seedFriend,
+  talkCases,
+  withdraw,
+  type Friend,
+} from '../support/talk.js';
 import {
   activateFor,
   addReelRevision,
@@ -564,6 +572,38 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
     });
   });
 
+  /** Deletes the person's account through the real request and erasure path. */
+  async function deleteAccount(actor: Friend): Promise<void> {
+    const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
+    await boss.start();
+    try {
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      const receiptId = randomUUID();
+      expect((await deleting.request(actor.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+    } finally {
+      await boss.stop({ graceful: false });
+    }
+  }
+  const invitationOf = async (actor: Friend): Promise<ContentThreadRef> => {
+    const [item] = unwrap(await threads().inbox(actor.authority, { version, readId: randomUUID(), limit: 50 })).items;
+    if (!item) throw new Error('CI invitation missing');
+    return item.thread;
+  };
+  const directInbox = async (actor: Friend) => {
+    const found = unwrap(
+      await cases.talk.conversations.inbox(actor.authority, {
+        version: 'direct-conversation.v1',
+        readId: randomUUID(),
+        limit: 50,
+      }),
+    );
+    return found.status === 'ready' ? found.items : [];
+  };
+
   describe('erasure', () => {
     it('declares every thread store, with a Clear disposition that keeps it', () => {
       const declared = socialErasure.accountTables?.map((table) => `${table.schema}.${table.table}`);
@@ -618,19 +658,7 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       unwrap(await sendSnippet(a, second.thread, exact(reel), { kind: 'reel_range', startMs: 2_000, endMs: 9_000 }));
       expect(await snippetRows(second.thread)).toBe(1);
 
-      const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
-      await boss.start();
-      try {
-        const deleting = deleteAccountFor(database.db, boss, {
-          eraseAccountData: eraseCurrentAccount,
-          lockTimeoutMs: 5_000,
-        });
-        const receiptId = randomUUID();
-        expect((await deleting.request(a.authority, { receiptId })).kind).toBe('accepted');
-        expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
-      } finally {
-        await boss.stop({ graceful: false });
-      }
+      await deleteAccount(a);
 
       // Asha's words and her snippet are gone from the thread; Ravi's remain.
       const ravi = await ready(b, bSecond.thread);
@@ -675,6 +703,125 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
           .where('starter_account_id', '=', a.accountId)
           .execute(),
       ).toEqual([]);
+    });
+
+    it('does not give back a place that had ended when the person who invited them deletes their account', async () => {
+      const a = await seedFriend(database.db, cases.friends);
+      const [b, c, d] = [
+        await seedFriend(database.db, cases.friends),
+        await seedFriend(database.db, cases.friends),
+        await seedFriend(database.db, cases.friends),
+      ] as [Friend, Friend, Friend];
+      for (const person of [b, c, d]) await befriend(cases.friends, a, person);
+      const reel = await seedReel(database.db, { durationMs: 30_000 });
+      const started = unwrap(
+        await threads().create(a.authority, {
+          version,
+          commandId: randomUUID(),
+          root: exact(reel),
+          friendPersonIds: [b, c, d].map((person) => person.person.personId),
+        }),
+      );
+      const refs = { b: await invitationOf(b), c: await invitationOf(c), d: await invitationOf(d) };
+      for (const [person, thread] of [
+        [b, refs.b],
+        [d, refs.d],
+      ] as const)
+        unwrap(
+          await threads().respond(person.authority, { version, commandId: randomUUID(), thread, response: 'join' }),
+        );
+      // Ravi is blocked after joining, Meera's friendship ends before she answers, Dev stays a friend.
+      unwrap(await friendCommand(cases.friends, a, b, 'block'));
+      unwrap(await friendCommand(cases.friends, a, c, 'remove'));
+      unwrap(
+        await threads().send(d.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: refs.d,
+          body: { kind: 'text', text: 'after the block' },
+        }),
+      );
+      expect(unwrap(await view(b, refs.b))).toMatchObject({ status: 'unavailable' });
+
+      await deleteAccount(a);
+
+      expect(unwrap(await view(b, refs.b))).toMatchObject({ status: 'unavailable' });
+      expect(unwrap(await view(c, refs.c))).toMatchObject({ status: 'unavailable' });
+      expect(unwrap(await threads().inbox(b.authority, { version, readId: randomUUID(), limit: 50 })).items).toEqual(
+        [],
+      );
+      const dev = await ready(d, refs.d);
+      expect(dev.messages.map((message) => message.status)).toEqual(['available']);
+      expect(dev.participants.map((participant) => participant.person.handle)).toEqual([d.person.handle]);
+      const rows = await database.db
+        .selectFrom('social.conversation_members')
+        .select(['account_id', 'left_at', 'invited_by_account_id'])
+        .where('conversation_id', '=', started.thread.threadId)
+        .execute();
+      expect(rows.every((row) => row.invited_by_account_id === null)).toBe(true);
+      expect(
+        rows
+          .filter((row) => row.left_at !== null)
+          .map((row) => row.account_id)
+          .sort(),
+      ).toEqual([b.accountId, c.accountId].sort());
+    });
+
+    it('never lists a thread in the direct inbox, whoever deleted their account', async () => {
+      const a = await seedFriend(database.db, cases.friends);
+      const [b, c] = [await seedFriend(database.db, cases.friends), await seedFriend(database.db, cases.friends)] as [
+        Friend,
+        Friend,
+      ];
+      await befriend(cases.friends, a, b);
+      await befriend(cases.friends, a, c);
+      const reel = await seedReel(database.db, { durationMs: 30_000 });
+      const text = (actor: Friend, thread: ContentThreadRef, words: string) =>
+        threads().send(actor.authority, {
+          version,
+          commandId: randomUUID(),
+          thread,
+          body: { kind: 'text', text: words },
+        });
+      // One thread whose only other member deletes their account, and one whose starter deletes theirs
+      // while the invitee has not answered.
+      const withB = unwrap(
+        await threads().create(a.authority, {
+          version,
+          commandId: randomUUID(),
+          root: exact(reel),
+          friendPersonIds: [b.person.personId],
+        }),
+      );
+      const bRef = await invitationOf(b);
+      unwrap(
+        await threads().respond(b.authority, { version, commandId: randomUUID(), thread: bRef, response: 'join' }),
+      );
+      unwrap(await text(b, bRef, 'ravi was here'));
+      expect(await directInbox(a)).toEqual([]);
+      await deleteAccount(b);
+      expect(await directInbox(a)).toEqual([]);
+      expect(
+        unwrap(await threads().inbox(a.authority, { version, readId: randomUUID(), limit: 50 })).items,
+      ).toHaveLength(1);
+      unwrap(await text(a, withB.thread, 'still here'));
+      expect((await ready(a, withB.thread)).participants).toHaveLength(1);
+
+      const d = await seedFriend(database.db, cases.friends);
+      await befriend(cases.friends, d, c);
+      const withC = unwrap(
+        await threads().create(d.authority, {
+          version,
+          commandId: randomUUID(),
+          root: exact(reel),
+          friendPersonIds: [c.person.personId],
+        }),
+      );
+      unwrap(await text(d, withC.thread, 'before leaving'));
+      await deleteAccount(d);
+      expect(await directInbox(c)).toEqual([]);
+      const [invited] = unwrap(await threads().inbox(c.authority, { version, readId: randomUUID(), limit: 50 })).items;
+      expect(invited).toMatchObject({ state: 'invited', latestMessageSequence: 0 });
     });
 
     it('exports a person’s own words, thread names and what they shared, and nothing of anyone else', async () => {

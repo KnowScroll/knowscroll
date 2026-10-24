@@ -371,8 +371,8 @@ export type SnippetValidation =
 
 /**
  * Port: checks a snippet anchor against the exact revision it names, inside the caller's personal
- * transaction. A Reel range must lie inside the Reel's duration and be a moment (one to ninety
- * seconds); a passage needs a stable block, a range on grapheme boundaries and the hash of the
+ * transaction. A Reel range must lie inside the Reel's duration and be at least one second
+ * long (it may be as long as the Reel); a passage needs a stable block, a range on grapheme boundaries and the hash of the
  * quote; a block needs its id, type and version and, only when included, a snapshot that fits the
  * block's own parameter declarations (a value the sender entered themselves needs
  * `confirmPersonal`). Only the current revision of an admitted asset can be anchored. It decides

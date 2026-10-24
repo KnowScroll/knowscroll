@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref, type ReactNode } from 'react';
+import { useIsFocused } from 'expo-router';
 import { AppState, StyleSheet, View } from 'react-native';
 import {
   createReelRecorder,
@@ -112,8 +113,8 @@ export interface ReelMoment {
 /**
  * A Reel in a thread or a snippet viewer: a poster with Play until the person plays it, then the
  * player. With a `moment` it starts at the moment's start and pauses at its end, then offers Replay
- * (and whatever `afterEnd` adds). `active` false (the thread's player is folded, a sheet is open)
- * pauses it. Actual playback is an ordinary encounter of the original Reel; showing the poster is not.
+ * (and whatever `afterEnd` adds). `active` false (the thread's player is folded, a sheet is open) or
+ * another screen in front of this one pauses it. Actual playback is an ordinary encounter of the original Reel; showing the poster is not.
  */
 export function ReelEncounter({
   scope,
@@ -143,6 +144,10 @@ export function ReelEncounter({
   const { state, start } = useReelExposure(scope, assetId);
   const [round, setRound] = useState(0);
   const [ended, setEnded] = useState(false);
+  // The player's own visibility observer cannot tell that another screen now covers this one (on
+  // native it always says visible), so route focus is fenced here, as the Reel screen does.
+  const focused = useIsFocused();
+  const playing = active && focused && !ended;
   const internalRef = useRef<ReelPositionHandle>(null);
   const handle = positionRef ?? internalRef;
   const exposure = state.status === 'ready' ? state.exposure : undefined;
@@ -157,8 +162,8 @@ export function ReelEncounter({
     return () => listener.remove();
   }, [exposure]);
   useEffect(() => {
-    if (!active) exposure?.recorder.discontinuity();
-  }, [active, exposure]);
+    if (!active || !focused) exposure?.recorder.discontinuity();
+  }, [active, focused, exposure]);
 
   // The range ends where the sender chose. Setting `ended` makes the player inactive, which pauses it.
   const watched = useMemo(() => {
@@ -205,7 +210,7 @@ export function ReelEncounter({
         exposureId={exposure.exposureId}
         document={exposure.document}
         recorder={watched}
-        active={active && !ended}
+        active={playing}
         positionRef={handle}
         initialPositionMs={moment?.startMs}
         stageMaxHeight={stageMaxHeight}

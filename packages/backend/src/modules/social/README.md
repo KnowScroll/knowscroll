@@ -123,10 +123,13 @@ reading a thread add no exposure, observation or Keep.
   writes nothing.
 - **Invitations.** A friend gets a pending membership with the lineage of the friendship that carried it. Until they
   answer (`threads/respond`: join or decline) they can read only the invitation: who asked and what it is about.
-  Joining shows the whole history. Declining ends the invitation.
+  Joining shows the whole history. Until then the row is dated and ordered by when the thread began, so it never
+  shows when the others last talked. Declining ends the invitation.
 - **Whose place stands.** An invited member keeps access while that friendship's lineage is unchanged. Remove, Block
   (either side) or a new friendship end it; every refusal looks the same. When the person who invited them leaves
-  or deletes their account, they stand on their own membership. Leaving ends the leaver's place only.
+  or deletes their account, those whose friendship still stands keep their place on their own membership, and anyone
+  whose place had already ended stays out (`invitee-links.ts` closes it rather than letting the unlinking revive it).
+  Leaving ends the leaver's place only.
 - **Messages** are text or a snippet. Sequences, change sequences, cursors (`kch1_`, `kcc1_`), tombstones and the
   catch-up read are the direct conversation's, over the same rows. Send, respond, mark read and leave use shared
   receipts keyed by the thread, so Clear does not forget them.
@@ -140,6 +143,7 @@ reading a thread add no exposure, observation or Keep.
 - **Episodes** in a thread view are the declared series that contains the root revision, by part, or the root alone.
   Each carries the caller's own `visited` (an activated exposure of that asset) and says `corrected` or `unavailable`
   when it is. No answer has any field for another member's position, current episode or seen marker.
+- **Direct inbox.** A thread never appears in the direct inbox: every direct read selects `kind = 'direct'`.
 - **Talk** lists a person's threads (`threads/inbox`, newest activity first, at most 50). An invitation shows who
   asked and no message or count.
 
@@ -161,7 +165,7 @@ its 20 second poll, so a lost hint loses nothing.
 | Store | Exploration Clear | Account deletion |
 | --- | --- | --- |
 | profiles, pairs, requests, rosters, invites, bindings | kept | deleted; roster heads of former friends are bumped first |
-| conversations, members, inbox heads | kept | a direct conversation is closed; a thread goes on for the others. The person's rows are deleted and the peers' inbox heads bumped (hint); people they invited stand on their own membership |
+| conversations, members, inbox heads | kept | a direct conversation is closed; a thread goes on for the others. The person's rows are deleted and the peers' inbox heads bumped (hint); invitees whose friendship stood keep their place on their own membership, the others stay out |
 | messages | kept | the person's messages become tombstones with new change sequences |
 | content_shares | kept | deleted |
 | content_threads | kept | the starter link is cleared; the thread stays for the others |

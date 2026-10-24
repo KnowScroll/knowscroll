@@ -453,6 +453,56 @@ describe('content threads (real PostgreSQL)', () => {
       expect((await ready(c, cRef)).messages).toHaveLength(2);
     });
 
+    it('does not give back a place that had ended when the person who invited them leaves', async () => {
+      const { a, b, c } = await trio();
+      const d = await seedFriend(database.db, friendsOf);
+      await befriend(friendsOf, a, d);
+      const reel = await seedReel(database.db);
+      const started = unwrap(await create(a, { assetId: reel.assetId, assetRevision: 1 }, [b, c, d]));
+      const refs = {
+        a: started.thread,
+        b: (await inbox(b))[0]!.thread,
+        c: (await inbox(c))[0]!.thread,
+        d: (await inbox(d))[0]!.thread,
+      };
+      unwrap(await respond(b, refs.b, 'join'));
+      unwrap(await respond(d, refs.d, 'join'));
+      // Ravi is blocked after joining; Meera's friendship ends before she answers; Dev stays a friend.
+      unwrap(await friendCommand(friendsOf, a, b, 'block'));
+      unwrap(await friendCommand(friendsOf, a, c, 'remove'));
+      expect(unwrap(await view(b, refs.b))).toMatchObject({ status: 'unavailable' });
+      expect(unwrap(await view(c, refs.c))).toMatchObject({ status: 'unavailable' });
+      unwrap(await send(d, refs.d, text('after the block')));
+
+      unwrap(await threads.leave(a.authority, { version, commandId: randomUUID(), thread: refs.a }));
+
+      for (const [person, ref] of [
+        [b, refs.b],
+        [c, refs.c],
+      ] as const) {
+        expect(unwrap(await view(person, ref))).toMatchObject({ status: 'unavailable' });
+        expect(await send(person, ref, text('let me back in'))).toEqual({ kind: 'refused', code: 'unavailable' });
+        expect(await inbox(person)).toEqual([]);
+      }
+      expect((await ready(d, refs.d)).messages).toHaveLength(1);
+      // Dev stands on their own membership now: losing the friendship with Asha changes nothing.
+      unwrap(await friendCommand(friendsOf, a, d, 'remove'));
+      expect((await ready(d, refs.d)).messages).toHaveLength(1);
+      const rows = await database.db
+        .selectFrom('social.conversation_members')
+        .select(['account_id', 'left_at', 'invited_by_account_id'])
+        .where('conversation_id', '=', started.thread.threadId)
+        .where('account_id', 'in', [b.accountId, c.accountId, d.accountId])
+        .execute();
+      expect(rows.every((row) => row.invited_by_account_id === null)).toBe(true);
+      expect(
+        rows
+          .filter((row) => row.left_at !== null)
+          .map((row) => row.account_id)
+          .sort(),
+      ).toEqual([b.accountId, c.accountId].sort());
+    });
+
     it('lists threads for the person: invitations with no messages, joined threads with the last one', async () => {
       const { a, b, aRef, bRef } = await begun();
       unwrap(await send(a, aRef, text('a first thought')));
@@ -470,6 +520,30 @@ describe('content threads (real PostgreSQL)', () => {
       expect(await inbox(a)).toHaveLength(1);
       // A different, unrelated person sees nothing.
       expect(await inbox(await seedFriend(database.db, friendsOf))).toEqual([]);
+    });
+
+    it('dates an invitation by when the thread began, so what the others say later cannot be told from it', async () => {
+      const { a, b, c } = await trio();
+      const reel = await seedReel(database.db);
+      const root = { assetId: reel.assetId, assetRevision: 1 };
+      const first = unwrap(await create(a, root, [b, c]));
+      cases.clock.now = new Date(cases.clock.now.getTime() + 10 * 60 * 1000);
+      const second = unwrap(await create(a, root, [b]));
+      const cFirst = (await inbox(c))[0]!.thread;
+      unwrap(await respond(c, cFirst, 'join'));
+      const before = await inbox(b);
+      expect(before.map((item) => item.thread.threadId)).toEqual([second.thread.threadId, first.thread.threadId]);
+
+      cases.clock.now = new Date(cases.clock.now.getTime() + 60 * 60 * 1000);
+      unwrap(await send(a, first.thread, text('an hour later')));
+      unwrap(await send(c, cFirst, text('and another')));
+      // The invitee's rows, order and times are exactly as before; the people who joined see the activity.
+      expect(await inbox(b)).toEqual(before);
+      expect((await inbox(a)).map((item) => item.thread.threadId)).toEqual([
+        first.thread.threadId,
+        second.thread.threadId,
+      ]);
+      expect((await inbox(c))[0]).toMatchObject({ state: 'joined', latestMessageSequence: 2 });
     });
 
     it('shows a withdrawn root as unavailable while the conversation stays readable', async () => {

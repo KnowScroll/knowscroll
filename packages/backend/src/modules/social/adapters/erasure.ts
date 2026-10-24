@@ -4,6 +4,7 @@ import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { bumpInboxHeads } from './inbox-heads.js';
+import { releaseInvitees } from './invitee-links.js';
 
 /**
  * Every Social store is keyed by account, not universe, and each has an explicit answer for the
@@ -151,7 +152,7 @@ export const socialErasure: ModuleErasure = {
       join identity.accounts account on account.id = other.account_id and account.status = 'active'
       join identity.universes universe on universe.account_id = other.account_id
       where own.account_id = ${account}::uuid`.execute(trx);
-    removed += await releaseThreadLinks(trx, account);
+    removed += await releaseThreadLinks(trx, account, now);
     // A direct conversation closes with its person; a thread goes on for the others.
     await trx
       .updateTable('social.conversations')
@@ -224,17 +225,13 @@ async function lockThreadsOf(trx: Transaction<Database>, account: string): Promi
 }
 
 /**
- * The links other rows hold to this account: it stops being the starter of threads, and people it
- * invited stand on their own membership from now on (their access no longer depends on a friendship
- * that is going away). Returns how many rows changed.
+ * The links other rows hold to this account: it stops being the starter of threads, and the people it
+ * invited stand on their own membership from now on (see `releaseInvitees`). Returns how many rows changed.
  */
-async function releaseThreadLinks(trx: Transaction<Database>, account: string): Promise<number> {
+async function releaseThreadLinks(trx: Transaction<Database>, account: string, now: Date): Promise<number> {
   const starters = await sql`update social.content_threads set starter_account_id = null
     where starter_account_id = ${account}::uuid`.execute(trx);
-  const invited = await sql`update social.conversation_members
-    set invited_by_account_id = null, invited_lineage = null
-    where invited_by_account_id = ${account}::uuid`.execute(trx);
-  return Number(starters.numAffectedRows ?? 0) + Number(invited.numAffectedRows ?? 0);
+  return Number(starters.numAffectedRows ?? 0) + (await releaseInvitees(trx, account, now));
 }
 
 const SHARED_WORDS: Readonly<Record<string, string>> = {
