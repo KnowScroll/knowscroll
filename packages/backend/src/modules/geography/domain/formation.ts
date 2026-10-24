@@ -49,6 +49,14 @@ function dueCreations(facts: FormationFacts): CreationOperation[] {
   return due;
 }
 
+/**
+ * Whether the rules entitle a place that is not established yet. Only then is there anything for a
+ * model to choose (a label, a route); without one a model call cannot change the outcome.
+ */
+export function placesDue(facts: FormationFacts): boolean {
+  return dueCreations(facts).length > 0;
+}
+
 /** Established places whose activity differs from what their latest verified support implies. */
 function dueActivityChanges(facts: FormationFacts): Operation[] {
   const due: Operation[] = [];
