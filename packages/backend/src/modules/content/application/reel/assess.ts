@@ -37,24 +37,24 @@ export interface LintedScript {
  * fingerprint with a Reel v1 made (CF-63). No database, no network.
  */
 export function lintReelScript(
-  p: Pick<ReelPorts, 'sha256'>,
+  ports: Pick<ReelPorts, 'sha256'>,
   name: string,
   script: ReelScript,
 ): { readonly kind: 'linted'; readonly linted: LintedScript } | ({ readonly kind: 'refused' } & ScriptRefusal) {
   const findings = checkReelScript(script);
   if (findings.length > 0) return { kind: 'refused', code: 'script_findings', findings };
-  const fingerprints = reelFingerprints(script.brief, p.sha256);
+  const fingerprints = reelFingerprints(script.brief, ports.sha256);
   const repetition = findRepetition(fingerprints, LEGACY_REELS_ON_RECORD);
   if (repetition !== undefined) return { kind: 'refused', code: 'repetition', repetition };
   return { kind: 'linted', linted: { name, script, fingerprints } };
 }
 
 /** The same, for a script that ships in this release, by the name an operator orders it by. */
-export function lintScript(p: Pick<ReelPorts, 'scripts' | 'sha256'>, scriptName: string) {
-  const script = p.scripts.get(scriptName);
+export function lintScript(ports: Pick<ReelPorts, 'scripts' | 'sha256'>, scriptName: string) {
+  const script = ports.scripts.get(scriptName);
   return script === undefined
     ? ({ kind: 'refused', code: 'script_unknown' } as const)
-    : lintReelScript(p, scriptName, script);
+    : lintReelScript(ports, scriptName, script);
 }
 
 /**
@@ -62,18 +62,18 @@ export function lintScript(p: Pick<ReelPorts, 'scripts' | 'sha256'>, scriptName:
  * names, it is the recipe's own unit, and no Reel already in this world repeats the script.
  */
 export async function checkAgainstWorld(
-  p: Pick<ReelPorts, 'catalogue'>,
+  ports: Pick<ReelPorts, 'catalogue'>,
   linted: LintedScript,
 ): Promise<{ readonly kind: 'ready'; readonly twin: TwinScroll } | ({ readonly kind: 'refused' } & ScriptRefusal)> {
   const { script, fingerprints } = linted;
   const recipe = recipeOf(script);
   // The check that linted the script guarantees every claim names the recipe's Scroll at one revision.
   const source = script.brief.claimSources[0]!;
-  const twin = await p.catalogue.admittedScroll(source.assetId, source.assetRevision);
+  const twin = await ports.catalogue.admittedScroll(source.assetId, source.assetRevision);
   if (twin === undefined)
     return { kind: 'refused', code: 'scroll_not_published', assetId: source.assetId, revision: source.assetRevision };
   if (twin.explanationUnitId !== recipe.explanationUnitId) return { kind: 'refused', code: 'twin_unit_mismatch' };
-  const repetition = findRepetition(fingerprints, await p.catalogue.reelsOnRecord(script.id));
+  const repetition = findRepetition(fingerprints, await ports.catalogue.reelsOnRecord(script.id));
   if (repetition !== undefined) return { kind: 'refused', code: 'repetition', repetition };
   return { kind: 'ready', twin };
 }

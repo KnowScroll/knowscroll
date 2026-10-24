@@ -11,7 +11,7 @@ import { checkShippedReelScript, composeReelOperator } from '@knowscroll/backend
 type Print = (result: Record<string, unknown>) => void;
 
 const usage =
-  'usage: operator.js reel check --script <name> | reel order --script <name> --until plan|video --ceiling <cents> [--retake] | reel follow --script <name> --until plan|video [--wait-seconds <n>] | reel receive --script <name> | reel status | reel write-off --attempt <uuid> --reason <text> [--release-claim] | reel settle --script <name> --until video --reason <text>';
+  'usage: operator.js reel check --script <name> | reel order --script <name> --until plan|video --ceiling 75 [--retake] | reel follow --script <name> --until plan|video [--wait-seconds <n>] | reel receive --script <name> | reel status | reel write-off --attempt <uuid> --reason <text> [--release-claim] | reel settle --script <name> --until video --reason <text>';
 
 const POLL_SECONDS = 20;
 const MAX_WAIT_SECONDS = 3600;

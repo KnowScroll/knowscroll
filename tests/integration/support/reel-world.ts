@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { sql } from 'kysely';
 import pg from 'pg';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
-import { composeReelOperator } from '@knowscroll/backend/modules/content/nest-providers';
+import { checkShippedReelScript, composeReelOperator } from '@knowscroll/backend/modules/content/nest-providers';
 import { createTestDatabase, type TestDatabase } from './database.js';
 import { TEST_DATABASE_PREFIX, databaseUrl, quoteIdentifier, withAdmin } from './admin.js';
 import { startFakeCutroom, type FakeCutroom, type PostMode } from './fake-cutroom.js';
@@ -17,6 +17,8 @@ const ffprobePath = ['/usr/bin/ffprobe', '/opt/homebrew/bin/ffprobe', '/usr/loca
 );
 const poolMigrations = new URL('../../../ops/pool/migrations/', import.meta.url);
 
+const FIXTURE_APPROVAL = 'fixture: earlier v1 spend';
+
 /** A disposable shared pool: the real pool functions on a throwaway database. */
 export interface TestPool {
   readonly client: pg.Pool;
@@ -26,6 +28,7 @@ export interface TestPool {
   /** Applies the cap migration (0005) once the earlier spend is seeded. */
   raiseCap(): Promise<void>;
   budget(): Promise<{ cap_cents: number; committed_cents: number; left_cents: number }>;
+  /** The orders of the world under test: the seeded earlier spend is left out. */
   orders(): Promise<readonly Record<string, unknown>[]>;
   drop(): Promise<void>;
 }
@@ -58,7 +61,7 @@ export async function createTestPool(): Promise<TestPool> {
           randomBytes(32).toString('hex'),
           'dev',
           spent,
-          'fixture: earlier v1 spend',
+          FIXTURE_APPROVAL,
         ]);
         await client.query('select pool_settle($1,$2,$3,$4,$5)', [
           requestId,
@@ -78,7 +81,8 @@ export async function createTestPool(): Promise<TestPool> {
       };
     },
     async orders() {
-      return (await client.query('select * from pool_orders()')).rows as Record<string, unknown>[];
+      const { rows } = await client.query<Record<string, unknown>>('select * from pool_orders()');
+      return rows.filter((row) => row.approval_ref !== FIXTURE_APPROVAL);
     },
     async drop() {
       await client.end();
@@ -119,12 +123,18 @@ export interface ReelWorld {
   join(name: 'dev' | 'stage', clock?: () => Date): Promise<JoinedWorld>;
   /** Another operator over the same world, as after a release that ships other scripts. */
   operatorWith(joined: JoinedWorld, scripts: Scripts): Operator;
+  /**
+   * A finished rehearsal of a shipped script in a world, as `reel order --until plan` and `reel follow`
+   * leave it. A paid order needs one, and its estimate decides whether the script may be ordered.
+   */
+  rehearse(operator: Operator, scriptName: string, estimateCents?: number): Promise<void>;
   setPostMode(mode: PostMode): void;
   close(): Promise<void>;
 }
 
 /**
- * The fixture world of the Reel tests: one fake Cutroom, one disposable pool at v1's state, and any
+ * The fixture world of the Reel tests: one fake Cutroom, one disposable pool with the cap raised
+ * (617 cents already settled, 400 left), and any
  * number of worlds (databases) sharing them, as dev and stage share the real ones.
  */
 export async function createReelWorld(
@@ -133,7 +143,10 @@ export async function createReelWorld(
   // macOS temp folders are symlinks; the media store and artifact reader refuse those.
   const root = await mkdtemp(join(await realpath(tmpdir()), 'ks-reel-'));
   const cutroom = await startFakeCutroom(root, options.onPost);
+  // The pool as the owner saw it before the allowance: 617 cents settled by v1, then migration 0005.
   const pool = await createTestPool();
+  await pool.seedSettled(617);
+  await pool.raiseCap();
   const worlds: TestDatabase<Database>[] = [];
   const operatorOn = (
     db: TestDatabase<Database>,
@@ -160,6 +173,15 @@ export async function createReelWorld(
     pool,
     root,
     setPostMode: cutroom.setPostMode,
+    async rehearse(operator, scriptName, estimateCents = 48) {
+      const check = checkShippedReelScript({ scriptName });
+      if (check.kind !== 'ok') throw new Error('shipped script refused');
+      const ordered = await operator.order({ scriptName, until: 'plan', ceilingCents: 75, retake: false });
+      if (ordered.kind !== 'sent') throw new Error(`rehearsal not sent: ${ordered.kind}`);
+      cutroom.finishPlan(check.rehearsal.requestId, estimateCents);
+      const followed = await operator.follow({ scriptName, until: 'plan' });
+      if (followed.kind !== 'finished') throw new Error(`rehearsal not finished: ${followed.kind}`);
+    },
     async join(name, clock) {
       const db = await createTestDatabase<Database>(`reel_${name}`);
       worlds.push(db);

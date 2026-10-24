@@ -26,13 +26,13 @@ export type CheckResult =
  * repetition rule against every v1 Reel, and the identities an order would carry. No database, no
  * network, no pool. An order repeats these checks and adds the ones that need this world.
  */
-export function makeCheckScript(p: Pick<ReelPorts, 'scripts' | 'sha256'>) {
+export function makeCheckScript(ports: Pick<ReelPorts, 'scripts' | 'sha256'>) {
   return (command: { readonly scriptName: string }): CheckResult => {
-    const linted = lintScript(p, command.scriptName);
+    const linted = lintScript(ports, command.scriptName);
     if (linted.kind === 'refused') return linted;
     const { script, fingerprints } = linted.linted;
     const identity = (until: 'plan' | 'video') => {
-      const { scriptSha256, requestId } = compileReelRequest(script, { until, take: 1, ceilingCents: 1 }, p.sha256);
+      const { scriptSha256, requestId } = compileReelRequest(script, { until, take: 1, ceilingCents: 1 }, ports.sha256);
       return { scriptSha256, requestId };
     };
     return {

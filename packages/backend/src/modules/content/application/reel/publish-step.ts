@@ -33,7 +33,7 @@ export type PublishOutcome =
   | { readonly kind: 'refused'; readonly code: string };
 
 function provenanceOf(
-  p: Pick<ReelPorts, 'world'>,
+  ports: Pick<ReelPorts, 'world'>,
   input: PublishInput,
   twin: TwinScroll,
   media: InstalledReel,
@@ -52,8 +52,8 @@ function provenanceOf(
     requestId: input.requestId,
     take: input.origin.take,
     ceilingCents: input.origin.ceilingCents,
-    orderedBy: input.origin.kind === 'ordered' ? p.world : input.origin.orderedBy,
-    receivedBy: input.origin.kind === 'received' ? p.world : undefined,
+    orderedBy: input.origin.kind === 'ordered' ? ports.world : input.origin.orderedBy,
+    receivedBy: input.origin.kind === 'received' ? ports.world : undefined,
     runIds: input.report.runIds,
     runId: input.report.finalRunId,
     contractRevision: CONTRACT_REVISION,
@@ -85,25 +85,25 @@ const outcomeOf = (code: string): PublishOutcome => ({ kind: FINAL_REFUSALS.has(
  * No network call or file copy happens inside a database transaction; the media is installed
  * first and only then the short admission transaction runs.
  */
-export async function publishFinishedReel(p: ReelPorts, input: PublishInput): Promise<PublishOutcome> {
+export async function publishFinishedReel(ports: ReelPorts, input: PublishInput): Promise<PublishOutcome> {
   const { report, runs, linted } = input;
   const tip = report.tip;
   if (tip.until !== 'video' || tip.videoPath === undefined) return outcomeOf('result_without_video');
-  const answered = await p.engine.record(report.finalRunId);
+  const answered = await ports.engine.record(report.finalRunId);
   if (answered.kind !== 'finished') return { kind: 'held', code: 'engine_unreachable' };
   const verdict = checkEngineRecord(tip, answered.record, runs.at(-1)?.status.resumes);
   if (verdict !== 'ok') return outcomeOf(verdict);
-  const world = await checkAgainstWorld(p, linted);
+  const world = await checkAgainstWorld(ports, linted);
   if (world.kind === 'refused') return outcomeOf(world.code);
-  const installed = await p.media.install({ path: tip.videoPath, runId: report.finalRunId });
+  const installed = await ports.media.install({ path: tip.videoPath, runId: report.finalRunId });
   if (installed.kind !== 'installed') return outcomeOf(installed.code);
-  const published = await p.publisher.publish({
+  const published = await ports.publisher.publish({
     scriptName: linted.name,
     script: linted.script,
     twin: world.twin,
     topicId: recipeOf(linted.script).topicId,
     media: installed.media,
-    provenance: provenanceOf(p, input, world.twin, installed.media, answered.record),
+    provenance: provenanceOf(ports, input, world.twin, installed.media, answered.record),
     orderId: input.origin.kind === 'ordered' ? input.origin.orderId : undefined,
     runId: report.finalRunId,
   });

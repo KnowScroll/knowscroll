@@ -11,18 +11,31 @@ in `packages/backend/src/modules/content/README.md` ("Reels from Cutroom").
 - **Budget:** at most **400 cents** of new spend (D-030), on top of the 617 cents v1 already settled.
   The pool cap becomes 1017 and refuses any claim that would pass it. The pool counts cents Cutroom
   reports, which overcount real fal money, so real spend is lower.
-- **One order, one ceiling:** at most **75 cents** (Cutroom's own cap for one Reel). Open ceilings count in
-  full until the order settles at its real cost.
+- **One order, one ceiling: exactly 75 cents** (Cutroom's own cap for one Reel). `reel order` refuses any other
+  ceiling. Never lower it to fit what is left: Cutroom stops a run that reaches its ceiling, the run is paid for
+  and makes no Reel. Open ceilings count in full until the order settles at its real cost.
 - **One paid order at a time.** Cutroom has one worker; runs take 13 to 41 minutes. If several were open,
   the pool would still refuse any claim that takes settled spend plus every open ceiling past 1017, so the
   400 cents cannot be overspent by ordering faster than orders settle.
-- **Claim before order, settle once, never resend.** The command does these. You only choose the ceiling.
+- **Claim before order, settle once, never resend.** The command does these.
 - **Never restart Cutroom while an order is open** (`ks status` shows `openPoolOrders`). A restart can
   make Cutroom run the same job again after its lease and pay twice.
-- **No order for a script that fails `reel check`.** Rehearse first; it is free.
+- **Rehearse first; it is free.** `reel order --until video` refuses a script without a finished rehearsal here,
+  and one whose plan estimate plus 20 cents passes 75 (real runs have cost up to 20 over the estimate). Do not
+  order such a script; change it.
+- **Order only when `leftCents` is at least 75** (`reel status`). The pool refuses a claim that does not fit.
+- **Do not deploy, restart or clean up while an order is open.** `reel` does not take the deploy lock that `ks`
+  does. `reel status` shows `open: true` for an order that still needs a command, and `ks status` shows
+  `openPoolOrders`. Wait until none is open.
 - **Editing a script is safe at any time.** An order keeps the exact script it was made from, and `reel follow` uses
   that copy. A new order under the same name waits until the earlier one has ended.
 - **Record every order in #240**, with the script and its settled cost (D-030).
+
+## Where each command runs
+
+Lines that start with `ssh knowscroll-vps` run from your Mac. The `reel` commands run in a shell **on the
+server**: `ssh knowscroll-vps` gives you root there, and step 4 defines `reel` in that shell. The `reel`
+function needs root (it reads the world's secrets and then drops to the world's own user).
 
 ## One-time setup
 
@@ -61,13 +74,20 @@ shasum -a 256 ops/pool/migrations/0001_shared_pool.sql ops/pool/migrations/0002_
 Expected: rows for `0001_shared_pool.sql` and `0002_cap_seven_dollars.sql`, and each stored hash equals the
 `shasum` of that file in the repository.
 
-Take a copy, then apply the file and insert its row **in one transaction**. It runs as the pool's owner role.
-The file refuses a pool that is not in the state step 1 checked, and then neither the cap nor the row changes.
+Take a copy, then run this one transaction as the pool's owner role (`--single-transaction`), in this order:
+
+1. `LOCK TABLE pool_order IN SHARE ROW EXCLUSIVE MODE` (the first statement of the file; every claim takes the
+   same lock, so none can slip in between the check and the change);
+2. the checks and the cap change in the file (it refuses unless the cap is exactly 700 and the committed spend
+   is exactly 617);
+3. `INSERT INTO schema_migrations (name, checksum, applied_at) VALUES ('0005_…sql', '<SHA-256 of the file text>', now())`.
+
+If any statement fails, nothing changes: neither the cap nor the tracker row.
 
 ```sh
 ssh knowscroll-vps 'sudo -u postgres pg_dump -Fc knowscroll_pool | sudo tee /srv/knowscroll/backups/pool-before-0005.dump > /dev/null'
 { cat ops/pool/migrations/0005_cap_four_dollars_more.sql
-  printf "INSERT INTO schema_migrations (name, checksum) VALUES ('0005_cap_four_dollars_more.sql', 'bc56796c81fe0851b39386288b75be9e60b3a3b1f6d89f2ca449f40dabc518e7');\n"
+  printf "INSERT INTO schema_migrations (name, checksum, applied_at) VALUES ('0005_cap_four_dollars_more.sql', '2621237646979a8f4bcd2399689f0c878ef1a20d7047038a7bfef24049dac317', now());\n"
 } | ssh knowscroll-vps 'sudo -u postgres psql -v ON_ERROR_STOP=1 --single-transaction \
   "postgresql:///knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool" -f -'
 ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_pool -Atc "select * from pool_budget_status()" -c "select name, checksum from schema_migrations order by 1"'
@@ -94,7 +114,8 @@ nothing else; the tables stay closed.
 ### 4. Define the command
 
 The commands run as the world's service user with read access to Cutroom's files (group `ks-pool`).
-The world's secrets are read by the shell and never printed. Put this in your session:
+The world's secrets are read by the shell and never printed. In a root shell on the server (`ssh knowscroll-vps`),
+define:
 
 ```sh
 reel() {
@@ -119,12 +140,12 @@ They ship in the release (`approved/reels/`), one per generated Scroll. Each is 
 `D-030 delegated (coordinator, delegated by owner)`. The order here is the order to try them: plainest
 imagery first, since 2 in 3 real runs have stopped on what the pictures had to show.
 
-| Script | Twin Scroll | What the Reel says | Shots |
+| Script | Twin Scroll (explanation unit) | What the Reel says | Shots |
 | --- | --- | --- | --- |
-| `stars-fusion` | Why a Star Keeps Its Glow Without Collapsing | Gravity squeezes in, fusion pushes out, heavier stars burn faster | yellow star, glowing gas ball, blue-white star, red star |
-| `exoplanet-transit` | How a Planet Leaves a Tiny Shadow in Starlight | A planet blocks a little starlight, a bigger one blocks more, the dip repeats | bright star, small planet crossing, large planet crossing |
-| `black-hole-horizon` | The Edge That Lets Go | The horizon is a one-way boundary; hot gas lights the shadow; the pull stretches what falls in | black sphere, bright ring, long streak of gas |
-| `tides-spring-neap` | Why Tides Have Bigger and Smaller Rhythms | Low and high water; bigger swings near full Moon (spring tides, any season); smaller near half Moon | beach at low tide, beach at high tide, full Moon, half Moon |
+| `stars-fusion` | Why a Star Keeps Its Glow Without Collapsing (`space-stars-fusion-v1`) | Gravity squeezes in, fusion pushes out, heavier stars burn faster | yellow star, glowing gas ball, blue-white star, red star |
+| `exoplanet-transit` | How a Planet Leaves a Tiny Shadow in Starlight (`space-exoplanets-transit-v1`) | A planet blocks a little starlight, a bigger one blocks more, the dip repeats | bright star, small planet crossing, large planet crossing |
+| `black-hole-horizon` | The Edge That Lets Go (`space-black-holes-horizon-v1`) | The horizon is a one-way boundary; hot gas lights the shadow; the pull stretches what falls in | black sphere, bright ring, long streak of gas |
+| `tides-spring-neap` | Why Tides Have Bigger and Smaller Rhythms (`earth-tides-spring-neap-v1`) | Low and high water; bigger swings near full Moon (spring tides, any season); smaller near half Moon | beach at low tide, beach at high tide, full Moon, half Moon |
 
 All four have six sentences of at most 17 words, no sentence ends on "Sun", every claim rests on its
 twin Scroll at revision 1, and none shares a fingerprint with any v1 script or with each other.
@@ -151,7 +172,9 @@ reel follow --script S --until plan --wait-seconds 900
 
 Cutroom plans the Reel (a model call on the MiniMax token plan, no fal). The result says
 `"kind":"finished","outcome":"completed","costCents":0` and an `estimateCents` (what the pictures and clips
-would cost; real cost runs 10 to 20 cents over it). `outcome":"stopped"` here means the plan failed at no cost:
+would cost; real cost runs 10 to 20 cents over it). **If `estimateCents` is above 55, do not order this script**:
+`reel order --until video` refuses it (`estimate_too_high`), because a run that reaches its 75-cent ceiling is
+stopped after it was paid for and makes no Reel. Shorten or simplify the script and rehearse again. `outcome":"stopped"` here means the plan failed at no cost:
 `detail` says why (`rule split` means the sentences cannot be cut into six shots). Fix the script, redeploy,
 rehearse again.
 
@@ -160,11 +183,11 @@ rehearse again.
 Look at the budget first:
 
 ```sh
-reel status        # pool.leftCents
+reel status        # pool.leftCents must be at least 75
 ```
 
-Use `--ceiling` = the smaller of 75 and `leftCents`. Stop ordering when `leftCents` is below 40: a Reel
-has cost 48 to 66 cents.
+Order only when `leftCents` is at least 75. The ceiling is always 75; never lower it to fit. When less than
+75 is left, stop.
 
 ```sh
 reel order --script S --until video --ceiling 75
@@ -199,7 +222,7 @@ ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_v2_dev -At' <<'SQL'
 select a.kind, a.status, r.title, r.explanation_unit_id, d.facets
 from content.assets a join content.asset_revisions r on r.asset_id = a.id
 join content.discovery_revisions d on d.asset_id = r.asset_id
-where r.explanation_unit_id = '<the twin Scroll unit>' order by a.kind;
+where r.explanation_unit_id = '<unit from the scripts table>' order by a.kind;
 SQL
 ```
 
@@ -239,11 +262,13 @@ not ready yet, 1 means failure (the command could not run).
 | `script_unknown`, `script_findings` | The name is not a shipped script, or `reel check` fails. `detail` lists the findings |
 | `repetition` | The script repeats a Reel already here. `detail.repetition` names which |
 | `scroll_not_published`, `twin_unit_mismatch` | The twin Scroll is not admitted in this world at that revision. Produce it first |
-| `ceiling_invalid` | The ceiling is not a whole number from 1 to 75 |
+| `ceiling_invalid` | The ceiling is not 75. Use `--ceiling 75`; it is never lowered |
+| `rehearsal_missing` | No finished rehearsal of this script here. Run step A first |
+| `estimate_too_high` | The plan's estimate plus 20 cents passes 75 (`detail` has the figures). Do not order this script; change it and rehearse again |
 | `already_published` | The Reel exists. Nothing to do |
 | `earlier_order_open` | An earlier order under this name, made from different content (the script was edited), has not ended. Follow it to the end first; `reel follow` uses the script that order was made from |
 | `last_attempt_ended` | The last attempt ended without a Reel. `detail` is how. Add `--retake` to try again |
-| `pool_cap_exceeded` | The pool has less than the ceiling left. Use a smaller ceiling, or stop |
+| `pool_cap_exceeded` | The pool has less than 75 cents left. Stop; never lower the ceiling |
 | `pool_already_ordered` | Another world holds or has made this Reel. Use `reel receive` there |
 | `pool_unavailable` | The pool could not be reached. Nothing was sent; run it again |
 | `pool_take_taken` | Lost a race for the take. Run it again |
@@ -253,8 +278,12 @@ not ready yet, 1 means failure (the command could not run).
 `"kind":"unknown"`: the request may or may not have arrived. Run `reel order` (or `follow`) again: a run that
 exists is adopted. If it stays unknown for more than two minutes with Cutroom ready, Cutroom never received
 it. Then `reel write-off --attempt <id> --reason "…" --release-claim` gives the claim back (it refuses unless
-Cutroom answers, has no run and the request is over two minutes old). Without `--release-claim` the claim stays
-open and counted. Nothing is ever resent.
+Cutroom answers, has no run for the request and the request is over two minutes old). Nothing is ever resent.
+
+A write-off **without** `--release-claim` keeps the claim open and counted against the cap for good: no command
+can close it later, and that script can never be ordered again here (`pool_already_ordered`). Do not use it
+unless you have decided that those 75 cents stay spent. For a request that never arrived, always add
+`--release-claim`.
 
 **`reel follow` holds** (`"kind":"held"`, a `code`; the claim stays open, nothing is lost):
 

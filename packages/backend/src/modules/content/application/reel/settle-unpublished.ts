@@ -12,21 +12,21 @@ export type SettleUnpublishedResult =
  * `follow` would have. Refused unless the request has finished, the claim is still open and no Reel
  * was published for the order. The reason is only echoed; nothing is resent and nothing is hidden.
  */
-export function makeSettleUnpublished(p: ReelPorts) {
+export function makeSettleUnpublished(ports: ReelPorts) {
   return async (command: {
     readonly scriptName: string;
     readonly until: ReelUntil;
   }): Promise<SettleUnpublishedResult> => {
-    const order = await p.ledger.latestOrderOf(command.scriptName, command.until);
-    const attempt = order && (await p.ledger.attemptsOf(order.id)).at(-1);
+    const order = await ports.ledger.latestOrderOf(command.scriptName, command.until);
+    const attempt = order && (await ports.ledger.attemptsOf(order.id)).at(-1);
     if (!order || !attempt) return { kind: 'refused', code: 'no_attempt' };
     const facts = attempt.finished;
     if (facts === null || attempt.poolState !== 'claimed' || order.assetId !== null)
       return { kind: 'refused', code: 'not_settleable' };
     try {
-      await p.pool.settle({
+      await ports.pool.settle({
         requestId: attempt.requestId,
-        world: p.world,
+        world: ports.world,
         outcome: facts.outcome,
         spentCents: facts.costCents,
         finalRunId: facts.finalRunId,
@@ -34,7 +34,7 @@ export function makeSettleUnpublished(p: ReelPorts) {
     } catch {
       return { kind: 'refused', code: 'pool_unavailable' };
     }
-    const settled = await p.ledger.advance(attempt.id, { kind: 'settled' });
+    const settled = await ports.ledger.advance(attempt.id, { kind: 'settled' });
     return settled
       ? { kind: 'settled', attempt: summaryOf(settled), costCents: facts.costCents }
       : { kind: 'refused', code: 'not_settleable' };

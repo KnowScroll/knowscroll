@@ -149,6 +149,7 @@ export interface ContentMediaObjects {
 export interface ContentReelAttempts {
   ceiling_cents: number;
   dispatched_at: Timestamp | null;
+  estimate_cents: number | null;
   final_run_id: string | null;
   finished_at: Timestamp | null;
   id: string;

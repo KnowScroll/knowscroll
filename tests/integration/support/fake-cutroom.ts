@@ -210,6 +210,9 @@ export async function startFakeCutroom(root: string, onPost?: (body: string) => 
     origin: `http://127.0.0.1:${address.port}`,
     artifactRoot,
     posts,
+    /** Only the POSTs that ask for a video: the paid ones, without rehearsals. */
+    videoPosts: () =>
+      posts.filter((body) => (JSON.parse(body) as { options: { until: string } }).options.until === 'video'),
     gets,
     runs,
     setReady: (ready: boolean) => {

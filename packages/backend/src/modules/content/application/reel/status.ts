@@ -33,19 +33,19 @@ export interface ReelStatus {
  * ready, every order this world made and what became of each attempt, and which scripts are still
  * untouched. Reads only.
  */
-export function makeReelStatus(p: ReelPorts) {
+export function makeReelStatus(ports: ReelPorts) {
   return async (): Promise<ReelStatus> => {
     const [engineReady, pool, entries] = await Promise.all([
-      p.engine.ready(),
-      p.pool.budget().catch(() => null),
-      p.ledger.listOrders(),
+      ports.engine.ready(),
+      ports.pool.budget().catch(() => null),
+      ports.ledger.listOrders(),
     ]);
     const orders = entries.map(({ order, attempts }): OrderStatus => {
-      const shipped = p.scripts.get(order.scriptName);
+      const shipped = ports.scripts.get(order.scriptName);
       return {
         script: order.scriptName,
         until: order.until,
-        current: shipped !== undefined && reelScriptDigest(shipped, order.until, p.sha256) === order.scriptSha256,
+        current: shipped !== undefined && reelScriptDigest(shipped, order.until, ports.sha256) === order.scriptSha256,
         assetId: order.assetId,
         attempts: attempts.map((attempt) => ({
           ...summaryOf(attempt),
@@ -58,11 +58,11 @@ export function makeReelStatus(p: ReelPorts) {
     });
     const ordered = new Set(entries.map((entry) => entry.order.scriptName));
     return {
-      world: p.world,
+      world: ports.world,
       engineReady,
       pool,
       orders,
-      notOrdered: [...p.scripts.keys()].filter((name) => !ordered.has(name)),
+      notOrdered: [...ports.scripts.keys()].filter((name) => !ordered.has(name)),
     };
   };
 }

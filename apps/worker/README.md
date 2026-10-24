@@ -54,7 +54,7 @@ Cutroom and brings them in (`src/reel-operator.ts`; the use cases and the guaran
 `docs/v2/operations/cutroom-and-spend.md`). Settings: the import settings above plus the shared pool,
 which is `KS_POOL_DATABASE_URL` or, by default, the world's own `DATABASE_URL` pointed at
 `knowscroll_pool`. Only `reel order --until video` can spend, only through a claim in the pool, and
-only up to the ceiling given (at most Cutroom's own 75 cents). The worker service registers no Reel job:
+only up to the ceiling, which must be Cutroom's own 75 cents. The worker service registers no Reel job:
 every step is an operator command. Output is one JSON line per result; exit 0 done or under way, 2
 refused or not ready yet, 1 failure.
 

@@ -44,16 +44,16 @@ type Settlement = { readonly kind: 'settled'; readonly attempt: ReelAttemptRecor
 
 /** Settles the pool claim once, at the real cost, then records that it is closed. */
 async function settleClaim(
-  p: ReelPorts,
+  ports: ReelPorts,
   attempt: ReelAttemptRecord,
   facts: FinishedFacts,
   outcome: FinishedFacts['outcome'],
 ): Promise<Settlement> {
   if (attempt.poolState === 'settled') return { kind: 'settled', attempt };
   try {
-    await p.pool.settle({
+    await ports.pool.settle({
       requestId: attempt.requestId,
-      world: p.world,
+      world: ports.world,
       outcome,
       spentCents: facts.costCents,
       finalRunId: facts.finalRunId,
@@ -61,7 +61,7 @@ async function settleClaim(
   } catch {
     return { kind: 'held' };
   }
-  const settled = await p.ledger.advance(attempt.id, { kind: 'settled' });
+  const settled = await ports.ledger.advance(attempt.id, { kind: 'settled' });
   return settled ? { kind: 'settled', attempt: settled } : { kind: 'held' };
 }
 
@@ -72,11 +72,12 @@ function factsOf(report: FinishedChain): FinishedFacts {
     finalRunId: report.finalRunId,
     runIds: report.runIds,
     detail: describeEnd(report.tip),
+    estimateCents: report.tip.estimateCents ?? null,
   };
 }
 
 interface Conclusion {
-  readonly p: ReelPorts;
+  readonly ports: ReelPorts;
   readonly order: ReelOrderRecord;
   readonly attempt: ReelAttemptRecord;
   readonly report: FinishedChain;
@@ -84,15 +85,18 @@ interface Conclusion {
   readonly linted: Parameters<typeof publishFinishedReel>[1]['linted'];
 }
 
-function finishedResult(c: Conclusion, extra: Partial<Extract<FollowResult, { kind: 'finished' }>>): FollowResult {
+function finishedResult(
+  conclusion: Conclusion,
+  extra: Partial<Extract<FollowResult, { kind: 'finished' }>>,
+): FollowResult {
   return {
     kind: 'finished',
-    attempt: summaryOf(c.attempt),
-    outcome: c.report.outcome,
-    costCents: c.report.costCents,
-    overCeiling: c.report.costCents > c.attempt.ceilingCents,
-    detail: describeEnd(c.report.tip),
-    settled: c.attempt.poolState === 'settled',
+    attempt: summaryOf(conclusion.attempt),
+    outcome: conclusion.report.outcome,
+    costCents: conclusion.report.costCents,
+    overCeiling: conclusion.report.costCents > conclusion.attempt.ceilingCents,
+    detail: describeEnd(conclusion.report.tip),
+    settled: conclusion.attempt.poolState === 'settled',
     ...extra,
   };
 }
@@ -103,35 +107,38 @@ function finishedResult(c: Conclusion, extra: Partial<Extract<FollowResult, { ki
  * that cannot be imported keeps its claim open at its whole ceiling (CF-62). A Reel that can never
  * be published is settled as completed, because the money is spent.
  */
-async function conclude(c: Conclusion): Promise<FollowResult> {
-  const { p, attempt, report } = c;
+async function conclude(conclusion: Conclusion): Promise<FollowResult> {
+  const { ports, attempt, report } = conclusion;
   const facts = factsOf(report);
   if (!attempt.paid)
-    return finishedResult(c, report.tip.estimateCents === undefined ? {} : { estimateCents: report.tip.estimateCents });
+    return finishedResult(
+      conclusion,
+      report.tip.estimateCents === undefined ? {} : { estimateCents: report.tip.estimateCents },
+    );
   if (attempt.poolState === 'settled')
     return finishedResult(
-      c,
-      c.order.assetId === null
+      conclusion,
+      conclusion.order.assetId === null
         ? { reelRefused: 'not_published' }
-        : { published: { assetId: c.order.assetId, created: false } },
+        : { published: { assetId: conclusion.order.assetId, created: false } },
     );
   if (report.outcome !== 'completed' || report.tip.until !== 'video') {
-    const settled = await settleClaim(p, attempt, facts, report.outcome);
+    const settled = await settleClaim(ports, attempt, facts, report.outcome);
     return settled.kind === 'held'
       ? { kind: 'held', attempt: summaryOf(attempt), code: 'pool_unavailable' }
-      : finishedResult({ ...c, attempt: settled.attempt }, {});
+      : finishedResult({ ...conclusion, attempt: settled.attempt }, {});
   }
-  const published = await publishFinishedReel(p, {
-    linted: c.linted,
-    origin: { kind: 'ordered', orderId: c.order.id, take: attempt.take, ceilingCents: attempt.ceilingCents },
+  const published = await publishFinishedReel(ports, {
+    linted: conclusion.linted,
+    origin: { kind: 'ordered', orderId: conclusion.order.id, take: attempt.take, ceilingCents: attempt.ceilingCents },
     requestId: attempt.requestId,
-    runs: c.runs,
+    runs: conclusion.runs,
     report,
   });
   if (published.kind === 'held') return { kind: 'held', attempt: summaryOf(attempt), code: published.code };
-  const settled = await settleClaim(p, attempt, facts, 'completed');
+  const settled = await settleClaim(ports, attempt, facts, 'completed');
   if (settled.kind === 'held') return { kind: 'held', attempt: summaryOf(attempt), code: 'pool_unavailable' };
-  const done = { ...c, attempt: settled.attempt };
+  const done = { ...conclusion, attempt: settled.attempt };
   return published.kind === 'published'
     ? finishedResult(done, { published: { assetId: published.assetId, created: published.created } })
     : finishedResult(done, { reelRefused: published.code });
@@ -139,20 +146,24 @@ async function conclude(c: Conclusion): Promise<FollowResult> {
 
 /** Records how the request ended, once, and returns the attempt as stored. */
 async function recordFinish(
-  p: ReelPorts,
+  ports: ReelPorts,
   attempt: ReelAttemptRecord,
   report: FinishedChain,
 ): Promise<ReelAttemptRecord | undefined> {
   if (attempt.finished !== null) return attempt;
-  return p.ledger.advance(attempt.id, { kind: 'finished', facts: factsOf(report) });
+  return ports.ledger.advance(attempt.id, { kind: 'finished', facts: factsOf(report) });
 }
 
-async function followRemote(p: ReelPorts, order: ReelOrderRecord, reached: ReelAttemptRecord): Promise<FollowResult> {
+async function followRemote(
+  ports: ReelPorts,
+  order: ReelOrderRecord,
+  reached: ReelAttemptRecord,
+): Promise<FollowResult> {
   const held = (code: string): FollowResult => ({ kind: 'held', attempt: summaryOf(reached), code });
   // The script the order was made from, not whatever ships now.
-  const linted = lintReelScript(p, order.scriptName, order.script);
+  const linted = lintReelScript(ports, order.scriptName, order.script);
   if (linted.kind === 'refused') return held(linted.code);
-  const chain = await readChain(p, reached.runId!);
+  const chain = await readChain(ports, reached.runId!);
   if (chain.kind !== 'chain') return held(chain.kind === 'absent' ? 'run_absent' : 'engine_unreachable');
   const report = foldChain(reached.requestId, chain.runs);
   if (report.kind === 'broken') return held(report.code);
@@ -161,11 +172,11 @@ async function followRemote(p: ReelPorts, order: ReelOrderRecord, reached: ReelA
       kind: 'running',
       attempt: summaryOf(reached),
       runIds: report.runIds,
-      progress: await p.engine.progress(report.runIds.at(-1)!),
+      progress: await ports.engine.progress(report.runIds.at(-1)!),
     };
-  const attempt = await recordFinish(p, reached, report);
+  const attempt = await recordFinish(ports, reached, report);
   if (attempt === undefined) return held('attempt_conflict');
-  return conclude({ p, order, attempt, report, runs: chain.runs, linted: linted.linted });
+  return conclude({ ports, order, attempt, report, runs: chain.runs, linted: linted.linted });
 }
 
 /**
@@ -176,31 +187,31 @@ async function followRemote(p: ReelPorts, order: ReelOrderRecord, reached: ReelA
  * Authority: an operator in a dev or stage world. Side effects: ledger moves, at most one pool
  * settlement, one media install and one admission transaction. Cutroom is only read.
  */
-export function makeFollowReel(p: ReelPorts) {
+export function makeFollowReel(ports: ReelPorts) {
   return async (command: FollowCommand): Promise<FollowResult> => {
-    const order = await p.ledger.latestOrderOf(command.scriptName, command.until);
+    const order = await ports.ledger.latestOrderOf(command.scriptName, command.until);
     if (order === undefined) return { kind: 'refused', code: 'no_order' };
-    const attempt = (await p.ledger.attemptsOf(order.id)).at(-1);
+    const attempt = (await ports.ledger.attemptsOf(order.id)).at(-1);
     if (attempt === undefined) return { kind: 'refused', code: 'no_attempt' };
     switch (attempt.state) {
       case 'reserved':
         return { kind: 'idle', attempt: summaryOf(attempt), note: 'not sent yet: run `reel order` to continue it' };
       case 'not_sent':
       case 'failed': {
-        const closed = (await releaseClaim(p, attempt)) ?? attempt;
+        const closed = (await releaseClaim(ports, attempt)) ?? attempt;
         return { kind: 'idle', attempt: summaryOf(closed), note: 'nothing is running for this attempt' };
       }
       case 'written_off':
         return { kind: 'idle', attempt: summaryOf(attempt), note: 'written off: its claim stays open and counted' };
       case 'dispatched':
       case 'unknown': {
-        const looked = await reconcileAttempt(p, attempt);
+        const looked = await reconcileAttempt(ports, attempt);
         if (looked.kind !== 'reconciled') return { kind: 'unknown', attempt: summaryOf(attempt) };
-        return followRemote(p, order, looked.attempt);
+        return followRemote(ports, order, looked.attempt);
       }
       case 'succeeded':
       case 'reconciled':
-        return followRemote(p, order, attempt);
+        return followRemote(ports, order, attempt);
     }
   };
 }

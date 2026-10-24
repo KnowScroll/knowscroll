@@ -37,14 +37,16 @@ not members until the runbook grants it.
 | `0002_cap_seven_dollars.sql` | Cap 700 cents (owner, 2026-10-09) | Applied (v1) |
 | `0005_cap_four_dollars_more.sql` | Cap 1017 cents: the 617 cents settled plus up to 400 new (D-030) | To apply; see below |
 
-Applied files never change. `0005` refuses a pool that is not in the state the owner approved (cap 700,
-at most 617 committed), so it cannot turn "400 more" into some other figure. It moves the cap and its
-CHECK together. Numbers 0003 and 0004 were a grant protocol that was never applied and is gone (D-041).
+Applied files never change. `0005` locks `pool_order` first (the lock every claim takes), then refuses a
+pool that is not in the state the owner approved (cap exactly 700, exactly 617 committed), so it cannot turn
+"400 more" into some other figure. It moves the cap and its CHECK together. Numbers 0003 and 0004 were a grant protocol that was never applied and is gone (D-041).
 
 A v2 deploy does not run pool migrations. `0005` is applied by hand as the pool's owner, in one
-transaction together with its row in `schema_migrations` (file name and SHA-256 of its text, as v1's
-migrator recorded each file); the runbook gives the exact commands, the checks before and after, and what a
-recorded row means for a v1 deploy of stage.
+transaction together with its row in `schema_migrations` (`name`, `checksum`, `applied_at`: the file name and
+the SHA-256 of its text, as v1's migrator recorded each file); the runbook gives the exact commands and the
+checks before and after. A fresh v1 deploy to stage would refuse at its pool migrator once the row exists (a
+safe failure); stage moves to v2 by `scripts/promote.sh`, which runs no pool migrator, and `ks rollback` runs
+none either.
 
 ## Tests
 

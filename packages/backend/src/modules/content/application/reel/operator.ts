@@ -12,15 +12,15 @@ import { makeWriteOff } from './write-off.js';
  * one script at one stage: `plan` (a free rehearsal) or `video` (the paid Reel). Each command is
  * safe to repeat; none keeps a lock, a transaction or a promise open across a Cutroom or pool call.
  */
-export function makeReelOperator(p: ReelPorts) {
+export function makeReelOperator(ports: ReelPorts) {
   return {
-    check: makeCheckScript(p),
-    order: makeOrderReel(p),
-    follow: makeFollowReel(p),
-    receive: makeReceiveReel(p),
-    status: makeReelStatus(p),
-    writeOff: makeWriteOff(p),
-    settleUnpublished: makeSettleUnpublished(p),
+    check: makeCheckScript(ports),
+    order: makeOrderReel(ports),
+    follow: makeFollowReel(ports),
+    receive: makeReceiveReel(ports),
+    status: makeReelStatus(ports),
+    writeOff: makeWriteOff(ports),
+    settleUnpublished: makeSettleUnpublished(ports),
   };
 }
 

@@ -29,6 +29,8 @@ export interface FinishedFacts {
   readonly runIds: readonly string[];
   /** Cutroom's reason for a stop, redacted and cut. For the operator only. */
   readonly detail: string | null;
+  /** What Cutroom's plan said the Reel would cost, when its answer carried one. */
+  readonly estimateCents: number | null;
 }
 
 export interface ReelAttemptRecord {
@@ -93,6 +95,8 @@ export type AttemptMove =
 export interface ReelLedger {
   /** The order for this script content, created once. */
   ensureOrder(order: NewReelOrder): Promise<ReelOrderRecord>;
+  /** The order of exactly this script content at its stage. */
+  findOrder(scriptSha256: string): Promise<ReelOrderRecord | undefined>;
   /** The newest order of a script name at a stage, whatever its content was. */
   latestOrderOf(scriptName: string, until: ReelUntil): Promise<ReelOrderRecord | undefined>;
   /** Attempts of an order, lowest take first. */

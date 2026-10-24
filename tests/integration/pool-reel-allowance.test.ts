@@ -51,6 +51,7 @@ describe('the 400-cent allowance for new Reels (pool migration 0005)', () => {
   });
 
   it('settles once: the same figures again are a no-op and other figures are refused', async () => {
+    await pool.seedSettled(617);
     await pool.raiseCap();
     const order = await claim(75);
     const settle = (cents: number) =>
@@ -71,14 +72,50 @@ describe('the 400-cent allowance for new Reels (pool migration 0005)', () => {
     ).rejects.toThrow('pool_order_not_yours');
   });
 
-  it('refuses a pool that is not in the state the owner approved', async () => {
+  it('refuses a pool that is not in the state the owner approved, in either direction', async () => {
     await pool.seedSettled(618);
-    await expect(pool.raiseCap()).rejects.toThrow('More than the 617 cents');
+    await expect(pool.raiseCap()).rejects.toThrow('not the 617 cents');
     expect((await pool.budget()).cap_cents).toBe(700);
     await pool.drop();
     pool = await createTestPool();
+    await pool.seedSettled(616);
+    await expect(pool.raiseCap()).rejects.toThrow('not the 617 cents');
+    expect((await pool.budget()).cap_cents).toBe(700);
+    await pool.drop();
+    pool = await createTestPool();
+    await pool.seedSettled(617);
     await pool.raiseCap();
     await expect(pool.raiseCap()).rejects.toThrow('not the 700 cents');
+  });
+
+  it('waits for a claim that is still being made instead of racing it', async () => {
+    await pool.seedSettled(617);
+    const migration = await readFile(
+      new URL('../../ops/pool/migrations/0005_cap_four_dollars_more.sql', import.meta.url),
+      'utf8',
+    );
+    const claimer = await pool.client.connect();
+    const migrator = await pool.client.connect();
+    try {
+      await claimer.query('begin');
+      const digest = randomBytes(32).toString('hex');
+      await claimer.query('select * from pool_claim($1,$2,1,$3,$4,$5,$6,$7)', [
+        `ks-reel-${digest.slice(0, 32)}-1`,
+        digest,
+        'video',
+        randomBytes(32).toString('hex'),
+        'dev',
+        75,
+        'fixture',
+      ]);
+      await migrator.query("set lock_timeout = '300ms'");
+      await expect(migrator.query(migration)).rejects.toThrow(/lock timeout/);
+      await claimer.query('rollback');
+    } finally {
+      claimer.release();
+      migrator.release();
+    }
+    expect((await pool.budget()).cap_cents).toBe(700);
   });
 });
 
@@ -107,14 +144,14 @@ describe('the runbook step that applies 0005 and records it', () => {
 
     const name = '0005_cap_four_dollars_more.sql';
     const migration = await text(name);
-    const record = `INSERT INTO schema_migrations (name, checksum) VALUES ('${name}', '${hash(migration)}');`;
+    const record = `INSERT INTO schema_migrations (name, checksum, applied_at) VALUES ('${name}', '${hash(migration)}', now());`;
     const tracked = async () =>
       (await pool.client.query<{ name: string }>('select name from schema_migrations order by 1')).rows.map(
         (row) => row.name,
       );
 
     await pool.seedSettled(618);
-    await expect(pool.client.query(`${migration}\n${record}\n`)).rejects.toThrow('More than the 617 cents');
+    await expect(pool.client.query(`${migration}\n${record}\n`)).rejects.toThrow('not the 617 cents');
     expect(await tracked()).toEqual(['0001_shared_pool.sql', '0002_cap_seven_dollars.sql']);
     expect((await pool.budget()).cap_cents).toBe(700);
 

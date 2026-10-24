@@ -16,7 +16,33 @@ set local statement_timeout = '60s';
 
 -- The connected-commissioning tables (0030, 0031, 0033, 0036, 0039) were built for a path that
 -- never ran: no world, dev included, holds a row in any of them, and the code that wrote them is
--- gone (D-041). Their triggers go with them; the trigger functions are dropped by name.
+-- gone (D-041). This migration checks that claim for every table and refuses to drop one that holds
+-- a row, so a world that did use them keeps its data and the migration stops. Their triggers go with
+-- them; the trigger functions are dropped by name.
+do $$
+declare
+  doomed text;
+  rows_held bigint;
+begin
+  foreach doomed in array array[
+    'content.cutroom_receive_receipts', 'content.cutroom_receiving_state',
+    'reasoning.cutroom_settlement_receipts', 'reasoning.cutroom_settlements', 'reasoning.cutroom_financial_reports',
+    'reasoning.cutroom_maintenance', 'content.cutroom_publications',
+    'content.cutroom_chain_documents', 'content.cutroom_chain_snapshots',
+    'reasoning.cutroom_accounting_intents', 'reasoning.cutroom_observations', 'reasoning.cutroom_execution',
+    'content.cutroom_reviews', 'content.cutroom_corpus',
+    'reasoning.cutroom_pool_operations', 'reasoning.cutroom_requests', 'reasoning.cutroom_attempts',
+    'content.reel_commissions', 'reasoning.cutroom_scopes'
+  ] loop
+    if to_regclass(doomed) is not null then
+      execute format('select count(*) from %s', doomed) into rows_held;
+      if rows_held > 0 then
+        raise exception 'cannot drop %: it holds % row(s)', doomed, rows_held;
+      end if;
+    end if;
+  end loop;
+end $$;
+
 -- squawk-ignore ban-drop-table
 drop table if exists
   content.cutroom_receive_receipts, content.cutroom_receiving_state,
@@ -86,6 +112,8 @@ create table content.reel_attempts (
   run_ids text[] check (cardinality(run_ids) between 1 and 2),
   -- Cutroom's reason for a stop, redacted and cut: for the operator, never shown to a person.
   remote_detail text check (length(remote_detail) <= 500),
+  -- What Cutroom's plan said the Reel would cost, when its answer carried one. Only a rehearsal's is used.
+  estimate_cents integer check (estimate_cents >= 0),
   reserved_at timestamptz not null default clock_timestamp(),
   dispatched_at timestamptz,
   finished_at timestamptz,
@@ -123,8 +151,8 @@ begin
      or (old.run_id is not null and new.run_id is distinct from old.run_id)
      or (old.operator_note is not null and new.operator_note is distinct from old.operator_note)
      or (old.remote_outcome is not null and (new.remote_outcome, new.remote_cost_cents, new.final_run_id,
-         new.run_ids, new.remote_detail, new.finished_at) is distinct from
-         (old.remote_outcome, old.remote_cost_cents, old.final_run_id, old.run_ids, old.remote_detail, old.finished_at))
+         new.run_ids, new.remote_detail, new.estimate_cents, new.finished_at) is distinct from
+         (old.remote_outcome, old.remote_cost_cents, old.final_run_id, old.run_ids, old.remote_detail, old.estimate_cents, old.finished_at))
      or (old.settled_at is not null and new.settled_at is distinct from old.settled_at)
      or (old.pool_state in ('settled', 'released') and new.pool_state <> old.pool_state)
      or (old.pool_state = 'claimed' and new.pool_state = 'none')

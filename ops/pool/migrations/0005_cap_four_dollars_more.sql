@@ -3,16 +3,20 @@
 -- change (`pool_order_cap_guard`: settled spend plus every open ceiling stays within the cap); the
 -- cap and its CHECK move together, so the column still refuses anything beyond what the owner allowed.
 --
--- Written for the state the owner saw: cap 700 and no more than 617 committed. A pool in any other
--- state refuses this migration instead of quietly turning "400 more" into some other figure. It is
--- a new migration; 0001 and 0002 stay as they were applied.
+-- Written for exactly the state the owner saw: cap 700, 617 cents committed, nothing open (an open
+-- claim counts its ceiling, so it would change the figure). A pool in any other state refuses this
+-- migration instead of quietly turning "400 more" into some other figure. The table is locked first,
+-- in the mode every claim takes, so no claim can slip in between the check and the change. It is a
+-- new migration; 0001 and 0002 stay as they were applied.
+LOCK TABLE pool_order IN SHARE ROW EXCLUSIVE MODE;
+
 DO $$
 BEGIN
  IF (SELECT cap_cents FROM pool_budget) <> 700 THEN
   RAISE EXCEPTION 'The pool cap is not the 700 cents this migration was written for';
  END IF;
- IF pool_committed_cents() > 617 THEN
-  RAISE EXCEPTION 'More than the 617 cents the owner saw is committed; the 400-cent allowance needs a new decision';
+ IF pool_committed_cents() <> 617 THEN
+  RAISE EXCEPTION 'The committed spend is not the 617 cents the owner saw; the 400-cent allowance needs a new decision';
  END IF;
 END $$;
 

@@ -23,12 +23,13 @@ export type WriteOffResult =
   | { readonly kind: 'written_off'; readonly attempt: AttemptSummary };
 
 /** Releasing needs proof: Cutroom answers, has no run for the request, and the POST is long over. */
-async function neverReceived(p: ReelPorts, attempt: ReelAttemptRecord): Promise<WriteOffResult | undefined> {
-  const found = await p.engine.lookup(attempt.requestId);
+async function neverReceived(ports: ReelPorts, attempt: ReelAttemptRecord): Promise<WriteOffResult | undefined> {
+  const found = await ports.engine.lookup(attempt.requestId);
   if (found.kind === 'found') return { kind: 'refused', code: 'run_exists' };
-  if (found.kind === 'unreachable' || !(await p.engine.ready())) return { kind: 'refused', code: 'engine_unreachable' };
+  if (found.kind === 'unreachable' || !(await ports.engine.ready()))
+    return { kind: 'refused', code: 'engine_unreachable' };
   const sent = attempt.dispatchedAt?.getTime() ?? 0;
-  return p.now().getTime() - sent < QUIET_PERIOD_MS ? { kind: 'refused', code: 'not_quiet_yet' } : undefined;
+  return ports.now().getTime() - sent < QUIET_PERIOD_MS ? { kind: 'refused', code: 'not_quiet_yet' } : undefined;
 }
 
 /**
@@ -38,23 +39,23 @@ async function neverReceived(p: ReelPorts, attempt: ReelAttemptRecord): Promise<
  * only when Cutroom answers, has no run for the request and the POST left at least two minutes ago.
  * Only an attempt that is `unknown` (or `dispatched`, which means the same) can be written off.
  */
-export function makeWriteOff(p: ReelPorts) {
+export function makeWriteOff(ports: ReelPorts) {
   return async (command: WriteOffCommand): Promise<WriteOffResult> => {
-    const attempt = await p.ledger.readAttempt(command.attemptId);
+    const attempt = await ports.ledger.readAttempt(command.attemptId);
     if (attempt === undefined) return { kind: 'refused', code: 'no_such_attempt' };
     if (attempt.state !== 'unknown' && attempt.state !== 'dispatched') return { kind: 'refused', code: 'not_unknown' };
     if (command.releaseClaim) {
-      const proof = await neverReceived(p, attempt);
+      const proof = await neverReceived(ports, attempt);
       if (proof !== undefined) return proof;
     }
     const unknown =
       attempt.state === 'dispatched'
-        ? await p.ledger.advance(attempt.id, { kind: 'unknown', code: 'written_off_while_dispatched' })
+        ? await ports.ledger.advance(attempt.id, { kind: 'unknown', code: 'written_off_while_dispatched' })
         : attempt;
-    const done = unknown && (await p.ledger.advance(attempt.id, { kind: 'written_off', reason: command.reason }));
+    const done = unknown && (await ports.ledger.advance(attempt.id, { kind: 'written_off', reason: command.reason }));
     if (!done) return { kind: 'refused', code: 'not_unknown' };
     if (!command.releaseClaim) return { kind: 'written_off', attempt: summaryOf(done) };
-    const released = await releaseClaim(p, done);
+    const released = await releaseClaim(ports, done);
     return released === undefined
       ? { kind: 'refused', code: 'pool_unavailable' }
       : { kind: 'written_off', attempt: summaryOf(released) };

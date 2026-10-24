@@ -347,7 +347,7 @@ there:
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------- |
 | `reel check`                                   | The product's own script checks and the repetition rule, offline                           | No                |
 | `reel order --until plan`                      | A rehearsal: Cutroom plans the Reel and says what it would cost                            | No                |
-| `reel order --until video`                     | Claims the ceiling in the shared pool, then sends one request                              | Up to the ceiling |
+| `reel order --until video`                     | Needs a finished rehearsal; claims 75 cents in the shared pool, then sends one request     | Up to 75 cents    |
 | `reel follow`                                  | Reads Cutroom's runs, records how the request ended, settles the claim, publishes the Reel | No                |
 | `reel receive`                                 | Publishes a Reel another world already paid for                                            | No                |
 | `reel status`, `reel write-off`, `reel settle` | Read the state, give up an uncertain attempt, close a held claim                           | No                |
@@ -356,6 +356,9 @@ How it keeps its promises:
 
 - **Claim before order.** A paid attempt cannot leave `reserved` without a pool claim; the table's own
   check refuses it. The pool counts the whole ceiling until the request is settled at its real cost.
+- **The ceiling is always 75.** Cutroom stops a run that reaches its ceiling after it was paid for, so a
+  lower ceiling only risks paying for no Reel. `order` refuses any other ceiling, a paid order without a
+  finished rehearsal of the same script, and a plan whose estimate plus 20 cents passes 75.
 - **The order keeps its script.** `content.reel_orders.script_json` is the exact approved script the order
   was made from, so `follow` never depends on the file that ships later. A new order under the same name
   waits until an earlier one, made from different content, has ended.

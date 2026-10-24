@@ -48,7 +48,6 @@ beforeEach(async () => {
       posts.push({ requestId, claimedInPool: claimed.rowCount === 1 });
     },
   });
-  await world.pool.raiseCap();
 });
 afterEach(async () => {
   await world.close();
@@ -57,6 +56,12 @@ afterEach(async () => {
 async function dev(...scripts: Name[]) {
   const joined = await world.join('dev');
   for (const script of scripts) await seedTwinScroll(joined.db.db, twins[script]);
+  return joined;
+}
+/** A world where the scripts have been rehearsed, as a person does before a paid order. */
+async function rehearsedDev(...scripts: Name[]) {
+  const joined = await dev(...scripts);
+  for (const script of scripts) await world.rehearse(joined.operator, script);
   return joined;
 }
 const row = async (db: Awaited<ReturnType<typeof dev>>['db'], query: ReturnType<typeof sql>) =>
@@ -183,7 +188,7 @@ describe('ordering a Reel from an approved script', () => {
     expect(await row(db, sql`select script_name from content.reel_imports`)).toEqual([{ script_name: 'stars-fusion' }]);
 
     // Doing it all again changes nothing: one asset, one settlement, no second POST.
-    const postCount = world.cutroom.posts.length;
+    const postCount = world.cutroom.videoPosts().length;
     expect(await operator.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({
       kind: 'finished',
       settled: true,
@@ -194,7 +199,7 @@ describe('ordering a Reel from an approved script', () => {
       kind: 'refused',
       code: 'already_published',
     });
-    expect(world.cutroom.posts).toHaveLength(postCount);
+    expect(world.cutroom.videoPosts()).toHaveLength(postCount);
     expect(await row(db, sql`select id from content.assets where kind = 'reel'`)).toHaveLength(1);
     expect(await world.pool.orders()).toHaveLength(1);
     const [media] = await row(db, sql`select logical_key, size_bytes from content.media_objects`);
@@ -202,7 +207,7 @@ describe('ordering a Reel from an approved script', () => {
   });
 
   it('settles a stopped run at its real cost, redacts what Cutroom said and retakes only when told to', async () => {
-    const { operator, db } = await dev('stars-fusion');
+    const { operator, db } = await rehearsedDev('stars-fusion');
     await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
     world.cutroom.finishStopped(requestIdOf('stars-fusion', 'video'), 66);
     const stopped = await operator.follow({ scriptName: 'stars-fusion', until: 'video' });
@@ -221,18 +226,18 @@ describe('ordering a Reel from an approved script', () => {
       code: 'last_attempt_ended',
       detail: 'stopped',
     });
-    expect(world.cutroom.posts).toHaveLength(1);
+    expect(world.cutroom.videoPosts()).toHaveLength(1);
 
     const retake = await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: true });
     expect(retake).toMatchObject({ kind: 'sent', attempt: { take: 2, poolState: 'claimed' } });
-    expect(world.cutroom.posts).toHaveLength(2);
-    expect(new Set(world.cutroom.posts.map((post) => (JSON.parse(post) as { requestId: string }).requestId)).size).toBe(
-      2,
-    );
+    expect(world.cutroom.videoPosts()).toHaveLength(2);
+    expect(
+      new Set(world.cutroom.videoPosts().map((post) => (JSON.parse(post) as { requestId: string }).requestId)).size,
+    ).toBe(2);
   });
 
   it('follows a failed run into the continuation Cutroom makes and settles the sum of both', async () => {
-    const { operator } = await dev('black-hole-horizon');
+    const { operator } = await rehearsedDev('black-hole-horizon');
     await operator.order({ scriptName: 'black-hole-horizon', until: 'video', ceilingCents: 75, retake: false });
     const requestId = requestIdOf('black-hole-horizon', 'video');
     const parent = world.cutroom.runOf(requestId);
@@ -256,11 +261,10 @@ describe('ordering a Reel from an approved script', () => {
 
 describe('claim before order, and never the same money twice', () => {
   it('refuses a claim past the cap before anything is sent', async () => {
-    const { operator, db } = await dev('stars-fusion');
-    const left = (await world.pool.budget()).left_cents;
-    expect(left).toBe(1017);
+    const { operator, db } = await rehearsedDev('stars-fusion');
+    expect((await world.pool.budget()).left_cents).toBe(400);
     // Leave 60 cents: the 75-cent ceiling no longer fits.
-    for (let spent = 0; spent < 1017 - 60; spent += 75) await world.pool.seedSettled(Math.min(75, 1017 - 60 - spent));
+    await world.pool.seedSettled(340);
     const refused = await operator.order({
       scriptName: 'stars-fusion',
       until: 'video',
@@ -272,32 +276,30 @@ describe('claim before order, and never the same money twice', () => {
       code: 'pool_cap_exceeded',
       attempt: { state: 'not_sent', poolState: 'none' },
     });
-    expect(world.cutroom.posts).toHaveLength(0);
-    expect((await row(db, sql`select state, outcome_code from content.reel_attempts`))[0]).toEqual({
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
+    expect((await row(db, sql`select state, outcome_code from content.reel_attempts where paid`))[0]).toEqual({
       state: 'not_sent',
       outcome_code: 'pool_cap_exceeded',
     });
-    // A smaller ceiling that fits is allowed.
+    // A lower ceiling is no way round it: Cutroom would stop such a run after it was paid for.
     expect(
       await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 60, retake: false }),
-    ).toMatchObject({
-      kind: 'sent',
-      attempt: { ceilingCents: 60, poolState: 'claimed' },
-    });
+    ).toMatchObject({ kind: 'refused', code: 'ceiling_invalid' });
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
   });
 
   it('counts every open ceiling in full against the cap', async () => {
-    const { operator } = await dev('stars-fusion', 'black-hole-horizon', 'exoplanet-transit');
+    const { operator } = await rehearsedDev('stars-fusion', 'black-hole-horizon', 'exoplanet-transit');
     const budget = await world.pool.budget();
     expect(budget.cap_cents).toBe(1017);
     for (const script of ['stars-fusion', 'black-hole-horizon', 'exoplanet-transit'] as const)
       await operator.order({ scriptName: script, until: 'video', ceilingCents: 75, retake: false });
     expect((await world.pool.budget()).committed_cents).toBe(budget.committed_cents + 225);
-    expect((await world.pool.budget()).left_cents).toBe(1017 - 225);
+    expect((await world.pool.budget()).left_cents).toBe(budget.left_cents - 225);
   });
 
   it('refuses to order a script another world has an open claim on, and says to receive it', async () => {
-    const dev1 = await dev('stars-fusion');
+    const dev1 = await rehearsedDev('stars-fusion');
     const stage = await world.join('stage');
     await seedTwinScroll(stage.db.db, twins['stars-fusion']);
     await dev1.operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
@@ -308,26 +310,26 @@ describe('claim before order, and never the same money twice', () => {
       code: 'pool_already_ordered',
       detail: { orderedBy: 'dev' },
     });
-    expect(world.cutroom.posts).toHaveLength(1);
+    expect(world.cutroom.videoPosts()).toHaveLength(1);
     expect(await world.pool.orders()).toHaveLength(1);
   });
 
-  it('refuses a ceiling above Cutroom’s own cap and one below a cent', async () => {
-    const { operator } = await dev('stars-fusion');
-    for (const ceilingCents of [76, 0, 1.5])
+  it('refuses every ceiling but Cutroom’s own cap, which is never lowered to fit', async () => {
+    const { operator } = await rehearsedDev('stars-fusion');
+    for (const ceilingCents of [76, 74, 40, 0, 1.5])
       expect(
         await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents, retake: false }),
       ).toMatchObject({
         kind: 'refused',
         code: 'ceiling_invalid',
       });
-    expect(world.cutroom.posts).toHaveLength(0);
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
   });
 });
 
 describe('a request that may or may not have arrived', () => {
   it('is never resent: a run that exists is adopted, and the claim stays open meanwhile', async () => {
-    const { operator } = await dev('stars-fusion');
+    const { operator } = await rehearsedDev('stars-fusion');
     world.setPostMode('drop_after_run');
     const unknown = await operator.order({
       scriptName: 'stars-fusion',
@@ -339,7 +341,7 @@ describe('a request that may or may not have arrived', () => {
     world.setPostMode('accept');
     const again = await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
     expect(again).toMatchObject({ kind: 'in_progress', attempt: { state: 'reconciled' } });
-    expect(world.cutroom.posts).toHaveLength(1);
+    expect(world.cutroom.videoPosts()).toHaveLength(1);
     world.cutroom.finishStopped(requestIdOf('stars-fusion', 'video'), 10);
     expect(await operator.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({
       kind: 'finished',
@@ -349,7 +351,7 @@ describe('a request that may or may not have arrived', () => {
   });
 
   it('is never resent when no run is found, can be written off, and its claim stays counted', async () => {
-    const { operator, db } = await dev('stars-fusion');
+    const { operator, db } = await rehearsedDev('stars-fusion');
     const before = await world.pool.budget();
     world.setPostMode('drop_without_run');
     const unknown = await operator.order({
@@ -364,7 +366,7 @@ describe('a request that may or may not have arrived', () => {
       await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false }),
     ).toMatchObject({ kind: 'unknown' });
     expect(await operator.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({ kind: 'unknown' });
-    expect(world.cutroom.posts).toHaveLength(1);
+    expect(world.cutroom.videoPosts()).toHaveLength(1);
 
     const attemptId = (unknown as { attempt: { attemptId: string } }).attempt.attemptId;
     expect(
@@ -373,7 +375,7 @@ describe('a request that may or may not have arrived', () => {
       kind: 'written_off',
       attempt: { state: 'written_off', poolState: 'claimed' },
     });
-    expect((await row(db, sql`select operator_note from content.reel_attempts`))[0]).toEqual({
+    expect((await row(db, sql`select operator_note from content.reel_attempts where paid`))[0]).toEqual({
       operator_note: 'cli:test: engine log shows no run',
     });
     expect((await world.pool.budget()).committed_cents).toBe(before.committed_cents + 75);
@@ -384,7 +386,7 @@ describe('a request that may or may not have arrived', () => {
       kind: 'refused',
       code: 'pool_already_ordered',
     });
-    expect(world.cutroom.posts).toHaveLength(1);
+    expect(world.cutroom.videoPosts()).toHaveLength(1);
     expect(await operator.writeOff({ attemptId, reason: 'again', releaseClaim: false })).toMatchObject({
       kind: 'refused',
       code: 'not_unknown',
@@ -392,7 +394,7 @@ describe('a request that may or may not have arrived', () => {
   });
 
   it('gives the claim back when Cutroom refuses the body outright', async () => {
-    const { operator, db } = await dev('stars-fusion');
+    const { operator, db } = await rehearsedDev('stars-fusion');
     const before = await world.pool.budget();
     world.setPostMode('refuse');
     const refused = await operator.order({
@@ -409,14 +411,14 @@ describe('a request that may or may not have arrived', () => {
     });
     expect(await world.pool.budget()).toEqual(before);
     expect(await world.pool.orders()).toMatchObject([{ state: 'released' }]);
-    expect((await row(db, sql`select state, pool_state from content.reel_attempts`))[0]).toEqual({
+    expect((await row(db, sql`select state, pool_state from content.reel_attempts where paid`))[0]).toEqual({
       state: 'failed',
       pool_state: 'released',
     });
   });
 
   it('sends nothing and gives the claim back when Cutroom is not ready, then starts a new take', async () => {
-    const { operator } = await dev('stars-fusion');
+    const { operator } = await rehearsedDev('stars-fusion');
     world.cutroom.setReady(false);
     const before = await world.pool.budget();
     expect(
@@ -426,7 +428,7 @@ describe('a request that may or may not have arrived', () => {
       code: 'engine_not_ready',
       attempt: { state: 'not_sent' },
     });
-    expect(world.cutroom.posts).toHaveLength(0);
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
     expect(await world.pool.budget()).toEqual(before);
     world.cutroom.setReady(true);
     expect(
@@ -447,7 +449,7 @@ describe('what a world checks before it orders', () => {
       kind: 'refused',
       code: 'scroll_not_published',
     });
-    expect(world.cutroom.posts).toHaveLength(0);
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
   });
 
   it('refuses an unknown script and a script that repeats a Reel already here', async () => {
@@ -481,14 +483,53 @@ describe('what a world checks before it orders', () => {
       code: 'repetition',
       detail: { repetition: { label: otherAsset, shared: 'template' } },
     });
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
+    expect(await world.pool.orders()).toHaveLength(0);
+  });
+});
+
+describe('what a paid order needs from its rehearsal', () => {
+  it('is refused without a finished rehearsal of this script, and sends and claims nothing', async () => {
+    const { operator } = await dev('stars-fusion');
+    expect(
+      await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false }),
+    ).toMatchObject({ kind: 'refused', code: 'rehearsal_missing' });
     expect(world.cutroom.posts).toHaveLength(0);
     expect(await world.pool.orders()).toHaveLength(0);
+    // A rehearsal that was only sent, not finished, is not enough either.
+    await operator.order({ scriptName: 'stars-fusion', until: 'plan', ceilingCents: 75, retake: false });
+    expect(
+      await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false }),
+    ).toMatchObject({ kind: 'refused', code: 'rehearsal_missing' });
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
+  });
+
+  it('is refused when the plan’s estimate plus the 20 cents real runs run over passes the ceiling', async () => {
+    const { operator } = await dev('stars-fusion');
+    await world.rehearse(operator, 'stars-fusion', 56);
+    expect(
+      await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false }),
+    ).toMatchObject({
+      kind: 'refused',
+      code: 'estimate_too_high',
+      detail: { estimateCents: 56, marginCents: 20, ceilingCents: 75 },
+    });
+    expect(world.cutroom.videoPosts()).toHaveLength(0);
+    expect(await world.pool.orders()).toHaveLength(0);
+  });
+
+  it('goes out when the estimate plus the margin fits the ceiling exactly', async () => {
+    const { operator } = await dev('stars-fusion');
+    await world.rehearse(operator, 'stars-fusion', 55);
+    expect(
+      await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false }),
+    ).toMatchObject({ kind: 'sent', attempt: { ceilingCents: 75, poolState: 'claimed' } });
   });
 });
 
 describe('importing what Cutroom made', () => {
   async function completedOrder(options: { failTake?: boolean } = {}) {
-    const joined = await dev('stars-fusion');
+    const joined = await rehearsedDev('stars-fusion');
     await joined.operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
     const requestId = requestIdOf('stars-fusion', 'video');
     const run = await world.cutroom.finishCompleted(requestId, { costCents: 55, ...options });
@@ -528,21 +569,21 @@ describe('importing what Cutroom made', () => {
   });
 
   it('records a cost above the ceiling as it was, never clamped', async () => {
-    const joined = await dev('stars-fusion');
-    await joined.operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 40, retake: false });
-    world.cutroom.finishStopped(requestIdOf('stars-fusion', 'video'), 52);
+    const joined = await rehearsedDev('stars-fusion');
+    await joined.operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
+    world.cutroom.finishStopped(requestIdOf('stars-fusion', 'video'), 82);
     expect(await joined.operator.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({
       kind: 'finished',
-      costCents: 52,
+      costCents: 82,
       overCeiling: true,
     });
-    expect(await world.pool.orders()).toMatchObject([{ spent_cents: 52 }]);
+    expect(await world.pool.orders()).toMatchObject([{ spent_cents: 82 }]);
   });
 });
 
 describe('a second world receiving a Reel the first one paid for', () => {
   it('publishes the same Reel for nothing, once, without a claim or a POST', async () => {
-    const devWorld = await dev('stars-fusion');
+    const devWorld = await rehearsedDev('stars-fusion');
     const stage = await world.join('stage');
     await seedTwinScroll(stage.db.db, twins['stars-fusion']);
     expect(await stage.operator.receive({ scriptName: 'stars-fusion' })).toMatchObject({
@@ -562,7 +603,7 @@ describe('a second world receiving a Reel the first one paid for', () => {
       settled: true,
     });
     const pool = await world.pool.orders();
-    const posts = world.cutroom.posts.length;
+    const posts = world.cutroom.videoPosts().length;
 
     const received = await stage.operator.receive({ scriptName: 'stars-fusion' });
     expect(received).toMatchObject({
@@ -576,7 +617,7 @@ describe('a second world receiving a Reel the first one paid for', () => {
       created: false,
     });
     expect(await world.pool.orders()).toEqual(pool);
-    expect(world.cutroom.posts).toHaveLength(posts);
+    expect(world.cutroom.videoPosts()).toHaveLength(posts);
     const [provenance] = await row(stage.db, sql`select provenance from content.asset_provenance`);
     expect(provenance!['provenance']).toMatchObject({ orderedBy: 'dev', receivedBy: 'stage', reportedCostCents: 58 });
   });
@@ -584,9 +625,9 @@ describe('a second world receiving a Reel the first one paid for', () => {
 
 describe('the ledger’s own guards', () => {
   it('refuse a move backwards, a paid attempt sent without a claim, and a delete', async () => {
-    const { operator, db } = await dev('stars-fusion');
+    const { operator, db } = await rehearsedDev('stars-fusion');
     await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
-    const attempt = (await row(db, sql`select id from content.reel_attempts`))[0]!['id'] as string;
+    const attempt = (await row(db, sql`select id from content.reel_attempts where paid`))[0]!['id'] as string;
     await expect(
       sql`update content.reel_attempts set state = 'reserved' where id = ${attempt}::uuid`.execute(db.db),
     ).rejects.toThrow();
@@ -597,7 +638,7 @@ describe('the ledger’s own guards', () => {
     await expect(
       sql`insert into content.reel_attempts (id, order_id, take, paid, request_id, request_utf8, request_sha256, ceiling_cents, state, dispatched_at)
         select gen_random_uuid(), order_id, 9, true, 'ks-reel-${sql.raw('0'.repeat(32))}-9', 'x', encode(sha256(convert_to('x','UTF8')),'hex'), 75, 'dispatched', now()
-        from content.reel_attempts`.execute(db.db),
+        from content.reel_attempts where paid`.execute(db.db),
     ).rejects.toThrow();
   });
 });
@@ -608,6 +649,7 @@ describe('an attempt that provably never arrived', () => {
   it('gives its claim back only once Cutroom answers, has no run and the POST is long over', async () => {
     const { operator } = await world.join('dev', minutes(5)).then(async (joined) => {
       await seedTwinScroll(joined.db.db, twins['stars-fusion']);
+      await world.rehearse(joined.operator, 'stars-fusion');
       return joined;
     });
     const before = await world.pool.budget();
@@ -639,11 +681,11 @@ describe('an attempt that provably never arrived', () => {
       kind: 'sent',
       attempt: { take: 2, poolState: 'claimed' },
     });
-    expect(world.cutroom.posts).toHaveLength(2);
+    expect(world.cutroom.videoPosts()).toHaveLength(2);
   });
 
   it('refuses inside the quiet period, and when Cutroom has a run for the request', async () => {
-    const { operator } = await dev('stars-fusion');
+    const { operator } = await rehearsedDev('stars-fusion');
     world.setPostMode('drop_without_run');
     const unknown = await operator.order({
       scriptName: 'stars-fusion',
@@ -659,6 +701,8 @@ describe('an attempt that provably never arrived', () => {
 
     const other = await world.join('stage');
     await seedTwinScroll(other.db.db, twins['exoplanet-transit']);
+    world.setPostMode('accept');
+    await world.rehearse(other.operator, 'exoplanet-transit');
     world.setPostMode('drop_after_run');
     const made = await other.operator.order({
       scriptName: 'exoplanet-transit',
@@ -677,7 +721,7 @@ describe('an attempt that provably never arrived', () => {
 
 describe('a Reel that is made but not published', () => {
   it('stays held, with its claim open, when the engine’s record disagrees with its result, until a person settles it', async () => {
-    const { operator, db } = await dev('stars-fusion');
+    const { operator, db } = await rehearsedDev('stars-fusion');
     await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
     await world.cutroom.finishCompleted(requestIdOf('stars-fusion', 'video'), { costCents: 61, mismatchRecord: true });
     const held = await operator.follow({ scriptName: 'stars-fusion', until: 'video' });
@@ -705,7 +749,7 @@ describe('a Reel that is made but not published', () => {
 
 describe('a script edited while its order is open', () => {
   it('cannot strand the order: following uses the script it was made from, and a new order waits', async () => {
-    const joined = await dev('stars-fusion');
+    const joined = await rehearsedDev('stars-fusion');
     await joined.operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
     const requestId = requestIdOf('stars-fusion', 'video');
 
@@ -726,11 +770,12 @@ describe('a script edited while its order is open', () => {
       code: 'earlier_order_open',
       attempt: { state: 'succeeded', poolState: 'claimed' },
     });
-    expect(await after.status()).toMatchObject({
-      orders: [{ script: 'stars-fusion', until: 'video', current: false, attempts: [{ open: true }] }],
-      notOrdered: [],
-    });
-    expect(world.cutroom.posts).toHaveLength(1);
+    const status = await after.status();
+    expect(status.orders.filter((order) => order.until === 'video')).toMatchObject([
+      { script: 'stars-fusion', until: 'video', current: false, attempts: [{ open: true }] },
+    ]);
+    expect(status.notOrdered).toEqual([]);
+    expect(world.cutroom.videoPosts()).toHaveLength(1);
 
     await world.cutroom.finishCompleted(requestId, { costCents: 58 });
     expect(await after.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({

@@ -64,19 +64,20 @@ export function poolIdentityOf(world: string, order: ReelOrderRecord, attempt: R
  * Nothing is ever sent again.
  */
 export async function reconcileAttempt(
-  p: Pick<ReelPorts, 'engine' | 'ledger'>,
+  ports: Pick<ReelPorts, 'engine' | 'ledger'>,
   attempt: ReelAttemptRecord,
 ): Promise<
   { readonly kind: 'reconciled'; readonly attempt: ReelAttemptRecord } | { readonly kind: 'absent' | 'unreachable' }
 > {
-  const found = await p.engine.lookup(attempt.requestId);
+  const found = await ports.engine.lookup(attempt.requestId);
   if (found.kind !== 'found') return { kind: found.kind };
   // A dispatch intent a crash left behind is first recorded as unknown, then reconciled.
   const unknown =
     attempt.state === 'dispatched'
-      ? await p.ledger.advance(attempt.id, { kind: 'unknown', code: 'intent_without_answer' })
+      ? await ports.ledger.advance(attempt.id, { kind: 'unknown', code: 'intent_without_answer' })
       : attempt;
-  const reconciled = unknown && (await p.ledger.advance(attempt.id, { kind: 'reconciled', runId: found.status.runId }));
+  const reconciled =
+    unknown && (await ports.ledger.advance(attempt.id, { kind: 'reconciled', runId: found.status.runId }));
   return reconciled ? { kind: 'reconciled', attempt: reconciled } : { kind: 'unreachable' };
 }
 
@@ -88,12 +89,12 @@ export type ChainRead =
  * continues, then forward along `resumedBy`. Finished runs bring their results. The loops are
  * bounded; a longer chain is reported as one and refused by `foldChain`.
  */
-export async function readChain(p: Pick<ReelPorts, 'engine'>, knownRunId: string): Promise<ChainRead> {
+export async function readChain(ports: Pick<ReelPorts, 'engine'>, knownRunId: string): Promise<ChainRead> {
   const bound = MAX_CHAIN_RUNS + 1;
   const order: string[] = [knownRunId];
   const statuses = new Map<string, RunStatusFacts>();
   async function load(runId: string): Promise<'ok' | 'absent' | 'unreachable'> {
-    const found = await p.engine.status(runId);
+    const found = await ports.engine.status(runId);
     if (found.kind !== 'found') return found.kind;
     statuses.set(runId, found.status);
     return 'ok';
@@ -116,7 +117,7 @@ export async function readChain(p: Pick<ReelPorts, 'engine'>, knownRunId: string
   for (const runId of order) {
     const status = statuses.get(runId)!;
     if (status.state === 'finished') {
-      const answered = await p.engine.result(runId);
+      const answered = await ports.engine.result(runId);
       if (answered.kind === 'unreachable') return { kind: 'unreachable' };
       runs.push({ status, result: answered.kind === 'finished' ? answered.result : undefined });
     } else runs.push({ status });
@@ -130,14 +131,14 @@ export async function readChain(p: Pick<ReelPorts, 'engine'>, knownRunId: string
  * reached: the claim stays open and counted until a later command closes it.
  */
 export async function releaseClaim(
-  p: Pick<ReelPorts, 'pool' | 'ledger' | 'world'>,
+  ports: Pick<ReelPorts, 'pool' | 'ledger' | 'world'>,
   attempt: ReelAttemptRecord,
 ): Promise<ReelAttemptRecord | undefined> {
   if (attempt.poolState !== 'claimed') return attempt;
   try {
-    await p.pool.release(attempt.requestId, p.world);
+    await ports.pool.release(attempt.requestId, ports.world);
   } catch {
     return undefined;
   }
-  return (await p.ledger.advance(attempt.id, { kind: 'released' })) ?? attempt;
+  return (await ports.ledger.advance(attempt.id, { kind: 'released' })) ?? attempt;
 }

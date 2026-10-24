@@ -20,7 +20,6 @@ const capabilities = { ...textCapabilities, documentSchemas: ['scroll-document.v
 let world: ReelWorld;
 beforeEach(async () => {
   world = await createReelWorld();
-  await world.pool.raiseCap();
 });
 afterEach(async () => {
   await world.close();
@@ -35,8 +34,9 @@ describe('a Reel made from a script, as Explore sees it', () => {
     twin.publication.explanationUnitId = unit;
     expect(await importEditorialScrollUseCase(db.db)(twin)).toMatchObject({ kind: 'imported' });
 
+    await world.rehearse(operator, 'stars-fusion');
     await operator.order({ scriptName: 'stars-fusion', until: 'video', ceilingCents: 75, retake: false });
-    const request = (world.cutroom.runs.values().next().value as { requestId: string }).requestId;
+    const request = [...world.cutroom.runs.values()].at(-1)!.requestId;
     await world.cutroom.finishCompleted(request, { costCents: 58 });
     expect(await operator.follow({ scriptName: 'stars-fusion', until: 'video' })).toMatchObject({
       kind: 'finished',

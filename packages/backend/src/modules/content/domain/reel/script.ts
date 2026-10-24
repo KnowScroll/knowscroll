@@ -70,8 +70,17 @@ export type ReelBrief = z.infer<typeof ReelBriefSchema>;
 export type ReelScript = z.infer<typeof ReelScriptSchema>;
 export type ReelUntil = 'plan' | 'video';
 
-/** Cutroom's own cap for one Reel, in cents (CF-62). No order may ask for more. */
-export const REEL_CEILING_CAP_CENTS = 75;
+/**
+ * The ceiling of every order, in cents: Cutroom's own cap for one Reel (CF-62). It is never lowered
+ * to fit: Cutroom stops a run that reaches its ceiling, and that run is paid for and makes no Reel.
+ */
+export const REEL_CEILING_CENTS = 75;
+
+/**
+ * What a real run costs over its plan's estimate, at most (v1's completed Reels ran 10 cents over).
+ * A script whose estimate plus this passes the ceiling cannot be ordered: it would stop mid-run.
+ */
+export const ESTIMATE_MARGIN_CENTS = 20;
 
 /** The approval text the shared pool records with a claim, bounded to the pool's own column. */
 export function approvalReference(script: ReelScript): string {

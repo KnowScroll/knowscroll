@@ -404,8 +404,11 @@ short, and keeps every money rule.
   stays held with its claim open until a person settles it (`reel settle`), except for the engine's own
   failed checks, a media file that is not a Reel and a repeat, which are settled as spent.
 - **Budget.** At most 400 cents of new spend (D-030). Pool migration `0005` raises the cap to 1017, the
-  617 cents already settled plus 400, and refuses a pool in any other state. One order asks for at
-  most 75 cents, Cutroom's own cap for one Reel. Settled cost above a ceiling is recorded as it was.
+  617 cents already settled plus 400, after locking the claim table, and refuses a pool unless the cap
+  is exactly 700 and exactly 617 is committed. Every order asks for exactly 75 cents, Cutroom's own cap
+  for one Reel: Cutroom stops a run at its ceiling after it was paid for, so a lower ceiling can only buy no
+  Reel. A paid order also needs a finished rehearsal here whose estimate plus 20 cents (the most real runs
+  have run over) fits in 75. Settled cost above a ceiling is recorded as it was.
 - **Approval.** A script carries `approvedBy: coordinator (delegated by owner, D-030)`. The owner does not
   approve each script in a pull request any more (D-030); the pool records the same text with the claim.
 - **The twin.** A script names the library recipe whose Scroll is its twin. Every claim rests on that

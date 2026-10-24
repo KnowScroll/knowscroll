@@ -34,19 +34,19 @@ export type ReceiveResult =
  * Authority: an operator in a dev or stage world. Failure: anything not ready yet is `held` or
  * `refused` with a code; running it again after the cause is gone is always safe.
  */
-export function makeReceiveReel(p: ReelPorts) {
+export function makeReceiveReel(ports: ReelPorts) {
   return async (command: { readonly scriptName: string }): Promise<ReceiveResult> => {
-    const linted = lintScript(p, command.scriptName);
+    const linted = lintScript(ports, command.scriptName);
     if (linted.kind === 'refused')
       return {
         kind: 'refused',
         code: linted.code === 'script_unknown' || linted.code === 'repetition' ? linted.code : 'script_findings',
       };
     const { script } = linted.linted;
-    const scriptSha256 = reelScriptDigest(script, 'video', p.sha256);
+    const scriptSha256 = reelScriptDigest(script, 'video', ports.sha256);
     let orders;
     try {
-      orders = (await p.pool.orders()).filter((order) => order.scriptSha256 === scriptSha256);
+      orders = (await ports.pool.orders()).filter((order) => order.scriptSha256 === scriptSha256);
     } catch {
       return { kind: 'refused', code: 'pool_unavailable' };
     }
@@ -59,18 +59,18 @@ export function makeReceiveReel(p: ReelPorts) {
     const request = compileReelRequest(
       script,
       { until: 'video', take: made.take, ceilingCents: made.ceilingCents },
-      p.sha256,
+      ports.sha256,
     );
     if (request.requestId !== made.requestId || request.requestSha256 !== made.requestSha256)
       return { kind: 'refused', code: 'body_differs' };
-    const found = await p.engine.lookup(made.requestId);
+    const found = await ports.engine.lookup(made.requestId);
     if (found.kind !== 'found') return { kind: 'refused', code: 'engine_unreachable' };
-    const chain = await readChain(p, found.status.runId);
+    const chain = await readChain(ports, found.status.runId);
     if (chain.kind !== 'chain') return { kind: 'refused', code: 'engine_unreachable' };
     const report = foldChain(made.requestId, chain.runs);
     if (report.kind !== 'finished' || report.outcome !== 'completed' || report.finalRunId !== made.finalRunId)
       return { kind: 'refused', code: 'chain_differs' };
-    const published = await publishFinishedReel(p, {
+    const published = await publishFinishedReel(ports, {
       linted: linted.linted,
       origin: { kind: 'received', orderedBy: made.orderedBy, take: made.take, ceilingCents: made.ceilingCents },
       requestId: made.requestId,

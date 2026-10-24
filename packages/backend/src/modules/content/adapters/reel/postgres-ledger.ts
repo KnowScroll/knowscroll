@@ -42,6 +42,7 @@ interface AttemptRow {
   final_run_id: string | null;
   run_ids: string[] | null;
   remote_detail: string | null;
+  estimate_cents: number | null;
 }
 
 const orderOf = (row: OrderRow): ReelOrderRecord => ({
@@ -65,6 +66,7 @@ const finishedOf = (row: AttemptRow): FinishedFacts | null =>
         finalRunId: row.final_run_id!,
         runIds: row.run_ids!,
         detail: row.remote_detail,
+        estimateCents: row.estimate_cents,
       };
 
 const attemptOf = (row: AttemptRow): ReelAttemptRecord => ({
@@ -113,7 +115,8 @@ function updateOf(move: AttemptMove): { readonly set: RawBuilder<unknown>; reado
       return {
         set: sql`remote_outcome = ${move.facts.outcome}, remote_cost_cents = ${move.facts.costCents},
           final_run_id = ${move.facts.finalRunId}, run_ids = ${move.facts.runIds},
-          remote_detail = ${move.facts.detail}, finished_at = clock_timestamp()`,
+          remote_detail = ${move.facts.detail}, estimate_cents = ${move.facts.estimateCents},
+          finished_at = clock_timestamp()`,
         when: sql`state in ('succeeded', 'reconciled') and remote_outcome is null`,
       };
     case 'settled':
@@ -144,6 +147,12 @@ export function postgresReelLedger(db: Kysely<Database>, newId: () => string): R
       const { rows } =
         await sql<OrderRow>`select * from content.reel_orders where script_sha256 = ${order.scriptSha256}`.execute(db);
       return orderOf(rows[0]!);
+    },
+
+    async findOrder(scriptSha256) {
+      const { rows } =
+        await sql<OrderRow>`select * from content.reel_orders where script_sha256 = ${scriptSha256}`.execute(db);
+      return rows[0] === undefined ? undefined : orderOf(rows[0]);
     },
 
     async latestOrderOf(scriptName, until) {
