@@ -186,8 +186,6 @@ export const ask = (
   inhabitant: 'explainer' | 'skeptic' = 'skeptic',
 ) => world.rooms.ask(person.authority, { version, commandId: randomUUID(), roomId, discussionId, inhabitant });
 
-
-
 /** A moderator starts a poll with the given options (default: three). */
 export const startPoll = (
   world: RoomWorld,
