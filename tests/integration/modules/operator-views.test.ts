@@ -410,14 +410,24 @@ describe('the ops views (real PostgreSQL)', () => {
 
   describe('the job views around a pg-boss upgrade', () => {
     it('are dropped and rebuilt without changing what they show, and granted again', async () => {
-      const before = (await sql`select * from ops.queue_backlog order by queue`.execute(db())).rows;
+      const before = (
+        await sql`select queue, ready, scheduled, retrying, active, failed from ops.queue_backlog order by queue`.execute(
+          db(),
+        )
+      ).rows;
       await dropOpsJobViews(db());
       await expect(sql`select 1 from ops.jobs`.execute(db())).rejects.toMatchObject({ code: '42P01' });
       const panels = await readOperatorPanelsFor(db())();
       expect(panels.overview.queues).toEqual({ status: 'unavailable', reason: 'view_missing' });
       await createOpsJobViews(db());
       expect(await grantOpsReader(db())).toBe('granted');
-      expect((await sql`select * from ops.queue_backlog order by queue`.execute(db())).rows).toEqual(before);
+      expect(
+        (
+          await sql`select queue, ready, scheduled, retrying, active, failed from ops.queue_backlog order by queue`.execute(
+            db(),
+          )
+        ).rows,
+      ).toEqual(before);
     });
 
     it('name every view the reader may select, and every view that exists', async () => {
