@@ -8,6 +8,9 @@ import { Banner, Button, IconButton, StateBlock, Tag, Text, type ReelPositionHan
 import { ReelEncounter } from './reel-encounter';
 import { readInThreadHref } from './thread-links';
 
+/** The picture of the inline player takes at most this much, so the conversation stays in view. */
+const PLAYER_STAGE_HEIGHT = 200;
+
 export interface ThreadEncounterProps {
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
@@ -58,16 +61,18 @@ export function ThreadEncounter({
     },
     [onOpened],
   );
-  const place = series && episode.part !== undefined ? `Part ${String(episode.part)} of ${String(total)}` : episode.kind === 'reel' ? 'Reel' : 'Scroll';
+  const place =
+    series && episode.part !== undefined
+      ? `Part ${String(episode.part)} of ${String(total)}`
+      : episode.kind === 'reel'
+        ? 'Reel'
+        : 'Scroll';
   const fullHref = `/${episode.kind}/${episode.assetId}`;
 
   if (episode.state === 'unavailable')
     return (
       <View style={styles.area}>
-        <StateBlock
-          title="This isn’t available any more"
-          body="It was withdrawn. The conversation stays."
-        />
+        <StateBlock title="This isn’t available any more" body="It was withdrawn. The conversation stays." />
       </View>
     );
 
@@ -141,6 +146,7 @@ export function ThreadEncounter({
           active={!folded && !paused}
           positionRef={positionRef}
           onOpened={handleOpened}
+          stageMaxHeight={PLAYER_STAGE_HEIGHT}
         />
         <View style={styles.actions}>
           <Button

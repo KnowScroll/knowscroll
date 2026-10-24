@@ -31,7 +31,8 @@ function shareableParts(document: ScrollDocument): { passages: Passage[]; intera
   const interactives: Interactive[] = [];
   for (const { block } of walkBlocks(document.sections)) {
     const text = projectText(block);
-    if (text !== null && block.type !== 'subheading' && text.trim().length >= 20) passages.push({ blockId: block.id, text });
+    if (text !== null && block.type !== 'subheading' && text.trim().length >= 20)
+      passages.push({ blockId: block.id, text });
     if (defaultBlockState(block) !== null && block.type !== 'disclosure')
       interactives.push({ blockId: block.id, label: block.a11y.label });
   }
@@ -41,7 +42,13 @@ function shareableParts(document: ScrollDocument): { passages: Passage[]; intera
 function Choice({ label, detail, onPress }: { label: string; detail?: string; onPress: () => void }) {
   const focus = useFocusRing('onLight');
   return (
-    <Pressable {...focus.props} role="button" accessibilityLabel={label} onPress={onPress} style={[styles.choice, focus.style]}>
+    <Pressable
+      {...focus.props}
+      role="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={[styles.choice, focus.style]}
+    >
       <Text variant="uiS" numberOfLines={3}>
         {label}
       </Text>
@@ -67,15 +74,18 @@ function PassagePicker({
   const [picked, setPicked] = useState<{ first: number; last: number }>();
   const chosen = picked === undefined ? undefined : passageOf(sentences, picked.first, picked.last);
   const choose = (index: number) =>
-    setPicked(picked === undefined || picked.first !== picked.last ? { first: index, last: index } : { first: picked.first, last: index });
+    setPicked(
+      picked === undefined || picked.first !== picked.last
+        ? { first: index, last: index }
+        : { first: picked.first, last: index },
+    );
   return (
     <View style={styles.step}>
       <Text variant="meta" color={content.ink2}>
         Tap the first sentence, then the last one to take a longer passage.
       </Text>
       {sentences.map((range, index) => {
-        const inside =
-          chosen !== undefined && range.start >= chosen.start && range.end <= chosen.end;
+        const inside = chosen !== undefined && range.start >= chosen.start && range.end <= chosen.end;
         return (
           <Pressable
             key={range.start}
@@ -136,7 +146,13 @@ function BlockPicker({
             {include ? preview(includePersonal) || 'Default settings' : 'Settings are not included'}
           </Text>
         </View>
-        <Switch accessibilityLabel="Include how I set it" value={include} onValueChange={setInclude} />
+        <Switch
+          accessibilityLabel="Include how I set it"
+          value={include}
+          onValueChange={setInclude}
+          trackColor={switchTrack}
+          thumbColor={content.paper}
+        />
       </View>
       {include && hasPersonal ? (
         <View style={styles.toggle}>
@@ -146,7 +162,13 @@ function BlockPicker({
               A number you typed yourself stays out unless you say so.
             </Text>
           </View>
-          <Switch accessibilityLabel="Include my own value" value={includePersonal} onValueChange={setIncludePersonal} />
+          <Switch
+            accessibilityLabel="Include my own value"
+            value={includePersonal}
+            onValueChange={setIncludePersonal}
+            trackColor={switchTrack}
+            thumbColor={content.paper}
+          />
         </View>
       ) : null}
       <View style={styles.actions}>
@@ -187,7 +209,9 @@ export function ShareFromScrollSheet({
   readonly onClose: () => void;
 }) {
   const parts = useMemo(() => shareableParts(document), [document]);
-  const [step, setStep] = useState<{ kind: 'list' } | { kind: 'passage'; passage: Passage } | { kind: 'block'; item: Interactive }>({
+  const [step, setStep] = useState<
+    { kind: 'list' } | { kind: 'passage'; passage: Passage } | { kind: 'block'; item: Interactive }
+  >({
     kind: 'list',
   });
   const [note, setNote] = useState('');
@@ -239,7 +263,8 @@ export function ShareFromScrollSheet({
               if (block === undefined) return;
               const key = { assetId: document.assetId, revision: document.revision, blockId: block.id };
               const state = store.get(key) ?? defaultBlockState(block);
-              const snapshot = !include || state === null ? undefined : buildBlockStateSnapshot(block, state, { includePersonal });
+              const snapshot =
+                !include || state === null ? undefined : buildBlockStateSnapshot(block, state, { includePersonal });
               share({
                 kind: 'scroll_block',
                 blockId: block.id,
@@ -261,7 +286,10 @@ export function ShareFromScrollSheet({
               onChangeText={setNote}
               maxLength={500}
               allowFontScaling={false}
-              style={[styles.input, { fontFamily: type.fontFamily, fontSize: type.fontSize, lineHeight: type.lineHeight }]}
+              style={[
+                styles.input,
+                { fontFamily: type.fontFamily, fontSize: type.fontSize, lineHeight: type.lineHeight },
+              ]}
             />
           </View>
         )}
@@ -270,15 +298,25 @@ export function ShareFromScrollSheet({
         </Text>
         {status === 'sending' ? <Text variant="meta">Sharing…</Text> : null}
         {status === 'unconfirmed' ? (
-          <Banner kind="error" lead="Couldn’t confirm it was shared." message="Sharing again sends the same message, so it can’t arrive twice." />
+          <Banner
+            kind="error"
+            lead="Couldn’t confirm it was shared."
+            message="Sharing again sends the same message, so it can’t arrive twice."
+          />
         ) : null}
         {status === 'unavailable' || status === 'invalid' || status === 'failed' ? (
-          <Banner kind="error" lead="Couldn’t share this." message="Nothing was sent. The Scroll may have been updated." />
+          <Banner
+            kind="error"
+            lead="Couldn’t share this."
+            message="Nothing was sent. The Scroll may have been updated."
+          />
         ) : null}
       </ScrollView>
     </BottomSheet>
   );
 }
+
+const switchTrack = { false: content.muted, true: content.accent } as const;
 
 const styles = StyleSheet.create({
   sheet: { gap: spacing[3], paddingBottom: spacing[2] },

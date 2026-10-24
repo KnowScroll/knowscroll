@@ -36,8 +36,8 @@ function ChangedMoment({ opening, onBack }: { readonly opening: Changed; readonl
         This {word} was corrected and this moment changed
       </Text>
       <Text variant="bodyS" color={content.ink2}>
-        The moment that was shared is no longer there as it was. The current {word}, “{opening.current.title}”, is
-        open to you.
+        The moment that was shared is no longer there as it was. The current {word}, “{opening.current.title}”, is open
+        to you.
       </Text>
       <View style={styles.actions}>
         <Button
@@ -76,6 +76,7 @@ function ReelMoment({
   };
   return (
     <View style={styles.card}>
+      <Button label="Back to thread" icon="back" size="sm" onPress={onBack} />
       <Text variant="monoXs" color={content.ink2}>
         {formatRange(startMs, endMs)} of the Reel
       </Text>
@@ -88,12 +89,9 @@ function ReelMoment({
         title={opening.content.title}
         moment={{ startMs, endMs }}
         active
-        afterEnd={<Button label="Watch from here" variant="ghost" onPress={watchFromHere} />}
+        stageMaxHeight={320}
       />
-      <View style={styles.actions}>
-        <Button label="Watch from here" variant="ghost" onPress={watchFromHere} />
-        <Button label="Back to thread" onPress={onBack} />
-      </View>
+      <Button label="Watch from here" variant="ghost" onPress={watchFromHere} />
     </View>
   );
 }
@@ -137,14 +135,28 @@ function ScrollSnippet({
           </>
         )}
         {opening.mapped ? (
-          <Banner kind="corrected" lead="Updated." message="The Scroll changed after this was shared; this is where it is now." />
+          <Banner
+            kind="corrected"
+            lead="Updated."
+            message="The Scroll changed after this was shared; this is where it is now."
+          />
         ) : null}
         {opening.settingsReset ? (
-          <Banner kind="info" lead="Settings reset." message="The block changed, so it starts from its own default settings." />
+          <Banner
+            kind="info"
+            lead="Settings reset."
+            message="The block changed, so it starts from its own default settings."
+          />
         ) : null}
         <View style={styles.actions}>
           <Button
-            label={anchor.kind === 'scroll_passage' ? 'Read in context' : anchor.snapshot === undefined ? 'Open it' : 'Open as set'}
+            label={
+              anchor.kind === 'scroll_passage'
+                ? 'Read in context'
+                : anchor.snapshot === undefined
+                  ? 'Open it'
+                  : 'Open as set'
+            }
             variant="primary"
             onPress={() => setReading(true)}
             testID="open-snippet-scroll"
@@ -222,7 +234,8 @@ function Viewer({
     void scope.api.threads
       .openSnippet({ version: 'content-thread.v1', readId: newCommandId(), thread, messageId })
       .then((opening) => {
-        if (!stopped) setLoaded(opening.status === 'unavailable' ? { phase: 'unavailable' } : { phase: 'opened', opening });
+        if (!stopped)
+          setLoaded(opening.status === 'unavailable' ? { phase: 'unavailable' } : { phase: 'opened', opening });
       })
       .catch((error: unknown) => {
         const kind = talkFailure(error);
@@ -260,7 +273,10 @@ function Viewer({
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[styles.screen, { paddingTop: insets.top + spacing[4], paddingBottom: insets.bottom + spacing[6] }]}
+      contentContainerStyle={[
+        styles.screen,
+        { paddingTop: insets.top + spacing[4], paddingBottom: insets.bottom + spacing[6] },
+      ]}
     >
       <Opened scope={scope} opening={opening} onBack={back} />
     </ScrollView>
@@ -292,7 +308,9 @@ export function SnippetViewerScreen(params: {
     return (
       <StateBlock
         title="Open this from the thread"
-        actions={[{ label: 'Back', onPress: () => (router.canGoBack() ? router.back() : router.replace('/conversations')) }]}
+        actions={[
+          { label: 'Back', onPress: () => (router.canGoBack() ? router.back() : router.replace('/conversations')) },
+        ]}
       />
     );
   return <Viewer key={params.messageId} scope={scope} thread={thread} messageId={params.messageId} />;
@@ -300,7 +318,14 @@ export function SnippetViewerScreen(params: {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: content.paper },
-  screen: { gap: spacing[4], paddingHorizontal: layout.gutter, backgroundColor: content.paper, width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
+  screen: {
+    gap: spacing[4],
+    paddingHorizontal: layout.gutter,
+    backgroundColor: content.paper,
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
+  },
   card: {
     gap: spacing[3],
     padding: spacing[4],

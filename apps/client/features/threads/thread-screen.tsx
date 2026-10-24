@@ -143,7 +143,7 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
         </View>
       ) : null}
       {current === undefined ? null : (
-        <>
+        <View style={styles.column}>
           <EpisodeNavigator
             episodes={episodes}
             selected={current.assetId}
@@ -164,7 +164,7 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
             positionRef={positionRef}
             summary={rootSummary}
           />
-        </>
+        </View>
       )}
       <ThreadMessages
         state={state}
@@ -176,10 +176,12 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
       />
       <Composer
-        name={state.participants
-          .filter((participant) => !participant.you)
-          .map((participant) => participant.person.displayName.split(' ')[0])
-          .join(' and ') || 'everyone'}
+        name={
+          state.participants
+            .filter((participant) => !participant.you)
+            .map((participant) => participant.person.displayName.split(' ')[0])
+            .join(' and ') || 'everyone'
+        }
         value={draft}
         onChange={keepDraft}
         onSend={(text) => {
@@ -251,7 +253,12 @@ function ResolvedThread({
       title="This thread isn’t available"
       body="It may have ended, or you may no longer have access."
       actions={[
-        { label: 'Back to Talk', role: 'link', href: '/conversations', onPress: () => router.replace('/conversations') },
+        {
+          label: 'Back to Talk',
+          role: 'link',
+          href: '/conversations',
+          onPress: () => router.replace('/conversations'),
+        },
       ]}
     />
   );
@@ -287,7 +294,13 @@ export function ThreadScreen(params: {
         <StateBlock
           title="Sign in to read this thread"
           actions={[
-            { label: 'Sign in', variant: 'primary', role: 'link', href: '/welcome', onPress: () => router.navigate('/welcome') },
+            {
+              label: 'Sign in',
+              variant: 'primary',
+              role: 'link',
+              href: '/welcome',
+              onPress: () => router.navigate('/welcome'),
+            },
           ]}
         />
       )}
@@ -299,4 +312,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
+  /** The episodes and the encounter keep the reading measure, centred, on wide screens (the multi-pane layout is D03). */
+  column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
 });

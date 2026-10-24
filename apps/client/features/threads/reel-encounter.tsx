@@ -89,7 +89,10 @@ export function useReelExposure(scope: AccountScope, assetId: string) {
           newId: newCommandId,
         });
         recorder.current = made;
-        setState({ status: 'ready', exposure: { exposureId: opened.exposureId, document: grant.document, recorder: made } });
+        setState({
+          status: 'ready',
+          exposure: { exposureId: opened.exposureId, document: grant.document, recorder: made },
+        });
       } catch {
         if (mounted.current && scope.active) setState({ status: 'unavailable' });
       } finally {
@@ -121,6 +124,7 @@ export function ReelEncounter({
   active,
   positionRef,
   onOpened,
+  stageMaxHeight,
   afterEnd,
 }: {
   readonly scope: AccountScope;
@@ -132,6 +136,8 @@ export function ReelEncounter({
   readonly positionRef?: Ref<ReelPositionHandle> | undefined;
   /** Called once the Reel is open, with the revision and length actually playing. */
   readonly onOpened?: ((document: ReelDocument) => void) | undefined;
+  /** The most height the picture may take, so a screen with more on it stays usable. */
+  readonly stageMaxHeight?: number | undefined;
   readonly afterEnd?: ReactNode;
 }) {
   const { state, start } = useReelExposure(scope, assetId);
@@ -171,22 +177,27 @@ export function ReelEncounter({
   }, [exposure, moment, handle]);
 
   if (state.status === 'unavailable')
-    return (
-      <StateBlock title="This Reel isn't available" body="Check your connection, then try again." />
-    );
+    return <StateBlock title="This Reel isn't available" body="Check your connection, then try again." />;
   if (state.status === 'opening') return <Skeleton rows={2} label="Opening the Reel" />;
   if (exposure === undefined || watched === undefined)
     return (
       <View style={styles.poster}>
-        <Text variant="title" color={content.paper} numberOfLines={2}>
-          {title}
-        </Text>
-        {summary === undefined || summary === '' ? null : (
-          <Text variant="bodyS" color={content.paper} numberOfLines={3}>
-            {summary}
+        <View style={styles.posterText}>
+          <Text variant="ui" color={content.paper} numberOfLines={2}>
+            {title}
           </Text>
-        )}
-        <Button label={moment === undefined ? 'Play' : 'Play this moment'} icon="play" variant="continue" onPress={start} />
+          {summary === undefined || summary === '' ? null : (
+            <Text variant="meta" color={content.paper} numberOfLines={2}>
+              {summary}
+            </Text>
+          )}
+        </View>
+        <Button
+          label={moment === undefined ? 'Watch' : 'Watch this moment'}
+          icon="play"
+          variant="continue"
+          onPress={start}
+        />
       </View>
     );
   return (
@@ -200,6 +211,7 @@ export function ReelEncounter({
         active={active && !ended}
         positionRef={handle}
         initialPositionMs={moment?.startMs}
+        stageMaxHeight={stageMaxHeight}
       />
       {ended ? (
         <View style={styles.ended}>
@@ -220,12 +232,15 @@ export function ReelEncounter({
 
 const styles = StyleSheet.create({
   poster: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: spacing[3],
-    padding: spacing[5],
+    padding: spacing[4],
     borderRadius: radius.panel,
     backgroundColor: content.ink,
-    alignItems: 'flex-start',
   },
+  posterText: { flexGrow: 1, flexShrink: 1, flexBasis: 160, gap: spacing[1] },
   player: { gap: spacing[2] },
   ended: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
 });
