@@ -19,7 +19,7 @@ import { useEncounterSession } from '../encounter/use-encounter-session';
 import { railWidth, usesRail } from '../shell/app-navigation';
 import { ReelPage } from '../reel/reel-page';
 import { useDisplay } from '@knowscroll/ui';
-import { DesktopReelFrame } from './desktop-reel-frame';
+import { ReelFrame } from './reel-frame';
 import { FirstArrivalHint } from './first-arrival-hint';
 import { FirstArrivalScreen } from './first-arrival-screen';
 import { asideWidthFor, ThreadAside } from './thread-aside';
@@ -155,18 +155,19 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
         {showSurface ? (
           <EncounterPage reading={entry.kind === 'scroll'}>
             <View style={styles.centered}>
-              {framedReel ? (
-                <DesktopReelFrame
+              {entry.kind === 'reel' ? (
+                <ReelFrame
                   entry={entry}
                   state={state}
                   session={session}
+                  framed={framedReel}
                   areaWidth={windowWidth - railWidth(breakpoint) - asideWidth}
                 >
-                  {encounterView(true)}
+                  {encounterView(framedReel)}
                   {openingNotice}
-                </DesktopReelFrame>
+                </ReelFrame>
               ) : (
-                <View style={entry.kind === 'reel' ? styles.reelColumn : styles.readingColumn}>
+                <View style={styles.readingColumn}>
                   {encounterView(false)}
                   {openingNotice}
                 </View>
@@ -200,8 +201,7 @@ const styles = StyleSheet.create({
   ground: { flex: 1, minHeight: 0, flexDirection: 'row' },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
-  centered: { flex: 1, minHeight: 0, alignItems: 'center' },
-  reelColumn: { flex: 1, minHeight: 0, width: '100%', maxWidth: 480 },
+  centered: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center' },
   readingColumn: { flex: 1, minHeight: 0, width: '100%', maxWidth: layout.measureDesktop + 2 * layout.gutter },
   opening: { position: 'absolute', top: '45%', left: 24, right: 24 },
 });

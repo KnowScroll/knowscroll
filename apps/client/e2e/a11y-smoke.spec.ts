@@ -36,7 +36,7 @@ async function seriousViolations(page: Page): Promise<Violation[]> {
       rule: violation.id,
       impact: violation.impact ?? '',
       help: violation.help,
-      targets: violation.nodes.slice(0, 4).map((node) => node.target.join(' ')),
+      targets: violation.nodes.slice(0, 4).map((node) => `${node.target.join(' ')}  ${node.html.slice(0, 140)}`),
     }));
 }
 
@@ -240,8 +240,15 @@ test.describe('the Universe', () => {
       await expectAccessible(page, () =>
         expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible(),
       );
-      await page.getByRole('button', { name: 'List view', exact: true }).click();
-      await expectAccessible(page, () => expect(page.getByRole('main')).toBeVisible());
+      // From 1024 px the outline is always open beside the map; below it, it is a sheet.
+      if (size.width < 1024) {
+        await page.getByRole('button', { name: 'List view', exact: true }).click();
+        await expectAccessible(
+          page,
+          () => expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible(),
+          false,
+        );
+      }
     });
   }
 });

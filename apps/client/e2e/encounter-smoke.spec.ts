@@ -297,7 +297,9 @@ test('the full-bleed Reel keeps every control reachable and the same video acros
       const parts = {
         rail: await rect(page.getByRole('group', { name: 'Actions' })),
         tab: await rect(
-          page.getByTestId('encounter-continuation-edges').getByRole('button', { name: /^Another related explanation/ }),
+          page
+            .getByTestId('encounter-continuation-edges')
+            .getByRole('button', { name: /^Another related explanation/ }),
         ),
         title: await rect(page.getByTestId('encounter-reel-caption')),
         progress: await rect(page.getByLabel('Reel progress')),

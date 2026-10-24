@@ -49,24 +49,28 @@ function KeyHints() {
 }
 
 /**
- * A Reel on a desktop (D01): the video is a card on the paper ground, the subject buttons and the
- * Reel/Scroll switch sit above it, the action rail beside it and the next-subject row with the key
- * hints below. The card's size follows the window (explicit, so the player never measures its
- * parent). The thread beside the encounter is the shell's `ThreadAside`.
+ * The Reel's column in Explore. `framed` (a desktop, D01) draws the video as a card on the paper
+ * ground, the subject buttons and the Reel/Scroll switch above it, the action rail beside it and
+ * the next-subject row with the key hints below; the card's size follows the window (explicit, so
+ * the player never measures its parent). Unframed it is only the full-bleed column. Both layouts
+ * are one element tree with the same slots, so the player and its video survive a resize across
+ * the breakpoint. The thread beside the encounter is the shell's `ThreadAside`.
  */
-export function DesktopReelFrame({
+export function ReelFrame({
   entry,
   state,
   session,
+  framed,
   areaWidth,
   children,
 }: {
   readonly entry: EncounterEntry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
+  readonly framed: boolean;
   /** Width of the column this frame fills: the window minus the rail and the thread aside. */
   readonly areaWidth: number;
-  /** The Reel itself, drawn `framed`. */
+  /** The Reel itself, drawn `framed` or not to match. */
   readonly children: ReactNode;
 }) {
   const { height } = useWindowDimensions();
@@ -76,15 +80,14 @@ export function DesktopReelFrame({
     Math.round(cardHeight * CARD_RATIO),
     Math.max(240, areaWidth - RAIL_ROOM - 2 * spacing[5]),
   );
+  const columnWidth = Math.min(areaWidth - 2 * spacing[5], Math.max(cardWidth + RAIL_ROOM, TOP_ROW_MIN_WIDTH));
   const idle = state.phase !== 'active';
   return (
-    <View testID="explore-desktop-frame" style={styles.frame}>
-      <View
-        style={[
-          styles.column,
-          { width: Math.min(areaWidth - 2 * spacing[5], Math.max(cardWidth + RAIL_ROOM, TOP_ROW_MIN_WIDTH)) },
-        ]}
-      >
+    <View
+      testID={framed ? 'explore-desktop-frame' : undefined}
+      style={framed ? [styles.column, { width: columnWidth }] : styles.fullColumn}
+    >
+      {framed ? (
         <View style={styles.top}>
           <Button
             label="Previous subject"
@@ -97,12 +100,18 @@ export function DesktopReelFrame({
           <IconButton icon="more" label="More options" variant="paper" onPress={() => session.setOverlay(true)} />
           {entry.kind === 'reel' && entry.document.fixture ? <Tag label="Fixture video" variant="neutral" /> : null}
         </View>
-        <View style={styles.middle}>
-          <View style={[styles.card, { width: cardWidth, height: cardHeight }]}>{children}</View>
+      ) : null}
+      <View style={framed ? styles.middle : styles.fullMiddle}>
+        <View style={framed ? [styles.card, { width: cardWidth, height: cardHeight }] : styles.fullMiddle}>
+          {children}
+        </View>
+        {framed ? (
           <View style={styles.rail}>
             <EncounterRail entry={entry} state={state} session={session} surface="paper" />
           </View>
-        </View>
+        ) : null}
+      </View>
+      {framed ? (
         <View style={styles.footer}>
           <Button
             label="Next subject"
@@ -114,14 +123,15 @@ export function DesktopReelFrame({
           />
           <KeyHints />
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  frame: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center' },
-  column: { paddingVertical: VERTICAL_PADDING, gap: spacing[3] },
+  column: { alignSelf: 'center', paddingVertical: VERTICAL_PADDING, gap: spacing[3] },
+  fullColumn: { flex: 1, minHeight: 0, width: '100%', maxWidth: CARD_MAX_WIDTH },
+  fullMiddle: { flex: 1, minHeight: 0 },
   top: {
     flexDirection: 'row',
     flexWrap: 'wrap',
