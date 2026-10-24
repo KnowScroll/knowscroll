@@ -5,6 +5,7 @@ import type {
   ScenarioKind,
   ScenarioOption,
   ScenarioParent,
+  ScenarioSuggestion,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { apiProblem } from './api-client';
@@ -23,6 +24,8 @@ export interface ScenarioBoardState {
   readonly phase: 'loading' | 'ready' | 'unavailable' | 'failed';
   /** The thread's branches, oldest first, removed ones included. */
   readonly cards: readonly ScenarioCard[];
+  /** What this member was offered and has not made: private to them, not branches, never numbered. */
+  readonly suggestions: readonly ScenarioSuggestion[];
   /** The last read did not arrive; what is shown may be out of date. */
   readonly offline: boolean;
 }
@@ -49,7 +52,7 @@ export function createScenarioBoard(options: {
 }): ScenarioBoardController {
   const { scope, thread, newId } = options;
   const listeners = new Set<() => void>();
-  let state: ScenarioBoardState = { phase: 'loading', cards: [], offline: false };
+  let state: ScenarioBoardState = { phase: 'loading', cards: [], suggestions: [], offline: false };
   /** A removal that may or may not have reached the server keeps its command, so a retry is the same command. */
   const removals = new Map<string, string>();
   const publish = (patch: Partial<ScenarioBoardState>) => {
@@ -61,12 +64,12 @@ export function createScenarioBoard(options: {
   async function load(): Promise<void> {
     try {
       const list = await scope.api.scenarios.list({ version: VERSION, readId: newId(), thread });
-      if (list.status === 'unavailable') publish({ phase: 'unavailable', cards: [], offline: false });
-      else publish({ phase: 'ready', cards: list.cards, offline: false });
+      if (list.status === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [], offline: false });
+      else publish({ phase: 'ready', cards: list.cards, suggestions: list.suggestions, offline: false });
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
-      if (kind === 'unavailable') publish({ phase: 'unavailable', cards: [] });
+      if (kind === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [] });
       else if (state.phase === 'loading') publish({ phase: 'failed', offline: kind === 'offline' });
       else publish({ offline: true });
     }
@@ -144,6 +147,8 @@ export interface ScenarioComposerController {
   readonly begin: (ask: ScenarioAsk) => Promise<void>;
   /** Looks at the draft again while it is thinking. A poll calls this. */
   readonly refresh: () => Promise<void>;
+  /** Picks up a draft the member already has (an offer they have not made): its directions come back as `ready`. */
+  readonly attach: (draftId: string) => Promise<void>;
   /** Chooses one direction or submits the member's own request. Only this commissions anything. */
   readonly choose: (selection: ScenarioSelection) => Promise<void>;
   /** Tries the step that was blocked by a lost answer again, with the same command. */
@@ -277,6 +282,14 @@ export function createScenarioComposer(options: {
       return send(ask);
     },
     refresh,
+    attach: (id) => {
+      draftId = id;
+      askCommandId = newId();
+      choiceCommands.clear();
+      lastStep = undefined;
+      publish({ ...idle, phase: 'thinking' });
+      return refresh();
+    },
     choose,
     retry: () => (lastStep === undefined ? Promise.resolve() : lastStep()),
     reset: () => {
@@ -316,38 +329,75 @@ const MIN_STATEMENT = 3;
  * The member's complete request as the server takes it, or nothing while it is not complete: a what-if
  * needs one sentence that changes something, a perspective needs a lens. A line keeps its subject when it
  * has one (so it replaces the premise of that subject instead of standing beside it); a new line is named
- * by its first words, and so adds a premise.
+ * by its first words, and so adds a premise. A request edited from one of the draft's directions names it
+ * (`fromOptionId`): the server keeps that direction's speculative flag for it.
  */
 export function ownSelection(request: {
   readonly kind: ScenarioKind;
   readonly changes: readonly OwnRow[];
   readonly kept: readonly OwnRow[];
   readonly lens: string;
+  readonly fromOptionId?: string | undefined;
 }): Extract<ScenarioSelection, { kind: 'own' }> | undefined {
+  const from = request.fromOptionId === undefined ? {} : { fromOptionId: request.fromOptionId };
   if (request.kind === 'perspective') {
     const lens = request.lens.trim();
-    return lens.length >= MIN_STATEMENT ? { kind: 'own', changes: [], kept: [], lens } : undefined;
+    return lens.length >= MIN_STATEMENT ? { kind: 'own', changes: [], kept: [], lens, ...from } : undefined;
   }
   const assumptions = (rows: readonly OwnRow[]): Assumption[] =>
     rows
       .map((row) => ({ subject: row.subject ?? subjectOfStatement(row.statement), statement: row.statement.trim() }))
       .filter((row) => row.statement.length >= MIN_STATEMENT);
   const changes = assumptions(request.changes);
-  return changes.length === 0 ? undefined : { kind: 'own', changes, kept: assumptions(request.kept) };
+  return changes.length === 0 ? undefined : { kind: 'own', changes, kept: assumptions(request.kept), ...from };
 }
 
 /** One assumption the way a chip says it: "Changed: traffic is ten times higher". */
-export const chipText = (prefix: 'Changed' | 'Kept', assumption: Assumption): string =>
+export const chipText = (prefix: 'Changed' | 'Kept' | 'Replaces', assumption: Assumption): string =>
   `${prefix}: ${assumption.statement.charAt(0).toLowerCase()}${assumption.statement.slice(1)}`;
 
-/** The summary a screen reader gets for an option: what changes, what stays, or the lens. */
-export function describeOption(option: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'>): string {
+const subjectKey = (subject: string): string => subject.normalize('NFKC').toLowerCase().replaceAll(/\s+/gu, ' ').trim();
+
+/**
+ * The premises of the branch this continues that an option would drop: for each change, the premise it names
+ * (`replaces`) or, naming none, the one of its own subject. The member sees these before choosing, so what is
+ * taken out is never a surprise.
+ */
+export function replacedPremises(
+  option: Pick<ScenarioOption, 'changes'>,
+  premises: readonly Assumption[],
+): readonly Assumption[] {
+  const found = option.changes.flatMap((change) => {
+    const target = subjectKey(change.replaces ?? change.subject);
+    const premise = premises.find((candidate) => subjectKey(candidate.subject) === target);
+    return premise === undefined ? [] : [premise];
+  });
+  return [...new Set(found)];
+}
+
+/** The summary a screen reader gets for an option: what changes, what it replaces, what stays, or the lens. */
+export function describeOption(
+  option: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'>,
+  premises: readonly Assumption[] = [],
+): string {
   if (option.lens !== undefined) return `Another perspective: ${option.lens}.`;
   const changed = option.changes.map((change) => chipText('Changed', change)).join('. ');
+  const replaced = replacedPremises(option, premises)
+    .map((premise) => chipText('Replaces', premise))
+    .join('. ');
   const kept = option.kept.map((keep) => chipText('Kept', keep)).join('. ');
-  return [changed, kept].filter((part) => part !== '').join('. ') + '.';
+  return [changed, replaced, kept].filter((part) => part !== '').join('. ') + '.';
 }
 
 /** The kind of a card in the reader's words, for its kicker and its accessible name. */
 export const kindWord = (card: Pick<ScenarioCard, 'kind'>): string =>
   card.kind === 'what_if' ? 'What if' : 'Another perspective';
+
+/**
+ * A branch named with its kind, "What if · <idea>", unless its own title already says it (a what-if usually starts
+ * "What if…"): the kind is then not said twice.
+ */
+export const kindedTitle = (card: Pick<ScenarioCard, 'kind' | 'title'>): string => {
+  const kind = kindWord(card);
+  return card.title.toLowerCase().startsWith(kind.toLowerCase()) ? card.title : `${kind} · ${card.title}`;
+};

@@ -14,13 +14,10 @@ function ReaderBody({
   scope,
   thread,
   assetId,
-  branch,
 }: {
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
   readonly assetId: string;
-  /** A branch's Scroll: read here, but not shared from. */
-  readonly branch: boolean;
 }) {
   const router = useRouter();
   const [sharing, setSharing] = useState(false);
@@ -36,7 +33,7 @@ function ReaderBody({
             scroll={scroll}
             store={store}
             floating={
-              branch || send.status === 'sent' ? undefined : (
+              send.status === 'sent' ? undefined : (
                 <Button
                   label="Share from this Scroll"
                   icon="share"
@@ -56,7 +53,7 @@ function ReaderBody({
             }
           />
           <ShareFromScrollSheet
-            visible={!branch && sharing && send.status !== 'sent'}
+            visible={sharing && send.status !== 'sent'}
             document={scroll.document}
             store={store}
             threadName="this thread"
@@ -89,7 +86,6 @@ export function ThreadScrollReaderScreen(params: {
   readonly assetId: string;
   readonly m?: string | undefined;
   readonly r?: string | undefined;
-  readonly b?: string | undefined;
 }) {
   const { state } = useAccountScope();
   const router = useRouter();
@@ -104,7 +100,5 @@ export function ThreadScrollReaderScreen(params: {
         ]}
       />
     );
-  return (
-    <ReaderBody scope={state.scope} thread={thread} assetId={params.assetId.toLowerCase()} branch={params.b === '1'} />
-  );
+  return <ReaderBody scope={state.scope} thread={thread} assetId={params.assetId.toLowerCase()} />;
 }

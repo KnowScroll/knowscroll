@@ -19,6 +19,7 @@ const card = (n: number, createdAt: string, patch: Partial<ScenarioCard> = {}): 
   changes: [],
   kept: [],
   hypothetical: true,
+  speculative: false,
   assumptions: [],
   status: 'ready',
   revision: 1,

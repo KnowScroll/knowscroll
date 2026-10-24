@@ -525,7 +525,12 @@ menu, `message-step.tsx`) or from a shared moment or passage (the **What if…**
 rather than a route, so closing it returns to the same place in the thread. *Implemented; exercised in tests and a browser
 locally, not on dev.*
 
-Runtime-verified (web, 430 px, a local PostgreSQL, API and worker with the real model): asking from the whole thread and
+Runtime-verified for the branch view and the map (X03, X04: web, 430 px and 1280 px, a local PostgreSQL, API and worker with
+the real model, two people in one thread): a what-if, a perspective from a message, a what-if from the end of a branch
+("Try another assumption"), a speculative branch and one under it (it inherits), a removed branch, a branch still
+preparing, an offer the member did not make (shown to its owner only, never to the other member), the map from the
+thread and from inside a branch, search and the filters remembered per thread, and Back after choosing from a branch.
+Runtime-verified earlier (X01, X02): asking from the whole thread and
 from a message's ⋯ menu, a speculative idea asking to be confirmed, the branch card preparing and then ready without a
 reload, a second member opening the same Scroll, and a what-if continued from a branch. Not driven on native. The own-request
 form with earlier premises (add or replace) and the removed-branch note are covered by component tests, not yet driven in a browser.
@@ -551,7 +556,27 @@ form with earlier premises (add or replace) and the removed-branch note are cove
   reconnect; `useScenarioComposer` looks at its draft every 1.5 seconds while the directions are being thought of.
   `use-thread-scenarios.ts` holds where a request starts in one open thread, and `asks-bar.tsx` is the two buttons above the
   message box. The controllers are `createScenarioBoard` and `createScenarioComposer` in client-core.
-- Exploring a ready branch opens `/threads/<id>/read/<assetId>?...&b=1`, the thread's own reader without the share control (a
-  snippet points into the thread's sequence, which a branch is not).
-- Not built: the branch sequence view (X03) and the history map (X04), a retry for a failed branch.
+- Exploring a ready branch opens `/threads/<id>/b/<node>` (X03, `branch-screen.tsx`): the thread's title, "What if ·
+  <idea>" (a title that already starts "What if" is not prefixed twice), a yellow way back that names the part the member
+  had selected (or the thread), the branch's one item ("1 · current", "1 · preparing" until its Scroll exists),
+  "Speculative scenario · not established science" in words when it is, the Scroll, and at its end "Try another
+  assumption" (the words go to the same sheet, which asks for directions). A removed or unknown branch and a branch
+  still being prepared say so and keep only the way back. What the address shows is chosen by `branch-view.ts` from what was
+  read, and only a card that is there and `removed` says "removed": a thread that is not the member's shows the thread's
+  "This thread isn't available", a failed read shows "Can't open this branch" with Try again, and a branch missing among
+  those read shows "This branch isn't available" without saying why. `use-mark-here.ts` remembers on the device where the
+  member is. The **Map** button is here too once the thread has several
+  branches, so a member can move between branches without going back; "You" marks the branch they have open. The Scroll is the member's own encounter without
+  the thread's share control (`ThreadScrollArticle chrome="own"`). Where the member is stays on the device
+  (`thread.here.<id>`).
+- The **Map** button in the thread's header, and in a branch's (X04, `map-sheet.tsx`, `map-rows.tsx`, `use-thread-map.ts`) appears once the
+  thread has two or more branches. It is an overlay with a nested list: the original sequence, its branches nested, "You"
+  on the member's own place, removed branches as "Removed", suggestions dashed and unnumbered ("SUGGESTION · NOT MADE",
+  press to see its directions), a group of five or more folded after three ("More from Part 1 · Show"; a fold never hides a
+  single line). Opening a branch or a suggestion waits for the map's own browser-history entry to go (`afterPendingBack`),
+  as every sheet that navigates does. Search and Mine / Everyone / Suggestions
+  appear for a larger map; the filter and opened groups are remembered per thread on the device. `use-thread-branches.ts`
+  gathers what a thread does with its branches (asking, the map, opening one); `branch-sheets.tsx` holds its two overlays.
+- Not built: a discussion scoped to one branch, a position time in the way back, Resume on branch cards, a retry for a
+  failed branch, the map's "opened" observation.
 

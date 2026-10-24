@@ -20,15 +20,73 @@ export const repeatsSubject = (items: readonly Assumption[]): boolean =>
   new Set(items.map((item) => wordsKey(item.subject))).size !== items.length;
 
 /**
- * The assumptions that hold after a step: a change to a subject the parent already assumes replaces
- * it, any other change is added. The parent's order is kept, so a branch reads like its ancestors.
+ * One change of a step: the new assumption, and the earlier premise it takes the place of when it names it.
+ * A change that names one replaces it whatever its own subject says; one that does not replaces only the
+ * premise of its own subject, if there is one.
  */
-export function applyChanges(parent: readonly Assumption[], changes: readonly Assumption[]): Assumption[] {
+export interface StepChange extends Assumption {
+  readonly replaces?: string | undefined;
+}
+
+/** The subject whose premise a change takes over: the one it names, or its own. */
+export const targetOf = (change: StepChange): string => wordsKey(change.replaces ?? change.subject);
+
+/**
+ * The assumptions that hold after a step: a change replaces the premise it names (or, naming none, the one of
+ * its own subject), any other change is added. The replaced premise's place is kept, so a branch reads like its
+ * ancestors.
+ */
+export function applyChanges(parent: readonly Assumption[], changes: readonly StepChange[]): Assumption[] {
   const next = [...parent];
   for (const change of changes) {
-    const index = next.findIndex((existing) => wordsKey(existing.subject) === wordsKey(change.subject));
-    if (index === -1) next.push(change);
-    else next[index] = change;
+    const assumption = { subject: change.subject, statement: change.statement };
+    const index = next.findIndex((existing) => wordsKey(existing.subject) === targetOf(change));
+    if (index === -1) next.push(assumption);
+    else next[index] = assumption;
   }
   return next;
+}
+
+/** Words too common to say what a statement is about. */
+const FILLER = new Set(
+  (
+    'the and for with that this than then from into onto over under during each every all any some not but ' +
+    'would will could should can may might shall are was were been being has have had does did its their there ' +
+    'them they those these what which when where while who whom whose also only very more most much many such'
+  ).split(' '),
+);
+
+/** What a statement is about: its words of three letters or more that are not filler, in singular form. */
+function contentWords(text: string): Set<string> {
+  return new Set(
+    wordsKey(text)
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((word) => word.length >= 3 && !FILLER.has(word))
+      .map((word) => (word.length > 3 && word.endsWith('s') ? word.slice(0, -1) : word)),
+  );
+}
+
+/**
+ * Whether two assumptions have a content word in common, subject and statement together. The least that must hold
+ * for one to take the other's place under another subject: an unrelated premise is not silently dropped.
+ */
+export function sharesContentWord(a: Assumption, b: Assumption): boolean {
+  const left = contentWords(`${a.subject} ${a.statement}`);
+  return [...contentWords(`${b.subject} ${b.statement}`)].some((word) => left.has(word));
+}
+
+/** How alike two statements are, for a change that may be an adjusted premise: shared words, and their share of the shorter. */
+const RESTATES_MIN_SHARED = 4;
+const RESTATES_MIN_SHARE = 0.7;
+
+/**
+ * Whether a change says again, in other words, a premise that already holds: nearly every content word of
+ * the shorter statement is in the other. Such a change adjusts that premise, so it must say which one it
+ * replaces; left to stand beside it, the two would both reach the writer.
+ */
+export function restatesPremise(change: Assumption, premise: Assumption): boolean {
+  const a = contentWords(change.statement);
+  const b = contentWords(premise.statement);
+  const shared = [...a].filter((word) => b.has(word)).length;
+  return shared >= RESTATES_MIN_SHARED && shared / Math.min(a.size, b.size) >= RESTATES_MIN_SHARE;
 }
