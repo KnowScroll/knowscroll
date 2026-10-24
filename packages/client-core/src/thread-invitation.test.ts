@@ -80,9 +80,13 @@ describe('answering an invitation from Talk', () => {
 
 describe('who the thread composer addresses', () => {
   const named = (displayName: string, handle: string) => ({ displayName, handle });
-  it('uses first words, and the handle when two people share one', () => {
+  it('uses first words, a last initial when two share one, and the handle when that is shared too', () => {
     expect(composerAddressees([named('Ravi Kumar', 'ci.ravi'), named('Meera', 'ci.meera')])).toBe('Ravi and Meera');
-    expect(composerAddressees([named('J222 Test', 'ci.j222a'), named('J222 Other', 'ci.j222b')])).toBe(
+    expect(composerAddressees([named('J222 Alpha', 'ci.j222a'), named('J222 Beta', 'ci.j222b')])).toBe(
+      'J222 A. and J222 B.',
+    );
+    expect(composerAddressees([named('J222', 'ci.j222a'), named('J222 Test', 'ci.j222b')])).toBe('J222 and J222 T.');
+    expect(composerAddressees([named('J222 Test', 'ci.j222a'), named('J222 Tester', 'ci.j222b')])).toBe(
       '@ci.j222a and @ci.j222b',
     );
     expect(composerAddressees([named('Asha', 'a'), named('Ravi', 'r'), named('Meera', 'm')])).toBe(

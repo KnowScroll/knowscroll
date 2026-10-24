@@ -26,7 +26,7 @@ export function ThreadHeader({ peer, fallbackName, onBack, onMenu, onStartThread
         </Text>
       </View>
       {onStartThread === undefined ? null : (
-        <Button label="Start a thread" size="sm" icon="talk" onPress={onStartThread} testID="start-a-thread" />
+        <Button label="Start a thread" variant="ghost" size="sm" onPress={onStartThread} testID="start-a-thread" />
       )}
       {onMenu === undefined ? null : (
         <IconButton icon="more" label="Conversation options" variant="plain" onPress={onMenu} />

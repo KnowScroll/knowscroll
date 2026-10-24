@@ -195,4 +195,37 @@ describe('a content thread on the client', () => {
     await Promise.resolve();
     expect(scope.calls.filter((call) => call.name === 'markRead')).toHaveLength(1);
   });
+  it('marks where a lost connection left off, only when something arrived after it', async () => {
+    let lost = false;
+    const stored = [text(1, 'one')];
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView(stored)),
+      changes: () =>
+        lost
+          ? Promise.reject(new Error('network'))
+          : Promise.resolve({
+              status: 'ready',
+              changes: stored.map((message) => ({ changeSequence: message.sequence, message })),
+              continuation: { kind: 'caught_up', cursor: cursor(stored.length) },
+            }),
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    await controller.load();
+    await controller.refresh();
+    expect(controller.getState().awayAfterSequence).toBeUndefined();
+
+    lost = true;
+    await controller.refresh();
+    expect(controller.getState().offline).toBe(true);
+    lost = false;
+    await controller.refresh();
+    expect(controller.getState()).toMatchObject({ offline: false, awayAfterSequence: undefined });
+
+    lost = true;
+    await controller.refresh();
+    stored.push(text(2, 'two'), text(3, 'three'));
+    lost = false;
+    await controller.refresh();
+    expect(controller.getState().awayAfterSequence).toBe(1);
+  });
 });

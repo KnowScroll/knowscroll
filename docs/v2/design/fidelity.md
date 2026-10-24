@@ -13,12 +13,12 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | A01 | Link sent | matches | Fixed in #441: cream ground, yellow envelope, paper buttons (before: dark). | dev, fixed in #441 | [A01](fidelity/pairs/A01.jpg) |
 | A02 | Signed out (/recover) | differs | Cream ground and buttons fixed in #441; the "You'll return to" card is missing because no surface writes a resume record yet. | dev, #441 | [A01](fidelity/pairs/A01.jpg) |
 | A02 | Link failed (/recover?reason=link) | matches | Fixed in #441: cream ground, broken-link glyph, Send a new link. | dev, fixed in #441 | [A01](fidelity/pairs/A01.jpg) |
-| C01 | Inbox with rows | differs | Rows match (avatar, preview, time, unread dot); header shows the account avatar where the design has a New button, and a thread invitation is a plain row, not a card (see C03). | dev | [C01](fidelity/pairs/C01.jpg) |
+| C01 | Inbox with rows | matches | Fixed in #PR: New (+) button where the account avatar was, and a thread invitation is a card above the list (see C03). Rows were already as drawn. The drawn "Online" and "Recently active" words are presence, which the server does not have. | dev, fixed in #PR | [C01](fidelity/pairs/C01.jpg) |
 | C01 | Empty inbox | matches | No conversations yet, Share something, Invite a friend. | dev | [C01](fidelity/pairs/C01.jpg) |
-| C02 | Conversation | differs | Messages, shared card with Open Scroll, SENT and composer match; header lacks the person's avatar + Start a thread button, the card lacks the REEL · FROM 0:12 tag, and typing/delivery lines are not drawn. | dev | [C02](fidelity/pairs/C02.jpg) |
-| C03 | Invitation received | differs | Join this thread works, but the invitation is its own screen: no card in Talk, no Preview the thread link, no Ignore. | dev | [C03](fidelity/pairs/C03.jpg) |
+| C02 | Conversation | differs | Fixed in #PR: header has the person's avatar and Start a thread (turns the newest shared card into a thread, one command), and a "While you were away" divider marks messages that arrived after a lost connection, without moving the reader. Left: the card tag REEL · FROM 0:12 (needs contract: a direct-conversation card has no start time) and "Ravi is typing" (the server has no presence; not invented). | dev, fixture, fixed in #PR | [C02](fidelity/pairs/C02.jpg) |
+| C03 | Invitation received | matches | Fixed in #PR: the invitation is a card in Talk with Preview the thread, Join thread and Ignore (a decline for this person only; the starter sees nothing). The card names who asked and what it is about, not who else is in the thread, until the person joins. | fixture, fixed in #PR | [C03](fidelity/pairs/C03.jpg) |
 | C03 | Members sheet, Mute, Leave, ended and withdrawn lines | not checked | The thread has People in this thread and Thread options buttons; the sheet and ended lines were not opened. | - | - |
-| C04 | Thread (single item) | differs | Header, item card, Read this Scroll, What if and Another perspective chips and composer present; the drawn inline player, episode strip with Now/Preparing and Share moment are for Reel threads, and the timeline lacks presence line. | dev | [C04](fidelity/pairs/C04.jpg) |
+| C04 | Thread (single item) | differs | Header, episode strip with Now, inline player (Watch), Share a moment, Full screen, What if and Another perspective chips and composer are present; the divider from C02 also shows here. Left: Like and Save only on full screen (by decision), See all grid, Keep listening, a Preparing card in the strip, thumbnails, and "Ravi online" (no presence on the server). | dev, fixture | [C04](fidelity/pairs/C04.jpg) |
 | C04 | Thread (series of Reels) | not checked | No multi-part thread exists on dev; the episode navigator is covered by e2e talk-smoke. | - | - |
 | D01 | Desktop Explore | matches | Rail, Reel card, controls, shortcut row and thread aside (Go deeper, Open Scroll) as drawn; the aside shows no Talk preview card. | dev 1440x900 | [D01](fidelity/pairs/D01.jpg) |
 | D02 | Desktop Universe | not checked | A dev universe is empty, so the map, outline and station card were not compared at 1440x900; the phone fixture is under U01. | dev 1440x900 | [D02](fidelity/pairs/D02.jpg) |
@@ -100,11 +100,12 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 - #441 sign-in follow-up screens on paper (A01, A02).
 - #443 request states (E07), Requested in Keep, Try again, nothing more ready, ready-opened note (D-054).
 - #444 share landing poster card (H02), offline and unavailable encounter states (E01).
+- #PR Talk: New button and invitation card with Preview and Ignore (C01, C03), thread header with Start a thread and the "While you were away" divider (C02, C04), a thread composer that names two people who share a first word apart.
 
 ## Not fixed, and why
 
 - **Needs contract:** retry of the same request (E07), a correction field on an encounter (E01, E05), caption track or transcript on a Reel (E09, E01).
-- **Larger than a sweep:** Friends roster as one list (F01), Account identity card, Notifications and Accessibility & playback (P01), recording as a switch (P02, D05), Talk invitation card with Ignore and Preview (C03), conversation header and Start a thread (C02), share sheet header (H01).
+- **Larger than a sweep:** Friends roster as one list (F01), Account identity card, Notifications and Accessibility & playback (P01), recording as a switch (P02, D05), share sheet header (H01).
 - **Not opened:** thread presence and members sheet (C03), snippet range handles (H03), failed and dismissed branches (X02), branch map (X04), three-person worlds (U07), series threads on dev (C04). They are drawn in code and covered by tests; no dev data reaches them yet.
 
 ## Honest limits

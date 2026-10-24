@@ -141,17 +141,27 @@ export async function answerThreadInvitation(
 }
 
 /**
- * Who a thread composer addresses ("Message Ravi and Meera"): each person's first word, and the
- * handle for any whose first word another person shares, so two "Sam"s are never both "Sam".
+ * Who a thread composer addresses ("Message Ravi and Meera"): each person's first word. When two
+ * people share a first word, each gets the first letter of the rest of the name ("Sam K."), and the
+ * handle if even that is shared, so nobody is ever named the same as someone else in the line.
  * Nobody to address reads "everyone".
  */
 export function composerAddressees(
   people: readonly { readonly displayName: string; readonly handle: string }[],
 ): string {
-  const firstWord = (person: { readonly displayName: string }) => person.displayName.trim().split(/\s+/)[0] ?? '';
+  const words = (person: { readonly displayName: string }) => person.displayName.trim().split(/\s+/);
+  const firstWord = (person: { readonly displayName: string }) => words(person)[0] ?? '';
+  const withInitial = (person: { readonly displayName: string }) => {
+    const initial = words(person).slice(1).join(' ').charAt(0).toUpperCase();
+    return initial === '' ? firstWord(person) : `${firstWord(person)} ${initial}.`;
+  };
+  const sameAs = (
+    label: (person: { readonly displayName: string }) => string,
+    person: { readonly displayName: string },
+  ) => people.filter((other) => label(other).toLowerCase() === label(person).toLowerCase()).length > 1;
   const names = people.map((person) => {
-    const shared = people.filter((other) => firstWord(other).toLowerCase() === firstWord(person).toLowerCase());
-    return shared.length > 1 ? `@${person.handle}` : firstWord(person);
+    if (!sameAs(firstWord, person)) return firstWord(person);
+    return sameAs(withInitial, person) ? `@${person.handle}` : withInitial(person);
   });
   if (names.length === 0) return 'everyone';
   return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)!}`;
