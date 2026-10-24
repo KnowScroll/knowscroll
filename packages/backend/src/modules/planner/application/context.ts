@@ -1,20 +1,7 @@
 import type { PersonalScopeTx } from '../../identity/public.js';
-import type { ExplorationSnapshot } from '../../personal-context/public.js';
+import { encounteredUnitsOf } from '../../personal-context/public.js';
 import { PLANNER_LIMITS, opportunityIssue } from '../domain/proposal.js';
 import type { FrozenContext, PlannerPorts, PlannerState } from './ports.js';
-
-/** Explanations the person has already met: qualified evidence and actual retained history. */
-export function encounteredUnitsOf(
-  snapshot: Pick<ExplorationSnapshot, 'supportingEvidence' | 'routing'>,
-): readonly string[] {
-  return [
-    ...new Set([
-      ...snapshot.supportingEvidence.filter((x) => x.qualified).map((x) => x.explanationUnitId),
-      ...snapshot.routing.recent.map((r) => r.explanationUnitId),
-      ...snapshot.routing.established.filter((u) => u.encountered).map((u) => u.explanationUnitId),
-    ]),
-  ];
-}
 
 /** No history reconstruction: union real plan/inventory/recent projection seeds under one cap. */
 export async function prepareContext(

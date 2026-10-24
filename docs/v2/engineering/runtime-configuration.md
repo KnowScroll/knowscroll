@@ -28,6 +28,8 @@ print them.
 | `KS_SCOPE_LOCK_TIMEOUT_MS` | 5000 | longest wait for a personal-scope lock before a retryable 503; must be below `KS_DB_STATEMENT_TIMEOUT_MS` |
 | `KS_AUTH_ADAPTER` | `session` | how callers are authenticated. `session`: identity's sessions (S1.3, D-022) — the web session cookie or `Authorization: Bearer kss_…` (and the Socket.IO `auth.token`). `test-bearer`: CI fixture that trusts `Authorization: Bearer test.<accountId>` (and the Socket.IO `auth.token` `test.<accountId>`); refused at startup unless `NODE_ENV=test` **and** `KS_WORLD` is `ci` or `local` |
 | `KS_SOCKET_AUTH_CACHE_MS` | 30000 (max 30000) | how long a socket's authorisation (session validity and scope access) may be reused before a relayed hint rechecks it; cleared whenever the relay reconnects |
+| `KS_SUPPLY_CREATE_DAILY_CAP` | 20 in `local`, otherwise 0 | how many shared Scroll productions people's requests may start per UTC day (D-037); 0 turns Create off, so a request for missing supply closes as `budget_unavailable`. Set it to the same value as on the worker (max 500) |
+| `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` | 5 | how many productions the Planner's demand may start per UTC day, counted apart from people's asks so it cannot starve them; never above `KS_SUPPLY_CREATE_DAILY_CAP` (0 there turns Create off for both). Set the same value on the API and the worker (max 500) |
 | `KS_PUBLIC_ORIGIN` | production: **required**; else `http://127.0.0.1:<PORT>` | the world's own origin (`https://app.<world>.knowscroll.space`, D-008): sign-in links point at `<origin>/redeem`, and cookie-authenticated POST/PUT/PATCH/DELETE and socket handshakes must carry this `Origin`. A bare origin; production requires HTTPS except on a loopback host (the release smoke test). HTTPS also makes the session cookie `__Host-ks_session` and Secure (`ks_session` otherwise) |
 | `KS_MAIL_SENDER` | `agentmail` | how sign-in mail is sent. `agentmail` (production accepts nothing else) needs `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID`. `fixture`: CI only, records each mail (to `KS_FIXTURE_MAIL_FILE`, JSON lines, when set); refused unless `NODE_ENV=test` and `KS_WORLD` is `ci` or `local` |
 | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | required for `agentmail` | credentials (server: `/etc/knowscroll/secrets/shared/agentmail.env`, read by the API unit only). Never logged |
@@ -107,6 +109,10 @@ admitted or unchanged, 1 refused or failed, 2 usage. The release tree carries th
 | `KS_REASONING_GLOBAL_REQUESTS_PER_DAY`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY` | 300, 3,000,000 | daily caps (UTC day) for the whole process, counted from the minimal usage receipts |
 | `KS_REASONING_ROLE_REQUESTS_PER_DAY`, `KS_REASONING_ROLE_TOKENS_PER_DAY` | 200, 2,000,000 | default daily caps per role, across universes (a role may declare its own) |
 | `KS_REASONING_SCOPE_REQUESTS_PER_DAY`, `KS_REASONING_SCOPE_TOKENS_PER_DAY` | 60, 600,000 | daily caps per personal scope (one universe) |
+| `KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, `KS_REASONING_PRODUCTION_TOKENS_PER_DAY` | 200, 3,000,000 | daily caps for the nonpersonal production scope (`scroll-supply`) instead of the per-person caps: seeding the library takes about 70 writer requests and 1.4M tokens, and Create jobs add more. The global and role caps still apply, and the worker and the production operator commands both use these |
+| `KS_SCROLL_PRODUCTION_GENERATION` | 1 | the production scope generation the `content.produce-scroll` consumer works under; it must match the database root |
+| `KS_SUPPLY_CREATE_DAILY_CAP` | 20 in `local`, otherwise 0 | how many shared Scroll productions Quartermaster's Create may start per UTC day for people's asks (the worker commissions for an ask the resolver finds without a production; the API takes the request itself); 0 turns Create off, and a request for missing supply then closes as `budget_unavailable`. Set the same value on both processes (max 500) |
+| `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` | 5 | the part of that cap the Planner's demand may use (see the API row); the worker counts the Planner's productions against it |
 | `KS_REASONING_MAX_REQUEST_BYTES` | 262144 (max 262144) | largest request body; a larger one is refused (`request_too_large`) before anything is written |
 | `KS_REASONING_REQUEST_RETENTION_HOURS` | 48 (max 720) | how long the protected request bytes are kept before the scheduled purge deletes them |
 
@@ -127,6 +133,22 @@ Subcommands: `reasoning write-off --attempt <uuid> --reason <text>`, `reasoning 
 stdout, diagnostic records on stderr. Exit 0 done, 2 refused or not applicable, 1 failure. The API
 tree's `dist/operator.js` is a different command (`issue-sign-in`). Running it on a world:
 `docs/v2/operations/environments.md`.
+
+## Library production operator (`node dist/operator.js content …` in the `worker/` tree)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KS_WORLD` | required | only `dev`, `stage`, `ci` or `local`; refused before the database is touched |
+| `DATABASE_URL` | required | the world's database (credential) |
+| `KS_DB_STATEMENT_TIMEOUT_MS` | 15000 | as for the API |
+
+`produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends the `content.produce-scroll`
+jobs of recipes that need one, and `production-status [--only <keys>]` lists every recipe's standing.
+Neither calls a provider or needs a key. `produce-scroll --topic <key> [--take <1-3>] [--dry-run]
+[--resume]` runs one job directly and needs the worker's reasoning variables
+(`KS_REASONING_PROVIDER=minimax`, `MINIMAX_API_KEY`, `KS_REASONING_PRODUCTION_ENABLED=1`,
+`KS_SCROLL_PRODUCTION_GENERATION`, and the production caps). One JSON line on stdout, diagnostics on
+stderr. Exit 0 done, 2 refused or not applicable, 1 failure. Steps: `docs/v2/operations/scroll-production.md`.
 
 ## Migrate (`node dist/migrate.js` in the `api/` tree)
 

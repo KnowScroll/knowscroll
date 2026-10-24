@@ -179,7 +179,8 @@ separate ephemeral access credentials, never content provenance or consumption e
 
 ## Generated Scroll production
 
-The worker's `content produce-scroll --topic <recipe key> [--dry-run] [--resume]` runs one recipe
+Production runs as `content.produce-scroll` worker jobs, sent by Quartermaster and by the operator's
+`content produce-library`. The operator's `content produce-scroll --topic <recipe key> [--take n] [--dry-run] [--resume]` runs one recipe
 of the library plan (the keys are the record keys in `domain/library/`; an unknown key is refused
 before any database or provider work). It runs one content-owned writer call through the explicit
 nonpersonal harness (0013), never a personal universe: research and evidence passages by code, one

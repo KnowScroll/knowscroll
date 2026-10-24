@@ -174,6 +174,13 @@ export const diagnosticCatalogue = {
     module: 'content',
     fields: ['outcome', 'reasonCode', 'count', 'error'],
   },
+  // One delivery of the production job of a library recipe: the recipe key (`context`), the final
+  // outcome and its first code, and how many paid attempts the job holds. Never a draft or research.
+  'content.scroll_production_finished': {
+    severity: 'info',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'count', 'durationMs'],
+  },
   // Evidence intake (API) and projection (worker). Counts and codes; no event, block or exposure
   // content (D-017); personal-linkable IDs are withheld from the journal by the sink projection.
   'evidence.observations_ingested': {

@@ -10,10 +10,11 @@ export const ResolveSupplyJobSchema = z.strictObject({
 export type ResolveSupplyJob = z.infer<typeof ResolveSupplyJobSchema>;
 export const resolveSupplyQueue = defineQueue({
   name: 'supply.resolve-request',
-  purpose: 'Resolve one private waiter against current admitted inventory; no provider dispatch.',
+  purpose:
+    'Advance one private waiter: match a free-text ask to the catalogue, wait for the production that serves it, then bind admitted content or close the request.',
   payload: ResolveSupplyJobSchema,
   policy: {
-    expireInSeconds: 180,
+    expireInSeconds: 360,
     retryLimit: 3,
     retryDelaySeconds: 10,
     retryBackoff: true,
@@ -21,5 +22,6 @@ export const resolveSupplyQueue = defineQueue({
     deleteAfterSeconds: 2 * 86400,
     deadLetter: true,
   },
-  consumer: { localConcurrency: 1, pollingIntervalSeconds: 1 },
+  // A free-text match waits on a model call, so several waiters advance at once.
+  consumer: { localConcurrency: 4, pollingIntervalSeconds: 1 },
 });

@@ -26,7 +26,8 @@ export interface RequestState {
   readonly source?: Source;
   readonly receipt?: ContentRequestReceipt;
   readonly status?: ContentRequestStatus;
-  readonly error?: 'source' | 'read' | 'refused';
+  /** `too_many_open`: the person already has the most open asks they may have. */
+  readonly error?: 'source' | 'read' | 'refused' | 'too_many_open';
   readonly reading?: boolean;
 }
 const initial = (): RequestState => ({ phase: 'draft', mode: 'topic', text: '', format: 'either', about: false });
@@ -128,7 +129,10 @@ export function createRequestSession(
       if (!valid() || current !== generation) return;
       const problem = apiProblem(error);
       const refused = problem && problem.status >= 400 && problem.status < 500;
-      publish({ phase: refused ? 'refused' : 'send_unknown', error: refused ? 'refused' : undefined });
+      publish({
+        phase: refused ? 'refused' : 'send_unknown',
+        error: refused ? (problem.code === 'TOO_MANY_REQUESTS' ? 'too_many_open' : 'refused') : undefined,
+      });
     }
   }
   async function runCancel() {

@@ -72,7 +72,7 @@ export async function applyQueueDeclarations(boss: PgBoss, queues: readonly Queu
     const deadLetter = queue.policy.deadLetter ? deadLetterQueueName(queue.name) : undefined;
     if ((await boss.getQueue(queue.name)) === null) {
       await boss.createQueue(queue.name, {
-        policy: 'standard',
+        policy: queue.exclusive === true ? 'exclusive' : 'standard',
         ...options,
         ...(deadLetter === undefined ? {} : { deadLetter }),
       });
