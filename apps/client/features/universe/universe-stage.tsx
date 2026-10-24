@@ -88,6 +88,9 @@ export function UniverseStage({
   }, [session]);
   const onKeyDown: NonNullable<ViewProps['onKeyDown']> = (event) => {
     if (event.target !== event.currentTarget || !('key' in event.nativeEvent)) return;
+    // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.
+    const modified = event.nativeEvent as { altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean };
+    if (modified.altKey === true || modified.ctrlKey === true || modified.metaKey === true) return;
     const key = event.nativeEvent.key;
     const moves: Record<string, () => void> = {
       ArrowLeft: () => pan(-KEY_PAN, 0),

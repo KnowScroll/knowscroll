@@ -38,6 +38,14 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 Every page title reads "<title> · KnowScroll" (`platform/document-title.web.ts`, set when the
 screen gains focus; native screens have none).
 
+Explore by size (D01, V01): below 768 px the encounter fills the screen. From 768 px "This thread" sits beside it
+(`features/explore/thread-aside.tsx`, 212 px on tablets, 368 px on desktops): the part before, the open part, the next
+part, another angle and the other format, from the exposure context only. From 1024 px a Reel is a card
+(`features/explore/reel-frame.tsx`) with Previous subject, the Reel/Scroll switch and ⋯ above, the actions beside and
+Next subject with the key hints below; the card and the phone column are one element tree, so a resize never remounts
+the player. ↑ ↓ (subject), ← → (thread) and Space (play or pause) act while the Reel stage has focus. Not built: the
+whole list of a thread's parts, the thread's name and a "Talk" card (none is in the exposure context).
+
 Navigation by size (V01): floating tab bar on phones (icon-only ≤ 360 px), a 76 px rail on
 tablets (600–1023 px), an 88 px rail with the K mark and the account avatar on desktops
 (≥ 1024 px). The account route belongs to no tab; each tab keeps its own state and Back follows

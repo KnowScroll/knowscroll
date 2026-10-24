@@ -1,5 +1,5 @@
 import Svg, { Path } from 'react-native-svg';
-import { space } from '@knowscroll/design-tokens';
+import { space, target } from '@knowscroll/design-tokens';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { OrbitRing, PlanetGlyph, ShipGlyph, StarGlyph, StationGlyph } from './universe-bodies';
 import {
@@ -22,6 +22,28 @@ import {
   stationName,
   type SceneProps,
 } from './scene-parts';
+
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Room kept between a route's target and a planet's target (WCAG 2.5.8: targets that overlap need space). */
+const TARGET_GAP = 12;
+
+/**
+ * Where a route's tap target sits: on the middle of its curve, unless that is under a planet's own
+ * target (planets close together), when it drops just below them. The list view lists the same routes.
+ */
+function routeTargetAt(middle: Point, planets: readonly Point[], planetSide: number): Point {
+  const reach = planetSide / 2 + target.comfortable / 2 + TARGET_GAP;
+  const crowded = planets.some(
+    (planet) => Math.abs(planet.x - middle.x) < reach && Math.abs(planet.y - middle.y) < reach,
+  );
+  if (!crowded) return middle;
+  const lowest = Math.max(...planets.map((planet) => planet.y));
+  return { x: middle.x, y: Math.max(middle.y, lowest + reach) };
+}
 
 /**
  * U02: one system, organised by its star. Planets sit on orbits in the direction their persisted
@@ -145,7 +167,11 @@ export function SystemScene({
         {composition.routes.map((route) => {
           const from = at(route.from),
             to = at(route.to);
-          const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 + 14 * unit };
+          const middle = routeTargetAt(
+            { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 + 14 * unit },
+            [from, to],
+            Math.max(planetRadius * 2, target.comfortable),
+          );
           const named = (id: string) => index.byId.get(id)?.label ?? '';
           return (
             <BodyTarget

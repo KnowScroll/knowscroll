@@ -208,11 +208,11 @@ export function UniverseSurface({
 
   if (wide)
     return (
-      <View style={styles.ground} testID="universe-screen">
+      <View style={styles.ground} testID="universe-screen" role="main">
         <View style={styles.desktopRow}>
           {stage}
           {panel ? (
-            <View style={styles.panel}>
+            <View style={styles.panel} role="complementary" aria-label="Outline">
               <Text variant="label" color={content.ink2} style={styles.panelEyebrow}>
                 Outline · List view
               </Text>
@@ -236,7 +236,7 @@ export function UniverseSurface({
       </View>
     );
   return (
-    <View style={styles.ground} testID="universe-screen">
+    <View style={styles.ground} testID="universe-screen" role="main">
       {stage}
       {state.overlay === 'outline' ? (
         <UniverseListSheet
