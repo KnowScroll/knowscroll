@@ -37,6 +37,15 @@ describe('share landing page', () => {
     expect(html).toContain('<title>What one answer costs to serve · KnowScroll</title>');
   });
 
+  it('draws the kind as a decorative card, never the media, and none for an unavailable link', () => {
+    const reel = renderLanding(available, { signedIn: false });
+    expect(reel).toContain('<div class="poster" aria-hidden="true">');
+    expect(reel).toContain('<span class="chip">Reel</span>');
+    expect(renderLanding(corrected, { signedIn: false })).toContain('<span class="chip">Scroll</span>');
+    expect(renderLanding({ kind: 'unavailable' }, { signedIn: false })).not.toContain('<div class="poster"');
+    expect(reel).not.toMatch(/<(img|video|audio)\b/);
+  });
+
   it('leaves out the sign-in prompts for a signed-in person', () => {
     const html = renderLanding(available, { signedIn: true });
     expect(html).not.toContain('Sign in');
