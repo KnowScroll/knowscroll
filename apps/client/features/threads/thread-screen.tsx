@@ -195,6 +195,8 @@ function ReadyThread({
         scenarios={branches.scenarios}
         map={branches.map}
         suggestions={board.state.suggestions}
+        navigate="push"
+        onChosen={branches.scenarios.branchStarted}
         onOpenEpisode={place.select}
       />
       <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />

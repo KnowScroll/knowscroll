@@ -228,9 +228,12 @@ export function buildMap(input: {
   };
   const visible = top.filter(keep);
 
-  /** Lays a group out under its parent; past `GROUP_LIMIT` the rest fold until the member opens them. */
+  /**
+   * Lays a group out under its parent; past `GROUP_LIMIT` the rest fold until the member opens them. A fold
+   * that would hide a single line is not worth its own line, so it only starts at two.
+   */
   const place = (into: MapRow[], list: readonly Node[], depth: number, groupKey: string, parentTitle: string) => {
-    const folded = query === '' && !expanded.includes(groupKey) && list.length > GROUP_LIMIT;
+    const folded = query === '' && !expanded.includes(groupKey) && list.length > GROUP_LIMIT + 1;
     for (const node of folded ? list.slice(0, GROUP_LIMIT) : list) {
       into.push({ ...node.row, depth });
       place(into, node.children, depth + 1, node.id, node.row.title);

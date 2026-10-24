@@ -10,16 +10,19 @@ import { kindedTitle } from '@knowscroll/client-core';
 export const branchSubtitle = (card: Pick<ScenarioCard, 'kind' | 'title'>): string => kindedTitle(card);
 
 /**
- * The navigator of a branch (X03): the way back first, naming where it goes, then the branch's own items.
- * A branch is one Scroll, so it has one item and no "next" to prepare: nothing here is invented.
+ * The navigator of a branch (X03): the way back first, naming where it goes, then the branch's own item. A branch
+ * is one Scroll, so it has one item and no "next" to prepare: nothing here is invented. Until the Scroll exists
+ * the item says it is being prepared, and a branch with no item (removed, failed) shows only the way back.
  */
 export function BranchNavigator({
   returnLabel,
   returnSpoken,
+  item,
   onReturn,
 }: {
   readonly returnLabel: string;
   readonly returnSpoken: string;
+  readonly item: 'current' | 'preparing' | undefined;
   readonly onReturn: () => void;
 }) {
   return (
@@ -33,11 +36,17 @@ export function BranchNavigator({
         onPress={onReturn}
         testID="branch-return"
       />
-      <View style={styles.current} accessible accessibilityLabel="Item 1, current">
-        <Text variant="uiS" color={content.onAccent}>
-          1 · current
-        </Text>
-      </View>
+      {item === undefined ? null : (
+        <View
+          style={[styles.current, item === 'preparing' ? styles.preparingItem : null]}
+          accessible
+          accessibilityLabel={item === 'current' ? 'Item 1, current' : 'Item 1, preparing'}
+        >
+          <Text variant="uiS" color={item === 'current' ? content.onAccent : content.ink2}>
+            {item === 'current' ? '1 · current' : '1 · preparing'}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -104,6 +113,8 @@ const styles = StyleSheet.create({
     borderColor: content.ink,
     backgroundColor: content.accent,
   },
+  /** A dashed muted edge says "not here yet", as every preparing thing does. */
+  preparingItem: { borderStyle: 'dashed', borderColor: content.muted, backgroundColor: content.paper2 },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',

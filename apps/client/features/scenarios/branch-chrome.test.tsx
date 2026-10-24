@@ -10,13 +10,34 @@ describe('the branch navigator', () => {
   it('names where the way back goes, and shows the branch as its one current item', async () => {
     const onReturn = jest.fn();
     await render(
-      wrap(<BranchNavigator returnLabel="Part 2" returnSpoken="Back to Black holes, Part 2" onReturn={onReturn} />),
+      wrap(
+        <BranchNavigator
+          returnLabel="Part 2"
+          returnSpoken="Back to Black holes, Part 2"
+          item="current"
+          onReturn={onReturn}
+        />,
+      ),
     );
     expect(screen.getByText('Part 2')).toBeOnTheScreen();
     expect(screen.getByLabelText('Item 1, current')).toBeOnTheScreen();
     expect(screen.queryByText(/2 ·/)).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Back to Black holes, Part 2' }));
     expect(onReturn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a branch whose Scroll is not there yet', () => {
+  it('says its one item is being prepared, and shows no item at all when there is none', async () => {
+    const view = (item: 'current' | 'preparing' | undefined) => (
+      <BranchNavigator returnLabel="Black holes" returnSpoken="Back to Black holes" item={item} onReturn={jest.fn()} />
+    );
+    const { rerender } = await render(wrap(view('preparing')));
+    expect(screen.getByLabelText('Item 1, preparing')).toBeOnTheScreen();
+    expect(screen.queryByText('1 · current')).toBeNull();
+    await rerender(wrap(view(undefined)));
+    expect(screen.queryByLabelText(/^Item 1/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back to Black holes' })).toBeOnTheScreen();
   });
 });
 

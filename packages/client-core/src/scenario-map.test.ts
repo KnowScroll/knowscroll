@@ -204,6 +204,12 @@ describe('a long group', () => {
     expect(opened.some((row) => row.kind === 'more')).toBe(false);
   });
 
+  it('does not fold a single line behind a line of its own', () => {
+    const rows = view(many.slice(0, GROUP_LIMIT + 1)).rows;
+    expect(rows.filter((row) => row.kind === 'branch')).toHaveLength(GROUP_LIMIT + 1);
+    expect(rows.some((row) => row.kind === 'more')).toBe(false);
+  });
+
   it('does not hide a match behind a fold while the member searches', () => {
     const rows = view(many, [], { query: `branch ${String(GROUP_LIMIT + 2)}` }).rows;
     expect(rows.filter((row) => row.kind === 'branch').map((row) => row.kind === 'branch' && row.title)).toEqual([

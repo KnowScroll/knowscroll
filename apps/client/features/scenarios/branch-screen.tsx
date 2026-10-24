@@ -1,22 +1,23 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { returnTarget, saveHere, type AccountScope } from '@knowscroll/client-core';
+import { returnTarget, type AccountScope } from '@knowscroll/client-core';
 import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button, PendingStripe, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
+import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { OpenScroll, ThreadScrollArticle } from '../threads/scroll-open';
-import { selectedKey } from '../threads/own-place';
+import { useOwnPlace } from '../threads/own-place';
 import { threadHref, threadRefFromParams } from '../threads/thread-links';
 import { threadTitle } from '../threads/thread-chrome';
 import { useContentThread } from '../threads/use-content-thread';
 import { BranchNavigator, SpeculativeBanner, TryAnotherPrompt, branchSubtitle } from './branch-chrome';
-import { ScenarioSheet } from './scenario-sheet';
+import { BranchSheets } from './branch-sheets';
 import { useScenarioBoard } from './use-scenarios';
-import { useThreadScenarios } from './use-thread-scenarios';
+import { useThreadBranches } from './use-thread-branches';
 
 /** The branch itself, once its Scroll exists: the article, and a way to try another assumption from it. */
 function ReadyBranch({
@@ -84,40 +85,46 @@ function BranchBody({
   const insets = useSafeAreaInsets();
   const board = useScenarioBoard(scope, thread);
   const { state } = useContentThread(scope, thread);
+  const place = useOwnPlace(scope, thread.threadId);
   const card = board.state.cards.find((candidate) => candidate.nodeId === nodeId);
   const title = threadTitle(state);
-  const back = returnTarget(title, state.episodes, scope.storage.get(selectedKey(thread.threadId)));
-  const scenarios = useThreadScenarios({
-    board: board.controller,
-    cards: board.state.cards,
-    rootRevision: undefined,
+  useDocumentTitle(card === undefined || card.status === 'removed' ? title : `${branchSubtitle(card)} · ${title}`);
+  const back = returnTarget(title, state.episodes, place.selected);
+  const branches = useThreadBranches({
+    scope,
+    thread,
+    title,
+    state,
+    board,
+    selectedAssetId: place.selected,
+    hereNodeId: nodeId,
     onBranchStarted: () => undefined,
   });
-  // The member is in this branch until they come back: the map marks it as theirs, on this device only.
-  useEffect(() => {
-    saveHere(scope.storage, thread.threadId, { kind: 'branch', nodeId });
-  }, [scope, thread.threadId, nodeId]);
-  const toThread = useMemo(
-    () => () => {
-      saveHere(scope.storage, thread.threadId, { kind: 'original' });
-      if (router.canGoBack()) router.back();
-      else router.replace(threadHref(thread));
-    },
-    [router, scope, thread],
-  );
+  const toThread = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace(threadHref(thread));
+  };
   const ready = card?.status === 'ready' && card.content !== undefined ? { ...card, content: card.content } : undefined;
   return (
     <View role="main" style={[styles.screen, { paddingTop: insets.top + spacing[3] }]}>
       <View style={styles.head}>
-        <Text variant="title" heading={1} numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text variant="title" heading={1} numberOfLines={2} style={styles.grow}>
+            {title}
+          </Text>
+          {branches.mapOffered ? <Button label="Map" size="sm" variant="ghost" onPress={branches.map.show} /> : null}
+        </View>
         {card === undefined || card.status === 'removed' ? null : (
           <Text variant="uiS" color={content.accent} numberOfLines={2}>
             {branchSubtitle(card)}
           </Text>
         )}
-        <BranchNavigator returnLabel={back.label} returnSpoken={back.spoken} onReturn={toThread} />
+        <BranchNavigator
+          returnLabel={back.label}
+          returnSpoken={back.spoken}
+          item={ready === undefined ? (card?.status === 'preparing' ? 'preparing' : undefined) : 'current'}
+          onReturn={toThread}
+        />
         {card?.speculative === true ? <SpeculativeBanner /> : null}
       </View>
       {ready === undefined ? (
@@ -129,19 +136,24 @@ function BranchBody({
         <ReadyBranch
           scope={scope}
           card={ready}
-          onAsk={(words) => scenarios.continueBranch(ready, words)}
+          onAsk={(words) => branches.scenarios.continueBranch(ready, words)}
           onBack={toThread}
         />
       )}
-      <ScenarioSheet
-        start={scenarios.start}
+      <BranchSheets
         scope={scope}
         thread={thread}
-        onClose={scenarios.close}
+        scenarios={branches.scenarios}
+        map={branches.map}
+        suggestions={board.state.suggestions}
+        navigate="replace"
         onChosen={() => {
-          scenarios.branchStarted();
           // The sheet's own history entry goes first: leaving the branch before it has gone would pop that instead.
           notePendingBack();
+          afterPendingBack(toThread);
+        }}
+        onOpenEpisode={(assetId) => {
+          place.select(assetId);
           afterPendingBack(toThread);
         }}
       />
@@ -179,8 +191,24 @@ export function BranchScreen(params: {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
-  head: { gap: spacing[2], paddingHorizontal: layout.gutter, paddingBottom: spacing[3] },
+  /** The header keeps the reading measure, centred, on wide screens (the multi-pane layout is D03). */
+  head: {
+    gap: spacing[2],
+    paddingHorizontal: layout.gutter,
+    paddingBottom: spacing[3],
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  grow: { flex: 1 },
   article: { flex: 1 },
-  state: { gap: spacing[4], padding: layout.gutter },
+  state: {
+    gap: spacing[4],
+    padding: layout.gutter,
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
+  },
   preparing: { gap: spacing[2] },
 });

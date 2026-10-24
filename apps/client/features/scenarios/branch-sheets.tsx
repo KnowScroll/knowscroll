@@ -25,6 +25,8 @@ export function BranchSheets({
   scenarios,
   map,
   suggestions,
+  navigate,
+  onChosen,
   onOpenEpisode,
 }: {
   readonly scope: AccountScope;
@@ -32,6 +34,10 @@ export function BranchSheets({
   readonly scenarios: ReturnType<typeof useThreadScenarios>;
   readonly map: ReturnType<typeof useThreadMap>;
   readonly suggestions: readonly ScenarioSuggestion[];
+  /** Opening a branch from the map: on top of the thread, or in place of the branch already open. */
+  readonly navigate: 'push' | 'replace';
+  /** A branch was started from the sheet: where to go next. */
+  readonly onChosen: () => void;
   /** Selects an episode of the original sequence: the member's own place there. */
   readonly onOpenEpisode: (assetId: string) => void;
 }) {
@@ -43,7 +49,7 @@ export function BranchSheets({
         scope={scope}
         thread={thread}
         onClose={scenarios.close}
-        onChosen={scenarios.branchStarted}
+        onChosen={onChosen}
       />
       <MapSheet
         visible={map.open}
@@ -54,12 +60,9 @@ export function BranchSheets({
         onFilter={map.setFilter}
         onQuery={map.setQuery}
         onClose={map.close}
-        onOpenEpisode={(assetId) => {
-          map.close();
-          onOpenEpisode(assetId);
-        }}
+        onOpenEpisode={(assetId) => afterMapClosed(map.close, () => onOpenEpisode(assetId))}
         onOpenBranch={(nodeId) => {
-          afterMapClosed(map.close, () => router.push(branchHref(thread, nodeId)));
+          afterMapClosed(map.close, () => router[navigate](branchHref(thread, nodeId)));
         }}
         onOpenOffer={(draftId, optionId) => {
           const offer = suggestions.find((entry) => entry.draftId === draftId && entry.optionId === optionId);

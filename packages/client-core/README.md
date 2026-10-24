@@ -409,7 +409,7 @@ Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests an
   `invalid`, `stale`, `unavailable`, `offline`). Nothing it holds reaches the thread before a branch exists.
   `attach(draftId)` picks up a draft the member was offered and has not chosen, and shows its directions.
   The board also carries `suggestions`, the member's own unmade offers from `list`.
-- `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`: the words a screen uses for an assumption chip and a card.
+- `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`, `kindedTitle`: the words a screen uses for an assumption chip and a card (`kindedTitle` does not say "What if" twice).
 - `scenario-map.ts` (pure): `buildMap` makes the outline of a thread (X04) from its episodes, the branch cards and the
   member's offers: branches nested under the root episode, the Mine, Everyone and Suggestions filters (they keep the
   path to what they show), search (a removed branch never matches), folding after `GROUP_LIMIT`, "You" only on the

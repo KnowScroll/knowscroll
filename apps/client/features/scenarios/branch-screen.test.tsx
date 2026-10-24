@@ -9,9 +9,13 @@ import { BranchScreen } from './branch-screen';
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: mockBack, replace: mockReplace, push: jest.fn(), canGoBack: () => true }),
-}));
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual<typeof React>('react');
+  return {
+    useRouter: () => ({ back: mockBack, replace: mockReplace, push: jest.fn(), canGoBack: () => true }),
+    useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
+  };
+});
 const stored = new Map<string, string>();
 const mockScope = {
   active: true,
@@ -40,6 +44,7 @@ const mockThread = {
     target: { assetId: '0199a000-0000-7000-8000-0000000000a1', assetRevision: 1 },
     metadata: { kind: 'scroll', title: 'Black holes', summary: '', language: 'en' },
   },
+  participants: [{ you: true, person: { personId: '0199a000-0000-7000-8000-00000000000a' } }],
   episodes: [
     { assetId: id(0xa1), kind: 'scroll', part: 1, title: 'The edge', state: 'available', visited: false },
     { assetId: id(0xa2), kind: 'scroll', part: 2, title: 'Falling in', state: 'available', visited: false },
@@ -113,12 +118,22 @@ describe('a branch opened from its card or the map', () => {
     expect(screen.queryByText(/Speculative/)).toBeNull();
   });
 
-  it('marks the member as in this branch on this device, and back in the original on return', async () => {
+  it('marks the member as in this branch on this device, and goes back on the return chip', async () => {
     await open([card()]);
     expect(stored.get(`thread.here.${id(1)}`)).toBe(id(9));
     await fireEvent.press(screen.getByRole('button', { name: /^Back to Black holes/ }));
-    expect(stored.get(`thread.here.${id(1)}`)).toBeUndefined();
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the map once the thread has several branches, with the member’s place on this one', async () => {
+    await open([card()]);
+    expect(screen.queryByRole('button', { name: 'Map' })).toBeNull();
+    await screen.unmount();
+    await open([card(), card({ nodeId: id(10), title: 'the Moon were larger', kind: 'perspective' })]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Map' }));
+    expect(await screen.findByText('Map of this thread')).toBeOnTheScreen();
+    expect(screen.getAllByLabelText('You are here')).toHaveLength(1);
+    expect(screen.getByLabelText(/^What if · a black hole were a portal.*you are here/)).toBeOnTheScreen();
   });
 
   it('says a speculative branch is, in words, over its Scroll', async () => {
@@ -136,6 +151,7 @@ describe('a branch opened from its card or the map', () => {
   it('says a branch still being prepared is, and only offers the way back', async () => {
     await open([card({ status: 'preparing', content: undefined })]);
     expect(screen.getByText('Preparing the first Scroll')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Item 1, preparing')).toBeOnTheScreen();
     expect(screen.queryByLabelText('Try another assumption')).toBeNull();
     expect(screen.getAllByRole('button', { name: /^Back to Black holes/ }).length).toBeGreaterThan(0);
   });
@@ -144,6 +160,7 @@ describe('a branch opened from its card or the map', () => {
     await open([card({ status: 'removed', content: undefined })]);
     expect(screen.getByText('This branch was removed')).toBeOnTheScreen();
     expect(screen.queryByText(/black hole were a portal/)).toBeNull();
+    expect(screen.queryByLabelText(/^Item 1/)).toBeNull();
   });
 
   it('treats an unknown branch the same way as a removed one', async () => {

@@ -20,6 +20,8 @@ export function useThreadBranches(options: {
   readonly board: ReturnType<typeof useScenarioBoard>;
   /** The episode the member has selected in the original sequence. */
   readonly selectedAssetId: string | undefined;
+  /** The branch the member has open, when this is the branch's own screen: the map marks it as theirs. */
+  readonly hereNodeId?: string;
   readonly onBranchStarted: () => void;
 }) {
   const { scope, thread, state, board } = options;
@@ -41,11 +43,16 @@ export function useThreadBranches(options: {
     ownPersonId: state.participants.find((participant) => participant.you)?.person.personId,
     selectedAssetId: options.selectedAssetId,
   });
-  // Back on the thread's own page, the member is in the original sequence again.
+  // Where the member is, on this device only: a branch they have open, or the original sequence.
+  const { hereNodeId } = options;
   useFocusEffect(
     useCallback(() => {
-      saveHere(scope.storage, thread.threadId, { kind: 'original' });
-    }, [scope, thread.threadId]),
+      saveHere(
+        scope.storage,
+        thread.threadId,
+        hereNodeId === undefined ? { kind: 'original' } : { kind: 'branch', nodeId: hereNodeId },
+      );
+    }, [scope, thread.threadId, hereNodeId]),
   );
   return {
     scenarios,

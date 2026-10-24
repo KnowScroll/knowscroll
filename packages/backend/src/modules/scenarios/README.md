@@ -142,6 +142,10 @@ budgets for the Planner.
   stranger, an upper-case ID); a pool of one still opens, acts and lists; twenty drafts a day; both
   caps; the sweep; the Planner never sees a name. `account-deletion.test.ts` (erasure).
 - All of the above use a labelled fixture model and production worker.
-- Runtime, real model: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
+- Runtime, real model, branch view and map (24 Oct, a local PostgreSQL, API and worker, two people): 21 requests (one for
+  the root Scroll; 10 for the Planner, seven asks and three repairs after `OUTPUT_SCHEMA_MISMATCH`; 10 for writers, six
+  branches and four retried takes). Six branches were made, one removed, one still preparing was shown, one offer was
+  left unmade, and a branch under a speculative one inherited `speculative`. Screenshots are in the pull request.
+- Runtime, real model, the first part: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
   first take was rejected as `OUTPUT_SCHEMA_MISMATCH` and the sweep sent take 2, which published). Screenshots and numbers
   are in the pull request for #244.
