@@ -1399,6 +1399,7 @@ export interface ScenariosDrafts {
 export interface ScenariosNodes {
   asset_id: string;
   asset_revision: number | null;
+  asset_title: string | null;
   assumptions: Json;
   changes: Json;
   created_at: Timestamp;

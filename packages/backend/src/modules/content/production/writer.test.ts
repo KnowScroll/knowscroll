@@ -5,6 +5,7 @@ import { evidencePassages } from './evidence.js';
 import {
   compileGeneratedScroll,
   generatedProvenance,
+  libraryIdentity,
   writerFormatOf,
   writerInstructions,
   writerRole,
@@ -27,7 +28,7 @@ const page = extractResearch(
 );
 const passages = evidencePassages([page]);
 const provenance = generatedProvenance({
-  topic: 'seasons',
+  identity: libraryIdentity('seasons'),
   runId: 'ci-writer-run',
   attemptIds: ['ci-attempt'],
   model: 'MiniMax-M3.1-Flash',

@@ -24,11 +24,17 @@ import {
   makeWithPersonalScope,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { RENDER_SCROLL, type ImportEditorialScroll, type RenderScroll } from '@knowscroll/backend/modules/content';
+import {
+  CHECK_ASSET_AUDIENCE,
+  RENDER_SCROLL,
+  type ImportEditorialScroll,
+  type RenderScroll,
+} from '@knowscroll/backend/modules/content';
 import {
   contentProviders,
   contentRenderProviders,
   importEditorialScrollUseCase,
+  madeToOrderProviders,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   READ_PREPARED_ACTIVITY,
@@ -203,6 +209,10 @@ export async function scrollUseCases(
     ),
   ]);
   values.set(RENDER_SCROLL, buildFromProviders(contentRenderProviders({ database: DATABASE }), RENDER_SCROLL, values));
+  values.set(
+    CHECK_ASSET_AUDIENCE,
+    buildFromProviders(madeToOrderProviders({ database: DATABASE }), CHECK_ASSET_AUDIENCE, values),
+  );
   const composer = composerProviders({ isOperator: () => false });
   for (const p of composer) values.set(p.provide, p.useValue);
   const bufferProviders = options.buffers ? composerBufferProviders({ enqueueJob: ENQUEUE }) : [];

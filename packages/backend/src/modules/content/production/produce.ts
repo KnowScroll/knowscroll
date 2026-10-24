@@ -16,16 +16,16 @@ import type {
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
 import { completeWriterPublication, isSentAttempt } from './publication-topic.js';
+import { subjectOf, type ProductionKey, type ProductionSubject } from './subject.js';
 import type { AuthoredScroll, DraftProvenance } from '@knowscroll/scroll-model/producer';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
-import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
+import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION } from './topics.js';
 import {
   compileGeneratedScroll,
   generatedProvenance,
-  writerFormatOf,
+  promptVersionOf,
   writerRole,
-  WRITER_PROMPT_VERSION,
   type WriterFormat,
 } from './writer.js';
 
@@ -145,14 +145,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     return closed.kind === 'entered' ? closed.value : scopeRefused(row.id);
   }
 
-  /** Fetches the topic's public pages (no lock held) and freezes them on the job. */
+  /** Fetches the subject's public pages (no lock held) and freezes them on the job. */
   async function freezeResearch(
-    topic: ScrollTopic,
+    subject: ProductionSubject,
     row: ProductionRow,
   ): Promise<{ readonly pages: readonly ResearchPage[]; readonly row: ProductionRow } | ProduceScrollResult> {
     let pages: readonly ResearchPage[];
     try {
-      pages = await Promise.all(TOPICS[topic].pages.map((url) => (deps.research ?? fetchResearchPage)(url)));
+      pages = await Promise.all(subject.pages.map((url) => (deps.research ?? fetchResearchPage)(url)));
     } catch (error) {
       const refusal = error instanceof ResearchRefusal ? error : undefined;
       // A take is spent only on a verdict about the sources or the answer, never on a blip.
@@ -188,7 +188,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
 
   /** Closes the writer run and stores the revision, its provenance and the topic projection in one transaction. */
   async function publish(
-    topic: ScrollTopic,
+    subject: ProductionSubject,
     row: ProductionRow,
     receipts: readonly RoleReceipt[],
     authored: unknown,
@@ -199,7 +199,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       const current = await store.lock(tx, row.id);
       if (current.state !== 'writer') return false;
       return inAdmissionTransaction(tx, async (admissionTx) => {
-        const asset = await admission.lockAsset(admissionTx, TOPICS[topic].assetId);
+        const asset = await admission.lockAsset(admissionTx, subject.identity.assetId);
         const revisionConflict =
           (asset.kind === 'absent' && row.target_revision !== 1) ||
           (asset.kind === 'present' &&
@@ -214,9 +214,9 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           ]);
           return false;
         }
-        return completeWriterPublication(scope, deps.harness, row.id, row.writer_run_id, async () => {
+        return completeWriterPublication(scope, deps.harness, row.id, row.writer_run_id, subject.attribution, async () => {
           await admission.storeRevision(admissionTx, {
-            assetId: TOPICS[topic].assetId,
+            assetId: subject.identity.assetId,
             revision: row.target_revision,
             provenanceKind: 'generated',
             compiled,
@@ -228,14 +228,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
             'writer',
             'published',
             receipts,
-            { assetId: TOPICS[topic].assetId, revision: row.target_revision },
+            { assetId: subject.identity.assetId, revision: row.target_revision },
             { authored, claims: compiled.provenance['claims'] },
           );
         });
       });
     });
     if (applied.kind !== 'entered') return scopeRefused(row.id);
-    const final = await store.read(topic);
+    const final = await store.read(subject.key);
     return final === undefined
       ? { outcome: 'in_progress', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id }
       : summary(final);
@@ -246,7 +246,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
    * identities and publish it, or end the job with the findings.
    */
   async function settleWriterAnswer(
-    topic: ScrollTopic,
+    subject: ProductionSubject,
     row: ProductionRow,
     writer: Extract<ProposeOutcome<AuthoredScroll>, { kind: 'proposed' }>,
     context: {
@@ -276,7 +276,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           runId: row.writer_run_id,
           attemptIds: paidAttemptIds,
           model: deps.model,
-          promptVersion: WRITER_PROMPT_VERSION,
+          promptVersion: promptVersionOf(subject.mode),
         },
       },
       context.passages,
@@ -291,12 +291,12 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         recorded,
         row.writer_run_id,
       );
-    return publish(topic, row, recorded, writer.output, compiled);
+    return publish(subject, row, recorded, writer.output, compiled);
   }
 
   /** The writer stage: ask once (the harness allows one repair), then settle the answer. */
   async function writeAndPublish(
-    topic: ScrollTopic,
+    subject: ProductionSubject,
     row: ProductionRow,
     pages: readonly ResearchPage[],
     signal: AbortSignal,
@@ -307,10 +307,11 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     } catch (error) {
       return end(row, 'writer', 'rejected', [error instanceof EvidenceRefusal ? error.code : 'evidence_failed'], []);
     }
-    const format = writerFormatOf(TOPICS[topic]);
+    const format = subject.format;
     // The validation identity is fixed before dispatch; the final provenance substitutes the actual attempts.
     const provenance = generatedProvenance({
-      topic,
+      identity: subject.identity,
+      mode: subject.mode,
       revision: row.target_revision,
       runId: row.writer_run_id,
       attemptIds: [row.writer_run_id],
@@ -327,11 +328,11 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           purpose: 'scroll-writer',
           policyVersion: SCROLL_PRODUCTION_VERSION,
         },
-        role: writerRole({ provenance, passages, format }),
+        role: writerRole({ provenance, passages, format, mode: subject.mode }),
         context: {
           bundleRef: `scroll:${row.id}:research`,
           items: [
-            { ref: `brief:${topic}`, kind: 'production_brief', text: TOPICS[topic].brief },
+            { ref: `brief:${subject.key}`, kind: 'production_brief', text: subject.brief },
             { ref: `evidence:${row.id}`, kind: 'public_research_passages', text: evidenceText(passages) },
           ],
         },
@@ -357,19 +358,21 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         [writerReceipt(writer)],
         row.writer_run_id,
       );
-    return settleWriterAnswer(topic, row, writer, { provenance, passages, format });
+    return settleWriterAnswer(subject, row, writer, { provenance, passages, format });
   }
 
   return async (
-    topic: ScrollTopic,
+    key: ProductionKey,
     dryRun: boolean,
     signal: AbortSignal,
     resume = false,
     take = 1,
   ): Promise<ProduceScrollResult> => {
     if (dryRun) return { outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC };
+    const subject = await subjectOf(deps.db, key);
+    if (subject === undefined) return { outcome: 'unknown_recipe', requestBound: REQUEST_BOUND_PER_TOPIC };
     const reserved = await deps.withScope(deps.authority, (scope) =>
-      store.create(productionTransactionOf(scope), topic, deps.authority.generation, take),
+      store.create(productionTransactionOf(scope), key, subject.identity.assetId, deps.authority.generation, take),
     );
     if (reserved.kind !== 'entered') return scopeRefused();
     if (reserved.value.kind === 'take_refused')
@@ -381,11 +384,11 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
 
     let pages: readonly ResearchPage[] = row.research;
     if (row.state === 'research') {
-      const frozen = await freezeResearch(topic, row);
+      const frozen = await freezeResearch(subject, row);
       if ('outcome' in frozen) return frozen;
       ({ row, pages } = frozen);
     }
     if (row.state !== 'writer') return summary(row);
-    return writeAndPublish(topic, row, pages, signal);
+    return writeAndPublish(subject, row, pages, signal);
   };
 }

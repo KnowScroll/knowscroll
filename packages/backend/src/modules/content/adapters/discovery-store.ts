@@ -83,6 +83,11 @@ async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit:
     where a.status='admitted' and ${filter} order by r.asset_id,r.revision limit ${limit}`.execute(db);
   return result.rows;
 }
+/**
+ * A Scroll ordered from code (a thread's what-if or perspective) is never a candidate for anyone's
+ * Explore: it belongs to the thread it was made for (D-049). Exact reads still find it.
+ */
+const notOrdered = sql`not exists (select 1 from content.made_to_order_scrolls o where o.asset_id=r.asset_id)`;
 export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q) => {
   if (
     q.languages.length < 1 ||
@@ -99,12 +104,12 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
   const db = transactionOf(scope);
   const ids = await sql<{ asset_id: string }>`select asset_id from (
     (select r.asset_id,0 as priority from content.encounter_topics t join content.asset_revisions r on r.asset_id=t.asset_id and r.revision=t.asset_revision join content.assets a on a.id=r.asset_id and a.revision=r.revision
-      where a.status='admitted' and t.topic_id=any(${q.topicIds ?? []}::text[]) and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 40)
+      where a.status='admitted' and ${notOrdered} and t.topic_id=any(${q.topicIds ?? []}::text[]) and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 40)
     union all
     (select r.asset_id,1 as priority from content.discovery_revisions d join content.asset_revisions r on r.asset_id=d.asset_id and r.revision=d.asset_revision join content.assets a on a.id=r.asset_id and a.revision=r.revision
-      where a.status='admitted' and d.search_text@@plainto_tsquery('simple',${q.text ?? ''}) and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 30)
+      where a.status='admitted' and ${notOrdered} and d.search_text@@plainto_tsquery('simple',${q.text ?? ''}) and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 30)
     union all
-    (select r.asset_id,2 as priority from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.revision=r.revision where a.status='admitted' and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 100)
+    (select r.asset_id,2 as priority from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.revision=r.revision where a.status='admitted' and ${notOrdered} and r.language=any(${q.languages}::text[]) and a.kind=any(${q.formats}::text[]) order by r.asset_id limit 100)
   ) lanes group by asset_id order by min(priority),asset_id limit 100`.execute(db);
   if (!ids.rows.length) return [];
   const candidates = await rows(

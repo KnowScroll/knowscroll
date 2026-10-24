@@ -29,6 +29,13 @@ import {
   RENDER_SCROLL,
   CHOOSE_SCROLL_RECIPE,
   READ_SCROLL_PRODUCTION,
+  RECORD_MADE_TO_ORDER_SCROLL,
+  READ_MADE_TO_ORDER_PRODUCTION,
+  READ_SCROLL_SOURCE_PAGES,
+  CHECK_ASSET_AUDIENCE,
+  type CheckAssetAudience,
+  type ReadMadeToOrderProduction,
+  type ReadOrderAudience,
   type RenderScroll,
 } from '../public.js';
 import {
@@ -45,6 +52,12 @@ import { makeRenderScroll } from './render-scroll.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
+import {
+  makeCheckAssetAudience,
+  makeReadMadeToOrderProduction,
+  readScrollSourcePages,
+  recordMadeToOrderScroll,
+} from './made-to-order.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
 import { readContentSequence } from './content-sequence.js';
 import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
@@ -75,11 +88,37 @@ export function contentProviders() {
     { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
+    { provide: RECORD_MADE_TO_ORDER_SCROLL, useValue: recordMadeToOrderScroll },
+    { provide: READ_SCROLL_SOURCE_PAGES, useValue: readScrollSourcePages },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
     { provide: READ_SCROLL_PRODUCTION, useValue: readScrollProduction },
+  ];
+}
+
+/** The audience of an order when no module claims it: nobody. */
+const denyOrderAudience: ReadOrderAudience = () => Promise.resolve(false);
+
+/**
+ * Reads of Scrolls ordered from code that need the database handle: where an order's production
+ * stands (the resolver, in the worker) and whether a caller may read an asset (the API's document
+ * read). `orderAudience` names the token of the module that orders Scrolls.
+ */
+export function madeToOrderProviders(tokens: { readonly database: symbol; readonly orderAudience?: symbol }) {
+  return [
+    {
+      provide: READ_MADE_TO_ORDER_PRODUCTION,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): ReadMadeToOrderProduction => makeReadMadeToOrderProduction(db),
+    },
+    {
+      provide: CHECK_ASSET_AUDIENCE,
+      inject: [tokens.database, ...(tokens.orderAudience === undefined ? [] : [tokens.orderAudience])],
+      useFactory: (db: Kysely<Database>, audience?: ReadOrderAudience): CheckAssetAudience =>
+        makeCheckAssetAudience(db, audience ?? denyOrderAudience),
+    },
   ];
 }
 

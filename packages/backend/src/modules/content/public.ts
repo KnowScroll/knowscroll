@@ -9,8 +9,13 @@
  */
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
-import { INTERACTION_KINDS, type BlockStateSnapshot, type ScrollDocument } from '@knowscroll/scroll-model';
-import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
+import {
+  INTERACTION_KINDS,
+  type BlockStateSnapshot,
+  type Framing,
+  type ScrollDocument,
+} from '@knowscroll/scroll-model';
+import type { AccountAccess, PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
@@ -298,6 +303,67 @@ export interface ContentRef {
   readonly assetId: string;
   readonly assetRevision: number;
 }
+
+export { madeToOrderKey } from './domain/order-key.js';
+
+/**
+ * Scrolls ordered from code (D-049). A module that holds shared work (a scenario branch) builds a
+ * brief, a framing and the research pages itself and orders a Scroll. Content stores the order,
+ * researches the pages, writes the Scroll through the same production job and admits it, and adds
+ * only what an order means: the Scroll is never offered in Explore, never attributed to a topic or
+ * given coverage, never shareable as a card, and only the audience the ordering module names may open
+ * it. The production job's recipe key is `order-…` and follows the same take rules as a library recipe.
+ */
+export interface MadeToOrderScroll {
+  /** The order's identity, chosen by the caller (a scenario node's ID); a repeated order is the same order. */
+  readonly orderId: string;
+  /** The Scroll's identity, allocated by the caller. */
+  readonly assetId: string;
+  readonly mode: 'what_if' | 'perspective';
+  /** What the writer is told: subject, premise and direction. Built by the caller from validated parts. */
+  readonly brief: string;
+  /** One to three public pages the caller chose by code; research fetches them like any recipe's. */
+  readonly pages: readonly string[];
+  readonly kicker: string;
+  /** Hypothetical or perspective framing, copied into the Scroll by code and shown by the reader. */
+  readonly framing: Framing;
+}
+
+/** Stores the order in the caller's transaction; returns the recipe key to enqueue. A repeated order changes nothing. */
+export type RecordMadeToOrderScroll = (
+  scope: PersonalScopeTx,
+  order: MadeToOrderScroll,
+) => Promise<{ readonly recipe: string }>;
+export const RECORD_MADE_TO_ORDER_SCROLL = Symbol('content.recordMadeToOrderScroll');
+
+/** An order's production standing, as a library recipe's, with the admitted Scroll once there is one. */
+export interface MadeToOrderStanding extends ScrollProductionReading {
+  /** The admitted Scroll: its exact revision and the title the writer gave it. */
+  readonly published?: ContentRef & { readonly title: string };
+}
+/** Where an order's production stands. Reads shared tables on the pool; a key that is no order is `stopped`. */
+export type ReadMadeToOrderProduction = (recipe: string) => Promise<MadeToOrderStanding>;
+export const READ_MADE_TO_ORDER_PRODUCTION = Symbol('content.readMadeToOrderProduction');
+
+/**
+ * The public pages an exact revision rests on, chosen by code for a what-if of it: its own recorded
+ * sources, else those of the Scroll that gives the same explanation, else the library recipe of that
+ * explanation. At most three; empty when nothing is known. Never a page a person or a model named.
+ */
+export type ReadScrollSourcePages = (scope: PersonalScopeTx, root: ContentRef) => Promise<readonly string[]>;
+export const READ_SCROLL_SOURCE_PAGES = Symbol('content.readScrollSourcePages');
+
+/**
+ * Port the ordering module implements: may this caller open the Scroll it ordered? Content asks only
+ * for assets that have an order, so everything else stays as public as it was. Read without a lock;
+ * what changes later re-asks.
+ */
+export type ReadOrderAudience = (authority: PersonalAuthority, assetId: string) => Promise<boolean>;
+export const READ_ORDER_AUDIENCE = Symbol('content.readOrderAudience');
+
+/** May this caller open or read this asset: true for any asset that is not an order, the ordering module's answer for one that is. */
+export type CheckAssetAudience = (authority: PersonalAuthority, assetId: string) => Promise<boolean>;
+export const CHECK_ASSET_AUDIENCE = Symbol('content.checkAssetAudience');
 
 /** What a card or link shows of one exact revision: available, corrected (original ref kept) or unavailable. */
 export type ShareableContent = z.infer<typeof ConversationContentProjectionSchema>;

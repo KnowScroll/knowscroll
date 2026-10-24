@@ -161,3 +161,25 @@ export const THREAD_USE_CASES = Symbol('social.threadUseCases');
 /** The account's current inbox revision, for the socket gateway's subscribe acknowledgement. */
 export type ReadInboxRevision = (accountId: string) => Promise<number>;
 export const READ_INBOX_REVISION = Symbol('social.readInboxRevision');
+
+/**
+ * What another module may do inside a thread (scenarios; later rooms): enter it as a member, read a
+ * bounded window of its messages, keep receipts on it and tell the inboxes. It decides nothing about
+ * who may take part: that stays Social's. See `application/thread-guest.ts`.
+ */
+export type {
+  ThreadContextMessage,
+  ThreadGuest,
+  ThreadVisit,
+  ThreadWindow,
+} from './application/thread-guest.js';
+export type { ReceiptKey as ThreadReceiptKey } from './application/ports.js';
+export const THREAD_GUEST = Symbol('social.threadGuest');
+
+/** Whether the account takes part in the thread right now. A read with no lock; whatever acts on it rechecks. */
+export type ReadThreadStanding = (accountId: string, threadId: string) => Promise<boolean>;
+export const READ_THREAD_STANDING = Symbol('social.readThreadStanding');
+
+/** Tells every participant's inbox the thread changed, after a commit. A disposable hint; polling repairs a lost one. */
+export type AnnounceThread = (threadId: string) => Promise<void>;
+export const ANNOUNCE_THREAD = Symbol('social.announceThread');

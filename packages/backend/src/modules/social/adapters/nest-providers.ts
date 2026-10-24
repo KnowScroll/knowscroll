@@ -19,6 +19,8 @@ import { makeThreadCommands } from '../application/thread-commands.js';
 import { makeThreadReads } from '../application/thread-reads.js';
 import type { ThreadPorts } from '../application/thread-ports.js';
 import { threadIdFor, threadStore } from './postgres-threads.js';
+import { makeThreadGuest } from '../application/thread-guest.js';
+import { makeAnnounceThread, makeReadThreadStanding, sequenceOf } from './postgres-thread-guest.js';
 import { makeConversationReads } from '../application/conversation-reads.js';
 import { makeContentShares } from '../application/content-shares.js';
 import type { ConversationPorts } from '../application/conversation-ports.js';
@@ -37,10 +39,14 @@ import { makeReadProfile, makeSetProfile } from '../application/profiles.js';
 import { makeLookupPerson, makeReadPair } from '../application/lookup-person.js';
 import { makePairCommand } from '../application/pairs.js';
 import {
+  ANNOUNCE_THREAD,
   CONVERSATION_USE_CASES,
   READ_INBOX_REVISION,
+  READ_THREAD_STANDING,
   SOCIAL_USE_CASES,
+  THREAD_GUEST,
   THREAD_USE_CASES,
+  type ThreadGuest,
   type ConversationUseCases,
   type ReadInboxRevision,
   type SocialUseCases,
@@ -108,17 +114,16 @@ export function conversationUseCases(
   };
 }
 
-/** Content threads over the same ports plus the content and experience reads they need. */
-export function threadUseCases(
-  deps: SocialDeps & {
-    readContent: ReadShareableContent;
-    readSequence: ReadContentSequence;
-    readVisited: ReadVisitedAssets;
-    validateSnippet: ValidateSnippetAnchor;
-    resolveSnippet: ResolveSnippetAnchor;
-  },
-): ThreadUseCases {
-  const ports: ThreadPorts = {
+interface ThreadDeps extends SocialDeps {
+  readContent: ReadShareableContent;
+  readSequence: ReadContentSequence;
+  readVisited: ReadVisitedAssets;
+  validateSnippet: ValidateSnippetAnchor;
+  resolveSnippet: ResolveSnippetAnchor;
+}
+
+function threadPorts(deps: ThreadDeps): ThreadPorts {
+  return {
     ...socialPorts(deps),
     conversations: conversationStore(deps.readContent),
     threads: threadStore,
@@ -128,7 +133,17 @@ export function threadUseCases(
     validateSnippet: deps.validateSnippet,
     resolveSnippet: deps.resolveSnippet,
   };
+}
+
+/** Content threads over the same ports plus the content and experience reads they need. */
+export function threadUseCases(deps: ThreadDeps): ThreadUseCases {
+  const ports = threadPorts(deps);
   return { ...makeThreadCommands(ports), ...makeThreadReads(ports) };
+}
+
+/** What other modules may do inside a thread, over the same ports (see `ThreadGuest`). */
+export function threadGuest(deps: ThreadDeps): ThreadGuest {
+  return makeThreadGuest({ ...threadPorts(deps), sequenceOf });
 }
 
 /** The inbox revision of one account, read on the pool (the gateway has no scope). */
@@ -142,6 +157,31 @@ export function readInboxRevision(db: Kysely<Database>): ReadInboxRevision {
     return Number(head?.revision ?? 0);
   };
 }
+/** The tokens a thread's dependencies are injected from, in the order `threadDepsOf` takes them. */
+const THREAD_INJECTIONS = (tokens: { readonly withPersonalScope: symbol }) => [
+  tokens.withPersonalScope,
+  FENCE_ACCOUNT_PAIR,
+  FENCE_OWN_ACCOUNT,
+  READ_SHAREABLE_CONTENT,
+  READ_CONTENT_SEQUENCE,
+  READ_VISITED_ASSETS,
+  VALIDATE_SNIPPET_ANCHOR,
+  RESOLVE_SNIPPET_ANCHOR,
+];
+
+function threadDepsOf(
+  withScope: WithPersonalScope,
+  fencePair: FenceAccountPair,
+  fenceOwn: FenceOwnAccount,
+  readContent: ReadShareableContent,
+  readSequence: ReadContentSequence,
+  readVisited: ReadVisitedAssets,
+  validateSnippet: ValidateSnippetAnchor,
+  resolveSnippet: ResolveSnippetAnchor,
+): ThreadDeps {
+  return { withScope, fencePair, fenceOwn, readContent, readSequence, readVisited, validateSnippet, resolveSnippet };
+}
+
 export function socialProviders(tokens: { readonly withPersonalScope: symbol; readonly database: symbol }) {
   return [
     {
@@ -165,36 +205,23 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
     },
     {
       provide: THREAD_USE_CASES,
-      inject: [
-        tokens.withPersonalScope,
-        FENCE_ACCOUNT_PAIR,
-        FENCE_OWN_ACCOUNT,
-        READ_SHAREABLE_CONTENT,
-        READ_CONTENT_SEQUENCE,
-        READ_VISITED_ASSETS,
-        VALIDATE_SNIPPET_ANCHOR,
-        RESOLVE_SNIPPET_ANCHOR,
-      ],
-      useFactory: (
-        withScope: WithPersonalScope,
-        fencePair: FenceAccountPair,
-        fenceOwn: FenceOwnAccount,
-        readContent: ReadShareableContent,
-        readSequence: ReadContentSequence,
-        readVisited: ReadVisitedAssets,
-        validateSnippet: ValidateSnippetAnchor,
-        resolveSnippet: ResolveSnippetAnchor,
-      ) =>
-        threadUseCases({
-          withScope,
-          fencePair,
-          fenceOwn,
-          readContent,
-          readSequence,
-          readVisited,
-          validateSnippet,
-          resolveSnippet,
-        }),
+      inject: THREAD_INJECTIONS(tokens),
+      useFactory: (...args: Parameters<typeof threadDepsOf>) => threadUseCases(threadDepsOf(...args)),
+    },
+    {
+      provide: THREAD_GUEST,
+      inject: THREAD_INJECTIONS(tokens),
+      useFactory: (...args: Parameters<typeof threadDepsOf>) => threadGuest(threadDepsOf(...args)),
+    },
+    {
+      provide: READ_THREAD_STANDING,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadThreadStanding(db),
+    },
+    {
+      provide: ANNOUNCE_THREAD,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeAnnounceThread(db),
     },
     {
       provide: READ_INBOX_REVISION,

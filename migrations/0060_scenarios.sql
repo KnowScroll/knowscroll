@@ -52,13 +52,15 @@ create table scenarios.nodes (
   revision integer not null check (revision >= 1),
   asset_id uuid not null unique,
   asset_revision integer check (asset_revision >= 1),
+  -- The admitted Scroll's own title, copied when the branch becomes ready, for the card.
+  asset_title text check (char_length(asset_title) between 1 and 240),
   created_at timestamptz not null,
   updated_at timestamptz not null,
   check ((kind = 'perspective') = (lens is not null)),
   check (kind = 'what_if' or jsonb_array_length(changes) = 0),
   check (kind = 'perspective' or (hypothetical and jsonb_array_length(changes) >= 1)),
   check ((origin_kind = 'root') = (origin_message_id is null)),
-  check (status <> 'ready' or asset_revision is not null),
+  check (status <> 'ready' or (asset_revision is not null and asset_title is not null)),
   check (asset_revision is null or status in ('ready', 'removed')),
   foreign key (asset_id, asset_revision) references content.asset_revisions(asset_id, revision) on delete restrict
 );

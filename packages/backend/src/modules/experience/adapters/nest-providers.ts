@@ -13,6 +13,8 @@ import {
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
   RENDER_SCROLL,
+  CHECK_ASSET_AUDIENCE,
+  type CheckAssetAudience,
   type FindAssetForAction,
   type FindOpenableAsset,
   type RenderScroll,
@@ -99,7 +101,7 @@ export interface ExperienceDependencyTokens {
 /**
  * Reusable outer wiring (blueprint §22): Nest factory providers that build experience's commands
  * and queries from concrete adapters. Needs content's providers (`FIND_ASSET_FOR_ACTION`,
- * `FIND_OPENABLE_ASSET`, `RENDER_SCROLL`) in the same composition root. Only the apps' composition
+ * `FIND_OPENABLE_ASSET`, `RENDER_SCROLL`, `CHECK_ASSET_AUDIENCE`) in the same composition root. Only the apps' composition
  * roots import this file.
  */
 export function experienceProviders(
@@ -189,16 +191,24 @@ export function experienceProviders(
     },
     {
       provide: OPEN_EXPOSURE,
-      inject: [tokens.withPersonalScope, FENCE_OWN_ACCOUNT, READ_RECORDING_LIFECYCLE, FIND_OPENABLE_ASSET],
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_RECORDING_LIFECYCLE,
+        FIND_OPENABLE_ASSET,
+        CHECK_ASSET_AUDIENCE,
+      ],
       useFactory: (
         withPersonalScope: WithPersonalScope,
         fenceOwn: FenceOwnAccount,
         lifecycle: ReadRecordingLifecycle,
         findOpenableAsset: FindOpenableAsset,
+        audience: CheckAssetAudience,
       ) =>
         makeOpenExposure({
           ...commandPorts(withExperienceScope(withPersonalScope, fenceOwn), lifecycle),
           findOpenableAsset,
+          audienceHolds: audience,
           insertExposure,
         }),
     },
@@ -247,9 +257,13 @@ export function experienceProviders(
     },
     {
       provide: READ_EXPOSURE_DOCUMENT,
-      inject: [tokens.database, RENDER_SCROLL],
-      useFactory: (db: Kysely<Database>, renderScroll: RenderScroll) =>
-        makeReadExposureDocument({ readExposure: makeReadExposureForDocument(db), renderScroll }),
+      inject: [tokens.database, RENDER_SCROLL, CHECK_ASSET_AUDIENCE],
+      useFactory: (db: Kysely<Database>, renderScroll: RenderScroll, audience: CheckAssetAudience) =>
+        makeReadExposureDocument({
+          readExposure: makeReadExposureForDocument(db),
+          renderScroll,
+          audienceHolds: audience,
+        }),
     },
   ];
 }

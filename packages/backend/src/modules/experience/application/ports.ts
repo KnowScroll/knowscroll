@@ -191,6 +191,8 @@ export interface NewExposure {
 
 export interface OpenExposurePorts extends CommandPorts {
   readonly findOpenableAsset: FindOpenableAsset;
+  /** May this caller open this asset? False only for a Scroll ordered for an audience they are not in (D-049). */
+  readonly audienceHolds: (authority: PersonalAuthority, assetId: string) => Promise<boolean>;
   readonly insertExposure: (scope: PersonalScopeTx, exposure: NewExposure) => Promise<void>;
 }
 
@@ -224,6 +226,12 @@ export interface ReadExposureDocumentPorts {
     | { readonly kind: 'refused'; readonly reason: 'exposure_not_found' | 'universe_unavailable' | 'epoch_changed' }
   >;
   readonly renderScroll: RenderScroll;
+  /**
+   * May this caller read this asset now? True for any asset that is not ordered for an audience; for
+   * a Scroll ordered from code it is the ordering module's current answer, so a member who left no
+   * longer reads it through an exposure they opened earlier (D-049).
+   */
+  readonly audienceHolds: (authority: PersonalAuthority, assetId: string) => Promise<boolean>;
 }
 
 export type RecordingChannelsResult =
