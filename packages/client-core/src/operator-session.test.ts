@@ -26,6 +26,7 @@ const panels = {
     usage: { status: 'unavailable', reason: 'view_missing' },
   },
   universeChange: { cartographer: { status: 'unavailable', reason: 'read_failed' } },
+  safety: { reports: { status: 'available', data: { last24Hours: 0, recent: [] } } },
   realtime: { delivery: unavailable },
   privacy: {
     operations: { status: 'available', data: { groups: [], failed: [] } },

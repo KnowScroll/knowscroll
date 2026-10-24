@@ -314,3 +314,26 @@ export {
 } from './account-sessions';
 export { createDataExportsSession, type DataExportsSession, type DataExportsState } from './data-exports';
 export { requestAccountDeletion, type AccountDeletionDeps, type AccountDeletionOutcome } from './account-deletion';
+export {
+  QUEUED_REPORT_LIMIT,
+  UNDO_WINDOW_MS,
+  createFeedbackStore,
+  feedbackFor,
+  type FeedbackState,
+  type FeedbackStore,
+  type FeedbackStoreOptions,
+  type NotInterestedState,
+  type QueuedReport,
+  type ReportOutcome,
+} from './feedback-store';
+export {
+  createReportFlow,
+  reportedPersonOf,
+  type FeedbackTarget,
+  type ReportFlow,
+  type ReportFlowOptions,
+  type ReportFlowState,
+  type ReportKind,
+  type ReportStep,
+  type ReportedPerson,
+} from './feedback-flow';
