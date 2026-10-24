@@ -53,4 +53,21 @@ describe('"You were here" marker (U04)', () => {
     expect(readHereMarker(scope, 2)).toBeUndefined();
     scope.end();
   });
+
+  it('removes a stale or invalid marker from storage when it reads it', () => {
+    const scope = scopeOver();
+    writeHereMarker(scope, 'region-1', 1_000);
+    expect(readHereMarker(scope, 1_000 + HERE_MARKER_MS + 1)).toBeUndefined();
+    expect(scope.storage.get('universe.here.v1')).toBeUndefined();
+    for (const damaged of ['not json', '{"placeId":42,"at":1}', '{"placeId":"r","at":"x"}', 'null']) {
+      scope.storage.set('universe.here.v1', damaged);
+      expect(readHereMarker(scope, 2)).toBeUndefined();
+      expect(scope.storage.get('universe.here.v1')).toBeUndefined();
+    }
+    // A good marker is left alone by a read.
+    writeHereMarker(scope, 'region-2', 5_000);
+    expect(readHereMarker(scope, 6_000)).toBe('region-2');
+    expect(readHereMarker(scope, 7_000)).toBe('region-2');
+    scope.end();
+  });
 });
