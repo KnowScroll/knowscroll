@@ -195,6 +195,7 @@ export const geographyStore: GeographyStore = {
         desired_origin_kind: string | null;
         desired_origin_command_id: string | null;
         desired_origin_source_revision: number | null;
+        next_run_not_before: Date | null;
       }>`select * from geography.state where universe_id=${u}::uuid and privacy_epoch=${e}`.execute(tx)
     ).rows[0];
     return row
@@ -221,6 +222,7 @@ export const geographyStore: GeographyStore = {
               }
             : {}),
           ...(row.active_run_id ? { activeRunId: row.active_run_id } : {}),
+          ...(row.next_run_not_before ? { nextRunNotBefore: row.next_run_not_before.toISOString() } : {}),
         }
       : {
           revision: 0,
@@ -233,9 +235,9 @@ export const geographyStore: GeographyStore = {
   },
   async writeState(scope, s) {
     const { tx, u, e } = owner(scope);
-    await sql`insert into geography.state(universe_id,privacy_epoch,revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision)
- values(${u}::uuid,${e},${s.revision},${s.structureRevision},${s.activityRevision},${s.desiredRevision},${s.materialRevision},${s.publishedRevision},${s.activeRunId ?? null}::uuid,${s.desiredSource?.generation ?? null},${s.desiredSource?.kind ?? null},${s.desiredSource?.kind === 'command' ? s.desiredSource.commandId : null}::uuid,${s.desiredSource?.kind === 'material' ? s.desiredSource.sourceRevision : null})
- on conflict(universe_id,privacy_epoch) do update set revision=excluded.revision,structure_revision=excluded.structure_revision,activity_revision=excluded.activity_revision,desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,published_revision=excluded.published_revision,active_run_id=excluded.active_run_id,desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision`.execute(
+    await sql`insert into geography.state(universe_id,privacy_epoch,revision,structure_revision,activity_revision,desired_revision,material_revision,published_revision,active_run_id,desired_recording_generation,desired_origin_kind,desired_origin_command_id,desired_origin_source_revision,next_run_not_before)
+ values(${u}::uuid,${e},${s.revision},${s.structureRevision},${s.activityRevision},${s.desiredRevision},${s.materialRevision},${s.publishedRevision},${s.activeRunId ?? null}::uuid,${s.desiredSource?.generation ?? null},${s.desiredSource?.kind ?? null},${s.desiredSource?.kind === 'command' ? s.desiredSource.commandId : null}::uuid,${s.desiredSource?.kind === 'material' ? s.desiredSource.sourceRevision : null},${s.nextRunNotBefore ?? null}::timestamptz)
+ on conflict(universe_id,privacy_epoch) do update set revision=excluded.revision,structure_revision=excluded.structure_revision,activity_revision=excluded.activity_revision,desired_revision=excluded.desired_revision,material_revision=excluded.material_revision,published_revision=excluded.published_revision,active_run_id=excluded.active_run_id,desired_recording_generation=excluded.desired_recording_generation,desired_origin_kind=excluded.desired_origin_kind,desired_origin_command_id=excluded.desired_origin_command_id,desired_origin_source_revision=excluded.desired_origin_source_revision,next_run_not_before=excluded.next_run_not_before`.execute(
       tx,
     );
   },

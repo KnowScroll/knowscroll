@@ -14,8 +14,10 @@ import type {
   PublishGeographyDelta,
   GeographyRun,
   GeographyAccountingHeader,
+  GeographyState,
 } from './ports.js';
-import { reconcileWithRules, requiredChanges, type FormationPlan } from '../domain/formation.js';
+import { placesDue, reconcileWithRules, requiredChanges, type FormationPlan } from '../domain/formation.js';
+import { nextRunNotBefore } from '../domain/pacing.js';
 import { GEOGRAPHY_POLICY, type GeographyProposal } from '../domain/policy.js';
 import { CartographyJobSchema } from '../events.js';
 import { prepareGeography } from './context.js';
@@ -23,6 +25,12 @@ import { cartographerRole, cartographyContextItems, geographyContextHashes } fro
 import { ensureCartography } from './request.js';
 import { applyProposal } from './apply.js';
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+/** The state once a run is done: nobody holds it, and the person's next run waits its interval. */
+const idleAfterRun = (p: Pick<GeographyPorts, 'now'>, state: GeographyState): GeographyState => ({
+  ...state,
+  activeRunId: undefined,
+  nextRunNotBefore: nextRunNotBefore(p.now()),
+});
 /** Actual owner: header/root/active claim before a separate cap-bound body read. */
 export function makeCheckGeographyRecordingRun(
   p: Pick<GeographyPorts, 'store' | 'now' | 'hash'>,
@@ -229,9 +237,10 @@ async function settleUnadmitted(
     }
     await p.store.finishUnadmitted(scope, purpose.businessRunId, purpose.claimId, settlement);
     const updated = await p.store.state(scope),
-      idle = { ...updated, activeRunId: undefined };
+      idle = idleAfterRun(p, updated);
     await p.store.writeState(scope, idle);
-    if (context && updated.desiredRevision > context.desiredRevision) await ensureCartography(p, gate.scope, idle);
+    if (context && updated.desiredRevision > context.desiredRevision)
+      await ensureCartography(p, gate.scope, idle, true);
   });
 }
 /** What the harness returned for one Cartographer run, with the frozen run it belongs to. */
@@ -293,9 +302,6 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
   if (!p.enabled()) {
     status = 'stale';
     reason = 'disabled';
-  } else if (state.desiredRevision !== context.desiredRevision) {
-    status = 'stale';
-    reason = 'desired_revision_changed';
   } else if (plan) {
     const result = await applyProposal(p, cap, run.id, context, plan.proposal, close);
     if (result.kind === 'refused') {
@@ -307,7 +313,8 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
       reason = OUTCOME_OF_SOURCE[plan.source];
     }
   }
-  if (!closed) await closeLedger('cancelled');
+  // A valid answer that concluded nothing needs changing was used, so it is completed, not cancelled.
+  if (!closed) await closeLedger(outcome.kind === 'proposed' && reason === 'no_changes' ? 'completed' : 'cancelled');
   await p.store.writeRun(scope, {
     ...released,
     status,
@@ -316,10 +323,10 @@ async function settleRun(p: CartographerPorts, cap: RecordingScopeTx, answer: Mo
     ...(outcome.kind === 'proposed' ? { attemptId: outcome.attemptId } : {}),
   });
   const updated = await p.store.state(scope),
-    idle = { ...updated, activeRunId: undefined };
+    idle = idleAfterRun(p, updated);
   await p.store.writeState(scope, idle);
   if (updated.desiredRevision > run.desiredRevision && updated.desiredSource?.generation === cap.generation)
-    await ensureCartography(p, cap, idle);
+    await ensureCartography(p, cap, idle, true);
 }
 /** Short prepare/apply transactions around the shared finite attempt ledger. */
 export function makeRunCartographer(p: CartographerPorts): RunCartographer {
@@ -386,7 +393,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         (run.hasContext && context.desiredRevision !== run.desiredRevision)
       ) {
         await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'coverage_unavailable' });
-        await p.store.writeState(scope, { ...state, activeRunId: undefined });
+        await p.store.writeState(scope, idleAfterRun(p, state));
         return undefined;
       }
       let hashes: ReturnType<typeof geographyContextHashes>;
@@ -395,7 +402,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       } catch (error) {
         if (!(error instanceof Error) || error.message !== 'GEOGRAPHY_CONTEXT_LIMIT') throw error;
         await p.store.writeRun(scope, { ...consumed, status: 'insufficient', outcome: 'context_limit' });
-        await p.store.writeState(scope, { ...state, activeRunId: undefined });
+        await p.store.writeState(scope, idleAfterRun(p, state));
         return undefined;
       }
       if (
@@ -424,7 +431,9 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
         }))
       )
         throw new Error('GEOGRAPHY_REQUIRED_CLAIM_WAKE');
-      return { kind: 'prepared', run: claimed, context } as const;
+      // A person's or operator's explicit request wants the model's say even when nothing is due.
+      const explicit = state.desiredSource?.kind === 'command' || claimed.recording?.source.kind === 'command';
+      return { kind: 'prepared', run: claimed, context, explicit } as const;
     });
     if (prepared.kind !== 'entered' || !prepared.value) return;
     if (prepared.value.kind === 'revoked') {
@@ -436,7 +445,7 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       });
       return;
     }
-    const { run, context: c } = prepared.value;
+    const { run, context: c, explicit } = prepared.value;
     const purpose: PersonalRecordingPurpose = {
       version: 'personal-role-purpose.v1',
       accountId: run.recording!.accountId,
@@ -450,6 +459,12 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
       modelContextSha256: run.modelContextSha256!,
       claimId: run.claimId!,
     };
+    // Formation is the rules' decision. A model only chooses labels and routes for places that are
+    // due, so with none due a reading-triggered run makes no call.
+    if (!explicit && !placesDue(c.facts)) {
+      await settleUnadmitted(p, authority, purpose, 'no_changes');
+      return;
+    }
     const outcome = await p.harness.proposePersonal(
       {
         run: {

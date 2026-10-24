@@ -194,7 +194,7 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
               : cap.generation !== 1)
           )
             return false;
-          if (delayed) {
+          if (delayed?.expectedClaimId) {
             if (h.claimId !== delayed.expectedClaimId || h.claimWakeClaimId === delayed.expectedClaimId) return false;
             await geographyStore.writeRun(scope, { ...h, claimWakeClaimId: delayed.expectedClaimId });
             await enqueue(
@@ -235,7 +235,7 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
                 recordingGeneration: cap.generation,
                 wakeId,
               },
-              { jobId: wakeId },
+              { jobId: wakeId, ...(delayed ? { startAfter: delayed.startAfter } : {}) },
             );
             return true;
           }

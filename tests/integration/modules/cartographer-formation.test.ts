@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeRunCartographer } from '@knowscroll/backend/modules/geography/nest-providers';
@@ -70,7 +71,9 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     const first = await cartograph(person, () => garbage);
     expect(await placeKinds(person)).toEqual([]);
     expect(await dust(person)).toHaveLength(1);
-    expect(await runOf(first.runId)).toMatchObject({ status: 'rejected', outcome: 'invalid_output' });
+    // Nothing is due after one unit, so reading alone does not ask the model.
+    expect(first.model.calls).toHaveLength(0);
+    expect(await runOf(first.runId)).toMatchObject({ status: 'insufficient', outcome: 'no_changes' });
 
     await observe(person, await fixture(undefined, topic, [otherFacet]));
     const second = await cartograph(person, () => garbage);
@@ -126,7 +129,17 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     const { cartograph, placeKinds, runOf } = steps;
     const person = await seedPerson(database.db);
     await observe(person, await fixture(undefined, topic, [facet]));
+    const idle = await cartograph(person, () => providerDown);
+    expect(idle.model.calls).toHaveLength(0);
+    expect(await runOf(idle.runId)).toMatchObject({ status: 'insufficient', outcome: 'no_changes' });
+    expect((await state(person)).activeRunId).toBeUndefined();
+
+    // An explicit request does ask the model even with nothing due. A provider failure then settles the run.
+    const asked = await world.request(person.authority, { commandId: randomUUID() });
+    if (asked.kind !== 'accepted') throw new Error('CI request refused');
     const nothingDue = await cartograph(person, () => providerDown);
+    expect(nothingDue.runId).toBe(asked.runId);
+    expect(nothingDue.model.calls).toHaveLength(1);
     expect(await runOf(nothingDue.runId)).toMatchObject({ status: 'rejected', outcome: 'failed' });
     expect((await state(person)).activeRunId).toBeUndefined();
 
@@ -368,7 +381,10 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
 
     const light = await seedPerson(database.db);
     await observe(light, await fixture(undefined, topic, [facet]));
+    const explicit = await world.request(light.authority, { commandId: randomUUID() });
+    if (explicit.kind !== 'accepted') throw new Error('CI request refused');
     const released = await refused(light);
+    expect(released).toBe(explicit.runId);
     expect(await runOf(released)).toMatchObject({ status: 'insufficient', outcome: 'request_too_large' });
     expect((await world.state(light)).activeRunId).toBeUndefined();
   });
@@ -498,7 +514,9 @@ describe('Cartographer failure brake (real PostgreSQL CI fixtures)', () => {
     for (let failed = 0; failed < 5; failed++) {
       const person = await seedPerson(database.db);
       await observe(person, await fixture(undefined, topic, [facet]));
-      await cartograph(person, () => providerDown);
+      await observe(person, await fixture(undefined, topic, [otherFacet]));
+      const failedRun = await cartograph(person, () => providerDown);
+      expect(failedRun.model.calls).toHaveLength(1);
     }
     const person = await seedPerson(database.db);
     await coherent(person);
