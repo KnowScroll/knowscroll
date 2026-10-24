@@ -44,8 +44,16 @@ import type { Kysely } from 'kysely';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { WorkerConfig } from '@knowscroll/backend/infrastructure/config';
 import type { createBoss } from '@knowscroll/backend/infrastructure/jobs';
-import { eraseCurrentExploration } from '@knowscroll/backend/erasure-registry';
-import { clearExplorationFor } from '@knowscroll/backend/modules/identity/nest-providers';
+import {
+  eraseCurrentAccount,
+  eraseCurrentExploration,
+  exportCurrentPerson,
+} from '@knowscroll/backend/erasure-registry';
+import {
+  clearExplorationFor,
+  dataExportFor,
+  deleteAccountFor,
+} from '@knowscroll/backend/modules/identity/nest-providers';
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructure/jobs';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
@@ -95,7 +103,7 @@ import {
   WORKER_CONFIG,
   PG_BOSS,
 } from './tokens.js';
-import { clearExplorationConsumers } from './privacy.js';
+import { accountPrivacyConsumers, clearExplorationConsumers } from './privacy.js';
 import { personalContextProviders } from '@knowscroll/backend/modules/personal-context/nest-providers';
 import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-context';
 
@@ -198,6 +206,16 @@ export const jobWiring: Provider[] = [
           lockTimeoutMs: config.scopeLockTimeoutMs,
         }),
       ),
+      ...accountPrivacyConsumers(
+        {
+          deletion: deleteAccountFor(db, boss, {
+            eraseAccountData: eraseCurrentAccount,
+            lockTimeoutMs: config.scopeLockTimeoutMs,
+          }),
+          exports: dataExportFor(db, boss, { gather: exportCurrentPerson, lockTimeoutMs: config.scopeLockTimeoutMs }),
+        },
+        logEvent,
+      ),
       jobConsumer(projectSceneQueue, async (payload) => {
         await projectScene(payload);
       }),
@@ -246,7 +264,7 @@ export const jobWiring: Provider[] = [
       // Every 15 minutes (pg-boss cron, review m12): expired links and long-ended sessions.
       jobConsumer(sweepSignInRecordsQueue, async () => {
         const removed = await sweepSignInRecords();
-        logEvent('identity.sign_in_records_swept', { count: removed.links + removed.sessions });
+        logEvent('identity.sign_in_records_swept', { count: removed.links + removed.sessions + removed.exports });
       }),
       // Every 15 minutes: protected request bytes past their retention (logs `reasoning.requests_purged`).
       jobConsumer(purgeExpiredRequestsQueue, async () => {

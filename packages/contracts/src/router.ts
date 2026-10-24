@@ -1,3 +1,4 @@
+import { accountContract } from './account.js';
 import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
 import { contentSharesContract } from './content-shares.js';
@@ -37,6 +38,7 @@ import { submitRecordingObservationsContract } from './interactions.js';
 // Named procedure references keep declaration emission bounded as the shared protocol grows.
 export const apiContract: {
   health: typeof healthContract;
+  account: typeof accountContract;
   privacy: typeof privacyContract;
   recording: typeof recordingContract;
   keep: typeof keepContract & { remove: typeof removeKeepEntryContract };
@@ -83,6 +85,7 @@ export const apiContract: {
   diagnostics: { evidence: typeof evidenceDiagnosticsContract };
 } = {
   health: healthContract,
+  account: accountContract,
   privacy: privacyContract,
   recording: recordingContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },

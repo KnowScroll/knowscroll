@@ -61,7 +61,7 @@ geographyErasure.export = exportReading(
     const rows = await sql<{ kind: string; label: string }>`
       select payload ->> 'kind' as kind, payload ->> 'label' as label
       from geography.objects
-      where universe_id = ${scope.authority.universeId}::uuid
+      where universe_id = ${scope.authority.universeId}::uuid and payload ? 'label'
       order by id
       limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
     return { places: boundedSection(rows.rows) };

@@ -71,6 +71,7 @@ supplyErasure.export = exportReading(
         coalesce(command #>> '{intent,format}', command #>> '{intent,to}') as format
       from supply.requests
       where universe_id = ${scope.authority.universeId}::uuid and origin = 'person'
+        and command #>> '{intent,kind}' is not null
       order by created_at desc, id
       limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
     return {

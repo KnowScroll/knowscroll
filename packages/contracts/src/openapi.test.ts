@@ -592,8 +592,8 @@ describe('recording376 declaration OpenAPI metadata', () => {
       '/v1/privacy/recording/read',
       '/v1/privacy/recording/set',
     ]);
+    // Export and deletion are Account routes (`account.test.ts`), not privacy-prefixed ones.
     expect(document.paths).not.toHaveProperty('/v1/privacy/export');
-    expect(document.paths).not.toHaveProperty('/v1/account/delete');
   });
 });
 
