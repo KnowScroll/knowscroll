@@ -7,7 +7,8 @@ import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 import { DeletionReceiptPanel } from './deletion-receipt-panel';
 import { SessionsList } from './sessions-list';
-import { SettingsLabel, SettingsRow } from './settings-parts';
+import { KeyboardMapSheet } from '../shell/keyboard-map';
+import { SettingsActionRow, SettingsLabel, SettingsRow } from './settings-parts';
 
 function PersonTile() {
   return (
@@ -49,6 +50,7 @@ function SignedIn({ email }: { readonly email: string }) {
   const { state, manager } = useAccountScope();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [keys, setKeys] = useState(false);
   const signOut = async () => {
     setBusy(true);
     setFailed(false);
@@ -86,6 +88,12 @@ function SignedIn({ email }: { readonly email: string }) {
         description="Recording, export, clear exploration, delete"
         href="/account/privacy"
       />
+      <SettingsActionRow
+        title="Keyboard shortcuts"
+        description="Every key the app listens to, and where"
+        onPress={() => setKeys(true)}
+      />
+      <KeyboardMapSheet visible={keys} onClose={() => setKeys(false)} />
       {failed ? (
         <Banner kind="offline" lead="Not signed out." message="We couldn't reach KnowScroll. Try again." />
       ) : null}

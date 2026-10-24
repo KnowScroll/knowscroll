@@ -14,6 +14,7 @@ const option = {
   explanation: 'Shows what one answer costs at that load.',
   changes: [traffic],
   kept: [model],
+  speculative: false,
   needsConfirmation: false,
 };
 const second = { ...option, optionId: 'o2', title: 'Ten times the traffic, tighter latency' };
@@ -25,6 +26,7 @@ const card: ScenarioCard = {
   changes: [traffic],
   kept: [model],
   hypothetical: true,
+  speculative: false,
   assumptions: [traffic],
   status: 'preparing',
   revision: 1,
@@ -117,6 +119,48 @@ describe('the What if… sheet from a message', () => {
   });
 });
 
+describe('the What if… sheet from the end of a branch', () => {
+  it('asks for directions at once with the words already written, and nothing else is typed', async () => {
+    const { calls } = await open(
+      {
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [option] }),
+      },
+      { start: { ...start, premises: [traffic], words: 'What if the traffic were steady?' } },
+    );
+    expect(await screen.findByText('WE’LL EXPLORE')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Your idea')).toBeNull();
+    expect(calls.map((call) => call.name)).toEqual(['draft', 'readDraft']);
+    expect(calls[0]?.input['text']).toBe('What if the traffic were steady?');
+    expect(calls[0]?.input['kind']).toBe('what_if');
+  });
+});
+
+describe('the What if… sheet from a direction the member was offered', () => {
+  const offer: ScenarioStart = { offer: { draftId: id(7), kind: 'what_if' }, premises: [] };
+
+  it('picks the draft up and shows its options, without asking again', async () => {
+    const { calls } = await open(
+      {
+        readDraft: () => Promise.resolve({ status: 'ready', mode: 'options', options: [option, second] }),
+        choose: () => Promise.resolve({ node: card, reused: false }),
+      },
+      { start: offer },
+    );
+    expect(await screen.findByText('Suggestions. Nothing is made until you choose one.')).toBeOnTheScreen();
+    expect(calls.map((call) => call.name)).toEqual(['readDraft']);
+    expect(calls[0]?.input['draftId']).toBe(id(7));
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Explore this' })[1]!);
+    expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+    expect(calls.at(-1)?.input['selection']).toEqual({ kind: 'suggestion', optionId: 'o2' });
+  });
+
+  it('says plainly when the offer has expired', async () => {
+    await open({ readDraft: () => Promise.resolve({ status: 'unavailable' }) }, { start: offer });
+    expect(await screen.findByText(/This isn’t available any more\./)).toBeOnTheScreen();
+  });
+});
+
 describe('the What if… sheet', () => {
   it('starts from where the request began, keeps the member’s words, and asks nothing until Continue', async () => {
     const { calls, stored } = await open({});
@@ -171,7 +215,11 @@ describe('the What if… sheet', () => {
     const { calls } = await open({
       draft: () => Promise.resolve({ draftId: id(7) }),
       readDraft: () =>
-        Promise.resolve({ status: 'ready', mode: 'direct', options: [{ ...option, needsConfirmation: true }] }),
+        Promise.resolve({
+          status: 'ready',
+          mode: 'direct',
+          options: [{ ...option, speculative: true, needsConfirmation: true }],
+        }),
       choose: () => Promise.resolve({ node: card, reused: false }),
     });
     await ask('What if a black hole were a portal?');
@@ -179,6 +227,110 @@ describe('the What if… sheet', () => {
     expect(calls.map((call) => call.name)).not.toContain('choose');
     await fireEvent.press(screen.getByRole('button', { name: 'Create branch' }));
     expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+  });
+
+  it('asks the member to check an unclear idea without calling it speculative', async () => {
+    await open({
+      draft: () => Promise.resolve({ draftId: id(7) }),
+      readDraft: () =>
+        Promise.resolve({ status: 'ready', mode: 'direct', options: [{ ...option, needsConfirmation: true }] }),
+      choose: () => Promise.resolve({ node: card, reused: false }),
+    });
+    await ask('What if it were faster?');
+    expect(await screen.findByText('Is this what you mean?')).toBeOnTheScreen();
+    expect(screen.queryByText('Speculative scenario · not established science')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Create branch' }));
+    expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+  });
+
+  it('starts the edit of a direction as the premise it says it replaces, and names the direction it came from', async () => {
+    const weaker = {
+      subject: 'Load',
+      statement: 'Traffic is only five times higher than in the original',
+      replaces: 'Traffic',
+    };
+    const { calls } = await open(
+      {
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () =>
+          Promise.resolve({ status: 'ready', mode: 'direct', options: [{ ...option, changes: [weaker] }] }),
+        choose: () => Promise.resolve({ node: card, reused: false }),
+      },
+      { start: { ...start, premises: [traffic, model] } },
+    );
+    await ask();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit' }));
+    expect(screen.getByLabelText('What changes 1').props.value).toBe(weaker.statement);
+    await fireEvent.press(screen.getByRole('button', { name: 'Explore' }));
+    expect(await screen.findByText('Branch started.')).toBeOnTheScreen();
+    expect(calls.at(-1)?.input['selection']).toEqual({
+      kind: 'own',
+      changes: [{ subject: 'Traffic', statement: weaker.statement }],
+      kept: [{ subject: 'Model', statement: 'The same model serves every request' }],
+      fromOptionId: 'o1',
+    });
+  });
+
+  describe('what a direction would take out of the branch it continues', () => {
+    const axis = { subject: 'Axis tilt', statement: 'Earth’s axis is tilted' };
+    const gravity = { subject: 'Gravity', statement: 'Gravity pushes away from the Sun', replaces: 'Axis tilt' };
+    const dropping = { ...option, changes: [gravity], kept: [] };
+    const below: ScenarioStart = { ...start, premises: [axis, model] };
+    const replaces = 'Replaces: earth’s axis is tilted';
+
+    it('shows it on the summary of one idea, before Explore', async () => {
+      await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [dropping] }),
+        },
+        { start: below },
+      );
+      await ask();
+      expect(await screen.findByText(replaces)).toBeOnTheScreen();
+      expect(screen.getByText('Changed: gravity pushes away from the Sun')).toBeOnTheScreen();
+    });
+
+    it('shows it on each of several directions, only on the one that drops it', async () => {
+      await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () => Promise.resolve({ status: 'ready', mode: 'options', options: [dropping, second] }),
+        },
+        { start: below },
+      );
+      await ask();
+      expect(await screen.findAllByText(replaces)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Explore this' })).toHaveLength(2);
+    });
+
+    it('shows it on the confirm step of a speculative idea, so the member agrees to what goes', async () => {
+      await open(
+        {
+          draft: () => Promise.resolve({ draftId: id(7) }),
+          readDraft: () =>
+            Promise.resolve({
+              status: 'ready',
+              mode: 'direct',
+              options: [{ ...dropping, speculative: true, needsConfirmation: true }],
+            }),
+        },
+        { start: below },
+      );
+      await ask();
+      expect(await screen.findByText('Speculative scenario · not established science')).toBeOnTheScreen();
+      expect(screen.getByText(replaces)).toBeOnTheScreen();
+    });
+
+    it('shows nothing of it on the real subject, where nothing is held', async () => {
+      await open({
+        draft: () => Promise.resolve({ draftId: id(7) }),
+        readDraft: () => Promise.resolve({ status: 'ready', mode: 'direct', options: [dropping] }),
+      });
+      await ask();
+      expect(await screen.findByText('WE’LL EXPLORE')).toBeOnTheScreen();
+      expect(screen.queryByText(/Replaces:/)).toBeNull();
+    });
   });
 
   it('keeps the subjects of an edited suggestion, so the edit replaces what it was and nothing beside it', async () => {
@@ -196,6 +348,7 @@ describe('the What if… sheet', () => {
       kind: 'own',
       changes: [{ subject: 'Traffic', statement: 'Traffic is twenty times higher' }],
       kept: [{ subject: 'Model', statement: 'The same model serves every request' }],
+      fromOptionId: 'o1',
     });
   });
 

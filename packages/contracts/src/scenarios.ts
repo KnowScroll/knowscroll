@@ -25,6 +25,13 @@ export const MAX_SCENARIO_TEXT = 500;
 export const AssumptionSchema = z.strictObject({ subject: plainText(2, 40), statement: plainText(3, 160) });
 export type Assumption = z.infer<typeof AssumptionSchema>;
 
+/**
+ * One change of a direction. `replaces` names the premise of an earlier branch that this change takes the place
+ * of, whatever its own subject says; absent, it replaces only a premise of its own subject.
+ */
+export const OptionChangeSchema = AssumptionSchema.extend({ replaces: plainText(2, 40).optional() });
+export type OptionChange = z.infer<typeof OptionChangeSchema>;
+
 export const ScenarioKindSchema = z.enum(['what_if', 'perspective']);
 export type ScenarioKind = z.infer<typeof ScenarioKindSchema>;
 
@@ -90,16 +97,18 @@ export const ScenarioDraftStartedSchema = z.strictObject({
 
 /**
  * One direction. A what-if lists what it changes and what it keeps; a perspective names a lens and
- * changes nothing. `needsConfirmation` marks an unclear or speculative idea: the screen shows the
- * premise and asks before it commissions.
+ * changes nothing. `speculative` says the premise contradicts established knowledge; `needsConfirmation` says
+ * the idea is unclear or speculative, so the screen shows the premise and asks before it commissions. A
+ * speculative direction always needs confirming.
  */
 export const ScenarioOptionSchema = z.strictObject({
   optionId: z.string().regex(/^o[1-3]$/),
   title: plainText(3, 120),
   explanation: plainText(3, 240),
-  changes: z.array(AssumptionSchema).max(2),
+  changes: z.array(OptionChangeSchema).max(2),
   kept: z.array(AssumptionSchema).max(3),
   lens: plainText(3, 80).optional(),
+  speculative: z.boolean(),
   needsConfirmation: z.boolean(),
 });
 export type ScenarioOption = z.infer<typeof ScenarioOptionSchema>;
@@ -151,6 +160,12 @@ export const ScenarioCardSchema = z.strictObject({
   lens: plainText(3, 80).optional(),
   /** Every what-if, and everything below one, is hypothetical. A perspective on the real subject is not. */
   hypothetical: z.boolean(),
+  /**
+   * The premise runs against established knowledge: the Planner said so of the direction and the member confirmed
+   * it (an edit of that direction keeps the flag), or it continues a branch that does. Never set by a request
+   * written from scratch.
+   */
+  speculative: z.boolean(),
   /** What holds after this branch: the premises a continuation of it inherits (at most four). */
   assumptions: z.array(AssumptionSchema).max(4),
   startedBy: PublicPersonRefSchema.optional(),
@@ -173,7 +188,9 @@ export type ScenarioCard = z.infer<typeof ScenarioCardSchema>;
 /**
  * The only command that commissions anything. `suggestion` takes one of the draft's stored
  * directions by its ID; `own` is the member's complete request, typed or edited: its changes and
- * kept statements, or a lens. A draft can be chosen once. The same command returns the same card.
+ * kept statements, or a lens. An edit of one of the draft's directions names it in `fromOptionId`, and the
+ * branch keeps that direction's `speculative` flag. A draft can be chosen once. The same command returns the
+ * same card.
  */
 export const ChooseScenarioSchema = z.strictObject({
   ...Command,
@@ -186,6 +203,10 @@ export const ChooseScenarioSchema = z.strictObject({
       changes: z.array(AssumptionSchema).max(2),
       kept: z.array(AssumptionSchema).max(3),
       lens: plainText(3, 80).optional(),
+      fromOptionId: z
+        .string()
+        .regex(/^o[1-3]$/)
+        .optional(),
     }),
   ]),
 });
@@ -197,6 +218,23 @@ export const ScenarioChoiceAcceptanceSchema = z.strictObject({
   reused: z.boolean(),
 });
 
+/**
+ * A direction the Planner proposed to this member and that they have not made into a branch: a ready draft's
+ * option, private to them, gone when the draft is (it lives two hours). It is not numbered and not a branch.
+ */
+export const ScenarioSuggestionSchema = z.strictObject({
+  draftId: UuidSchema,
+  optionId: z.string().regex(/^o[1-3]$/),
+  kind: ScenarioKindSchema,
+  /** The branch it would continue; absent when it continues the thread's root. */
+  parentNodeId: UuidSchema.optional(),
+  title: plainText(3, 120),
+  speculative: z.boolean(),
+});
+export type ScenarioSuggestion = z.infer<typeof ScenarioSuggestionSchema>;
+/** At most three kept drafts of three directions each. */
+export const MAX_SCENARIO_SUGGESTIONS = 9;
+
 export const ListScenariosSchema = z.strictObject({ ...Read, thread: ContentThreadRefSchema });
 export const ScenarioListSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
@@ -204,6 +242,8 @@ export const ScenarioListSchema = z.discriminatedUnion('status', [
     ...ScopedRead,
     status: z.literal('ready'),
     cards: z.array(ScenarioCardSchema).max(MAX_SCENARIO_CARDS),
+    /** The caller's own, never anyone else's. */
+    suggestions: z.array(ScenarioSuggestionSchema).max(MAX_SCENARIO_SUGGESTIONS),
   }),
 ]);
 export type ScenarioList = z.infer<typeof ScenarioListSchema>;

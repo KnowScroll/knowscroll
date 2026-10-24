@@ -3,7 +3,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { content, spacing, target } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
 import { linkPress } from '../display/link';
-import { linkSemantics } from '../display/semantics';
+import { currentPageSemantics, linkSemantics } from '../display/semantics';
 
 export interface RowLinkProps {
   /** The row's whole accessible name ("Ravi, unread, Shared a Reel · …"); it is one link. */
@@ -12,6 +12,8 @@ export interface RowLinkProps {
   /** The address. On the web the row becomes a real `<a href>` (Enter, middle-click, new tab). */
   readonly href?: string;
   readonly children: ReactNode;
+  /** The row whose destination is open beside the list (a two-pane Talk): `aria-current` and a tint. */
+  readonly current?: boolean;
   readonly testID?: string;
 }
 
@@ -19,16 +21,17 @@ export interface RowLinkProps {
  * A list row that is one link to a destination (Talk's conversations). It is at least 48 px
  * tall, carries the focus ring on paper, and leaves its content to the caller.
  */
-export function RowLink({ label, onPress, href, children, testID }: RowLinkProps) {
+export function RowLink({ label, onPress, href, children, current = false, testID }: RowLinkProps) {
   const focus = useFocusRing('onLight');
   return (
     <Pressable
       {...focus.props}
       {...linkSemantics(href !== undefined)}
       {...linkPress({ href, onNavigate: onPress })}
+      {...currentPageSemantics(current)}
       accessibilityLabel={label}
       testID={testID}
-      style={({ pressed }) => [styles.row, pressed ? styles.pressed : null, focus.style]}
+      style={({ pressed }) => [styles.row, current || pressed ? styles.pressed : null, focus.style]}
     >
       {children}
     </Pressable>

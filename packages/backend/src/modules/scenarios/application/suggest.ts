@@ -90,6 +90,7 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
     return {
       facts: {
         hypothetical: node.hypothetical,
+        speculative: node.speculative,
         assumptions: node.assumptions,
         title: node.title,
         ...(node.lens === undefined ? {} : { lens: node.lens }),
@@ -152,6 +153,6 @@ export function makeSuggestDraft(p: DraftWorkerPorts, harness: ReasoningHarness)
       },
       signal,
     );
-    await p.withScope(authority, (scope) => apply(scope, job.draftId, suggestVerdict(outcome)));
+    await p.withScope(authority, (scope) => apply(scope, job.draftId, suggestVerdict(outcome, value.draftKind)));
   };
 }

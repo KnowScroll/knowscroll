@@ -1,22 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AccountScope, ScenarioComposerState, ScenarioSelection } from '@knowscroll/client-core';
-import type { ContentThreadRef, ScenarioCard, ScenarioKind, ScenarioOption } from '@knowscroll/contracts';
+import type { Assumption, ContentThreadRef, ScenarioCard, ScenarioKind, ScenarioOption } from '@knowscroll/contracts';
 import { ComposeStep } from './compose-step';
 import { ConfirmStep, OptionsStep, SummaryStep } from './direction-steps';
 import { BlockedStep, ChosenStep, NoSuggestionsStep, ThinkingStep } from './outcome-steps';
 import { OwnRequestForm } from './own-request-form';
-import type { KindedStart } from './scenario-start';
+import type { KindedStart, OfferStart } from './scenario-start';
 import { useScenarioComposer } from './use-scenarios';
 
 /** The directions the Planner proposed: one idea to explore, a few to pick from, or one that wants confirming first. */
 function Directions({
   state,
+  premises,
   confirming,
   onConfirm,
   onEdit,
   onChoose,
 }: {
   readonly state: ScenarioComposerState;
+  /** What already holds where the branch continues: each option shows what it would take out of it. */
+  readonly premises: readonly Assumption[];
   readonly confirming: ScenarioOption | undefined;
   readonly onConfirm: (option: ScenarioOption | undefined) => void;
   readonly onEdit: (option: ScenarioOption) => void;
@@ -31,6 +34,7 @@ function Directions({
     return (
       <ConfirmStep
         option={confirm}
+        premises={premises}
         busy={busy}
         onCreate={() => onChoose(confirm)}
         onEdit={() => onEdit(confirm)}
@@ -38,10 +42,19 @@ function Directions({
       />
     );
   if (single !== undefined)
-    return <SummaryStep option={single} busy={busy} onExplore={() => onChoose(single)} onEdit={() => onEdit(single)} />;
+    return (
+      <SummaryStep
+        option={single}
+        premises={premises}
+        busy={busy}
+        onExplore={() => onChoose(single)}
+        onEdit={() => onEdit(single)}
+      />
+    );
   return (
     <OptionsStep
       options={state.options}
+      premises={premises}
       busy={busy}
       onExplore={(option) => (option.needsConfirmation ? onConfirm(option) : onChoose(option))}
       onEdit={onEdit}
@@ -60,7 +73,7 @@ export function SheetBody({
   onClose,
   onChosen,
 }: {
-  readonly start: KindedStart;
+  readonly start: KindedStart | OfferStart;
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
   readonly onClose: () => void;
@@ -71,12 +84,21 @@ export function SheetBody({
   const [words, setWords] = useState(() => scope.storage.get(draftKey) ?? '');
   const [editing, setEditing] = useState<{ option: ScenarioOption | undefined } | undefined>();
   const [confirming, setConfirming] = useState<ScenarioOption | undefined>();
-  const kind: ScenarioKind = state.ask?.kind ?? start.kind;
+  const kind: ScenarioKind = state.ask?.kind ?? ('offer' in start ? start.offer.kind : start.kind);
   const keepWords = (next: string) => {
     setWords(next);
     if (next === '') scope.storage.remove(draftKey);
     else scope.storage.set(draftKey, next);
   };
+  // A request that arrives written, or an offer the member already has, needs no first step.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if ('offer' in start) void controller.attach(start.offer.draftId);
+    else if (start.words !== undefined)
+      void controller.begin({ kind: start.kind, origin: start.origin, parent: start.parent, text: start.words });
+  }, [controller, start]);
   // A branch exists: the draft words have done their work.
   const chosenNow = state.phase === 'chosen';
   useEffect(() => {
@@ -112,7 +134,7 @@ export function SheetBody({
         onCancel={() => setEditing(undefined)}
       />
     );
-  if (state.phase === 'idle')
+  if (state.phase === 'idle' && !('offer' in start))
     return (
       <ComposeStep
         start={start}
@@ -128,6 +150,7 @@ export function SheetBody({
   return (
     <Directions
       state={state}
+      premises={start.premises}
       confirming={confirming}
       onConfirm={setConfirming}
       onEdit={(option) => setEditing({ option })}

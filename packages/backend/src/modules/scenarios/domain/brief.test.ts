@@ -20,7 +20,7 @@ describe('framingOf', () => {
   });
 
   it('lists what an earlier branch assumed once, and not again as kept', () => {
-    const parent = { hypothetical: true, assumptions: [model] };
+    const parent = { hypothetical: true, speculative: false, assumptions: [model] };
     const framing = framingOf(stepOf({ kind: 'what_if', changes: [traffic], kept: [model] }, parent));
     expect(framing).toEqual({
       kind: 'hypothetical',
@@ -37,7 +37,7 @@ describe('framingOf', () => {
   });
 
   it('keeps a perspective below a what-if hypothetical, with the whole premise', () => {
-    const parent = { hypothetical: true, assumptions: [traffic, model] };
+    const parent = { hypothetical: true, speculative: false, assumptions: [traffic, model] };
     const framing = framingOf(stepOf({ kind: 'perspective', changes: [], kept: [], lens: 'cost' }, parent));
     expect(framing).toEqual({ kind: 'hypothetical', assumptions: [traffic.statement, model.statement], kept: [] });
   });
@@ -49,7 +49,7 @@ describe('writerBrief with premises from earlier branches', () => {
     subjectTitle: 'What one answer costs to serve',
     subjectSummary: 'Serving costs come from compute, memory and waiting.',
   };
-  const below = { hypothetical: true, assumptions: [traffic, model] };
+  const below = { hypothetical: true, speculative: false, assumptions: [traffic, model] };
 
   it('states a replaced premise once, in its new words, and lists what is inherited without repeating it', () => {
     const twenty = { subject: 'Traffic', statement: 'Traffic is twenty times higher than in the original' };
@@ -91,7 +91,7 @@ describe('writerBrief', () => {
   });
 
   it('lists the premises inherited from earlier branches apart from this step’s own', () => {
-    const parent = { hypothetical: true, assumptions: [traffic] };
+    const parent = { hypothetical: true, speculative: false, assumptions: [traffic] };
     const brief = writerBrief({
       ...facts,
       parentTitle: 'Ten times the traffic',

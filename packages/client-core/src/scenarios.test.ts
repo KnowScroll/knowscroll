@@ -7,6 +7,8 @@ import {
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  kindedTitle,
+  replacedPremises,
   ownSelection,
   subjectOfStatement,
 } from './scenarios';
@@ -22,6 +24,7 @@ const option = {
   explanation: 'Shows how batching holds the cost down.',
   changes: [traffic],
   kept: [model],
+  speculative: false,
   needsConfirmation: false,
 };
 const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
@@ -32,6 +35,7 @@ const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
   changes: [traffic],
   kept: [],
   hypothetical: true,
+  speculative: false,
   assumptions: [traffic],
   status: 'preparing',
   revision: 1,
@@ -75,7 +79,14 @@ const newId = () => id(counter++);
 
 describe('the thread’s branches', () => {
   it('reads the cards, and says unavailable without them when the place ended', async () => {
-    let answer: unknown = { status: 'ready', scope, readId: id(1), version: 'scenario.v1', cards: [card()] };
+    let answer: unknown = {
+      status: 'ready',
+      scope,
+      readId: id(1),
+      version: 'scenario.v1',
+      cards: [card()],
+      suggestions: [],
+    };
     const board = createScenarioBoard({ scope: scopeOf({ list: () => Promise.resolve(answer) }), thread, newId });
     expect(board.getState().phase).toBe('loading');
     await board.load();
@@ -92,7 +103,14 @@ describe('the thread’s branches', () => {
         list: () =>
           fail
             ? Promise.reject(new Error('network'))
-            : Promise.resolve({ status: 'ready', scope, readId: id(1), version: 'scenario.v1', cards: [card()] }),
+            : Promise.resolve({
+                status: 'ready',
+                scope,
+                readId: id(1),
+                version: 'scenario.v1',
+                cards: [card()],
+                suggestions: [],
+              }),
       }),
       thread,
       newId,
@@ -106,7 +124,15 @@ describe('the thread’s branches', () => {
   it('removes a branch under one command until the server answers, then reads again', async () => {
     let removed = 0;
     const api = scopeOf({
-      list: () => Promise.resolve({ status: 'ready', scope, readId: id(1), version: 'scenario.v1', cards: [card()] }),
+      list: () =>
+        Promise.resolve({
+          status: 'ready',
+          scope,
+          readId: id(1),
+          version: 'scenario.v1',
+          cards: [card()],
+          suggestions: [],
+        }),
       remove: () => (removed++ === 0 ? Promise.reject(new Error('network')) : Promise.resolve({ revision: 2 })),
     });
     const board = createScenarioBoard({ scope: api, thread, newId });
@@ -114,6 +140,54 @@ describe('the thread’s branches', () => {
     expect(await board.remove(card())).toBe(true);
     const commands = api.calls.filter((call) => call.name === 'remove').map((call) => call.input['commandId']);
     expect(commands[0]).toBe(commands[1]);
+  });
+});
+
+describe('what the member was offered', () => {
+  const offered = {
+    draftId: id(7),
+    optionId: 'o1',
+    kind: 'what_if',
+    title: 'What if the Sun became a black hole?',
+    speculative: true,
+  };
+
+  it('is kept beside the cards, and gone with them when the place ended', async () => {
+    let answer: unknown = {
+      status: 'ready',
+      scope,
+      readId: id(1),
+      version: 'scenario.v1',
+      cards: [card()],
+      suggestions: [offered],
+    };
+    const board = createScenarioBoard({ scope: scopeOf({ list: () => Promise.resolve(answer) }), thread, newId });
+    await board.load();
+    expect(board.getState()).toMatchObject({ suggestions: [{ title: 'What if the Sun became a black hole?' }] });
+    answer = { status: 'unavailable', scope, readId: id(1), version: 'scenario.v1' };
+    await board.load();
+    expect(board.getState()).toMatchObject({ phase: 'unavailable', suggestions: [] });
+  });
+
+  it('comes back as directions to choose from when the composer picks the draft up, without asking again', async () => {
+    const api = scopeOf({
+      readDraft: () => Promise.resolve({ status: 'ready', mode: 'options', options: [option] }),
+      choose: () => Promise.resolve({ node: card(), reused: false }),
+    });
+    const composer = createScenarioComposer({ scope: api, thread, newId });
+    await composer.attach(id(7));
+    expect(composer.getState()).toMatchObject({ phase: 'ready', mode: 'options', options: [option] });
+    expect(api.calls.map((call) => call.name)).toEqual(['readDraft']);
+    await composer.choose({ kind: 'suggestion', optionId: 'o1' });
+    expect(api.calls.at(-1)).toMatchObject({ name: 'choose', input: { draftId: id(7) } });
+    expect(composer.getState()).toMatchObject({ phase: 'chosen' });
+  });
+
+  it('says it is not available when the draft is gone', async () => {
+    const api = scopeOf({ readDraft: () => Promise.resolve({ status: 'unavailable' }) });
+    const composer = createScenarioComposer({ scope: api, thread, newId });
+    await composer.attach(id(7));
+    expect(composer.getState()).toMatchObject({ phase: 'blocked', block: 'unavailable' });
   });
 });
 
@@ -237,6 +311,29 @@ describe('words', () => {
       'Another perspective: the operator’s view.',
     );
   });
+
+  describe('what an option would drop', () => {
+    const axis = { subject: 'Axis tilt', statement: 'Earth’s axis is tilted' };
+    const spin = { subject: 'Spin', statement: 'Earth turns once a day' };
+    const gravity = { subject: 'Gravity', statement: 'Gravity pushes away from the Sun', replaces: 'axis TILT' };
+
+    it('is the premise a change names, whatever its own subject, or else the premise of its own subject', () => {
+      expect(replacedPremises({ changes: [gravity] }, [axis, spin])).toEqual([axis]);
+      expect(
+        replacedPremises({ changes: [{ subject: ' spin ', statement: 'Earth turns twice a day' }] }, [axis, spin]),
+      ).toEqual([spin]);
+      expect(replacedPremises({ changes: [traffic] }, [axis, spin])).toEqual([]);
+      expect(replacedPremises({ changes: [gravity] }, [])).toEqual([]);
+    });
+
+    it('lists each premise once, and reads aloud what is dropped', () => {
+      expect(replacedPremises({ changes: [gravity, { ...gravity, subject: 'Pull' }] }, [axis])).toEqual([axis]);
+      expect(describeOption({ changes: [gravity], kept: [], lens: undefined }, [axis, spin])).toBe(
+        'Changed: gravity pushes away from the Sun. Replaces: earth’s axis is tilted.',
+      );
+      expect(chipText('Replaces', axis)).toBe('Replaces: earth’s axis is tilted');
+    });
+  });
 });
 
 describe('the member’s own request', () => {
@@ -270,6 +367,27 @@ describe('the member’s own request', () => {
     expect(selection).not.toHaveProperty('lens');
   });
 
+  it('names the direction an edit came from, and nothing when it came from nowhere', () => {
+    const edited = ownSelection({
+      kind: 'what_if',
+      changes: [{ statement: twenty }],
+      kept: [],
+      lens: '',
+      fromOptionId: 'o2',
+    });
+    expect(edited).toMatchObject({ kind: 'own', fromOptionId: 'o2' });
+    expect(ownSelection({ kind: 'what_if', changes: [{ statement: twenty }], kept: [], lens: '' })).not.toHaveProperty(
+      'fromOptionId',
+    );
+    expect(ownSelection({ kind: 'perspective', changes: [], kept: [], lens: 'cost', fromOptionId: 'o1' })).toEqual({
+      kind: 'own',
+      changes: [],
+      kept: [],
+      lens: 'cost',
+      fromOptionId: 'o1',
+    });
+  });
+
   it('takes only the lens for a perspective', () => {
     expect(ownSelection({ kind: 'perspective', changes: [{ statement: twenty }], kept: [], lens: '  cost  ' })).toEqual(
       {
@@ -280,5 +398,17 @@ describe('the member’s own request', () => {
       },
     );
     expect(ownSelection({ kind: 'perspective', changes: [], kept: [], lens: ' ' })).toBeUndefined();
+  });
+});
+
+describe('a branch named with its kind', () => {
+  it('says the kind once: not before a title that already says it', () => {
+    expect(kindedTitle({ kind: 'what_if', title: 'What if Earth had no axial tilt?' })).toBe(
+      'What if Earth had no axial tilt?',
+    );
+    expect(kindedTitle({ kind: 'what_if', title: 'Earth with no tilt' })).toBe('What if · Earth with no tilt');
+    expect(kindedTitle({ kind: 'perspective', title: 'The seasons through sunlight geometry' })).toBe(
+      'Another perspective · The seasons through sunlight geometry',
+    );
   });
 });

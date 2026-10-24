@@ -17,20 +17,21 @@ admitted Scroll both people opened, with no coverage and no topic. The review ch
 way in, reading on the caller's transaction, the premise rules) are covered by the integration tests below and were not
 driven in a browser. It is not running on dev.
 
-
-
 ## What a member can do
 
-| Action | Use case (`SCENARIO_USE_CASES`) | What it does | Status |
-| --- | --- | --- | --- |
-| Ask for directions | `draft` | Stores a private draft, sends one job. Starts no production. At most 20 a day. | Implemented |
-| See the directions | `readDraft` | `thinking`, `ready` (one clear idea, or two to three options), `failed` or `chosen`. Private to the asker. | Implemented |
-| Choose | `choose` | Picks an option, or sends the member's own complete request. The only command that commissions. Idempotent. | Implemented |
-| See the thread's branches | `list` | Cards, oldest first, removed ones as notes. Polled and hinted, never a position of anyone. | Implemented |
-| Remove a branch they started | `remove` | The card becomes a note; its Scroll closes. | Implemented |
+| Action                       | Use case (`SCENARIO_USE_CASES`) | What it does                                                                                                                                                                                                                                     | Status      |
+| ---------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| Ask for directions           | `draft`                         | Stores a private draft, sends one job. Starts no production. At most 20 a day.                                                                                                                                                                   | Implemented |
+| See the directions           | `readDraft`                     | `thinking`, `ready` (one clear idea, or two to three options), `failed` or `chosen`. Private to the asker.                                                                                                                                       | Implemented |
+| Choose                       | `choose`                        | Picks an option, or sends the member's own complete request. The only command that commissions. Idempotent.                                                                                                                                      | Implemented |
+| See the thread's branches    | `list`                          | Cards, oldest first, removed ones as bare placeholders, and the caller's own offers: the directions of their ready drafts that they have not chosen (at most 9; private, never another member's). Polled and hinted, never a position of anyone. | Implemented |
+| Remove a branch they started | `remove`                        | The card becomes a note; its Scroll closes.                                                                                                                                                                                                      | Implemented |
 
-Not built: Reel branches, a retry command for a failed branch (remove it and ask again), the sequence view
-and history map (X03, X04), idea rooms (#245).
+Not built: Reel branches, a retry command for a failed branch (remove it and ask again), a discussion scoped to one
+branch (it needs a scope on messages, which Social and idea rooms (#245) own), idea rooms.
+
+The branch view and the map of a thread (X03, X04) read only what `list` returns. A branch is one Scroll, so the view has
+one item; nothing is invented to fill a sequence.
 
 ## The model: a tree of branches
 
@@ -43,6 +44,23 @@ another node at a revision). The rules are pure, in `domain/`:
   (`kept_contradicts_premise`); one that restates it in the same words is listed once, among the
   assumptions. The client lists what already holds and lets a changed line add a premise or say which one it
   replaces; an edited suggestion keeps its subjects. Hypothetical status is inherited by every descendant.
+- **Speculative** is its own fact, apart from "unclear". The Planner marks a direction `speculative` only when its
+  premise contradicts established knowledge, and `needsConfirmation` when it is unclear or speculative (a speculative
+  direction always asks to be confirmed). A branch is `speculative` when the member confirmed a speculative direction,
+  or when it continues one that is. An edit of a direction names it (`fromOptionId`), and the server resolves the flag
+  from the member's own draft and keeps it: changing a word of a speculative idea does not make it established. A
+  request typed from scratch is never speculative. The flag is part of a branch's meaning (`meaningOf`), so an ordinary
+  branch is never reused for a speculative twin or the reverse. It is a flag on the card that the client says in words
+  ("Speculative scenario · not established science"), not a second status label beside Hypothetical (D-006 a). A
+  speculative branch is hypothetical (a check on the table).
+- **Replacing a premise.** A what-if's change may name the premise of an earlier branch it takes the place of
+  (`replaces`, the Planner's `replaces: <subject> | null`). Code checks the name against the premises that hold, and a
+  change that names one replaces it whatever its own subject says, in its place; a change that names none replaces only a
+  premise of its own subject, as before. A change that says a held premise again in other words without naming it is not
+  accepted from the Planner (it goes to the one repair): both would reach the writer. A change that names a premise under
+  another subject must also share a content word with it, or it goes to the repair too: a premise is never dropped by a
+  change that has nothing to do with it. The client shows each premise an option would take out, in its own words
+  ("Replaces: …"), on the card, the summary and the confirm step, so the member agrees to what goes before choosing.
 - **Another perspective**: a named lens, no change; the parent's premises and status are kept. A perspective
   on the unchanged root is not hypothetical.
 - `planStep` is the one rule that checks a proposed or a hand-written step, so anything the Planner proposes
@@ -55,7 +73,7 @@ another node at a revision). The rules are pure, in `domain/`:
 1. `draft`: under the personal root, the caller's own gate and the thread's lock, checks that the person
    takes part and that the parent's revision is current, stores the draft and its receipt and sends
    `scenarios.suggest-draft` (IDs only) in the same transaction.
-2. The worker runs the Planner (`scenarios.planner`, `planner.1`, policy `scenario-planner.v1`) on the
+2. The worker runs the Planner (`scenarios.planner`, `planner.2`, policy `scenario-planner.v1`) on the
    personal reasoning harness, outside any transaction. The run is the draft's ID, so a redelivery never
    pays twice. It sees the member's words, the subject, the premises that hold and the last 12 messages,
    clipped, with authors as "you" or "member": no names, no IDs, no other thread. A late result is applied
@@ -80,7 +98,8 @@ offer, an exposure's context: one gate on the exact-encounter read), the saved l
 snippet that names it (sent or opened), and the data export. For anyone else the Scroll is as missing as an
 unknown ID (a `return` to it is "exhausted"), a saved entry reads as withdrawn with no title or summary (it can
 still be removed), and the export keeps no title for it ("Withdrawn"). IDs compare in lower case. A member who
-leaves loses it everywhere. A removed branch's Scroll is closed to everyone. The
+leaves loses it everywhere. A removed branch's Scroll is closed to everyone, and the branch itself is a bare placeholder in the list: where it stood in the
+tree and when it was made, with no title, premises, lens or starter (`cardOf`). It is nothing a member could have read from it. The
 Scroll is in no discovery lane, cannot be a share-link card, has no topic attribution and adds no coverage.
 
 Every one of these asks reads on `ReadOn`: inside a personal write it is that scope's own transaction, so
@@ -91,15 +110,15 @@ worker, which builds the export, composes `READ_ORDER_AUDIENCE` (`orderAudienceP
 
 ## Tables, jobs and lock order
 
-| Store | Role | Clear | Account deletion |
-| --- | --- | --- | --- |
-| `scenarios.nodes` | The shared exploration of a thread: parent, kind, title, premises, lens, status, revision, bound asset | kept | the link to the person (`started_by_account_id`) cleared. Title, premises (a premise may be the member's own typed sentence), order and Scroll stay, with no account ID |
-| `scenarios.drafts` | A member's private request text and the directions proposed | deleted | deleted |
-| `supply.scenario_orders` (Supply) | The ledger the two caps count; names no person | kept | kept (no person) |
-| `content.made_to_order_scrolls` (Content) | The code-built order of a branch's Scroll: recipe, brief (with the premises), pages, kicker, framing | kept | kept (no account ID) |
-| `receipts.shared_commands` | Receipts of the thread's commands (`scenarios.draft`, `.choose`, `.remove`) | kept | the person's own are deleted (`receiptsErasure`) |
-| `pgboss/scenarios.suggest-draft` | Draft IDs; 4 at a time, 670 s expiry, three retries | payloads deleted | payloads deleted |
-| `pgboss/scenarios.resolve-branches` | Cron, every minute | nothing personal | nothing personal |
+| Store                                     | Role                                                                                                                                 | Clear            | Account deletion                                                                                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scenarios.nodes`                         | The shared exploration of a thread: parent, kind, title, premises, lens, `speculative`, status, revision, bound asset                | kept             | the link to the person (`started_by_account_id`) cleared. Title, premises (a premise may be the member's own typed sentence), order and Scroll stay, with no account ID |
+| `scenarios.drafts`                        | A member's private request text and the directions proposed; a ready, unexpired draft's directions are the caller's offers in `list` | deleted          | deleted                                                                                                                                                                 |
+| `supply.scenario_orders` (Supply)         | The ledger the two caps count; names no person                                                                                       | kept             | kept (no person)                                                                                                                                                        |
+| `content.made_to_order_scrolls` (Content) | The code-built order of a branch's Scroll: recipe, brief (with the premises), pages, kicker, framing                                 | kept             | kept (no account ID)                                                                                                                                                    |
+| `receipts.shared_commands`                | Receipts of the thread's commands (`scenarios.draft`, `.choose`, `.remove`)                                                          | kept             | the person's own are deleted (`receiptsErasure`)                                                                                                                        |
+| `pgboss/scenarios.suggest-draft`          | Draft IDs; 4 at a time, 670 s expiry, three retries                                                                                  | payloads deleted | payloads deleted                                                                                                                                                        |
+| `pgboss/scenarios.resolve-branches`       | Cron, every minute                                                                                                                   | nothing personal | nothing personal                                                                                                                                                        |
 
 Lock order: personal root, the caller's own account gate (`fenceOwn`), the thread's root (`social_thread`),
 the draft and node rows, and last the commissioning lock of Quartermaster. The personal harness's close of a
@@ -134,8 +153,23 @@ budgets for the Planner.
   hypothetical Scrolls carry no coverage; the audience on open, document read, save, like, the saved lists,
   navigation (return, offer, activation), a snippet that names it and the data export (a member who left, a
   stranger, an upper-case ID); a pool of one still opens, acts and lists; twenty drafts a day; both
-  caps; the sweep; the Planner never sees a name. `account-deletion.test.ts` (erasure).
+  caps; the sweep; the Planner never sees a name; speculative only for what contradicts knowledge (an unclear idea is not
+  marked), an edit keeps its direction's flag and a request from scratch has none, a speculative and an ordinary twin are
+  never reused for each other, a direction replaces the premise it names and one that restates a premise goes to the
+  repair (and fails the draft if the repair does not fix it), a removed branch is a bare placeholder for every member and
+  in a replayed answer, and the migration's backfill on rows seeded as part 1 wrote them (a branch from a confirmed
+  direction, its what-if and perspective below it, an ordinary branch and an edited one left alone, a draft gone by Clear
+  left unmarked, run twice, and the check that a branch is hypothetical if speculative). `account-deletion.test.ts` (erasure).
 - All of the above use a labelled fixture model and production worker.
-- Runtime, real model: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
+- Runtime, real model, the flag and the replacement (24 Oct, a local PostgreSQL, API and worker, two people): 6 requests
+  (one for the root Scroll; three for the Planner, two asks and one repair after `OUTPUT_SCHEMA_MISMATCH`; two for
+  writers, one published and one aborted when the worker was stopped). The Planner marked "gravity pushes Earth away from
+  the Sun every summer" as `speculative` and `needsConfirmation`, and the branch carried the flag. Asked below it for a
+  push half as strong, it answered with `replaces: "gravity"`, and the new branch held that one premise, not two.
+- Runtime, real model, branch view and map (24 Oct, a local PostgreSQL, API and worker, two people): 21 requests (one for
+  the root Scroll; 10 for the Planner, seven asks and three repairs after `OUTPUT_SCHEMA_MISMATCH`; 10 for writers, six
+  branches and four retried takes). Six branches were made, one removed, one still preparing was shown, one offer was
+  left unmade, and a branch under a speculative one inherited `speculative`. Screenshots are in the pull request.
+- Runtime, real model, the first part: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's
   first take was rejected as `OUTPUT_SCHEMA_MISMATCH` and the sweep sent take 2, which published). Screenshots and numbers
   are in the pull request for #244.

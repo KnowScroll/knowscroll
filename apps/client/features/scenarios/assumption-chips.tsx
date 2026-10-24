@@ -1,13 +1,23 @@
 import { StyleSheet, View } from 'react-native';
-import { chipText, describeOption } from '@knowscroll/client-core';
-import type { ScenarioOption } from '@knowscroll/contracts';
+import { chipText, describeOption, replacedPremises } from '@knowscroll/client-core';
+import type { Assumption, ScenarioOption } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
 
-/** What an idea changes (dashed cobalt), keeps (ink) or looks through, as chips that wrap on a narrow screen. */
-export function AssumptionChips({ option }: { readonly option: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'> }) {
+/**
+ * What an idea changes (dashed cobalt), what it takes out (dashed grey, "Replaces: …", in the premise's own words)
+ * and what it keeps (ink) or looks through, as chips that wrap on a narrow screen. `premises` are those of the branch
+ * it continues: with them the member sees every premise the idea would drop before they choose it.
+ */
+export function AssumptionChips({
+  option,
+  premises = [],
+}: {
+  readonly option: Pick<ScenarioOption, 'changes' | 'kept' | 'lens'>;
+  readonly premises?: readonly Assumption[];
+}) {
   return (
-    <View style={styles.chips} accessibilityLabel={describeOption(option)}>
+    <View style={styles.chips} accessibilityLabel={describeOption(option, premises)}>
       {option.lens === undefined ? null : (
         <View style={[styles.chip, styles.changed]}>
           <Text variant="uiS" color={status.hypothetical.foreground}>
@@ -19,6 +29,13 @@ export function AssumptionChips({ option }: { readonly option: Pick<ScenarioOpti
         <View key={`c-${change.subject}`} style={[styles.chip, styles.changed]}>
           <Text variant="uiS" color={status.hypothetical.foreground}>
             {chipText('Changed', change)}
+          </Text>
+        </View>
+      ))}
+      {replacedPremises(option, premises).map((premise) => (
+        <View key={`r-${premise.subject}`} style={[styles.chip, styles.replaced]}>
+          <Text variant="uiS" color={content.ink2}>
+            {chipText('Replaces', premise)}
           </Text>
         </View>
       ))}
@@ -43,4 +60,5 @@ const styles = StyleSheet.create({
     borderColor: content.ink,
   },
   changed: { borderStyle: 'dashed', borderColor: status.hypothetical.edge },
+  replaced: { borderStyle: 'dashed', borderColor: content.muted, backgroundColor: content.paper2 },
 });

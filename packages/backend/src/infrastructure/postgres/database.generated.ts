@@ -1532,6 +1532,7 @@ export interface ScenariosNodes {
   parent_node_id: string | null;
   revision: number;
   semantic_key: string;
+  speculative: Generated<boolean>;
   started_by_account_id: string | null;
   status: string;
   thread_id: string;

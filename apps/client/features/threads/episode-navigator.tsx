@@ -130,10 +130,19 @@ export function EpisodeNavigator({
   const current = episodes.findIndex((episode) => episode.assetId === selected);
   // Arrow keys move between episodes on the web; a swipe scrolls on a phone.
   const onKeyDown = (event: unknown) => {
-    const { key, preventDefault } = event as { key?: string; preventDefault?: () => void };
-    if (key === 'ArrowRight' || key === 'ArrowLeft') {
-      preventDefault?.();
-      step(current, key === 'ArrowRight' ? 1 : -1);
+    const keyEvent = event as {
+      key?: string;
+      altKey?: boolean;
+      ctrlKey?: boolean;
+      metaKey?: boolean;
+      preventDefault?: () => void;
+    };
+    // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.
+    if (keyEvent.altKey === true || keyEvent.ctrlKey === true || keyEvent.metaKey === true) return;
+    if (keyEvent.key === 'ArrowRight' || keyEvent.key === 'ArrowLeft') {
+      // Called on the event itself: a detached `preventDefault` throws "Illegal invocation" in the browser.
+      keyEvent.preventDefault?.();
+      step(current, keyEvent.key === 'ArrowRight' ? 1 : -1);
     }
   };
   return (

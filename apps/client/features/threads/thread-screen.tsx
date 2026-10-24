@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -10,19 +10,22 @@ import {
   type ContentThreadController,
   type ContentThreadState,
 } from '@knowscroll/client-core';
-import type { ContentThreadRef, ReelDocument, ScenarioCard, SendThreadBody } from '@knowscroll/contracts';
-import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, Skeleton, StateBlock, type ReelPositionHandle } from '@knowscroll/ui';
+import type { ContentThreadRef, ReelDocument, SendThreadBody } from '@knowscroll/contracts';
+import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
+import { Banner, Skeleton, StateBlock, Text, useDisplay, type ReelPositionHandle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
+import { TalkFrame } from '../shell/talk-frame';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
 import { AsksBar } from '../scenarios/asks-bar';
-import { ScenarioSheet } from '../scenarios/scenario-sheet';
+import { BranchSheets } from '../scenarios/branch-sheets';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
-import { useThreadScenarios } from '../scenarios/use-thread-scenarios';
+import { useThreadBranches } from '../scenarios/use-thread-branches';
 import { EpisodeNavigator } from './episode-navigator';
+import { useOwnPlace } from './own-place';
+import { useMarkHere } from '../scenarios/use-mark-here';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
 import { ThreadEncounter } from './thread-encounter';
@@ -30,9 +33,10 @@ import { readInThreadHref, snippetHref, threadRefFromParams } from './thread-lin
 import { ThreadMessages } from './thread-messages';
 import { useContentThread } from './use-content-thread';
 
+/** D03: the thread's pane beside the conversation. */
+const THREAD_PANE_WIDTH = 560;
+
 const draftKey = (threadId: string) => `thread.draft.${threadId}`;
-const selectedKey = (threadId: string) => `thread.selected.${threadId}`;
-const foldedKey = (threadId: string) => `thread.folded.${threadId}`;
 
 /** The unsent text of one thread, kept in the account scope's storage so leaving and coming back keeps it. */
 function useDraft(scope: AccountScope, threadId: string) {
@@ -43,27 +47,6 @@ function useDraft(scope: AccountScope, threadId: string) {
     else scope.storage.set(draftKey(threadId), text);
   };
   return [draft, keepDraft] as const;
-}
-
-/**
- * This person's own place in the thread: the episode selected and whether the player is folded. It
- * lives in the account scope's storage on this device. It is never sent, so no one else can learn it.
- */
-function useOwnPlace(scope: AccountScope, threadId: string) {
-  const [selected, setSelected] = useState(() => scope.storage.get(selectedKey(threadId)));
-  const [folded, setFolded] = useState(() => scope.storage.get(foldedKey(threadId)) === '1');
-  return {
-    selected,
-    select: (assetId: string) => {
-      setSelected(assetId);
-      scope.storage.set(selectedKey(threadId), assetId);
-    },
-    folded,
-    setFolded: (next: boolean) => {
-      setFolded(next);
-      scope.storage.set(foldedKey(threadId), next ? '1' : '0');
-    },
-  };
 }
 
 /** What the person sees once the thread is read: episodes, encounter, messages, composer and sheets. */
@@ -85,7 +68,10 @@ function ReadyThread({
   readonly onLeft: () => void;
 }) {
   const router = useRouter();
+  // From 1024 px the thread and the conversation sit side by side (D03).
+  const sideBySide = useDisplay().breakpoint === 'desktop';
   const place = useOwnPlace(scope, thread.threadId);
+  useMarkHere(scope, thread.threadId);
   const [draft, keepDraft] = useDraft(scope, thread.threadId);
   const [people, setPeople] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -108,28 +94,30 @@ function ReadyThread({
   const series = state.sequence === 'series';
   const current = episodes.find((episode) => episode.assetId === place.selected) ?? episodes[0];
   const ownPersonId = state.participants.find((participant) => participant.you)?.person.personId;
-  const scenarios = useThreadScenarios({
-    board: board.controller,
-    rootRevision: state.root?.target.assetRevision,
+  const branches = useThreadBranches({
+    scope,
+    thread,
+    title,
+    state,
+    board,
+    selectedAssetId: place.selected,
     onBranchStarted: () => {
       follow();
       // The new card is below the fold: show it once the branches are read and laid out.
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 150);
     },
   });
-  const openBranch = (card: ScenarioCard) => {
-    if (card.content !== undefined) router.push(readInThreadHref(thread, card.content.assetId, { branch: true }));
-  };
   const rootSummary =
     state.root?.status === 'available' && state.root.target.assetId === current?.assetId
       ? state.root.metadata.summary
       : undefined;
-  return (
+  const threadPane = (
     <>
       <ThreadHeader
         title={title}
         people={state.participants.map((participant) => participant.person.displayName).join(', ')}
         onBack={onBack}
+        onMap={branches.mapOffered ? branches.map.show : undefined}
         onPeople={() => setPeople(true)}
         onMenu={() => setMenu(true)}
       />
@@ -139,7 +127,7 @@ function ReadyThread({
         </View>
       ) : null}
       {current === undefined ? null : (
-        <View style={styles.column}>
+        <View style={sideBySide ? styles.paneColumn : styles.column}>
           <EpisodeNavigator
             episodes={episodes}
             selected={current.assetId}
@@ -162,6 +150,10 @@ function ReadyThread({
           />
         </View>
       )}
+    </>
+  );
+  const conversationPane = (
+    <>
       <ThreadMessages
         state={state}
         controller={controller}
@@ -171,13 +163,13 @@ function ReadyThread({
         onScroll={onScroll}
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
         branches={board.state.cards}
-        onOpenBranch={openBranch}
-        onContinueBranch={scenarios.continueBranch}
-        onRemoveBranch={scenarios.removeBranch}
-        onMessageMenu={scenarios.askFromMessage}
-        onAsk={scenarios.askFromMessage}
+        onOpenBranch={branches.openBranch}
+        onContinueBranch={branches.scenarios.continueBranch}
+        onRemoveBranch={branches.scenarios.removeBranch}
+        onMessageMenu={branches.scenarios.askFromMessage}
+        onAsk={branches.scenarios.askFromMessage}
       />
-      <AsksBar onAsk={scenarios.askFromRoot} />
+      <AsksBar onAsk={branches.scenarios.askFromRoot} />
       <Composer
         name={
           state.participants
@@ -193,6 +185,34 @@ function ReadyThread({
           void controller.send({ kind: 'text', text });
         }}
       />
+    </>
+  );
+  // One element path for both layouts: only styles and the Conversation title differ, and the roles
+  // stay the same because React Native Web draws a different element for each role, which would
+  // remount the player on a resize across 1024 px (ending its recorder and opening a second exposure).
+  return (
+    <>
+      <View style={sideBySide ? styles.panes : styles.stack}>
+        <View role="region" aria-label="Thread" style={sideBySide ? styles.threadPane : styles.fitContent}>
+          <ScrollView
+            scrollEnabled={sideBySide}
+            style={sideBySide ? undefined : styles.fitContent}
+            contentContainerStyle={sideBySide ? styles.threadPaneContent : undefined}
+          >
+            {threadPane}
+          </ScrollView>
+        </View>
+        <View role="region" aria-label="Conversation" style={sideBySide ? styles.conversationPane : styles.stack}>
+          {sideBySide ? (
+            <View style={styles.conversationHeader}>
+              <Text variant="title" heading={2}>
+                Conversation
+              </Text>
+            </View>
+          ) : null}
+          {conversationPane}
+        </View>
+      </View>
       {moment === undefined ? null : (
         <ShareMomentSheet
           visible
@@ -209,12 +229,15 @@ function ReadyThread({
           }}
         />
       )}
-      <ScenarioSheet
-        start={scenarios.start}
+      <BranchSheets
         scope={scope}
         thread={thread}
-        onClose={scenarios.close}
-        onChosen={scenarios.branchStarted}
+        scenarios={branches.scenarios}
+        map={branches.map}
+        suggestions={board.state.suggestions}
+        navigate="push"
+        onChosen={branches.scenarios.branchStarted}
+        onOpenEpisode={place.select}
       />
       <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />
       <OptionsSheet
@@ -366,33 +389,35 @@ export function ThreadScreen(params: {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-    >
-      {state.status === 'signed_in' ? (
-        <ResolvedThread scope={state.scope} params={params} />
-      ) : state.status === 'unavailable' ? (
-        <StateBlock
-          title="Can’t reach your account"
-          body="Reconnect to read this thread."
-          actions={[{ label: 'Reconnect', onPress: () => void manager.refresh() }]}
-        />
-      ) : (
-        <StateBlock
-          title="Sign in to read this thread"
-          actions={[
-            {
-              label: 'Sign in',
-              variant: 'primary',
-              role: 'link',
-              href: '/welcome',
-              onPress: () => router.navigate('/welcome'),
-            },
-          ]}
-        />
-      )}
-    </KeyboardAvoidingView>
+    <TalkFrame>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      >
+        {state.status === 'signed_in' ? (
+          <ResolvedThread scope={state.scope} params={params} />
+        ) : state.status === 'unavailable' ? (
+          <StateBlock
+            title="Can’t reach your account"
+            body="Reconnect to read this thread."
+            actions={[{ label: 'Reconnect', onPress: () => void manager.refresh() }]}
+          />
+        ) : (
+          <StateBlock
+            title="Sign in to read this thread"
+            actions={[
+              {
+                label: 'Sign in',
+                variant: 'primary',
+                role: 'link',
+                href: '/welcome',
+                onPress: () => router.navigate('/welcome'),
+              },
+            ]}
+          />
+        )}
+      </KeyboardAvoidingView>
+    </TalkFrame>
   );
 }
 
@@ -402,4 +427,25 @@ const styles = StyleSheet.create({
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
   /** The episodes and the encounter keep the reading measure, centred, on wide screens (the multi-pane layout is D03). */
   column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
+  /** D03: the thread's own pane takes the width it is given; the conversation fills the rest. */
+  panes: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  stack: { flex: 1, minHeight: 0 },
+  /** One column: the thread's own part takes the height of its content and the messages take the rest. */
+  fitContent: { flexGrow: 0, flexShrink: 0 },
+  threadPane: {
+    width: THREAD_PANE_WIDTH,
+    borderRightWidth: borderWidth.regular,
+    borderRightColor: content.ink,
+    minHeight: 0,
+  },
+  threadPaneContent: { paddingBottom: spacing[6] },
+  paneColumn: { width: '100%', paddingHorizontal: layout.gutter },
+  conversationPane: { flex: 1, minWidth: 340, minHeight: 0 },
+  conversationHeader: {
+    minHeight: 64,
+    justifyContent: 'center',
+    paddingHorizontal: layout.gutter,
+    borderBottomWidth: borderWidth.hairline,
+    borderBottomColor: content.rule,
+  },
 });

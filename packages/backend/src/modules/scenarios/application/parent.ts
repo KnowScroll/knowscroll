@@ -39,6 +39,11 @@ export async function parentFactsOf(
   return {
     kind: 'found',
     nodeId: node.nodeId,
-    facts: { hypothetical: node.hypothetical, assumptions: node.assumptions, title: node.title },
+    facts: {
+      hypothetical: node.hypothetical,
+      speculative: node.speculative,
+      assumptions: node.assumptions,
+      title: node.title,
+    },
   };
 }

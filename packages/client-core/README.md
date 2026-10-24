@@ -407,4 +407,13 @@ Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests an
   commissions (one ID per selection; a refusal is final, a lost answer is retried with the same ID), `retry`, `reset`.
   Phases: `idle`, `sending`, `thinking`, `ready`, `failed`, `choosing`, `chosen`, `blocked` (`budget`, `unsupported`,
   `invalid`, `stale`, `unavailable`, `offline`). Nothing it holds reaches the thread before a branch exists.
-- `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`: the words a screen uses for an assumption chip and a card.
+  `attach(draftId)` picks up a draft the member was offered and has not chosen, and shows its directions.
+  The board also carries `suggestions`, the member's own unmade offers from `list`.
+- `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`, `kindedTitle`: the words a screen uses for an assumption chip and a card (`kindedTitle` does not say "What if" twice).
+- `ownSelection` carries `fromOptionId` when a request was edited from one of the draft's directions.
+- `scenario-map.ts` (pure): `buildMap` (a few named steps: `forestOf`, `narrow`, `layOut`) makes the outline of a thread
+  (X04) from its episodes, the branch cards and the member's offers: branches nested under the root episode, the Mine, Everyone and Suggestions filters (they keep the
+  path to what they show), search (a removed branch never matches), folding after `GROUP_LIMIT`, "You" only on the
+  member's own place. `mapOffered` says when a thread has enough branches for a map. `returnTarget` names where the
+  way back from a branch goes. `loadMapPreferences`/`saveMapPreferences` and `loadHere`/`saveHere` keep the filter,
+  the opened groups and the member's place on the device only.
