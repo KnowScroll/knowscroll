@@ -159,6 +159,16 @@ share and request sheets), `encounter-notices.tsx` (request status and Save/Keep
 `encounter-ending.tsx` (E08) and `encounter-states.tsx` (opening, waiting, offline and the rest).
 They read the session; none of them owns navigation.
 
+Two small additions read what the session already knows. `encounter-origin.ts` and
+`encounter-origin-chip.tsx` draw the chip under a Scroll's top bar when it was opened by the format
+switch ("From the Reel at 0:31 · Back to Reel", E06): the offer's relation is `format_variant`, the
+entry before it is the other format of the same explanation, and the playhead is the one the Reel
+was parked at. The chip is Back. "Something different" on an ending calls `session.chooseDirection()`:
+when the discovery returns more than one offer the session stops with `state.choices` and
+`direction-picker.tsx` ("Somewhere new", E08) lists their titles and formats; nothing is activated, so
+nothing is recorded, until `pickDirection(offerId)`; Back, Esc or "Not now" returns to the ending.
+With one offer it opens at once.
+
 `encounter-history.ts` retains at most 20 entries in memory, including the same recorder and
 monotonic timebase. Park synchronously captures the actual article block/offset or SDK playhead,
 then pauses and suspends. Local Back restores a retained entry, paused, with no open/navigation/
