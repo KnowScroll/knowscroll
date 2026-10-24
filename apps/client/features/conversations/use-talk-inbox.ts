@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   TALK_QUERY_KEY,
   inboxRowView,
@@ -21,7 +21,10 @@ class StaleInboxCursor extends Error {}
  */
 export function useTalkInbox(scope: AccountScope | undefined) {
   const client = useQueryClient();
-  const key = scope === undefined ? ([TALK_QUERY_KEY, 'signed-out'] as const) : scope.queryKey(TALK_QUERY_KEY, 'inbox');
+  const key = useMemo(
+    () => (scope === undefined ? ([TALK_QUERY_KEY, 'signed-out'] as const) : scope.queryKey(TALK_QUERY_KEY, 'inbox')),
+    [scope],
+  );
   const query = useInfiniteQuery<
     InboxPage,
     Error,
