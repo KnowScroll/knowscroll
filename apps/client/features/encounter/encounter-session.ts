@@ -1,3 +1,4 @@
+import { CancelledError } from '@tanstack/react-query';
 import {
   apiProblem,
   recordingCommandFields,
@@ -250,7 +251,8 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     }
   }
   function fail(error: unknown) {
-    if (!valid() || error instanceof ScopeEndedError) return;
+    // A refetch that a newer one replaced (after a removal, say) says nothing about the network.
+    if (!valid() || error instanceof ScopeEndedError || error instanceof CancelledError) return;
     const problem = apiProblem(error);
     if (
       problem?.code === 'INTENT_REVISION_STALE' ||

@@ -97,7 +97,7 @@ function ReelChrome({
         </View>
       </View>
       <View
-        style={[styles.rail, { top: metrics.top + (metrics.short ? 56 : 120), right: spacing[3] }]}
+        style={[styles.rail, { top: metrics.top + (metrics.short ? 56 : 160), right: spacing[3] }]}
         pointerEvents="box-none"
       >
         <EncounterRail entry={entry} state={state} session={session} dense={metrics.short} />

@@ -1,4 +1,5 @@
 import { waitFor } from '@testing-library/react-native';
+import { CancelledError } from '@tanstack/react-query';
 import {
   scopeOutbox,
   createAccountScope,
@@ -308,6 +309,20 @@ describe('actual encounter controller over CI transport fixtures', () => {
       const count = commands(h, '/navigate').length;
       h.session.back();
       expect(commands(h, '/navigate')).toHaveLength(count);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('a context refetch that a newer one replaced is not "offline"', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const exposureId = h.session.getState().entry!.exposureId;
+      h.session.contextFailure(exposureId, new CancelledError());
+      expect(h.session.getState().phase).toBe('active');
+      h.session.contextFailure(exposureId, new TypeError('Failed to fetch'));
+      expect(h.session.getState().phase).toBe('offline');
     } finally {
       h.scope.end();
     }
