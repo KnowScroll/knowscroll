@@ -148,7 +148,7 @@ export function EncounterStateScreen({
           title="This isn't available anymore"
           body="It may have been withdrawn, or your access changed. Your other saved places are unaffected."
           actions={[
-            { label: 'Find something new', onPress: discover, variant: 'primary' },
+            { label: 'Next subject', onPress: discover, variant: 'primary' },
             {
               label: 'Go to Keep',
               href: '/saved',

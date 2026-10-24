@@ -37,6 +37,12 @@ describe('RequestStatusChip', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it("says a request that can't be made in words, and is never a button", async () => {
+    await renderOn(<RequestStatusChip status="unavailable" onPress={() => undefined} testID="chip" />);
+    expect(screen.getByLabelText("Can't be made")).toBeOnTheScreen();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('draws cancelled with a dashed edge', async () => {
     await renderOn(<RequestStatusChip status="cancelled" testID="chip" />);
     expect(screen.getByTestId('chip')).toHaveStyle({ borderStyle: 'dashed' });
