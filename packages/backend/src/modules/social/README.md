@@ -1,116 +1,134 @@
-# Social: Friends backend foundation (#241)
+# Social: friends, conversations and share links
 
-Explicit profiles, exact handle lookup, current pair read and seven pair commands.
-The API #374 adapter mounts these eleven operations using the existing use-case/provider ports.
-Versioned roster pages and revocable invitation links are mounted by #377. Settings, live presence,
-visitor publication and messaging remain future slices. Available friends carry constant unknown presence. No fabricated contact, seed,
-world formation, grant, consumption or evidence follows from a command.
+People find each other by handle, become friends, send each other a Reel or Scroll and talk about it.
+A link to a Reel or Scroll can also be shared outside the app. Nothing here is consumption evidence:
+sending, receiving or opening a shared card never creates an exposure, an observation or a Keep.
 
-`socialUseCases` takes existing scope and Identity309 gate ports. Own profile changes lock own root
-→ own account UPDATE → profile/receipt. Pair operations lock actor root → sorted two existing
-account SHARE rows → separate fresh active/epoch read → one deterministic private pair root →
-subordinate rows/shared receipt. No peer root, new fence table, lock upgrade, external wait or job.
-The versioned SHA256 canonical-account UUID protocol is private; acquisition checks both UUID and
-ordered account binding and fails closed on collision/mismatch. Public person UUIDs are separately
-minted and contain no account/universe identity or email-derived handle. Profile revision0 means
-explicitly unclaimed. Handles are exact lowercase ASCII3..24 with internal nonadjacent dot/underscore.
-Labels preserve international text while rejecting C0/DEL/C1 and surrounding whitespace.
+Status marks: **implemented** means merged with tests against real PostgreSQL. **Runtime-verified**
+means used on a running dev system. Nothing in this module is runtime-verified yet.
 
-The private aggregate revision never appears on wire. `pairRevision` is one caller's public view.
-A new request reserves one further public revision for deterministic expiry, then uses the approved fixed seven-day public window and same-expiry cooldown. Reciprocal
-request never accepts. Recipient decline advances only recipient view; sender JSON, revision,
-request ID, no-op retry and expiry remain identical to ignored history. Effective expiry is pure
-server-time projection; commands persist it once and reads never depend on cleanup. Cancel has the
-same sender semantics after private decline. A private block closes grants immediately while
-preserving an existing pending sender projection through its deadline; no peer-block reason or
-private-revision stale error is exposed. Remove is visible relationship withdrawal. Unblock clears
-only own preference and restores nothing. Roster indexing observes only each caller-visible side; no private aggregate revision or invalidation hint crosses the wire.
+## What the module owns
 
-Existing personal/shared receipts remain immutable outcomes, separate from current resources.
-Pair command bindings fence actor epoch and authority lineage BEFORE receipt replay; request hashes
-also bind actor epoch, never volatile peer epoch/private disposition. Old Accept after removal,
-block or another lineage is unavailable. Actor-owned withdrawal/no-op completion can replay after
-current active gates, but cannot grant access. Wrong expected public revision applies only to new
-commands; an identical admitted retry returns the first outcome. Missing/inactive/blocked lookup
-is one coarse branch. Withdrawals against an inactive peer also refuse; no cleanup bypass exists.
+| Area | Tables (schema `social`) | Use cases (`public.ts`) | Status |
+| --- | --- | --- | --- |
+| Profiles and friendship | `profiles`, `pairs`, `pair_sides`, `requests`, `command_bindings` | `SOCIAL_USE_CASES`: profile, lookup, pair read, request, accept, decline, cancel, remove, block, unblock | Implemented |
+| Rosters and invitations | `roster_entries`, `roster_heads`, `invites` | `SOCIAL_USE_CASES`: friend and request pages, invite create, revoke, status, resolve | Implemented |
+| Conversations | `conversations`, `conversation_members`, `messages`, `inbox_heads` | `CONVERSATION_USE_CASES.conversations`: start, inbox, read, history, changes, send, read of a send, mark read, mute, leave | Implemented |
+| Share links | `content_shares` | `CONVERSATION_USE_CASES.shares`: create, revoke, read own, list own, resolve, public preview | Implemented |
 
-Migration0028 owns five tables, all account references RESTRICT. Request identity/expiry is immutable
-and subordinate account membership is SQL-checked. No private profile/activity metadata is stored.
-All account columns and lifetime tables are inventoried. Exploration clear retains them; registry
-inventory is not a deletion executor; account deletion is Identity's lifecycle (`eraseAccount`, below).
-There are no scoped Social versions, jobs or caches in this slice.
-Any future scoped store must erase ALL versions/epochs and fence late workers before application.
+Dependency direction: `domain/` (pure rules and cursors) <- `application/` (use cases over ports) <-
+`adapters/` (PostgreSQL, Nest providers, erasure). Other modules and the API import only `public.ts`.
+Content metadata for cards comes from the Content module's `READ_SHAREABLE_CONTENT` and
+`READ_PUBLIC_CONTENT` (never its tables). The module has no jobs and no queue work.
 
-CI uses synthetic accounts in real disposable PostgreSQL. It is not two-account dev acceptance.
-Migration/source presence does not roll out schema28 or finish #241. The installed API adapter
-and disposable HTTP fixtures are distinct from two-account dev/client acceptance.
+## Friends
 
-The API composition reuses Identity's existing own-account barrier and binds only the pair fence;
-it does not mount account invalidation/deletion. Each output is closed-schema checked and bound
-to current caller scope, original command/operation and selected public person. Central private
-problem projection runs before auth/parsing for exactly the mounted methods/paths. Receipts remain
-immutable and current pair/epoch/lineage authority is enforced by these owning use cases, not
-reconstructed by HTTP. There is no list scan, cursor/index, provider, job or evidence path added.
+A person claims a handle (3 to 24 lowercase ASCII characters, with single inner dots or underscores) and a
+display name. Revision 0 of a profile means unclaimed. Anyone can look up an exact handle. Lookup, request
+and pair reads never say whether a hidden, blocked or unknown person exists: all give one coarse answer.
 
-## Recoverable rosters and invitations (#377)
+- A request lasts seven days. A reciprocal request does not accept. Decline changes only the decliner's view.
+- Remove ends the friendship for both people. Block ends it and refuses new requests; unblock restores nothing.
+- `pairRevision` is one person's view of the friendship. It is not the private aggregate revision, which never
+  leaves the server.
+- Receipts are immutable outcomes. They record that a command was accepted. They are not current access, so
+  every replay first checks the current accounts, epochs and friendship.
 
-`friend-pages.v2` is separate from the still-unmounted `sharing.v1` list declarations.
-`POST /v1/social/friends/page` reads friends/blocked and `/v1/social/requests/page` reads incoming/outgoing.
-Each pure read carries a fresh requestId, current account scope, filter and limit. It locks the
-own root/Identity own-account gate and existing selected head before cursor decoding. It takes
-no peer account/root or pair roots. At most250 current index candidates plus one lookahead are
-read by stable public person UUID. Current active account/universe eligibility and current public
-profile hydration happen within that bounded read, never by an unbounded status/profile fanout.
-No visible item is proof of consumption, presence or continued friendship authority.
+Rosters (`POST /v1/social/friends/page`, `/requests/page`) list friends, blocked people, and incoming and
+outgoing requests, newest first. Each page reads at most 250 candidates by stable public person ID and
+hydrates current profiles. An empty page can still have a next page. The cursor is a plain keyset record: the
+filter, the limit, the account, universe and epoch it was made for, the roster head revision, the last person
+and the traversal time bounds. It is not signed or encrypted, so it survives a restart and works across
+instances. A wrong account, filter, limit or a changed head makes it `SHARING_UNAVAILABLE`, and the client
+starts a fresh traversal.
 
-An empty page **can have next**; only absence of next exhausts the captured finite scan. The
-authenticated next advances beyond the actually scanned/emitted candidate and retains the
-original ceiling. There is no hidden-prefix cutoff masquerading as end-of-list. The public head
-versions durable relationship-index writes; current metadata/eligibility are hydrated live rather
-than frozen. Changing live eligibility before an already visited key requires a fresh traversal.
-New pair/public-side mutations invalidate the old head. Profile edits, epoch/Clear/recording and
-recipient-private decline/block do not fan out to peer heads. A private block preserves an
-already-pending sender entry/deadline exactly. Established relationship withdrawal remains visible
-without its private reason, as in the owning pair protocol.
+Invitations: one active link per person, a 32-byte `ksfi_` token, only its SHA-256 stored, seven days. The
+token is returned once, with the first answer. A lost answer means revoke, then a new command. Resolving or
+requesting by invite rechecks the issuer, token and expiry. A link never accepts a friendship by itself.
 
-The AES256-GCM process-private binary certificate binds protocol, account/universe/epoch,
-filter/head/limit, advancing anchor/captured ceiling and traversal time bounds in164 base64url
-characters. It expires within five minutes and no later than the earliest pending PUBLIC request
-deadline. Expired, stale, malformed, foreign, changed-filter/limit or restarted-process cursors
-uniformly refuse SHARING_UNAVAILABLE; refresh begins a new current traversal. No peer timestamp,
-private revision, cursor grant, persistent cursor store, shared secret or model job is introduced.
+## Conversations
 
-0040 owns roster_entries (one current row/pair side), sparse roster_heads (at mostfour/account)
-and invites (one latest row/account). Pair-side-only SQL projection/binding triggers commit public
-index/head changes in the same transaction as pair effects/receipt. Side writes use canonical
-account UUID order and affected head kinds use canonical order; each pair touches at mostfour
-heads. Private no-ops do not bump sender heads. Indexed current rows, deadline minimum and exact
-invite hash/account keys avoid relationship-history scans. Reads never materialize expiry.
+Two people who are friends can talk. A conversation is tied to the friendship's lineage, so Remove and
+Block end it for both people without saying why.
 
-Invites have one active link/account, random32-byte `ksfi_` tokens, SHA256-only storage and a fixed
-seven-day absolute lifetime. Create requires an explicit profile, never replaces an active link,
-and stores only an immutable acceptance in the personal receipt. Secret delivery is separate and
-available only on the first fresh response; identical retry returns delivery unavailable. Lost
-first delivery needs deliberate revoke then a new command. Old link commands cannot replay after
-a replacement. Own status is pure, including effective expiry. Resolve and invite-target request
-recheck current issuer/profile/token/expiry after existing Identity pair gates, before the sole
-pair root or any replay/effect. Unknown/revoked/expired/inactive/blocked resolve uniformly returns
-unavailable. A link never implicitly accepts friendship or restores withdrawn authority.
+- **Messages** are text (up to the contract limit) or a card for an exact asset revision with an optional note.
+  A withdrawn or unavailable asset cannot be sent. Messages are append-only. Account deletion turns a
+  person's messages into tombstones.
+- **Send is idempotent.** The caller's command ID with the same body replays the first answer. A different
+  body under the same ID is refused. A client that lost the answer retries with the same ID, or reads the
+  command's outcome with `send/read`.
+- **Order.** Each message has a `sequence` (history order) and a `change_sequence` (for catching up). Both
+  counters grow by `+1` in SQL, so account deletion can add tombstones without the friendship lock.
+- **Read state is private.** `read_through_sequence` belongs to its member. The other person never sees it, nor
+  a typing signal. Mute is also private.
+- **Leave** closes the conversation for both. The other person keeps the history, sees that it ended
+  (`ended: true`) and cannot send.
+- **A conversation shows in Talk once it has a message.** `start` alone does not announce.
+- **Cursors** for the inbox (`kci1_`), history (`kch1_`) and changes (`kcc1_`) are base64url of a version, a
+  number and an ID. They are positions only. Every read checks that the caller is a member.
+- **Deleted person.** When the other account is deleted, the friendship row goes and `conversations.pair_id`
+  becomes null (`on delete set null`). The survivor reads the closed conversation through their own scope,
+  with no friendship lock, and sees `DELETED_PERSON` (label `DELETED_ACCOUNT_LABEL`, D-043). Their receipts are
+  personal ones.
 
-All new tables and account-linked columns are in the Social erasure inventory. Selective Clear
-preserves populated index/invite/profile/pair state, while actor-epoch receipt binding still fences
-old grant commands.
+### Lock order
 
-Account deletion (#246, D-043): `socialErasure.eraseAccount` runs inside Identity's deletion transaction.
-It deletes the roster entries and heads, invite, command bindings, pair sides, requests, pairs and profile
-that name the person; the friendship ends for the other person too, silently and without a placeholder,
-because nothing else in Social outlives it. Before the entries go it bumps every other person's affected roster
-head (owner, then kind, the heads' own lock order), so their lists refetch. `pairs` and `requests` reference each
-other with RESTRICT: the person's pairs let go of their requests first. Where shared history does remain
-(conversations, threads, rooms), its owner shows `DELETED_ACCOUNT_LABEL`, never a handle or an ID.
+Personal root first (`withPersonalScope`), then the account fences (`fencePair`: own account and the
+peer's account in SHARE mode), then the one shared root (the friendship row), then the conversation rows.
+`inbox_heads` rows are bumped in canonical account order inside the friendship lock. Shared receipts are keyed
+by (`social_pair`, pair, actor, operation, command ID). A deleted-counterpart conversation takes only
+`fenceOwn` and personal receipts.
 
-The export (`socialErasure.export`) holds the person's own profile (handle, display name), how many people they
-are connected to (friends, requests received and sent, blocked) and the state of their invitation. It names no
-other person: a friend list is theirs to export.
-No token enters a URL, receipt, queue, hint or log. Hosted fixtures are synthetic accounts/PG;
-source/schema/static checks do not establish real populated dev/client/native acceptance.
+### Live updates
+
+A committed send, read or leave bumps `inbox_heads.revision` for each member and calls
+`notifyInboxChanged` in the same transaction. The payload is `{ v: 1, scope: { kind: 'inbox', id: <universeId> },
+revision, eventId }`. The socket subscribes with the caller's own universe ID and its ack carries the current
+head. A hint is disposable: the client then reads `conversations/changes` from its cursor, so a missed or
+late hint loses nothing. Talk also polls every 30 seconds and on focus.
+
+## Share links
+
+A link names an exact asset revision and has one audience: public (anyone with the link sees public
+metadata) or one conversation (only its members). The token is `kssh_` plus 43 base64url characters. Only its
+SHA-256 is stored. It is returned once, with the first answer of the command (`delivery: available`); an
+identical retry gives `delivery: unavailable`. A link lasts 30 days (`SHARE_LIFETIME_MS`) and can be revoked.
+
+Reading a link:
+
+- `POST /v1/social/content-shares/resolve` (signed in) returns public metadata, or the conversation reference
+  for a member.
+- `POST /s/preview` (no sign-in) returns public metadata of public links only.
+- `GET /s/:token` is the landing page, rendered by the API (see `apps/api/README.md`).
+
+Unknown, malformed, revoked, expired, withdrawn and private-to-a-stranger links all give one unavailable
+answer. It never names who shared the link. A corrected asset (a newer revision) says so and offers the
+revised one. Opening a link is not consumption.
+
+## Erasure and export
+
+| Store | Exploration Clear | Account deletion |
+| --- | --- | --- |
+| profiles, pairs, requests, rosters, invites, bindings | kept | deleted; roster heads of former friends are bumped first |
+| conversations, members, inbox heads | kept | closed; the person's rows deleted; peers' inbox heads bumped (hint) |
+| messages | kept | the person's messages become tombstones with new change sequences |
+| content_shares | kept | deleted |
+
+Clear never removes messages, cards or links. `eraseAccount` order: delete the person's links, tombstone
+their messages, pick the peers, close conversations, delete their membership and heads, hint the peers, then
+the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
+invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`) and
+their shared links without tokens. It names no other person.
+
+## Failure and recovery
+
+- A lost response: retry with the same command ID.
+- A lost hint: the next hint, a focus, or the 30 second poll reads `changes` from the cursor.
+- A stale friendship view: the command is refused as stale and the client rereads the pair.
+- Counter exhaustion refuses with `counter_exhausted` rather than wrapping.
+
+## Related
+
+- Blueprint 02d sections 14 and 17; decisions D-042 (conversations and links), D-043 (deleted accounts).
+- Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `content-shares.ts`, `friend-pages.ts`.
+- Tests: `tests/integration/modules/social-*.test.ts`, `tests/integration/release/conversations-http.test.ts`.

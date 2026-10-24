@@ -11,13 +11,15 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/` | `app/index.tsx` | Redirects to `/explore` | — |
 | `/explore` | `app/(tabs)/explore.tsx` | Signed in: actual discover → offer activation → Scroll/Reel, current context, actions, real continuations and a private retained path. Signed out: first-arrival hint and the existing email sign-in route. | Explore |
 | `/universe` | `app/(tabs)/universe.tsx` | U01 to U08 and D02: empty, dust, the map of systems, a system, a planet with its regions, the region card, list view, search, Lately, formation; `?focus=last` flies to the ship's place | Universe |
-| `/conversations` | `app/(tabs)/conversations.tsx` | C01 empty Talk ("Talk" is the label) | Talk |
+| `/conversations` | `app/(tabs)/conversations.tsx` | C01 Talk: the person's conversations, newest first, with the last message, unread dot and a muted mark; "No conversations yet" with Share something and Invite a friend when there are none; signed out shows the empty state | Talk |
+| `/conversations/<id>` | `app/conversations/[conversationId].tsx` | C02 one conversation (`?m=<membership>&r=<revision>` from the inbox, the share sheet or the landing; without them it is found through the inbox): messages and Reel/Scroll cards by day, live over the Talk hint, a composer, mute, leave and block in the menu, "Deleted account" when the other account is gone | the friend's name |
 | `/friends` | `app/friends/index.tsx` | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); no fabricated presence or visibility | Friends |
 | `/friends/invite` | `app/friends/invite.tsx` | Fragment-only invitation entry; pure Check, then explicit Request; signed-out links are discarded before sign-in | Friend invitation |
 | `/saved` | `app/(tabs)/saved.tsx` | S01/S02 Keep: scoped bounded saved list, real metadata/status, filters, remove/retry and explicit immutable original/updated-version revisit choices. | Keep |
 | `/account/requests` | `app/(tabs)/account/requests.tsx` | E07 Your requests: the person's own asks with their state (requested, preparing, ready, couldn't prepare, cancelled), Open when ready, Cancel while preparing, "may be out of date" when a refresh fails (#239) | Requests |
 | `/account` | `app/(tabs)/account/` | P01, the account stack, reached from the avatar on every tab (D-006 c): signed in, the address, the person's sessions (coarse device names and last use; Sign out of one asks once; "Sign out of other devices"), the settings that exist and "Sign out" of this device; signed out, "Sign in" and the receipt of an account deletion asked for here; API unreachable, "Try again". Back names where it goes ("Back to Keep") | Account |
 | `/account/privacy` | `app/(tabs)/account/privacy/index.tsx` | P02 hub (phones, tablets): recording, History & export, Clear exploration, privacy controls other slices add (`features/privacy/privacy-extensions.ts`), Delete account. D05 (desktops): the settings list and one card per control on this one page | Privacy & history |
+| `/account/privacy/shared-links` | `app/(tabs)/account/privacy/shared-links.tsx` | P02 "Links you've shared" (phones, tablets): every live link with its title, audience and expiry, and Stop sharing; on desktops it is a card of the Privacy page and the address redirects there | Links you've shared |
 | `/account/privacy/export`, `/clear`, `/delete` | `app/(tabs)/account/privacy/*.tsx` | The control of that name on a page of its own (phones, tablets); on desktops they redirect to `/account/privacy` | History & export · Clear exploration · Delete account |
 | `/welcome` | `app/(auth)/welcome.tsx` | A01 sign in: "Continue with email", "I have a sign-in link" (S1.3 #226) | Welcome |
 | `/signin` | `app/(auth)/signin/index.tsx` | The email form (labelled field; invalid · sending · too many links · can't reach) | Sign in |
@@ -27,7 +29,7 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | `/scroll/<assetId>` | `app/scroll/[assetId].tsx` | A Scroll opened by its address (D-006 d; `?anchor=<blockId>` restores a block): opens the exposure, reads the negotiated document, activates, renders and records what is read (client-core's recorder), and restores the position by block on return. Signed out: the sign-in prompt; every other state (loading, "isn't available", "needs an app update", offline, error) has a screen. The article uses the full `packages/ui` `ScrollArticle` renderer and AccountScope block-state store. In a world with operator tools (dev, stage, ci, local) a collapsed "Dev · evidence" panel shows the committed evidence watermark (`features/diagnostics/evidence-panel.tsx`; never consumer UI) | The Scroll's title |
 | `/gallery` | `app/gallery.tsx` | Developer component gallery and API health, only when built with `EXPO_PUBLIC_KS_GALLERY=1` (stable marker `testID="ks-component-gallery"`); otherwise "This page isn't here" | Component gallery |
 | `/gallery-scroll` | `app/gallery-scroll.tsx` | Developer Scroll gallery (fixture documents through `prepareScrollDocument` and `ScrollArticle`: `doc` = `bridges` (poster), `lighthouse` (editorial), `experiments` (every interactive and visual block), `fallback`; query `block`, `motion=reduce`, `scale=2`, `text=1` for the text version of diagrams), only when built with `EXPO_PUBLIC_KS_GALLERY=1` (marker `testID="ks-scroll-gallery"`); otherwise "This page isn't here" | Scroll gallery |
-| `/s/<token>` | none (reserved) | Share links (D-006 d). On the web the edge sends `/s/*` to the API's public page (D-008); the client's `/s/[token]` screen arrives with sharing (H01–H02). No route, group or catch-all may claim `/s` before then (`features/shell/route-map.test.ts`) | — |
+| `/s/<token>` | none (served by the API) | H02 share landing. On the web the edge sends `/s/*` to the API, which renders an honest, script-free page (D-008, D-042). The client has no `/s/[token]` screen and no route, group or catch-all may claim `/s` (`features/shell/route-map.test.ts`). A native deep link is not built | — |
 | anything else | `app/+not-found.tsx` | Not found, with "Go to Explore" | Page not found |
 
 Every page title reads "<title> · KnowScroll" (`platform/document-title.web.ts`, set when the
@@ -356,8 +358,25 @@ callbacks; real native visibility and status pixels remain a separate hosted run
 
 Talk links to the real Friends interface outside the tab group. Mounted ephemeral client-core sessions
 use current reads, bounded explicit paging, same-body unknown retries and one-time invite delivery.
-No conversation, presence, visitor visibility or contacts upload is implied. See
+Presence, visitor visibility and contacts upload are not implied. See
 [`features/friends/README.md`](features/friends/README.md) for lifecycle, fragment and evidence boundaries.
+
+## Talk and sharing (#242, D-042)
+
+- `features/conversations/`: C01 (`conversations-screen.tsx`, `use-talk-inbox.ts`) and C02 (`conversation-screen.tsx`,
+  `use-conversation-thread.ts`, `message-views.tsx`, `composer.tsx`, `conversation-menu.tsx`). The logic is
+  `createConversationThread` in client-core: first a snapshot, then catch-up reads from a cursor. A message the
+  person sends shows as sending, sent, "not confirmed" or "not sent", and a retry reuses the same command ID. The
+  draft is kept in the account scope's storage.
+- `features/sharing/`: `share-sheet-content.tsx` is the body of the H01 share sheet: Send to a conversation (pick a
+  friend, add a note), Copy link and Share elsewhere, and Stop sharing this link. The encounter's sheet container
+  owns the header, pauses playback while the sheet is open, restores it on close and keeps it out of Back history
+  (D-006 k); it passes the exact asset revision. `shared-links-section.tsx` is the P02 card and
+  `shared-links-screen.tsx` its page, mounted through `features/privacy/privacy-extensions.ts`.
+- A hint on the `inbox` scope invalidates the Talk queries (`TALK_QUERY_KEY`); a missed hint is recovered by the
+  30 second poll, focus and reconnect. The Talk tab shows an unread dot.
+- Not built: group conversations ("Explore with friends", #243), a new-message button, starting a conversation from a
+  friend's row, Report, a typing indicator and a native `/s` deep link.
 
 ## Pause and Resume personal recording (#381)
 
