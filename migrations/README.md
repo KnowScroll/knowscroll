@@ -138,3 +138,7 @@ still read, and when the work completes the row drops its account and universe l
 SHA-256 of a one-time token). `identity.sessions` gains `device_label` and `last_used_at`. All new objects are
 additive, so an older process neither writes `deleting` nor reads the new columns. Apply with the new binary:
 a deployment without the worker's `identity.delete-account` consumer would leave deletions pending.
+
+0057 creates the `ops` views (#248, D-044): allowlisted columns over the owners' tables, `ops.safe_code`, and the journey
+view. Views only; no data. The views over pg-boss and the read-only role's grants are not here: `migrate.js` builds them
+after pg-boss has installed its schema (`infrastructure/postgres/ops-job-views.ts`).

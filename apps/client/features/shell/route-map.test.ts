@@ -52,6 +52,7 @@ describe('route map', () => {
         '/friends/invite',
         '/gallery',
         '/gallery-scroll',
+        '/operator',
         '/recover',
         '/redeem',
         '/reel/[assetId]',

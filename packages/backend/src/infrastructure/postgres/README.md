@@ -47,3 +47,8 @@ locks sees an epoch changed by a preceding lifecycle transaction even if that tr
 locked, without updating, the account row. A joined locking SELECT or an old REPEATABLE READ
 snapshot cannot provide that guarantee. Existing personal root, transaction timeout, network,
 shared-root and capability lifetime protections remain in force. No peer personal root is locked.
+
+Ops views over pg-boss (#248, D-044): `ops-job-views.ts` drops, creates and grants the `ops` views that read
+`pgboss.job` (`ops.jobs`, `ops.queue_backlog`, `ops.recent_errors`) and grants the SELECT-only `ks2_ops_reader` role
+the allowlisted views. `migrate.js` calls it around pg-boss's own start, because a view blocks pg-boss's schema
+upgrades. The other `ops` views are migration 0057.

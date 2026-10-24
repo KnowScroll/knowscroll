@@ -49,6 +49,8 @@ same-scope input. Required apply jobs are atomic with Geography; immutable chunk
 versions and stable descriptor allocation back readonly backend ports. No HTTP, renderer,
 bootstrap, model work or formation acknowledgement is installed by this prerequisite.
 
+Operator (`modules/operator`, #248) reads the allowlisted `ops` views for the Operator screen's panels, one record's journey across modules and the read-only `ks2_ops_reader` role. It owns no table and writes nothing; see `src/modules/operator/README.md`.
+
 Social exposes backend-only explicit profile/handle and Friends pair operations through its public ports. The source slice mounts no HTTP or worker producer, lists, invitations, visibility, visitor publication or presence. See `src/modules/social/README.md` for per-caller public revisions, private pair serialization and erasure limits.
 
 ## Adding a personal store
