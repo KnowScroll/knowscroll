@@ -15,7 +15,7 @@ import {
   insertSharedReceipt,
   type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
-import type { Binding, PairLock, Profile, SocialStore } from '../application/ports.js';
+import type { Binding, PairLock, Profile, SharedLock, SocialStore } from '../application/ports.js';
 import type { Side, Window } from '../domain/friends.js';
 /** Versioned canonical PRIVATE pair identity. Not a public identity or an authority token.
  * Every acquisition verifies BOTH the UUID and ordered account binding; collisions fail closed. */
@@ -28,7 +28,7 @@ export function privatePairId(a: string, b: string): string {
   const h = bytes.toString('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
-const trxOf = (scope: PersonalScopeTx | PairLock) =>
+const trxOf = (scope: PersonalScopeTx | SharedLock) =>
   'shared' in scope ? sharedTransactionOf(scope.shared) : transactionOf(scope);
 export const socialStore: SocialStore = {
   async profile(scope, by) {

@@ -57,6 +57,11 @@ alter table social.conversation_members validate constraint conversation_members
 create index conversation_members_invited_by on social.conversation_members(invited_by_account_id)
   where invited_by_account_id is not null;
 
+-- A thread's episode markers ask which of a few assets this universe opened and activated.
+-- squawk-ignore require-concurrent-index-creation
+create index exposures_activated_assets_idx on experience.exposures(universe_id, asset_id)
+  where activated_at is not null;
+
 create table social.content_threads (
   thread_id uuid primary key references social.conversations(conversation_id) on delete restrict,
   -- Null once the starter's account is deleted.

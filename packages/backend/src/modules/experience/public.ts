@@ -129,6 +129,14 @@ export type ReadActivityReconcilePage = (
 export const ENSURE_ACTIVITY_LINEAGE = Symbol('experience.ensureActivityLineage');
 export const READ_ACTIVITY_RECONCILE_PAGE = Symbol('experience.readActivityReconcilePage');
 
+/**
+ * Port: which of these assets (at most 100) the caller has opened and activated, in any revision.
+ * The caller's own history only, at their current epoch; it says nothing about how much was seen
+ * and is never a grade, and it never reaches another person.
+ */
+export type ReadVisitedAssets = (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<ReadonlySet<string>>;
+export const READ_VISITED_ASSETS = Symbol('experience.readVisitedAssets');
+
 export type { ApplyEncounterAction } from './application/encounter-action.js';
 
 /** Own activated exact source; optional session must own this exposure and name its latest intent.

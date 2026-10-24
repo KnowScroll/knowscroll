@@ -9,7 +9,7 @@
  */
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
-import { INTERACTION_KINDS, type ScrollDocument } from '@knowscroll/scroll-model';
+import { INTERACTION_KINDS, type BlockStateSnapshot, type ScrollDocument } from '@knowscroll/scroll-model';
 import type { AccountAccess, PersonalScopeTx } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
@@ -317,6 +317,133 @@ export const READ_SHAREABLE_CONTENT = Symbol('content.readShareableContent');
 /** The same read for a visitor with no account: shared content only, outside any transaction. */
 export type ReadPublicContent = (refs: readonly ContentRef[]) => Promise<readonly ShareableContent[]>;
 export const READ_PUBLIC_CONTENT = Symbol('content.readPublicContent');
+
+/** What a sender asks to anchor in an exact revision: untrusted input, checked by `ValidateSnippetAnchor`. */
+export type SnippetAnchorInput =
+  | { readonly kind: 'reel_range'; readonly startMs: number; readonly endMs: number }
+  | {
+      readonly kind: 'scroll_passage';
+      readonly blockId: string;
+      readonly start: number;
+      readonly end: number;
+      readonly quoteHash: string;
+    }
+  | {
+      readonly kind: 'scroll_block';
+      readonly blockId: string;
+      readonly blockType: string;
+      readonly blockVersion: number;
+      /** Settings travel only when the sender included them; personal values also need `confirmPersonal`. */
+      readonly settings?: { readonly snapshot: BlockStateSnapshot; readonly confirmPersonal: boolean };
+    };
+
+/** A snippet anchor after it was checked, with the text copied from the exact, immutable revision. */
+export type StoredSnippetAnchor =
+  | { readonly kind: 'reel_range'; readonly startMs: number; readonly endMs: number }
+  | {
+      readonly kind: 'scroll_passage';
+      readonly blockId: string;
+      readonly start: number;
+      readonly end: number;
+      readonly quote: string;
+      readonly quoteHash: string;
+    }
+  | {
+      readonly kind: 'scroll_block';
+      readonly blockId: string;
+      readonly blockType: string;
+      readonly blockVersion: number;
+      /** The block's own accessible label. */
+      readonly label: string;
+      readonly settings?: {
+        readonly snapshot: BlockStateSnapshot;
+        /** Built from the block's own parameter labels, never from sender text. */
+        readonly description: string;
+      };
+    };
+
+export type SnippetValidation =
+  | { readonly status: 'valid'; readonly anchor: StoredSnippetAnchor }
+  /** A rule failed: range outside the Reel, unknown block, quote that does not match, settings that do not fit. */
+  | { readonly status: 'invalid' }
+  /** The exact revision is not the current admitted one: withdrawn, missing, corrected or another kind. */
+  | { readonly status: 'unavailable' };
+
+/**
+ * Port: checks a snippet anchor against the exact revision it names, inside the caller's personal
+ * transaction. A Reel range must lie inside the Reel's duration and be a moment (one to ninety
+ * seconds); a passage needs a stable block, a range on grapheme boundaries and the hash of the
+ * quote; a block needs its id, type and version and, only when included, a snapshot that fits the
+ * block's own parameter declarations (a value the sender entered themselves needs
+ * `confirmPersonal`). Only the current revision of an admitted asset can be anchored. It decides
+ * nothing about who may share and reads nothing personal.
+ */
+export type ValidateSnippetAnchor = (
+  scope: PersonalScopeTx,
+  target: ContentRef,
+  anchor: SnippetAnchorInput,
+) => Promise<SnippetValidation>;
+export const VALIDATE_SNIPPET_ANCHOR = Symbol('content.validateSnippetAnchor');
+
+export interface ContentLocation {
+  readonly kind: 'reel' | 'scroll';
+  readonly assetId: string;
+  readonly assetRevision: number;
+}
+
+export type SnippetResolution =
+  | { readonly status: 'unavailable' }
+  | { readonly status: 'changed'; readonly current: ContentLocation }
+  | {
+      readonly status: 'ready';
+      readonly content: ContentLocation;
+      readonly anchor:
+        | { readonly kind: 'reel_range'; readonly startMs: number; readonly endMs: number }
+        | { readonly kind: 'scroll_passage'; readonly blockId: string; readonly start: number; readonly end: number }
+        | { readonly kind: 'scroll_block'; readonly blockId: string; readonly snapshot?: BlockStateSnapshot };
+      /** True when a correction moved the anchor through an explicit mapping. */
+      readonly mapped: boolean;
+      /** True when shared settings no longer fit the block and were dropped. */
+      readonly settingsReset: boolean;
+    };
+
+/**
+ * Port: where a stored snippet leads now. On the revision it was made against it holds as is. After
+ * a correction a Scroll anchor is re-pointed only through the explicit anchor map of the two
+ * revisions and says so (`mapped`); a Reel range has no time mapping, so a corrected Reel is always
+ * `changed`. Never moves a reference silently, never plays or shows the old moment of changed
+ * content. Withdrawn or missing content is `unavailable`.
+ */
+export type ResolveSnippetAnchor = (
+  scope: PersonalScopeTx,
+  target: ContentRef,
+  anchor: StoredSnippetAnchor,
+) => Promise<SnippetResolution>;
+export const RESOLVE_SNIPPET_ANCHOR = Symbol('content.resolveSnippetAnchor');
+
+/** One episode of a sequence: an exact revision, its format, and its part when the sequence is a declared series. */
+export interface SequenceUnit extends ContentRef {
+  readonly kind: 'reel' | 'scroll';
+  readonly part?: number;
+}
+
+/** The sequence an exact revision belongs to: itself alone, or the declared series that contains it, by part. */
+export type ContentSequence =
+  | { readonly kind: 'single'; readonly unit: SequenceUnit }
+  | {
+      readonly kind: 'series';
+      readonly seriesId: string;
+      readonly seriesRevision: number;
+      readonly units: readonly (SequenceUnit & { readonly part: number })[];
+    };
+
+/**
+ * Port: the declared series (latest series revision) that contains this exact revision, if any;
+ * otherwise the revision alone. Shared metadata only; a withdrawn unit still has its place and format.
+ * `undefined` when the revision does not exist at all.
+ */
+export type ReadContentSequence = (scope: PersonalScopeTx, root: ContentRef) => Promise<ContentSequence | undefined>;
+export const READ_CONTENT_SEQUENCE = Symbol('content.readContentSequence');
 
 /** Minimized current immutable facts, bounded by canonical document validation. No rendering grant. */
 export type KeepPositionTarget =

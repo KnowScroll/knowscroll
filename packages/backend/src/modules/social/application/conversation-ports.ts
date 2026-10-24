@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema, PublicPersonRef } from '@knowscroll/contracts';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import type { PairLock, SocialPorts } from './ports.js';
+import type { PairLock, SharedLock, SocialPorts } from './ports.js';
 
 export type ContentCard = z.infer<typeof ConversationContentProjectionSchema>;
 
@@ -58,7 +58,7 @@ export interface OwnMembership {
  * lock, or, when the other person's account is gone and there is no friendship to lock, in the
  * person's own scope.
  */
-export type ConversationReader = PairLock | PersonalScopeTx;
+export type ConversationReader = SharedLock | PersonalScopeTx;
 
 export interface Conversation {
   readonly conversation: ConversationRow;
@@ -97,7 +97,7 @@ export interface ConversationStore {
   /** The caller's membership in this conversation, whether or not it is still open. */
   ownMembership(scope: PersonalScopeTx, accountId: string, conversationId: string): Promise<OwnMembership | undefined>;
   /** The conversation and its members, as seen from the caller's own account. */
-  load(reader: ConversationReader, conversationId: string, ownAccountId: string): Promise<Conversation | undefined>;
+  load(reader: PairLock | PersonalScopeTx, conversationId: string, ownAccountId: string): Promise<Conversation | undefined>;
   /** The open conversation of a friendship lineage, if one exists. */
   findOpen(lock: PairLock, lineage: string, ownAccountId: string): Promise<Conversation | undefined>;
   create(
@@ -114,7 +114,7 @@ export interface ConversationStore {
    * conversation row, and returns them. Atomic counters are why account erasure can tombstone
    * messages without holding the pair lock.
    */
-  append(lock: PairLock, conversationId: string, message: NewMessage): Promise<Counters>;
+  append(lock: SharedLock, conversationId: string, message: NewMessage): Promise<Counters>;
   messages(
     reader: ConversationReader,
     conversationId: string,

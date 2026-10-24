@@ -1,7 +1,7 @@
 import type { ConversationMessage } from '@knowscroll/contracts';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { ContentCard, ContentRef, ConversationPorts, MessageRow } from './conversation-ports.js';
-import type { PairLock } from './ports.js';
+import type { SharedLock } from './ports.js';
 
 const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`;
 
@@ -34,7 +34,7 @@ export function viewMessage(row: MessageRow, cards: ReadonlyMap<string, ContentC
 /** Views a page of messages, reading the cards of every distinct shared content once. */
 export async function viewMessages(
   p: ConversationPorts,
-  scope: PersonalScopeTx | PairLock,
+  scope: PersonalScopeTx | SharedLock,
   rows: readonly MessageRow[],
 ): Promise<ConversationMessage[]> {
   const refs = new Map<string, ContentRef>();

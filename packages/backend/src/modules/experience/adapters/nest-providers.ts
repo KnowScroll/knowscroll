@@ -1,6 +1,8 @@
 import { recordingChannelSelection } from './channel-certification.js';
 import { READ_RECORDING_CHANNEL_SELECTION } from '../public.js';
 import { checkRequestSource } from './request-source.js';
+import { readVisitedAssets } from './visited-assets.js';
+import { READ_VISITED_ASSETS } from '../public.js';
 import { CHECK_REQUEST_SOURCE } from '../public.js';
 import type { Kysely } from 'kysely';
 import {
@@ -286,6 +288,7 @@ export function experienceEvidenceReadProviders() {
     { provide: READ_ACTIVITY_RECONCILE_PAGE, useValue: readActivityReconcilePage },
     { provide: READ_ACTION_FOR_EVIDENCE, useValue: readActionForEvidence },
     { provide: READ_EXPOSURE_FOR_EVIDENCE, useValue: readExposureForEvidence },
+    { provide: READ_VISITED_ASSETS, useValue: readVisitedAssets },
   ];
 }
 
