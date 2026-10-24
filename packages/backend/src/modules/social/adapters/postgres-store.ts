@@ -15,7 +15,7 @@ import {
   insertSharedReceipt,
   type CanonicalJson,
 } from '../../../infrastructure/receipts/index.js';
-import type { Binding, PairLock, Profile, SharedLock, SocialStore } from '../application/ports.js';
+import type { Binding, Profile, SharedLock, SocialStore } from '../application/ports.js';
 import type { Side, Window } from '../domain/friends.js';
 /** Versioned canonical PRIVATE pair identity. Not a public identity or an authority token.
  * Every acquisition verifies BOTH the UUID and ordered account binding; collisions fail closed. */

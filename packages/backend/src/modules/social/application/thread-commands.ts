@@ -54,8 +54,7 @@ function anchorInput(anchor: SnippetAnchor): SnippetAnchorInput {
 }
 
 const inboxOf = (member: ThreadMember): InboxChange => ({ accountId: member.accountId, universeId: member.universeId });
-const takingPart = (entered: EnteredThread): readonly InboxChange[] =>
-  entered.members.filter(canTakePart).map(inboxOf);
+const takingPart = (entered: EnteredThread): readonly InboxChange[] => entered.members.filter(canTakePart).map(inboxOf);
 const participants = (entered: EnteredThread): readonly InboxChange[] =>
   entered.members.filter(isParticipant).map(inboxOf);
 
@@ -225,10 +224,7 @@ export function makeThreadCommands(p: ThreadPorts) {
      * the block's own declarations, personal values only with confirmation); the message and its anchor
      * commit together. Sending is not consumption evidence for anyone.
      */
-    send(
-      authority: PersonalAuthority,
-      input: unknown,
-    ): Promise<Result<z.infer<typeof ThreadMessageAcceptanceSchema>>> {
+    send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadMessageAcceptanceSchema>>> {
       const parsed = SendThreadMessageSchema.safeParse(input);
       if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
       const command = parsed.data;
@@ -359,10 +355,7 @@ export function makeThreadCommands(p: ThreadPorts) {
      * Ends the caller's place. The thread goes on for the others; whoever the caller invited now stands
      * on their own membership. The caller's messages stay.
      */
-    leave(
-      authority: PersonalAuthority,
-      input: unknown,
-    ): Promise<Result<z.infer<typeof ThreadLeaveAcceptanceSchema>>> {
+    leave(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadLeaveAcceptanceSchema>>> {
       const parsed = LeaveThreadSchema.safeParse(input);
       if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
       const command = parsed.data;

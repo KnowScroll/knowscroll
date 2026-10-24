@@ -97,7 +97,11 @@ export interface ConversationStore {
   /** The caller's membership in this conversation, whether or not it is still open. */
   ownMembership(scope: PersonalScopeTx, accountId: string, conversationId: string): Promise<OwnMembership | undefined>;
   /** The conversation and its members, as seen from the caller's own account. */
-  load(reader: PairLock | PersonalScopeTx, conversationId: string, ownAccountId: string): Promise<Conversation | undefined>;
+  load(
+    reader: PairLock | PersonalScopeTx,
+    conversationId: string,
+    ownAccountId: string,
+  ): Promise<Conversation | undefined>;
   /** The open conversation of a friendship lineage, if one exists. */
   findOpen(lock: PairLock, lineage: string, ownAccountId: string): Promise<Conversation | undefined>;
   create(

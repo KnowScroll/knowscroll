@@ -342,9 +342,10 @@ describe('account deletion (real database)', () => {
         readId: randomUUID(),
         limit: 10,
       });
-      expect(buddyThreads.kind === 'ok' && buddyThreads.value.items.map((item) => item.people.map((person) => person.displayName))).toEqual([
-        [DELETED_ACCOUNT_LABEL],
-      ]);
+      expect(
+        buddyThreads.kind === 'ok' &&
+          buddyThreads.value.items.map((item) => item.people.map((person) => person.displayName)),
+      ).toEqual([[DELETED_ACCOUNT_LABEL]]);
       expect(
         await database.db
           .selectFrom('identity.account_deletions')

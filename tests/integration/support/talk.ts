@@ -13,7 +13,11 @@ import {
   validateSnippetAnchor,
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { readVisitedAssets } from '@knowscroll/backend/modules/experience/nest-providers';
-import { conversationUseCases, socialUseCases, threadUseCases } from '@knowscroll/backend/modules/social/nest-providers';
+import {
+  conversationUseCases,
+  socialUseCases,
+  threadUseCases,
+} from '@knowscroll/backend/modules/social/nest-providers';
 import { seedPerson, type FixturePerson } from './fixtures.js';
 
 export type Friends = ReturnType<typeof socialUseCases>;

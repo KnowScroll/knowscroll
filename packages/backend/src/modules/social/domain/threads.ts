@@ -17,8 +17,7 @@ export interface MemberStanding {
 export const canTakePart = (member: MemberStanding): boolean => !member.left && !member.pending && member.stands;
 
 /** Seeing an invitation and answering it: invited, not answered, ground intact. */
-export const canAnswerInvitation = (member: MemberStanding): boolean =>
-  !member.left && member.pending && member.stands;
+export const canAnswerInvitation = (member: MemberStanding): boolean => !member.left && member.pending && member.stands;
 
 /** A friend can be invited when the caller's friendship with them stands and their account is active. */
 export function invitable(friend: { readonly lineage: string | null; readonly accountActive: boolean }): boolean {

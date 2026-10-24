@@ -133,7 +133,11 @@ export const ThreadMessageSchema = z.discriminatedUnion('status', [
     recordedAt: z.iso.datetime(),
     body: z.discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('text'), text: ConversationTextSchema }),
-      z.strictObject({ kind: z.literal('snippet'), snippet: SnippetCardSchema, note: ConversationTextSchema.optional() }),
+      z.strictObject({
+        kind: z.literal('snippet'),
+        snippet: SnippetCardSchema,
+        note: ConversationTextSchema.optional(),
+      }),
     ]),
   }),
   z.strictObject({ ...MessageIdentity, status: z.literal('unavailable') }),
@@ -237,7 +241,10 @@ export const ContentThreadViewSchema = z.discriminatedUnion('status', [
       thread: ContentThreadRefSchema,
       name: ThreadName.optional(),
       root: ConversationContentProjectionSchema,
-      participants: z.array(ThreadParticipantSchema).min(1).max(MAX_THREAD_FRIENDS + 1),
+      participants: z
+        .array(ThreadParticipantSchema)
+        .min(1)
+        .max(MAX_THREAD_FRIENDS + 1),
       sequence: z.discriminatedUnion('kind', [
         z.strictObject({ kind: z.literal('single') }),
         z.strictObject({ kind: z.literal('series'), total: z.number().int().min(1).max(99) }),
@@ -386,7 +393,10 @@ export const ThreadSummarySchema = z.strictObject({
   root: ConversationContentProjectionSchema,
   /** Invited threads show who invited; joined threads show the people in them. */
   state: z.enum(['invited', 'joined']),
-  people: z.array(PublicPersonRefSchema).min(1).max(MAX_THREAD_FRIENDS + 1),
+  people: z
+    .array(PublicPersonRefSchema)
+    .min(1)
+    .max(MAX_THREAD_FRIENDS + 1),
   latestMessageSequence: Counter,
   own: OwnSettings,
   lastActivityAt: z.iso.datetime(),

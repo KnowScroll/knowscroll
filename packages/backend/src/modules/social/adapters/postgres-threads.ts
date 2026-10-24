@@ -3,10 +3,14 @@ import { sql, type Transaction } from 'kysely';
 import { PublicPersonRefSchema, type PublicPersonRef } from '@knowscroll/contracts';
 import { BlockStateSnapshot } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import { enterSharedRoot, sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import {
+  enterSharedRoot,
+  sharedTransactionOf,
+  transactionOf,
+} from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { StoredSnippetAnchor } from '../../content/public.js';
-import { messageOf, selectLastMessages } from './postgres-conversations.js';
+import { selectLastMessages } from './postgres-conversations.js';
 import type {
   FriendStanding,
   LoadedThread,
@@ -186,9 +190,7 @@ function snippetOf(row: SnippetColumns): StoredSnippetAnchor | undefined {
       blockType: row.block_type,
       blockVersion: row.block_version,
       label: row.block_label ?? '',
-      ...(stored?.success
-        ? { settings: { snapshot: stored.data, description: row.settings_description ?? '' } }
-        : {}),
+      ...(stored?.success ? { settings: { snapshot: stored.data, description: row.settings_description ?? '' } } : {}),
     };
   }
   return undefined;
@@ -368,9 +370,9 @@ export const threadStore: ThreadStore = {
       .where('m.message_id', '=', messageId)
       .executeTakeFirst();
     const anchor = row === undefined ? undefined : snippetOf(row);
-    return row?.asset_id != null && row.asset_revision !== null && anchor !== undefined
-      ? { target: { assetId: row.asset_id, assetRevision: row.asset_revision }, anchor }
-      : undefined;
+    if (row === undefined || row.asset_id === null || row.asset_revision === null || anchor === undefined)
+      return undefined;
+    return { target: { assetId: row.asset_id, assetRevision: row.asset_revision }, anchor };
   },
 
   async inbox(scope, accountId, limit): Promise<readonly ThreadInboxRow[]> {

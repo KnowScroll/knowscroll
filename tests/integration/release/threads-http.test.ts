@@ -117,7 +117,12 @@ describe('content threads over the installed API (disposable accounts)', () => {
     expect(JSON.stringify(view)).not.toMatch(/position|playhead|presence/i);
 
     expect(
-      await clientOf(b).threads.openSnippet({ version, readId: randomUUID(), thread: bRef, messageId: moment.messageId }),
+      await clientOf(b).threads.openSnippet({
+        version,
+        readId: randomUUID(),
+        thread: bRef,
+        messageId: moment.messageId,
+      }),
     ).toMatchObject({ status: 'ready', content: { kind: 'reel', assetId: reelId }, anchor: { kind: 'reel_range' } });
     expect(
       await clientOf(b).threads.markRead({ version, commandId: randomUUID(), thread: bRef, throughSequence: 1 }),

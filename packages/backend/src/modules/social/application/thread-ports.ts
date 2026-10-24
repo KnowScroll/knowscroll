@@ -121,7 +121,11 @@ export interface ThreadStore {
   /** The caller's open threads (joined or invited), newest activity first. */
   inbox(scope: PersonalScopeTx, accountId: string, limit: number): Promise<readonly ThreadInboxRow[]>;
   /** Friend standing of each person, by public person ID; a person who does not exist or is hidden is absent. */
-  friends(scope: PersonalScopeTx, ownAccountId: string, personIds: readonly string[]): Promise<readonly FriendStanding[]>;
+  friends(
+    scope: PersonalScopeTx,
+    ownAccountId: string,
+    personIds: readonly string[],
+  ): Promise<readonly FriendStanding[]>;
 }
 
 export interface ThreadPorts extends SocialPorts {
@@ -134,4 +138,3 @@ export interface ThreadPorts extends SocialPorts {
   validateSnippet: ValidateSnippetAnchor;
   resolveSnippet: ResolveSnippetAnchor;
 }
-

@@ -77,12 +77,8 @@ async function readScrollDocument(trx: Transaction<Database>, ref: ContentRef): 
     : undefined;
 }
 
-
 /** The scroll-model locator of a stored Scroll anchor on an exact revision. */
-function locatorOf(
-  target: ContentRef,
-  anchor: Exclude<StoredSnippetAnchor, { kind: 'reel_range' }>,
-): ScrollLocator {
+function locatorOf(target: ContentRef, anchor: Exclude<StoredSnippetAnchor, { kind: 'reel_range' }>): ScrollLocator {
   const exact = { assetId: target.assetId, revision: target.assetRevision, blockId: anchor.blockId };
   if (anchor.kind === 'scroll_passage')
     return { kind: 'scroll_passage', ...exact, start: anchor.start, end: anchor.end, quoteHash: anchor.quoteHash };
@@ -192,11 +188,7 @@ async function resolveCorrectedScroll(
   const how = { mapped: outcome.kind !== 'same', settingsReset: outcome.kind === 'state-reset' };
   const kept = outcome.locator;
   if (kept.kind === 'scroll_passage')
-    return readyOn(
-      current,
-      { kind: 'scroll_passage', blockId: kept.blockId, start: kept.start, end: kept.end },
-      how,
-    );
+    return readyOn(current, { kind: 'scroll_passage', blockId: kept.blockId, start: kept.start, end: kept.end }, how);
   return readyOn(
     current,
     { kind: 'scroll_block', blockId: kept.blockId, ...(kept.state === undefined ? {} : { snapshot: kept.state }) },

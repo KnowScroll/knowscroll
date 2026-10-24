@@ -34,12 +34,19 @@ const own = (member: { readThroughSequence: number; muted: boolean }) => ({
 function olderThan(rows: readonly MessageRow[], threadId: string) {
   const oldest = rows[0];
   return oldest && oldest.sequence > 1
-    ? { kind: 'more' as const, cursor: historyCursor.encode({ conversationId: threadId, beforeSequence: oldest.sequence }) }
+    ? {
+        kind: 'more' as const,
+        cursor: historyCursor.encode({ conversationId: threadId, beforeSequence: oldest.sequence }),
+      }
     : { kind: 'end' as const };
 }
 
 /** Whoever invited a member, or the starter once the inviter is gone, or the neutral deleted person. */
-function inviterOf(members: readonly ThreadMember[], member: ThreadMember, starterAccountId: string | null): PublicPersonRef {
+function inviterOf(
+  members: readonly ThreadMember[],
+  member: ThreadMember,
+  starterAccountId: string | null,
+): PublicPersonRef {
   const inviter = members.find((candidate) => candidate.accountId === (member.inviterAccountId ?? starterAccountId));
   return inviter?.person ?? DELETED_PERSON;
 }
@@ -58,10 +65,7 @@ export function makeThreadReads(p: ThreadPorts) {
      * markers) and the cursor to catch up from, read under one lock. A member whose invitation is open
      * gets the invitation instead: the content, who invited, and nothing of the conversation.
      */
-    async read(
-      authority: PersonalAuthority,
-      input: unknown,
-    ): Promise<Result<z.infer<typeof ContentThreadViewSchema>>> {
+    async read(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ContentThreadViewSchema>>> {
       const parsed = ReadContentThreadSchema.safeParse(input);
       if (!parsed.success) return refuse('invalid_input');
       const query = parsed.data;
@@ -87,7 +91,9 @@ export function makeThreadReads(p: ThreadPorts) {
           );
         const sequence = await threadEpisodes(p, entered.lock, thread.root);
         if (sequence === undefined) throw new Error('SOCIAL_THREAD_ROOT_MISSING');
-        const rows = (await p.conversations.messages(entered.lock, thread.threadId, { limit: query.limit })).toReversed();
+        const rows = (
+          await p.conversations.messages(entered.lock, thread.threadId, { limit: query.limit })
+        ).toReversed();
         return ok(
           ContentThreadViewSchema.parse({
             ...envelope,
@@ -207,10 +213,7 @@ export function makeThreadReads(p: ThreadPorts) {
      * The caller's open threads, joined and invited, newest activity first. An invitation names who invited
      * and shows no message and no counts: the conversation is not readable until the person joins.
      */
-    async inbox(
-      authority: PersonalAuthority,
-      input: unknown,
-    ): Promise<Result<z.infer<typeof ThreadInboxSchema>>> {
+    async inbox(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadInboxSchema>>> {
       const parsed = ReadThreadInboxSchema.safeParse(input);
       if (!parsed.success) return refuse('invalid_input');
       const query = parsed.data;
@@ -218,10 +221,15 @@ export function makeThreadReads(p: ThreadPorts) {
         const gate = await p.fenceOwn(scope);
         if (gate.kind !== 'active') return refuse('unavailable');
         const rows = await p.threads.inbox(scope, gate.owner.accountId, query.limit);
-        const roots = new Map(rows.map((row) => [`${row.thread.root.assetId}:${String(row.thread.root.assetRevision)}`, row.thread.root]));
-        const cards = roots.size === 0 ? [] : await p.conversations.cards(scope, [...roots.values()] satisfies ContentRef[]);
+        const roots = new Map(
+          rows.map((row) => [`${row.thread.root.assetId}:${String(row.thread.root.assetRevision)}`, row.thread.root]),
+        );
+        const cards =
+          roots.size === 0 ? [] : await p.conversations.cards(scope, [...roots.values()] satisfies ContentRef[]);
         const cardOf = (root: ContentRef) =>
-          cards.find((card) => card.target.assetId === root.assetId && card.target.assetRevision === root.assetRevision) ?? {
+          cards.find(
+            (card) => card.target.assetId === root.assetId && card.target.assetRevision === root.assetRevision,
+          ) ?? {
             status: 'unavailable' as const,
             target: root,
           };
@@ -232,9 +240,14 @@ export function makeThreadReads(p: ThreadPorts) {
         );
         const items = rows.map((row) => {
           const pending = row.own.pending;
-          const last = row.lastMessage && lastMessages.find((message) => message.messageId === row.lastMessage?.messageId);
+          const last =
+            row.lastMessage && lastMessages.find((message) => message.messageId === row.lastMessage?.messageId);
           return {
-            thread: { threadId: row.thread.threadId, membershipId: row.own.membershipId, membershipRevision: row.own.membershipRevision } satisfies ContentThreadRef,
+            thread: {
+              threadId: row.thread.threadId,
+              membershipId: row.own.membershipId,
+              membershipRevision: row.own.membershipRevision,
+            } satisfies ContentThreadRef,
             ...(row.thread.name === null ? {} : { name: row.thread.name }),
             root: cardOf(row.thread.root),
             state: pending ? ('invited' as const) : ('joined' as const),

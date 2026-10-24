@@ -70,12 +70,21 @@ describe('content threads (real PostgreSQL)', () => {
     return found;
   }
   const countThreads = async () =>
-    (await database.db.selectFrom('social.conversations').select('conversation_id').where('kind', '=', 'thread').execute())
-      .length;
+    (
+      await database.db
+        .selectFrom('social.conversations')
+        .select('conversation_id')
+        .where('kind', '=', 'thread')
+        .execute()
+    ).length;
   const send = (actor: Friend, thread: ContentThreadRef, body: object, commandId = randomUUID()) =>
     threads.send(actor.authority, { version, commandId, thread, body });
-  const respond = (actor: Friend, thread: ContentThreadRef, response: 'join' | 'decline', commandId = randomUUID()) =>
-    threads.respond(actor.authority, { version, commandId, thread, response });
+  const respond = (
+    actor: Friend,
+    thread: ContentThreadRef,
+    response: 'join' | 'decline',
+    commandId: string = randomUUID(),
+  ) => threads.respond(actor.authority, { version, commandId, thread, response });
   const inbox = async (actor: Friend) => {
     const found = unwrap(await threads.inbox(actor.authority, { version, readId: randomUUID(), limit: 50 }));
     return found.items;
@@ -119,7 +128,9 @@ describe('content threads (real PostgreSQL)', () => {
       expect(asha.root).toMatchObject({ status: 'available', target: root });
       expect(asha.sequence).toEqual({ kind: 'single' });
       expect(asha.episodes).toHaveLength(1);
-      expect(asha.participants.map((participant) => [participant.person.handle, participant.role, participant.joined])).toEqual(
+      expect(
+        asha.participants.map((participant) => [participant.person.handle, participant.role, participant.joined]),
+      ).toEqual(
         [a, b, c]
           .map((person) => [person.person.handle, person.person.personId === a.person.personId])
           .sort()
@@ -175,7 +186,13 @@ describe('content threads (real PostgreSQL)', () => {
       const bad = { kind: 'refused', code: 'invalid_input' };
       expect(await create(a, root, [])).toEqual(bad);
       expect(await create(a, root, [b, b])).toEqual(bad);
-      expect(await create(a, root, Array.from({ length: 9 }, () => b))).toEqual(bad);
+      expect(
+        await create(
+          a,
+          root,
+          Array.from({ length: 9 }, () => b),
+        ),
+      ).toEqual(bad);
       expect(await create(a, root, [b], randomUUID(), '  ')).toEqual(bad);
       expect(await threads.create(a.authority, { version, commandId: randomUUID(), root })).toEqual(bad);
     });
@@ -246,7 +263,8 @@ describe('content threads (real PostgreSQL)', () => {
         unwrap(await view(b, { ...bRef, membershipRevision: 2 })),
         unwrap(await view(b, { ...bRef, membershipId: aRef.membershipId })),
       ];
-      for (const answer of answers) expect(Object.keys(answer).sort()).toEqual(['readId', 'scope', 'status', 'version']);
+      for (const answer of answers)
+        expect(Object.keys(answer).sort()).toEqual(['readId', 'scope', 'status', 'version']);
       for (const answer of answers) expect(answer.status).toBe('unavailable');
     });
   });
@@ -271,7 +289,10 @@ describe('content threads (real PostgreSQL)', () => {
       const snapshot = await ready(b, bRef);
       expect(snapshot.latestMessageSequence).toBe(2);
       expect(snapshot.messages.map((message) => message.sequence)).toEqual([1, 2]);
-      expect(snapshot.messages[0]).toMatchObject({ author: { handle: a.person.handle }, body: text('Look at this one') });
+      expect(snapshot.messages[0]).toMatchObject({
+        author: { handle: a.person.handle },
+        body: text('Look at this one'),
+      });
     });
 
     it('lets people catch up from a cursor and page back through older messages', async () => {
@@ -484,7 +505,7 @@ describe('content threads (real PostgreSQL)', () => {
         version: 'direct-conversation.v1',
         commandId: randomUUID(),
         peerPersonId: b.person.personId,
-        expectedPairRevision: (await pairRevisionOf(a, b)),
+        expectedPairRevision: await pairRevisionOf(a, b),
       }),
     ).conversation;
     unwrap(

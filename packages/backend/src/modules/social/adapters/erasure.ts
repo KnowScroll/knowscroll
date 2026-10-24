@@ -237,19 +237,15 @@ async function releaseThreadLinks(trx: Transaction<Database>, account: string): 
   return Number(starters.numAffectedRows ?? 0) + Number(invited.numAffectedRows ?? 0);
 }
 
+const SHARED_WORDS: Readonly<Record<string, string>> = {
+  reel_range: 'a moment of a Reel',
+  scroll_passage: 'a passage of a Scroll',
+  scroll_block: 'a part of a Scroll',
+};
+
 /** What a card message shared, in words for the export. */
-function sharedWords(snippetKind: string | null): string {
-  switch (snippetKind) {
-    case 'reel_range':
-      return 'a moment of a Reel';
-    case 'scroll_passage':
-      return 'a passage of a Scroll';
-    case 'scroll_block':
-      return 'a part of a Scroll';
-    default:
-      return 'a Reel or Scroll';
-  }
-}
+const sharedWords = (snippetKind: string | null): string =>
+  (snippetKind === null ? undefined : SHARED_WORDS[snippetKind]) ?? 'a Reel or Scroll';
 
 /** The most messages one export file carries; the file says how many there are and whether it was cut. */
 const EXPORT_MESSAGE_LIMIT = 2000;

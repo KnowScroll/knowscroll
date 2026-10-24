@@ -220,13 +220,17 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
     it('refuses a snippet of content that is not the current revision', async () => {
       const { a, aRef, reel } = await seriesThread();
       await addReelRevision(database.db, reel.assetId, 2);
-      expect(
-        await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 1_000, endMs: 9_000 }),
-      ).toEqual(refused('unavailable'));
+      expect(await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 1_000, endMs: 9_000 })).toEqual(
+        refused('unavailable'),
+      );
       const second = await seriesThread();
       await withdraw(database.db, second.reel.assetId);
       expect(
-        await sendSnippet(second.a, second.aRef, exact(second.reel), { kind: 'reel_range', startMs: 1_000, endMs: 9_000 }),
+        await sendSnippet(second.a, second.aRef, exact(second.reel), {
+          kind: 'reel_range',
+          startMs: 1_000,
+          endMs: 9_000,
+        }),
       ).toEqual(refused('unavailable'));
     });
   });
@@ -303,7 +307,12 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
     it('shares the block alone, with settings, or with the sender’s own values only when confirmed', async () => {
       const { a, b, aRef, bRef, attention, weight } = await seriesThread();
       const sim = block(attention.document, 'length-sim');
-      const base = { kind: 'scroll_block' as const, blockId: 'length-sim', blockType: sim.type, blockVersion: sim.version };
+      const base = {
+        kind: 'scroll_block' as const,
+        blockId: 'length-sim',
+        blockType: sim.type,
+        blockVersion: sim.version,
+      };
 
       // No settings: the card says they are not included.
       unwrap(await sendSnippet(a, aRef, exact(attention), base));
@@ -330,9 +339,8 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
         message.status === 'available' && message.body.kind === 'snippet' ? message.body.snippet : undefined,
       );
       expect(cards[0]).toMatchObject({ kind: 'scroll_block', blockType: 'simulation', settings: { included: false } });
-      expect(cards[1]).toMatchObject({
-        settings: { included: true, personalIncluded: false, description: expect.stringContaining('4,096') },
-      });
+      expect(cards[1]).toMatchObject({ settings: { included: true, personalIncluded: false } });
+      expect(JSON.stringify(cards[1])).toContain('4,096');
       expect(cards[2]).toMatchObject({ blockType: 'diagram', settings: { included: true } });
       expect(cards[0]).toMatchObject({ label: 'Sentence length and the work of attention' });
 
@@ -352,9 +360,9 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       const withoutValue = buildBlockStateSnapshot(personal, { type: 'simulation', params: { weightKg: 75 } });
       if (withValue.kind !== 'snapshot' || withoutValue.kind !== 'snapshot') throw new Error('CI snapshots');
       expect(withoutValue.snapshot).toEqual({ state: { type: 'simulation', params: {} }, personalIncluded: false });
-      expect(await sendSnippet(a, aRef, exact(weight), { ...personalBase, settings: { snapshot: withValue.snapshot } })).toEqual(
-        refused('invalid_input'),
-      );
+      expect(
+        await sendSnippet(a, aRef, exact(weight), { ...personalBase, settings: { snapshot: withValue.snapshot } }),
+      ).toEqual(refused('invalid_input'));
       expect(
         await sendSnippet(a, aRef, exact(weight), {
           ...personalBase,
@@ -385,7 +393,12 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
     it('refuses settings that do not fit the block', async () => {
       const { a, aRef, attention } = await seriesThread();
       const sim = block(attention.document, 'length-sim');
-      const base = { kind: 'scroll_block' as const, blockId: 'length-sim', blockType: sim.type, blockVersion: sim.version };
+      const base = {
+        kind: 'scroll_block' as const,
+        blockId: 'length-sim',
+        blockType: sim.type,
+        blockVersion: sim.version,
+      };
       const invalid = refused('invalid_input');
       const bad = (params: Record<string, number>) => ({
         snapshot: { state: { type: 'simulation' as const, params }, personalIncluded: false },
@@ -444,7 +457,9 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
     it('is unavailable to a stranger and for a message that is not a snippet', async () => {
       const { a, aRef, reel } = await seriesThread();
       const stranger = await seedFriend(database.db, cases.friends);
-      const moment = unwrap(await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 2_000, endMs: 8_000 }));
+      const moment = unwrap(
+        await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 2_000, endMs: 8_000 }),
+      );
       const plain = unwrap(
         await threads().send(a.authority, {
           version,
@@ -460,11 +475,15 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
 
     it('says a corrected Reel changed and never plays the old range', async () => {
       const { a, b, aRef, bRef, reel } = await seriesThread();
-      const moment = unwrap(await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 5_000, endMs: 12_000 }));
+      const moment = unwrap(
+        await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 5_000, endMs: 12_000 }),
+      );
       await addReelRevision(database.db, reel.assetId, 2);
       const card = (await ready(b, bRef)).messages[0];
       expect(card).toMatchObject({
-        body: { snippet: { content: { status: 'corrected', target: { assetRevision: 1 }, current: { assetRevision: 2 } } } },
+        body: {
+          snippet: { content: { status: 'corrected', target: { assetRevision: 1 }, current: { assetRevision: 2 } } },
+        },
       });
       expect(unwrap(await open(b, bRef, moment.messageId))).toMatchObject({
         status: 'changed',
@@ -537,7 +556,9 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
 
     it('is unavailable once the content is withdrawn', async () => {
       const { a, b, aRef, bRef, reel } = await seriesThread();
-      const moment = unwrap(await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 5_000, endMs: 12_000 }));
+      const moment = unwrap(
+        await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 5_000, endMs: 12_000 }),
+      );
       await withdraw(database.db, reel.assetId);
       expect(unwrap(await open(b, bRef, moment.messageId))).toMatchObject({ status: 'unavailable' });
     });
@@ -546,8 +567,7 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
   describe('erasure', () => {
     it('declares every thread store, with a Clear disposition that keeps it', () => {
       const declared = socialErasure.accountTables?.map((table) => `${table.schema}.${table.table}`);
-      for (const store of ['social.content_threads', 'social.message_snippets'])
-        expect(declared).toContain(store);
+      for (const store of ['social.content_threads', 'social.message_snippets']) expect(declared).toContain(store);
       for (const store of ['social.content_threads', 'social.message_snippets', 'social.conversation_members'])
         expect(socialErasure.clearExploration?.dispositions[store]).toBe('preserve');
     });
@@ -567,9 +587,9 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       const [invitation] = unwrap(
         await threads().inbox(c.authority, { version, readId: randomUUID(), limit: 50 }),
       ).items;
-      const [bSecond] = unwrap(await threads().inbox(b.authority, { version, readId: randomUUID(), limit: 50 })).items.filter(
-        (item) => item.thread.threadId === second.thread.threadId,
-      );
+      const [bSecond] = unwrap(
+        await threads().inbox(b.authority, { version, readId: randomUUID(), limit: 50 }),
+      ).items.filter((item) => item.thread.threadId === second.thread.threadId);
       if (!invitation || !bSecond) throw new Error('CI invitations missing');
       unwrap(
         await threads().respond(b.authority, {
@@ -579,8 +599,22 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
           response: 'join',
         }),
       );
-      unwrap(await threads().send(b.authority, { version, commandId: randomUUID(), thread: bSecond.thread, body: { kind: 'text', text: 'ravi stays' } }));
-      unwrap(await threads().send(a.authority, { version, commandId: randomUUID(), thread: second.thread, body: { kind: 'text', text: 'asha secret words' } }));
+      unwrap(
+        await threads().send(b.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: bSecond.thread,
+          body: { kind: 'text', text: 'ravi stays' },
+        }),
+      );
+      unwrap(
+        await threads().send(a.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: second.thread,
+          body: { kind: 'text', text: 'asha secret words' },
+        }),
+      );
       unwrap(await sendSnippet(a, second.thread, exact(reel), { kind: 'reel_range', startMs: 2_000, endMs: 9_000 }));
       expect(await snippetRows(second.thread)).toBe(1);
 
@@ -645,9 +679,25 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
 
     it('exports a person’s own words, thread names and what they shared, and nothing of anyone else', async () => {
       const { a, b, aRef, bRef, reel } = await seriesThread();
-      unwrap(await threads().send(b.authority, { version, commandId: randomUUID(), thread: bRef, body: { kind: 'text', text: 'what ravi wrote' } }));
-      unwrap(await threads().send(a.authority, { version, commandId: randomUUID(), thread: aRef, body: { kind: 'text', text: 'what asha wrote' } }));
-      unwrap(await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 2_000, endMs: 9_000 }, 'look here'));
+      unwrap(
+        await threads().send(b.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: bRef,
+          body: { kind: 'text', text: 'what ravi wrote' },
+        }),
+      );
+      unwrap(
+        await threads().send(a.authority, {
+          version,
+          commandId: randomUUID(),
+          thread: aRef,
+          body: { kind: 'text', text: 'what asha wrote' },
+        }),
+      );
+      unwrap(
+        await sendSnippet(a, aRef, exact(reel), { kind: 'reel_range', startMs: 2_000, endMs: 9_000 }, 'look here'),
+      );
       const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
       const outcome = await withScope(a.authority, (scope) =>
         socialErasure.export!.read(scope, { accountId: a.accountId }),
@@ -660,7 +710,9 @@ describe('thread snippets and episodes (real PostgreSQL)', () => {
       expect(file).not.toContain('what ravi wrote');
       expect(file).not.toContain(b.person.handle);
       expect(file).not.toContain(b.person.personId);
-      expect(outcome.value['threads']).toMatchObject({ started: expect.arrayContaining([expect.any(Object)]) });
+      const exportedThreads = outcome.value['threads'] as { count: number; started: unknown[] };
+      expect(exportedThreads.count).toBe(1);
+      expect(exportedThreads.started).toHaveLength(1);
     });
   });
 });

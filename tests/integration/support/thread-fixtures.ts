@@ -63,7 +63,10 @@ export async function seedReel(
   options: { readonly durationMs?: number; readonly title?: string } = {},
 ): Promise<SeededAsset> {
   const assetId = randomUUID();
-  await db.insertInto('content.assets').values({ id: assetId, revision: 1, kind: 'reel', status: 'admitted' }).execute();
+  await db
+    .insertInto('content.assets')
+    .values({ id: assetId, revision: 1, kind: 'reel', status: 'admitted' })
+    .execute();
   await addReelRevision(db, assetId, 1, options);
   return { assetId };
 }
@@ -92,7 +95,10 @@ export interface SeededScroll extends SeededAsset {
 /** One of scroll-model's labelled fixture documents, re-sealed under a fresh asset ID and admitted. */
 export async function seedScroll(db: Kysely<Database>, name: FixtureName): Promise<SeededScroll> {
   const assetId = randomUUID();
-  await db.insertInto('content.assets').values({ id: assetId, revision: 1, kind: 'scroll', status: 'admitted' }).execute();
+  await db
+    .insertInto('content.assets')
+    .values({ id: assetId, revision: 1, kind: 'scroll', status: 'admitted' })
+    .execute();
   const document = await addScrollRevision(db, assetId, 1, fixture(name).document);
   return { assetId, document };
 }
@@ -139,7 +145,12 @@ export async function declareSeries(
 }
 
 /** The person opened and activated this asset: their own history, which the Visited marker reads. */
-export async function activateFor(db: Kysely<Database>, person: FixturePerson, assetId: string, kind: 'reel' | 'scroll') {
+export async function activateFor(
+  db: Kysely<Database>,
+  person: FixturePerson,
+  assetId: string,
+  kind: 'reel' | 'scroll',
+) {
   await db
     .insertInto('experience.exposures')
     .values({

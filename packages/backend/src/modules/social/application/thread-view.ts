@@ -114,7 +114,8 @@ function episodeOf(
   visited: ReadonlySet<string>,
   inSeries: boolean,
 ): ThreadEpisode {
-  const metadata = card?.status === 'available' ? card.metadata : card?.status === 'corrected' ? card.current.metadata : undefined;
+  const metadata =
+    card?.status === 'available' ? card.metadata : card?.status === 'corrected' ? card.current.metadata : undefined;
   return {
     assetId: unit.assetId,
     assetRevision: unit.assetRevision,
@@ -136,7 +137,9 @@ export async function threadEpisodes(
   p: ThreadPorts,
   scope: PersonalScopeTx | SharedLock,
   root: ContentRef,
-): Promise<{ sequence: { kind: 'single' } | { kind: 'series'; total: number }; episodes: ThreadEpisode[] } | undefined> {
+): Promise<
+  { sequence: { kind: 'single' } | { kind: 'series'; total: number }; episodes: ThreadEpisode[] } | undefined
+> {
   const personal = 'shared' in scope ? scope.shared.personal : scope;
   const sequence = await p.readSequence(personal, root);
   if (sequence === undefined) return undefined;
