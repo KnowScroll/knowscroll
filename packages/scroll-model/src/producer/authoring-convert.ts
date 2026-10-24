@@ -2,7 +2,14 @@ import type { Issue } from '../issues.js';
 import { FIELD_LIMITS } from '../limits.js';
 import { gridPositions } from '../simulation/evaluate.js';
 import { truncateText } from '../text.js';
-import type { AuthoredBlock, AuthoredScroll } from './authoring-schema.js';
+import {
+  AUTHORED_DIAGRAM_LAYOUTS,
+  AUTHORED_NODE_KINDS,
+  DEFAULT_DIAGRAM_LAYOUT,
+  DEFAULT_NODE_KIND,
+  type AuthoredBlock,
+  type AuthoredScroll,
+} from './authoring-schema.js';
 import type { DraftBlock, ScrollDraft } from './draft.js';
 
 /**
@@ -25,6 +32,11 @@ export interface ConvertedScroll {
   readonly draft: ScrollDraft;
   readonly blockCites: readonly (readonly (readonly string[])[])[];
   readonly positions: AuthoredPositions;
+  /**
+   * What the converter changed instead of refusing, as reason codes that name the block
+   * (`diagram_layout_defaulted_block_6`). The compiler records them in the revision's provenance.
+   */
+  readonly normalisations: readonly string[];
 }
 
 export type Conversion =
@@ -71,7 +83,28 @@ function envelope(title: string, fallback: string, kind: string) {
   };
 }
 
-function diagram(block: Authored<'diagram'>, path: string, issues: Issue[]): DraftBlock {
+/**
+ * A cosmetic choice as the canonical schema wants it: the writer's word when it names one of the
+ * allowed values (case and padding aside), the default otherwise. A word that names nothing is
+ * recorded in `normalisations` and never refused.
+ */
+function cosmetic<T extends string>(
+  chosen: string | undefined,
+  allowed: readonly T[],
+  fallback: T,
+  note: string,
+  normalisations: Set<string>,
+): T {
+  const word = chosen?.trim().toLowerCase() ?? '';
+  if (word === '') return fallback;
+  const match = allowed.find((value) => value === word);
+  if (match !== undefined) return match;
+  normalisations.add(note);
+  return fallback;
+}
+
+function diagram(block: Authored<'diagram'>, path: string, issues: Issue[], normalisations: Set<string>): DraftBlock {
+  const where = path.replace('blocks.', 'block_');
   const used = new Set<string>();
   const nodes = block.nodes.map((node) => ({ ...node, id: localId(node.id ?? node.label, 'node', used) }));
   const nodeByName = new Map<string, string>();
@@ -129,11 +162,23 @@ function diagram(block: Authored<'diagram'>, path: string, issues: Issue[]): Dra
     data: {
       title,
       ...optional('instruction', block.instruction, 120),
-      layout: block.layout ?? 'flow-lr',
+      layout: cosmetic(
+        block.layout,
+        AUTHORED_DIAGRAM_LAYOUTS,
+        DEFAULT_DIAGRAM_LAYOUT,
+        `diagram_layout_defaulted_${where}`,
+        normalisations,
+      ),
       nodes: nodes.map((node) => ({
         id: node.id,
         label: fit(node.label, FIELD_LIMITS.diagramLabelChars),
-        kind: node.kind ?? 'entity',
+        kind: cosmetic(
+          node.kind,
+          AUTHORED_NODE_KINDS,
+          DEFAULT_NODE_KIND,
+          `diagram_node_kind_defaulted_${where}`,
+          normalisations,
+        ),
       })),
       edges: edges.map((edge) => ({
         id: edge.id,
@@ -287,7 +332,12 @@ function chart(block: Authored<'bar-chart'> | Authored<'line-chart'>): DraftBloc
   };
 }
 
-function convertBlock(block: Exclude<AuthoredBlock, { type: 'heading' }>, path: string, issues: Issue[]): DraftBlock {
+function convertBlock(
+  block: Exclude<AuthoredBlock, { type: 'heading' }>,
+  path: string,
+  issues: Issue[],
+  normalisations: Set<string>,
+): DraftBlock {
   switch (block.type) {
     case 'paragraph':
       return { type: 'paragraph', data: { spans: spans(block.text) } };
@@ -336,7 +386,7 @@ function convertBlock(block: Exclude<AuthoredBlock, { type: 'heading' }>, path: 
       return { type: 'sequence', ...envelope(title, `${title}. ${summary}`, 'sequence'), data: { title, steps } };
     }
     case 'diagram':
-      return diagram(block, path, issues);
+      return diagram(block, path, issues, normalisations);
     case 'bar-chart':
     case 'line-chart':
       return chart(block);
@@ -354,6 +404,7 @@ function convertBlock(block: Exclude<AuthoredBlock, { type: 'heading' }>, path: 
  */
 export function convertAuthored(authored: AuthoredScroll): Conversion {
   const issues: Issue[] = [];
+  const normalisations = new Set<string>();
   const sections: { heading: string | null; blocks: DraftBlock[] }[] = [];
   const blockCites: string[][][] = [];
   const positions = { blocks: [] as number[][], headings: [] as (number | null)[] };
@@ -369,7 +420,7 @@ export function convertAuthored(authored: AuthoredScroll): Conversion {
       return;
     }
     if (sections.length === 0) open(null, null);
-    sections.at(-1)?.blocks.push(convertBlock(block, `blocks.${index}`, issues));
+    sections.at(-1)?.blocks.push(convertBlock(block, `blocks.${index}`, issues, normalisations));
     blockCites.at(-1)?.push([...new Set(block.cites)]);
     positions.blocks.at(-1)?.push(index);
   });
@@ -390,5 +441,6 @@ export function convertAuthored(authored: AuthoredScroll): Conversion {
     },
     blockCites,
     positions,
+    normalisations: [...normalisations],
   };
 }

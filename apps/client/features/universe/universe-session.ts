@@ -7,44 +7,39 @@ import {
   type AccountScope,
   type UniverseSceneState,
 } from '@knowscroll/client-core';
-import type { RegionEncounterTarget, SceneClientCapabilities } from '@knowscroll/contracts';
-import {
-  buildSceneGeometry,
-  type SceneDescriptor,
-  type SceneGeometry,
-  type SceneReturnLocator,
-} from '@knowscroll/scene-core';
-import {
-  boundedFrame,
-  DRAW_LIMITS,
-  fitFrame,
-  INITIAL_FRAME,
-  returnLocator,
-  type UniverseFrame,
-} from './universe-camera';
+import type { SceneClientCapabilities } from '@knowscroll/contracts';
+import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
+import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
+import { createCameraHistory, type CameraEntry } from './universe-camera-history';
+import { createDeviceMemory } from './universe-device-memory';
+import { createDustReader, NO_DUST, type DustState } from './universe-dust';
+import { createGeometryCache } from './universe-geometry-cache';
+import type { LastPlace } from './universe-memory';
+import { cameraStillValid, descriptorsOf, placesOf, regionTargetOf, type UniversePlace } from './universe-places';
 import { newCommandId } from '../../platform/command-id';
 import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
-export interface UniversePlace {
-  readonly id: string;
-  readonly parentId: string;
-  readonly kind: SceneDescriptor['kind'];
-  readonly label: string;
-  readonly truthStatus: SceneDescriptor['truthStatus'];
-}
-interface CameraEntry {
-  readonly frame: UniverseFrame;
-  readonly focusId: string | null;
-  readonly locator?: SceneReturnLocator;
-}
+
+export type { UniversePlace } from './universe-places';
+export type { DustState } from './universe-dust';
+
 export interface UniverseViewState extends CameraEntry {
   readonly read: UniverseSceneState;
-  readonly overlay: 'outline' | 'place' | null;
+  readonly overlay: 'outline' | 'place' | 'search' | null;
   readonly detail: 'full' | 'low';
   readonly reducedMotion: boolean;
   readonly notice?: 'place_unavailable';
   readonly historyDepth: number;
   readonly regionPreview: RegionPreviewState;
+  /** The Lately lens: quiet places draw calm, and the list puts recent ones first. Per device. */
+  readonly lately: boolean;
+  readonly dust: DustState;
+  /** Where the ship is parked: the last place flown to on this device. */
+  readonly lastPlace: LastPlace | undefined;
+  /** Away long enough that the camera starts framed on everything, with the ship at its last place. */
+  readonly absent: boolean;
+  /** A system picked on the map but not entered yet (second tap or Open enters it). */
+  readonly selectedId: string | null;
 }
 export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean): SceneClientCapabilities {
   return {
@@ -59,13 +54,16 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
   };
 }
 /** Focus/camera/preview stay read-only; deliberate Open delegates to the real encounter engine. */
-export function createUniverseViewSession(scope: AccountScope, newId = newCommandId) {
+export function createUniverseViewSession(scope: AccountScope, newId = newCommandId, now = Date.now) {
   let detail: 'full' | 'low' = 'full',
     reducedMotion = true,
     foreground = false,
-    ended = false;
+    ended = false,
+    notificationDepth = 0;
+  const live = () => !ended && scope.active;
   let core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
-  let history: CameraEntry[] = [];
+  const history = createCameraHistory(DRAW_LIMITS.history);
+  const geometryCache = createGeometryCache(DRAW_LIMITS.cache);
   const preview = createRegionPreviewSession({ scope, capabilities: ENCOUNTER_CAPABILITIES, newReadId: newId });
   const formation = createFormationPresentationSession({
     scope,
@@ -73,9 +71,9 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     projection: () => core.getState(),
     capabilities: () => sceneCapabilities(detail, reducedMotion),
   });
+  const memory = createDeviceMemory(scope, now, live);
   let returnPoint: { camera: CameraEntry; history: CameraEntry[] } | undefined;
-  const listeners = new Set<() => void>(),
-    cache = new Map<string, { key: string; geometry: SceneGeometry }>();
+  const listeners = new Set<() => void>();
   let state: UniverseViewState = {
     read: core.getState(),
     frame: { ...INITIAL_FRAME },
@@ -85,88 +83,69 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     reducedMotion,
     historyDepth: 0,
     regionPreview: preview.getState(),
+    lately: memory.lately,
+    dust: NO_DUST,
+    lastPlace: memory.lastPlace,
+    absent: false,
+    selectedId: null,
   };
-  const live = () => !ended && scope.active;
-  let notificationDepth = 0;
   const publish = (patch: Partial<UniverseViewState>) => {
-    state = { ...state, ...patch, historyDepth: history.length };
+    state = { ...state, ...patch, historyDepth: history.size() };
     if (notificationDepth) return;
     for (const listener of [...listeners]) listener();
   };
+  memory.keep(() => state);
+  const dust = createDustReader({ scope, live, current: () => state.dust, publish: (next) => publish({ dust: next }) });
   const formationOff = formation.subscribe(() => publish({}));
   const previewOff = preview.subscribe(() => publish({ regionPreview: preview.getState() }));
   const cancelPreview = () => preview.cancel();
-  const target = (): RegionEncounterTarget | undefined => {
-    const read = core.getState(),
-      geography = read.geography;
-    const object = geography?.objects.find((o) => o.id === state.focusId && o.kind === 'region');
-    if (
-      !object ||
-      !geography ||
-      read.status !== 'ready' ||
-      !read.snapshot ||
-      read.snapshot.read.manifest.revisions.geographyRevision !== geography.geography.revision
-    )
-      return;
-    return {
-      kind: 'region',
-      regionId: object.id,
-      expectedObjectRevision: object.objectRevision,
-      expectedGeographyRevision: geography.geography.revision,
-    };
-  };
+
+  const descriptors = () => (live() ? descriptorsOf(state.read) : []);
+  const places = (): readonly UniversePlace[] => (live() ? placesOf(state.read) : []);
+  const validCamera = (entry: CameraEntry) => cameraStillValid(state.read, entry);
   const readPreview = () => {
     cancelPreview();
-    const selected = target();
+    const selected = regionTargetOf(state.read, state.focusId);
     if (live() && foreground && state.overlay === 'place' && selected)
       void preview.read(selected, {
         personalWatermark: state.read.geography!.personalWatermark,
         geographyRevision: selected.expectedGeographyRevision,
       });
   };
-  const descriptors = () => (live() ? (state.read.snapshot?.chunks.flatMap((c) => c.objects) ?? []) : []);
-  const places = (): readonly UniversePlace[] => {
-    if (!live()) return [];
-    // Stale Scene labels stay with that Scene, never newer Geography labels.
-    if (state.read.snapshot)
-      return descriptors().map((o) => ({
-        id: o.objectId,
-        parentId: o.parentId,
-        kind: o.kind,
-        label: o.label,
-        truthStatus: o.truthStatus,
-      }));
-    return (
-      state.read.geography?.objects.map((o) => ({
-        id: o.id,
-        parentId: o.parent.id,
-        kind: o.kind,
-        label: o.label,
-        truthStatus: o.truthStatus,
-      })) ?? []
-    );
+  /** A saved camera that no longer exists sends the person to the whole map, and says so. */
+  const publishCamera = (entry: CameraEntry) => {
+    if (validCamera(entry)) publish({ ...entry, overlay: null, notice: undefined });
+    else {
+      history.clear();
+      publish({
+        focusId: null,
+        frame: { ...INITIAL_FRAME },
+        locator: undefined,
+        overlay: null,
+        notice: 'place_unavailable',
+      });
+    }
   };
-  const validCamera = (entry: CameraEntry) => {
-    if (!entry.focusId) return true;
-    if (!places().some((p) => p.id === entry.focusId)) return false;
-    return (
-      !entry.locator ||
-      Boolean(
-        state.read.snapshot?.chunks.some(
-          (c) => c.chunkId === entry.locator!.chunkId && c.objects.some((o) => o.objectId === entry.focusId),
-        ),
-      )
-    );
+
+  /** The first map restores the camera, Lately and the ship (or, after a long absence, frames everything). */
+  const restoreMemory = () => {
+    const restored = memory.restore((id) => places().some((place) => place.id === id));
+    if (!restored) return;
+    publish({
+      ...(restored.camera ? { focusId: restored.camera.focusId, frame: restored.camera.frame } : {}),
+      lastPlace: restored.lastPlace,
+      absent: restored.absent,
+    });
   };
   const readChanged = () => {
     const read = core.getState(),
       hadSnapshot = Boolean(state.read.snapshot);
     if (read.status === 'ended' || read.reason === 'authority') {
       formation.dispose();
-      history = [];
+      history.clear();
       returnPoint = undefined;
       cancelPreview();
-      cache.clear();
+      geometryCache.clear();
       publish({
         read,
         frame: { ...INITIAL_FRAME },
@@ -174,29 +153,29 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         locator: undefined,
         overlay: null,
         notice: undefined,
+        selectedId: null,
       });
       return;
     }
     cancelPreview();
-    publish({
-      read,
-      ...(!hadSnapshot && read.snapshot && !state.focusId
-        ? { frame: fitFrame(read.snapshot.chunks.flatMap((c) => c.objects).filter((o) => o.kind === 'system')) }
-        : {}),
-    });
+    publish({ read });
     formation.update();
     if (state.focusId && (read.snapshot || read.geography) && !validCamera(state)) {
-      history = [];
+      history.clear();
       publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
     }
+    if (!hadSnapshot && read.snapshot) restoreMemory();
+    if (read.geography) dust.seeGeography(read.geography.geography.revision);
   };
   let unsubscribe = core.subscribe(readChanged);
   const end = () => {
     if (ended) return;
     ended = true;
     foreground = false;
-    history = [];
-    cache.clear();
+    history.clear();
+    memory.stop();
+    dust.stop();
+    geometryCache.clear();
     unsubscribe();
     core.dispose();
     publish({
@@ -206,6 +185,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       focusId: null,
       locator: undefined,
       overlay: null,
+      selectedId: null,
+      dust: NO_DUST,
     });
     previewOff();
     preview.dispose();
@@ -216,23 +197,43 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     listeners.clear();
   };
   scope.onEnd?.(end);
+
+  const showOverlay = (overlay: UniverseViewState['overlay']) => {
+    if (!live() || !foreground) return;
+    const focused = places().find((p) => p.id === state.focusId);
+    if (overlay === 'place' && focused?.kind !== 'region') return;
+    cancelPreview();
+    publish({ overlay, selectedId: null });
+    formation.setForeground(overlay === null);
+    if (overlay === 'place') readPreview();
+  };
+  const here = (): CameraEntry => ({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
   const focus = (id: string) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
     cancelPreview();
     formation.skip();
-    history.push({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
-    if (history.length > DRAW_LIMITS.history) history.shift();
     const all = descriptors(),
       object = all.find((o) => o.objectId === id),
-      chunk = state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === id));
-    const frame = object ? fitFrame(all.filter((o) => o.objectId === id || o.parentId === id)) : state.frame;
+      current = all.find((o) => o.objectId === state.focusId);
+    // Moving between regions of one planet replaces the view instead of stacking Back steps.
+    const sibling = object?.kind === 'region' && current?.kind === 'region' && current.parentId === object.parentId;
+    if (!sibling) history.push(here());
+    const chunk = state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === id));
+    const place = places().find((p) => p.id === id)!;
+    const frame = { ...INITIAL_FRAME };
     publish({
       focusId: id,
       notice: undefined,
       frame,
       overlay: null,
+      selectedId: null,
+      absent: false,
+      lastPlace: { id, label: place.label, kind: place.kind },
       locator: chunk ? returnLocator(chunk.chunkId, id, frame) : undefined,
     });
+    memory.saveNow();
+    // A region opens its card at once: choosing a pin is how a person lands on it (U04).
+    if (place.kind === 'region') showOverlay('place');
     return true;
   };
   const back = () => {
@@ -246,21 +247,34 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       publish({ overlay: null });
       return true;
     }
+    if (state.selectedId) {
+      publish({ selectedId: null });
+      return true;
+    }
     cancelPreview();
     const entry = history.pop();
     if (!entry) return false;
-    if (!validCamera(entry)) {
-      history = [];
-      publish({
-        focusId: null,
-        frame: { ...INITIAL_FRAME },
-        locator: undefined,
-        overlay: null,
-        notice: 'place_unavailable',
-      });
-    } else publish({ ...entry, overlay: null, notice: undefined });
+    publishCamera(entry);
+    memory.saveNow();
     return true;
   };
+  const withFrame = (frame: UniverseFrame) => {
+    publish({
+      frame,
+      locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, frame) : undefined,
+    });
+    memory.saveSoon();
+  };
+  /** The route a Route target stands for: from a planet it ends at, to its other end; from the system, to its `to` end. */
+  const routeDestination = (routeId: string): string | undefined => {
+    const route = state.read.snapshot?.chunks.flatMap((c) => c.routes).find((r) => r.id === routeId);
+    if (!route) return undefined;
+    if (route.fromObjectId === state.focusId) return route.toObjectId;
+    if (route.toObjectId === state.focusId) return route.fromObjectId;
+    const from = descriptors().find((o) => o.objectId === route.fromObjectId);
+    return from?.parentId === state.focusId ? route.toObjectId : undefined;
+  };
+
   return {
     getState: () => state,
     subscribe(this: void, listener: () => void) {
@@ -289,15 +303,20 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     },
     focus,
     back,
-    canBack: () => live() && (Boolean(formation.getState().fact) || history.length > 0 || state.overlay !== null),
+    canBack: () =>
+      live() &&
+      (Boolean(formation.getState().fact) || history.size() > 0 || state.overlay !== null || state.selectedId !== null),
     setForeground(value: boolean) {
       if (!live()) return;
       foreground = value;
       formation.setForeground(value && state.overlay === null);
-      if (value) core.resume();
-      else {
+      if (value) {
+        core.resume();
+        dust.refreshIfStarted();
+      } else {
         cancelPreview();
         core.pause();
+        memory.saveNow();
       }
     },
     configure(next: { detail: 'full' | 'low'; reducedMotion: boolean }) {
@@ -308,24 +327,17 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       reducedMotion = next.reducedMotion;
       unsubscribe();
       core.dispose();
-      cache.clear();
+      geometryCache.clear();
       core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
       unsubscribe = core.subscribe(readChanged);
       publish({ detail, reducedMotion, read: core.getState(), overlay: null });
       if (foreground) core.start();
       formation.setForeground(foreground);
     },
-    showOverlay(overlay: UniverseViewState['overlay']) {
-      if (live() && foreground && (overlay !== 'place' || state.focusId)) {
-        cancelPreview();
-        publish({ overlay });
-        formation.setForeground(overlay === null);
-        if (overlay === 'place') readPreview();
-      }
-    },
+    showOverlay,
     refreshRegionPreview: readPreview,
     openRegion(displayed: AvailableRegionPreview, onReturn: () => void) {
-      const selected = target();
+      const selected = regionTargetOf(state.read, state.focusId);
       if (
         !live() ||
         !foreground ||
@@ -335,18 +347,11 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         JSON.stringify(selected) !== JSON.stringify(displayed.target)
       )
         return false;
-      const saved = {
-        camera: { frame: { ...state.frame }, focusId: state.focusId, locator: state.locator },
-        history: history.map((e) => ({ ...e, frame: { ...e.frame } })),
-      };
+      const saved = { camera: here(), history: history.snapshot() };
       const accepted = encounterSessionFor(scope).openRegion(displayed, () => {
         if (!live() || returnPoint !== saved) return;
-        history = saved.history;
-        if (validCamera(saved.camera)) publish({ ...saved.camera, overlay: null, notice: undefined });
-        else {
-          history = [];
-          publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
-        }
+        history.restore(saved.history);
+        publishCamera(saved.camera);
         onReturn();
       });
       if (!accepted) return false;
@@ -356,52 +361,69 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       return true;
     },
     camera(frame: UniverseFrame) {
-      if (live() && foreground) {
-        const next = boundedFrame(frame);
-        publish({
-          frame: next,
-          locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, next) : undefined,
-        });
-      }
+      if (live() && foreground) withFrame(boundedFrame(frame));
     },
+    /** Frames the current view as the screen first draws it. */
     fit() {
-      if (live() && foreground) {
-        const frame = fitFrame(
-          descriptors().filter((o) =>
-            !state.focusId ? o.kind === 'system' : o.objectId === state.focusId || o.parentId === state.focusId,
-          ),
-        );
-        publish({
-          frame,
-          locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, frame) : undefined,
-        });
-      }
+      if (live() && foreground) withFrame({ ...INITIAL_FRAME });
+    },
+    setLately(lately: boolean) {
+      if (!live() || lately === state.lately) return;
+      publish({ lately });
+      memory.saveNow();
+    },
+    /** Picks a system on the map without entering it; a second tap or Open enters. */
+    select(id: string | null) {
+      if (!live() || !foreground) return;
+      if (id !== null && !places().some((p) => p.id === id)) return;
+      publish({ selectedId: id });
+    },
+    /**
+     * The Back pill of a system, planet or region: one step up the hierarchy (system to the whole
+     * map, planet to its system, region to its planet). Browser and hardware Back keep following
+     * the camera history instead, so both lead somewhere the person has been.
+     */
+    up() {
+      if (!live() || !foreground) return false;
+      const all = places();
+      const parentId = all.find((place) => place.id === state.focusId)?.parentId;
+      const parent = all.find((place) => place.id === parentId && place.kind !== 'star');
+      cancelPreview();
+      formation.skip();
+      history.push(here());
+      publish({
+        focusId: parent?.id ?? null,
+        frame: { ...INITIAL_FRAME },
+        locator: undefined,
+        overlay: null,
+        selectedId: null,
+        notice: undefined,
+      });
+      memory.saveNow();
+      return true;
+    },
+    /** Flies to the place the ship is parked at (`?focus=last`, "Return to …"). */
+    focusLast() {
+      const last = state.lastPlace;
+      return last !== undefined && last.id !== state.focusId && focus(last.id);
     },
     async refresh() {
       if (live() && foreground) await core.refresh();
     },
+    /** Follows a Cartographer route between two planets of one system, from either end or from the system. */
     travel(routeId: string) {
-      if (!live() || !foreground || !state.read.snapshot || state.read.status !== 'ready') return false;
-      const route = state.read.snapshot.chunks.flatMap((c) => c.routes).find((r) => r.id === routeId);
-      if (!route || (route.fromObjectId !== state.focusId && route.toObjectId !== state.focusId)) return false;
-      return focus(route.fromObjectId === state.focusId ? route.toObjectId : route.fromObjectId);
+      if (!live() || !foreground || state.read.status !== 'ready') return false;
+      const destination = routeDestination(routeId);
+      return destination !== undefined && focus(destination);
     },
-    geometry(object: SceneDescriptor, low = false) {
+    geometry(object: SceneDescriptor, low = false): SceneGeometry | undefined {
       // A retained render callback is not authority: accept only the current generation's
       // parsed descriptor reference while this screen is foregrounded. This also fences
       // descriptors held across authority refusal and capability-session replacement.
       if (!live() || !foreground || !descriptors().includes(object)) return undefined;
-      const options = { detail: low ? ('low' as const) : detail, reducedMotion },
-        key = JSON.stringify([object, options]),
-        previous = cache.get(object.objectId);
-      if (previous?.key === key) return previous.geometry;
-      const geometry = buildSceneGeometry(object, options);
-      cache.delete(object.objectId);
-      cache.set(object.objectId, { key, geometry });
-      while (cache.size > DRAW_LIMITS.cache) cache.delete(cache.keys().next().value!);
-      return geometry;
+      return geometryCache.get(object, { detail: low ? 'low' : detail, reducedMotion });
     },
-    cacheSize: () => cache.size,
+    cacheSize: () => geometryCache.size(),
   };
 }
 export type UniverseViewSession = ReturnType<typeof createUniverseViewSession>;

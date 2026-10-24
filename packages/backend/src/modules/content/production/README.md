@@ -59,7 +59,10 @@ operator ─▶ job (research) ─▶ evidence passages ─▶ writer (1 call + 
    comparison, timeline or sequence); the instructions describe only that block and the prose
    blocks. The harness allows one repair, which receives fixed, path-located findings and, because the
    writer opts in (`repairWithPreviousAnswer`), the refused answer as escaped, delimited data in the
-   user message so it can revise instead of rewriting.
+   user message so it can revise instead of rewriting. For a copy finding the writer also supplies
+   repair notes (`repairNotes`): the copied words themselves, cut from the research text with the same
+   check that refused the answer and sent in a `<repair-notes>` block, so the repair rewrites only
+   those sentences. The nine-word rule is unchanged.
 4. **Compile** (`compileGeneratedScroll`). Code converts the authored document into the canonical
    draft, derives the claim bindings from the citations and runs every check: structure, the
    simulation grid proof, numbers (a figure must appear in a passage the block cites; a chart plots

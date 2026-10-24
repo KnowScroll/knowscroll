@@ -176,17 +176,50 @@ export function truncateText(text: string, max: number): string {
 
 /** Word shingles used by the copy check (`copied_passage`): lower-case letters and digits only. */
 export function wordShingles(text: string, size: number): Set<string> {
-  const words = text
-    .normalize('NFC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/u)
-    .filter((word) => word.length > 0);
+  const words = copyWords(text);
   const shingles = new Set<string>();
   for (let index = 0; index + size <= words.length; index += 1) {
     shingles.add(words.slice(index, index + size).join(' '));
   }
   return shingles;
+}
+
+/** The words the copy check compares: lower-case letters and digits only (see `wordShingles`). */
+function copyWords(text: string): string[] {
+  return text
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/u)
+    .filter((word) => word.length > 0);
+}
+
+/**
+ * The runs of `text` that the copy check refuses: every maximal stretch of at least `size` words
+ * that also appears, word for word, in one of the `sources`. Words are compared the way
+ * `wordShingles` compares them (lower case, no punctuation), and a run is returned in that form.
+ * Overlapping shingles merge into one run; distinct runs come back once, in order of appearance.
+ * The runs are cut from the sources' own words, so they are as public as the sources are.
+ */
+export function copiedRuns(text: string, sources: readonly string[], size: number): readonly string[] {
+  const material = new Set<string>();
+  for (const source of sources) for (const shingle of wordShingles(source, size)) material.add(shingle);
+  const words = copyWords(text);
+  const copied = new Array<boolean>(words.length).fill(false);
+  for (let start = 0; start + size <= words.length; start += 1)
+    if (material.has(words.slice(start, start + size).join(' ')))
+      for (let at = start; at < start + size; at += 1) copied[at] = true;
+  const runs: string[] = [];
+  let from = -1;
+  for (let at = 0; at <= words.length; at += 1) {
+    if (copied[at] === true) {
+      if (from < 0) from = at;
+    } else if (from >= 0) {
+      runs.push(words.slice(from, at).join(' '));
+      from = -1;
+    }
+  }
+  return [...new Set(runs)];
 }
 
 interface GraphemeSegmenter {

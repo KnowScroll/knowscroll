@@ -50,3 +50,10 @@ versions and stable descriptor allocation back readonly backend ports. No HTTP, 
 bootstrap, model work or formation acknowledgement is installed by this prerequisite.
 
 Social exposes backend-only explicit profile/handle and Friends pair operations through its public ports. The source slice mounts no HTTP or worker producer, lists, invitations, visibility, visitor publication or presence. See `src/modules/social/README.md` for per-caller public revisions, private pair serialization and erasure limits.
+
+## Adding a personal store
+
+1. Add its table to the module's migration, with a `universe_id` column that references `identity.universes` `ON DELETE RESTRICT`.
+2. Declare it in the module's `adapters/erasure.ts`: table, owner column, and how full erasure and Clear treat it.
+3. A new module adds one line to the list in `src/erasure-registry.ts`.
+4. Nothing else: no digest, no witness migration. The schema inventory test fails until the declaration exists.

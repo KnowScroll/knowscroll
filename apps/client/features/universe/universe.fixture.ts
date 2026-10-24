@@ -10,7 +10,8 @@ export const fixtureAccount = {
   email: 'universe@fixture.test',
 };
 const recordedAt = '2026-10-21T00:00:00.000Z';
-export function sceneFixture(count = 5) {
+/** `dust` is the number of unlabelled dust cues the emerging read returns. */
+export function sceneFixture(count = 5, dust = 0) {
   const geography = { revision: count ? 3 : 0, structureRevision: count ? 3 : 0, activityRevision: 0 };
   const objects: GeographyObject[] = Array.from({ length: count }, (_, n) => {
     const kind =
@@ -44,7 +45,7 @@ export function sceneFixture(count = 5) {
     atmosphere: { density: 0.1 },
     detail: { roughness: 0.2 },
     anchor: {
-      x: n < 5 ? n * 150 : (n % 32) * 300,
+      x: n < 5 ? n * 300 : (n % 32) * 300,
       y: n < 5 ? 0 : Math.floor(n / 32) * 300,
       layer: n === 0 ? 0 : n === 1 ? 1 : n === 4 ? 3 : 2,
     },
@@ -134,6 +135,18 @@ export function sceneFixture(count = 5) {
             : {}),
         };
       }
+      if (path.endsWith('/emerging/read'))
+        return {
+          version: 'universe-emerging.v1',
+          universeId: fixtureAccount.universeId,
+          privacyEpoch: 1,
+          personalWatermark: 40,
+          recordedAt,
+          geography,
+          dust: Array.from({ length: dust }, (_, n) => ({
+            id: `0199a000-0000-5000-8000-${(n + 1).toString(16).padStart(12, '0')}`,
+          })),
+        };
       if (path.endsWith('/geography/deltas/read'))
         return {
           version: 'universe-deltas.v1',
@@ -183,8 +196,8 @@ export function sceneFixture(count = 5) {
     },
   };
 }
-export function universeHarness(count = 5) {
-  const world = sceneFixture(count),
+export function universeHarness(count = 5, dust = 0) {
+  const world = sceneFixture(count, dust),
     calls: string[] = [],
     store = memoryStore();
   let gate: Promise<void> | undefined,

@@ -2,9 +2,13 @@ import type { Issue } from '../issues.js';
 import { issueFromSchema, uniqueIssues } from '../issues.js';
 import { deriveBindings, type AuthoringEvidence } from './authoring-bind.js';
 import { convertAuthored, type AuthoredPositions } from './authoring-convert.js';
-import type { AuthoredScroll } from './authoring-schema.js';
+import { SCROLL_AUTHORING_VERSION, type AuthoredScroll } from './authoring-schema.js';
 import { analyseDraft, finishCompile, type CompileOutcome } from './compile.js';
 import { DraftProvenance, ScrollDraft } from './draft.js';
+import type { CheckRecord } from '../internal/provenance.js';
+
+/** The check record that names what the converter changed instead of refusing (D-032). */
+export const NORMALISATION_CHECK = 'authoring-normalisation';
 
 const AUTHORED_BLOCK = /^blocks\.\d+/u;
 const CANONICAL_BLOCK = /^sections\.(\d+)\.blocks\.(\d+)/u;
@@ -75,6 +79,17 @@ export function compileAuthored(
     deriveBindings(document, converted.blockCites, evidence),
   );
   if ('kind' in analysis) return refusal(analysis.stage, analysis.issues, converted.positions);
-  const compiled = finishCompile(analysis);
+  const extraChecks: CheckRecord[] =
+    converted.normalisations.length === 0
+      ? []
+      : [
+          {
+            name: NORMALISATION_CHECK,
+            version: SCROLL_AUTHORING_VERSION,
+            verdict: 'pass',
+            reasonCodes: converted.normalisations.slice(0, 64),
+          },
+        ];
+  const compiled = finishCompile(analysis, extraChecks);
   return compiled.kind === 'refused' ? refusal(compiled.stage, compiled.issues, converted.positions) : compiled;
 }

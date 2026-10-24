@@ -799,7 +799,6 @@ export interface IdentityRecordingLifecycleWitnesses {
   origin_kind: string;
   privacy_epoch: number;
   protocol_version: number;
-  registry_sha256: string;
   universe_id: string;
   verified_at: Timestamp;
 }

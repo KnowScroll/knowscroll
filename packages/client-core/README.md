@@ -176,6 +176,15 @@ coverage/admission authority stays server-owned. Authored protocol/component/exp
 fixtures run in Actions only and do not establish real formation, approved mappings, generated
 content, device parity or populated dev acceptance.
 
+## Dust read (#238)
+
+`readDustCues(scope, signal?)` calls `POST /v1/universe/emerging/read` and returns `ready` with
+opaque cue IDs or a typed `unavailable` reason (`network`, `authority`, `invalid`,
+`temporarily_unavailable`). The reply must name this universe and epoch. A cue is not a place: it
+has no label, topic or count, and the read never forms anything. Nothing is cached or retried here;
+the Universe view session reads again on foreground and when the geography revision changes.
+Status: implemented, CI-verified.
+
 ## Durable formation presentation client (#363)
 
 `createFormationPresentationSession` consumes the merged `formation-presentation.v1` protocol

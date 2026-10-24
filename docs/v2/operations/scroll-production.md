@@ -109,7 +109,7 @@ Usual findings and what they mean:
 
 | Finding | Meaning |
 |---|---|
-| `copied_passage` | Nine words in a row match a source passage. |
+| `copied_passage` | Nine words in a row match a source passage. The repair is told the copied words (`<repair-notes>`). |
 | `authoring_number_not_in_evidence` | A figure (or a plotted chart value) is in no passage the block cites. |
 | `too_big` / `too_small` at a field | A length limit; the finding names the field and the limit. |
 | `OUTPUT_NOT_ONE_JSON_OBJECT` | The reply is not one JSON object; the detail says where it stopped being JSON. |
