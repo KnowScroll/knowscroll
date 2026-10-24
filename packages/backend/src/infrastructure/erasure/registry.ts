@@ -273,7 +273,10 @@ export function boundedSection<T>(rows: readonly T[]): { readonly items: readonl
 /** The export file's structure version. A change to a section's shape bumps it. */
 export const EXPORT_VERSION = 'knowscroll-export.v1';
 
-/** Every module's export section for one person, keyed by module name. Empty sections are kept. */
+/**
+ * Every module's export section for one person, keyed by module name. A module with nothing to say
+ * (all its stores are internal machinery) has no section: the file never names it.
+ */
 export async function exportPersonalData(
   scope: PersonalScopeTx,
   registry: readonly ModuleErasure[],
@@ -282,7 +285,8 @@ export async function exportPersonalData(
   const sections: Record<string, unknown> = {};
   for (const declaration of registry) {
     if (declaration.export === undefined) throw new Error(`EXPORT_OWNER_MISSING: ${declaration.module}`);
-    sections[declaration.module] = await declaration.export.read(scope, person);
+    const section = await declaration.export.read(scope, person);
+    if (Object.keys(section).length > 0) sections[declaration.module] = section;
   }
   return { version: EXPORT_VERSION, sections };
 }
