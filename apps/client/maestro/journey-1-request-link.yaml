@@ -1,0 +1,23 @@
+# Journey, step 1 of 3 (run by run-ci.sh against the lane's test API, never on its own): a cold,
+# signed-out app asks for a sign-in link through the real screens. The test API records the mail
+# in a file instead of sending it; run-ci.sh reads the link from there for step 2.
+# Env: EMAIL, the address to ask for.
+appId: com.knowscroll.client
+name: Journey 1 - ask for a sign-in link
+tags:
+  - journey
+---
+- runFlow: start-app.yaml
+- assertVisible: Nothing is ready to play yet.
+- tapOn: Sign in
+- tapOn: Continue with email
+- tapOn:
+    id: email-field
+- inputText: ${EMAIL}
+- hideKeyboard
+- takeScreenshot: journey-1-01-email-entered
+- tapOn: Send sign-in link
+- extendedWaitUntil:
+    visible: Check your inbox
+    timeout: 60000
+- takeScreenshot: journey-1-02-link-sent

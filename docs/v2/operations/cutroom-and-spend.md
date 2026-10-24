@@ -8,6 +8,10 @@ in `packages/backend/src/modules/content/README.md` ("Reels from Cutroom").
 
 ## The rules
 
+- **Real money first (D-048).** The pool's counted cents **under**count real fal spend (about 6.6× on 24 Oct).
+  Before and after every paid order, read the fal balance on the server with Cutroom's environment and record
+  both in #240. Stop when real new spend reaches the amount the owner set; never order without one. The pool
+  cap below is a second limit, not the budget.
 - **Budget:** at most **400 cents** of new spend (D-030), on top of the 617 cents v1 already settled.
   The pool cap becomes 1017 and refuses any claim that would pass it. The pool counts cents Cutroom
   reports, which overcount real fal money, so real spend is lower.

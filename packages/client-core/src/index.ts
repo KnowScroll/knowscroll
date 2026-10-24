@@ -25,6 +25,7 @@ export {
   memoryStore,
   purgeStorage,
   scopeIdOf,
+  scopeStoragePrefix,
   type AccountScope,
   type AccountScopeOptions,
   type ConnectScope,

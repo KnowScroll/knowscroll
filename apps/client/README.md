@@ -58,7 +58,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/`: screens and their tests (`*.test.tsx`, jest-expo + React Native Testing Library;
   `features/shell/navigation.test.tsx` renders the real route tree with `expo-router/testing-library`;
   `features/shell/route-map.test.ts` checks the route files against the route map).
-- `platform/`: platform files (`document-title(.web).ts`) and their web tests
+- `platform/`: platform files (`document-title(.web).ts`, `scope-storage(.web).ts`, `session-tokens(.web).ts`) and their web tests
   (`*.web.test.tsx`, the `web` Jest project, jest-expo/web in jsdom).
 - `e2e/`: the Playwright web smoke over the static exports (`web-smoke.spec.ts` against `dist/`:
   links, Tab + Enter, modified clicks, page titles, focus order at 834 and 1440, no gallery;
@@ -390,8 +390,8 @@ Privacy & history now mounts recording controls independently of Clear. The Acco
 session fails collection closed while checking, offline, backgrounded or awaiting an ambiguous
 choice. Global AppState and browser focus/storage signals reread current authority; toggles retain
 the same scope and privacy epoch. Browser storage signals are disposable hints, never authority.
-The native platform UUID source is installed before policy requests; native scoped storage remains
-memory-only and this change makes no crash-durability claim there.
+The native platform UUID source is installed before policy requests. Native scoped storage is
+encrypted platform storage (see "Native storage" below), durable a moment after each write.
 
 Discovery/revisit/navigation, region Open, offer/direct activation, explicit actions and Keep Remove
 capture their original known recording generation once. Transport retries preserve the entire body,
@@ -409,3 +409,20 @@ Authored protocol/component/browser fixtures cover these fences, unknown retries
 fresh activation. Execute suites only in Actions. Actual API/database evidence qualification,
 connected web/native/device journeys and final source composition/deployment remain Root-owned
 acceptance requirements. This source does not close full privacy, export or account deletion.
+
+## Native storage (#249, D-045)
+
+On Android and iOS the account scope's storage is `createSecureKeyValueStore` over `expo-secure-store`
+(`platform/secure-key-value-store.ts`, wired in `platform/scope-storage.ts`; _implemented, emulator-verified in
+the native lane's journey_). The session token and the sign-in verifier use the same secure store
+(`session-tokens.ts`, `sign-in-binding.ts`).
+
+- The store is synchronous, like `localStorage`: memory is the working copy and changes reach the platform through one
+  ordered queue. A change is durable a moment after the call. A failing backend (locked device, lost key) loses
+  persistence only: after a failed index read or write it stops writing values (the persisted index is never overwritten blind) and retries the index later.
+- It is bounded (256 keys, 1 MiB; the oldest written go first), so callers treat it as a cache that can miss.
+- Scope keys are purged when the scope ends (sign-out, account switch, Clear, account deletion). Mounting a scope also
+  removes what a killed run left under another account or epoch. The deletion receipt id is outside any scope.
+- The `expo-secure-store` config plugin keeps the data out of Android backups.
+- Test builds: `EXPO_PUBLIC_KS_TEST_API=1` (the native lane's test API, `docs/v2/engineering/native-lane.md`) lets the
+  client use plain HTTP to localhost and makes the Android manifest allow cleartext. Never set it for a build that ships.
