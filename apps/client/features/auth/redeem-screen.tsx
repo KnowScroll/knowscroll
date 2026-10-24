@@ -15,6 +15,13 @@ type Failure =
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'refused' };
 
+/**
+ * Links this app run already redeemed. Signing in mounts a new account scope, which remounts this
+ * screen while the app link that opened it is still the current URL; asking about that spent link
+ * again would answer "didn't work" and send the new session to the recover screen.
+ */
+const redeemedTokens = new Set<string>();
+
 /** What the server said about one token before redeeming it. */
 type Peeked = { readonly token: string; readonly outcome: PeekOutcome };
 
@@ -44,7 +51,7 @@ export function RedeemScreen() {
   const peek = peeked !== undefined && peeked.token === token ? peeked.outcome : undefined;
 
   useEffect(() => {
-    if (token === undefined) return undefined;
+    if (token === undefined || redeemedTokens.has(token)) return undefined;
     let current = true;
     void manager.peek(token).then((outcome) => {
       if (!current) return;
@@ -69,6 +76,7 @@ export function RedeemScreen() {
     setBusy(false);
     switch (outcome.kind) {
       case 'signed_in':
+        redeemedTokens.add(token);
         router.replace('/explore');
         return;
       case 'link_invalid':

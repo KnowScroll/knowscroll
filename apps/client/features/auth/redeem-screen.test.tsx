@@ -26,6 +26,8 @@ const accountB = {
   email: 'b@scope.test',
 };
 const link = `https://app.example.test/redeem#token=ksl_${'B'.repeat(43)}`;
+/** The screen remembers links it redeemed for the run, so each test uses its own. */
+const refusedLink = `https://app.example.test/redeem#token=ksl_${'C'.repeat(43)}`;
 
 function fixtureAuth(peek: PeekOutcome) {
   return {
@@ -107,7 +109,7 @@ describe('the redeem page', () => {
   it('sends a link that would not work to "This link didn’t work" without redeeming it', async () => {
     const auth = fixtureAuth({ kind: 'link_invalid' });
     const app = await renderRedeem(auth);
-    await fireEvent.changeText(await screen.findByLabelText('Sign-in link'), link);
+    await fireEvent.changeText(await screen.findByLabelText('Sign-in link'), refusedLink);
     expect(await screen.findByText('Recover')).toBeOnTheScreen();
     expect(app.getPathname()).toBe('/recover');
     expect(auth.redeem).not.toHaveBeenCalled();

@@ -17,11 +17,26 @@ tags:
     timeout: 60000
 - takeScreenshot: journey-2-01-confirm-account
 - tapOn: Continue as .*
-# Explore, signed in: the fixture Reel is the first encounter.
-- extendedWaitUntil:
-    visible:
-      id: encounter-reel-caption
-    timeout: 90000
+# Explore, signed in: the fixture Reel is the first encounter. If the first open fails (the screen
+# says it is offline and offers "Try again"), the person tries again, as a person would.
+- repeat:
+    times: 4
+    while:
+      notVisible:
+        id: encounter-reel-caption
+    commands:
+      - runFlow:
+          when:
+            visible: Try again
+          commands:
+            - tapOn: Try again
+      - extendedWaitUntil:
+          visible:
+            id: encounter-reel-caption
+          timeout: 20000
+          optional: true
+- assertVisible:
+    id: encounter-reel-caption
 - assertVisible: .*A blanket made of gas.*
 - takeScreenshot: journey-2-02-reel
 # The hint and the move buttons sit below the video. The hint is dismissed once and stays
