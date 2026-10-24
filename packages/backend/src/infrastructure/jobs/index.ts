@@ -2,9 +2,9 @@ export { makeEnqueueInTransaction, makeEnqueueJob, type EnqueueInTransaction, ty
 export {
   applyQueueDeclarations,
   createBoss,
-  removeUndeclaredSchedules,
   type BossDiagnostics,
   type BossRole,
+  type RemovedSchedule,
 } from './boss.js';
 export {
   InvalidJobPayloadError,

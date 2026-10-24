@@ -556,7 +556,7 @@ It then checks the exact reasoning-run metadata/proof header. An existing row mu
 owner/purpose/epoch, role/version/policy/provider/model/bundle/refs, account/generation and both
 hashes. NULL proof remains legacy unknown and cannot pass the new facade; a generic initial 1 call
 cannot read a populated recording proof. No private output or validator issues enter the first
-metadata selection. Before private attempt selection, a fixed 9-row raw prefix proves the at-most8
+metadata selection. Before private attempt selection, a fixed 9-row raw prefix proves the at most 8
 primary/repair sequence set and checks the exact planned request hash; changed same-ref text or
 instructions refuse before kept output selection. Protected bytes are read through that SAME
 transaction, exact run/attempt and hash, never a global unguarded replay query.
@@ -593,7 +593,7 @@ may retain that header locally for necessary retirement in this SAME transaction
 body, context or hashes are read. Reasoning compares only its own minimal exact header and a
 proof-complete boolean; partial, mismatched or legacy NULL provenance stays unproved. Neither
 NULL nor an absent original generation is stamped with current server state.
-It selects only the exact run's at-most8 attempt IDs/steps/states with a 9-row overflow sentinel;
+It selects only the exact run's at most 8 attempt IDs/steps/states with a 9-row overflow sentinel;
 invalid sequence/proof/overflow yields unavailable, never zero liability. `not_found` means the
 exact parent is absent (the existing validated composite FK forbids orphan attempts). It proves
 ZERO RETAINED attempts, not never-admitted history, zero cost or a payment conclusion. This
