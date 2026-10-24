@@ -33,11 +33,11 @@ export function useAvailability(scope: AccountScope): (personId: string) => Avai
     }, [session]),
   );
   const subscribe = useCallback((listener: () => void) => session?.subscribe(listener) ?? (() => {}), [session]);
-  // The words stop at their lease; the session notifies when one does.
-  const state = useSyncExternalStore(
+  // The words stop at their lease; the session notifies when one does, and the screen asks again.
+  useSyncExternalStore(
     subscribe,
     () => session?.getState(),
     () => session?.getState(),
   );
-  return useCallback((personId: string) => session?.wordOf(personId), [session, state]); // eslint-disable-line react-hooks/exhaustive-deps -- a new state is a new answer
+  return (personId) => session?.wordOf(personId);
 }

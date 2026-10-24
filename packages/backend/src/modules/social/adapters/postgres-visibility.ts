@@ -9,6 +9,10 @@ import { DEFAULT_VISIBILITY, type VisibilityStore, type VisibilityTx } from '../
 const trxOf = (tx: VisibilityTx): Transaction<Database> =>
   'personal' in tx ? sharedTransactionOf(tx) : transactionOf(tx);
 const personalTrx = (scope: PersonalScopeTx) => transactionOf(scope);
+/** Rows are written a few hundred at a time: a person can share up to 100 systems with 100 planets each. */
+function* inChunks<T>(items: readonly T[], size = 250): Generator<readonly T[]> {
+  for (let start = 0; start < items.length; start += size) yield items.slice(start, start + size);
+}
 const asPreference = (value: string): PresencePreference =>
   value === 'online' || value === 'recently_active' ? value : 'hidden';
 
@@ -182,17 +186,22 @@ export const visibilityStore: VisibilityStore = {
       .where('universe_id', '=', universeId)
       .$if(systemIds.length > 0, (query) => query.where('system_id', 'not in', systemIds))
       .execute();
-    for (const system of next.systems)
+    for (const rows of inChunks(next.systems)) {
       await trx
         .insertInto('social.visit_systems')
-        .values({
-          universe_id: universeId,
-          system_id: system.systemId,
-          public_system_id: system.publicSystemId,
-          label: system.label,
-        })
-        .onConflict((conflict) => conflict.columns(['universe_id', 'system_id']).doUpdateSet({ label: system.label }))
+        .values(
+          rows.map((system) => ({
+            universe_id: universeId,
+            system_id: system.systemId,
+            public_system_id: system.publicSystemId,
+            label: system.label,
+          })),
+        )
+        .onConflict((conflict) =>
+          conflict.columns(['universe_id', 'system_id']).doUpdateSet((eb) => ({ label: eb.ref('excluded.label') })),
+        )
         .execute();
+    }
     const planets = next.systems.flatMap((system) => system.planets.map((planet) => ({ system, planet })));
     const planetIds = planets.map(({ planet }) => planet.planetId);
     await trx
@@ -200,18 +209,23 @@ export const visibilityStore: VisibilityStore = {
       .where('universe_id', '=', universeId)
       .$if(planetIds.length > 0, (query) => query.where('planet_id', 'not in', planetIds))
       .execute();
-    for (const { system, planet } of planets)
+    for (const rows of inChunks(planets)) {
       await trx
         .insertInto('social.visit_planets')
-        .values({
-          universe_id: universeId,
-          planet_id: planet.planetId,
-          system_id: system.systemId,
-          public_planet_id: planet.publicPlanetId,
-          label: planet.label,
-        })
-        .onConflict((conflict) => conflict.columns(['universe_id', 'planet_id']).doUpdateSet({ label: planet.label }))
+        .values(
+          rows.map(({ system, planet }) => ({
+            universe_id: universeId,
+            planet_id: planet.planetId,
+            system_id: system.systemId,
+            public_planet_id: planet.publicPlanetId,
+            label: planet.label,
+          })),
+        )
+        .onConflict((conflict) =>
+          conflict.columns(['universe_id', 'planet_id']).doUpdateSet((eb) => ({ label: eb.ref('excluded.label') })),
+        )
         .execute();
+    }
   },
 };
 
