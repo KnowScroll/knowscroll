@@ -48,12 +48,18 @@ const peer = { kind: 'person', personId: id(4), handle: 'fixture.peer', displayN
 const token = `ksfi_${'A'.repeat(43)}`;
 const secondToken = `ksfi_${'B'.repeat(43)}`;
 const thirdPeer = { ...peer, personId: id(9), handle: 'fixture.third', displayName: 'Third fixture' };
+const fourthPeer = { ...peer, personId: id(13), handle: 'fixture.fourth', displayName: 'Fourth fixture' };
+const fifthPeer = { ...peer, personId: id(14), handle: 'fixture.fifth', displayName: 'Fifth fixture' };
+const blockedLater = { state: 'blocked', peer: fourthPeer, pairRevision: 4 };
+const sentLater = { state: 'outgoing', peer: fifthPeer, pairRevision: 1, requestId: id(15) };
 const secondPeer = { ...peer, personId: id(8), handle: 'fixture.second', displayName: 'Second fixture' };
 function fixture(
   options: {
     emptyScan?: boolean;
     /** A request sent, a person blocked, and an invite link that was turned off. */
     waiting?: boolean;
+    /** Sent and Blocked each run to a second page. */
+    long?: boolean;
     unknownAccept?: boolean;
     invite?: boolean;
     delay?: boolean;
@@ -101,18 +107,35 @@ function fixture(
           filter: body.filter,
           snapshotRevision: 1,
           items:
-            options.waiting && body.filter === 'outgoing'
-              ? [{ state: 'outgoing', peer: secondPeer, pairRevision: 1, requestId: id(6) }]
-              : options.waiting && body.filter === 'blocked'
-                ? [{ state: 'blocked', peer: thirdPeer, pairRevision: 4 }]
-                : body.filter === 'incoming' && !linked && !options.emptyScan
-                  ? [{ state: 'incoming', peer, pairRevision: 1, requestId: id(5) }]
-                  : body.cursor
-                    ? [{ state: 'friends', peer, pairRevision: 2, availability: { state: 'unknown' } }]
-                    : [],
-          ...(options.emptyScan && !body.cursor && body.filter === 'friends'
-            ? { next: { scope: wireScope, filter: 'friends', snapshotRevision: 1, token: 'fixture_cursor' } }
+            options.long && body.filter === 'outgoing'
+              ? [body.cursor ? sentLater : { state: 'outgoing', peer: secondPeer, pairRevision: 1, requestId: id(6) }]
+              : options.long && body.filter === 'blocked'
+                ? [body.cursor ? blockedLater : { state: 'blocked', peer: thirdPeer, pairRevision: 4 }]
+                : options.waiting && body.filter === 'outgoing'
+                  ? [{ state: 'outgoing', peer: secondPeer, pairRevision: 1, requestId: id(6) }]
+                  : options.waiting && body.filter === 'blocked'
+                    ? [{ state: 'blocked', peer: thirdPeer, pairRevision: 4 }]
+                    : body.filter === 'incoming' && !linked && !options.emptyScan
+                      ? [{ state: 'incoming', peer, pairRevision: 1, requestId: id(5) }]
+                      : body.cursor
+                        ? [{ state: 'friends', peer, pairRevision: 2, availability: { state: 'unknown' } }]
+                        : [],
+          ...((options.emptyScan && !body.cursor && body.filter === 'friends') ||
+          (options.long && !body.cursor && (body.filter === 'outgoing' || body.filter === 'blocked'))
+            ? { next: { scope: wireScope, filter: body.filter, snapshotRevision: 1, token: 'fixture_cursor' } }
             : {}),
+        };
+      } else if (path.endsWith('/unblock')) {
+        data = {
+          ...envelope,
+          commandId: body.commandId,
+          recordedAt: '2026-10-23T00:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'friend.unblock',
+          peerPersonId: body.peerPersonId,
+          basePairRevision: 4,
+          acceptedPairRevision: 5,
         };
       } else if (path.endsWith('/accept')) {
         linked = true;
@@ -607,6 +630,29 @@ it('offers Add a friend as the drawn panel: handle, the found person with Send i
     expect(screen.getByText(/We never upload your contacts/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Back to friends' }));
     expect(screen.getByRole('button', { name: 'Add a friend' })).toBeOnTheScreen();
+  } finally {
+    await view.unmount();
+    h.scope.end();
+  }
+});
+
+it('shows more of Waiting and Blocked a page at a time, and a person on a later page can be unblocked', async () => {
+  const h = fixture({ long: true });
+  const view = await render(h.tree);
+  try {
+    await screen.findByText('Second fixture');
+    expect(screen.queryByText('Fifth fixture')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Show more waiting' }));
+    await screen.findByText('Fifth fixture');
+    expect(screen.queryByRole('button', { name: 'Show more waiting' })).toBeNull();
+    // The friends' own page was not touched by either: it was read once.
+    expect(h.calls.filter((c) => c.path.endsWith('/friends/page') && c.body.filter === 'friends')).toHaveLength(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Blocked' }));
+    expect(screen.queryByText('Fourth fixture')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Show more blocked' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Unblock Fourth fixture' }));
+    await waitFor(() => expect(h.calls.some((c) => c.path.endsWith('/unblock'))).toBe(true));
+    expect(h.calls.find((c) => c.path.endsWith('/unblock'))!.body).toMatchObject({ peerPersonId: fourthPeer.personId });
   } finally {
     await view.unmount();
     h.scope.end();

@@ -286,6 +286,7 @@ export type {
   FriendsPage,
   FriendsPair,
   FriendsGroups,
+  ShowMoreFilter,
   FriendsCursor,
   FriendsFailure,
   FriendsReadState,

@@ -29,7 +29,7 @@ then Blocked, folded until opened. Add a friend is the one primary action and op
 found person with Send invite, the invite link card, the contacts promise). A row's actions are in its ⋯ sheet,
 except answering a request and Unblock. `friends-roster.tsx` draws the list, `friend-rows.tsx` the rows,
 `add-friend-panel.tsx` and `invite-link-card.tsx` the panel. The session reads all four lists in turn
-(`readGroups`, ending on Friends) so one list can show them; Next and Previous page stay for Friends only.
+(`readGroups`, ending on Friends) so one list can show them. Friends keeps Next and Previous page; Waiting and Blocked grow in place with Show more.
 
 Profile setup/edit, exact handle lookup and current pair actions use current server revisions. All mutations go through the core. An immutable ACK clears all current fields;
 sequential explicit reads refresh them before another choice. Unknown outcomes disable replacement

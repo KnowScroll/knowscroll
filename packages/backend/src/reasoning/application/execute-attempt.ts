@@ -3,6 +3,7 @@ import {
   NO_USAGE,
   decideReservation,
   type BudgetCaps,
+  type BudgetClass,
   type BudgetDimension,
   type ReportedUsage,
 } from '../domain/budgets.js';
@@ -49,6 +50,8 @@ export interface AttemptPlan<A> {
   readonly maxOutputTokens: number;
   readonly reservedTokens: number;
   readonly caps: BudgetCaps;
+  /** Recorded on the receipt, so later admissions can count background spend apart. */
+  readonly budgetClass: BudgetClass;
   readonly causationAttemptId?: string;
 }
 
@@ -354,6 +357,7 @@ export function makeExecuteAttempt<A, S>(ports: ExecutionPorts<A, S>) {
         requestBody: plan.body,
         maxOutputTokens: plan.maxOutputTokens,
         reservedTokens: plan.reservedTokens,
+        budgetClass: plan.budgetClass,
         requestRetentionSeconds: ports.settings.requestRetentionSeconds,
         ...(plan.causationAttemptId === undefined ? {} : { causationAttemptId: plan.causationAttemptId }),
       });

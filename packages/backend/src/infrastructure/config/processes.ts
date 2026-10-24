@@ -174,6 +174,11 @@ export interface ReasoningSettings {
     readonly productionScope: ReasoningCap;
     readonly roleDefault: ReasoningCap;
   };
+  /**
+   * Whole percent (0 to 100) of the global cap and of each person's cap that background roles
+   * (Jev, Cartographer, Planner) may use together; the rest is kept for roles a person asks for.
+   */
+  readonly backgroundSharePercent: number;
   readonly maxRequestBytes: number;
   readonly requestRetentionSeconds: number;
 }
@@ -540,6 +545,10 @@ const reasoningVariables = z.object({
   KS_REASONING_PRODUCTION_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
   KS_REASONING_ROLE_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
   KS_REASONING_ROLE_TOKENS_PER_DAY: positiveInteger(2_000_000, 1_000_000_000),
+  // Background roles run because a person read or swiped, so they stop at half of the global and the
+  // personal caps and the other half is always there for what the person asks for. 0 switches them
+  // off; 100 keeps nothing back.
+  KS_REASONING_BACKGROUND_SHARE_PERCENT: z.coerce.number().int().min(0).max(100).default(50),
   KS_REASONING_MAX_REQUEST_BYTES: positiveInteger(262_144, 262_144),
   KS_REASONING_REQUEST_RETENTION_HOURS: positiveInteger(48, 720),
 });
@@ -595,6 +604,7 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
         tokensPerDay: parsed.KS_REASONING_ROLE_TOKENS_PER_DAY,
       },
     },
+    backgroundSharePercent: parsed.KS_REASONING_BACKGROUND_SHARE_PERCENT,
     maxRequestBytes: parsed.KS_REASONING_MAX_REQUEST_BYTES,
     requestRetentionSeconds: parsed.KS_REASONING_REQUEST_RETENTION_HOURS * 3600,
   };

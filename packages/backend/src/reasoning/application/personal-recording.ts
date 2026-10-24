@@ -161,6 +161,7 @@ function snapshot<T>(input: PersonalRecordingProposeInput<T>): PersonalRecording
     'maxOutputTokens',
     'minContextItems',
     'budget',
+    'budgetClass',
     'safeCustomIssues',
   ]);
   const authority = data(run?.authority, ['universeId', 'privacyEpoch', 'actor']);
@@ -187,6 +188,7 @@ function snapshot<T>(input: PersonalRecordingProposeInput<T>): PersonalRecording
     !(role.outputSchema instanceof z.ZodType) ||
     (role.minContextItems !== undefined &&
       (typeof role.minContextItems !== 'number' || !Number.isInteger(role.minContextItems))) ||
+    (role.budgetClass !== undefined && role.budgetClass !== 'background' && role.budgetClass !== 'interactive') ||
     typeof context.bundleRef !== 'string' ||
     context.bundleRef.length > 128 ||
     !Array.isArray(context.items) ||

@@ -283,6 +283,8 @@ receipt, cursor or invite token is a query-cache payload, storage record, URL or
 `readGroups()` reads the first page of Blocked, Sent, Incoming and Friends one after another and keeps
 each in `state.groups`, ending on Friends so its paging stays live. A pair command may bind a row from any
 of those lists; every command clears them all, so an acknowledgement never supplies the new state.
+`showMore('incoming' | 'outgoing' | 'blocked')` adds the next page of that list in place (`state.moreOf` says which
+have one) without touching Friends' own page or cursors.
 
 `command(operation, draft)` adds one UUID and the contract version only after an explicit caller
 selection. Profile and invite changes require a current corresponding read. Friend requests bind
@@ -393,7 +395,7 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   `accepted`, `unconfirmed` (the retry reuses the command ID) or `not_sent`; `respond('join' | 'decline')` keeps one command
   ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
   episode or anything of another member.
-- `createExploreWithFriends(...)`: lists friends, creates the thread with one command ID per intent, and reports
+- `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
 - `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.

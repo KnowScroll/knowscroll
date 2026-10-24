@@ -546,6 +546,8 @@ function FriendsView({
             rosterStatus={state.roster.status}
             canNext={state.canNext}
             canPrevious={state.canPrevious}
+            moreOf={state.moreOf}
+            onShowMore={(filter) => void session.showMore(filter)}
             disabled={mutationsDisabled}
             availabilityOf={availabilityOf}
             onCommand={pairCommand}

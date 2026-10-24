@@ -59,6 +59,8 @@ export type FriendsCommandState =
       readonly delivery: 'available' | 'unavailable';
     }
   | { readonly status: 'rejected'; readonly operation: FriendsCommandOperation; readonly reason: FriendsFailure };
+/** The lists that grow in place with Show more. */
+export type ShowMoreFilter = Exclude<FriendsFilter, 'friends'>;
 /** One relationship row, as the roster and the single-pair read both draw it. */
 export type FriendsPair = FriendsPage['items'][number];
 /**
@@ -69,6 +71,10 @@ export type FriendsGroups = { readonly [K in FriendsFilter]?: readonly FriendsPa
 export interface FriendsState {
   readonly status: 'active' | 'ended';
   readonly groups: FriendsGroups;
+  /** The lists (not Friends, which pages with Next and Previous) whose first page was not all of them. */
+  readonly moreOf: readonly ShowMoreFilter[];
+  /** The read behind `showMore`: its page is added to the list, never shown on its own. */
+  readonly more: FriendsReadState<FriendsPage>;
   readonly profile: FriendsReadState<FriendsOutput<'profile'>>;
   readonly lookup: FriendsReadState<FriendsOutput<'lookup'>>;
   readonly pair: FriendsReadState<FriendsOutput<'pair'>>;
@@ -90,6 +96,11 @@ export interface FriendsSession {
   readInvites(): Promise<void>;
   resolveInvite(token: string): Promise<void>;
   selectFilter(filter: FriendsFilter): Promise<void>;
+  /**
+   * Adds the next page of Waiting (Incoming, Sent) or Blocked to what `groups` holds. It never touches
+   * Friends' own page or cursors, and does nothing when that list has no more.
+   */
+  showMore(filter: ShowMoreFilter): Promise<void>;
   /**
    * Reads the first page of Blocked, Sent, Incoming and Friends one after another (one read in
    * flight at a time), so one list can show all of them. Ends on Friends, whose paging stays live.

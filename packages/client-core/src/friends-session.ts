@@ -3,6 +3,7 @@ import type { AccountScope } from './account-scope';
 import { ScopeEndedError } from './account-scope';
 import { createFriendsHttp, freezeFriends, FRIENDS_LIMITS, FriendsHttpError, sameFriendsId } from './friends-http';
 import type {
+  ShowMoreFilter,
   FriendsAcceptance,
   FriendsCommandDraft,
   FriendsCommandOperation,
@@ -16,12 +17,14 @@ import type {
   FriendsState,
 } from './friends-types';
 
-type Field = 'profile' | 'lookup' | 'pair' | 'invites' | 'resolvedInvite' | 'roster';
+type Field = 'profile' | 'lookup' | 'pair' | 'invites' | 'resolvedInvite' | 'roster' | 'more';
 type Pending = { [K in FriendsCommandOperation]: { operation: K; input: FriendsInput<K> } }[FriendsCommandOperation];
 const empty = (status: 'active' | 'ended', filter: FriendsFilter): FriendsState =>
   freezeFriends({
     status,
     groups: {},
+    moreOf: [],
+    more: { status: 'idle' },
     filter,
     profile: { status: 'idle' },
     lookup: { status: 'idle' },
@@ -48,6 +51,8 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
   let pending: Pending | undefined;
   let inviteToken: string | undefined, resolvedToken: string | undefined;
   let currentCursor: FriendsCursor | undefined;
+  /** Where Show more continues each list that has one; cleared with the lists. */
+  const moreCursors = new Map<ShowMoreFilter, FriendsCursor>();
   // Entries are page-start cursors only. No old page/body is retained.
   let previous: (FriendsCursor | undefined)[] = [];
   const listeners = new Set<() => void>();
@@ -66,6 +71,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
     }
   };
   const live = () => !ended && scope.active;
+  const clearMore = () => moreCursors.clear();
   const resetPages = () => {
     currentCursor = undefined;
     previous = [];
@@ -83,6 +89,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
     pending = undefined;
     inviteToken = resolvedToken = undefined;
     resetPages();
+    clearMore();
     publish(empty('ended', 'friends'));
     listeners.clear();
   };
@@ -119,7 +126,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
     const controller = new AbortController();
     readController = controller;
     const next = { ...state };
-    for (const key of ['profile', 'lookup', 'pair', 'invites', 'resolvedInvite', 'roster'] as const)
+    for (const key of ['profile', 'lookup', 'pair', 'invites', 'resolvedInvite', 'roster', 'more'] as const)
       if (next[key].status === 'loading') next[key] = { status: 'idle' };
     next[field] = { status: 'loading' };
     if (field === 'roster') next.canNext = next.canPrevious = false;
@@ -174,15 +181,52 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       currentCursor = cursor;
       previous = history;
       // Published atomically with the ready page by read().
+      if (filter !== 'friends' && cursor === undefined) {
+        if (reply.next) moreCursors.set(filter, reply.next);
+        else moreCursors.delete(filter);
+      }
       state = {
         ...state,
         groups: { ...state.groups, [filter]: reply.items },
+        moreOf: [...moreCursors.keys()],
         canPrevious: previous.length > 0,
         canNext: !!reply.next,
       };
     };
     if (filter === 'friends' || filter === 'blocked') await read('roster', 'friends', { ...input, filter }, apply);
     else await read('roster', 'requests', { ...input, filter }, apply);
+  }
+  async function more(filter: ShowMoreFilter): Promise<void> {
+    const cursor = moreCursors.get(filter);
+    if (!live() || cursor === undefined || state.groups[filter] === undefined) return;
+    let requestId: string;
+    try {
+      requestId = options.newCommandId();
+    } catch {
+      requestId = '';
+    }
+    const input = {
+      version: 'friend-pages.v2' as const,
+      requestId,
+      filter,
+      limit: FRIENDS_LIMITS.pageItems,
+      cursor,
+    };
+    const apply = (reply: FriendsPage) => {
+      // A continuation that points back at the one just used would never end.
+      if (reply.next?.token === cursor.token) throw new FriendsHttpError('invalid', false);
+      if (reply.next) moreCursors.set(filter, reply.next);
+      else moreCursors.delete(filter);
+      const known = new Set((state.groups[filter] ?? []).map((pair) => pair.peer.personId.toLowerCase()));
+      const added = reply.items.filter((pair) => !known.has(pair.peer.personId.toLowerCase()));
+      state = {
+        ...state,
+        groups: { ...state.groups, [filter]: [...(state.groups[filter] ?? []), ...added] },
+        moreOf: [...moreCursors.keys()],
+      };
+    };
+    if (filter === 'blocked') await read('more', 'friends', { ...input, filter }, apply);
+    else await read('more', 'requests', { ...input, filter }, apply);
   }
   function boundCommand(command: Pending): boolean {
     const body = command.input;
@@ -263,6 +307,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       queued?.done();
       queued = undefined;
       resetPages();
+      clearMore();
       resolvedToken = undefined;
       const cleared = empty('active', state.filter);
       if (command.operation === 'block' || command.operation === 'unblock') announceBlocksChanged(scope);
@@ -296,6 +341,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
           queued?.done();
           queued = undefined;
           resetPages();
+          clearMore();
           resolvedToken = undefined;
           inviteToken = undefined;
           publish({
@@ -331,6 +377,7 @@ export function createFriendsSession(options: { scope: AccountScope; newCommandI
       state = { ...state, filter };
       await page(undefined, []);
     },
+    showMore: more,
     async readGroups() {
       for (const filter of ['blocked', 'outgoing', 'incoming', 'friends'] as const) await session.selectFilter(filter);
     },

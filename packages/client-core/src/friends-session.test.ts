@@ -652,6 +652,58 @@ describe('Friends v2 roster recovery session (authored fixtures)', () => {
     expect(h.calls.every((call) => call.path.endsWith('/page'))).toBe(true);
     h.scope.end();
   });
+  it('adds the next page of a list in place, leaves Friends’ own paging alone, and lets a command bind the added row', async () => {
+    const h = fixture((path, input) => {
+      if (path.endsWith('/unblock')) return ack(input, 'friend.unblock');
+      const cursor = input.cursor as { token: string } | undefined;
+      if (input.filter === 'blocked')
+        return cursor
+          ? scanPage(input, [scanPair('blocked', 51)])
+          : scanPage(input, [scanPair('blocked', 50)], 'blocked_2');
+      return scanPage(
+        input,
+        [scanPair(input.filter, listIndex(input))],
+        input.filter === 'friends' ? 'friends_2' : undefined,
+      );
+    });
+    await h.session.readGroups();
+    expect(h.session.getState().moreOf).toEqual(['blocked']);
+    expect(h.session.getState().canNext).toBe(true);
+    const friendsPage = h.session.getState().roster;
+    await h.session.showMore('blocked');
+    const state = h.session.getState();
+    expect(state.groups.blocked).toEqual([scanPair('blocked', 50), scanPair('blocked', 51)]);
+    expect(state.moreOf).toEqual([]);
+    // Friends' own page and its Next are exactly as they were.
+    expect(state.roster).toEqual(friendsPage);
+    expect(state.filter).toBe('friends');
+    expect(state.canNext).toBe(true);
+    // The 51st blocked person can be unblocked.
+    const added = scanPair('blocked', 51);
+    await h.session.command('unblock', { peerPersonId: added.peer.personId, expectedPairRevision: added.pairRevision });
+    expect(h.session.getState().command.status).toBe('accepted');
+    expect(h.session.getState().groups).toEqual({});
+    expect(h.session.getState().moreOf).toEqual([]);
+    h.scope.end();
+  });
+  it('does nothing for a list that has no more, and refuses a continuation that points back at itself', async () => {
+    const h = fixture((_path, input) => {
+      const token = (input.cursor as { token: string } | undefined)?.token;
+      return input.filter === 'outgoing'
+        ? scanPage(input, [scanPair('outgoing', token === undefined ? 1 : 2)], token === undefined ? 'first' : 'same')
+        : scanPage(input, [scanPair(input.filter, listIndex(input))]);
+    });
+    await h.session.readGroups();
+    const reads = h.calls.length;
+    await h.session.showMore('incoming');
+    expect(h.calls).toHaveLength(reads);
+    await h.session.showMore('outgoing');
+    expect(h.session.getState().more).toMatchObject({ status: 'ready' });
+    await h.session.showMore('outgoing');
+    expect(h.session.getState().more).toMatchObject({ status: 'unavailable' });
+    expect(h.session.getState().groups.outgoing).toHaveLength(2);
+    h.scope.end();
+  });
   it.each(['friends', 'incoming', 'outgoing', 'blocked'] as const)(
     'reads real %s pages without fake people or mutation',
     async (filter) => {
