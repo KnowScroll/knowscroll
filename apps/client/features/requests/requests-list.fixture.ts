@@ -1,5 +1,10 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
-import type { CancelContentRequest, ContentRequestList, ContentRequestStatus } from '@knowscroll/contracts';
+import type {
+  CancelContentRequest,
+  ContentRequestList,
+  ContentRequestStatus,
+  CreateContentRequest,
+} from '@knowscroll/contracts';
 import { id } from '../encounter/encounter-session.fixture';
 import { createRequestsListSession } from './requests-list-session';
 
@@ -52,7 +57,8 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
   let items = first;
   let listFailure = false;
   let cancelFailure: 'unknown' | 'refused' | false = false;
-  const calls: { method: string; path: string; body?: CancelContentRequest }[] = [];
+  let createFailure: 'unknown' | 'refused' | false = false;
+  const calls: { method: string; path: string; body?: CancelContentRequest | CreateContentRequest }[] = [];
   const scope = createAccountScope({
     account: { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'requests@fixture.test' },
     baseUrl: 'https://fixture.requests.test',
@@ -85,6 +91,30 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
           outcome: 'cancelled',
         });
       }
+      if (request.method === 'POST' && path === '/v1/content/requests') {
+        const body = (await request.json()) as CreateContentRequest;
+        calls.push({ method: 'POST', path, body });
+        if (createFailure === 'unknown') throw new Error('unknown_create');
+        if (createFailure === 'refused')
+          return json({ type: 'about:blank', title: 'Too many', status: 429, code: 'TOO_MANY_REQUESTS' }, 429);
+        const created = preparing(
+          6000 + counter++,
+          body.intent.kind === 'topic' && body.intent.subject.kind === 'text'
+            ? body.intent.subject.text
+            : 'Asked again',
+        );
+        items = [{ ...created, status: { ...created.status, createdAt: '2026-10-20T11:00:00.000Z' } }, ...items];
+        return json({
+          version: 'content-request-receipt.v1',
+          commandId: body.commandId,
+          requestId: created.status.requestId,
+          recordedAt: stamp,
+          privacyEpoch: 1,
+          revision: 5,
+          replayed: false,
+          outcome: 'accepted',
+        });
+      }
       calls.push({ method: request.method, path });
       if (listFailure) throw new Error('offline');
       return json({ version: 'content-request-list.v1', requests: items });
@@ -97,6 +127,7 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
     calls,
     reads: () => calls.filter((call) => call.method === 'GET').length,
     cancels: () => calls.filter((call) => call.path.endsWith('/cancel')),
+    creates: () => calls.filter((call) => call.method === 'POST' && call.path === '/v1/content/requests'),
     setItems: (next: readonly Listed[]) => {
       items = next;
     },
@@ -105,6 +136,9 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
     },
     setCancelFailure: (value: 'unknown' | 'refused' | false) => {
       cancelFailure = value;
+    },
+    setCreateFailure: (value: 'unknown' | 'refused' | false) => {
+      createFailure = value;
     },
   };
 }

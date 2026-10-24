@@ -251,4 +251,47 @@ describe('request consumer over actual scoped HTTP fixture transport', () => {
       jest.useRealTimers();
     }
   });
+
+  it("asks again after couldn't prepare as a new request with the same words, or goes back to edit them", async () => {
+    const h = requestHarness();
+    try {
+      ask(h);
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'could_not_prepare' });
+      await h.session.refresh();
+      h.setStatus({ ...h.fields, requestRevision: 3, status: 'preparing', phase: 'requested' });
+      h.session.tryAgain();
+      await waitFor(() => expect(posts(h)).toHaveLength(2));
+      expect(posts(h)[1]!.body).toMatchObject({ intent: (posts(h)[0]!.body as { intent: unknown }).intent });
+      expect((posts(h)[1]!.body as { commandId: string }).commandId).not.toBe(
+        (posts(h)[0]!.body as { commandId: string }).commandId,
+      );
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+
+      h.setStatus({ ...h.fields, requestRevision: 4, status: 'unavailable', reason: 'could_not_prepare' });
+      await h.session.refresh();
+      h.session.editAgain();
+      expect(h.session.getState()).toMatchObject({ phase: 'draft', text: 'private prose', status: undefined });
+      expect(posts(h)).toHaveLength(2);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('does not ask again while a request is still waiting, and never reopens a ready one', async () => {
+    const h = requestHarness();
+    try {
+      ask(h);
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      h.session.tryAgain();
+      h.session.editAgain();
+      expect(h.session.getState().phase).toBe('accepted');
+      h.setStatus(ready(h, 2));
+      await h.session.refresh();
+      h.session.tryAgain();
+      expect(posts(h)).toHaveLength(1);
+    } finally {
+      h.scope.end();
+    }
+  });
 });

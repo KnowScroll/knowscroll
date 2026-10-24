@@ -28,17 +28,14 @@ describe('E07 requests list', () => {
     try {
       h.session.visible(true);
       await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(3));
-      expect(screen.getByText('Football tactics')).toBeTruthy();
+      expect(screen.getByText('Football tactics, as a Scroll')).toBeTruthy();
       expect(screen.getByLabelText('Preparing')).toBeTruthy();
-      expect(screen.getByText("We'll show it when it's ready. Keep exploring meanwhile.")).toBeTruthy();
       expect(screen.getByText(/We can't make that one right now/)).toBeTruthy();
-      await fireEvent.press(screen.getByRole('button', { name: 'Open Scroll' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Ready · Open' }));
       expect(open).toHaveBeenCalledWith({ kind: 'scroll', assetId: id(511) });
       await fireEvent.press(screen.getByRole('button', { name: 'Cancel request' }));
       await waitFor(() => expect(h.cancels()).toHaveLength(1));
-      await waitFor(() =>
-        expect(screen.queryByText("We'll show it when it's ready. Keep exploring meanwhile.")).toBeNull(),
-      );
+      await waitFor(() => expect(screen.queryByLabelText('Preparing')).toBeNull());
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());
@@ -51,9 +48,30 @@ describe('E07 requests list', () => {
     const screen = await render(frame(<RequestsList session={h.session} onOpen={open} />));
     try {
       h.session.visible(true);
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Open Reel' })).toBeTruthy());
-      await fireEvent.press(screen.getByRole('button', { name: 'Open Reel' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Ready · Open' })).toBeTruthy());
+      await fireEvent.press(screen.getByRole('button', { name: 'Ready · Open' }));
       expect(open).toHaveBeenCalledWith({ kind: 'reel', assetId: id(513) });
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
+
+  it("says couldn't prepare with Retry, and can't be made with nothing to retry", async () => {
+    const h = requestsListHarness([closedItem(20, 'could_not_prepare'), closedItem(21, 'unsupported_request')]);
+    const screen = await render(frame(<RequestsList session={h.session} onOpen={jest.fn()} />));
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(2));
+      expect(screen.getByRole('button', { name: "Couldn't prepare · Retry" })).toBeTruthy();
+      expect(screen.getByLabelText("Can't be made")).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: /Retry/ })).toHaveLength(1);
+      await fireEvent.press(screen.getByRole('button', { name: "Couldn't prepare · Retry" }));
+      await waitFor(() => expect(h.creates()).toHaveLength(1));
+      // Asked again: the new ask is listed, and the closed one no longer offers Retry.
+      await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(3));
+      expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull();
+      expect(screen.getByLabelText("Couldn't prepare")).toBeTruthy();
     } finally {
       await screen.unmount();
       await act(() => h.scope.end());

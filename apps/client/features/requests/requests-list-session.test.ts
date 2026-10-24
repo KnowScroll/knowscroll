@@ -134,4 +134,59 @@ describe('requests list session over the actual scoped HTTP fixture transport', 
       jest.useRealTimers();
     }
   });
+
+  it('asks again after a failure with the same words and format, as a fresh request', async () => {
+    const h = requestsListHarness([closedItem(20, 'could_not_prepare')]);
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(h.session.getState().phase).toBe('ready'));
+      h.session.retry(id(20));
+      await waitFor(() => expect(h.creates()).toHaveLength(1));
+      expect(h.creates()[0]?.body).toMatchObject({
+        intent: { kind: 'topic', subject: { kind: 'text', text: 'Closed 20' }, format: 'scroll' },
+      });
+      await waitFor(() => expect(h.session.getState().items).toHaveLength(2));
+      expect(h.session.getState().retrying).toBeUndefined();
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('resends an unconfirmed ask-again with its exact command, and never for an open request', async () => {
+    const h = requestsListHarness([closedItem(20, 'could_not_prepare'), preparing(10)]);
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(h.session.getState().phase).toBe('ready'));
+      h.session.retry(id(10));
+      expect(h.creates()).toHaveLength(0);
+      h.setCreateFailure('unknown');
+      h.session.retry(id(20));
+      await waitFor(() => expect(h.session.getState().retrying?.phase).toBe('unknown'));
+      h.setCreateFailure(false);
+      h.session.retry(id(20));
+      await waitFor(() => expect(h.session.getState().retrying).toBeUndefined());
+      const [first, second] = h.creates();
+      expect(second?.body).toEqual(first?.body);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('drops an ask-again the server refused, so the next one is a new command', async () => {
+    const h = requestsListHarness([closedItem(20, 'could_not_prepare')]);
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(h.session.getState().phase).toBe('ready'));
+      h.setCreateFailure('refused');
+      h.session.retry(id(20));
+      await waitFor(() => expect(h.creates()).toHaveLength(1));
+      await waitFor(() => expect(h.session.getState().retrying).toBeUndefined());
+      h.setCreateFailure(false);
+      h.session.retry(id(20));
+      await waitFor(() => expect(h.creates()).toHaveLength(2));
+      expect(h.creates()[1]?.body).not.toEqual(h.creates()[0]?.body);
+    } finally {
+      h.scope.end();
+    }
+  });
 });

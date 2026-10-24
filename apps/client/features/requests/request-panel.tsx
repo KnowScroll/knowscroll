@@ -25,6 +25,11 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
   const [focused, setFocused] = useState(false);
   const editing = state.phase === 'draft';
   const status = state.status;
+  // The work failed, not the idea: the same ask can go again (E07 "Couldn't prepare").
+  const couldBePreparedAgain =
+    state.phase === 'accepted' &&
+    status?.status === 'unavailable' &&
+    (status.reason === 'could_not_prepare' || status.reason === 'budget_unavailable');
   return (
     <KeyboardAvoidingView
       style={styles.host}
@@ -48,7 +53,7 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
           </Text>
           <IconButton icon="close" label="Close request" onPress={onClose} />
         </View>
-        {state.mode === 'topic' ? (
+        {couldBePreparedAgain ? null : state.mode === 'topic' ? (
           <>
             <Text variant="ui" nativeID="request-text-label">
               What would you like now?
@@ -177,9 +182,21 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
           </>
         ) : null}
         {status?.status === 'unavailable' ? (
-          <View role="status">
+          <View role="status" style={styles.closed}>
+            <RequestStatusChip status={couldBePreparedAgain ? 'failed' : 'unavailable'} />
+            {couldBePreparedAgain ? (
+              <Text variant="displayL" heading={3}>
+                We couldn&apos;t prepare this one
+              </Text>
+            ) : null}
             <Text variant="body">{unavailableCopy[status.reason]}</Text>
           </View>
+        ) : null}
+        {couldBePreparedAgain ? (
+          <>
+            <Button label="Try again" variant="primary" onPress={() => session.tryAgain()} />
+            {state.mode === 'topic' ? <Button label="Ask differently" onPress={() => session.editAgain()} /> : null}
+          </>
         ) : null}
         {state.error === 'read' ? (
           <Text variant="bodyS">Availability couldn't be refreshed. The last shown state may be out of date.</Text>
@@ -203,7 +220,7 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
             <Button label="Retry cancellation" onPress={() => session.retryCancel()} />
           </>
         ) : null}
-        {state.receipt && state.phase === 'accepted' && status?.status !== 'cancelled' ? (
+        {state.receipt && state.phase === 'accepted' && (status?.status === 'preparing' || state.error === 'read') ? (
           <Button
             label="Refresh availability"
             disabled={state.reading}
@@ -213,7 +230,8 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
             }}
           />
         ) : null}
-        {(state.phase === 'accepted' && status && status.status !== 'preparing') || state.phase === 'refused' ? (
+        {(state.phase === 'accepted' && status && status.status !== 'preparing' && !couldBePreparedAgain) ||
+        state.phase === 'refused' ? (
           <Button label="Ask something else" onPress={() => session.startAgain()} />
         ) : null}
         <Text variant="meta">Closing keeps your request. Open a ready explanation when you choose.</Text>
@@ -261,6 +279,7 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  closed: { gap: spacing[2], alignItems: 'flex-start' },
   input: {
     minHeight: target.comfortable * 2,
     textAlignVertical: 'top',
