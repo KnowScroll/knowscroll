@@ -217,7 +217,11 @@ async function settleUnadmitted(
         recordingGeneration: h.generation,
       };
     });
-    if (!eligible || result.kind !== 'not_found') return;
+    // A closed ledger run may hold settled attempts; any other refusal needs none retained.
+    const nothingLive =
+      result.kind === 'not_found' ||
+      (refusal === 'run_closed' && result.kind === 'accounted' && result.disposition === 'conclusive');
+    if (!eligible || !nothingLive) return;
     const gate = await p.fenceRecording(scope, purpose.recordingGeneration);
     if (gate.kind !== 'recording') return;
     const context = await p.store.context(gate.scope, purpose.businessRunId);
@@ -488,11 +492,16 @@ export function makeRunCartographer(p: CartographerPorts): RunCartographer {
     const applied = await p.harness.withPersonalApply(authority, purpose, (cap) =>
       settleRun(p, cap, { run, context: c, purpose, outcome }),
     );
-    if (applied.kind === 'refused')
+    if (applied.kind === 'refused') {
+      // Nothing can be applied under a ledger run that is already closed: settle by the rules, like a
+      // refusal before admission. Otherwise the refusal is a revoked authority to clean up.
+      if (outcome.kind === 'refused' && outcome.reason === 'run_closed')
+        await settleUnadmitted(p, authority, purpose, 'run_closed');
       await retireRevoked(p, authority, run.id, {
         generation: run.recording!.source.generation,
         expectedClaimId: run.claimId,
       });
+    }
   };
 }
 /** Already committed delta display stays available while recording is paused. */

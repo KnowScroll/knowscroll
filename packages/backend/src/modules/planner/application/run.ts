@@ -14,9 +14,10 @@ import {
   type CheckPersonalRecordingRun,
   type PersonalRecordingPurpose,
 } from '../../../reasoning/public.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
 import type {
   FrozenContext,
+  PlannerState,
   PlannerPorts,
   PlannerReadPorts,
   PlannerRun,
@@ -25,6 +26,7 @@ import type {
   ReadPlannerOpportunities,
   RunPlanner,
 } from './ports.js';
+import { nextRunNotBefore } from '../domain/pacing.js';
 import { prepareContext } from './context.js';
 import { recordMissingSupplyDemand } from './demand.js';
 import { ensureRun, withoutClaim } from './request.js';
@@ -198,13 +200,20 @@ async function retireRevoked(
     return { kind: 'recording_ineligible' } as const;
   });
 }
+/** How a run ends without a model call: too little evidence, no provider, or a closed ledger run to leave behind. */
+type UnadmittedEnd = 'insufficient' | 'provider_unavailable' | 'ledger_run_closed';
+const UNADMITTED_OUTCOME = {
+  insufficient: 'insufficient_evidence',
+  provider_unavailable: 'provider_unavailable',
+  ledger_run_closed: 'run_closed',
+} as const satisfies Record<UnadmittedEnd, string>;
 /** No-admission owner bookkeeping only. The accounting adapter owns the one fresh account gate;
  * its actual absent-parent proof is required, never an inferred zero-cost/close result. */
 async function finishUnadmitted(
   p: PlannerPorts,
   authority: Parameters<PlannerPorts['withPersonalScope']>[0],
   purpose: PersonalRecordingPurpose,
-  kind: 'insufficient' | 'provider_unavailable',
+  kind: UnadmittedEnd,
 ) {
   return p.withPersonalScope(authority, async (scope) => {
     let header: PlannerRunHeader | undefined;
@@ -244,18 +253,30 @@ async function finishUnadmitted(
         recordingGeneration: purpose.recordingGeneration,
       };
     });
-    if (!header || accounting.kind !== 'not_found') return { kind: 'accounting_unavailable' } as const;
+    // A closed ledger run may hold settled attempts; any other end needs no attempt retained.
+    const nothingLive =
+      accounting.kind === 'not_found' ||
+      (kind === 'ledger_run_closed' && accounting.kind === 'accounted' && accounting.disposition === 'conclusive');
+    if (!header || !nothingLive) return { kind: 'accounting_unavailable' } as const;
     const released = withoutClaim(header);
     await p.store.writeRun(scope, {
       ...released,
-      status: kind === 'insufficient' ? 'insufficient' : 'blocked',
-      outcome: kind === 'insufficient' ? 'insufficient_evidence' : kind,
+      status: kind === 'provider_unavailable' ? 'blocked' : 'insufficient',
+      outcome: UNADMITTED_OUTCOME[kind],
     });
-    if (kind === 'insufficient') {
-      await p.store.clearActiveRun(scope, header.id);
-    }
-    return { kind: kind === 'insufficient' ? 'insufficient' : 'blocked' } as const;
+    if (kind === 'provider_unavailable') return { kind: 'blocked' } as const;
+    await p.store.clearActiveRun(scope, header.id);
+    if (kind === 'ledger_run_closed') await startNewRun(p, scope, purpose.recordingGeneration);
+    return { kind: 'insufficient' } as const;
   });
+}
+
+/** Queues a new run for the evidence a retired run was waiting on, when the person's recording still allows it. */
+async function startNewRun(p: PlannerPorts, scope: PersonalScopeTx, recordingGeneration: number) {
+  const gate = await p.fenceRecording(scope, recordingGeneration);
+  if (gate.kind !== 'recording') return;
+  const state = await p.store.state(scope);
+  if (state.desiredSource?.generation === gate.scope.generation) await ensureRun(p, gate.scope, state);
 }
 type Authority = Parameters<PlannerPorts['withPersonalScope']>[0];
 /** A run this delivery has claimed: frozen context, its two hashes and a live claim. */
@@ -441,11 +462,95 @@ async function claimRun(p: PlannerPorts, authority: Authority, payload: PlannerJ
   });
 }
 
+/** Refusals after which this run's ledger run can never send again; a new business run is the way on. */
+const LEDGER_RUN_UNUSABLE: ReadonlySet<string> = new Set(['run_closed', 'run_mismatch', 'attempts_exhausted']);
+
+/** Why a run ends with no plan and no way to go on as it is, or undefined when it may still be tried. */
+function endedReason(outcome: ProposeOutcome<PlannerProposal>): string | undefined {
+  if (outcome.kind === 'budget_exhausted') return outcome.kind;
+  if (outcome.kind !== 'refused') return undefined;
+  return outcome.reason === 'failure_brake' || LEDGER_RUN_UNUSABLE.has(outcome.reason) ? outcome.reason : undefined;
+}
+
+/** Whether the person asked for something new since the run froze its context: an explicit intent. */
+function intentChanged(state: PlannerState, frozen: FrozenContext['intent']): boolean {
+  const current = state.intent;
+  return (
+    (current ? 'explicit' : 'unavailable') !== frozen.availability ||
+    (current?.language ?? 'en') !== frozen.language ||
+    JSON.stringify(current?.topicIds ?? []) !== JSON.stringify(frozen.topicIds)
+  );
+}
+
+/** What today's facts make of a proposed plan: accepted (diversified), or why it is not. */
+async function judgePlan(
+  p: PlannerPorts,
+  scope: PersonalScopeTx,
+  state: PlannerState,
+  context: FrozenContext,
+  proposal: PlannerProposal,
+): Promise<
+  | { readonly kind: 'proof_unavailable' | 'stale' | 'rejected' }
+  | { readonly kind: 'accepted'; readonly opportunities: readonly Opportunity[] }
+> {
+  const fresh = await currentFacts(p, scope, context, proposal.opportunities);
+  if (!fresh) return { kind: 'proof_unavailable' };
+  if (intentChanged(state, context.intent)) return { kind: 'stale' };
+  if (!proposal.opportunities.every((x) => !opportunityIssue(x, fresh.facts))) return { kind: 'rejected' };
+  return { kind: 'accepted', opportunities: diversify(proposal.opportunities) };
+}
+
+/**
+ * The person's Planner once a run is done: nobody holds the run, an accepted plan is recorded, and
+ * the next run waits its interval. A successor is queued only when evidence or a request arrived
+ * while the run was going; the delayed successor plans from everything that arrived by then.
+ */
+async function leaveRun(
+  p: PlannerPorts,
+  cap: RecordingScopeTx,
+  state: PlannerState,
+  run: ClaimedRun,
+  accepted: boolean,
+) {
+  const { activeRunId: _active, ...idle } = state;
+  const next = {
+    ...idle,
+    acceptedRevision: accepted ? run.revision : state.acceptedRevision,
+    nextRunNotBefore: nextRunNotBefore(p.now()),
+  };
+  await p.store.writeState(cap.personal, next);
+  if (state.desiredRevision > run.revision && state.desiredSource?.generation === cap.generation)
+    await ensureRun(p, cap, next, true);
+}
+
+/**
+ * Ends a run that got nothing usable and never will: budget or the failure brake stopped the role,
+ * or its ledger run is closed or spent. The ledger run is closed `cancelled` so it is not left
+ * admitted, and the next evidence starts a new run, which asks again when the budget allows.
+ */
+async function endWithoutPlan(
+  p: PlannerPorts,
+  cap: RecordingScopeTx,
+  purpose: PersonalRecordingPurpose,
+  state: PlannerState,
+  run: ClaimedRun,
+  ended: { readonly released: PlannerRunHeader; readonly reason: string },
+) {
+  await p.harness.closePersonalRun(cap, { runId: run.id, state: 'cancelled', recordingPurpose: purpose });
+  await p.store.writeRun(cap.personal, { ...ended.released, status: 'insufficient', outcome: ended.reason });
+  await leaveRun(p, cap, state, run, false);
+  return { kind: 'insufficient' };
+}
+
 /**
  * Step 3 of a delivery: apply the model's outcome under the facade's single root, account and
  * original-generation gate (no nested root, no second account gate). The ledger run closes while
  * the owner row is still prepared and claimed, and the accepted plan, its supply demand and the
  * owner status change commit with that close or not at all.
+ *
+ * A valid plan is accepted when every opportunity still holds on today's evidence and inventory,
+ * even if more reading arrived while the model worked. It goes stale only when the person asked
+ * for something else (a new intent) or an opportunity no longer holds.
  */
 async function applyProposal(
   p: PlannerPorts,
@@ -462,6 +567,7 @@ async function applyProposal(
     if (!current || state.activeRunId !== run.id || current.claimId !== run.claimId || current.status !== 'prepared')
       throw new Error('PLANNER_APPLY_OWNER_CHANGED');
     const released = withoutClaim(current);
+    const holdsUnknown = current.outcome === 'unknown';
     if (outcome.kind === 'unknown' || outcome.kind === 'quota_unavailable') {
       await p.store.writeRun(scope, {
         ...released,
@@ -470,10 +576,13 @@ async function applyProposal(
       });
       return { kind: outcome.kind };
     }
+    const endedBecause = holdsUnknown ? undefined : endedReason(outcome);
+    if (endedBecause !== undefined)
+      return endWithoutPlan(p, cap, purpose, state, run, { released, reason: endedBecause });
     if (outcome.kind === 'budget_exhausted' || outcome.kind === 'refused') {
       await p.store.writeRun(scope, {
         ...released,
-        status: current.outcome === 'unknown' ? 'unknown' : 'blocked',
+        status: holdsUnknown ? 'unknown' : 'blocked',
         outcome: outcome.kind === 'refused' ? outcome.reason : outcome.kind,
       });
       return { kind: 'blocked' };
@@ -482,27 +591,20 @@ async function applyProposal(
       await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'blocked_disabled' });
       return { kind: 'blocked_disabled' };
     }
-    let status: PlannerRun['status'] = 'rejected';
-    let accepted: readonly Opportunity[] = [];
-    if (outcome.kind === 'proposed') {
-      const fresh = await currentFacts(p, scope, context, outcome.output.opportunities);
-      if (!fresh) {
-        await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
-        return { kind: 'proof_unavailable' };
-      }
-      if (state.desiredRevision !== run.revision || fresh.revision !== context.contextRevision) status = 'stale';
-      else if (outcome.output.opportunities.every((x) => !opportunityIssue(x, fresh.facts))) {
-        accepted = diversify(outcome.output.opportunities);
-        status = 'accepted';
-      }
+    const judged = outcome.kind === 'proposed' ? await judgePlan(p, scope, state, context, outcome.output) : undefined;
+    if (judged?.kind === 'proof_unavailable') {
+      await p.store.writeRun(scope, { ...released, status: 'blocked', outcome: 'proof_unavailable' });
+      return { kind: 'proof_unavailable' };
     }
+    const status: PlannerRun['status'] = judged?.kind ?? 'rejected';
+    const accepted = judged?.kind === 'accepted' ? judged.opportunities : [];
     const closed = await p.harness.closePersonalRun(cap, {
       runId: run.id,
       state: status === 'accepted' ? 'completed' : 'cancelled',
       recordingPurpose: purpose,
     });
     if (status === 'accepted' && closed !== 'closed') throw new Error('PLANNER_REASONING_CLOSE_FAILED');
-    if (status === 'accepted' && outcome.kind === 'proposed') {
+    if (judged?.kind === 'accepted' && outcome.kind === 'proposed') {
       await p.store.accept(scope, run, accepted, outcome.attemptId);
       await recordMissingSupplyDemand(p, scope, {
         runId: run.id,
@@ -512,11 +614,7 @@ async function applyProposal(
       });
     }
     await p.store.writeRun(scope, { ...released, status, outcome: outcome.kind });
-    const { activeRunId: _a, ...idle } = state,
-      next = { ...idle, acceptedRevision: status === 'accepted' ? run.revision : state.acceptedRevision };
-    await p.store.writeState(scope, next);
-    if (state.desiredRevision > run.revision && state.desiredSource?.generation === cap.generation)
-      await ensureRun(p, cap, next);
+    await leaveRun(p, cap, state, run, status === 'accepted');
     return { kind: status };
   });
 }
@@ -574,7 +672,11 @@ export function makeRunPlanner(p: PlannerPorts): RunPlanner {
     );
     if (outcome.kind === 'refused' && outcome.reason === 'provider_unavailable')
       return finishUnadmitted(p, authority, purpose, 'provider_unavailable');
-    return applyProposal(p, authority, purpose, run, outcome);
+    const applied = await applyProposal(p, authority, purpose, run, outcome);
+    // Nothing can be applied under a ledger run that is already closed: end the run and start a new one.
+    if (applied.kind === 'refused' && outcome.kind === 'refused' && outcome.reason === 'run_closed')
+      return finishUnadmitted(p, authority, purpose, 'ledger_run_closed');
+    return applied;
   };
 }
 export function makeReadPlannerOpportunities(p: PlannerReadPorts): ReadPlannerOpportunities {

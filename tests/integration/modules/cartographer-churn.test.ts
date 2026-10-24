@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
+import { makeRunCartographer } from '@knowscroll/backend/modules/geography/nest-providers';
+import { reasoningOperatorFor } from '@knowscroll/backend/reasoning/nest-providers';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
-import { fixtureSettings, gate, signal } from '../support/fixture-model.js';
+import { fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '../support/geography-world.js';
 
@@ -174,6 +176,30 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
     await refused.run(await job(person, asked.runId), signal());
     expect(await runsOf(person)).toContainEqual({ id: asked.runId, status: 'rejected', outcome: 'budget_exhausted' });
     expect((await ledgerOf(person)).filter((state) => state === 'admitted')).toEqual([]);
+    expect((await state(person)).activeRunId).toBeUndefined();
+  });
+  it('settles by the rules when the ledger run behind it was closed, instead of failing to apply for ever', async () => {
+    const { database, coherent, state, runner, job } = world;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const runId = (await state(person)).activeRunId!;
+    const base = runner(person);
+    // The model call admits the ledger run; the idle sweep then closes it before the owner can apply.
+    await makeRunCartographer({
+      ...base.ports,
+      harness: {
+        ...base.ports.harness,
+        proposePersonal: async (input, abort) => {
+          await base.ports.harness.proposePersonal(input, abort);
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          expect(await reasoningOperatorFor(database.db, silent).closeIdleRuns(0)).toBeGreaterThanOrEqual(1);
+          return { kind: 'refused', reason: 'run_closed' };
+        },
+      },
+    })(await job(person, runId), signal());
+    expect(await runsOf(person)).toEqual([{ id: runId, status: 'accepted', outcome: 'applied_by_rules' }]);
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+    expect(await ledgerOf(person)).toEqual(['cancelled']);
     expect((await state(person)).activeRunId).toBeUndefined();
   });
 });

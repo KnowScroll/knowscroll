@@ -236,6 +236,8 @@ export const diagnosticCatalogue = {
   'reasoning.provider_configured': { severity: 'info', module: 'reasoning', fields: ['provider', 'model'] },
   // A crash left attempts `dispatched`; the sweep moved them to `unknown` for an operator.
   'reasoning.dispatched_swept': { severity: 'warn', module: 'reasoning', fields: ['count'] },
+  // The sweep closed personal runs a role left admitted and idle; the role starts a new run when it next needs one.
+  'reasoning.idle_runs_closed': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
   // A refused production answer could not be kept for diagnosis; the attempt's outcome is unchanged.

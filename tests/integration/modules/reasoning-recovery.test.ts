@@ -154,6 +154,67 @@ describe('reasoning recovery, charging and run rules (real database, fixture mod
     });
   });
 
+  describe('a run a role left admitted (#231)', () => {
+    const runStates = async (person: FixturePerson) =>
+      (
+        await db()
+          .selectFrom('reasoning.business_runs')
+          .select(['id', 'state', 'fence'])
+          .where('universe_id', '=', person.universeId)
+          .execute()
+      ).map(({ state, fence }) => ({ state, fence }));
+    const refusedByBudget = async (person: FixturePerson, runId: string) => {
+      const { harness } = fixtureHarness(db(), {
+        model: fixtureModel(),
+        settings: withCaps({ scope: { requestsPerDay: 0, tokensPerDay: 0 } }),
+      });
+      expect(await propose(harness, person, { runId })).toMatchObject({ kind: 'budget_exhausted' });
+    };
+
+    it('is closed by the sweep once it has been idle long enough, and a run that is still fresh is left alone', async () => {
+      const person = await seedPerson(db());
+      const runId = randomUUID();
+      await refusedByBudget(person, runId);
+      // The shape seen on dev: admitted by the refused call, no attempt, nobody to close it.
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+      expect(await attemptsOf(db(), person.universeId)).toEqual([]);
+
+      expect(await operator().closeIdleRuns(3_600)).toBe(0);
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(await operator().closeIdleRuns(0)).toBeGreaterThanOrEqual(1);
+      expect(await runStates(person)).toEqual([{ state: 'cancelled', fence: 2 }]);
+      // The owner finds the run closed and starts another; it is not resurrected.
+      const { harness } = fixtureHarness(db(), { model: fixtureModel() });
+      expect(await propose(harness, person, { runId })).toEqual({ kind: 'refused', reason: 'run_closed' });
+      expect(await operator().closeIdleRuns(0)).toBe(0);
+    });
+
+    it('never closes a run whose attempt may still be in flight or unresolved', async () => {
+      const person = await seedPerson(db());
+      const model = fixtureModel();
+      await expect(propose(crashingAfterDispatch(model), person)).rejects.toThrow('simulated crash after dispatch');
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(await operator().closeIdleRuns(0)).toBe(0);
+      expect(await operator().sweepStaleDispatched(0)).toBeGreaterThanOrEqual(1);
+      expect((await attemptsOf(db(), person.universeId))[0]?.state).toBe('unknown');
+      expect(await operator().closeIdleRuns(0)).toBe(0);
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+    });
+
+    it('waits for the idle time to pass after the latest attempt settled', async () => {
+      const person = await seedPerson(db());
+      const { harness } = fixtureHarness(db(), { model: fixtureModel() });
+      expect(await propose(harness, person)).toMatchObject({ kind: 'proposed' });
+      expect(await runStates(person)).toEqual([{ state: 'admitted', fence: 1 }]);
+      expect(await operator().closeIdleRuns(3_600)).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(await operator().closeIdleRuns(0)).toBeGreaterThanOrEqual(1);
+      expect(await runStates(person)).toEqual([{ state: 'cancelled', fence: 2 }]);
+    });
+  });
+
   describe('a conclusive failure releases its reservation (review M2)', () => {
     const failures: [string, FixtureScenario, string][] = [
       ['a 429 before any work', { kind: 'rate_limited' }, 'HTTP_429_RATE_LIMIT_ERROR'],

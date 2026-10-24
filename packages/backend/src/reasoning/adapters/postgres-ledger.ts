@@ -628,6 +628,29 @@ export function makeAttemptLedger(db: Kysely<Database>): AttemptLedger {
       });
     },
 
+    closeIdleRuns(olderThanSeconds, limit) {
+      return withTransaction(db, 'attempt-ledger', async (trx) => {
+        const closed = await sql<{ id: string }>`
+          update reasoning.business_runs run
+          set state = 'cancelled', fence = fence + 1, closed_at = now(), updated_at = now()
+          where (run.universe_id, run.id) in (
+            select r.universe_id, r.id from reasoning.business_runs r
+            where r.state = 'admitted' and r.privacy_erased_at is null
+              and r.updated_at < now() - make_interval(secs => ${olderThanSeconds}::double precision)
+              and not exists (
+                select 1 from reasoning.external_attempts a
+                where a.universe_id = r.universe_id and a.run_id = r.id
+                  and (a.state in ('reserved', 'dispatched', 'unknown')
+                    or a.settled_at >= now() - make_interval(secs => ${olderThanSeconds}::double precision)))
+            order by r.updated_at
+            limit ${limit}
+            for update of r skip locked
+          ) and run.state = 'admitted'
+          returning run.id`.execute(trx);
+        return closed.rows.length;
+      });
+    },
+
     sweepStaleDispatched(olderThanSeconds, limit) {
       return withTransaction(db, 'attempt-ledger', async (trx) => {
         const moved = await sql<{ id: string }>`
