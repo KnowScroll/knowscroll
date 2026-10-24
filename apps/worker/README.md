@@ -2,13 +2,12 @@
 
 ## Startup and schedules
 
-The worker starts pg-boss as a `consumer`, builds the Nest context, registers every consumer of its
-explicit registry (`src/jobs.ts`) and then removes stale schedules. Recurring schedules are created
-by `dist/migrate.js` from the release's queue declarations (`releaseQueues`), and a queue that leaves
-the declarations keeps its schedule row, so pg-boss would go on creating jobs that no consumer claims.
-`removeUndeclaredSchedules` deletes every pg-boss schedule whose queue name is not in `releaseQueues`
-and logs `jobs.schedule_removed` once per removal with the queue name. It is idempotent, leaves the
-queue and its existing jobs alone and runs on every start, so workers that start together are safe.
+The worker starts pg-boss as a `consumer`, builds the Nest context and registers every consumer of
+its explicit registry (`src/jobs.ts`). It creates and removes no schedule. Recurring schedules belong
+to `dist/migrate.js` (`applyQueueDeclarations`), which registers each declared queue's schedule and
+deletes the schedule of any queue that is no longer declared (logged as `jobs.schedule_removed`),
+once per deploy while the old release is quiesced. A transient database error therefore fails the
+migrate, which the deploy reports before the new release starts, and never a running worker.
 Status: implemented and covered by `tests/integration/infrastructure/jobs.test.ts` against real
 PostgreSQL.
 

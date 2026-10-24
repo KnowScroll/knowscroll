@@ -89,7 +89,7 @@ Error body: `ErrorResponse{contractVersion, error:'not-found'|'invalid'|'interna
 { contractVersion: 1,
   requestId: string(min 1),                      // caller's idempotency key
   worldId: string(min 1),
-  narration: [{ text: string(min1), claimIds: string[] }]  (min 4),
+  narration: [{ text: string(min 1), claimIds: string[] }]  (min 4),
   claims: [{ id: string, role: 'main'|'supporting' }],
   criteria: { mustShow: Criterion[], mustNotShow: Criterion[] (presence only),
               depictionPolicyVersion: string },

@@ -218,7 +218,7 @@ export interface ReasoningHarness<A = PersonalAuthority, S = PersonalScopeTx> {
    * and the authority was rechecked) and `{ runId, state: 'completed' | 'failed' | 'cancelled' }`.
    * Output: `closed`, or `not_open` when the run was already closed or does not exist in this
    * universe. Personal compatibility additionally takes its first own-account gate and requires actual
-   * initial1/on plus an unproved legacy run; recording-aware roles use the separate sole-entry apply facade.
+   * initial 1/on plus an unproved legacy run; recording-aware roles use the separate sole-entry apply facade.
    * Production scope authorization remains its owning composition's responsibility.
    * Side effects: one update of the run row (state, `closed_at`, fence + 1) inside the caller's
    * transaction, so a rollback leaves the run open. Failure/retry: idempotent (a second call
