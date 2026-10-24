@@ -67,7 +67,7 @@ to the chosen buffer and deduplicates explanation identity, including format twi
 Vertical first-slot choice is a seeded mixture: ranked winner with mass 0.9 plus uniform eligible
 exploration pool with mass 0.1. FNV-1a/xorshift32 seed policy and rejection-sampled bounded integer
 choices are pinned in v0. Logged first-choice probability is `(rankedWinner ? 1-epsilon : 0) +
-(inPool ? epsilon/poolSize : 0)`, with epsilon0 for an empty pool or nonvertical mode. Ties are
+(inPool ? epsilon/poolSize : 0)`, with epsilon 0 for an empty pool or nonvertical mode. Ties are
 deterministic, so no tie mass is invented. Buffers are deterministic conditional on the first
 choice; the logged probability is also that conditional-buffer sequence's policy probability.
 These are randomized-policy propensities, not response/confidence probabilities.
@@ -91,29 +91,31 @@ non-row cache, exported decision file or new scheduler is introduced by this sli
 Verification: labelled pure/property and real-PostgreSQL CI tests; suites run in GitHub Actions
 only. Source/type generation/static checks do not prove a connected runtime journey.
 
-Navigation18 adds an owned decision foreign key from retained offers. Bounded pruning skips decisions
+Navigation 18 adds an owned decision foreign key from retained offers. Bounded pruning skips decisions
 referenced by retained offers in that exact scope/epoch. Their private operator read still refuses
-logical expiry after30days; physical deletion waits for those references to be removed. No physical
+logical expiry after 30 days; physical deletion waits for those references to be removed. No physical
 30-day guarantee or maintenance scheduler is claimed. Full AccountScope erasure removes offers before
 decisions and remains complete.
 
 
-## Personal Context consumer (#235)
+## Reading Personal Context
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #235.
 
 The PC-owned adapter maps only `statisticsAvailability: available` rows, including actual A=0.
 Requested-but-unobserved default rows stay absent, so the unchanged Composer policy retains neutral
-interest0.5 for missing history. A/Q/O are copied unchanged; Composer's existing A/(1+A) and
-(1+Q)/(2+O) scoring equations stay in place. Recent20, exact candidate established-history probes
+interest 0.5 for missing history. A/Q/O are copied unchanged; Composer's existing A/(1+A) and
+(1+Q)/(2+O) scoring equations stay in place. Recent 20, exact candidate established-history probes
 and candidate-bounded Hide are retained. Structural support, covered facets, original channels and
 provisional inputs are not added to this scoring contract or consumer UI.
 
 Persisted private decisions identify `personal-context.v0`. Both context and established-history
 watermarks use `personal-context-composer.v0:<PC revision>:<scope revision>:<latest projection>:not_asserted`.
 This binds the read's live scope/epoch/evaluation time while retaining the honest historical
-completeness limit. The adapter writes nothing and requests provisionalLimit0. Production navigation
+completeness limit. The adapter writes nothing and requests provisionalLimit 0. Production navigation
 has no Evidence preparation fallback; an absent PC binding is a startup/DI failure. Legacy Evidence
 preparation is opt-in for direct compatibility fixtures only. No shared wire or migration changes
-are part of this adapter. Real dev reading/context inspection is still required before closing235.
+are part of this adapter. Real dev reading/context inspection is still required before closing 235.
 
 
 ## Subject moves never repeat the current explanation
@@ -124,7 +126,9 @@ penalty: the just-activated encounter may not have reached Evidence yet, and the
 offered what is already on screen. With nothing else to offer the move is exhausted
 (`no_eligible_content`), never a repeat. Series, related, variant and return moves are unchanged.
 
-## Buffers and Jev (#234)
+## Prepared buffers and Jev
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #234.
 
 **Journey.** The person activates an offer in Explore. In the same transaction Experience enqueues
 `composer.prepare-buffer` (IDs only: universe, epoch, session, intent revision, source offer and
@@ -203,7 +207,9 @@ logs the same.
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
 leaves the run in the attempt ledger under the job ID; the retry reads it and does not pay again.
 
-## Planner plan (#236, D-035)
+## Using the Planner plan (D-035)
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #236.
 
 Personal Context may add the person's current Planner plan to the prepared context as
 `evidence.plan`: at most three opportunities, each with its move, topics, explanation unit, suited

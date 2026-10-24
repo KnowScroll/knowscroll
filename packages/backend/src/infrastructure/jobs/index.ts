@@ -1,5 +1,11 @@
 export { makeEnqueueInTransaction, makeEnqueueJob, type EnqueueInTransaction, type EnqueueJob } from './enqueue.js';
-export { applyQueueDeclarations, createBoss, type BossDiagnostics, type BossRole } from './boss.js';
+export {
+  applyQueueDeclarations,
+  createBoss,
+  removeUndeclaredSchedules,
+  type BossDiagnostics,
+  type BossRole,
+} from './boss.js';
 export {
   InvalidJobPayloadError,
   drainConsumers,

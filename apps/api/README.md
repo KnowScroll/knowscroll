@@ -1,6 +1,8 @@
 # @knowscroll/api
 
-## Clear exploration composition (#345)
+## Clear exploration
+
+Related: #345.
 
 `POST /v1/privacy/clear-exploration` accepts the Identity-owned durable operation (202);
 `POST /v1/privacy/clear-exploration/status` reads its coarse current status. Both use the
@@ -12,10 +14,12 @@ acceptance epochs never identify the current authorized scope.
 The API only calls start/status. It does not erase data or wait for the worker in an HTTP
 request. Start commits the epoch/barrier, lifetime receipt and required fixed pg-boss job
 together; the separately registered normal worker performs selective removal and exact-set
-accounting. Composition depends on the reviewed durable core in PR348. Source and installed
+accounting. Composition depends on the reviewed durable core in PR #348. Source and installed
 Actions fixtures are separate from actual dev/stage privacy acceptance.
 
-## Operator routes (#248, D-044)
+## Operator routes (D-044)
+
+Related: #248.
 
 `OperatorController` serves `GET /v1/operator/panels` (the six panels of the Operator screen) and
 `GET /v1/operator/journeys/{id}` (one record's timeline). They take the ordinary session and scope pipeline, then
@@ -24,7 +28,9 @@ account's address now). Anyone else gets the same 404 as an unknown route, and t
 (`operator.refused`). The routes read the allowlisted `ops` views and change nothing. Module:
 `packages/backend/src/modules/operator/README.md`.
 
-## Account: sessions, export and deletion (#246, D-043)
+## Account: sessions, export and deletion (D-043)
+
+Related: #246.
 
 `AccountController` serves `GET /v1/account/sessions`, `POST /v1/account/sessions/end` and `.../end-others`
 (signing out another device; the presented session is refused with 409), `POST /v1/account/exports`,
@@ -82,13 +88,15 @@ Evidence under the guard-admitted authority and returns the initiating account/e
 submitted generation and independently current generation. A processed answer correlates
 ordered event IDs and exact counts. A paused/stale answer is final `not_recorded`, with no
 ingestion log or successful storage claim; an unknown response is retried with the same
-body. The legacy route maps `recording_required` to the existing fixed409 and never
+body. The legacy route maps `recording_required` to the existing fixed 409 and never
 converts a paused batch into a successful acknowledgement. Malformed or uncorrelated
 backend output fails closed before success logging. These adapters and authored controller
 fixtures establish source behavior only; complete production wiring, Actions and real
 recording journeys remain separate gates.
 
-## Recording control composition (#381)
+## Recording control
+
+Related: #381.
 
 `POST /v1/privacy/recording/read` and `POST /v1/privacy/recording/set` mount the
 Identity-owned current-policy and immutable-command ports. Both use the existing
@@ -114,20 +122,22 @@ wiring, hosted positive/negative composition, client controls and deployed journ
 remain separate acceptance requirements. No source change toggles owner recording or
 authorizes a paid attempt.
 
-## Media access (S2.4)
+## Media access
+
+Related: S2.4.
 
 Optional `KS_MEDIA_ROOT` enables local media delivery. The API never reads Cutroom settings/calls it.
 `POST /v1/media/grants` is protected by the unchanged session + X-KS-Scope guard. For an existing Reel
 exposure, it returns the consumer document and a 60s HMAC grant. `/media/:digest?grant=…` has a separate
 reviewed session/grant boundary: every GET/HEAD re-resolves the live session, checks the exact grant
 session/account/universe/epoch/audience/expiry/digest and the caller-owned admitted revision. Unknown,
-foreign, withdrawn, stale or missing media all return404. No broad `/v1` scope exemption was added.
+foreign, withdrawn, stale or missing media all return 404. No broad `/v1` scope exemption was added.
 
 Signing keys are random per API start; this design assumes one API instance/world. Restart invalidates
 grants; the player's renewal/Retry recovers without creating an exposure. Grant URLs are credentials:
 keep them in memory, never logs/evidence, never a public share. Responses use private/no-store caching,
 no-referrer and SHA-256 ETags. Single ranges (including suffixes),206/416, If-None-Match/304, If-Range,
-HEAD and Accept-Ranges are supported; multiple ranges are refused416. Caddy must not compress media.
+HEAD and Accept-Ranges are supported; multiple ranges are refused 416. Caddy must not compress media.
 Logs use route templates and stable refusals only. Already-buffered client bytes cannot be recalled;
 AccountScope synchronously pauses/clears playback on logout/account switch/privacy reset.
 
@@ -157,7 +167,7 @@ Installed-release HTTP fixtures exercise the real Nest/PG boundary without a wor
 they are not deployed map or formation evidence.
 
 Scene reads are `POST /v1/universe/scenes/manifest/read` and
-`POST /v1/universe/scenes/chunks/read`. Thin Nest adapters consume the canonical307 contracts
+`POST /v1/universe/scenes/chunks/read`. Thin Nest adapters consume the canonical 307 contracts
 and existing own-scope read ports, with the same Origin/session/X-KS-Scope/JSON/size guards.
 Successful Scene bodies carry `Cache-Control: private, no-store`. Only admitted caller authority
 is used; foreign/unknown selection or foreign-scope references disclose only NOT_FOUND.
@@ -171,7 +181,9 @@ Installed API/PG fixtures are authored transport evidence; actual dev endpoints,
 rendering, camera return and durable shown/skipped acknowledgement require separate acceptance.
 
 
-## Durable Keep place HTTP (#246)
+## Keep places
+
+Related: #246.
 
 `POST /v1/experience/keep/read` and `POST /v1/experience/keep/place` mount the existing
 Experience Keep ports. The admitted session/scope supplies authority; strict JSON bodies carry
@@ -189,17 +201,19 @@ no authority; generic errors and legacy routes retain their existing behavior.
 
 Actions fixtures use installed Nest plus disposable PostgreSQL, real session/Origin/scope gates,
 CAS/replay/resave and actual lock barriers. Authored ordinary Scroll, maximal valid Scroll
-(eight100×100 simulation grids) and Reel metadata fixtures record cold samples plus20 serial
+(eight 100×100 simulation grids) and Reel metadata fixtures record cold samples plus 20 serial
 warm reads/sets after three warmups. Separate module records include actual transaction/CPU,
 query spans and callback-end-to-commit-return spans. Query spans include waits; commit-return
 includes driver overhead. Raw samples and runner/Node/PG/document-size/hash metadata appear in
 Actions logs. These are bounded probes, not production percentiles or a client latency budget;
-full canonical admission and the existing200ms CPU admission assertion remain unchanged.
+full canonical admission and the existing 200ms CPU admission assertion remain unchanged.
 A client mount requires separate inspection and approval of actual latency records. This source
 mount does not establish a deployed endpoint, device journey or selective privacy clear.
 Legacy asset-keyed Unsave still has its separate ABA limitation.
 
-### Exact Saved membership removal (#246)
+### Removing a Saved item
+
+Related: #246.
 
 `POST /v1/experience/keep/remove` now mounts the shared `keep-remove.v1`
 declaration through a dedicated controller/use-case provider. JSON names an actual
@@ -208,13 +222,13 @@ position/CAS/force/Undo override. Existing Origin/session/AccountScope guards an
 root-held Identity own-account fence apply. Current authority precedes receipts;
 identical valid historical replay precedes the membership that removal deleted.
 A later resave is independent: replay of A acknowledges A without deleting B;
-a fresh wrong/missing membership is fixed404 without replacement metadata.
+a fresh wrong/missing membership is fixed 404 without replacement metadata.
 Corrected/withdrawn saved refs can be removed without Content admission/playback.
 
 Every successful acknowledgement is historical and position-free. The existing
 Unsave action/link/state/contribution/jobs, membership/place cascade, receipt and
 root watermark commit together. New effects stop at the root counter limit.
-Removal has a separate closed14-code direct RFC9457 family with seven fixed
+Removal has a separate closed 14-code direct RFC 9457 family with seven fixed
 schema-owned/masked issue tokens, including preparse/size/media-type/Origin/auth/
 scope failures. Responses are `private, no-store`; no details, received values,
 current position/CAS/replacement identity or arbitrary error data are emitted.
@@ -226,27 +240,29 @@ not rollout, native/client or real two-device acceptance. The app's legacy
 asset-keyed Unsave still requires its separate consumer migration. No Remove/Undo
 UX, selective privacy completion or owner-history operation is claimed here.
 
-## Complete Saved paging (#344)
+## Saved paging
+
+Related: #344.
 
 GET `/v1/saved?pagination=saved-page.v1&filter=all&limit=20` reads a bounded live
 keyset page, including exact Saved UUID/ref and actual kind for withdrawn rows.
 Legacy empty/limit-only reads retain their original response. The paged branch
 checks current root/account/epoch and the Clear barrier before decoding a cursor;
 its response validates scope/filter/limit and the exact initiating cursor echo.
-All Saved GET answers select private/no-store and a closed14-code static-error
+All Saved GET answers select private/no-store and a closed 14-code static-error
 projection before authentication/query parsing. Logs carry the route template,
 never the raw URL, cursor, decoder exception, private anchor or rejected key.
 
 The API composes a separate random AES-256-GCM key per process, with purpose/world
 AAD and account/universe/epoch/filter/limit/full-microsecond-key claims. The
 versioned cursor lifetime is five minutes. Noncanonical encoding, tampering,
-wrong binding, expiry, another instance or restart uniformly return fixed409
+wrong binding, expiry, another instance or restart uniformly return fixed 409
 SAVED_CURSOR_UNAVAILABLE. Refresh starts a new traversal; no new secret/env/table,
 shared key, persistent cursor store or multi-instance portability is installed.
 The framework-free use case sees an opaque codec port only. Ordinary personal
 revision/content changes do not turn a live traversal into a frozen snapshot.
 
-Actions-only tests exercise the installed release's native/web guards,125-row
+Actions-only tests exercise the installed release's native/web guards, 125-row
 traversal, current correction/withdrawal, deleted anchors, private errors,
 foreign/changed-filter tokens, real second-instance/restart rejection, and the
 actual selective Clear barrier. Synthetic codec fixtures additionally prove
@@ -267,7 +283,9 @@ The immutable receipt is not current animation permission; clients must use curr
 actual validated targets. ACK records the client's actual shown/skipped statement, not learning
 or proof of rendering. No recovery, model or provider call is mounted on a read/status route.
 
-### Explicit Friends HTTP prerequisite (#374)
+### Friends operations
+
+Related: #374.
 
 The central controller index mounts exactly eleven existing profile/pair operations: own profile
 GET/POST, exact handle lookup, pair read and request/accept/decline/cancel/remove/block/unblock.
@@ -285,7 +303,9 @@ mounted below; conversations and share links in their own section). No contact a
 The installed disposable-account CI journey is not populated two-account dev/client acceptance.
 
 
-### Recoverable Friends pages and invitation links (#377)
+### Friends pages and invitation links
+
+Related: #377.
 
 The existing Social controller additionally mounts `friend-pages.v2` POSTs at
 `/v1/social/friends/page` and `/v1/social/requests/page`, plus own `GET /v1/social/invites`
@@ -301,9 +321,11 @@ on any instance (D-042).
 Invites deliver a secret once separately from a hash-only store/immutable acceptance. Exact retry
 never re-delivers it. Resolver and invite-target friend requests check current issuer/token/expiry
 before effects/replay. No HTTP model/provider/job, presence, evidence or consumption path is added.
-Schema40 and hosted synthetic fixtures remain separate from real populated two-account/client use.
+Schema 40 and hosted synthetic fixtures remain separate from real populated two-account/client use.
 
-### Conversations, share links and the landing (#242, D-042)
+### Conversations, share links and the landing (D-042)
+
+Related: #242.
 
 `ConversationsController` mounts, all as private POSTs under `/v1/social/`:
 

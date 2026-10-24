@@ -16,12 +16,12 @@ behaviour for older processes (blueprint §23 pattern 5).
 
 0040 adds Social's account-lifetime current public roster index/heads and latest hash-only invite.
 It backfills only existing explicit public sides and binds projection updates to the same pair transaction.
-All earlier SQL remains immutable; schema40 requires compatible writers and no backward activation.
+All earlier SQL remains immutable; schema 40 requires compatible writers and no backward activation.
 
 0041 is the Identity recording prerequisite: monotone on/generation fields on the existing root,
 SQL transition guards and immutable exact-body account-lifetime recording_commands receipts.
 Selective Clear preserves them. This schema does not activate Pause; every contribution owner
-must carry and fence original generations before exposing a controller/control. All previous40
+must carry and fence original generations before exposing a controller/control. All previous 40
 SQL files remain immutable. No new root, queue, provider/financial change or deletion executor.
 
 0042 is the recording pipeline schema prerequisite. Eleven initially empty tables hold Experience
@@ -63,25 +63,25 @@ The four Reasoning proof columns redact only with its irreversible privacy marke
 usage, unknown settlement and financial identity remain independently accountable while paused.
 Role rows retain their existing all-epoch erasure. No controller, UI, role flag, model call,
 paid allowance or deployment is activated. Compatible whole consumers and current-candidate
-Actions must precede election; all previous42SQL stay byte exact. Source schema application to
+Actions must precede election; all previous 42 SQL stay byte exact. Source schema application to
 an empty own SSD database/codegen is separate from behavioral CI and runtime acceptance.
 
 ## Fresh lifecycle protocol (0044, source prerequisite)
 
 Adds two empty eight-column stores and one nullable root mode (17 columns), with no historical
 initialization or existing table index. Each witness was stamped with the digest of a registry
-manifest; 0051 removes that digest. Birth is the actual mode1 root INSERT in createAccount.
-Existing NULL roots can elect mode1 only at verified current selective-Clear core completion, before releasing the barrier. Financial
-completion is independent. Mode1/owner and witnesses are immutable; full erasure removes the
+manifest; 0051 removes that digest. Birth is the actual mode 1 root INSERT in createAccount.
+Existing NULL roots can elect mode 1 only at verified current selective-Clear core completion, before releasing the barrier. Financial
+completion is independent. Mode 1/owner and witnesses are immutable; full erasure removes the
 witness without restoring authority. Certificates distinguish empty from real false and require
 actual eligible actions and completed receipts. Deferred checks inspect final exact rows.
 
-All prior43 SQL stays byte-exact. The rollout must stop/replace incompatible processes and compose
+All prior 43 SQL stays byte-exact. The rollout must stop/replace incompatible processes and compose
 all real writers before making new roots reachable. These narrow guards do not sandbox an old
 binary issuing arbitrary aggregate SQL. Source/codegen and hosted fixtures are separate evidence;
 this migration does not activate Pause or certify retained legacy channels.
 
-The two `prefer-bigint-over-smallint` exceptions in0044 cover only literal CHECK=1 format tags,
+The two `prefer-bigint-over-smallint` exceptions in 0044 cover only literal CHECK=1 format tags,
 not counters. No capacity or growing sequence relies on smallint.
 
 Correction made before 0044 was merged: the Planner and Geography `runs.recording_account_id`
@@ -90,12 +90,12 @@ function is replaced here using positional arguments only to remove runtime PL/p
 signatures, types and equality guards are unchanged. All 0001-0043 remain byte-exact.
 
 
-Pending routing correction before0042 has reached a shared database: exactly three additive
+Pending routing correction before 0042 has reached a shared database: exactly three additive
 recent/unit/facet query indexes read retained actual eligible activations across generations.
-They do not initialise historical channels or alter any other0042 statement. Its reviewed registry
-checksum is now3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb;
-0001–0041 and0043/0044 remain byte-exact. Earlier source/failure and disabled operator pins remain
-historical and must be rebound after exact full44 candidate acceptance. No schema deployment follows
+They do not initialise historical channels or alter any other 0042 statement. Its reviewed registry
+checksum is now 3b85edec0d4c135b72637ba52527002f57b8a6d4ac23ce4df05af8251fad50cb;
+0001–0041 and 0043/0044 remain byte-exact. Earlier source/failure and disabled operator pins remain
+historical and must be rebound after exact full 44 candidate acceptance. No schema deployment follows
 from this source correction.
 
 0047 adds `composer.buffers`: one worker-prepared next-move buffer per person and mode, pointing at an

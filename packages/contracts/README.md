@@ -152,12 +152,12 @@ without changing legacy navigation/experience parsing or reserved discriminators
 
 The shared `apiContract.supply` now declares `POST /v1/content/requests` (immutable acceptance),
 `GET /v1/content/requests/{requestId}` (current private status), and
-`POST /v1/content/requests/cancel` (immutable cancellation outcome). Both commands use HTTP200,
+`POST /v1/content/requests/cancel` (immutable cancellation outcome). Both commands use HTTP 200,
 including exact replays; acceptance is distinct from ready and never promises paid work. Cancel
 uses only its body request ID, avoiding competing path/body identities. Status GET has no request
 body and never creates demand, retries production or activates an encounter. The future adapter
 must apply the existing first-party origin/session/AccountScope guards and map typed refusals to
-fixed RFC9457 problems; it must not disclose another person's request existence. These are HTTP
+fixed RFC 9457 problems; it must not disclose another person's request existence. These are HTTP
 **declarations**, with no controller/client binding in this prerequisite. The already merged Supply
 backend public capabilities must be connected in the subsequent adapter PR. No new endpoint is
 claimed served or runtime-verified here; these declarations do not complete #239. Series-next/related
@@ -170,7 +170,9 @@ There is no Supply/Planner/Cartographer paid allowance in this prerequisite; D-0
 and owner-only Reel script approvals are unchanged. No backend, UI, queue or runtime acceptance is
 claimed by these declarations.
 
-## Geography wire prerequisite (#237/#238)
+## Geography reads
+
+Related: #237, #238.
 
 `ReadGeographySchema` and `GeographySnapshotSchema` declare authorised **own-universe** reads of
 established systems, organising stars, subtopic planets and finer regions. Systems parent to the
@@ -193,14 +195,14 @@ global covered-facets snapshot remains unavailable and no numeric formation poli
 initial projection work; `lagging` retains a valid established page while real pending work catches
 up. `unavailable` distinguishes temporary failure, expired snapshot and result-limit refusal.
 None of these states invents dust, planets, social activity, evidence counts or future rewards.
-Pages allow at most100 objects,100 routes and100 retained aliases. A continuation binds universe,
+Pages allow at most 100 objects, 100 routes and 100 retained aliases. A continuation binds universe,
 epoch, selection, geography revision and last object ID; the server validates it, pages in stable
 ID order, and refuses an expired revision. Endpoints may name objects on other pages. A relationship
 overflow must fail with `limit`, never silently truncate relationships or assert completeness.
 No cursor or public ID grants permission. Friend/visitor projections require later sharing contracts.
 
 `UniverseDeltaSchema` declares one atomic **already applied public effect**, with base/current
-revisions, immutable transition ID and at most32 typed operations: `create_system`, `establish_star`,
+revisions, immutable transition ID and at most 32 typed operations: `create_system`, `establish_star`,
 `form_planet`, `add_region`, `connect_route`, `revise_label`, `set_activity`, `withdraw_relation`.
 Effect revisions equal the commit revision; new identities retain that transition as their origin.
 Label/activity updates cannot replace origin identity. Relation withdrawal retains its ID/endpoints
@@ -210,7 +212,7 @@ before incremental alias updates; clients refetch snapshots rather than inventin
 There is no arbitrary JSON patch, client formation command, eligibility override, model proposal,
 private evidence, source, score, prompt, provider or validation-receipt payload on this wire.
 
-`ReadUniverseDeltasSchema` and `UniverseDeltasSchema` declare read-only catch-up, at most10 deltas
+`ReadUniverseDeltasSchema` and `UniverseDeltasSchema` declare read-only catch-up, at most 10 deltas
 per page. Available results are contiguous, unique and scope fenced; unavailable retained history
 requires a full snapshot. Consumers apply a whole delta against the exact base or refetch. Repeated
 delivery and scene rebuilds preserve the same transition ID. U05's once-per-transition presentation
@@ -258,7 +260,9 @@ Build: `tsc -p tsconfig.build.json` → `dist/`. Inside the workspace, TypeScrip
 dependency-cruiser read the sources through the `@knowscroll/source` export condition
 (`docs/v2/engineering/workspace.md`).
 
-## Scene HTTP prerequisite (#238)
+## Scene reads
+
+Related: #238.
 
 `POST /v1/universe/scenes/manifest/read` and
 `POST /v1/universe/scenes/chunks/read` declare bounded, read-only **own-universe**
@@ -354,7 +358,9 @@ unrepresentable schema. `scenes.test.ts` and core metadata tests are synthetic
 protocol fixtures only, run by GitHub Actions. No database, real-world projection,
 rendered world, native performance, provider budget or completed #238 is claimed.
 
-## Friends/visibility HTTP prerequisite (#241)
+## Friends and visibility
+
+Related: #241.
 
 `sharing.v1` declares strict JSON-native profile/handle, exact lookup, paged own
 friends/requests/blocks, explicit pair commands, own invite-link lifecycle,
@@ -455,7 +461,9 @@ allowlist and denial/revocation tests remain mandatory before consumers ship.
 wire fixtures, run only in GitHub Actions. They establish no actual friendship,
 expiry, transaction/replay safety, privacy completion or #241 acceptance.
 
-## Private Keep place prerequisite (#246)
+## Keep places
+
+Related: #246.
 
 `keep-place.v1` declares `apiContract.keep.read` (POST `/v1/experience/keep/read`)
 and `setPlace` (POST `/v1/experience/keep/place`). Both take strict JSON bodies;
@@ -475,15 +483,15 @@ receipt can echo the requested revision while the retained Saved ref is older.
 A different requested revision returns `not_saved`, without redirect/inheritance.
 `saved_unavailable` retains only the exact entry reference; withdrawal, correction
 and other current ineligibility expose no position, metadata, replacement revision
-or timestamp. Only `available` has place `none` at revision0 or `set` at a positive
+or timestamp. Only `available` has place `none` at revision 0 or `set` at a positive
 revision. Scope/target echoes and entry equality fence responses on the client.
 
 Positions preserve fractional milliseconds for Reel and fractional logical pixels
 inside a canonical top-level Scroll `LocalId` block. Finite nonnegative values up
 to `Number.MAX_SAFE_INTEGER` are a **transport representation bound only**.
 Future validation uses the actual immutable media port/duration (the current Reel
-document validator permits20–60seconds); a future codec must not inherit a copied
-60second universal limit. The renderer clamps Scroll offset after layout to its
+document validator permits 20–60 seconds); a future codec must not inherit a copied
+60-second universal limit. The renderer clamps Scroll offset after layout to its
 actual measured block/viewport. Server code cannot invent geometry from private
 font/viewport assumptions or reinterpret a nested child offset as a parent offset.
 
@@ -506,17 +514,17 @@ and required catch-up/hint effects commit atomically. No peer root or competing
 fence is introduced. Clients retain the highest current revision only within the
 initiating AccountScope and membership. Legacy asset-keyed Unsave still has an ABA
 limitation and is outside this contract slice. A future local transfer must first
-read the current entry and revision0, then issue a fresh command; bulk import or
+read the current entry and revision 0, then issue a fresh command; bulk import or
 overwrite of a server place is not authorised. Park/explicit-exit coalescing and
 bounded retries belong to a later client adapter, separate from lossy observations.
 D025 local Back restoration grants no fresh activation/contribution. Scope end
 stops callbacks, discards late responses and purges scoped local positions; retained
 server Keep requires a fresh authorised read. Existing all-data erasure still
 deletes Saved; this prerequisite changes no deletion/preservation behaviour.
-Identity309 is an authority gate and account-table inventory is not a deletion
+Identity 309 is an authority gate and account-table inventory is not a deletion
 executor. The later storage/API/client/erasure work remains separate.
 
-`KeepPlaceProblemSchema` is a finite strict RFC9457 union with fixed catalogue
+`KeepPlaceProblemSchema` is a finite strict RFC 9457 union with fixed catalogue
 code/type/title/status. Only `KEEP_PLACE_REVISION_STALE` requires a current place
 revision. No arbitrary detail/instance, rejected key/value, entry or position is
 allowed. Bounded validation issues use only static schema-owned field tokens
@@ -538,7 +546,9 @@ fixtures run only in GitHub Actions; no complete Keep journey or runtime privacy
 acceptance is claimed.
 
 
-## Region encounter preparation prerequisite (#238 / U04)
+## Opening a Region encounter
+
+Related: #238.
 
 `apiContract.experience.openRegionEncounter` declares POST
 `/v1/experience/region/open` with strict `region-encounter-open.v1` JSON input.
@@ -588,7 +598,7 @@ Absent content, unsupported commands and offline states must remain honest; no
 read enqueue, generation, supply request, bootstrap, visit growth or placeholder
 encounter is implied. U04's authored content is design data, not a fixture to ship.
 
-`RegionEncounterProblemSchema` is a finite strict RFC9457 union using existing
+`RegionEncounterProblemSchema` is a finite strict RFC 9457 union using existing
 catalogue codes and fixed metadata. Its bounded issues accept only declared field
 tokens or `unknown`; dynamic capability keys, numeric segments and rejected values
 must be masked, never echoed. No arbitrary detail/instance is permitted. The route
@@ -606,7 +616,9 @@ wire declarations below do not replace those consumers; origin IDs, an Open rece
 and local memory cannot enforce cross-device uniqueness.
 
 
-## Selective Clear exploration prerequisite (#246)
+## Selective Clear
+
+Related: #246.
 
 `clear-exploration.v1` declares `apiContract.privacy.clearExploration` (POST
 `/v1/privacy/clear-exploration`,202) and `readClearExplorationStatus` (read-only POST
@@ -624,7 +636,7 @@ accepts one operation, advances epoch exactly once, sets a live-read barrier,
 revokes old sockets and enqueues IDs-only work. fromEpoch/toEpoch are positive
 safe integers with toEpoch=fromEpoch+1. Input at the maximum epoch can be represented;
 a new operation must refuse counter exhaustion without any effects, using fixed
-CONFLICT. Busy live cleanup also refuses without effects. An immutable202
+CONFLICT. Busy live cleanup also refuses without effects. An immutable 202
 acceptance records historical epochs/time/command, accepted operation and replay
 delivery; it contains neither completion nor a current authorization scope.
 Never construct an AccountScope from its toEpoch. Only the existing authenticated
@@ -669,20 +681,22 @@ cleanup must be verified before completed_live; retained minimal usage accountin
 is separate. No backup/provider/offline expiry period or removal guarantee is
 invented. These implementation and real-journey prerequisites remain unallocated.
 
-`PrivacyProblemSchema` is a strict local RFC9457 family using existing catalogue
+`PrivacyProblemSchema` is a strict local RFC 9457 family using existing catalogue
 codes, fixed type/title/status and bounded schema-owned issue tokens or `unknown`.
 Unknown field names/values and numeric paths cannot be echoed; no detail/instance
 or current-state private payload is allowed. Global ProblemDetails and legacy
 unknown-field stripping remain unchanged. The supported route.spec hook describes
 converter-produced error data directly as application/problem+json, with exact
 status-specific alternatives; it is not a mounted exception serializer. Real
-OpenAPI tests assert named components, exact202/200 POSTs and direct errors. Epoch
+OpenAPI tests assert named components, exact 202/200 POSTs and direct errors. Epoch
 increments/receipt-selection invariants remain parser checks beyond structural
 OpenAPI metadata. Synthetic wire tests run only in Actions; no completed privacy
 operation, account deletion or runtime preservation is established here.
 
 
-## Exact Saved membership removal prerequisite (#234 / #246)
+## Removing a Saved item
+
+Related: #234, #246.
 
 `keep-remove.v1` declares `apiContract.keep.remove`, POST `/v1/experience/keep/remove`,
 with strict version/commandId/entry JSON. Entry is the actual Saved UUID plus immutable
@@ -702,7 +716,7 @@ receipt, root revision and required pg-boss work must commit atomically. Do not 
 existing domain action effects with an isolated Saved-table delete. Removal creates no
 consumption, playback, reading interval or invented Evidence.
 
-The strict200 acceptance repeats only the selected entry, scope, command, recorded time,
+The strict 200 acceptance repeats only the selected entry, scope, command, recorded time,
 accepted operation and replay flag. It is historical: it does not assert current absence,
 current place or permission to remove another membership. After current authority and exact
 body/key matching, receipt replay MUST precede the now-deleted membership check; otherwise
@@ -712,7 +726,7 @@ body under the same key refuses COMMAND_KEY_REUSED. An old epoch never bypasses 
 scope guards to recover a receipt, and later clear/account deletion may erase that receipt.
 These are backend obligations, not invariants a wire parser can prove.
 
-KeepRemovalProblemSchema is a closed14-code RFC9457 family using existing catalogue titles,
+KeepRemovalProblemSchema is a closed 14-code RFC 9457 family using existing catalogue titles,
 statuses and types. Only fixed schema-owned issue tokens or unknown are allowed; numeric
 segments, received keys/values, arbitrary detail/instance, counts and replacement identity
 are forbidden. Place-CAS stale/counter errors are excluded. Its supported OpenAPI hook
@@ -722,7 +736,9 @@ unchanged. Actions-only synthetic wire and actual generator tests cover declarat
 A backend receipt/locking implementation, mounted consumer migration and real two-device
 remove/resave/unknown-ACK verification remain required before claiming ABA-safe removal.
 
-## Complete Keep paging prerequisite (#344 / #234)
+## Listing Saved items
+
+Related: #344, #234.
 
 The existing GET `/v1/saved` gains an explicit `pagination=saved-page.v1` branch.
 It requires `filter=all|reel|scroll` and string `limit=1..50`; `cursor` is optional
@@ -731,14 +747,14 @@ empty/limit-only request and ID-only response remain compatible, including
 unrelated legacy unknown-field stripping. Newly reserved paging fields cannot
 silently downgrade a malformed page into the first legacy list. New callers
 must explicitly parse `SavedPageResponseSchema` and bind its account/epoch,
-filter, numeric limit and `requestCursor` to their initiating scope/request: a valid legacy200
+filter, numeric limit and `requestCursor` to their initiating scope/request: a valid legacy 200
 response from an older server is insufficient. `requestCursor` is absent on the
 first page and must exactly echo the initiating opaque cursor on later pages;
 a response from a different same-filter page must not enter this page cache.
 A `more` token cannot equal that initiating token. This contract-only phase does
 not implement paging, a cursor codec, kind filtering or complete library access.
 
-A strict new page contains at most50 unique current Saved memberships (one per
+A strict new page contains at most 50 unique current Saved memberships (one per
 asset), their exact Saved UUID/immutable asset revision, actual Reel/Scroll kind,
 saved time, current availability and allowlisted consumer metadata. Corrected
 rows retain the original saved revision and name a different current revision;
@@ -769,7 +785,7 @@ references/times are immutable, and resave creates a new UUID/time. Concurrent
 new/resaved entries follow their actual keys: those newer than the current
 anchor are visible after Refresh, not secretly injected above the traversed
 window. Current rows can disappear or change availability across pages. Static
-collections larger than100 must remain fully traversable. Live writes do not
+collections larger than 100 must remain fully traversable. Live writes do not
 promise a complete frozen inventory or exactly-once enumeration.
 
 `more` means another server traversal window can be read, not a count or proof
@@ -777,15 +793,15 @@ that a matching row exists later. Bounded filtering may yield an empty page with
 `more`; it must not claim an empty library. Only `end` terminates this traversal.
 Kind filtering must use actual trusted Content kind through an allowed public
 port or reviewed owned projection/index, before selecting output rows. It must
-not filter only the newest100. A bounded candidate implementation may inspect
-at most100 references per request plus one IDs-only lookahead; it advances only
+not filter only the newest 100. A bounded candidate implementation may inspect
+at most 100 references per request plus one IDs-only lookahead; it advances only
 past consumed candidates, never skips an unreturned matching row. No full-library
 SQL/materialization, unbounded hydration loop or eager client fetch is allowed.
-The client default remains20 displayed rows, at most four concurrent real Keep
+The client default remains 20 displayed rows, at most four concurrent real Keep
 place reads, and bounded cursor/page retention. Efficient selective-kind indexing
 remains an explicit later backend seam; no migration is included here.
 
-`ksp1_` cursors have43..1024 base64url characters after the prefix. Parsing proves
+`ksp1_` cursors have 43..1024 base64url characters after the prefix. Parsing proves
 syntax only. A future server must authenticate **and keep confidential** the
 private envelope, bound to purpose/world, account/universe, epoch, filter, limit,
 full-precision key and a short expiry. It rechecks current authority before
@@ -801,7 +817,7 @@ rotates on restart. A **separate** Saved AEAD key can follow that lifecycle with
 an environment secret or new table; this is a permitted future codec design, not
 implemented encryption. The current deployment runs one API instance. Restart,
 rotation, expiry, another instance, tampering or scope/filter/limit/purpose binding
-failure must uniformly answer fixed409 `SAVED_CURSOR_UNAVAILABLE`; the UI offers
+failure must uniformly answer fixed 409 `SAVED_CURSOR_UNAVAILABLE`; the UI offers
 Refresh and discards that traversal. No multi-instance portability or restart
 continuity is promised. Domain/application code sees only an opaque codec port;
 key creation stays outside personal transactions and is composed at the API seam.
@@ -809,11 +825,11 @@ Consumers still need full codec expiry/tamper/cross-binding/rotation tests.
 
 All GET success and error responses must be private/no-store, selected before
 query/body/auth parsing. Current session and `X-KS-Scope` guards remain mandatory;
-a cursor never replaces them. `SavedListProblemSchema` declares14 closed problem
+a cursor never replaces them. `SavedListProblemSchema` declares 14 closed problem
 codes and bounded schema-owned issue tokens; no rejected token/private value,
 unknown key name, decoder exception, detail, instance or count can escape. Bad
 wire syntax uses INVALID_REQUEST; syntactically valid unavailable tokens use the
-same fixed cursor409. The OpenAPI hook describes direct application/problem+json;
+same fixed cursor 409. The OpenAPI hook describes direct application/problem+json;
 it installs no HTTP serializer/cache guard. Per-parameter GET metadata cannot
 express all union correlations; the actual wire parser remains authoritative.
 
@@ -824,7 +840,9 @@ disposable-account deployed journey remain required after this prerequisite is
 accepted. This phase does not close #344 or full S01/S02/runtime acceptance.
 
 
-## Universe region preview and formation protocol (#357; contracts only)
+## Region preview and formation presentation (contracts only)
+
+Related: #357.
 
 `apiContract.experience.previewRegionEncounter` declares read-only POST
 `/v1/experience/region/preview`. `region-encounter-preview.v1` binds a fresh readId,
@@ -851,8 +869,8 @@ or local actions, never implicit Open. Offline/unavailable states retain the map
 `apiContract.formation` declares three private POSTs:
 `/v1/universe/formation/read`, `/claim`, and `/acknowledge` under
 `formation-presentation.v1`. These declarations install no backend, worker, storage,
-recovery, eraser or UI. Root accepted delivery policy is freshness300seconds,
-claim30seconds, full sequence2400ms and max8 target IDs; these are not formation
+recovery, eraser or UI. Root accepted delivery policy is freshness 300 seconds,
+claim 30 seconds, full sequence 2400ms and max 8 target IDs; these are not formation
 thresholds or consumption/learning measures. The fact contains only an already
 committed transition/time/component stamps and bounded neutral creation labels,
 truth framing, object/parent identities and revisions. No model proposal, support
@@ -867,7 +885,7 @@ manifest/chunk targets before offering eligibility, without inventing projection
 A formation read returns at most one candidate, or none/unavailable/unsupported.
 It echoes readId/selection/capabilities, scope/root and current Geography/Scene stamps.
 It creates no claim, receipt, expiry cleanup, job or shown mark. Claimable freshness
-is exactly300seconds from the original commit time, never renewed by reading.
+is exactly 300 seconds from the original commit time, never renewed by reading.
 Late/reconnect/backlog, already claimed or terminal facts render the existing map's
 final state directly, without another story or invented shown acknowledgement.
 Reduced motion retains exact targets/framing and uses a still/caption only.
@@ -879,7 +897,7 @@ same transaction. Claim is eligibility, **not shown**. Unknown acknowledgement r
 only that exact original body; never animate optimistically or mint a replacement
 claim after reload. Immutable receipt and **current** eligibility are separate:
 replay may retain an old `claimed` receipt while `current` is final/expired. Active
-must name that exact claim and unchanged30second expiry. Neither replay nor syntax
+must name that exact claim and unchanged 30-second expiry. Neither replay nor syntax
 proves a live server claim; the client also checks actual scope/expiry/foreground and
 synchronously marks its one local attempt started before callbacks or remounts.
 Expired or interrupted claims are never reissued for animation. No encounter is
@@ -899,7 +917,7 @@ private/no-store before auth/body parsing, first-party Origin/scope guards and f
 body/output limits. Closed problems reuse fixed existing catalogue codes; only static
 schema path tokens or `unknown` are allowed, never values, numeric positions, private
 IDs, dynamic capability keys, detail/instance text or provider messages. The OpenAPI
-hook describes direct RFC9457 error data only, not an installed error serializer.
+hook describes direct RFC 9457 error data only, not an installed error serializer.
 Expiry/restart/final-delivery recovery needs finite indexed advancing continuations
 committed before busy work, no status-read maintenance or second outbox, and concrete
 full/selective-Clear ownership across epochs/queues. A delayed old claim/job/erasure
@@ -910,7 +928,9 @@ Only Actions run the authored contract/refinement/OpenAPI suites; fixtures are n
 actual claims, rendered worlds or runtime acceptance.
 
 
-## Direct conversation and whole-content sharing prerequisite (#370 / #241 / #242)
+## Conversations and whole-content sharing
+
+Related: #370, #241, #242.
 
 `apiContract.conversations` declares nine private JSON POSTs under
 `/v1/social/conversations/`: deliberate `start`, `inbox`, `read`, `history`, `changes`,
@@ -944,7 +964,7 @@ old author/text. Shared public Content and another person's independent messages
 Initial snapshot plus catch-up position must be captured atomically under the aggregate root.
 Each purpose has a different opaque confidential cursor (`kci1_`, `kch1_`, `kcc1_`), bound to world,
 caller/account/epoch, membership/authority lineage, purpose, limit and finite traversal ceiling.
-Each request selects limit1..50 and returns at most that many items; each response echoes its readId, actual scope, limit and initiating
+Each request selects limit 1..50 and returns at most that many items; each response echoes its readId, actual scope, limit and initiating
 cursor where applicable. Consumers compare these to the actual request/scope and reject
 regressive watermarks. Strict schemas check unique ordered bubbles, increasing bounded changes,
 finite-window completion and nonlooping continuations; they cannot authenticate a cursor or
@@ -956,7 +976,7 @@ refresh; do not invent missing changes. Current privacy/access gates still apply
 
 Durable send accepts plain text<=2000 UTF-16 units or a whole exact asset/revision with an optional
 note. No snippet/player locator enters this phase. Commands keep one stable commandId and exact
-original body after an unknown outcome, including a later401/403 refusal that cannot reconcile the
+original body after an unknown outcome, including a later 401/403 refusal that cannot reconcile the
 first attempt. Never mint a replacement or automatically reissue an ambiguous command. Receipts
 repeat only committed IDs/order and exact content identity, not message text, current membership,
 delivery/seen assertions or access grants. Same canonical body replays one outcome; a changed body
@@ -1005,15 +1025,17 @@ All endpoints require current session/Origin/scope and private/no-store before p
 future explicitly reviewed unscoped public landing/resolution composition; no current guard exemption
 is added here. The closed Social problem family reuses existing catalogue statuses/titles and only
 static issue tokens or unknown; it rejects raw values, numeric/dynamic paths, detail/instance and
-private cause/counter fields. OpenAPI describes direct RFC9457 data, not a mounted serializer.
+private cause/counter fields. OpenAPI describes direct RFC 9457 data, not a mounted serializer.
 
 Authored strict schema/privacy/cursor/order/replay/first-secret-delivery and actual OpenAPI tests run
 only in Actions. SQL/lock/concurrency/recovery/erasure, real HTTP/cache/membership/content authority,
 scoped client unknown-retry/purge, two-account share/reconnect/revocation and independent real
-encounter evidence remain mandatory follow-up work. This prerequisite does not finish241/242 or
+encounter evidence remain mandatory follow-up work. This prerequisite does not finish 241/242 or
 claim mounted Social, delivery, public publication, media access or runtime acceptance.
 
-## Pause personal recording prerequisite (#376)
+## Pausing personal recording
+
+Related: #376.
 
 `recording-policy.v1` declares two scoped private JSON POSTs in `apiContract.recording`:
 `/v1/privacy/recording/read` and `/set`. They are declarations only: no policy table,
@@ -1024,10 +1046,10 @@ deletion remain separate unimplemented lifecycle work; this adds no authenticati
 Pause stops new durable passive encounter evidence and NEW derived personal growth,
 including growth inferred from explicit actions. Explicitly requested commands still need
 their own necessary records. Existing history, Keep and current universe remain visible.
-Recording generation is distinct from privacy epoch, starts at1/on, is bounded by2147483647
+Recording generation is distinct from privacy epoch, starts at 1/on, is bounded by 2147483647
 and never wraps or resets across Clear. An actual on/off transition increments it once;
 an accepted no-op retains it. Clear preserves the preference and generation.
-Because only real boolean toggles increment from1/on, odd generations are on and even
+Because only real boolean toggles increment from 1/on, odd generations are on and even
 generations are off. Current policy and receipt final-state schemas enforce that invariant.
 
 Set requires one stable commandId, expected privacy epoch/generation and desired boolean on.
@@ -1050,13 +1072,13 @@ schema validation alone cannot authenticate a request or compare another respons
 `observation-batch.v2` adds the separate declaration
 `POST /v1/observations/recording-batch` (`apiContract.observations.submitRecording`).
 Its strict input requires version and recordingGeneration plus the original bounded event
-shapes/instrumentationVersion, with the complete encoded batch capped at49152bytes.
+shapes/instrumentationVersion, with the complete encoded batch capped at 49152 bytes.
 No generation is optional. Malformed new input cannot downgrade into old input. The existing
 unversioned `/v1/observations/batch` input/output schemas and route remain unchanged.
 The separate new route prevents today's mounted old controller from parsing and then
 silently ignoring a new generation field during a contracts-only release.
 
-The FOLLOWING backend must allow old unversioned batches ONLY in initial generation1/on.
+The FOLLOWING backend must allow old unversioned batches ONLY in initial generation 1/on.
 After the first actual recording toggle that legacy wire is permanently refused with
 `RECORDING_GENERATION_REQUIRED`, including after resume; no legacy backlog may enter a new
 generation. Do not activate Pause until this guard covers the normal legacy controller,
@@ -1082,13 +1104,15 @@ No model/provider permission follows this policy or its schemas.
 
 Closed recording problems expose fixed catalogue title/status/type and bounded static issue
 tokens only. No event values, dynamic/numeric paths, generation counters, detail/instance,
-private causes or operation body appears in errors. OpenAPI describes direct RFC9457 data,
+private causes or operation body appears in errors. OpenAPI describes direct RFC 9457 data,
 not a mounted serializer/cache/Origin/auth guard. Authored synthetic schema/OpenAPI fixtures
 run in Actions only. Durable state/locks/unknown replay, real mixed-version intake/worker
 fences, scoped client callbacks/offline buffers, deployed pause/resume and preservation
 remain mandatory following work; this contract prerequisite does not finish #246.
 
-## Bounded Friends roster scan prerequisite (#378 / #377)
+## Friends roster pages
+
+Related: #378, #377.
 
 `friend-pages.v2` declares `apiContract.friendPages.friends` at private JSON POST
 `/v1/social/friends/page` and `.requests` at `/v1/social/requests/page`. These are
@@ -1099,14 +1123,14 @@ unchanged, including their nonempty continuation rule. Unsupported old routes
 remain unavailable; malformed new input never downgrades to an old route/version.
 
 `ReadFriendsPage` takes exact version, UUID `requestId`, filter `friends|blocked`,
-integer limit1..50 and optional canonical `SharingListCursor`; `ReadFriendRequestsPage`
+integer limit 1..50 and optional canonical `SharingListCursor`; `ReadFriendRequestsPage`
 uses `incoming|outgoing`. The cursor's filter must match the request. Request IDs
 correlate reads, never command effects or permissions. Scope/cursor syntax is the
 existing canonical schema, with no copied ID, pair, cursor or scope definitions.
 Owner and current epoch come from authenticated authority, never a cursor grant.
 
 `FriendsPage` / `FriendRequestsPage` echo version/requestId, current own scope,
-filter and the public `snapshotRevision`, with at most50 unique matching canonical
+filter and the public `snapshotRevision`, with at most 50 unique matching canonical
 `FriendPairView` items and optional `next`. Response continuations bind that same
 scope/filter/head. Empty items WITH next means the bounded scan examined candidates
 without returning a currently eligible row and has another finite scan window.
@@ -1136,7 +1160,7 @@ show an explicit further-scan control, never a fabricated empty-state message or
 automatic unbounded drain. A schema cannot compare two HTTP messages or decode a
 cursor. A continuing token does not prove a visible friend exists later.
 
-Both new routes reuse the unchanged closed Social RFC9457 problem family through
+Both new routes reuse the unchanged closed Social RFC 9457 problem family through
 its existing supported metadata hook. New input field paths absent from that
 allowlist (`requestId`, `filter`) must map to `unknown`; never echo dynamic keys,
 values, tokens or numeric indices. OpenAPI describes direct application/problem+json,
@@ -1148,7 +1172,9 @@ synthetic contract fixtures only, run in Actions. Current database authority,
 finite scan/token security, installed HTTP, scoped UI/client pagination and a real
 two-account Friends journey remain required after this declaration prerequisite.
 
-## Original recording generation on necessary commands (#381 prerequisite)
+## Recording generation on commands
+
+Related: #381.
 
 Eight original command schemas reserve optional `recordingGeneration` using the
 existing bounded integer schema (1..2147483647): ApplyAction, DirectActivate,
@@ -1164,7 +1190,7 @@ into a nonevidence direct open. Success response schemas and route bindings stay
 
 This is a declaration prerequisite only. The following backend must distinguish
 necessary requested effects from permission for NEW personal growth. A missing
-field can be growth-eligible only at actual initial generation1/on; after the first
+field can be growth-eligible only at actual initial generation 1/on; after the first
 real toggle, absence never inherits resumed current generation. A supplied stale
 or off generation still allows necessary authorized action/navigation state and
 receipts but remains permanently growth-ineligible for that intent. Schema
@@ -1201,9 +1227,11 @@ Automated suites run only in Actions; no runtime Pause, current eligibility,
 receipt-hash implementation or deployed journey is established by declarations.
 
 
-## Current own-send recovery and public-only preview additions (#242)
+## Sending recovery and public previews
 
-The original13 direct-conversation/content-share operations above keep their schemas and
+Related: #242.
+
+The original 13 direct-conversation/content-share operations above keep their schemas and
 refinements. Two additive declarations provide prerequisites for the later vertical implementation:
 
 - `conversations.readOwnSend`: `POST /v1/social/conversations/send/read` accepts a fresh `readId`,
@@ -1229,14 +1257,14 @@ Both are pure syntax/correlation helpers. Their explicit current inputs are not 
 this package; no lookup, lock, session, Origin check or permission is installed. A mismatch returns
 `undefined`, never a historical fallback or replacement command. The new JSON surfaces reject
 accessors without evaluating getters, own undefined/symbol/nonenumerable properties, non-JSON
-prototypes, cycles and coercion/defaults. A fixed512-node/depth12 precheck bounds these small shapes.
+prototypes, cycles and coercion/defaults. A fixed 512-node/depth 12 precheck bounds these small shapes.
 
 The public error family has exactly eight fixed catalogue codes: invalid request, Origin refusal,
 payload too large, unsupported media type, unprocessable request, rate limit, unavailable service
 and internal failure. No auth/scope/pair/block-existence channel is exposed. Issue paths contain
-only `version`, `readId`, `token` or `unknown` (max8 segments/max32 issues); dynamic keys, values,
+only `version`, `readId`, `token` or `unknown` (max 8 segments/max 32 issues); dynamic keys, values,
 numeric paths, raw errors, `detail` and `instance` are forbidden. Future HTTP adapters must project
-raw parser issues into this allowlist and install the direct RFC9457 serializer. Contract parsing
+raw parser issues into this allowlist and install the direct RFC 9457 serializer. Contract parsing
 alone does not sanitize parser exceptions for logging. OpenAPI describes the strict public error
 schemas and the original private Social family separately.
 
@@ -1248,13 +1276,15 @@ No preview grants media, joins a conversation, creates a recipient encounter or 
 Evidence. Content correction/withdrawal and real canonical recipient Open still require fresh
 application authority.
 
-Fixtures preserve the original13 declaration assertions and add exact operation inventories,
+Fixtures preserve the original 13 declaration assertions and add exact operation inventories,
 strict public/private injection, unknown-send ambiguity, scope/incarnation/read correlation,
 getter/secret canaries and converter-produced OpenAPI/problem metadata. Behavioral suites run
 only in Actions. No consumer, schema migration, lifecycle registry compatibility, export/deletion,
 shared-data policy, runtime deployment or account data mutation is implemented by these additions.
 
-## Conversations and share links, as mounted (#242, D-042)
+## Conversations and share links, as mounted (D-042)
+
+Related: #242.
 
 The declarations above are now served. Changes made with that slice:
 

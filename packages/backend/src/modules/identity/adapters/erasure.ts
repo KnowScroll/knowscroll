@@ -2,7 +2,8 @@ import { sql, type Transaction } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { JOB_SCHEMA, deadLetterQueueName } from '../../../infrastructure/jobs/queues.js';
-import type { ExportPerson, ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
+import type { ExportPerson } from '../../../infrastructure/erasure/registry.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { PersonalScopeTx } from '../public.js';
 import { buildDataExportQueue, clearExplorationQueue, deleteAccountQueue } from '../events.js';
@@ -27,7 +28,7 @@ import { buildDataExportQueue, clearExplorationQueue, deleteAccountQueue } from 
  * inbox's sent items under AgentMail's own retention. We keep no message ID to find it by, so no
  * eraser of ours reaches it; the privacy copy must say so rather than promise its removal.
  */
-export const identityErasure: ModuleErasure = {
+export const identityErasure = declareErasure({
   module: 'identity',
   tables: [{ schema: 'identity', table: 'recording_lifecycle_witnesses', ownerColumn: 'universe_id' }],
   accountTables: [
@@ -107,7 +108,25 @@ export const identityErasure: ModuleErasure = {
       .execute();
     return { module: 'identity', status: 'completed', removed };
   },
-  export: {
+  clear: {
+    defaultDisposition: 'preserve',
+    dispositions: {
+      'identity.recording_lifecycle_witnesses': 'erase',
+      'identity.data_exports': 'erase',
+      [`store:pgboss/${buildDataExportQueue.name}`]: 'erase',
+      'store:agentmail/sent-sign-in-mail': 'external_retention',
+    },
+    async erase(scope) {
+      const trx = clearCoreTransactionOf(scope);
+      const witnesses =
+        await sql`delete from identity.recording_lifecycle_witnesses where universe_id=${scope.binding.universeId}::uuid`.execute(
+          trx,
+        );
+      const exports = await deleteExportsOf(trx, scope.binding.accountId);
+      return { module: 'identity', status: 'completed', removed: Number(witnesses.numAffectedRows ?? 0) + exports };
+    },
+  },
+  export: () => ({
     covers: ['identity.email_addresses', 'identity.sessions', 'identity.recording_lifecycle_witnesses'],
     omits: {
       'identity.recording_commands': 'Receipts of Pause and Resume; the current setting is in the file.',
@@ -126,8 +145,8 @@ export const identityErasure: ModuleErasure = {
     async read(scope, person) {
       return { account: await readAccountSection(scope, person) };
     },
-  },
-};
+  }),
+});
 
 /** The person's own address, setting and signed-in devices. Never a token, hash or session id. */
 async function readAccountSection(scope: PersonalScopeTx, person: ExportPerson) {
@@ -193,30 +212,3 @@ async function deleteExportsOf(trx: Transaction<Database>, accountId: string): P
   const result = await trx.deleteFrom('identity.data_exports').where('account_id', '=', accountId).executeTakeFirst();
   return jobs + Number(result.numDeletedRows);
 }
-
-const dispositions: Record<string, 'erase' | 'preserve' | 'external_retention'> = {
-  'identity.recording_lifecycle_witnesses': 'erase',
-  'identity.data_exports': 'erase',
-  [`store:pgboss/${buildDataExportQueue.name}`]: 'erase',
-  'store:agentmail/sent-sign-in-mail': 'external_retention',
-};
-
-identityErasure.clearExploration = {
-  dispositions: Object.fromEntries(
-    [
-      ...identityErasure.tables.map((t) => `${t.schema}.${t.table}`),
-      ...(identityErasure.accountTables ?? []).map((t) => `${t.schema}.${t.table}`),
-      ...(identityErasure.accountColumns ?? []).map((t) => `${t.schema}.${t.table}`),
-      ...identityErasure.nonRowStores.map((s) => `store:${s.name}`),
-    ].map((name) => [name, dispositions[name] ?? 'preserve']),
-  ),
-  async erase(scope) {
-    const trx = clearCoreTransactionOf(scope);
-    const witnesses =
-      await sql`delete from identity.recording_lifecycle_witnesses where universe_id=${scope.binding.universeId}::uuid`.execute(
-        trx,
-      );
-    const exports = await deleteExportsOf(trx, scope.binding.accountId);
-    return { module: 'identity', status: 'completed', removed: Number(witnesses.numAffectedRows ?? 0) + exports };
-  },
-};

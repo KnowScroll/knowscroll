@@ -1,5 +1,6 @@
 import { sql, type Transaction } from 'kysely';
-import { exportReading, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
+import { exportReading, type ModuleErasure, type ModuleExport } from '../../../infrastructure/erasure/registry.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
@@ -47,7 +48,7 @@ export const socialStoreLifecycle = {
 } as const;
 
 /** Account-lifetime inventory. Exploration Clear retains profile, friendships, conversations and links. */
-export const socialErasure: ModuleErasure = {
+export const socialErasure = declareErasure({
   module: 'social',
   tables: [],
   nonRowStores: [],
@@ -204,13 +205,14 @@ export const socialErasure: ModuleErasure = {
   },
 
   /** Clearing exploration history keeps profiles, friendships, invites, conversations and links. */
-  clearExploration: {
+  clear: {
     dispositions: Object.fromEntries(
       Object.entries(socialStoreLifecycle).map(([store, lifecycle]) => [store, lifecycle.clear]),
     ),
     erase: () => Promise.resolve({ module: 'social', status: 'completed', removed: 0 }),
   },
-};
+  export: (declaration) => exportSocial(declaration),
+});
 
 /**
  * Takes the row of every thread the account is in, in id order, before anything else of theirs is
@@ -253,118 +255,120 @@ const EXPORT_MESSAGE_LIMIT = 2000;
  * people's names, handles, IDs and messages are never in the file: a friend list and a friend's
  * words are theirs to export.
  */
-socialErasure.export = exportReading(
-  socialErasure,
-  [
-    'social.profiles',
-    'social.roster_entries',
-    'social.invites',
-    'social.conversations',
-    'social.conversation_members',
-    'social.messages',
-    'social.content_threads',
-    'social.message_snippets',
-    'social.content_shares',
-  ],
-  'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping.',
-  async (scope, person) => {
-    const trx = transactionOf(scope);
-    const profile = await trx
-      .selectFrom('social.profiles')
-      .select(['handle', 'display_name'])
-      .where('account_id', '=', person.accountId)
-      .executeTakeFirst();
-    const counts = await trx
-      .selectFrom('social.roster_entries')
-      .select(['kind', (eb) => eb.fn.countAll<string>().as('n')])
-      .where('owner_account_id', '=', person.accountId)
-      .groupBy('kind')
-      .execute();
-    const countOf = (kind: string) => Number(counts.find((row) => row.kind === kind)?.n ?? 0);
-    const invite = await trx
-      .selectFrom('social.invites')
-      .select(['created_at', 'expires_at', 'revoked'])
-      .where('account_id', '=', person.accountId)
-      .executeTakeFirst();
-    const messages = await trx
-      .selectFrom('social.messages as m')
-      .leftJoin('social.message_snippets as s', 's.message_id', 'm.message_id')
-      .select(['m.recorded_at', 'm.body_text', 'm.asset_id', 'm.note', 's.kind as snippet_kind'])
-      .where('m.author_account_id', '=', person.accountId)
-      .orderBy('m.recorded_at', 'desc')
-      .orderBy('m.sequence', 'desc')
-      .limit(EXPORT_MESSAGE_LIMIT)
-      .execute();
-    const started = await trx
-      .selectFrom('social.content_threads')
-      .select(['name', 'created_at'])
-      .where('starter_account_id', '=', person.accountId)
-      .orderBy('created_at', 'desc')
-      .limit(500)
-      .execute();
-    const written = await trx
-      .selectFrom('social.messages')
-      .select((eb) => eb.fn.countAll<string>().as('n'))
-      .where('author_account_id', '=', person.accountId)
-      .executeTakeFirstOrThrow();
-    const memberships = await trx
-      .selectFrom('social.conversation_members as m')
-      .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
-      .select(['c.kind', (eb) => eb.fn.countAll<string>().as('n')])
-      .where('m.account_id', '=', person.accountId)
-      .groupBy('c.kind')
-      .execute();
-    const membershipsOf = (kind: string) => Number(memberships.find((row) => row.kind === kind)?.n ?? 0);
-    const links = await trx
-      .selectFrom('social.content_shares')
-      .select(['created_at', 'expires_at', 'revoked_at', 'conversation_id'])
-      .where('owner_account_id', '=', person.accountId)
-      .orderBy('created_at', 'desc')
-      .limit(500)
-      .execute();
-    return {
-      profile: profile === undefined ? null : { handle: profile.handle, displayName: profile.display_name },
-      connections: {
-        friends: countOf('friends'),
-        requestsReceived: countOf('incoming'),
-        requestsSent: countOf('outgoing'),
-        blocked: countOf('blocked'),
-      },
-      invitation:
-        invite === undefined
-          ? null
-          : {
-              createdAt: invite.created_at.toISOString(),
-              expiresAt: invite.expires_at.toISOString(),
-              revoked: invite.revoked,
-            },
-      conversations: {
-        count: membershipsOf('direct'),
-        messagesWritten: Number(written.n),
-        truncated: Number(written.n) > messages.length,
-        yourMessages: messages.map((message) =>
-          message.body_text === null
-            ? {
-                sentAt: message.recorded_at.toISOString(),
-                shared: sharedWords(message.snippet_kind),
-                ...(message.note === null ? {} : { note: message.note }),
-              }
-            : { sentAt: message.recorded_at.toISOString(), text: message.body_text },
-        ),
-      },
-      threads: {
-        count: membershipsOf('thread'),
-        started: started.map((thread) => ({
-          startedAt: thread.created_at.toISOString(),
-          ...(thread.name === null ? {} : { name: thread.name }),
+function exportSocial(declaration: ModuleErasure): ModuleExport {
+  return exportReading(
+    declaration,
+    [
+      'social.profiles',
+      'social.roster_entries',
+      'social.invites',
+      'social.conversations',
+      'social.conversation_members',
+      'social.messages',
+      'social.content_threads',
+      'social.message_snippets',
+      'social.content_shares',
+    ],
+    'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping.',
+    async (scope, person) => {
+      const trx = transactionOf(scope);
+      const profile = await trx
+        .selectFrom('social.profiles')
+        .select(['handle', 'display_name'])
+        .where('account_id', '=', person.accountId)
+        .executeTakeFirst();
+      const counts = await trx
+        .selectFrom('social.roster_entries')
+        .select(['kind', (eb) => eb.fn.countAll<string>().as('n')])
+        .where('owner_account_id', '=', person.accountId)
+        .groupBy('kind')
+        .execute();
+      const countOf = (kind: string) => Number(counts.find((row) => row.kind === kind)?.n ?? 0);
+      const invite = await trx
+        .selectFrom('social.invites')
+        .select(['created_at', 'expires_at', 'revoked'])
+        .where('account_id', '=', person.accountId)
+        .executeTakeFirst();
+      const messages = await trx
+        .selectFrom('social.messages as m')
+        .leftJoin('social.message_snippets as s', 's.message_id', 'm.message_id')
+        .select(['m.recorded_at', 'm.body_text', 'm.asset_id', 'm.note', 's.kind as snippet_kind'])
+        .where('m.author_account_id', '=', person.accountId)
+        .orderBy('m.recorded_at', 'desc')
+        .orderBy('m.sequence', 'desc')
+        .limit(EXPORT_MESSAGE_LIMIT)
+        .execute();
+      const started = await trx
+        .selectFrom('social.content_threads')
+        .select(['name', 'created_at'])
+        .where('starter_account_id', '=', person.accountId)
+        .orderBy('created_at', 'desc')
+        .limit(500)
+        .execute();
+      const written = await trx
+        .selectFrom('social.messages')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('author_account_id', '=', person.accountId)
+        .executeTakeFirstOrThrow();
+      const memberships = await trx
+        .selectFrom('social.conversation_members as m')
+        .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
+        .select(['c.kind', (eb) => eb.fn.countAll<string>().as('n')])
+        .where('m.account_id', '=', person.accountId)
+        .groupBy('c.kind')
+        .execute();
+      const membershipsOf = (kind: string) => Number(memberships.find((row) => row.kind === kind)?.n ?? 0);
+      const links = await trx
+        .selectFrom('social.content_shares')
+        .select(['created_at', 'expires_at', 'revoked_at', 'conversation_id'])
+        .where('owner_account_id', '=', person.accountId)
+        .orderBy('created_at', 'desc')
+        .limit(500)
+        .execute();
+      return {
+        profile: profile === undefined ? null : { handle: profile.handle, displayName: profile.display_name },
+        connections: {
+          friends: countOf('friends'),
+          requestsReceived: countOf('incoming'),
+          requestsSent: countOf('outgoing'),
+          blocked: countOf('blocked'),
+        },
+        invitation:
+          invite === undefined
+            ? null
+            : {
+                createdAt: invite.created_at.toISOString(),
+                expiresAt: invite.expires_at.toISOString(),
+                revoked: invite.revoked,
+              },
+        conversations: {
+          count: membershipsOf('direct'),
+          messagesWritten: Number(written.n),
+          truncated: Number(written.n) > messages.length,
+          yourMessages: messages.map((message) =>
+            message.body_text === null
+              ? {
+                  sentAt: message.recorded_at.toISOString(),
+                  shared: sharedWords(message.snippet_kind),
+                  ...(message.note === null ? {} : { note: message.note }),
+                }
+              : { sentAt: message.recorded_at.toISOString(), text: message.body_text },
+          ),
+        },
+        threads: {
+          count: membershipsOf('thread'),
+          started: started.map((thread) => ({
+            startedAt: thread.created_at.toISOString(),
+            ...(thread.name === null ? {} : { name: thread.name }),
+          })),
+        },
+        sharedLinks: links.map((link) => ({
+          createdAt: link.created_at.toISOString(),
+          expiresAt: link.expires_at.toISOString(),
+          stopped: link.revoked_at !== null,
+          audience: link.conversation_id === null ? 'anyone with the link' : 'one conversation',
         })),
-      },
-      sharedLinks: links.map((link) => ({
-        createdAt: link.created_at.toISOString(),
-        expiresAt: link.expires_at.toISOString(),
-        stopped: link.revoked_at !== null,
-        audience: link.conversation_id === null ? 'anyone with the link' : 'one conversation',
-      })),
-    };
-  },
-);
+      };
+    },
+  );
+}

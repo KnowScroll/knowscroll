@@ -56,7 +56,9 @@ The emulator job can be re-run alone (**Re-run failed jobs**) without rebuilding
 | `emulator-screenshots` | every `takeScreenshot` PNG, plus `adb-final-screen.png` (an independent capture of the last screen) | 14 days |
 | `emulator-report` | `summary.md`, `device.txt`, `reports/<flow>.xml` (JUnit), `logs/<flow>.log` (Maestro output), `maestro/<flow>/…` (Maestro's artifact folders: commands, failure screenshots and hierarchies, device log), `logcat.txt` | 14 days |
 
-## The test API and the journey (#249, D-045)
+## The test API and the journey (D-045)
+
+Related: #249.
 
 When the APK is built for the default origin `http://127.0.0.1:3399`, the `emulator` job also builds the API and
 worker release trees (`pnpm deploy`, as `checks` does), starts `apps/client/maestro/test-api/serve.mjs` over the

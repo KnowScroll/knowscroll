@@ -1,9 +1,10 @@
 import { clearCoreTransactionOf } from '../postgres/privacy-scope.js';
-import { exportNothing, type ModuleErasure } from '../erasure/registry.js';
+import { declareErasure } from '../erasure/declaration.js';
+import { exportNothing } from '../erasure/registry.js';
 import { transactionOf } from '../postgres/personal-scope.js';
 
 /** Personal command receipts of one universe. Shared receipts follow the shared scope's lifecycle. */
-export const receiptsErasure: ModuleErasure = {
+export const receiptsErasure = declareErasure({
   module: 'receipts',
   tables: [{ schema: 'receipts', table: 'personal_commands', ownerColumn: 'universe_id' }],
   nonRowStores: [],
@@ -16,27 +17,24 @@ export const receiptsErasure: ModuleErasure = {
       .executeTakeFirst();
     return { module: 'receipts', status: 'completed', removed: Number(result.numDeletedRows) };
   },
-};
-
-/** Shared command receipts name the acting account; they go with it. Others' receipts are not touched. */
-receiptsErasure.eraseAccount = async (scope) => {
-  const result = await transactionOf(scope.personal)
-    .deleteFrom('receipts.shared_commands')
-    .where('actor_account_id', '=', scope.accountId)
-    .executeTakeFirst();
-  return { module: 'receipts', status: 'completed', removed: Number(result.numDeletedRows) };
-};
-
-receiptsErasure.clearExploration = {
-  dispositions: { 'receipts.personal_commands': 'erase', 'receipts.shared_commands': 'preserve' },
-  async erase(scope) {
-    const result = await clearCoreTransactionOf(scope)
-      .deleteFrom('receipts.personal_commands')
-      .where('universe_id', '=', scope.binding.universeId)
-      .where('privacy_epoch', '<=', scope.binding.fromEpoch)
+  /** Shared command receipts name the acting account; they go with it. Others' receipts are not touched. */
+  async eraseAccount(scope) {
+    const result = await transactionOf(scope.personal)
+      .deleteFrom('receipts.shared_commands')
+      .where('actor_account_id', '=', scope.accountId)
       .executeTakeFirst();
     return { module: 'receipts', status: 'completed', removed: Number(result.numDeletedRows) };
   },
-};
-
-receiptsErasure.export = exportNothing(receiptsErasure, 'Command bookkeeping.');
+  clear: {
+    dispositions: { 'receipts.personal_commands': 'erase', 'receipts.shared_commands': 'preserve' },
+    async erase(scope) {
+      const result = await clearCoreTransactionOf(scope)
+        .deleteFrom('receipts.personal_commands')
+        .where('universe_id', '=', scope.binding.universeId)
+        .where('privacy_epoch', '<=', scope.binding.fromEpoch)
+        .executeTakeFirst();
+      return { module: 'receipts', status: 'completed', removed: Number(result.numDeletedRows) };
+    },
+  },
+  export: (declaration) => exportNothing(declaration, 'Command bookkeeping.'),
+});
