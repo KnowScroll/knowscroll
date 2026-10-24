@@ -1,6 +1,8 @@
 import { sql } from 'kysely';
 import { z } from 'zod';
+import type { PersonalScopeTx } from '../../identity/public.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { ASSESSMENT_LIFETIME_MS } from '../domain/buffer.js';
 import { poolWith, type JevPool } from '../domain/jev-pool.js';
 import type { ReadJevPool, StoreJevAssessments } from '../application/ports.js';
 
@@ -47,5 +49,21 @@ const storeJevAssessments: StoreJevAssessments = async (scope, added, now) => {
       model=excluded.model, entries=excluded.entries, updated_at=excluded.updated_at`.execute(db);
 };
 
-/** The `composer.jev_assessments` store: the worker reads it when a preparation starts and merges into it when it commits. */
-export const jevPoolStore = { read: readJevPool, store: storeJevAssessments } as const;
+/** Deletes the person's pool once every entry in it is past its life, so an idle person leaves no row behind. */
+const purgeExpiredJevPool = async (scope: PersonalScopeTx, now: Date): Promise<void> => {
+  await sql`delete from composer.jev_assessments where universe_id=${scope.authority.universeId}::uuid
+    and not exists (
+      select 1 from jsonb_array_elements(entries) entry
+      where (entry->>'assessedAt')::timestamptz + make_interval(secs => ${ASSESSMENT_LIFETIME_MS / 1000}::double precision)
+        > ${now.toISOString()}::timestamptz)`.execute(transactionOf(scope));
+};
+
+/**
+ * The `composer.jev_assessments` store: the worker reads it when a preparation starts and merges into it when
+ * it commits; the expired-row purge of the buffer store sweeps it.
+ */
+export const jevPoolStore = {
+  read: readJevPool,
+  store: storeJevAssessments,
+  purgeExpired: purgeExpiredJevPool,
+} as const;

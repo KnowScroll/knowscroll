@@ -168,8 +168,9 @@ source, past its life, other epoch) is never served.
 its life, with no still-valid assessment, deletes it and its decision before reading. The worker's
 replacement deletes the previous one. `pruneComposerDecisions` deletes an expired buffer before its
 decision and skips decisions a live buffer references. Clear and full erasure remove buffers before
-decisions. There is no separate sweep: an idle person keeps at most one expired row until their next
-navigation, the next preparation or erasure.
+decisions. The same purge deletes the person's stored Jev assessments once every one of them has expired.
+There is no separate sweep: an idle person keeps at most one expired buffer row until their next
+navigation or erasure, and no expired assessments after `pruneComposerDecisions` runs for them.
 
 **Coalescing and duplicates.** The job carries the intent revision it was made for. A job whose session
 has moved on does nothing (`session_superseded`), so a newer activation supersedes older queued jobs.
@@ -227,7 +228,7 @@ logs the same.
 
 | Item | Detail |
 |---|---|
-| Tables | `composer.decisions` (0017), `composer.buffers` (0047), `composer.jev_assessments` (0069: one row per person, at most 60 entries, newest first) |
+| Tables | `composer.decisions` (0017), `composer.buffers` (0047), `composer.jev_assessments` (0066: one row per person, at most 60 entries, newest first) |
 | Job | `composer.prepare-buffer` (concurrency 2, expiry 700 s, 2 retries, no dead letter, payload IDs only) |
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |
@@ -238,8 +239,8 @@ logs the same.
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
 leaves the run in the attempt ledger under the job ID; the retry reads it and does not pay again, unless the
 person's pool changed in between and the request now differs: the harness then refuses the same run ID with a
-different request, the preparation goes ahead without new assessments, and nothing is paid twice. An idle
-person keeps one expired pool row until their next preparation or erasure.
+different request, the preparation goes ahead without new assessments, and nothing is paid twice. The
+expired-row purge deletes a pool with no entry left.
 
 ## Using the Planner plan (D-035)
 

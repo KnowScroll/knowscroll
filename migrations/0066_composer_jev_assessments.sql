@@ -10,8 +10,8 @@
 -- Locking: the personal root, as for composer.buffers; the merge reads and writes under it.
 -- Growth: one row per universe, at most 60 entries (about 14 KiB), newest kept.
 -- Retention: an entry is used for 30 minutes after it was assessed; expired entries are dropped
--- when the row is next written. An idle person keeps one expired row until their next preparation
--- or erasure.
+-- when the row is next written, and a row with no entry left is deleted by the same purge that
+-- deletes expired buffers (a navigation, pruneComposerDecisions).
 -- Erasure: Clear and full erasure delete the row with the person's other Composer stores.
 -- Rollout: additive; no earlier writer exists.
 set local lock_timeout = '5s';

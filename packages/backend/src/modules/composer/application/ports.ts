@@ -92,7 +92,9 @@ export type ReleaseComposerBuffer = (
 ) => Promise<void>;
 /**
  * Deletes the person's buffer and its decision once nothing in it can be used again: it is past its
- * life and carries no still-valid assessment. Called by the navigation that would otherwise read it.
+ * life and carries no still-valid assessment. Also deletes the person's stored Jev assessments once every
+ * one is past its life. Called by the navigation that would otherwise read the buffer, and by
+ * `pruneComposerDecisions`.
  */
 export type PurgeExpiredComposerBuffer = (scope: PersonalScopeTx, now: Date) => Promise<void>;
 /** Enqueues, in the caller's transaction, the job that prepares the buffer for this key. */

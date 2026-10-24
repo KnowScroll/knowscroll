@@ -1009,6 +1009,46 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       expect(await read(2)).toMatchObject({ kind: 'entered', value: undefined });
     });
 
+    it('the expired-row purge sweeps a pool with no entry left and keeps one that can still be used', async () => {
+      const person = await seedPerson(database.db);
+      const entry = (assetId: string) => ({
+        subject: 'en|topic:rivers',
+        assetId,
+        assetRevision: 1,
+        relevance: 0.5,
+        appropriateness: 0.5,
+        redundancy: 0.5,
+        assessedAt: new Date().toISOString(),
+      });
+      const pool = {
+        roleVersion: 'jev.1/hp2',
+        model: 'fixture-model-v1',
+        entries: [entry('purge-a'), entry('purge-b')],
+      };
+      const purge = () => withScope()(person.authority, (scope) => composerBufferStore.purgeExpired(scope, new Date()));
+      await withScope()(person.authority, (scope) => jevPoolStore.store(scope, pool, new Date()));
+      await purge();
+      expect(await poolOf(person.universeId)).toBeDefined();
+
+      // One entry past its 30 minutes does not matter while another can still be used.
+      await sql`update composer.jev_assessments set entries=jsonb_set(entries,'{0,assessedAt}',to_jsonb(to_char(
+          (now() - interval '31 minutes') at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
+        where universe_id=${person.universeId}::uuid`.execute(database.db);
+      await purge();
+      expect(await poolOf(person.universeId)).toBeDefined();
+
+      // Once every entry has lapsed the row goes, from a navigation's purge or from pruning.
+      await ageAssessments(person.universeId, 31);
+      await purge();
+      expect(await poolOf(person.universeId)).toBeUndefined();
+      await withScope()(person.authority, (scope) => jevPoolStore.store(scope, pool, new Date()));
+      await ageAssessments(person.universeId, 31);
+      await withScope()(person.authority, (scope) =>
+        makeComposerStore({ isOperator: () => true }).pruneComposerDecisions(scope, 100),
+      );
+      expect(await poolOf(person.universeId)).toBeUndefined();
+    });
+
     it('Clear and full erasure remove the stored assessments with the rest of Composer’s store', async () => {
       const person = await seedPerson(database.db);
       await openAndActivate(person);

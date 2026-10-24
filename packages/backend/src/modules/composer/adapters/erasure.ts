@@ -61,5 +61,6 @@ export const composerErasure = declareErasure({
       };
     },
   },
-  export: (declaration) => exportNothing(declaration, 'Internal ranking decisions and prepared next moves.'),
+  export: (declaration) =>
+    exportNothing(declaration, 'Internal ranking decisions, prepared next moves and stored assessments.'),
 });
