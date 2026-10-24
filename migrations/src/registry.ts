@@ -86,4 +86,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0056_conversations_and_shares',
     sha256: 'd8d2dbfe2ec960a3e67b14d7511ffb22d73f80ded457382e78ef038d6d1d53a4',
   },
+  { name: '0058_content_threads', sha256: 'd13082cac240d63745567a884aff3b495e70af81441347bc16836c44574bd311' },
 ];
