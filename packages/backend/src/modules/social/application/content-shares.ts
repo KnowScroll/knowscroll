@@ -20,6 +20,10 @@ import type { ContentCard, ConversationPorts, ShareRow } from './conversation-po
 import { conversationEnvelope, refuse, type Result } from './ports.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
+const shareEnvelope = (scope: PersonalScopeTx) => ({
+  version: 'content-share.v1' as const,
+  scope: conversationEnvelope(scope).scope,
+});
 const LIST_LIMIT = 50;
 
 /** A card the share surfaces may show: the content exists now, either as shared or corrected since. */
@@ -103,7 +107,7 @@ export function makeContentShares(p: ConversationPorts) {
         };
         const token = p.shareToken();
         const acceptance = ContentShareCreationAcceptanceSchema.parse({
-          ...conversationEnvelope(scope),
+          ...shareEnvelope(scope),
           commandId: command.commandId,
           recordedAt: now.toISOString(),
           replayed: false,
@@ -148,7 +152,7 @@ export function makeContentShares(p: ConversationPorts) {
         if (!share || share.ownerAccountId !== gate.owner.accountId) return refuse('unavailable');
         const now = p.now();
         const acceptance = ContentShareRevocationAcceptanceSchema.parse({
-          ...conversationEnvelope(scope),
+          ...shareEnvelope(scope),
           commandId: command.commandId,
           recordedAt: now.toISOString(),
           replayed: false,
@@ -178,7 +182,7 @@ export function makeContentShares(p: ConversationPorts) {
         const envelope = {
           version: query.version,
           readId: query.readId,
-          scope: conversationEnvelope(scope).scope,
+          scope: shareEnvelope(scope).scope,
           selector: query.selector,
         };
         const share =
@@ -238,7 +242,7 @@ export function makeContentShares(p: ConversationPorts) {
           OwnContentSharesSchema.parse({
             version: parsed.data.version,
             readId: parsed.data.readId,
-            scope: conversationEnvelope(scope).scope,
+            scope: shareEnvelope(scope).scope,
             items,
           }),
         );
@@ -275,7 +279,7 @@ export function makeContentShares(p: ConversationPorts) {
           ResolvedContentShareSchema.parse({
             ...base,
             status: 'conversation',
-            scope: conversationEnvelope(scope).scope,
+            scope: shareEnvelope(scope).scope,
             conversation: { conversationId: share.conversationId, ...membership },
             content: card,
           }),
