@@ -252,27 +252,71 @@ describe('request consumer over actual scoped HTTP fixture transport', () => {
     }
   });
 
-  it("asks again after couldn't prepare as a new request with the same words, or goes back to edit them", async () => {
+  it("tries again after couldn't prepare by retrying the same request, or goes back to edit the words", async () => {
     const h = requestHarness();
     try {
       ask(h);
       await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
       h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'could_not_prepare' });
       await h.session.refresh();
-      h.setStatus({ ...h.fields, requestRevision: 3, status: 'preparing', phase: 'requested' });
       h.session.tryAgain();
-      await waitFor(() => expect(posts(h)).toHaveLength(2));
-      expect(posts(h)[1]!.body).toMatchObject({ intent: (posts(h)[0]!.body as { intent: unknown }).intent });
-      expect((posts(h)[1]!.body as { commandId: string }).commandId).not.toBe(
-        (posts(h)[0]!.body as { commandId: string }).commandId,
-      );
       await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      // One create, one retry that names the same request: no second request beside the closed one.
+      expect(posts(h).map((call) => call.path)).toEqual(['/v1/content/requests', '/v1/content/requests/retry']);
+      expect(posts(h)[1]!.body).toMatchObject({
+        version: 'content-request-retry.v1',
+        requestId: h.fields.requestId,
+      });
+      expect(h.session.getState()).toMatchObject({ phase: 'accepted', error: undefined });
+      expect(h.session.getState().status!.requestRevision).toBeGreaterThan(2);
 
-      h.setStatus({ ...h.fields, requestRevision: 4, status: 'unavailable', reason: 'could_not_prepare' });
+      h.setStatus({ ...h.fields, requestRevision: 6, status: 'unavailable', reason: 'could_not_prepare' });
       await h.session.refresh();
       h.session.editAgain();
       expect(h.session.getState()).toMatchObject({ phase: 'draft', text: 'private prose', status: undefined });
       expect(posts(h)).toHaveLength(2);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('repeats an unconfirmed retry with its exact command, and says plainly when the request cannot be retried', async () => {
+    const h = requestHarness();
+    try {
+      ask(h);
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'could_not_prepare' });
+      await h.session.refresh();
+      h.setRetryFailure('unknown');
+      h.session.tryAgain();
+      await waitFor(() => expect(h.session.getState().phase).toBe('retry_unknown'));
+      h.setRetryFailure(false);
+      h.session.retryTryAgain();
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      const retries = posts(h).filter((call) => call.path.endsWith('/retry'));
+      expect(retries).toHaveLength(2);
+      expect((retries[1]!.body as { commandId: string }).commandId).toBe(
+        (retries[0]!.body as { commandId: string }).commandId,
+      );
+
+      h.setStatus({ ...h.fields, requestRevision: 8, status: 'unavailable', reason: 'could_not_prepare' });
+      await h.session.refresh();
+      h.setRetryOutcome('not_retryable');
+      h.session.tryAgain();
+      await waitFor(() => expect(h.session.getState().error).toBe('not_retryable'));
+      expect(h.session.getState()).toMatchObject({
+        phase: 'accepted',
+        status: { status: 'unavailable', reason: 'could_not_prepare' },
+      });
+      const fresh = posts(h).filter((call) => call.path.endsWith('/retry'));
+      expect((fresh[2]!.body as { commandId: string }).commandId).not.toBe(
+        (retries[0]!.body as { commandId: string }).commandId,
+      );
+
+      h.setRetryFailure('too_many_open');
+      h.session.tryAgain();
+      await waitFor(() => expect(h.session.getState().error).toBe('too_many_open'));
+      expect(h.session.getState().phase).toBe('accepted');
     } finally {
       h.scope.end();
     }

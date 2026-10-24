@@ -1853,11 +1853,13 @@ export interface SupplyRequests {
   privacy_epoch: number;
   reason: string | null;
   request_revision: number;
+  retries: Generated<number>;
   revision: number;
   source_availability_revision: number | null;
   state: string;
   universe_id: string;
   updated_at: Timestamp;
+  wait_started_at: Timestamp | null;
   work_id: string | null;
 }
 

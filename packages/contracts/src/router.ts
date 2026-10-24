@@ -19,6 +19,7 @@ import { readEmergingUniverseContract, readGeographyContract, readUniverseDeltas
 import { mediaGrantContract } from './media.js';
 import {
   cancelContentRequestContract,
+  retryContentRequestContract,
   createContentRequestContract,
   listContentRequestsContract,
   readContentRequestContract,
@@ -75,6 +76,7 @@ export const apiContract: {
     read: typeof readContentRequestContract;
     list: typeof listContentRequestsContract;
     cancel: typeof cancelContentRequestContract;
+    retry: typeof retryContentRequestContract;
   };
   identity: {
     requestSignIn: typeof requestSignInContract;
@@ -128,6 +130,7 @@ export const apiContract: {
     read: readContentRequestContract,
     list: listContentRequestsContract,
     cancel: cancelContentRequestContract,
+    retry: retryContentRequestContract,
   },
   identity: {
     requestSignIn: requestSignInContract,

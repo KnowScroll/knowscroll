@@ -99,5 +99,6 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     sha256: '1a44386beecf585a90cad50c866174b2b0e5964ac31036a81c88f9768326eac5',
   },
   { name: '0066_composer_jev_assessments', sha256: '79d077680d72d9a0d0d297a449053741e0fe861fe66c92213d99205574ac7d9a' },
+  { name: '0067_supply_retry', sha256: 'c1aa702b0131d302b76d327f8b6ed3bc239d5ba789b3cd283180b35ad6ce7ee0' },
   { name: '0068_feedback', sha256: '31048ef043812cc306effd881e7459acb61c7b2c080851460833656e0c590567' },
 ];

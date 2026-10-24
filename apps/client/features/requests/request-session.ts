@@ -4,6 +4,7 @@ import type {
   ContentRequestReceipt,
   ContentRequestStatus,
   CreateContentRequest,
+  RetryContentRequest,
 } from '@knowscroll/contracts';
 import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 
@@ -17,7 +18,16 @@ export const suggestions = [
 ] as const;
 export interface RequestState {
   readonly phase:
-    'draft' | 'sending' | 'send_unknown' | 'accepted' | 'cancelling' | 'cancel_unknown' | 'refused' | 'ended';
+    | 'draft'
+    | 'sending'
+    | 'send_unknown'
+    | 'accepted'
+    | 'cancelling'
+    | 'cancel_unknown'
+    | 'retrying'
+    | 'retry_unknown'
+    | 'refused'
+    | 'ended';
   readonly mode: RequestMode;
   readonly text: string;
   readonly format: Format;
@@ -26,8 +36,11 @@ export interface RequestState {
   readonly source?: Source;
   readonly receipt?: ContentRequestReceipt;
   readonly status?: ContentRequestStatus;
-  /** `too_many_open`: the person already has the most open asks they may have. */
-  readonly error?: 'source' | 'read' | 'refused' | 'too_many_open';
+  /**
+   * `too_many_open`: the person already has the most open asks they may have. `not_retryable`: Try
+   * again was answered that this request cannot be tried again; the closed request is unchanged.
+   */
+  readonly error?: 'source' | 'read' | 'refused' | 'too_many_open' | 'not_retryable';
   readonly reading?: boolean;
   /** The notice the person put away (Later, Dismiss): kept with the request, so a remount does not bring it back. */
   readonly dismissedRequestId?: string;
@@ -51,6 +64,7 @@ export function createRequestSession(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let command: CreateContentRequest | undefined;
   let cancelCommand: CancelContentRequest | undefined;
+  let retryCommand: RetryContentRequest | undefined;
   const listeners = new Set<() => void>();
   const valid = () => live && scope.active;
   const publish = (patch: Partial<RequestState>) => {
@@ -164,11 +178,53 @@ export function createRequestSession(
       });
     }
   }
+  /**
+   * Try again: `request.retry{requestId}` re-drives this same request, so there is one request, not a
+   * second one beside the closed one. An unconfirmed retry goes again with its exact command; the
+   * answer "not retryable" leaves the closed request as it was and says so.
+   */
+  async function runRetry() {
+    if (!valid() || !visible || !retryCommand || !['accepted', 'retry_unknown'].includes(state.phase)) return;
+    const input = retryCommand;
+    const current = generation;
+    stop();
+    publish({ phase: 'retrying', error: undefined });
+    try {
+      const receipt = await scope.api.supply.retry(input);
+      if (!valid() || current !== generation) return;
+      if (
+        receipt.commandId !== input.commandId ||
+        receipt.requestId !== input.requestId ||
+        receipt.privacyEpoch !== scope.account.privacyEpoch
+      )
+        throw new Error('retry_lineage');
+      retryCommand = undefined;
+      polls = 0;
+      if (receipt.outcome === 'not_retryable') {
+        // Nothing changed: the closed request stays on screen, with the reason it cannot go again.
+        publish({ phase: 'accepted', error: 'not_retryable' });
+        return;
+      }
+      // A reopened request reads afresh.
+      publish({ phase: 'accepted', error: undefined, status: undefined });
+      if (visible) void read();
+    } catch (error) {
+      if (!valid() || current !== generation) return;
+      const problem = apiProblem(error);
+      const refused = problem !== undefined && problem.status >= 400 && problem.status < 500;
+      if (refused) retryCommand = undefined;
+      publish({
+        phase: refused ? 'accepted' : 'retry_unknown',
+        error: refused ? (problem.code === 'TOO_MANY_REQUESTS' ? 'too_many_open' : 'not_retryable') : undefined,
+      });
+    }
+  }
   function reset(mode: RequestMode) {
     generation += 1;
     stop();
     command = undefined;
     cancelCommand = undefined;
+    retryCommand = undefined;
     polls = 0;
     state = { ...initial(), mode, source: sourceNow() };
     publish({});
@@ -179,6 +235,7 @@ export function createRequestSession(
     stop();
     command = undefined;
     cancelCommand = undefined;
+    retryCommand = undefined;
     state = { ...initial(), phase: 'ended' };
     listeners.forEach((listener) => listener());
     listeners.clear();
@@ -221,6 +278,7 @@ export function createRequestSession(
     stop();
     command = undefined;
     cancelCommand = undefined;
+    retryCommand = undefined;
     polls = 0;
     publish({ phase: 'draft', receipt: undefined, status: undefined, error: undefined, reading: false });
   }
@@ -287,13 +345,19 @@ export function createRequestSession(
      */
     editAgain,
     /**
-     * "Try again" after "Couldn't prepare": the same ask is sent once more as a new request, since
-     * the closed one cannot be reopened. Nothing waits on the closed one, so the person never gets two.
+     * "Try again" after "Couldn't prepare": asks the server to re-drive this same request
+     * (`request.retry`). One request stays one request; the closed one is never copied.
      */
     tryAgain() {
-      if (state.status?.status !== 'unavailable') return;
-      editAgain();
-      submit();
+      if (!valid() || !visible || state.phase !== 'accepted' || !state.receipt) return;
+      const status = state.status;
+      if (status?.status !== 'unavailable' || status.reason !== 'could_not_prepare') return;
+      retryCommand = { version: 'content-request-retry.v1', commandId: newId(), requestId: state.receipt.requestId };
+      void runRetry();
+    },
+    /** Sends the same Try again once more after an unconfirmed outcome, with its exact command. */
+    retryTryAgain() {
+      if (state.phase === 'retry_unknown') void runRetry();
     },
     startAgain() {
       if (valid() && !['sending', 'send_unknown', 'cancelling', 'cancel_unknown'].includes(state.phase)) reset('topic');

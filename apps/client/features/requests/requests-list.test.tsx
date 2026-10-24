@@ -57,7 +57,7 @@ describe('E07 requests list', () => {
     }
   });
 
-  it("says couldn't prepare with Ask differently, and offers nothing for what can't be made", async () => {
+  it("says couldn't prepare with Retry and Ask differently, and offers nothing for what can't be made", async () => {
     const h = requestsListHarness([
       closedItem(20, 'could_not_prepare'),
       closedItem(21, 'unsupported_request'),
@@ -70,7 +70,7 @@ describe('E07 requests list', () => {
       await waitFor(() => expect(screen.getAllByTestId('request-row')).toHaveLength(3));
       expect(screen.getByLabelText("Couldn't prepare")).toBeTruthy();
       expect(screen.getAllByLabelText("Can't be made")).toHaveLength(2);
-      expect(screen.queryByRole('button', { name: /Retry|Try again/ })).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'Ask differently' })).toHaveLength(1);
       await fireEvent.press(screen.getByRole('button', { name: 'Ask differently' }));
       expect(onAsk).toHaveBeenCalledTimes(1);
@@ -106,6 +106,38 @@ describe('E07 requests list', () => {
     } finally {
       await second.unmount();
       await act(() => stale.scope.end());
+    }
+  });
+
+  it('Retry sends request.retry for that request, shows it preparing again, repeats an unconfirmed one unchanged, and says when it cannot go again', async () => {
+    const h = requestsListHarness([closedItem(20, 'could_not_prepare')]);
+    const screen = await render(frame(<RequestsList session={h.session} onOpen={jest.fn()} onAsk={jest.fn()} />));
+    try {
+      h.session.visible(true);
+      await waitFor(() => expect(screen.getByLabelText("Couldn't prepare")).toBeTruthy());
+      h.setRetryFailure('unknown');
+      await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => expect(screen.getByText(/wasn't confirmed/)).toBeTruthy());
+      h.setRetryFailure(false);
+      await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => expect(screen.queryByLabelText("Couldn't prepare")).toBeNull());
+      const sent = h.retries();
+      expect(sent).toHaveLength(2);
+      expect(sent[0]!.body).toEqual(sent[1]!.body);
+      expect(sent[0]!.body).toMatchObject({ requestId: id(20), version: 'content-request-retry.v1' });
+      expect(screen.getByLabelText('Preparing')).toBeTruthy();
+
+      const again = closedItem(20, 'could_not_prepare');
+      h.setItems([{ ...again, status: { ...again.status, requestRevision: 9 } }]);
+      h.setRetryOutcome('not_retryable');
+      await act(() => h.session.refresh());
+      await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => expect(screen.getByText(/can't be tried again/)).toBeTruthy());
+      expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Ask differently' })).toBeTruthy();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
     }
   });
 });
