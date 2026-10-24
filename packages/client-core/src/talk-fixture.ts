@@ -35,11 +35,14 @@ export function talkServer() {
   let changeCounter = 0;
   let ended = false;
   let closed = false;
+  let peerDeleted = false;
   let readThrough = 0;
   let muted = false;
   let tokenCounter = 0;
   const token = () => `kssh_${String(++tokenCounter).padStart(43, 'T')}`;
 
+  const shownPeer = () =>
+    peerDeleted ? { kind: 'person', personId: id(0), handle: 'deleted.account', displayName: 'Deleted account' } : peer;
   const view = (message: StoredMessage) =>
     message.author === null
       ? { messageId: message.messageId, sequence: message.sequence, status: 'unavailable' }
@@ -102,7 +105,7 @@ export function talkServer() {
           readId: body['readId'],
           status: 'ready',
           conversation,
-          peer,
+          peer: shownPeer(),
           own: { readThroughSequence: readThrough, muted },
           ...(ended ? { ended: true } : {}),
           latestMessageSequence: messages.length,
@@ -389,7 +392,12 @@ export function talkServer() {
     peerLeaves() {
       ended = true;
       closed = true;
-      changeCounter += 0;
+    },
+    /** The other person's account is deleted: the thread is closed and they read as "Deleted account". */
+    peerDeletes() {
+      ended = true;
+      closed = true;
+      peerDeleted = true;
     },
     messageCount: () => messages.length,
     sharesOf: () => [...shares.entries()],

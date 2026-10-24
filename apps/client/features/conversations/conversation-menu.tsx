@@ -14,6 +14,7 @@ export function ConversationMenu({
   name,
   muted,
   ended,
+  canBlock,
   onClose,
   onMute,
   onLeave,
@@ -23,6 +24,8 @@ export function ConversationMenu({
   readonly name: string;
   readonly muted: boolean;
   readonly ended: boolean;
+  /** False when the other person's account is deleted: there is no one to block. */
+  readonly canBlock: boolean;
   readonly onClose: () => void;
   readonly onMute: (muted: boolean) => void;
   readonly onLeave: () => void;
@@ -55,7 +58,15 @@ export function ConversationMenu({
               fullWidth
               onPress={() => setStep('leave')}
             />
-            <Button label={`Block ${name}`} variant="danger" icon="alert" fullWidth onPress={() => setStep('block')} />
+            {canBlock ? (
+              <Button
+                label={`Block ${name}`}
+                variant="danger"
+                icon="alert"
+                fullWidth
+                onPress={() => setStep('block')}
+              />
+            ) : null}
           </>
         ) : step === 'leave' ? (
           <>

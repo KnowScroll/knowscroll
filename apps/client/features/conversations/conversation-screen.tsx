@@ -13,7 +13,12 @@ import {
   type ThreadController,
   type ThreadState,
 } from '@knowscroll/client-core';
-import type { ConversationMessage, DirectConversationRef, PublicPersonRef } from '@knowscroll/contracts';
+import {
+  DELETED_ACCOUNT_LABEL,
+  type ConversationMessage,
+  type DirectConversationRef,
+  type PublicPersonRef,
+} from '@knowscroll/contracts';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, IconButton, Skeleton, StateBlock, Text } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
@@ -85,6 +90,8 @@ function Thread({
   const [draft, setDraft] = useState(() => scope.storage.get(draftKey(reference.conversationId)) ?? '');
   const leaveToTalk = () => router.replace('/conversations');
   const name = state.peer?.displayName ?? 'this person';
+  // Their account is gone: nobody to block, and the banner says what happened, not who left.
+  const accountDeleted = state.peer?.displayName === DELETED_ACCOUNT_LABEL;
   useDocumentTitle(state.peer?.displayName ?? 'Conversation');
   const keepDraft = (text: string) => {
     setDraft(text);
@@ -140,7 +147,7 @@ function Thread({
         <View style={styles.banner}>
           <Banner
             kind="accessEnded"
-            lead={`${name} left this conversation.`}
+            lead={accountDeleted ? 'This account was deleted.' : `${name} left this conversation.`}
             message="You can read it, but you can’t send anything more."
           />
         </View>
@@ -217,6 +224,7 @@ function Thread({
         name={name}
         muted={state.muted}
         ended={state.ended}
+        canBlock={!accountDeleted}
         onClose={() => setMenu(false)}
         onMute={(muted) => void controller.mute(muted)}
         onLeave={() => {

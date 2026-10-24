@@ -168,3 +168,16 @@ describe('conversation thread (labelled in-memory server)', () => {
     expect(thread.getState()).toBe(before);
   });
 });
+
+describe('conversation thread after the other account is deleted', () => {
+  it('rereads the thread when it ends, so the other person shows as "Deleted account"', async () => {
+    const { server, thread } = setup();
+    server.peerSays('goodbye');
+    await thread.load();
+    expect(thread.getState().peer).toEqual(peer);
+    server.peerDeletes();
+    await thread.refresh();
+    expect(thread.getState()).toMatchObject({ ended: true, peer: { displayName: 'Deleted account' } });
+    expect(thread.getState().messages).toHaveLength(1);
+  });
+});

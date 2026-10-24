@@ -14,7 +14,7 @@ import {
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { changesCursor, historyCursor, inboxCursor } from '../domain/cursors.js';
-import { DELETED_PERSON } from '../domain/deleted-person.js';
+import { DELETED_PERSON } from './deleted-person.js';
 import { enterConversation, refOf } from './conversation-gate.js';
 import type { ConversationPorts, InboxRow, MessageRow } from './conversation-ports.js';
 import { viewMessages } from './message-view.js';

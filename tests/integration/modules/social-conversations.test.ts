@@ -2,9 +2,11 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { DirectConversationRef } from '@knowscroll/contracts';
+import { DELETED_ACCOUNT_LABEL, type DirectConversationRef } from '@knowscroll/contracts';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
-import { personalStores } from '@knowscroll/backend/erasure-registry';
+import { eraseCurrentAccount, personalStores } from '@knowscroll/backend/erasure-registry';
+import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
+import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson } from '../support/fixtures.js';
 import {
@@ -35,10 +37,11 @@ describe('direct conversations (real PostgreSQL)', () => {
   let clock: { now: Date };
   let talkOf: Talk['conversations'];
   let friendsOf: Friends;
+  let cases: ReturnType<typeof talkCases>;
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('social_conversations');
-    const cases = talkCases(database.db);
+    cases = talkCases(database.db);
     clock = cases.clock;
     talkOf = cases.talk.conversations;
     friendsOf = cases.friends;
@@ -475,25 +478,78 @@ describe('direct conversations (real PostgreSQL)', () => {
   });
 
   describe('erasure', () => {
-    it('turns the account’s messages into tombstones the other person catches up on, ends its membership and is idempotent', async () => {
+    it('after one account is deleted the other keeps a closed, readable thread with "Deleted account" in its place', async () => {
       const { a, b } = await seedFriends(database.db, friendsOf);
       const { aRef, bRef } = await begin(a, b);
+      const content = await seedContent(database.db);
       unwrap(await send(a, aRef, text('mine one')));
       unwrap(await send(b, bRef, text('theirs')));
-      unwrap(await send(a, aRef, text('mine two')));
+      unwrap(
+        await send(a, aRef, {
+          kind: 'content',
+          target: { assetId: content.assetId, assetRevision: 1 },
+          note: 'mine two',
+        }),
+      );
       const snapshot = await ready(b, bRef);
+      const beforeInbox = unwrap(await inbox(b));
+      expect(beforeInbox.status === 'ready' && beforeInbox.items[0]?.peer.personId).toBe(a.person.personId);
+      const link = unwrap(
+        await cases.talk.shares.create(a.authority, {
+          version: 'content-share.v1',
+          commandId: randomUUID(),
+          target: { assetId: content.assetId, assetRevision: 1 },
+          audience: { kind: 'public_metadata' },
+        }),
+      );
+      if (link.delivery.status !== 'available') throw new Error('CI token');
 
-      const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
-      const erase = () =>
-        withScope(a.authority, (scope) => socialErasure.erase(scope)).then((outcome) => {
-          if (outcome.kind !== 'entered') throw new Error('CI erase');
-          return outcome.value;
+      const listener = new pg.Client({ connectionString: database.settings.url });
+      await listener.connect();
+      const hints: { scope: { id: string } }[] = [];
+      listener.on('notification', (message) => {
+        if (message.payload) hints.push(JSON.parse(message.payload) as { scope: { id: string } });
+      });
+      await listener.query('listen ks_scope_changed');
+      const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      try {
+        const deleting = deleteAccountFor(database.db, boss, {
+          eraseAccountData: eraseCurrentAccount,
+          lockTimeoutMs: 5_000,
         });
-      expect(await erase()).toMatchObject({ module: 'social', status: 'completed', removed: 3 });
-      expect(await erase()).toMatchObject({ status: 'completed', removed: 0 });
+        const receiptId = randomUUID();
+        expect((await deleting.request(a.authority, { receiptId })).kind).toBe('accepted');
+        expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        expect(hints.some((hint) => hint.scope.id === b.universeId)).toBe(true);
+      } finally {
+        await boss.stop({ graceful: false });
+        await listener.end();
+      }
 
+      // Their link is gone; nothing of theirs is readable; the other person's words are intact.
+      expect(
+        unwrap(
+          await cases.talk.shares.previewPublic({
+            version: 'content-share.v1',
+            readId: randomUUID(),
+            token: link.delivery.token,
+          }),
+        ),
+      ).toMatchObject({ status: 'unavailable' });
+      const after = await ready(b, bRef);
+      expect(after.ended).toBe(true);
+      expect(after.peer).toMatchObject({ displayName: DELETED_ACCOUNT_LABEL });
+      expect(after.peer.personId).not.toBe(a.person.personId);
+      expect(after.messages.map((message) => message.status)).toEqual(['unavailable', 'available', 'unavailable']);
+      expect(after.messages[1]).toMatchObject({ body: { text: 'theirs' } });
+      expect(JSON.stringify(after)).not.toMatch(/mine one|mine two/);
+      expect(JSON.stringify(after)).not.toContain(a.person.handle);
+      expect(JSON.stringify(after)).not.toContain(a.person.personId);
       const caughtUp = unwrap(await changes(b, bRef, snapshot.catchUpCursor));
       if (caughtUp.status !== 'ready') throw new Error('CI changes');
+      expect(caughtUp.ended).toBe(true);
       expect(caughtUp.changes.map((change) => [change.message.sequence, change.message.status])).toEqual([
         [1, 'unavailable'],
         [3, 'unavailable'],
@@ -501,17 +557,61 @@ describe('direct conversations (real PostgreSQL)', () => {
       const changeNumbers = caughtUp.changes.map((change) => change.changeSequence);
       expect(changeNumbers[0]).toBeGreaterThan(3);
       expect(changeNumbers[1]).toBeGreaterThan(changeNumbers[0]!);
-      const after = await ready(b, bRef);
-      expect(after.ended).toBe(true);
-      expect(after.messages.map((message) => message.status)).toEqual(['unavailable', 'available', 'unavailable']);
-      expect(JSON.stringify(after)).not.toMatch(/mine one|mine two/);
-      expect(after.messages[1]).toMatchObject({ body: { text: 'theirs' } });
-      const rows = await database.db
-        .selectFrom('social.messages')
-        .selectAll()
-        .where('conversation_id', '=', aRef.conversationId)
-        .execute();
-      expect(rows.filter((row) => row.author_account_id === a.accountId)).toEqual([]);
+
+      // The thread is listed with the placeholder, and can still be read, muted and left, but not written to.
+      const list = unwrap(await inbox(b));
+      if (list.status !== 'ready') throw new Error('CI inbox');
+      expect(list.items).toHaveLength(1);
+      expect(list.items[0]).toMatchObject({ ended: true, peer: { displayName: DELETED_ACCOUNT_LABEL } });
+      expect(await send(b, bRef, text('anyone?'))).toEqual({ kind: 'refused', code: 'unavailable' });
+      const markRead = { version, commandId: randomUUID(), conversation: bRef, throughSequence: 3 };
+      expect(unwrap(await talkOf.markRead(b.authority, markRead))).toMatchObject({
+        acceptedThroughSequence: 3,
+        replayed: false,
+      });
+      expect(unwrap(await talkOf.markRead(b.authority, markRead))).toMatchObject({ replayed: true });
+      unwrap(await talkOf.mute(b.authority, { version, commandId: randomUUID(), conversation: bRef, muted: true }));
+      expect((await ready(b, bRef)).own).toEqual({ readThroughSequence: 3, muted: true });
+      unwrap(await talkOf.leave(b.authority, { version, commandId: randomUUID(), conversation: bRef }));
+      const emptied = unwrap(await inbox(b));
+      expect(emptied.status === 'ready' && emptied.items).toEqual([]);
+      expect(unwrap(await read(b, bRef)).status).toBe('unavailable');
+    });
+
+    it('exports only what the person wrote and the links they made, with nothing of the other person', async () => {
+      const { a, b } = await seedFriends(database.db, friendsOf);
+      const { aRef, bRef } = await begin(a, b);
+      const content = await seedContent(database.db);
+      unwrap(await send(a, aRef, text('what asha wrote')));
+      unwrap(await send(b, bRef, text('what ravi wrote')));
+      unwrap(
+        await send(a, aRef, { kind: 'content', target: { assetId: content.assetId, assetRevision: 1 }, note: 'look' }),
+      );
+      const link = unwrap(
+        await cases.talk.shares.create(a.authority, {
+          version: 'content-share.v1',
+          commandId: randomUUID(),
+          target: { assetId: content.assetId, assetRevision: 1 },
+          audience: { kind: 'public_metadata' },
+        }),
+      );
+      if (link.delivery.status !== 'available') throw new Error('CI token');
+      const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
+      const outcome = await withScope(a.authority, (scope) =>
+        socialErasure.export!.read(scope, { accountId: a.accountId }),
+      );
+      if (outcome.kind !== 'entered') throw new Error('CI export');
+      const file = JSON.stringify(outcome.value);
+      expect(outcome.value['conversations']).toMatchObject({ count: 1, messagesWritten: 2, truncated: false });
+      expect(file).toContain('what asha wrote');
+      expect(file).toContain('look');
+      expect(file).not.toContain('what ravi wrote');
+      expect(file).not.toContain(b.person.handle);
+      expect(file).not.toContain(b.person.personId);
+      expect(file).not.toContain(link.delivery.token);
+      expect(outcome.value['sharedLinks']).toEqual([
+        expect.objectContaining({ stopped: false, audience: 'anyone with the link' }),
+      ]);
     });
 
     it('is declared by every new Social store with a Clear disposition', async () => {

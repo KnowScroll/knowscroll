@@ -128,6 +128,21 @@ describe('conversation thread screen (labelled in-memory server)', () => {
     await finish(server);
   });
 
+  it('names a deleted account neutrally, keeps the history and offers nothing to block', async () => {
+    const server = talkServer();
+    server.peerSays('goodbye');
+    await open(server);
+    await screen.findByText('goodbye');
+    server.peerDeletes();
+    await server.scope.queryClient.refetchQueries();
+    expect(await screen.findByText('This account was deleted.')).toBeOnTheScreen();
+    expect(screen.getByText('goodbye')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Deleted account' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Conversation options' }));
+    expect(screen.queryByRole('button', { name: /^Block/ })).toBeNull();
+    await finish(server);
+  });
+
   it('says nothing about why when the conversation is not available', async () => {
     const server = talkServer();
     server.failNext('/v1/social/conversations/read', 'unavailable');

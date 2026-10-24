@@ -183,7 +183,14 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
           page.changes.map((change) => change.message),
         );
         catchUpCursor = page.continuation.cursor;
+        const wasEnded = state.ended;
         publish({ messages, outgoing: settle(messages), ended: page.ended === true, offline: false });
+        // The conversation just ended (someone left, or an account was deleted): read it afresh,
+        // because who the other person is shown as may have changed with it.
+        if (page.ended === true && !wasEnded) {
+          await load();
+          return;
+        }
         if (page.continuation.kind === 'caught_up') break;
       }
       void markRead();

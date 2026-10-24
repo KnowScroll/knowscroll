@@ -3,7 +3,7 @@ import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import { DELETED_PERSON } from '../domain/deleted-person.js';
+import { DELETED_PERSON } from '../application/deleted-person.js';
 import { bumpInboxHeads } from './inbox-heads.js';
 import type {
   ContentCard,
@@ -15,7 +15,6 @@ import type {
   MemberRow,
   MessageRow,
 } from '../application/conversation-ports.js';
-import type { PairLock } from '../application/ports.js';
 
 type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
