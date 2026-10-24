@@ -12,7 +12,10 @@ const POLL_MS = 30_000;
  */
 export function useThreadInbox(scope: AccountScope | undefined) {
   const key = useMemo(
-    () => (scope === undefined ? ([TALK_QUERY_KEY, 'signed-out', 'threads'] as const) : scope.queryKey(TALK_QUERY_KEY, 'threads')),
+    () =>
+      scope === undefined
+        ? ([TALK_QUERY_KEY, 'signed-out', 'threads'] as const)
+        : scope.queryKey(TALK_QUERY_KEY, 'threads'),
     [scope],
   );
   const query = useQuery({

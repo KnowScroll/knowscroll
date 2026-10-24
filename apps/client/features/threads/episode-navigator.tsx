@@ -5,7 +5,8 @@ import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
 
 /** The words a screen reader gets for one episode: its place, its title and each state as a word, never colour alone. */
 export function episodeLabel(episode: ThreadEpisode, selected: boolean, series: boolean): string {
-  const place = series && episode.part !== undefined ? `Part ${String(episode.part)}` : episode.kind === 'reel' ? 'Reel' : 'Scroll';
+  const place =
+    series && episode.part !== undefined ? `Part ${String(episode.part)}` : episode.kind === 'reel' ? 'Reel' : 'Scroll';
   const states = [
     selected ? 'selected' : undefined,
     episode.visited ? 'visited by you' : undefined,
@@ -40,12 +41,7 @@ function EpisodeCard({
       aria-pressed={selected}
       accessibilityLabel={episodeLabel(episode, selected, series)}
       onPress={onSelect}
-      style={[
-        styles.card,
-        selected ? styles.selected : null,
-        unavailable ? styles.dashed : null,
-        focus.style,
-      ]}
+      style={[styles.card, selected ? styles.selected : null, unavailable ? styles.dashed : null, focus.style]}
       testID={`episode-${episode.assetId}`}
     >
       <View style={styles.tile}>

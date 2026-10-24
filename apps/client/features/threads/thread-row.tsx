@@ -12,7 +12,12 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
   const view = threadRowView(item);
   const href = threadHref(item.thread);
   const time = listTime(view.at, new Date());
-  const kind = item.root.status === 'available' ? item.root.metadata.kind : item.root.status === 'corrected' ? item.root.current.metadata.kind : 'reel';
+  const kind =
+    item.root.status === 'available'
+      ? item.root.metadata.kind
+      : item.root.status === 'corrected'
+        ? item.root.current.metadata.kind
+        : 'reel';
   return (
     <View style={styles.rowFrame}>
       <RowLink

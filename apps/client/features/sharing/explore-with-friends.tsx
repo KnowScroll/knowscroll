@@ -54,7 +54,9 @@ function Row({
 }
 
 function useSession(scope: AccountScope, root: ConversationContentRef) {
-  const [session] = useState<ExploreWithFriendsSession>(() => createExploreWithFriends({ scope, root, newId: newCommandId }));
+  const [session] = useState<ExploreWithFriendsSession>(() =>
+    createExploreWithFriends({ scope, root, newId: newCommandId }),
+  );
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   return { session, state };
 }
@@ -87,7 +89,9 @@ export function ExploreWithFriends({
   }, [session]);
   const { friends, selected, create } = state;
   const needle = query.trim().toLowerCase();
-  const visible = friends.items.filter((person) => `${person.displayName} ${person.handle}`.toLowerCase().includes(needle));
+  const visible = friends.items.filter((person) =>
+    `${person.displayName} ${person.handle}`.toLowerCase().includes(needle),
+  );
   const locked = create.status === 'creating' || create.status === 'unconfirmed' || create.status === 'created';
   const count = selected.length;
   if (create.status === 'created')
@@ -132,7 +136,9 @@ export function ExploreWithFriends({
         <Banner kind="error" lead="Couldn’t load your friends." message="Check your connection and try again." />
       ) : null}
       {friends.status === 'ready' && friends.items.length === 0 ? (
-        <Text variant="bodyS">You haven’t got any friends here yet. Invite a friend from Talk, then share this with them.</Text>
+        <Text variant="bodyS">
+          You haven’t got any friends here yet. Invite a friend from Talk, then share this with them.
+        </Text>
       ) : null}
       {friends.items.length > SEARCH_FROM ? (
         <TextInput
@@ -164,7 +170,11 @@ export function ExploreWithFriends({
         />
       ) : null}
       {create.status === 'unavailable' ? (
-        <Banner kind="error" lead="This can’t be started right now." message="Choose different people or try again later." />
+        <Banner
+          kind="error"
+          lead="This can’t be started right now."
+          message="Choose different people or try again later."
+        />
       ) : null}
       {create.status === 'failed' ? (
         <Banner kind="error" lead="Couldn’t create the thread." message="Nothing was created. Try again." />

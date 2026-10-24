@@ -119,7 +119,8 @@ export function InvitationView({
   readonly onDecline: () => void;
 }) {
   const root = state.root;
-  const metadata = root?.status === 'available' ? root.metadata : root?.status === 'corrected' ? root.current.metadata : undefined;
+  const metadata =
+    root?.status === 'available' ? root.metadata : root?.status === 'corrected' ? root.current.metadata : undefined;
   const inviter = state.invitedBy;
   return (
     <View style={styles.invitation}>
@@ -167,7 +168,13 @@ const styles = StyleSheet.create({
   people: { gap: spacing[2] },
   person: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   options: { gap: spacing[3] },
-  invitation: { padding: layout.gutter, gap: spacing[3], width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
+  invitation: {
+    padding: layout.gutter,
+    gap: spacing[3],
+    width: '100%',
+    maxWidth: layout.measureDesktop,
+    alignSelf: 'center',
+  },
   invitationCard: {
     gap: spacing[3],
     padding: spacing[5],

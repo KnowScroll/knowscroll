@@ -34,7 +34,13 @@ function ReaderBody({
             store={store}
             floating={
               send.status === 'sent' ? undefined : (
-                <Button label="Share from this Scroll" icon="share" size="sm" onPress={() => setSharing(true)} testID="share-from-scroll" />
+                <Button
+                  label="Share from this Scroll"
+                  icon="share"
+                  size="sm"
+                  onPress={() => setSharing(true)}
+                  testID="share-from-scroll"
+                />
               )
             }
             afterHeader={
@@ -89,7 +95,9 @@ export function ThreadScrollReaderScreen(params: {
       <StateBlock
         title="This Scroll isn’t available here"
         body="Open it from the thread."
-        actions={[{ label: 'Back', onPress: () => (router.canGoBack() ? router.back() : router.replace('/conversations')) }]}
+        actions={[
+          { label: 'Back', onPress: () => (router.canGoBack() ? router.back() : router.replace('/conversations')) },
+        ]}
       />
     );
   return <ReaderBody scope={state.scope} thread={thread} assetId={params.assetId.toLowerCase()} />;

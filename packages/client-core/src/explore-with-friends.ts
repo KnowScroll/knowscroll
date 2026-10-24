@@ -73,7 +73,8 @@ export function createExploreWithFriends(options: ExploreWithFriendsOptions): Ex
   async function readFriends(): Promise<readonly PublicPersonRef[]> {
     const recent: string[] = [];
     const inbox = await scope.api.conversations.inbox({ version: CONVERSATIONS_VERSION, readId: newId(), limit: 50 });
-    if (inbox.status === 'ready') for (const item of inbox.items) if (item.ended !== true) recent.push(item.peer.personId);
+    if (inbox.status === 'ready')
+      for (const item of inbox.items) if (item.ended !== true) recent.push(item.peer.personId);
     const friends = new Map<string, PublicPersonRef>();
     let cursor: Parameters<typeof scope.api.friendPages.friends>[0]['cursor'];
     for (let pages = 0; pages < MAX_FRIEND_PAGES; pages++) {
@@ -117,7 +118,8 @@ export function createExploreWithFriends(options: ExploreWithFriendsOptions): Ex
       if (!locked()) publish({ name: name.slice(0, NAME_LIMIT) });
     },
     async create() {
-      if (state.selected.length === 0 || state.create.status === 'creating' || state.create.status === 'created') return;
+      if (state.selected.length === 0 || state.create.status === 'creating' || state.create.status === 'created')
+        return;
       const name = state.name.trim();
       const body = JSON.stringify([state.selected, name]);
       // A different choice is a different intent; the same choice after an unknown outcome is the same command.

@@ -8,7 +8,11 @@ const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12,
 const thread: ContentThreadRef = { threadId: id(1), membershipId: id(2), membershipRevision: 1 };
 const asha = { kind: 'person' as const, personId: id(10), handle: 'ci.asha', displayName: 'Asha fixture' };
 const target = { assetId: id(30), assetRevision: 1 };
-const root = { status: 'available' as const, target, metadata: { kind: 'reel' as const, title: 'The edge', summary: '', language: 'en' } };
+const root = {
+  status: 'available' as const,
+  target,
+  metadata: { kind: 'reel' as const, title: 'The edge', summary: '', language: 'en' },
+};
 const cursor = (n: number) => `kcc1_${'A'.repeat(25)}${String(n)}`;
 
 const unavailable = () =>
@@ -142,8 +146,7 @@ describe('a content thread on the client', () => {
     const commandIds: string[] = [];
     let call = 0;
     const scope = scopeOf({
-      read: () =>
-        Promise.resolve({ status: 'invitation', thread, root, invitedBy: asha, participantCount: 2 }),
+      read: () => Promise.resolve({ status: 'invitation', thread, root, invitedBy: asha, participantCount: 2 }),
       respond: (input: { commandId: string }) => {
         commandIds.push(input.commandId);
         call++;

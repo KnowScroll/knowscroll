@@ -410,3 +410,19 @@ For each requested `(assetId, assetRevision)` the read returns one of:
 It reads only the asset's status and kind, each revision's title and language, and the discovery summary. It never reads the
 document, a reading fact or any personal state, and it creates no evidence. One SQL statement serves up to 100 refs.
 *Implemented.*
+
+## Thread sequences and snippet anchors (#243, D-046)
+
+Social threads read three things from Content through `public.ts`, never through its tables. None creates evidence.
+
+| Port | Where it runs | Used for |
+| --- | --- | --- |
+| `READ_CONTENT_SEQUENCE` (`readContentSequence(scope, root)`) | inside the caller's shared transaction | the episodes of a thread: the declared series (`series_units`, latest series revision) that contains the root revision, by part, else the root alone; each unit says `ready`, `corrected` or `unavailable` |
+| `VALIDATE_SNIPPET_ANCHOR` (`validateSnippetAnchor(scope, target, anchor)`) | inside the caller's shared transaction | send: the target is the current admitted revision; a Reel range is at least a second and inside the duration; a passage has a stable block, a valid text range and the quote hash; a block has its id, type and version and a settings snapshot that scroll-model accepts, with personal values only if confirmed |
+| `RESOLVE_SNIPPET_ANCHOR` (`resolveSnippetAnchor(scope, stored)`) | inside the caller's shared transaction | open: the same anchor while the revision is current; a Scroll anchor re-pointed through `deriveAnchorMap` and `repointLocator` (`mapped`, with settings reset when the block changed); `changed` for a corrected Reel or a passage that is gone; `unavailable` when withdrawn |
+
+Validation returns the quote, the block label and the settings in words, which Social stores with the message. Resolution
+reads the document only to find the block; it returns the quote, label and description for the revision it points at.
+Reel ranges have no time mapping between revisions, so a corrected Reel is never played from an old range.
+The pure rules (`domain/snippets.ts`) are `reelRangeHolds` and the snippet grammar. *Implemented; runtime-verified locally
+with a real Reel and two Scrolls, not on dev.*

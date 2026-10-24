@@ -40,7 +40,12 @@ function EndControl({
         <Button label="−1 s" size="sm" variant="ghost" onPress={() => onNudge(-1000)} />
         <Button label="+1 s" size="sm" variant="ghost" onPress={() => onNudge(1000)} />
         <Button label="+5 s" size="sm" variant="ghost" onPress={() => onNudge(5000)} />
-        <Button label="Here" size="sm" onPress={onHere} accessibilityHint={`Sets the ${label.toLowerCase()} to where the player is now`} />
+        <Button
+          label="Here"
+          size="sm"
+          onPress={onHere}
+          accessibilityHint={`Sets the ${label.toLowerCase()} to where the player is now`}
+        />
       </View>
     </View>
   );
@@ -105,19 +110,17 @@ export function ShareMomentSheet({
             onChangeText={setNote}
             maxLength={500}
             allowFontScaling={false}
-            style={[styles.input, { fontFamily: type.fontFamily, fontSize: type.fontSize, lineHeight: type.lineHeight }]}
+            style={[
+              styles.input,
+              { fontFamily: type.fontFamily, fontSize: type.fontSize, lineHeight: type.lineHeight },
+            ]}
           />
         </View>
         <View style={styles.footer}>
           <Text variant="monoXs" color={content.ink2} numberOfLines={1} style={styles.to}>
             To · {threadName}
           </Text>
-          <Button
-            label="Share"
-            variant="primary"
-            onPress={() => onShare(range, note.trim())}
-            testID="share-moment"
-          />
+          <Button label="Share" variant="primary" onPress={() => onShare(range, note.trim())} testID="share-moment" />
         </View>
       </View>
     </BottomSheet>

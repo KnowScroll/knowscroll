@@ -236,5 +236,11 @@ const styles = StyleSheet.create({
   theirBubble: { backgroundColor: content.paper, borderWidth: borderWidth.regular, borderColor: content.ink },
   failedBubble: { backgroundColor: content.paper, borderWidth: borderWidth.regular, borderColor: status.danger.edge },
   removed: { backgroundColor: content.paper2, borderWidth: borderWidth.light, borderColor: content.muted },
-  failure: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], flexWrap: 'wrap', justifyContent: 'flex-end' },
+  failure: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
 });

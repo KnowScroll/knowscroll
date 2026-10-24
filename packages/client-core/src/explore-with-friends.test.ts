@@ -22,7 +22,9 @@ function scopeOf(options: { friends: number; create: (input: { commandId: string
   const scope = {
     active: true,
     api: {
-      conversations: { inbox: () => Promise.resolve({ status: 'ready', items: [{ peer: person(3), conversation: {} }] }) },
+      conversations: {
+        inbox: () => Promise.resolve({ status: 'ready', items: [{ peer: person(3), conversation: {} }] }),
+      },
       friendPages: {
         friends: () =>
           Promise.resolve({

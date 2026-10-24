@@ -62,8 +62,12 @@ async function currentTitle(p: ThreadPorts, lock: ThreadLock, location: ContentR
  * The anchor to open, with the words the banner shows. They come from the stored snippet, which copied
  * them from the exact revision the sender saw; a correction only moved where they are found.
  */
-function openedAnchor(resolved: Extract<SnippetResolution, { status: 'ready' }>['anchor'], stored: StoredSnippetAnchor) {
-  if (resolved.kind === 'scroll_passage' && stored.kind === 'scroll_passage') return { ...resolved, quote: stored.quote };
+function openedAnchor(
+  resolved: Extract<SnippetResolution, { status: 'ready' }>['anchor'],
+  stored: StoredSnippetAnchor,
+) {
+  if (resolved.kind === 'scroll_passage' && stored.kind === 'scroll_passage')
+    return { ...resolved, quote: stored.quote };
   if (resolved.kind === 'scroll_block' && stored.kind === 'scroll_block') {
     const settings = resolved.snapshot === undefined ? undefined : stored.settings;
     return {

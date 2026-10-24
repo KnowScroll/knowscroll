@@ -1,4 +1,10 @@
-import { defaultBlockState, findBlock, type BlockState, type BlockStateSnapshot, type ScrollDocument } from '@knowscroll/scroll-model';
+import {
+  defaultBlockState,
+  findBlock,
+  type BlockState,
+  type BlockStateSnapshot,
+  type ScrollDocument,
+} from '@knowscroll/scroll-model';
 import type { ScrollBlockKey, ScrollBlockStateStore } from './block-state-store';
 
 /**

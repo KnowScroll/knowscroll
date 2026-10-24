@@ -5,7 +5,11 @@ import { borderWidth, content, radius, spacing, status } from '@knowscroll/desig
 import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
 
 const titleOf = (card: ConversationContentProjection): string | undefined =>
-  card.status === 'available' ? card.metadata.title : card.status === 'corrected' ? card.current.metadata.title : undefined;
+  card.status === 'available'
+    ? card.metadata.title
+    : card.status === 'corrected'
+      ? card.current.metadata.title
+      : undefined;
 
 /** The mono label above a card, from what the card points at: "Part 2 · Reel", "Passage · Scroll". */
 function kindLabel(snippet: SnippetCardData, partLabel: string | undefined): string {
