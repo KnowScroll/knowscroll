@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
@@ -59,6 +60,14 @@ function playbackStatus(status: VideoPlayer['status'], playing: boolean): Playba
 }
 
 /** What the screen needs to draw the progress row and sound control over the video. */
+/** Playback commands for a screen that draws its own compact controls (a thread's inline player). */
+export interface ReelControls {
+  /** Play, pause, or Retry after a failure: exactly what tapping the stage does. */
+  toggle(): void;
+  /** Move the playhead by this many seconds, clamped to the Reel. */
+  seekBy(seconds: number): void;
+}
+
 export interface ReelPlaybackView {
   readonly positionMs: number;
   readonly durationMs: number;
@@ -88,6 +97,10 @@ export interface ReelPlayerProps {
   /** Explicit sound changes only; never called for the temporary source-replacement mute. */
   readonly onMutedChange?: (muted: boolean) => void;
   readonly positionRef?: Ref<ReelPositionHandle>;
+  /** For screens that draw their own play, seek and sound controls. */
+  readonly controlsRef?: Ref<ReelControls>;
+  /** The whole stage is one play/pause button by default; false leaves the controls to the screen. */
+  readonly tapToToggle?: boolean;
   /** Wrap only the noninteractive video/poster stage. Playback controls remain outside.
    * Return a flex-filling element and preserve the supplied stage; own gesture policy in the app.
    */
@@ -126,6 +139,8 @@ export function ReelPlayer({
   initialPlaying,
   onMutedChange,
   positionRef,
+  controlsRef,
+  tapToToggle = true,
   renderStage,
   loadSource,
   onSample,
@@ -437,6 +452,13 @@ export function ReelPlayer({
     };
   }, [player, onSample, onDiscontinuity, active, restoreInstalledPosition]);
   const focus = useFocusRing('onDark');
+  const seekBy = (delta: number) => {
+    if (ended.current) return;
+    onDiscontinuity();
+    seekPlayback(player, Math.max(0, Math.min(durationMs / 1000, player.currentTime + delta)));
+    resumePosition.current = player.currentTime;
+    setPosition(player.currentTime);
+  };
   const togglePlayback = () => {
     if (ended.current) return;
     if (status === 'error') {
@@ -469,6 +491,15 @@ export function ReelPlayer({
     setMuted(next);
     onMutedChange?.(next);
   };
+  const controls = useRef({ toggle: togglePlayback, seekBy });
+  useLayoutEffect(() => {
+    controls.current = { toggle: togglePlayback, seekBy };
+  });
+  useImperativeHandle(
+    controlsRef,
+    () => ({ toggle: () => controls.current.toggle(), seekBy: (seconds) => controls.current.seekBy(seconds) }),
+    [],
+  );
   const stage = (
     <>
       <VideoView
@@ -480,20 +511,22 @@ export function ReelPlayer({
         fullscreenOptions={{ enable: false }}
         accessibilityLabel={title}
       />
-      <Pressable
-        {...focus.props}
-        testID="reel-playback-toggle"
-        accessibilityRole="button"
-        accessibilityLabel={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
-        onPress={togglePlayback}
-        style={[styles.touchSurface, focus.style]}
-      >
-        {status === 'ready' && !playing ? (
-          <View style={styles.playDisc} pointerEvents="none">
-            <Icon name="play" size={30} color={content.ink} />
-          </View>
-        ) : null}
-      </Pressable>
+      {tapToToggle ? (
+        <Pressable
+          {...focus.props}
+          testID="reel-playback-toggle"
+          accessibilityRole="button"
+          accessibilityLabel={status === 'error' ? 'Retry' : playing ? 'Pause' : 'Play'}
+          onPress={togglePlayback}
+          style={[styles.touchSurface, focus.style]}
+        >
+          {status === 'ready' && !playing ? (
+            <View style={styles.playDisc} pointerEvents="none">
+              <Icon name="play" size={30} color={content.ink} />
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
       {status === 'loading' || status === 'buffering' ? (
         <View style={styles.centered} pointerEvents="none" accessibilityLiveRegion="polite">
           <Spinner size={44} color={content.paper} />

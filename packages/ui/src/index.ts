@@ -39,6 +39,7 @@ export { AccountButton, type AccountButtonProps } from './navigation/account-but
 export * from './scroll';
 export {
   ReelPlayer,
+  type ReelControls,
   type ReelLocalPosition,
   type ReelPlaybackStatus,
   type ReelPlaybackView,

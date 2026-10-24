@@ -5,7 +5,7 @@ import { useVideoPlayer, type VideoPlayer, type VideoSource } from 'expo-video';
 import { focusRing } from '@knowscroll/design-tokens';
 import { expectPressed, renderOn } from '../test-support/render';
 import { DisplayProvider } from '../display/display';
-import { ReelPlayer, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
+import { ReelPlayer, type ReelControls, type ReelPlayerProps, type ReelPositionHandle } from './reel-player';
 import { ReelProgress } from './reel-progress';
 
 /** The player with the progress row and sound switch the screens draw over it. */
@@ -820,6 +820,64 @@ describe('Reel stage wrapper', () => {
 });
 
 // Labelled SDK fixtures: audio intent and teardown ordering, never actual decoding or playback.
+describe('screen-drawn controls', () => {
+  it('lets a screen play, pause and seek through controlsRef, and leave the stage without a button', async () => {
+    const seeks: number[] = [];
+    const play = jest.fn();
+    let seconds = 5;
+    const player = {
+      get currentTime() {
+        return seconds;
+      },
+      set currentTime(value: number) {
+        seeks.push(value);
+        seconds = value;
+      },
+      playing: false,
+      status: 'readyToPlay',
+      playbackRate: 1,
+      play,
+      pause: jest.fn(),
+      replaceAsync: jest.fn(() => Promise.resolve()),
+      addListener: () => ({ remove: () => undefined }),
+    } as unknown as VideoPlayer;
+    jest.mocked(useVideoPlayer).mockReturnValue(player);
+    const controlsRef = createRef<ReelControls>();
+    const rendered = await renderOn(
+      <ReelPlayer
+        title="Compact fixture"
+        durationMs={30000}
+        active
+        tapToToggle={false}
+        controlsRef={controlsRef}
+        loadSource={() =>
+          Promise.resolve({
+            source: { uri: 'https://fixture.invalid/media/compact' },
+            expiresAt: new Date(Date.now() + 60000).toISOString(),
+          })
+        }
+        onSample={jest.fn()}
+        onDiscontinuity={jest.fn()}
+        registerEnd={() => () => undefined}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
+    await act(async () => {
+      controlsRef.current?.seekBy(10);
+      await Promise.resolve();
+    });
+    expect(seeks.at(-1)).toBe(15);
+    await act(async () => {
+      controlsRef.current?.seekBy(-100);
+      controlsRef.current?.toggle();
+      await Promise.resolve();
+    });
+    expect(seeks.at(-1)).toBe(0);
+    expect(play).toHaveBeenCalledTimes(1);
+    await rendered.unmount();
+  });
+});
+
 describe('explicit Reel sound controls', () => {
   afterEach(() => jest.useRealTimers());
   function fixture() {
