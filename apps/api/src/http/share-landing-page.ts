@@ -30,25 +30,42 @@ function conversationPath(ref: DirectConversationRef): string {
 }
 
 // Values of the content register in packages/design-tokens (paper, ink, ink2, accent, onAccent,
-// rule, paper2, corrected). The API does not depend on the client's token package.
+// rule, paper2, corrected, continue). The API does not depend on the client's token package.
 const styles = `
-:root{--paper:#FFFBF0;--paper2:#F4EDD8;--ink:#111111;--ink2:#4A463D;--accent:#2C46E8;--on-accent:#FFFBF0;--rule:#D9D1BC;--corrected-bg:#FFE9DE;--corrected-fg:#8A2C07}
+:root{--paper:#FFFBF0;--paper2:#F4EDD8;--ink:#111111;--ink2:#4A463D;--accent:#2C46E8;--on-accent:#FFFBF0;--rule:#D9D1BC;--corrected-bg:#FFE9DE;--corrected-fg:#8A2C07;--continue:#FFE44D}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:34rem;margin:0 auto;padding:1rem 1rem 3rem}
 .bar{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--rule);padding:.5rem 0 .75rem;margin-bottom:2rem}
 .brand{font-weight:700;letter-spacing:-.01em}
 a{color:var(--accent)}
+.bar a{display:inline-flex;align-items:center;min-height:40px;padding:0 1rem;border:2px solid var(--ink);border-radius:999px;color:var(--ink);text-decoration:none;font-weight:600}
+.poster{position:relative;display:grid;place-items:center;aspect-ratio:1/1;max-height:22rem;margin:0 6px 1.75rem 0;background:var(--accent);border:2px solid var(--ink);border-radius:1.5rem;box-shadow:6px 6px 0 var(--ink)}
+.poster svg{width:46%;height:auto}
+.poster .chip{position:absolute;left:.75rem;bottom:.75rem;background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);border-radius:999px;padding:.1rem .6rem;font:600 .75rem ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;text-transform:uppercase}
 h1{font-size:1.65rem;line-height:1.2;letter-spacing:-.02em;margin:.25rem 0 .75rem}
 .kicker{margin:0;color:var(--ink2);font-size:.9rem}
 .summary{color:var(--ink2);margin:0 0 1.5rem}
 .label{display:inline-block;background:var(--corrected-bg);color:var(--corrected-fg);border:2px solid var(--corrected-fg);border-radius:.5rem;padding:.1rem .5rem;font-size:.85rem;font-weight:600;margin:0 0 .75rem}
 .actions{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center}
-.button{display:inline-flex;align-items:center;min-height:48px;padding:0 1.25rem;border:2px solid var(--ink);border-radius:.75rem;font-weight:600;text-decoration:none;background:var(--paper);color:var(--ink)}
+.button{display:inline-flex;align-items:center;min-height:48px;padding:0 1.25rem;border:2px solid var(--ink);border-radius:999px;font-weight:600;text-decoration:none;background:var(--paper);color:var(--ink);box-shadow:0 3px 0 var(--ink)}
 .button.primary{background:var(--accent);color:var(--on-accent)}
 .button:focus-visible,a:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .note{color:var(--ink2);margin:1.5rem 0 0}
 `;
+
+/**
+ * A drawn stand-in for the poster (H02): the shared Reel or Scroll as a cobalt card with its kind. The
+ * page never carries the media or a person's name, so the card is the same for every link of a kind.
+ */
+function poster(word: string): string {
+  const frame = '<rect x="2" y="2" width="92" height="68" rx="10" fill="none" stroke="#FFFBF0" stroke-width="4"/>';
+  const glyph =
+    word === 'Reel'
+      ? '<circle cx="48" cy="36" r="16" fill="#FFFBF0"/><path d="M43 28L58 36L43 44Z" fill="#111111"/>'
+      : '<path d="M20 22h40M20 36h56M20 50h28" stroke="#FFE44D" stroke-width="5" stroke-linecap="round"/>';
+  return `<div class="poster" aria-hidden="true"><svg viewBox="0 0 96 72" focusable="false">${frame}${glyph}</svg><span class="chip">${word}</span></div>\n`;
+}
 
 const kindWord = (content: Content) => {
   const metadata = content.status === 'available' ? content.metadata : content.current.metadata;
@@ -90,7 +107,7 @@ function contentBody(content: Content, extra: { kicker?: string; actions: string
       : '';
   const kicker = extra.kicker ?? (content.status === 'available' ? word : '');
   return `<section lang="${escape(current.language)}">
-${corrected}${kicker ? `<p class="kicker">${escape(kicker)}</p>\n` : ''}<h1>${escape(current.title)}</h1>
+${corrected}${poster(word)}${kicker ? `<p class="kicker">${escape(kicker)}</p>\n` : ''}<h1>${escape(current.title)}</h1>
 <p class="summary">${escape(current.summary)}</p>
 </section>
 <div class="actions">${extra.actions}</div>${extra.note ? `\n<p class="note">${extra.note}</p>` : ''}`;
