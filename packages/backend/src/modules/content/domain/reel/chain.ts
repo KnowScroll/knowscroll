@@ -24,7 +24,11 @@ export interface RunResultFacts {
   readonly estimateCents?: number | undefined;
   /** Why a refused or stopped run ended: `budget` or `rule`. */
   readonly reason?: string | undefined;
+  /** For a budget answer: which limit, `reel` or `ceiling`. */
+  readonly limit?: string | undefined;
   readonly rule?: string | undefined;
+  /** The step a rule stopped the run at. */
+  readonly step?: string | undefined;
   readonly detail?: string | undefined;
   readonly stills?: readonly { readonly pictureId: string; readonly shotId: string }[] | undefined;
   readonly videoPath?: string | undefined;
@@ -92,6 +96,26 @@ export function foldChain(requestId: string, runs: readonly ChainRun[]): ChainRe
     costCents: results.reduce((sum, result) => sum + result.costCents, 0),
     tip: tip.result,
   };
+}
+
+const MAX_DETAIL_CHARS = 500;
+
+/**
+ * A short plain account of why a request did not complete, for the operator. Cutroom's free text is
+ * about our own script, but a provider response can carry a credential, so URLs and paths never
+ * pass (CF-10). `null` when the request completed.
+ */
+export function describeEnd(result: RunResultFacts): string | null {
+  if (result.status === 'completed') return null;
+  const parts: string[] = [result.status];
+  if (result.reason === 'budget') parts.push(`budget (${result.limit ?? 'unknown'} limit)`);
+  if (result.reason === 'rule') parts.push(`rule ${result.rule ?? 'unknown'} at ${result.step ?? 'unknown'}`);
+  if (result.detail !== undefined && result.detail.length > 0) parts.push(result.detail);
+  return parts
+    .join(': ')
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url]')
+    .replace(/(?:\/[\w.@~-]+){2,}/g, '[path]')
+    .slice(0, MAX_DETAIL_CHARS);
 }
 
 /** What the engine recorded about how a run was made (wire `RunRecord`). */

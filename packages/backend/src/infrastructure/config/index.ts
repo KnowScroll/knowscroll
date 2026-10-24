@@ -1,4 +1,5 @@
 export { ConfigurationError, type Environment } from './environment.js';
+export { readReelOperatorConfig, type ReelOperatorConfig } from './reel-operator.js';
 export {
   checkReleaseIdentity,
   commitForDiagnostics,

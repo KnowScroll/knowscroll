@@ -167,3 +167,7 @@ export { makeCommissionPreparation } from '../production/commission-review.js';
 export { makeCommissionReceive } from '../production/commission-receive.js';
 export { postgresCommissionReceive, postgresCommissionReceiveOrigin } from './postgres-commission-receive.js';
 export { makeReceiveMedia } from './cutroom/receive-media.js';
+
+/** The operator's Reel commands over real adapters (#240, D-041). */
+export { checkShippedReelScript, composeReelOperator, type ReelSettings } from './reel/compose.js';
+export type { ReelOperator } from '../application/reel/operator.js';

@@ -30,6 +30,8 @@ const compositionRoots = [
   '^apps/worker/src/jobs\\.ts$',
   // The worker's operator command composes the reasoning ledger for write-offs (S2.2).
   '^apps/worker/src/operator\\.ts$',
+  // The Reel operator commands compose the ledger, the shared pool and Cutroom (#240).
+  '^apps/worker/src/reel-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

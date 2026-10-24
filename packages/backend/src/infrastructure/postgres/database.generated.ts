@@ -242,6 +242,31 @@ export interface ContentMediaObjects {
   size_bytes: number;
 }
 
+export interface ContentReelAttempts {
+  ceiling_cents: number;
+  dispatched_at: Timestamp | null;
+  final_run_id: string | null;
+  finished_at: Timestamp | null;
+  id: string;
+  operator_note: string | null;
+  order_id: string;
+  outcome_code: string | null;
+  paid: boolean;
+  pool_state: Generated<string>;
+  remote_cost_cents: number | null;
+  remote_detail: string | null;
+  remote_outcome: string | null;
+  request_id: string;
+  request_sha256: string;
+  request_utf8: string;
+  reserved_at: Generated<Timestamp>;
+  run_id: string | null;
+  run_ids: string[] | null;
+  settled_at: Timestamp | null;
+  state: Generated<string>;
+  take: number;
+}
+
 export interface ContentReelCommissions {
   approval_ref: string;
   attempt_id: string | null;
@@ -268,6 +293,18 @@ export interface ContentReelImports {
   media_id: string;
   run_id: string;
   script_name: string;
+}
+
+export interface ContentReelOrders {
+  approval_ref: string;
+  asset_id: string | null;
+  created_at: Generated<Timestamp>;
+  id: string;
+  published_at: Timestamp | null;
+  recipe_key: string;
+  script_name: string;
+  script_sha256: string;
+  until: string;
 }
 
 export interface ContentRegionBindings {
@@ -1550,8 +1587,10 @@ export interface DB {
   "content.discovery_revisions": ContentDiscoveryRevisions;
   "content.encounter_topics": ContentEncounterTopics;
   "content.media_objects": ContentMediaObjects;
+  "content.reel_attempts": ContentReelAttempts;
   "content.reel_commissions": ContentReelCommissions;
   "content.reel_imports": ContentReelImports;
+  "content.reel_orders": ContentReelOrders;
   "content.region_bindings": ContentRegionBindings;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;

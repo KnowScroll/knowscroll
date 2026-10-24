@@ -26,6 +26,7 @@ export type ReelFindingCode =
   | 'claim_source_twice'
   | 'source_claim_unknown'
   | 'source_not_recipe_scroll'
+  | 'source_revision_mixed'
   | 'claim_without_scene'
   | 'criterion_id_twice'
   | 'criterion_claim_unlisted'
@@ -97,6 +98,9 @@ function checkSources(script: ReelScript): ReelFinding[] {
       findings.push({ code: 'source_not_recipe_scroll', at: source.claimId });
   }
   for (const claim of claims) if (!sourced.has(claim.id)) findings.push({ code: 'claim_without_source', at: claim.id });
+  // A Reel rests on one revision of its twin, never on a mixture.
+  if (new Set(claimSources.map((source) => source.assetRevision)).size > 1)
+    findings.push({ code: 'source_revision_mixed' });
   return findings;
 }
 

@@ -9,6 +9,7 @@ import { cutroomBFor } from '@knowscroll/backend/reasoning/nest-providers';
 import { lockCommissionBusiness } from '@knowscroll/backend/modules/content/nest-providers';
 import { makeWithCutroomScope } from '@knowscroll/backend/reasoning/nest-providers';
 import { readCutroomSetup } from './cutroom-jobs.js';
+import { reelCommand } from './reel-operator.js';
 import { assembleCutroom, assembleReceiving } from './jobs.js';
 import { readReceiveSetup } from './cutroom-receive-jobs.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
@@ -84,6 +85,7 @@ async function main(): Promise<number> {
     revision: commitForDiagnostics(process.env),
     destination: process.stderr,
   });
+  if (process.argv[2] === 'reel') return reelCommand(process.argv.slice(3), print, logEvent);
   let args;
   try {
     args = parseArgs({
