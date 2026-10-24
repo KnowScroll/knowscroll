@@ -43,3 +43,17 @@ export function conceptMeaning(topicId: string, facetId: string) {
     ? { topicId: topic.id, topicMeaning: topic.meaning, facetId: facet.id, facetMeaning: facet.meaning }
     : undefined;
 }
+
+const phrase = (id: string) => id.replaceAll('-', ' ');
+
+/**
+ * A short plain label for a catalogue meaning, made from its id: `earth.greenhouse-effect` is
+ * "Greenhouse effect" and its facet `earth.greenhouse-effect.radiation` adds ": radiation". For a
+ * person's list of requests, never a claim about what a Scroll says.
+ */
+export function conceptLabel(topicId: string, facetId?: string): string {
+  const topic = phrase(topicId.slice(topicId.lastIndexOf('.') + 1));
+  const heading = topic.charAt(0).toUpperCase() + topic.slice(1);
+  if (facetId === undefined || !facetId.startsWith(`${topicId}.`)) return heading;
+  return `${heading}: ${phrase(facetId.slice(topicId.length + 1))}`;
+}

@@ -45,22 +45,48 @@ SQL
 Expected: cap 700, committed 617, open_claims 0. Read the fal balance on fal's dashboard (24 Oct: $11.99).
 Anything different: stop and look before going on.
 
-### 2. Raise the pool cap (migration 0005)
+### 2. Raise the pool cap (migration 0005) and record it
 
-Take a copy first, then apply the file from your checkout. It runs as the pool's owner role, in one
-transaction, and refuses a pool that is not in the state above.
+The pool records the migrations it has applied in `schema_migrations` (the name of the file and the SHA-256
+of its text). v1's migrator applied each file and inserted its row in the same transaction; step 2 does the
+same for `0005`.
+
+First look at the tracker and confirm its hash format against a row that already exists:
 
 ```sh
-ssh knowscroll-vps 'sudo -u postgres pg_dump -Fc knowscroll_pool > /srv/knowscroll/backups/pool-before-0005.dump'
-ssh knowscroll-vps 'sudo -u postgres psql -v ON_ERROR_STOP=1 --single-transaction \
-  "postgresql:///knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool" -f -' \
-  < ops/pool/migrations/0005_cap_four_dollars_more.sql
-ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_pool -Atc "select * from pool_budget_status()"'
+ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_pool -c "\d schema_migrations" -c "select * from schema_migrations order by 1"'
+shasum -a 256 ops/pool/migrations/0001_shared_pool.sql ops/pool/migrations/0002_cap_seven_dollars.sql
 ```
 
-Expected last line: `1017|617|400`. If the pool has a migrations tracker table (`\dt` in `knowscroll_pool`), add a
-row for `0005` the way `0002` is recorded. Do not deploy a v1 release to stage before that is checked: v1's
-pool migrator may not know `0005`.
+Expected: rows for `0001_shared_pool.sql` and `0002_cap_seven_dollars.sql`, and each stored hash equals the
+`shasum` of that file in the repository. The statements below use the columns `filename` and `sha256`. If `\d`
+shows other names (v1's own code calls them `name` and `checksum`), change the two column names in the
+`INSERT` and nothing else.
+
+Take a copy, then apply the file and insert its row **in one transaction**. It runs as the pool's owner role.
+The file refuses a pool that is not in the state step 1 checked, and then neither the cap nor the row changes.
+
+```sh
+ssh knowscroll-vps 'sudo -u postgres pg_dump -Fc knowscroll_pool | sudo tee /srv/knowscroll/backups/pool-before-0005.dump > /dev/null'
+{ cat ops/pool/migrations/0005_cap_four_dollars_more.sql
+  printf "INSERT INTO schema_migrations (filename, sha256) VALUES ('0005_cap_four_dollars_more.sql', 'bc56796c81fe0851b39386288b75be9e60b3a3b1f6d89f2ca449f40dabc518e7');\n"
+} | ssh knowscroll-vps 'sudo -u postgres psql -v ON_ERROR_STOP=1 --single-transaction \
+  "postgresql:///knowscroll_pool?host=/var/run/postgresql&options=-c%20role%3Dks_pool" -f -'
+ssh knowscroll-vps 'sudo -u postgres psql -d knowscroll_pool -Atc "select * from pool_budget_status()" -c "select filename, sha256 from schema_migrations order by 1"'
+```
+
+Expected: `1017|617|400`, and three tracker rows ending with `0005_cap_four_dollars_more.sql`. Check the hash in the
+`INSERT` first: `shasum -a 256 ops/pool/migrations/0005_cap_four_dollars_more.sql` must print the same value.
+(CI keeps this page and the file in step: a test fails if the hash here is not the file's.)
+
+**One thing to know before a v1 release is ever deployed to stage again.** v1's migrator
+(`scripts/migrate-pool.ts` in the `legacy/v1-final` tag) reads the pool-migrations folder of the release being
+deployed, requires every recorded migration to be present in it, and applies only files that are not recorded.
+It never re-runs `0005`, because a v1 release has no such file. But with the row recorded it stops with
+"Applied migration is missing from disk: 0005_cap_four_dollars_more.sql". A v2 release runs no pool migrator,
+so nothing is affected by the row and the row is correct for any later v2-era pool tooling. If a v1 stage
+deploy is still planned, delete the row first (`DELETE FROM schema_migrations WHERE filename =
+'0005_cap_four_dollars_more.sql'`) and put it back afterwards; the cap itself needs no such care.
 
 ### 3. Let the world reach the pool
 

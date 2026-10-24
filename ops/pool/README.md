@@ -42,7 +42,9 @@ at most 617 committed), so it cannot turn "400 more" into some other figure. It 
 CHECK together. Numbers 0003 and 0004 were a grant protocol that was never applied and is gone (D-041).
 
 A v2 deploy does not run pool migrations. `0005` is applied by hand as the pool's owner, in one
-transaction; the runbook gives the exact commands and the checks before and after.
+transaction together with its row in `schema_migrations` (file name and SHA-256 of its text, as v1's
+migrator recorded each file); the runbook gives the exact commands, the checks before and after, and what a
+recorded row means for a v1 deploy of stage.
 
 ## Tests
 

@@ -2,6 +2,7 @@ import { expireFormationQueue, recoverFormationQueue } from './modules/scenes/ev
 import { projectSceneQueue } from './modules/scenes/public.js';
 import { cartographyQueue, publishDeltaQueue } from './modules/geography/public.js';
 import { resolveSupplyQueue } from './modules/supply/public.js';
+import { produceScrollQueue } from './modules/content/public.js';
 import { plannerQueue } from './modules/planner/public.js';
 import { prepareBufferQueue } from './modules/composer/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
@@ -31,6 +32,7 @@ export const releaseQueues = queueRegistry([
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,
+  produceScrollQueue,
   plannerQueue,
   prepareBufferQueue,
   applyActionEvidenceQueue,

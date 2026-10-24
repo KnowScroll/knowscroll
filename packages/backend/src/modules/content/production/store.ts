@@ -5,12 +5,19 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { RoleReceipt } from './types.js';
 import { SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
 
+export type CreateJobResult =
+  | { readonly kind: 'job'; readonly row: ProductionRow; readonly created: boolean }
+  /** A take above 1 may start only after every earlier take was rejected. */
+  | { readonly kind: 'take_refused' };
+
 export type ProductionStage = 'research' | 'writer';
 
 export interface ProductionRow {
   readonly id: string;
   readonly topic: ScrollTopic;
   readonly policy_version: string;
+  /** Which attempt at the recipe at this version this job is (1 to {@link MAX_TAKES_PER_RECIPE}). */
+  readonly take: number;
   readonly scope_generation: number;
   readonly target_revision: number;
   readonly state: 'research' | 'writer' | 'published' | 'rejected' | 'unknown';
@@ -26,9 +33,10 @@ export interface ProductionRow {
 /** The private production store. SQL is parameterised; source material is never logged or returned by a client port. */
 export function productionStore(db: Kysely<Database>) {
   return {
+    /** The recipe's latest take at the current version. */
     async read(topic: ScrollTopic): Promise<ProductionRow | undefined> {
       return (
-        await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION}`.execute(
+        await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} order by take desc limit 1`.execute(
           db,
         )
       ).rows[0];
@@ -40,23 +48,44 @@ export function productionStore(db: Kysely<Database>) {
       if (!row) throw new Error('PRODUCTION_RUN_MISSING');
       return row;
     },
+    /**
+     * The job of one take, created if it does not exist. Take 1 always may be; a later take only when
+     * every earlier take exists and was rejected (never after a published job or an unknown attempt),
+     * decided here under the transaction so two senders cannot both start it.
+     */
     async create(
       tx: Transaction<Database>,
       topic: ScrollTopic,
       generation: number,
-    ): Promise<{ readonly row: ProductionRow; readonly created: boolean }> {
+      take: number,
+    ): Promise<CreateJobResult> {
+      const read = async () =>
+        (
+          await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} and take=${take} for update`.execute(
+            tx,
+          )
+        ).rows[0];
+      const existing = await read();
+      if (existing) return { kind: 'job', row: existing, created: false };
+      if (take > 1) {
+        const earlier = (
+          await sql<{
+            state: string;
+          }>`select state from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} and take<${take}`.execute(
+            tx,
+          )
+        ).rows;
+        if (earlier.length !== take - 1 || earlier.some((job) => job.state !== 'rejected'))
+          return { kind: 'take_refused' };
+      }
       const inserted =
-        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},(select coalesce((select revision from content.assets where id=${TOPICS[topic].assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version) do nothing returning *`.execute(
+        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},${take},(select coalesce((select revision from content.assets where id=${TOPICS[topic].assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
           tx,
         );
-      if (inserted.rows[0]) return { row: inserted.rows[0], created: true };
-      const row = (
-        await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} for update`.execute(
-          tx,
-        )
-      ).rows[0];
-      if (!row) throw new Error('PRODUCTION_RUN_MISSING');
-      return { row, created: false };
+      if (inserted.rows[0]) return { kind: 'job', row: inserted.rows[0], created: true };
+      const raced = await read();
+      if (!raced) throw new Error('PRODUCTION_RUN_MISSING');
+      return { kind: 'job', row: raced, created: false };
     },
     async research(tx: Transaction<Database>, id: string, pages: readonly ResearchPage[]): Promise<void> {
       await sql`update content.scroll_production_runs set research=${JSON.stringify(pages)}::jsonb,state='writer' where id=${id} and state='research'`.execute(

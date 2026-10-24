@@ -1,4 +1,6 @@
+import { produceLibraryCommand, productionStatusCommand } from './library-operator.js';
 import { reelCommand } from './reel-operator.js';
+import { recoverOpenDemandCommand } from './supply-operator.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
 import { parseArgs } from 'node:util';
@@ -16,11 +18,11 @@ import { createDatabase, makeWithProductionScope, type Database } from '@knowscr
 import {
   reasoningOperatorFor,
   configuredModelPort,
-  harnessSettings,
   makeProductionReasoningHarness,
+  productionHarnessSettings,
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
+import { MAX_TAKES_PER_RECIPE, parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
 import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 
 /**
@@ -41,7 +43,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--dry-run] [--resume] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -79,8 +81,11 @@ async function main(): Promise<number> {
       args: process.argv.slice(2),
       options: {
         topic: { type: 'string' },
+        only: { type: 'string' },
+        'interactive-first': { type: 'boolean', default: false },
         'dry-run': { type: 'boolean', default: false },
         resume: { type: 'boolean', default: false },
+        take: { type: 'string' },
         run: { type: 'string' },
         script: { type: 'string' },
         fixture: { type: 'boolean' },
@@ -101,6 +106,11 @@ async function main(): Promise<number> {
     const topic = parseScrollTopic(args.values.topic);
     if (topic === undefined) {
       print({ result: 'topic_refused', requestBound: REQUEST_BOUND_PER_TOPIC });
+      return 2;
+    }
+    const take = args.values.take === undefined ? 1 : Number(args.values.take);
+    if (!Number.isInteger(take) || take < 1 || take > MAX_TAKES_PER_RECIPE) {
+      print({ result: 'take_refused', maxTakes: MAX_TAKES_PER_RECIPE });
       return 2;
     }
     try {
@@ -131,7 +141,7 @@ async function main(): Promise<number> {
             enabled: contentConfig.reasoning.productionEnabled,
             model,
             logEvent,
-            settings: harnessSettings(contentConfig.reasoning, operatorSource(process.env)),
+            settings: productionHarnessSettings(contentConfig.reasoning, operatorSource(process.env)),
           }),
         );
         const produce = produceScrollUseCase({
@@ -142,7 +152,7 @@ async function main(): Promise<number> {
           model: model?.model ?? 'none',
         });
         print({ command: 'content produce-scroll', requestBound: REQUEST_BOUND_PER_TOPIC, outcome: 'starting' });
-        const result = await produce(topic, false, abort.signal, args.values.resume);
+        const result = await produce(topic, false, abort.signal, args.values.resume, take);
         print({ command: 'content produce-scroll', ...result });
         return result.outcome === 'published' ? 0 : 2;
       } finally {
@@ -156,6 +166,20 @@ async function main(): Promise<number> {
       return 1;
     }
   }
+  if (area === 'content' && command === 'produce-library' && args.positionals.length === 2)
+    return produceLibraryCommand(
+      {
+        ...(args.values.only === undefined ? {} : { only: args.values.only }),
+        interactiveFirst: args.values['interactive-first'],
+        dryRun: args.values['dry-run'],
+      },
+      print,
+      logEvent,
+    );
+  if (area === 'supply' && command === 'recover-open-demand' && args.positionals.length === 2)
+    return recoverOpenDemandCommand({ dryRun: args.values['dry-run'] }, print, logEvent);
+  if (area === 'content' && command === 'production-status' && args.positionals.length === 2)
+    return productionStatusCommand(args.values.only === undefined ? {} : { only: args.values.only }, print, logEvent);
   if (area === 'content' && command === 'readmit-coverage' && args.positionals.length === 2) {
     // Decides coverage again for generated Scrolls from the current plan. Shared content only: no
     // provider, personal root or network. Refused outside the operator worlds before the database.

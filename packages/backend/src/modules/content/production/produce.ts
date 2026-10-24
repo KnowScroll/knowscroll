@@ -15,7 +15,7 @@ import type {
 } from '../../../reasoning/public.js';
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
-import { completeWriterPublication } from './publication-topic.js';
+import { completeWriterPublication, isSentAttempt } from './publication-topic.js';
 import type { AuthoredScroll, DraftProvenance } from '@knowscroll/scroll-model/producer';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
@@ -39,6 +39,17 @@ export interface ProduceScrollDependencies {
 }
 
 const TERMINAL_STATES: readonly ProductionRow['state'][] = ['published', 'rejected', 'unknown'];
+
+/**
+ * Research failures that say nothing about the recipe: the network, a slow or erroring host. They leave
+ * the job at its research stage to be tried again; every other refusal is a verdict on the sources.
+ */
+const TRANSIENT_RESEARCH_REFUSALS: ReadonlySet<string> = new Set([
+  'dns_timeout',
+  'request_timeout',
+  'network_failed',
+  'http_refused',
+]);
 
 function writerReceipt(result: ProposeOutcome<unknown>): RoleReceipt {
   return {
@@ -68,6 +79,7 @@ function withAccounting(base: RoleReceipt, attempts: readonly ProductionAttemptA
 
 function summary(row: ProductionRow): ProduceScrollResult {
   return {
+    take: row.take,
     outcome: TERMINAL_STATES.includes(row.state) ? (row.state as 'published' | 'rejected' | 'unknown') : 'in_progress',
     requestBound: REQUEST_BOUND_PER_TOPIC,
     runId: row.id,
@@ -77,12 +89,14 @@ function summary(row: ProductionRow): ProduceScrollResult {
 }
 
 /**
- * Produce one versioned, nonpersonal Scroll: reserve a unique topic/version once, freeze public
- * research, ask the writer once (and repair once), and atomically close and apply the publication
- * under the production root. No network or model wait holds a transaction. A repeated command
- * reports the prior terminal outcome; `resume` continues the same frozen job and harness ledger
- * after a crash. Unknown attempts halt: they are never resent. Scope revocation prevents applying
- * even a valid answer.
+ * Produce one versioned, nonpersonal Scroll: reserve one job per topic, version and take, freeze
+ * public research, ask the writer once (and repair once), and atomically close and apply the
+ * publication under the production root. No network or model wait holds a transaction. A repeated
+ * command reports the prior terminal outcome; `resume` continues the same frozen job and harness
+ * ledger after a crash. A rejected job is final for its take, but take 2 (then 3) may start once
+ * every earlier take was rejected: a new business run with its own writer run, so nothing is
+ * resent, and never after a published job or an unknown attempt. Unknown attempts halt: they are
+ * never resent. Scope revocation prevents applying even a valid answer.
  */
 export function makeProduceScroll(deps: ProduceScrollDependencies) {
   const store = productionStore(deps.db);
@@ -140,7 +154,24 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     try {
       pages = await Promise.all(TOPICS[topic].pages.map((url) => (deps.research ?? fetchResearchPage)(url)));
     } catch (error) {
-      return end(row, 'research', 'rejected', [error instanceof ResearchRefusal ? error.code : 'research_failed'], []);
+      const refusal = error instanceof ResearchRefusal ? error : undefined;
+      // A take is spent only on a verdict about the sources or the answer, never on a blip.
+      if (refusal === undefined || TRANSIENT_RESEARCH_REFUSALS.has(refusal.code)) {
+        // Another delivery may have frozen the research and moved on while this one waited on the network.
+        const current = await deps.withScope(deps.authority, (scope) =>
+          store.lock(productionTransactionOf(scope), row.id),
+        );
+        if (current.kind !== 'entered') return scopeRefused(row.id);
+        if (current.value.state !== 'research') return summary(current.value);
+        return {
+          outcome: 'retry_later',
+          requestBound: REQUEST_BOUND_PER_TOPIC,
+          runId: row.id,
+          take: row.take,
+          codes: [refusal?.code ?? 'research_failed'],
+        };
+      }
+      return end(row, 'research', 'rejected', [refusal.code], []);
     }
     const frozen = await deps.withScope(deps.authority, async (scope) => {
       const tx = productionTransactionOf(scope);
@@ -231,9 +262,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     if (accounting.kind !== 'entered' || accounting.value.kind !== 'accounted')
       return end(row, 'writer', 'rejected', ['accounting_unavailable'], [receipt], row.writer_run_id);
     const attempts = accounting.value.attempts;
-    const paidAttemptIds = attempts
-      .filter((attempt) => !['reserved', 'not_sent'].includes(attempt.state))
-      .map((attempt) => attempt.attemptId);
+    const paidAttemptIds = attempts.filter(isSentAttempt).map((attempt) => attempt.attemptId);
     if (paidAttemptIds.length < 1 || paidAttemptIds.length > 2)
       return end(row, 'writer', 'rejected', ['attempt_bound_exceeded'], [receipt], row.writer_run_id);
     const recorded = [withAccounting(receipt, attempts)];
@@ -311,6 +340,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       signal,
     );
     if (writer.kind === 'refused' && writer.reason === 'run_closed') return replayCurrent(row);
+    // A spent budget or quota stops the run before anything is sent: the job stays open to resume.
+    if (writer.kind === 'budget_exhausted' || writer.kind === 'quota_unavailable')
+      return {
+        outcome: 'paused',
+        requestBound: REQUEST_BOUND_PER_TOPIC,
+        runId: row.id,
+        codes: [writer.kind === 'budget_exhausted' ? `budget_${writer.dimension}_${writer.limit}` : writer.kind],
+      };
     if (writer.kind !== 'proposed')
       return end(
         row,
@@ -328,12 +365,15 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     dryRun: boolean,
     signal: AbortSignal,
     resume = false,
+    take = 1,
   ): Promise<ProduceScrollResult> => {
     if (dryRun) return { outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC };
     const reserved = await deps.withScope(deps.authority, (scope) =>
-      store.create(productionTransactionOf(scope), topic, deps.authority.generation),
+      store.create(productionTransactionOf(scope), topic, deps.authority.generation, take),
     );
     if (reserved.kind !== 'entered') return scopeRefused();
+    if (reserved.value.kind === 'take_refused')
+      return { outcome: 'take_refused', requestBound: REQUEST_BOUND_PER_TOPIC, take };
     const { created } = reserved.value;
     let { row } = reserved.value;
     if (!created && (!resume || TERMINAL_STATES.includes(row.state))) return summary(row);

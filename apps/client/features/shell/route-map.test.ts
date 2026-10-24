@@ -42,6 +42,7 @@ describe('route map', () => {
         '/account',
         '/account',
         '/account/privacy',
+        '/account/requests',
         '/conversations',
         '/explore',
         '/friends',

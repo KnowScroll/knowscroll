@@ -93,6 +93,63 @@ describe('process configuration', () => {
     expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: '1' }).jevEnabled).toBe(true);
     expect(() => readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_JEV_ENABLED: 'true' })).toThrow();
   });
+  it('lets Create start productions by default only in the local world, bounded per day', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(worker({ KS_WORLD: 'local' }).supplyCreateDailyCap).toBe(20);
+    expect(api({ KS_WORLD: 'local' }).supplyCreateDailyCap).toBe(20);
+    for (const world of ['dev', 'stage', 'ci']) {
+      expect(worker({ KS_WORLD: world }).supplyCreateDailyCap).toBe(0);
+      expect(api({ KS_WORLD: world }).supplyCreateDailyCap).toBe(0);
+    }
+    expect(api({ KS_WORLD: 'dev', KS_SUPPLY_CREATE_DAILY_CAP: '8' }).supplyCreateDailyCap).toBe(8);
+    expect(worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '0' }).supplyCreateDailyCap).toBe(0);
+    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '501' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '-1' })).toThrow();
+  });
+  it('gives the Planner its own, smaller Create cap, five a day unless set', () => {
+    const worker = (env: Record<string, string>) => readWorkerConfig({ DATABASE_URL: secretUrl, ...env });
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    expect(api({ KS_WORLD: 'dev' }).supplyPlannerCreateDailyCap).toBe(5);
+    expect(worker({ KS_WORLD: 'local' }).supplyPlannerCreateDailyCap).toBe(5);
+    expect(worker({ KS_WORLD: 'dev', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '2' }).supplyPlannerCreateDailyCap).toBe(2);
+    expect(api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '0' }).supplyPlannerCreateDailyCap).toBe(0);
+    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '501' })).toThrow();
+    expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: '-1' })).toThrow();
+  });
+  it('gives the production scope its own, larger daily caps and leaves the person and global caps alone', () => {
+    const caps = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).reasoning.caps;
+    expect(caps.productionScope).toEqual({ requestsPerDay: 200, tokensPerDay: 3_000_000 });
+    expect(caps.scope).toEqual({ requestsPerDay: 60, tokensPerDay: 600_000 });
+    expect(caps.global).toEqual({ requestsPerDay: 300, tokensPerDay: 3_000_000 });
+    const raised = readWorkerConfig({
+      DATABASE_URL: secretUrl,
+      KS_WORLD: 'local',
+      KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '400',
+      KS_REASONING_PRODUCTION_TOKENS_PER_DAY: '6000000',
+    }).reasoning.caps;
+    expect(raised.productionScope).toEqual({ requestsPerDay: 400, tokensPerDay: 6_000_000 });
+    expect(raised.scope).toEqual(caps.scope);
+    expect(
+      readScrollProductionOperatorConfig({
+        DATABASE_URL: secretUrl,
+        KS_WORLD: 'local',
+        KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '150',
+      }).reasoning.caps.productionScope.requestsPerDay,
+    ).toBe(150);
+    expect(() =>
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '0' }),
+    ).toThrow();
+  });
+  it('reads the production generation the Scroll consumer works under', () => {
+    expect(readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' }).scrollProductionGeneration).toBe(1);
+    expect(
+      readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_SCROLL_PRODUCTION_GENERATION: '2' })
+        .scrollProductionGeneration,
+    ).toBe(2);
+  });
   it('defaults the commit and artifact outside production, but never the world', () => {
     const config = readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local' });
     expect(config).toMatchObject({
@@ -354,6 +411,7 @@ describe('process configuration', () => {
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
+        productionScope: { requestsPerDay: 200, tokensPerDay: 3_000_000 },
         roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
       },
       maxRequestBytes: 262_144,

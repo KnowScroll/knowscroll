@@ -79,15 +79,25 @@ export { makeProductionAttemptLedger } from './postgres-production-ledger.js';
 /** Fifteen minutes between opportunistic purges of expired protected requests. */
 const PURGE_INTERVAL_MS = 15 * 60 * 1000;
 
-/** Harness settings from the worker's reasoning configuration. */
+/** Harness settings for the personal roles: each person's scope is bounded by the per-scope cap. */
 export function harnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
   return {
-    caps: settings.caps,
+    caps: { global: settings.caps.global, scope: settings.caps.scope, roleDefault: settings.caps.roleDefault },
     maxRequestBytes: settings.maxRequestBytes,
     requestRetentionSeconds: settings.requestRetentionSeconds,
     purgeIntervalMs: PURGE_INTERVAL_MS,
     dispatchedBy,
   };
+}
+
+/**
+ * Harness settings for the nonpersonal production scope. It writes the library for everyone, so its
+ * scope cap is the larger production cap; the global and role caps are the same as for personal roles
+ * and still bound it.
+ */
+export function productionHarnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
+  const personal = harnessSettings(settings, dispatchedBy);
+  return { ...personal, caps: { ...personal.caps, scope: settings.caps.productionScope } };
 }
 
 /**
@@ -396,7 +406,7 @@ export function reasoningProviders(
             enabled: settings.productionEnabled,
             model: configuredModelPort(settings),
             logEvent,
-            settings: harnessSettings(settings, `worker:${process.pid}`),
+            settings: productionHarnessSettings(settings, `worker:${process.pid}`),
           }),
         ),
     },

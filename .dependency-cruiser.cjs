@@ -32,6 +32,10 @@ const compositionRoots = [
   '^apps/worker/src/operator\\.ts$',
   // The Reel operator commands compose the ledger, the shared pool and Cutroom (#240).
   '^apps/worker/src/reel-operator\\.ts$',
+  // The Scroll production consumer and the operator's library commands compose the production use case (#239).
+  '^apps/worker/src/production-jobs\\.ts$',
+  '^apps/worker/src/library-operator\\.ts$',
+  '^apps/worker/src/supply-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

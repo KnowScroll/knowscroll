@@ -144,7 +144,10 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       readExact: readExactEncounter,
       capabilities: { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] },
       harness,
-      recordDemand: realRecordPlannedDemand(database, c.boss),
+      recordDemand: realRecordPlannedDemand(database, c.boss, {
+        createDailyCap: 10,
+        readExploration: c.readExploration,
+      }),
       enabled: () => plannerEnabled,
       hash: (x) => requestHash('personal-planner.v0', x as Parameters<typeof requestHash>[1]),
       newId: randomUUID,
@@ -342,11 +345,16 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       .where('id', '=', demand[0]!.work_id!)
       .executeTakeFirstOrThrow();
     expect(group.active).toBe(true);
+    // Create committed the group's production job with the plan; the waiter has its own resolver job.
+    expect(group.production_recipe).toBe('tides');
+    expect(
+      (await database.pool.query("select id from pgboss.job where name='content.produce-scroll'")).rows,
+    ).toHaveLength(1);
     const resolverJobs = await database.pool.query(
       "select id from pgboss.job where name='supply.resolve-request' and data->>'universeId'=$1",
       [p.universeId],
     );
-    expect(resolverJobs.rows).toHaveLength(0);
+    expect(resolverJobs.rows).toHaveLength(1);
 
     // 4. Composer reads the plan: the planned explanation now ranks first and the decision says why.
     const decision = await discoverDecision(p);
@@ -502,6 +510,18 @@ describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, au
       expect(
         await database.db.selectFrom(table).select('universe_id').where('universe_id', '=', p.universeId).execute(),
       ).toHaveLength(0);
+    // The waiter's queued resolver job goes with it; the shared production job and group stay.
+    expect(
+      (
+        await database.pool.query(
+          "select id from pgboss.job where name='supply.resolve-request' and data->>'universeId'=$1",
+          [p.universeId],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (await database.pool.query("select id from pgboss.job where name='content.produce-scroll'")).rows,
+    ).toHaveLength(1);
     expect(await makeRunPlanner(ports)(stale, signal())).toMatchObject({ kind: 'refused' });
     expect(model.calls).toHaveLength(callsBefore);
     expect(

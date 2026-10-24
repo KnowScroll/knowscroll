@@ -17,6 +17,8 @@ import {
   experienceEvidenceReadProviders,
   checkRequestSource,
 } from '@knowscroll/backend/modules/experience/nest-providers';
+import { produceScrollQueue, SCROLL_PRODUCTION_VERSION } from '@knowscroll/backend/modules/content';
+import { READ_EXPLORATION_SNAPSHOT } from '@knowscroll/backend/modules/personal-context';
 import {
   CREATE_CONTENT_REQUEST,
   READ_CONTENT_REQUEST,
@@ -49,11 +51,14 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     database = await createTestDatabase<Database>('supply');
     content = await scrollUseCases(database);
     const SCOPE = Symbol('scope'),
-      ENQUEUE = Symbol('enqueue');
-    const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE });
+      ENQUEUE = Symbol('enqueue'),
+      CONFIG = Symbol('config');
+    const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, config: CONFIG });
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
+      [CONFIG, { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5 }],
+      [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),
@@ -111,6 +116,11 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       )
     ).rows;
   }
+  async function produceJobs() {
+    return (
+      await sql<{ id: string }>`select id from pgboss.job where name=${produceScrollQueue.name}`.execute(database.db)
+    ).rows;
+  }
   async function admit(topicId = 'earth.greenhouse-effect') {
     const source = starterSource() as {
       assetId: string;
@@ -146,7 +156,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
   it('concurrent identical public keys create one active work and private waiters; cancel removes only its waiter', async () => {
     const a = await seedPerson(database.db),
       b = await seedPerson(database.db);
-    const ca = catalogue('earth.tides', 'reel'),
+    const ca = catalogue('earth.tides', 'scroll'),
       cb = { ...ca, commandId: randomUUID() };
     const [ar, br] = await Promise.all([ask(a, ca), ask(b, cb)]);
     const requests = await database.db
@@ -162,6 +172,9 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       .where('id', '=', requests[0]!.work_id!)
       .executeTakeFirstOrThrow();
     expect(work.active).toBe(true);
+    // Create started the group's one production job; the other person joined it.
+    expect(work.production_recipe).toBe('tides');
+    expect(await produceJobs()).toHaveLength(1);
     expect(JSON.stringify(work)).not.toContain(a.universeId);
     expect(JSON.stringify(work)).not.toContain(b.universeId);
     expect(await jobs(a)).toEqual([{ data: job(a, ar.requestId) }]);
@@ -190,12 +203,29 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     });
     await resolve(job(a, ar.requestId));
     expect((await status(a, ar.requestId)).status).toBe('cancelled');
-    expect((await status(b, br.requestId)).status).toBe('preparing');
+    expect(await status(b, br.requestId)).toMatchObject({ status: 'preparing', phase: 'preparing' });
+    // The production has not started: the waiter keeps waiting and changes nothing.
     await resolve(job(b, br.requestId));
+    await resolve(job(b, br.requestId));
+    expect(await status(b, br.requestId)).toMatchObject({ status: 'preparing', requestRevision: 1 });
+    // Its production ended without a Scroll (a terminal job at this recipe version): the waiter closes honestly.
+    await database.db
+      .insertInto('content.scroll_production_runs')
+      .values({
+        id: randomUUID(),
+        topic: 'tides',
+        policy_version: SCROLL_PRODUCTION_VERSION,
+        target_revision: 1,
+        scope_generation: 1,
+        state: 'rejected',
+        writer_run_id: randomUUID(),
+        completed_at: new Date(),
+      })
+      .execute();
     await resolve(job(b, br.requestId));
     expect(await status(b, br.requestId)).toMatchObject({
       status: 'unavailable',
-      reason: 'budget_unavailable',
+      reason: 'could_not_prepare',
       requestRevision: 2,
     });
     expect(await database.db.selectFrom('reasoning.external_attempts').select('id').execute()).toHaveLength(0);
@@ -203,7 +233,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
   });
   it('same-person concurrent retry retains one private ID/original receipt and conflicts on different input', async () => {
     const p = await seedPerson(database.db),
-      c = catalogue('earth.seasons', 'reel');
+      c = catalogue('earth.seasons', 'scroll');
     const [a, b] = await Promise.all([ask(p, c), ask(p, c)]);
     expect(a.requestId).toBe(b.requestId);
     expect([a.replayed, b.replayed].sort()).toEqual([false, true]);
@@ -214,22 +244,60 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     });
     expect(await jobs(p)).toHaveLength(1);
   });
-  it('freeform and unsupported catalogue/context remain private terminal asks, without public key or phantom queue', async () => {
+  it('closes unsupported asks at once and keeps a free-text ask private while it waits for its catalogue match', async () => {
     const p = await seedPerson(database.db);
-    const c: CreateContentRequest = {
+    const text = (subjectText: string, overrides: Partial<CreateContentRequest> = {}): CreateContentRequest => ({
       ...catalogue(),
+      intent: { kind: 'topic', subject: { kind: 'text', text: subjectText }, format: 'scroll' },
+      ...overrides,
+    });
+    const before = await database.db.selectFrom('supply.work').select('id').execute();
+    const producedBefore = await produceJobs();
+
+    // A free-text ask waits as `matching`: no brief, no shared group, one resolver job and no production.
+    const words = 'CI private ask that must never become a public brief';
+    const free = await ask(p, text(words));
+    expect(await status(p, free.requestId)).toMatchObject({ status: 'preparing', phase: 'requested' });
+    expect(
+      await database.db
+        .selectFrom('supply.requests')
+        .select(['state', 'decision', 'brief', 'work_id'])
+        .where('id', '=', free.requestId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ state: 'matching', decision: 'pending', brief: null, work_id: null });
+    expect(await jobs(p)).toEqual([{ data: job(p, free.requestId) }]);
+    expect(await produceJobs()).toEqual(producedBefore);
+    // Without a model the worker leaves it waiting: resolving changes nothing.
+    await resolve(job(p, free.requestId));
+    expect(await status(p, free.requestId)).toMatchObject({ status: 'preparing', requestRevision: 1 });
+    // It can be cancelled while it waits, and then stays cancelled.
+    expect(
+      await cancel(p.authority, {
+        version: 'content-request-cancel.v1',
+        commandId: randomUUID(),
+        requestId: free.requestId,
+      }),
+    ).toMatchObject({ kind: 'ok', value: { outcome: 'cancelled' } });
+    await resolve(job(p, free.requestId));
+    expect((await status(p, free.requestId)).status).toBe('cancelled');
+
+    // Asks that no match can serve are closed on the spot, with no shared key and no queued work.
+    // A free-text ask about this encounter carries meaning the catalogue match cannot admit.
+    const contextRef = await source(p, await admit('earth.seasons'));
+    const contextual = await ask(p, {
+      ...text('More like this one'),
       intent: {
         kind: 'topic',
-        subject: { kind: 'text', text: 'CI private ask that must never become a public brief' },
+        subject: { kind: 'text', text: 'More like this one' },
         format: 'scroll',
+        context: contextRef,
       },
-    };
-    const before = await database.db.selectFrom('supply.work').select('id').execute();
-    const r = await ask(p, c);
-    expect(await status(p, r.requestId)).toMatchObject({ status: 'unavailable', reason: 'unsupported_request' });
+    });
     const unknown = await ask(p, catalogue('not.a.catalogue.member'));
-    expect(await status(p, unknown.requestId)).toMatchObject({ status: 'unavailable', reason: 'unsupported_request' });
-    expect(await jobs(p)).toHaveLength(0);
+    const french = await ask(p, { ...text('Pourquoi le ciel est bleu'), language: 'fr' });
+    for (const r of [contextual, unknown, french])
+      expect(await status(p, r.requestId)).toMatchObject({ status: 'unavailable', reason: 'unsupported_request' });
+    expect(await jobs(p)).toHaveLength(1);
     expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual(before);
   });
   it('reuses exact current eligible catalogue content, never evidence; receipt remains accepted as status changes', async () => {
@@ -292,9 +360,10 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     expect(await ask(p, c)).toEqual({ ...r, replayed: true });
     expect(await jobs(p)).toHaveLength(0);
   });
-  it('queue failure rolls back shared matching, private demand, receipt and personal watermark together', async () => {
+  it('queue failure rolls back shared work, its production job, private demand, receipt and personal watermark together', async () => {
     const p = await seedPerson(database.db),
-      c = catalogue('earth', 'reel');
+      c = catalogue('space.stars', 'scroll');
+    const producedBefore = await produceJobs();
     const before = await database.db
       .selectFrom('identity.universes')
       .select('revision')
@@ -319,6 +388,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
         .execute(),
     ).toHaveLength(0);
     expect(await jobs(p)).toHaveLength(0);
+    expect(await produceJobs()).toEqual(producedBefore);
     expect(
       await database.db
         .selectFrom('identity.universes')
@@ -329,11 +399,11 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     const work = await database.db
       .selectFrom('supply.work')
       .select('id')
-      .where(sql<boolean>`brief->'subject'->>'topicId'='earth'`)
+      .where(sql<boolean>`brief->'subject'->>'topicId'='space.stars'`)
       .execute();
     expect(work).toHaveLength(0);
   });
-  it('variant source requires own exact activated encounter and optional latest session; missing variant is real bounded work', async () => {
+  it('variant source requires own exact activated encounter and optional latest session; a missing variant has no production path and closes at once', async () => {
     const asset = await admit('earth.seasons'),
       p = await seedPerson(database.db),
       other = await seedPerson(database.db);
@@ -350,92 +420,38 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
         },
       }),
     ).toEqual({ kind: 'refused', reason: 'stale_source' });
+    const workBefore = await database.db.selectFrom('supply.work').select('id').execute();
     const r = await ask(p, c);
-    expect(await status(p, r.requestId)).toMatchObject({ status: 'preparing', phase: 'requested' });
-    const otherSource = await source(other, asset);
-    const otherReceipt = await ask(other, {
-      ...c,
-      commandId: randomUUID(),
-      intent: { kind: 'variant', source: otherSource, to: 'reel' },
+    // Only a Scroll of a catalogue meaning can be produced, so the answer is honest straight away.
+    expect(await status(p, r.requestId)).toMatchObject({
+      status: 'unavailable',
+      reason: 'budget_unavailable',
+      requestRevision: 1,
     });
-    const sharedWork = (
-      await database.db
-        .selectFrom('supply.requests')
-        .select('work_id')
-        .where('id', '=', r.requestId)
-        .executeTakeFirstOrThrow()
-    ).work_id!;
-    expect(
-      (
-        await database.db
-          .selectFrom('supply.requests')
-          .select('work_id')
-          .where('id', '=', otherReceipt.requestId)
-          .executeTakeFirstOrThrow()
-      ).work_id,
-    ).toBe(sharedWork);
+    expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual(workBefore);
+    expect(await jobs(p)).toHaveLength(0);
+    expect(await ask(p, c)).toEqual({ ...r, replayed: true });
 
+    // Withdrawing the source later keeps the closed ask closed, and a cancel finds nothing open.
     await database.db
       .updateTable('content.assets')
       .set({ status: 'withdrawn' })
       .where('id', '=', asset.assetId)
       .execute();
-    const invalid = await status(p, r.requestId);
-    expect(invalid).toMatchObject({ status: 'unavailable', requestRevision: 2 });
-    const cancelCommand = {
-      version: 'content-request-cancel.v1' as const,
-      commandId: randomUUID(),
-      requestId: r.requestId,
-    };
-    const closed = await cancel(p.authority, cancelCommand);
-    expect(closed).toMatchObject({ kind: 'ok', value: { outcome: 'already_closed' } });
-    expect(await status(p, r.requestId)).toMatchObject({
-      status: 'unavailable',
-      reason: 'source_unavailable',
-      requestRevision: 3,
-    });
-    expect(await ask(p, c)).toEqual({ ...r, replayed: true });
+    expect(await status(p, r.requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
     expect(
-      await database.db
-        .selectFrom('supply.requests')
-        .select(['state', 'request_revision'])
-        .where('id', '=', otherReceipt.requestId)
-        .executeTakeFirstOrThrow(),
-    ).toEqual({ state: 'requested', request_revision: 1 });
-    expect(
-      (
-        await database.db
-          .selectFrom('supply.work')
-          .select('active')
-          .where('id', '=', sharedWork)
-          .executeTakeFirstOrThrow()
-      ).active,
-    ).toBe(true);
-    expect(await cancel(p.authority, cancelCommand)).toEqual(
-      closed.kind === 'ok' ? { kind: 'ok', value: { ...closed.value, replayed: true } } : closed,
-    );
+      await cancel(p.authority, {
+        version: 'content-request-cancel.v1',
+        commandId: randomUUID(),
+        requestId: r.requestId,
+      }),
+    ).toMatchObject({ kind: 'ok', value: { outcome: 'already_closed' } });
     await database.db
       .updateTable('content.assets')
       .set({ status: 'admitted' })
       .where('id', '=', asset.assetId)
       .execute();
-    await resolve(job(p, r.requestId));
-    expect(await status(p, r.requestId)).toMatchObject({
-      status: 'unavailable',
-      reason: 'source_unavailable',
-      requestRevision: 3,
-    });
-    expect(await status(other, otherReceipt.requestId)).toMatchObject({ status: 'preparing', requestRevision: 3 });
-    await resolve(job(other, otherReceipt.requestId));
-    expect(await status(other, otherReceipt.requestId)).toMatchObject({
-      status: 'unavailable',
-      reason: 'budget_unavailable',
-      requestRevision: 4,
-    });
-    expect(await cancel(p.authority, { ...cancelCommand, commandId: randomUUID() })).toMatchObject({
-      kind: 'ok',
-      value: { outcome: 'already_closed' },
-    });
+    expect(await read(other.authority, { requestId: r.requestId })).toEqual({ kind: 'refused', reason: 'not_found' });
   });
   it('session authority accepts actual activated membership, refuses stale intent, and keeps an accepted ask independent of later navigation', async () => {
     const p = await seedPerson(database.db);
@@ -478,12 +494,11 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
       reason: 'stale_source',
     });
     expect(await ask(p, c)).toEqual({ ...accepted, replayed: true });
-    await resolve(job(p, accepted.requestId));
     expect(await status(p, accepted.requestId)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
   });
   it('worker independently fences reset, account revocation and erased private bindings; shared briefs survive', async () => {
     const p = await seedPerson(database.db),
-      r = await ask(p, catalogue('earth', 'scroll'));
+      r = await ask(p, catalogue('space.black-holes', 'scroll'));
     await database.db
       .updateTable('identity.universes')
       .set({ privacy_epoch: 2 })
@@ -495,7 +510,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     expect(await read(authority, { requestId: r.requestId })).toEqual({ kind: 'refused', reason: 'not_found' });
     expect(
       await create(authority, {
-        ...catalogue('earth', 'scroll'),
+        ...catalogue('space.black-holes', 'scroll'),
         commandId: (
           await database.db
             .selectFrom('receipts.personal_commands')
@@ -514,7 +529,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     ).toHaveLength(0);
     expect(await database.db.selectFrom('supply.work').select('id').execute()).toEqual(before);
     const suspended = await seedPerson(database.db),
-      pending = await ask(suspended, catalogue('earth', 'reel'));
+      pending = await ask(suspended, catalogue('space.exoplanets', 'scroll'));
     await database.db
       .updateTable('identity.accounts')
       .set({ status: 'suspended' })

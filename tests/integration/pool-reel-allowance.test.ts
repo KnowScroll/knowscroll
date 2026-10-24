@@ -1,5 +1,6 @@
 /** A disposable pool database only: no live pool, provider or billing. */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestPool, type TestPool } from './support/reel-world.js';
 
@@ -78,5 +79,53 @@ describe('the 400-cent allowance for new Reels (pool migration 0005)', () => {
     pool = await createTestPool();
     await pool.raiseCap();
     await expect(pool.raiseCap()).rejects.toThrow('not the 700 cents');
+  });
+});
+
+describe('the runbook step that applies 0005 and records it', () => {
+  it('names the SHA-256 of the migration file as it is, so the recorded row matches the file', async () => {
+    const root = new URL('../../', import.meta.url);
+    const file = await readFile(new URL('ops/pool/migrations/0005_cap_four_dollars_more.sql', root));
+    const sha256 = createHash('sha256').update(file).digest('hex');
+    const runbook = await readFile(new URL('docs/v2/operations/cutroom-and-spend.md', root), 'utf8');
+    expect(runbook).toContain(`'0005_cap_four_dollars_more.sql', '${sha256}'`);
+  });
+
+  it('applies and records in one transaction: a refusal leaves neither the cap nor a tracker row changed', async () => {
+    const root = new URL('../../', import.meta.url);
+    const text = (name: string) => readFile(new URL(`ops/pool/migrations/${name}`, root), 'utf8');
+    const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+    // The tracker as the v1 migrator left it: one row per applied file, the hash of its text.
+    await pool.client.query(
+      'create table schema_migrations (filename text primary key, sha256 text not null, applied_at timestamptz not null default now())',
+    );
+    for (const name of ['0001_shared_pool.sql', '0002_cap_seven_dollars.sql'])
+      await pool.client.query('insert into schema_migrations (filename, sha256) values ($1, $2)', [
+        name,
+        hash(await text(name)),
+      ]);
+
+    const name = '0005_cap_four_dollars_more.sql';
+    const migration = await text(name);
+    const record = `INSERT INTO schema_migrations (filename, sha256) VALUES ('${name}', '${hash(migration)}');`;
+    const tracked = async () =>
+      (await pool.client.query<{ filename: string }>('select filename from schema_migrations order by 1')).rows.map(
+        (row) => row.filename,
+      );
+
+    await pool.seedSettled(618);
+    await expect(pool.client.query(`${migration}\n${record}\n`)).rejects.toThrow('More than the 617 cents');
+    expect(await tracked()).toEqual(['0001_shared_pool.sql', '0002_cap_seven_dollars.sql']);
+    expect((await pool.budget()).cap_cents).toBe(700);
+
+    await pool.drop();
+    pool = await createTestPool();
+    await pool.client.query(
+      'create table schema_migrations (filename text primary key, sha256 text not null, applied_at timestamptz not null default now())',
+    );
+    await pool.seedSettled(617);
+    await pool.client.query(`${migration}\n${record}\n`);
+    expect(await tracked()).toEqual([name]);
+    expect((await pool.budget()).cap_cents).toBe(1017);
   });
 });
