@@ -30,13 +30,16 @@ export function EncounterRail({
   state,
   session,
   dense,
+  surface,
 }: {
   readonly entry: EncounterEntry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
   readonly dense?: boolean;
+  /** `paper` when the rail sits beside a Reel card instead of over the video. */
+  readonly surface?: 'media' | 'paper';
 }) {
-  return <ActionRail {...useActionProps(entry, state, session, dense)} />;
+  return <ActionRail {...useActionProps(entry, state, session, dense)} surface={surface} />;
 }
 
 /** The Scroll's action row: under the opening, and floating once the article is underway. */

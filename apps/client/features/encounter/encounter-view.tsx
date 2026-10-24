@@ -14,6 +14,7 @@ export function EncounterView({
   foreground,
   back,
   hint,
+  framed = false,
 }: {
   readonly scope: AccountScope;
   readonly entry: EncounterEntry;
@@ -22,6 +23,8 @@ export function EncounterView({
   readonly foreground: boolean;
   readonly back: () => void;
   readonly hint: ReactNode;
+  /** A Reel on a desktop is drawn as a card with its controls around it (D01). */
+  readonly framed?: boolean;
 }) {
   return entry.kind === 'reel' ? (
     <ReelEncounter
@@ -32,6 +35,7 @@ export function EncounterView({
       foreground={foreground}
       back={back}
       hint={hint}
+      framed={framed}
     />
   ) : (
     <ScrollEncounter

@@ -75,6 +75,7 @@ export function BodyTarget({
       accessibilityRole="button"
       accessibilityLabel={kind ? `${label}, ${KIND_PHRASE[kind]}${hypothetical ? ', hypothetical' : ''}` : label}
       accessibilityState={{ selected: Boolean(selected) }}
+      aria-current={selected ? 'true' : undefined}
       onPress={onPress}
       {...focus.props}
       style={[

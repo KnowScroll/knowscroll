@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
-import { Button, IconButton, Scrim, Text } from '@knowscroll/ui';
+import { Button, dialogHostSemantics, dialogSemantics, IconButton, Scrim, Text } from '@knowscroll/ui';
 import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
@@ -58,6 +58,7 @@ export function OutlineList({
           accessibilityRole="button"
           accessibilityLabel={name}
           accessibilityState={{ selected: isCurrent }}
+          aria-current={isCurrent ? 'true' : undefined}
           onPress={() => {
             session.focus(place.objectId);
             onChoose?.();
@@ -147,14 +148,13 @@ export function UniverseListSheet({
       onRequestClose={() => {
         session.back();
       }}
+      {...dialogHostSemantics(title)}
     >
       <View style={styles.host}>
         <Scrim onPress={() => session.back()} testID="universe-list-scrim" />
         <View
           testID="universe-list-sheet"
-          role="dialog"
-          aria-label={title}
-          accessibilityViewIsModal
+          {...dialogSemantics(title)}
           style={[styles.sheet, { paddingBottom: spacing[7] + insets.bottom }]}
         >
           <View style={styles.grab} aria-hidden importantForAccessibility="no-hide-descendants" />

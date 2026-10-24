@@ -15,6 +15,28 @@ export function formatAvailability(entry: EncounterEntry): Record<Format, Format
   return availability;
 }
 
+/** The Reel/Scroll switch: choosing a ready sibling opens it, a missing one opens the request sheet (E06). */
+export function EncounterFormatSwitch({
+  entry,
+  session,
+}: {
+  readonly entry: EncounterEntry;
+  readonly session: EncounterSession;
+}) {
+  return (
+    <FormatSwitch
+      selected={entry.kind}
+      availability={formatAvailability(entry)}
+      showIcons
+      onSelect={(to) => {
+        const sibling = entry.context.variants.find((variant) => variant.kind === to);
+        if (sibling?.status === 'ready') session.navigate({ mode: 'variant', to });
+        else session.openRequest(to);
+      }}
+    />
+  );
+}
+
 /**
  * The top row of an encounter (E01, E02): Back on a Scroll, the format switch, and the ⋯ menu,
  * in the same places for both formats. Choosing a ready sibling opens it; choosing a missing one
@@ -45,16 +67,7 @@ export function EncounterTopBar({
         variant={onMedia ? 'onMedia' : 'paper'}
         onPress={() => session.setOverlay(true)}
       />
-      <FormatSwitch
-        selected={entry.kind}
-        availability={formatAvailability(entry)}
-        showIcons
-        onSelect={(to) => {
-          const sibling = entry.context.variants.find((variant) => variant.kind === to);
-          if (sibling?.status === 'ready') session.navigate({ mode: 'variant', to });
-          else session.openRequest(to);
-        }}
-      />
+      <EncounterFormatSwitch entry={entry} session={session} />
     </View>
   );
 }
