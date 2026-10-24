@@ -1,6 +1,7 @@
 import { produceLibraryCommand, productionStatusCommand } from './library-operator.js';
 import { journeyCommand } from './journey-operator.js';
 import { reelCommand } from './reel-operator.js';
+import { roomsCommand } from './rooms-operator.js';
 import { recoverOpenDemandCommand } from './supply-operator.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
@@ -39,13 +40,14 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  *   reasoning rejected --attempt <uuid>                    one refused answer with its text and findings
  *   reel check|order|follow|receive|status|write-off|settle  Reels from Cutroom (reel-operator.ts, docs/v2/operations/cutroom-and-spend.md)
  *   journey <id> | journey --account <accountId> [--json]    one record's journey across modules (journey-operator.ts, docs/v2/operations/looking-at-the-system.md)
+ *   rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]   idea rooms, one per library system (rooms-operator.ts)
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
  * MiniMax offers no request lookup: an `unknown` attempt is never resent; a write-off records the
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -78,6 +80,7 @@ async function main(): Promise<number> {
   });
   if (process.argv[2] === 'reel') return reelCommand(process.argv.slice(3), print, logEvent);
   if (process.argv[2] === 'journey') return journeyCommand(process.argv.slice(3), print, logEvent);
+  if (process.argv[2] === 'rooms') return roomsCommand(process.argv.slice(3), print, logEvent);
   let args;
   try {
     args = parseArgs({

@@ -3,6 +3,7 @@ import { operatorContract } from './operator.js';
 import { publicContentSharesContract } from './public-content-shares.js';
 import { conversationsContract } from './conversations.js';
 import { threadsContract } from './threads.js';
+import { roomsContract } from './rooms.js';
 import { scenariosContract } from './scenarios.js';
 import { contentSharesContract } from './content-shares.js';
 import { friendPagesContract } from './friend-pages.js';
@@ -55,6 +56,7 @@ export const apiContract: {
   friendPages: typeof friendPagesContract;
   conversations: typeof conversationsContract;
   threads: typeof threadsContract;
+  rooms: typeof roomsContract;
   scenarios: typeof scenariosContract;
   contentShares: typeof contentSharesContract;
   publicContentShares: typeof publicContentSharesContract;
@@ -106,6 +108,7 @@ export const apiContract: {
   friendPages: friendPagesContract,
   conversations: conversationsContract,
   threads: threadsContract,
+  rooms: roomsContract,
   scenarios: scenariosContract,
   contentShares: contentSharesContract,
   publicContentShares: publicContentSharesContract,

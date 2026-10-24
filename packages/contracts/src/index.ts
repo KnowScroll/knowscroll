@@ -35,6 +35,7 @@ export * from './formation-presentation.js';
 
 export * from './conversations.js';
 export * from './threads.js';
+export * from './rooms.js';
 export * from './scenarios.js';
 export * from './content-shares.js';
 export * from './social-problems.js';

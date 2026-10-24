@@ -20,6 +20,11 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | Content threads | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`) | `THREAD_USE_CASES`: create, read, history, changes, send, respond, mark read, leave, inbox, open snippet | Implemented; not runtime-verified on dev |
 | Visibility, availability and visits | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets` | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented |
 
+Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
+profiles of active accounts, by account or public person ID) and `READ_FRIEND_ACCOUNTS` (the caller's current friends), `READ_BLOCKED_AMONG` (which of some accounts the caller has blocked, never who blocked the caller),
+and reuse `snippetCard`, the rule that turns a stored snippet anchor into a card. They never read conversations or
+threads, and friend threads never reach a room (D-051).
+
 Dependency direction: `domain/` (pure rules and cursors) <- `application/` (use cases over ports) <-
 `adapters/` (PostgreSQL, Nest providers, erasure). Other modules and the API import only `public.ts`.
 Content metadata for cards comes from the Content module's `READ_SHAREABLE_CONTENT` and
