@@ -1,4 +1,6 @@
 import { SocialController } from './http/social.controller.js';
+import { ConversationsController } from './http/conversations.controller.js';
+import { ShareLandingController } from './http/share-landing.controller.js';
 import { RecordingController } from './http/recording.controller.js';
 import { FormationController } from './http/formation.controller.js';
 import { KeepRemoveController } from './http/keep-remove.controller.js';
@@ -32,6 +34,8 @@ export const apiControllers = [
   KeepRemoveController,
   PrivacyController,
   SocialController,
+  ConversationsController,
+  ShareLandingController,
   RegionEncounterController,
   FormationController,
 ];

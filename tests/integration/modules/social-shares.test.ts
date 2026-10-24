@@ -45,7 +45,7 @@ describe('managed share links (real PostgreSQL)', () => {
 
   const create = (actor: Friend, body: { target: object; audience: object }, commandId = randomUUID()) =>
     talk.shares.create(actor.authority, { version, commandId, ...body });
-  const publicLink = (actor: Friend, target: object, commandId?: string) =>
+  const publicLink = (actor: Friend, target: object, commandId?: ReturnType<typeof randomUUID>) =>
     create(actor, { target, audience: { kind: 'public_metadata' } }, commandId);
   const preview = (token: string) => talk.shares.previewPublic({ version, readId: randomUUID(), token });
   const resolve = (actor: Friend, token: string) =>
