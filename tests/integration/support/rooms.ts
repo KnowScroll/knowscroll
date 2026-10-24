@@ -76,7 +76,7 @@ export async function roomWorld(
     resolveSnippet: resolveSnippetAnchor,
     now: () => clock.now,
   };
-  const ownerActive = identityScopeOwnerProviders()[0]!.useValue as CheckPersonalOwnerActive;
+  const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
   const cases = talkCases(database.db, clock);
   return {
     db: database.db,

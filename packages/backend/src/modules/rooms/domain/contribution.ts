@@ -49,10 +49,6 @@ export function utcDayStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-/** Whether a queued ask is still holding its discussion at `now`. */
-export const askStillOpen = (askedAt: Date, now: Date): boolean =>
-  now.getTime() - askedAt.getTime() < QUEUED_ASK_LAPSES_MS;
-
 export type ContributionProblem = 'empty' | 'too_long' | 'has_link' | 'claims_to_be_a_person';
 
 const LINK = /https?:\/\/|www\./i;

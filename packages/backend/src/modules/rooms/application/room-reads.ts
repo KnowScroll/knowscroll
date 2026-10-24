@@ -3,6 +3,7 @@ import {
   ReadRoomSchema,
   RoomListSchema,
   RoomViewSchema,
+  type PublicPersonRef,
   type RoomDiscussionSummary,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
@@ -40,7 +41,8 @@ async function discussionSummaries(
   const starterIds = [
     ...new Set(rows.flatMap((row) => (row.startedByAccountId === null ? [] : [row.startedByAccountId]))),
   ];
-  const people = starterIds.length === 0 ? new Map() : await p.people.byAccounts(scope, starterIds);
+  const people: ReadonlyMap<string, PublicPersonRef> =
+    starterIds.length === 0 ? new Map() : await p.people.byAccounts(scope, starterIds);
   return rows.map((row) => {
     const starter = row.startedByAccountId === null ? undefined : people.get(row.startedByAccountId);
     return {

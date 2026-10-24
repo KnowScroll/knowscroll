@@ -127,7 +127,10 @@ export const roomsErasure: ModuleErasure = declareErasure({
   },
 
   clear: {
-    dispositions: Object.fromEntries(Object.keys(LIFECYCLE).map((store) => [store, 'preserve' as const])),
+    dispositions: {
+      ...Object.fromEntries(Object.keys(LIFECYCLE).map((store) => [store, 'preserve' as const])),
+      [`store:pgboss/${contributeQueue.name}`]: 'erase' as const,
+    },
     async erase(scope) {
       const asks = await failQueuedAsks(clearCoreTransactionOf(scope), scope.binding.universeId);
       const jobs = await deleteClearJobPayloads(scope, [contributeQueue.name]);
@@ -175,6 +178,10 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         select count(*) as n from rooms.ai_requests where requested_by_account_id = ${person.accountId}::uuid`.execute(
         trx,
       );
+      const messageCount = Number(written.rows[0]?.n ?? 0);
+      const askCount = Number(asks.rows[0]?.n ?? 0);
+      // A person who never took part in a room has no section: the file does not name the module.
+      if (rooms.rows.length === 0 && started.rows.length === 0 && messageCount === 0 && askCount === 0) return {};
       return {
         rooms: rooms.rows.map((row) => ({
           name: row.name,
@@ -187,8 +194,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           room: row.room,
           startedAt: row.created_at.toISOString(),
         })),
-        messagesWritten: Number(written.rows[0]?.n ?? 0),
-        truncated: Number(written.rows[0]?.n ?? 0) > messages.rows.length,
+        messagesWritten: messageCount,
+        truncated: messageCount > messages.rows.length,
         yourMessages: messages.rows.map((row) =>
           row.body_text === null
             ? {
@@ -199,7 +206,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
               }
             : { room: row.room, sentAt: row.recorded_at.toISOString(), text: row.body_text },
         ),
-        inhabitantAsks: Number(asks.rows[0]?.n ?? 0),
+        inhabitantAsks: askCount,
       };
     },
   );

@@ -2,19 +2,13 @@
 export const TITLE_MAX_CHARS = 80;
 
 /**
- * A discussion title made from some words (a content title, a shared card): whitespace collapsed,
- * control characters dropped and cut on a character boundary with an ellipsis. `fallback` is used
+ * A discussion title made from some words (a content title, a shared card): whitespace and control
+ * characters collapsed into single spaces and cut on a character boundary with an ellipsis. `fallback` is used
  * when nothing is left.
  */
 export function titleFrom(words: string, fallback: string): string {
-  const cleaned = [...words]
-    .filter((character) => {
-      const point = character.codePointAt(0)!;
-      return point >= 32 && (point < 127 || point > 159);
-    })
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Whitespace and control characters alike separate words, so none glues two of them together.
+  const cleaned = words.replace(/[\p{Cc}\s]+/gu, ' ').trim();
   if (cleaned === '') return fallback;
   const characters = [...cleaned];
   return characters.length <= TITLE_MAX_CHARS
