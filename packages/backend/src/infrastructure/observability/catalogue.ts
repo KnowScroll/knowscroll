@@ -98,6 +98,7 @@ export const diagnosticCatalogue = {
   'jobs.warning': { severity: 'warn', module: 'jobs', fields: ['reasonCode'] },
   'jobs.work_skipped': { severity: 'info', module: 'jobs', fields: ['queue', 'reasonCode'] },
   'jobs.consumer_registered': { severity: 'info', module: 'jobs', fields: ['queue', 'count'] },
+  'jobs.schedule_removed': { severity: 'warn', module: 'jobs', fields: ['queue'] },
   'jobs.consumers_draining': { severity: 'info', module: 'jobs', fields: ['count'] },
   'jobs.job_failed': {
     severity: 'warn',

@@ -66,7 +66,9 @@ checks contrast, the spacing base, breakpoints, type scaling and motion.
 | `onDarkMuted` | `rgba(255,251,240,.78)` | Inactive nav items on ink (11.2:1) |
 | `onDarkEdge` | `rgba(255,251,240,.6)` | Ghost borders and tag edges on dark |
 
-### Pressed toggles (`toggle`) — never yellow (D-006 b, amended on #255)
+### Pressed toggles (`toggle`) — never yellow (D-006 b)
+
+Related: #255.
 
 Yellow means continuation only, so a pressed two-state control (Like, Save, a selected filter)
 is never yellow. Components.html draws pressed toggles yellow; this set replaces that.

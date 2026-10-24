@@ -1,4 +1,6 @@
-# Privacy & history (P02, D05; #345, #246)
+# Privacy & history (P02, D05)
+
+Related: #345, #246.
 
 `/account/privacy` is in the account Stack and is linked from Account (P01). It is the hub of what a
 person can do with their own data. Each control says what it changes, and reports done only when it is.
