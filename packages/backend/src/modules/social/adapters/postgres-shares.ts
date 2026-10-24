@@ -1,9 +1,11 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import type { PersonalScopeTx } from '../../identity/public.js';
 import type { ContentCard, ContentRef, ShareRow, ShareStore } from '../application/conversation-ports.js';
 
-type ReadContent = (reader: Kysely<Database>, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
+type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
+type ReadPublicContent = (refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
 const shareOf = (row: {
   share_id: string;
@@ -27,7 +29,11 @@ const shareOf = (row: {
 });
 
 /** Postgres share-link rows (migration 0054). Only a token's hash is ever stored or compared. */
-export function shareStore(db: Kysely<Database>, readContent: ReadContent): ShareStore {
+export function shareStore(
+  db: Kysely<Database>,
+  readContent: ReadContent,
+  readPublicContent: ReadPublicContent,
+): ShareStore {
   return {
     async insert(scope, share) {
       await transactionOf(scope)
@@ -108,11 +114,11 @@ export function shareStore(db: Kysely<Database>, readContent: ReadContent): Shar
       return row && { membershipId: row.membership_id, membershipRevision: Number(row.membership_revision) };
     },
 
-    cards: (scope, refs) => readContent(transactionOf(scope), refs),
+    cards: (scope, refs) => readContent(scope, refs),
 
     anonymous: {
       byTokenHash: (tokenHash) => byTokenHash(db, tokenHash),
-      cards: (refs) => readContent(db, refs),
+      cards: readPublicContent,
     },
   };
 }

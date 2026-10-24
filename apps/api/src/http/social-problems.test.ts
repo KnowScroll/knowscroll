@@ -73,7 +73,7 @@ function inRequest<T>(method: string, path: string, work: (headers: Map<string, 
 }
 
 describe('mounted Social serialization boundary before authentication and parsing', () => {
-  it('selects only the eleven mounted methods and paths, including Express case/trailing slash aliases', () => {
+  it('selects only the mounted methods and paths, including Express case/trailing slash aliases', () => {
     const mounted = [
       ['GET', '/v1/social/profile'],
       ['GET', '/v1/social/invites'],
@@ -94,6 +94,24 @@ describe('mounted Social serialization boundary before authentication and parsin
         'friends/block',
         'friends/unblock',
       ].map((path) => ['POST', `/v1/social/${path}`]),
+      ...[
+        'conversations/start',
+        'conversations/inbox',
+        'conversations/read',
+        'conversations/history',
+        'conversations/changes',
+        'conversations/send',
+        'conversations/send/read',
+        'conversations/mark-read',
+        'conversations/mute',
+        'conversations/leave',
+        'content-shares/create',
+        'content-shares/revoke',
+        'content-shares/read',
+        'content-shares/list',
+        'content-shares/resolve',
+      ].map((path) => ['POST', `/v1/social/${path}`]),
+      ['POST', '/s/preview'],
     ];
     for (const [method, path] of mounted) {
       for (const alias of [path!, `${path!.toUpperCase()}/`])
@@ -108,7 +126,10 @@ describe('mounted Social serialization boundary before authentication and parsin
       ['POST', '/v1/social/profile/extra'],
       ['GET', '/v1/social/friends'],
       ['POST', '/v1/social/invitations/redeem'],
-      ['POST', '/v1/social/conversations/send'],
+      ['GET', '/v1/social/conversations/send'],
+      ['POST', '/v1/social/conversations/typing'],
+      ['POST', '/v1/social/conversations/send/extra'],
+      ['GET', '/s/preview'],
       ['GET', '/v1/shares/public-token'],
     ])
       inRequest(method!, path!, (headers) => {

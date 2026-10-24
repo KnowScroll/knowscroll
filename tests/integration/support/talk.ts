@@ -5,7 +5,7 @@ import { expect } from 'vitest';
 import type { PublicPersonRef } from '@knowscroll/contracts';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
-import { readShareableContent } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeReadPublicContent, readShareableContent } from '@knowscroll/backend/modules/content/nest-providers';
 import { conversationUseCases, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
 import { seedPerson, type FixturePerson } from './fixtures.js';
 
@@ -25,7 +25,12 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
   return {
     clock,
     friends: socialUseCases(deps),
-    talk: conversationUseCases({ ...deps, db, readContent: readShareableContent }),
+    talk: conversationUseCases({
+      ...deps,
+      db,
+      readContent: readShareableContent,
+      readPublicContent: makeReadPublicContent(db),
+    }),
   };
 }
 

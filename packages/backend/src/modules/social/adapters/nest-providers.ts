@@ -1,8 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import type { ReadShareableContent } from '../../content/public.js';
-import { READ_SHAREABLE_CONTENT } from '../../content/public.js';
+import {
+  READ_PUBLIC_CONTENT,
+  READ_SHAREABLE_CONTENT,
+  type ReadPublicContent,
+  type ReadShareableContent,
+} from '../../content/public.js';
 import { makeConversationCommands } from '../application/conversation-commands.js';
 import { makeConversationReads } from '../application/conversation-reads.js';
 import { makeContentShares } from '../application/content-shares.js';
@@ -73,12 +77,16 @@ export function socialUseCases(deps: SocialDeps): SocialUseCases {
 
 /** Conversations and share links over the same ports; `db` serves only reads for visitors with no account. */
 export function conversationUseCases(
-  deps: SocialDeps & { db: Kysely<Database>; readContent: ReadShareableContent },
+  deps: SocialDeps & {
+    db: Kysely<Database>;
+    readContent: ReadShareableContent;
+    readPublicContent: ReadPublicContent;
+  },
 ): ConversationUseCases {
   const ports: ConversationPorts = {
     ...socialPorts(deps),
     conversations: conversationStore(deps.readContent),
-    shares: shareStore(deps.db, deps.readContent),
+    shares: shareStore(deps.db, deps.readContent, deps.readPublicContent),
     shareToken: () => `kssh_${randomBytes(32).toString('base64url')}`,
   };
   return {
@@ -108,6 +116,7 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
         FENCE_OWN_ACCOUNT,
         tokens.database,
         READ_SHAREABLE_CONTENT,
+        READ_PUBLIC_CONTENT,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -115,7 +124,8 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
         fenceOwn: FenceOwnAccount,
         db: Kysely<Database>,
         readContent: ReadShareableContent,
-      ) => conversationUseCases({ withScope, fencePair, fenceOwn, db, readContent }),
+        readPublicContent: ReadPublicContent,
+      ) => conversationUseCases({ withScope, fencePair, fenceOwn, db, readContent, readPublicContent }),
     },
     {
       provide: READ_INBOX_REVISION,

@@ -82,10 +82,8 @@ describe('managed share links (real PostgreSQL)', () => {
     const target = { assetId: content.assetId, assetRevision: 1 };
     const commandId = randomUUID();
     const first = unwrap(await publicLink(a, target, commandId));
-    expect(first.delivery).toMatchObject({
-      status: 'available',
-      token: expect.stringMatching(/^kssh_[A-Za-z0-9_-]{43}$/),
-    });
+    if (first.delivery.status !== 'available') throw new Error('CI token');
+    expect(first.delivery.token).toMatch(/^kssh_[A-Za-z0-9_-]{43}$/);
     expect(first.acceptance).toMatchObject({ replayed: false, audience: { kind: 'public_metadata' } });
     expect(Date.parse(first.acceptance.expiresAt) - Date.parse(first.acceptance.recordedAt)).toBe(30 * DAY);
 
@@ -99,7 +97,6 @@ describe('managed share links (real PostgreSQL)', () => {
     });
 
     // Only the token's hash is stored.
-    if (first.delivery.status !== 'available') throw new Error('CI token');
     const stored = await database.db
       .selectFrom('social.content_shares')
       .select('token_hash')

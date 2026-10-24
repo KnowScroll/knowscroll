@@ -2,7 +2,8 @@ import { sql, type Kysely } from 'kysely';
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import type { ContentRef, ReadShareableContent } from '../public.js';
+import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import type { ContentRef, ReadPublicContent, ReadShareableContent } from '../public.js';
 
 interface Row {
   assetId: string;
@@ -22,14 +23,14 @@ type Projection = z.infer<typeof ConversationContentProjectionSchema>;
 
 /**
  * The public metadata of exact content revisions, for cards in conversations and for share links.
- * It reads shared, immutable content, so it needs no personal scope and may run on the pool or
- * inside any transaction. It states what exists now, never who may see it: callers decide access.
+ * It reads shared, immutable content and states what exists now, never who may see it: callers
+ * decide access.
  *
  * Per ref: `available` (the revision is the current admitted one), `corrected` (admitted, but a
  * newer revision exists; both revisions' metadata are returned, the original ref is kept) or
  * `unavailable` (withdrawn, missing, or lacking a published summary). Input is limited to 100 refs.
  */
-export const readShareableContent: ReadShareableContent = async (reader: Kysely<Database>, refs) => {
+async function readMetadata(reader: Kysely<Database>, refs: readonly ContentRef[]): Promise<Projection[]> {
   if (refs.length > 100) throw new Error('SHAREABLE_CONTENT_LIMIT');
   if (refs.length === 0) return [];
   const result = await sql<Row>`
@@ -50,7 +51,16 @@ export const readShareableContent: ReadShareableContent = async (reader: Kysely<
       result.rows.find((row) => row.assetId === ref.assetId && row.assetRevision === ref.assetRevision),
     ),
   );
-};
+}
+
+/** Inside a personal transaction (the same transaction a pair-locked shared scope uses). */
+export const readShareableContent: ReadShareableContent = (scope, refs) => readMetadata(transactionOf(scope), refs);
+
+/** For visitors with no account: reads on the pool, bound once by the composition root. */
+export const makeReadPublicContent =
+  (db: Kysely<Database>): ReadPublicContent =>
+  (refs) =>
+    readMetadata(db, refs);
 
 function project(target: ContentRef, row: Row | undefined): Projection {
   const unavailable: Projection = { status: 'unavailable', target };

@@ -15,6 +15,7 @@ import {
   READ_ENCOUNTER_TOPICS,
   READ_SAVED_METADATA,
   READ_SAVED_PAGE_METADATA,
+  READ_PUBLIC_CONTENT,
   READ_SHAREABLE_CONTENT,
   READ_ENCOUNTER_ATTRIBUTION,
   FIND_ASSET_FOR_ACTION,
@@ -38,7 +39,7 @@ import {
   readEncounterAttribution,
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
-import { readShareableContent } from './shareable-content.js';
+import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
@@ -78,6 +79,11 @@ export function contentRenderProviders(tokens: { readonly database: symbol }) {
       provide: RENDER_SCROLL,
       inject: [tokens.database],
       useFactory: (db: Kysely<Database>): RenderScroll => makeRenderScroll(db),
+    },
+    {
+      provide: READ_PUBLIC_CONTENT,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadPublicContent(db),
     },
   ];
 }
@@ -155,7 +161,7 @@ export { makeCommissionChainSnapshots } from '../production/commission-chain-sto
 export { postgresCommissionChainStore } from './postgres-commission-chain.js';
 
 export { readSavedPageMetadata } from './discovery-store.js';
-export { readShareableContent } from './shareable-content.js';
+export { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 
 /** Connected commissioning: source gates stay off unless the operator supplies every real dependency. */
 export { makeCommissioning } from '../production/commissioning.js';

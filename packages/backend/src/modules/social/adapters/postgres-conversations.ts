@@ -1,6 +1,7 @@
-import { sql, type Kysely, type Transaction } from 'kysely';
+import { sql, type Transaction } from 'kysely';
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import type { PersonalScopeTx } from '../../identity/public.js';
 import { notifyInboxChanged } from '../../../infrastructure/notices/index.js';
 import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type {
@@ -14,7 +15,7 @@ import type {
 } from '../application/conversation-ports.js';
 import type { PairLock } from '../application/ports.js';
 
-type ReadContent = (reader: Kysely<Database>, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
+type ReadContent = (scope: PersonalScopeTx, refs: readonly ContentRef[]) => Promise<readonly ContentCard[]>;
 
 const trxOf = (scope: PairLock | Parameters<typeof transactionOf>[0]): Transaction<Database> =>
   'shared' in scope ? sharedTransactionOf(scope.shared) : transactionOf(scope);
@@ -389,7 +390,7 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       return Number(row?.revision ?? 0);
     },
 
-    cards: (scope, refs) => readContent(trxOf(scope), refs),
+    cards: (scope, refs) => readContent('shared' in scope ? scope.shared.personal : scope, refs),
   };
 
   async function loadConversation(
