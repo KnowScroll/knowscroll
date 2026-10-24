@@ -1,4 +1,5 @@
 import { waitFor } from '@testing-library/react-native';
+import { CancelledError } from '@tanstack/react-query';
 import {
   scopeOutbox,
   createAccountScope,
@@ -109,7 +110,8 @@ describe('actual encounter controller over CI transport fixtures', () => {
       expect(h.session.getState().entry?.position).toEqual({
         kind: 'reel',
         positionMs: 12345,
-        playing: true,
+        // Back restores a Reel paused, whatever it was doing when it was left.
+        playing: false,
         muted: true,
       });
       expect(h.session.getState().entry?.restored).toBe(true);
@@ -308,6 +310,110 @@ describe('actual encounter controller over CI transport fixtures', () => {
       const count = commands(h, '/navigate').length;
       h.session.back();
       expect(commands(h, '/navigate')).toHaveLength(count);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('a Reel that was playing under a sheet plays on when it closes, but a parked entry returns paused', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const entry = h.session.getState().entry!;
+      h.session.bindSurface(entry, {
+        capture: () => ({ kind: 'reel', positionMs: 5000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.setOverlay(true);
+      expect(entry.resumePlaying).toBeFalsy();
+      h.session.setOverlay(false);
+      expect(entry.resumePlaying).toBe(true);
+      // Leaving (a tab detour, Back, another subject) is not a sheet closing.
+      h.session.bindSurface(entry, { capture: () => undefined, pause: jest.fn() });
+      h.session.park(entry);
+      expect(entry.resumePlaying).toBe(false);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('Back restores a Reel paused, so closing a sheet afterwards never starts it with sound', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const first = h.session.getState().entry!;
+      h.session.bindSurface(first, {
+        capture: () => ({ kind: 'reel', positionMs: 5000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      expect(first.position).toMatchObject({ playing: true });
+      expect(h.session.back()).toBe(true);
+      expect(h.session.getState().entry).toBe(first);
+      expect(first.position).toMatchObject({ positionMs: 5000, playing: false });
+      h.session.setOverlay(true);
+      h.session.setOverlay(false);
+      expect(first.resumePlaying).toBeFalsy();
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('returning from another tab restores a Reel paused, so a sheet closed before its source restores never plays it', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const first = h.session.getState().entry!;
+      h.session.bindSurface(first, {
+        capture: () => ({ kind: 'reel', positionMs: 7000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.setForeground(false);
+      expect(first.position).toMatchObject({ positionMs: 7000, playing: true });
+      h.session.setForeground(true);
+      expect(first.position).toMatchObject({ positionMs: 7000, playing: false });
+      h.session.setOverlay(true);
+      h.session.setOverlay(false);
+      expect(first.resumePlaying).toBeFalsy();
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('a trail jump restores the earlier Reel paused, so a sheet closed afterwards never plays it', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const first = h.session.getState().entry!;
+      h.session.bindSurface(first, {
+        capture: () => ({ kind: 'reel', positionMs: 3000, playing: true, muted: false }),
+        pause: jest.fn(),
+      });
+      h.session.navigate({ mode: 'vertical', direction: 'next' });
+      await waitForPhase(h.session, 'active');
+      const second = h.session.getState().entry!;
+      expect(second).not.toBe(first);
+      h.session.restore(first.exposureId);
+      expect(h.session.getState().entry).toBe(first);
+      expect(first.position).toMatchObject({ positionMs: 3000, playing: false });
+      h.session.setOverlay(true);
+      h.session.setOverlay(false);
+      expect(first.resumePlaying).toBeFalsy();
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('a context refetch that a newer one replaced is not "offline"', async () => {
+    const h = harness();
+    try {
+      await ready(h);
+      const exposureId = h.session.getState().entry!.exposureId;
+      h.session.contextFailure(exposureId, new CancelledError());
+      expect(h.session.getState().phase).toBe('active');
+      h.session.contextFailure(exposureId, new TypeError('Failed to fetch'));
+      expect(h.session.getState().phase).toBe('offline');
     } finally {
       h.scope.end();
     }

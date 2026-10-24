@@ -37,7 +37,7 @@ export function createReelViewport() {
     },
   };
 }
-const Viewport = createContext<{ store: ReturnType<typeof createReelViewport>; stageMaxHeight: number } | null>(null);
+const Viewport = createContext<{ store: ReturnType<typeof createReelViewport> } | null>(null);
 function box(x: number, y: number, width: number, height: number): Box | null {
   return [x, y, width, height].every(Number.isFinite) && width > 0 && height > 0
     ? { left: x, top: y, right: x + width, bottom: y + height }
@@ -65,11 +65,7 @@ export function ReelPage({
   const viewport = useRef<ComponentRef<typeof View>>(null);
   const { width, height } = useWindowDimensions();
   const mounted = useRef(false);
-  const [measuredHeight, setMeasuredHeight] = useState(0);
-  const context = useMemo(
-    () => ({ store, stageMaxHeight: measuredHeight > 0 ? measuredHeight / 2 : 160 }),
-    [store, measuredHeight],
-  );
+  const context = useMemo(() => ({ store }), [store]);
   const measure = useCallback(() => {
     // Subscribers synchronously pause and revoke their old observation before asynchronous measurement.
     const revision = store.invalidate();
@@ -88,7 +84,6 @@ export function ReelPage({
           : null;
         const valid = clipped && clipped.right > clipped.left && clipped.bottom > clipped.top ? clipped : null;
         store.measured(revision, valid);
-        if (store.read().revision === revision) setMeasuredHeight(valid ? valid.bottom - valid.top : 0);
       });
     } catch {
       store.measured(revision, null);
@@ -229,7 +224,6 @@ export function useReelPageStage(scope: AccountScope, enabled: boolean, pause: (
   }, [binding, scope, enabled, pause, store]);
   return {
     ref,
-    stageMaxHeight: viewport?.stageMaxHeight,
     onLayout: useCallback(() => request.current(), []),
     visible:
       Platform.OS === 'web' || !store
