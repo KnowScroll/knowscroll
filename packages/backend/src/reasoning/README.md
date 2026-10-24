@@ -11,6 +11,7 @@ owns admission, budgets, transport, parsing, limits and attempt tracking. No too
 | Capability | Status |
 | --- | --- |
 | Personal harness: admission, budgets, quota preflight, dispatch, settlement and one repair | Implemented. CI exercises every transition against real PostgreSQL with the labelled fixture model. |
+| Background share: background roles stop at a share of the global and personal daily caps (D-058) | Implemented. CI exercises it, including 32 proposals racing, against real PostgreSQL with the fixture model. Not yet run on dev. |
 | MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Real calls have been made from the production operator command; no generated Scroll has been accepted yet. |
 | Nonpersonal Scroll production scope | Implemented and operator-triggered only: no worker job is registered and both enable switches default off. |
 | Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
@@ -27,7 +28,9 @@ const outcome = await harness.propose({ run, role, context, limits }, signal);
 ```
 
 - `run`: `{ id (stable across deliveries), authority (PersonalAuthority), ownerModule, purpose, policyVersion }`.
-- `role`: `{ id '<module>.<role>', version, instructions, outputSchema (zod), maxOutputTokens, minContextItems?, budget? }`.
+- `role`: `{ id '<module>.<role>', version, instructions, outputSchema (zod), maxOutputTokens, minContextItems?, budget?, budgetClass? }`.
+  `budgetClass: 'background'` marks a role that runs because the person read or swiped, not because they
+  asked (Jev, Cartographer, Planner); everything else is `interactive` by default and is never squeezed.
 - Optional `role.safeCustomIssues` is a static, code-owned semantic code → fixed hint catalogue.
   Never construct it from user/provider values, retrieved text or context. Admission allows at most
   128 own entries, lowercase codes of at most 64 characters (`[a-z][a-z0-9_]*`, no prototype names)
@@ -199,7 +202,7 @@ Spend caps retain precedence when both a cap and the failure brake are full. Bot
 | `reasoning.business_runs`      | `0006`, `0009`, `0032` | One row per module run: owner module, purpose, privacy epoch, role id/version, policy version, provider, model, context bundle ref and item refs, `state`, `fence`                                              | Erased with the universe once it has no attempts left                                                                                                                                                              |
 | `reasoning.external_attempts`  | `0006`, `0009`, `0032` | One row per external call attempt: step, state, request hash, dispatch identity, remote id, usage, quota observation, outcome code, the validated output or validator issues, write-off reason and `cli:<name>` | Settled attempts are erased with the universe; `dispatched`/`unknown` and unproved reserved ones stay marked/redacted as unresolved liability; erasure reports `pending` until legitimate accounting resolves them |
 | `reasoning.protected_requests` | `0009`                 | The exact request bytes (`bytea`, 1 B – 256 KiB), their SHA-256 (the database checks it equals the bytes' hash), `erasure_class`, `expires_at` (default 48 h)                                                   | Expires and is purged; erased with the universe even for an open attempt                                                                                                                                           |
-| `reasoning.usage_receipts`     | `0009`                 | The minimal accounting identity per attempt: role, provider, model, UTC day, reserved and reported tokens, state. **No universe, purpose, context or output**                                                   | Not personal; kept so global and per-role budgets and late usage stay honest                                                                                                                                       |
+| `reasoning.usage_receipts`     | `0009`, `0013`, `0065` | The minimal accounting identity per attempt: role, provider, model, UTC day, reserved and reported tokens, state, whether it is a background role's. **No universe, purpose, context or output**               | Not personal; kept so global and per-role budgets and late usage stay honest                                                                                                                                       |
 
 Personal rows are keyed `(universe_id, id)`, each attempt is tied to its run, and each protected
 request to its attempt, by composite foreign keys that reference `identity.universes` with
@@ -380,6 +383,19 @@ do, D-052); the idle-run sweep closes any that is left. `reserve` refuses a run 
 sweep takes no personal root lock, so it can close a run between admission and reservation. Measured on dev, a Cartographer call costs about
 10,000 tokens and a Planner call about 6,000, against the default per-person day of 60 requests and 600,000
 tokens; with the rules in D-052 a 30-minute reading session uses about 70,000.
+**Background share (D-058).** A role that declares `budgetClass: 'background'` must also fit
+`KS_REASONING_BACKGROUND_SHARE_PERCENT` (default 50) of the global cap and of the scope cap, in requests and in
+tokens, counted over background receipts only. `usage_receipts.background` (migration `0065`) records the class
+when the attempt is reserved, so the sum needs no list of role ids. The check runs under the same advisory lock
+as the other sums, which makes it exact under concurrency. Background spend can never pass its share, so the rest
+of every cap is always left for what a person asks for (What-if, a room ask, request matching, Scroll
+production). The hard caps are checked first and keep their refusal codes; a background refusal reports
+`budget_exhausted` with dimension `background_global` or `background_scope`, which every background role already
+handles as "no assessment now" (Jev falls back to the deterministic ranking, the Cartographer applies the rules
+alone, the Planner ends the run `insufficient` and tries again with the next evidence). A person's own allowance
+is therefore not spent by their reading alone, whatever the roles do. 0 switches background roles off; 100
+keeps nothing back.
+
 Erasing a universe deletes its attempts, which are what the **scope** cap counts, so a person who
 repeatedly clears their history gets a fresh per-scope allowance each time; the role and global caps
 count the receipts, which survive, and bound that (review m4: accepted, no change). Defaults and
@@ -689,7 +705,8 @@ authority guard is pinned by `application/personal-guard.test.ts` and the schema
 `reasoning-harness.test.ts` (budgets, quota, protected store, repair, guard, canary, runs),
 `reasoning-recovery.test.ts` (the crash sweep, what a failure costs, epochs and closed runs, the
 database constraints, the purge, the stored-output bound), `reasoning-caps-race.test.ts` (the caps
-under concurrency), `reasoning-boundary.test.ts` (redaction at depth, feedback without model-chosen
+under concurrency), `reasoning-background-share.test.ts` (the background share: per person, global, tokens,
+0 and 100 percent, and 32 proposals racing), `reasoning-boundary.test.ts` (redaction at depth, feedback without model-chosen
 strings), plus `infrastructure/erasure.test.ts` and `transaction-guard.test.ts`. Release tests from
 the built tree: `release/worker-operator-journey.test.ts`. Role evaluation: the separate Vitest
 project `role-evaluation` (`tests/integration/evaluation/`), labelled synthetic contexts
