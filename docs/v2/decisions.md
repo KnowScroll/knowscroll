@@ -479,3 +479,9 @@ Choices where blueprint §26, D-006 l and the Operator artboard leave room:
 - **The screen has its own flat grey look**, desktop first, one to three columns by width. It is not linked from the app. Panels with no Tier 0 source (service health, request latency, media disk, realtime delivery, dropped diagnostics) are unavailable by construction, not by a failed read.
 - **Not built:** Grafana dashboards (the role and views are ready; dashboards belong in `ops/observability/`), trace links, saved queries, per-hint realtime history, an account search in the screen, and retention of operator reads beyond the journal's counts.
 
+## D-048 · 2026-10-24 · Coordinator: Cutroom orders are bounded by real fal money, not pool cents
+
+On 24 Oct five v2 orders were counted by `knowscroll_pool` as 183¢ (48 + 40 + 50 + 40 + 5), but the fal balance fell from $11.99 to −$0.09: about $12.08 of real spend. On these runs the pool's counted cents **under**count real fal money about 6.6×. CF-62's statement that counted cost overcounts real money does not hold for v2 Reels. The owner's D-030 budget ($4 of new fal spend) was exceeded by about $8 before the fal account locked; the coordinator stopped all ordering and reported it on #222. Two Reels were produced.
+
+From now on a paid order is bounded by real money: the operator reads the fal balance (server side, with Cutroom's environment) before and after every order, and stops when real new spend reaches the amount the owner set. The pool cap stays as a second limit. Nothing is ordered without a new owner decision on the amount.
+
