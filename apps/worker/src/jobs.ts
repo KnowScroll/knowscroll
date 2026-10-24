@@ -335,7 +335,8 @@ export const jobWiring: Provider[] = [
       jobConsumer(purgeExpiredRequestsQueue, async () => {
         await purgeExpiredRequests();
       }),
-      // Every 5 minutes: attempts a crash left `dispatched` become `unknown` (logs `reasoning.dispatched_swept`).
+      // Every 5 minutes: attempts a crash left `dispatched` become `unknown` (logs `reasoning.dispatched_swept`), and
+      // personal runs left admitted and idle for hours are closed (logs `reasoning.idle_runs_closed`).
       jobConsumer(sweepDispatchedAttemptsQueue, async () => {
         await sweepDispatchedAttempts();
       }),

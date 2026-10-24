@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   formationEligible,
   proposalIssue,
+  proposalFault,
   activityFor,
   semanticKey,
   GeographyProposalSchema,
@@ -67,6 +68,37 @@ describe('experimental Geography formation (authored positive-support fixtures o
       support('three', 'earth.greenhouse-effect.balance', 'earth.greenhouse-effect'),
     ]);
     expect(formationEligible(unrelated, planet)).toBe(false);
+  });
+  it('names the first operation that breaks a proposal, so a repair can point at it', () => {
+    const f = facts([support('one'), support('two'), support('three')]);
+    const operation = (
+      kind: 'create_system' | 'establish_star',
+      c: Candidate,
+      refs = f.supports.map((s) => s.ref),
+    ) => ({
+      kind,
+      key: c.key,
+      label: c.labels[0]!,
+      truthStatus: 'factual' as const,
+      supportRefs: refs,
+    });
+    const proposal = (operations: ReturnType<typeof operation>[]) => ({
+      version: 'cartographer-proposal.v1' as const,
+      operations,
+    });
+    expect(proposalFault(proposal([operation('create_system', system), operation('establish_star', star)]), f)).toBe(
+      undefined,
+    );
+    expect(
+      proposalFault(
+        proposal([operation('create_system', system), operation('establish_star', star, [f.supports[0]!.ref])]),
+        f,
+      ),
+    ).toEqual({ code: 'formation_support', operation: 1 });
+    expect(proposalFault(proposal([operation('establish_star', star, ['invented'])]), f)).toEqual({
+      code: 'support_authority',
+      operation: 0,
+    });
   });
   it('requires complete ordered hierarchy and refuses hypothetical laundering or invented support refs', () => {
     const f = facts([support('one'), support('two', `${topic}.hemispheres`), support('three')]);

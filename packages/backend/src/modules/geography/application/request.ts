@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
+import { wakeAt } from '../domain/pacing.js';
 import type {
   GeographyAccountingHeader,
   GeographyPorts,
@@ -26,11 +27,17 @@ async function waitsForWake(
   const expired = !!header.claimId && !!header.claimUntil && Date.parse(header.claimUntil) <= p.now().getTime();
   return released || expired;
 }
-/** Immutable birth identity from a current accepted source, never a resumed prepare. */
+/**
+ * Makes sure one run exists for the person and is woken. Immutable birth identity from a current
+ * accepted source, never a resumed prepare. A `paced` caller (reading, or a follow-up to a settled
+ * run) starts a new run no earlier than `state.nextRunNotBefore`; changes that arrive meanwhile
+ * find this run active and coalesce into it. An explicit request is not paced.
+ */
 export async function ensureCartography(
   p: Pick<GeographyPorts, 'store' | 'newId' | 'enqueue' | 'enqueueRetirement' | 'now'>,
   cap: RecordingScopeTx,
   state: GeographyState,
+  paced = false,
 ): Promise<GeographyState> {
   const root = await p.store.root(cap);
   if (state.activeRunId) {
@@ -53,7 +60,8 @@ export async function ensureCartography(
     recording: { accountId: root.accountId, source: state.desiredSource },
   });
   await p.store.writeState(cap.personal, next);
-  if (!(await p.enqueue(cap, activeRunId))) throw new Error('GEOGRAPHY_REQUIRED_WAKE');
+  const startAfter = paced ? wakeAt(state.nextRunNotBefore, p.now()) : undefined;
+  if (!(await p.enqueue(cap, activeRunId, startAfter && { startAfter }))) throw new Error('GEOGRAPHY_REQUIRED_WAKE');
   return next;
 }
 export function makeGeographyMaterialChange(p: GeographyPorts): MaterialGeographyChange {
@@ -75,7 +83,7 @@ export function makeGeographyMaterialChange(p: GeographyPorts): MaterialGeograph
       desiredSource: { generation: cap.generation, kind: 'material' as const, sourceRevision: input.sourceRevision },
     };
     await p.store.writeState(cap.personal, next);
-    await ensureCartography(p, cap, next);
+    await ensureCartography(p, cap, next, true);
   };
 }
 /** Explicit original-body retry/resume. No read or toggle invokes this producer. */

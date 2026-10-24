@@ -283,6 +283,17 @@ describe('the validator summary', () => {
     );
   });
 
+  it('names a versioned literal whole, because a masked one taught a model to answer "?"', () => {
+    const versioned = z.strictObject({ version: z.literal('thing-proposal.v1'), kind: z.enum(['a.b', 'c d']) });
+    const verdict = validateOutput(versioned, { version: 'thing-proposal.v2', kind: 'zzz' });
+    expect(verdict.valid).toBe(false);
+    if (verdict.valid) return;
+    expect(verdict.issues).toEqual([
+      { path: 'version', code: 'invalid_value', detail: 'allowed: thing-proposal.v1' },
+      { path: 'kind', code: 'invalid_value', detail: 'allowed: a.b, ?' },
+    ]);
+  });
+
   it('states every bound with its unit, which the model does not know', () => {
     const bounded = z.object({
       word: z.string().min(2).max(4),

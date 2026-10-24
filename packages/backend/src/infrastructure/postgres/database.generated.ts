@@ -660,6 +660,7 @@ export interface GeographyState {
   desired_recording_generation: number | null;
   desired_revision: Generated<number>;
   material_revision: Generated<number>;
+  next_run_not_before: Timestamp | null;
   privacy_epoch: number;
   published_revision: Generated<number>;
   revision: Generated<number>;
@@ -1172,6 +1173,7 @@ export interface PlannerState {
   desired_revision: Generated<number>;
   intent: Json | null;
   material_revision: Generated<number>;
+  next_run_not_before: Timestamp | null;
   privacy_epoch: number;
   universe_id: string;
 }
