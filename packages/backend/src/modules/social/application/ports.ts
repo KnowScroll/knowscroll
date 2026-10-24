@@ -57,7 +57,6 @@ export interface RosterCertificate {
   revision: number;
   limit: number;
   after: string;
-  ceiling: string;
   started: number;
   until: number;
 }
@@ -74,12 +73,10 @@ export interface RosterCandidate {
 }
 export interface RosterStore {
   head(scope: PersonalScopeTx, filter: RosterKind): Promise<number>;
-  ceiling(scope: PersonalScopeTx, filter: RosterKind): Promise<string | undefined>;
   scan(
     scope: PersonalScopeTx,
     filter: RosterKind,
     after: string | undefined,
-    ceiling: string,
     limit: number,
   ): Promise<RosterCandidate[]>;
   deadline(scope: PersonalScopeTx, filter: RosterKind, now: Date): Promise<Date | undefined>;
@@ -103,6 +100,14 @@ export interface SocialPorts {
   digest(secret: string): string;
 }
 export const refuse = (code: SocialRefusal): Result<never> => ({ kind: 'refused', code });
+/** The scope every conversation and share answer names: the caller's account and epoch. */
+export const conversationEnvelope = (scope: PersonalScopeTx) => {
+  if (scope.authority.actor.kind !== 'account') throw new Error('SOCIAL_ACCOUNT_REQUIRED');
+  return {
+    version: 'direct-conversation.v1' as const,
+    scope: { accountId: scope.authority.actor.accountId, privacyEpoch: scope.authority.privacyEpoch },
+  };
+};
 export const ownEnvelope = (scope: PersonalScopeTx) => {
   if (scope.authority.actor.kind !== 'account') throw new Error('SOCIAL_ACCOUNT_REQUIRED');
   return {

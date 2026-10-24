@@ -133,10 +133,14 @@ describe('bounded current Friends roster protocol (authored PG data)', () => {
       kind: 'refused',
       code: 'unavailable',
     });
-    expect(await cases().readFriends(owner.authority, { ...q, cursor: first.value.next })).toEqual({
-      kind: 'refused',
-      code: 'unavailable',
+    // A restarted process or another instance continues the same traversal: a cursor holds no key.
+    const restarted = await cases().readFriends(owner.authority, {
+      ...q,
+      requestId: randomUUID(),
+      cursor: first.value.next,
     });
+    if (restarted.kind !== 'ok') throw new Error('CI_PAGE');
+    expect(restarted.value.items).toEqual(next.value.items);
     const foreign = await claimed();
     expect(await c.readFriends(foreign.authority, { ...q, cursor: first.value.next })).toEqual({
       kind: 'refused',

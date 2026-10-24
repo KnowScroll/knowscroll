@@ -135,6 +135,12 @@ Authored protocol fixtures cover scope-object isolation, synchronous purge and l
   (`ks.deletion.receipt`, not purged by a scope ending). An unknown receipt is forgotten: that request never arrived.
   `signed_out.reason` gains `account_deleted`.
 
+## Operator screen state (#248, D-044)
+
+- `createOperatorSession(scope)`: the panels (`loading`, `ready` with `readAt` and `stale`, `unavailable`, or `not_operator` on the
+  server's 404) and one journey lookup (`idle`, `invalid` for input that is not an ID and is never sent, `loading`, `found`,
+  `not_found`, `unavailable`). Only the newest lookup shows. Read-only.
+
 ## Manager-owned selective Clear (#345)
 
 `AccountScopeManager.privacy` is an in-memory controller outside the provider's keyed scope subtree.
@@ -327,3 +333,25 @@ Web localStorage remains subject to quota/crash loss; native scope storage is ke
 platform storage (`apps/client/platform/secure-key-value-store.ts`, D-045) and is durable a moment
 after a write, not at it, so a process killed in that moment loses that write. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
 hosted Actions only. They do not establish real service qualification, native parity or deployment.
+
+## Talk and share links (#242, D-042)
+
+All of these are pure controllers over `scope.api`. They hold no token or body in a query cache or storage, and
+they end with the scope. *Implemented; exercised in browsers locally, not yet on dev.*
+
+- `createConversationThread(scope, ref, options)`: reads the snapshot, then catches up with `conversations/changes`
+  from the stored cursor. `send(text)` shows a bubble as `sending`, then `accepted`, `unconfirmed` (the outcome is
+  unknown: the same command ID is kept and `retry()` sends it again) or `not_sent` (a definite refusal). It marks
+  read, mutes and leaves. When a catch-up page first says `ended`, it rereads the snapshot, so a deleted friend shows
+  as "Deleted account". `mergeMessages` orders by sequence and drops duplicates, so a hint, a poll and a send
+  answer can arrive in any order.
+- `createShareSession(scope, target, origin)`: lists friends (the roster plus the inbox, to find an open
+  conversation), starts a conversation if needed and sends the card for the exact asset revision, with one command
+  ID per intent. `copyLink()` creates a public link and returns its URL once; `stopLink()` revokes it.
+- `createSharedLinksSession(scope)`: lists the person's live links and revokes one.
+- `readInboxPage`, `findConversation`, `blockFriend` (Talk's menu), and the formatting helpers in
+  `talk-format.ts` (`describeMessage`, `inboxRowView`, `listTime`, `dayLabel`).
+- `account-scope-socket.ts` subscribes to both `universe` and `inbox`, keeps the highest revision per kind and
+  invalidates `scope.queryKey('talk')` (`TALK_QUERY_KEY`) on an inbox hint.
+- `@knowscroll/client-core/talk-fixture` (`src/test-support/talk-fixture.ts`) is a labelled in-memory Talk server for tests (it can fail the next call
+  as network, unavailable, server or lost response). It never ships in a build.

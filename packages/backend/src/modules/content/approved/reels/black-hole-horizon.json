@@ -71,19 +71,19 @@
       "mustShow": [
         {
           "id": "show-black-sphere",
-          "text": "a perfectly black round sphere against faint distant stars, edged by a thin line of glowing light",
+          "text": "a dark round shadow inside a thick bright ring of glowing orange light that fills much of the frame",
           "type": "presence",
           "claimId": "c1"
         },
         {
           "id": "show-bright-ring",
-          "text": "a bright ring of hot orange gas curving around a dark round shadow",
+          "text": "a bright swirling disc of hot orange gas circling a dark round shadow, the glowing disc filling most of the frame",
           "type": "presence",
           "claimId": "c2"
         },
         {
           "id": "show-long-streak",
-          "text": "a long thin streak of glowing gas stretched toward a dark round shadow",
+          "text": "a long bright streak of glowing orange gas stretching toward a dark round shadow inside a glowing ring",
           "type": "presence",
           "claimId": "c3"
         }
@@ -104,8 +104,8 @@
     },
     "style": {
       "id": "style-knowscroll-space",
-      "version": 1,
-      "text": "realistic deep-space photography, high contrast, natural starlight, steady camera"
+      "version": 2,
+      "text": "bright, well-exposed space imagery like a planetarium film: the subject is large, lit and moving from the first frame, warm glowing colours, slow continuous camera drift, no fade in from black"
     },
     "title": "A boundary, not a surface",
     "summary": "A black hole's edge is a one-way boundary, not a solid surface: what we see from far away, and what a falling object would feel."

@@ -389,3 +389,24 @@ is not ready (Cutroom down, the pool unreachable, the video not readable yet, th
 here yet) is reported with a code and changes nothing.
 
 Related: `docs/v2/decisions.md` D-041, `docs/v2/carried-forward-facts.md` CF-60 to CF-66, `ops/pool/README.md`.
+
+## Shareable content for Social (#242, D-042)
+
+Social shows a Reel or Scroll as a card in a conversation and on the share landing. It reads the card's public
+metadata through two read ports in `public.ts`, never through Content's tables.
+
+| Port | Where it runs | Used for |
+| --- | --- | --- |
+| `READ_SHAREABLE_CONTENT` (`readShareableContent(scope, refs)`) | inside the caller's personal or shared transaction | cards in a conversation, validating a send |
+| `READ_PUBLIC_CONTENT` (`makeReadPublicContent(db)`) | its own short read on the pool, no personal scope | the public link preview and the landing page |
+
+For each requested `(assetId, assetRevision)` the read returns one of:
+
+- `available`: the asset is admitted and that revision is current: title, kind, a short summary, language.
+- `corrected`: the asset is admitted and a newer revision is current; it carries the current revision's metadata too,
+  so a card can offer the revised version.
+- `unavailable`: unknown, withdrawn, an unknown revision, or a revision with no published summary. No reason is given.
+
+It reads only the asset's status and kind, each revision's title and language, and the discovery summary. It never reads the
+document, a reading fact or any personal state, and it creates no evidence. One SQL statement serves up to 100 refs.
+*Implemented.*

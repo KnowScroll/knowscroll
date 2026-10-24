@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 /**
  * The production web export in Chromium: navigation is made of real links, the keyboard works,
@@ -92,8 +92,17 @@ test.describe('links (B1)', () => {
     await cta.click();
     await expect(page).toHaveURL(/\/explore$/);
 
+    // Signed out, Talk shows its first-visit state; with no API behind the server it would say it can't reach the account.
+    const signedOut = (route: Route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/problem+json',
+        json: { code: 'AUTH_REQUIRED', status: 401, title: 'Authentication required', type: 'tag:x' },
+      });
+    await page.route('**/auth/session', signedOut);
     await open(page, '/conversations');
     await expect(page.getByRole('link', { name: 'Share something' })).toHaveAttribute('href', '/explore');
+    await page.unroute('**/auth/session', signedOut);
 
     await open(page, '/universe');
     await expect(page.getByRole('link', { name: 'Go to Explore' })).toHaveAttribute('href', '/explore');

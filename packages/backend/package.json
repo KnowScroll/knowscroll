@@ -101,6 +101,16 @@
       "types": "./dist/modules/identity/adapters/nest-providers.d.ts",
       "default": "./dist/modules/identity/adapters/nest-providers.js"
     },
+    "./modules/operator": {
+      "@knowscroll/source": "./src/modules/operator/public.ts",
+      "types": "./dist/modules/operator/public.d.ts",
+      "default": "./dist/modules/operator/public.js"
+    },
+    "./modules/operator/nest-providers": {
+      "@knowscroll/source": "./src/modules/operator/adapters/nest-providers.ts",
+      "types": "./dist/modules/operator/adapters/nest-providers.d.ts",
+      "default": "./dist/modules/operator/adapters/nest-providers.js"
+    },
     "./reasoning": {
       "@knowscroll/source": "./src/reasoning/public.ts",
       "types": "./dist/reasoning/public.d.ts",

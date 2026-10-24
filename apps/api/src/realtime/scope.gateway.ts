@@ -22,6 +22,7 @@ import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { ScopeNotice, ScopeNoticeSink } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { READ_UNIVERSE_ACCESS, type ReadUniverseAccess } from '@knowscroll/backend/modules/identity';
+import { READ_INBOX_REVISION, type ReadInboxRevision } from '@knowscroll/backend/modules/social';
 import { API_CONFIG, CALLERS, LOG_EVENT } from '../tokens.js';
 import { cookieValue, sessionCookieName } from '../http/auth-credentials.js';
 import { scopeClaimMatches, type AuthenticatedCallers, type Caller } from '../http/callers.js';
@@ -43,7 +44,8 @@ function cacheKey(caller: Caller, universeId: string): string {
 
 /**
  * Socket.IO gateway for live hints (blueprint §4, §7): authenticated connections, authorised
- * `subscribe_scope`/`unsubscribe_scope`, and `scope_changed`/`scope_resync`/`scope_revoked` hints
+ * `subscribe_scope`/`unsubscribe_scope` (the caller's `universe` and `inbox` scopes, both named by
+ * their own universe), and `scope_changed`/`scope_resync`/`scope_revoked` hints
  * from the LISTEN relay. There are no socket commands; durable state is read over HTTP.
  *
  * Room membership is a delivery aid, never authority:
@@ -69,6 +71,7 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
   constructor(
     @Inject(CALLERS) private readonly callers: AuthenticatedCallers,
     @Inject(READ_UNIVERSE_ACCESS) private readonly readAccess: ReadUniverseAccess,
+    @Inject(READ_INBOX_REVISION) private readonly readInboxRevision: ReadInboxRevision,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     @Inject(LOG_EVENT) private readonly logEvent: LogEvent,
   ) {}
@@ -139,7 +142,10 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
         return { ok: false, code: 'FORBIDDEN' };
       }
       this.remember(cacheKey(caller, request.data.scope.id), 'ok');
-      return { ok: true, revision: access.revision };
+      // Both scopes are named by the caller's own universe, so one access check covers either.
+      const revision =
+        request.data.scope.kind === 'inbox' ? await this.readInboxRevision(caller.accountId) : access.revision;
+      return { ok: true, revision };
     } catch (error) {
       await socket.leave(name);
       this.logEvent('realtime.subscription_refused', { reasonCode: 'UNAVAILABLE', error });

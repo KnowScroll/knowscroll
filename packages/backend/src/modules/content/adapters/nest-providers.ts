@@ -13,6 +13,8 @@ import {
   READ_ENCOUNTER_TOPICS,
   READ_SAVED_METADATA,
   READ_SAVED_PAGE_METADATA,
+  READ_PUBLIC_CONTENT,
+  READ_SHAREABLE_CONTENT,
   READ_ENCOUNTER_ATTRIBUTION,
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
@@ -37,6 +39,7 @@ import {
   readEncounterAttribution,
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
+import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
@@ -60,6 +63,7 @@ export function contentProviders() {
     { provide: READ_ENCOUNTER_TOPICS, useValue: readEncounterTopics },
     { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },
     { provide: READ_SAVED_PAGE_METADATA, useValue: readSavedPageMetadata },
+    { provide: READ_SHAREABLE_CONTENT, useValue: readShareableContent },
     { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
@@ -78,6 +82,11 @@ export function contentRenderProviders(tokens: { readonly database: symbol }) {
       provide: RENDER_SCROLL,
       inject: [tokens.database],
       useFactory: (db: Kysely<Database>): RenderScroll => makeRenderScroll(db),
+    },
+    {
+      provide: READ_PUBLIC_CONTENT,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadPublicContent(db),
     },
   ];
 }
@@ -141,6 +150,7 @@ export {
 export { lockKeepPositionTarget } from './keep-position-target.js';
 
 export { readSavedPageMetadata } from './discovery-store.js';
+export { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 
 /** The operator's Reel commands over real adapters (#240, D-041). */
 export { checkShippedReelScript, composeReelOperator, type ReelSettings } from './reel/compose.js';

@@ -15,6 +15,15 @@ together; the separately registered normal worker performs selective removal and
 accounting. Composition depends on the reviewed durable core in PR348. Source and installed
 Actions fixtures are separate from actual dev/stage privacy acceptance.
 
+## Operator routes (#248, D-044)
+
+`OperatorController` serves `GET /v1/operator/panels` (the six panels of the Operator screen) and
+`GET /v1/operator/journeys/{id}` (one record's timeline). They take the ordinary session and scope pipeline, then
+check on every call that the signed-in account is an operator of the world (`KS_OPERATOR_ACCOUNTS`, read from the
+account's address now). Anyone else gets the same 404 as an unknown route, and the refusal is logged as a code
+(`operator.refused`). The routes read the allowlisted `ops` views and change nothing. Module:
+`packages/backend/src/modules/operator/README.md`.
+
 ## Account: sessions, export and deletion (#246, D-043)
 
 `AccountController` serves `GET /v1/account/sessions`, `POST /v1/account/sessions/end` and `.../end-others`
@@ -271,8 +280,8 @@ Only those exact mounted methods/paths select the closed Social problem family a
 no-store before parsing/authentication. Received keys/values and private peer reasons are masked;
 responses bind current caller scope, command/operation and selected public identity. Handle
 lookup has no prefix search or account/email inference. Invite input remains explicitly unsupported;
-rosters, invitations, visibility/presence, visitor publication and conversations/content-share
-routes remain unmounted declarations. No contact action creates consumption evidence or model work.
+visibility/presence and visitor publication remain unmounted declarations (rosters and invitations are
+mounted below; conversations and share links in their own section). No contact action creates consumption evidence or model work.
 The installed disposable-account CI journey is not populated two-account dev/client acceptance.
 
 
@@ -286,9 +295,39 @@ unmounted. DTOs bind current caller, requestId/filter/public head, command/link/
 limits. Empty v2 items with next are scan progress; only next absence means captured scan exhausted.
 
 Existing own/pair Identity gates and sole pair authority remain owning. Roster reads have bounded
-current candidates and live eligibility/profile hydration; authenticated process-private cursors
-bind scope/filter/head/limit/anchor/ceiling/public-expiry bounds and refuse uniformly after restart.
+current candidates and live eligibility/profile hydration; cursors are plain keyset records that
+bind scope/filter/head/limit/anchor and the traversal time bounds. They survive a restart and work
+on any instance (D-042).
 Invites deliver a secret once separately from a hash-only store/immutable acceptance. Exact retry
 never re-delivers it. Resolver and invite-target friend requests check current issuer/token/expiry
 before effects/replay. No HTTP model/provider/job, presence, evidence or consumption path is added.
 Schema40 and hosted synthetic fixtures remain separate from real populated two-account/client use.
+
+### Conversations, share links and the landing (#242, D-042)
+
+`ConversationsController` mounts, all as private POSTs under `/v1/social/`:
+
+- `conversations/start`, `inbox`, `read`, `history`, `changes`, `send`, `send/read`, `mark-read`, `mute`, `leave`;
+- `content-shares/create`, `revoke`, `read` (one own link), `list` (own live links, newest first) and `resolve`.
+
+They take the same session, `Origin` and `X-KS-Scope` pipeline as the other Social routes. Each is a thin
+call of `CONVERSATION_USE_CASES` that maps a refusal to the closed Social problem family. Authority,
+membership, friendship lineage and blocks are decided in the use cases, never here. No handler waits for a
+model or a network call. Sending, receiving and opening a card create no consumption evidence.
+
+`ShareLandingController` serves the two public routes (no session needed; D-008 already sends `/s/*` here):
+
+- `POST /s/preview` returns the public metadata of a public link through the anonymous contract.
+- `GET /s/:token` returns an HTML page (`share-landing-page.ts`). It has no script. Headers:
+  `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`, `X-Robots-Tag: noindex` and a strict
+  `Content-Security-Policy`. Content text is escaped. A signed-in caller (cookie read, never required) of a
+  conversation link sees "Shared in your conversation" and "Reply in Talk", which opens
+  `/conversations/<id>?m=<membership>&r=<revision>`.
+
+Unknown, malformed, revoked, expired, withdrawn and private links all render the same "This link is no longer
+available" page with status 200, naming nobody. A read failure renders a "try again" page with 503 and
+`Retry-After`, and logs `http.retryable_failure` (`landing_failed`). *Implemented. Not yet run on dev.*
+
+`scope.gateway.ts` subscribes the new `inbox` scope (named by the caller's universe ID) and acks it with
+the member's `inbox_heads` revision. Tests: `tests/integration/release/conversations-http.test.ts` runs the
+installed API, a typed client, a Socket.IO hint, recovery after a missed hint and the landing states.
