@@ -406,8 +406,10 @@ create Personal Context support, learning, credit, a session, or collection auth
 A Scroll ordered for a thread's branch has an audience: its thread's members now. Experience asks Content's
 `CHECK_ASSET_AUDIENCE` (the IDs a caller may reach, on `ReadOn`) wherever an ID could reach one, and treats the rest
 as missing: `openExposure`, `readExposureDocument`, `findAsset` for `applyAction` and `applyEncounterAction` (save, like, hide),
-and the saved list and saved page (`adapters/audience-gate.ts`; an entry the caller may not see reads as withdrawn, with no
-title or summary, and can still be removed). Inside a personal write the check reads on the scope's own transaction and never
+the exact-encounter read behind navigation (`return`, offers, activation and exposure context: one gate), the saved list
+and saved page (`adapters/audience-gate.ts`; an entry the caller may not see reads as withdrawn, with no title or summary,
+and can still be removed) and the data export (`ExportPerson.reach`: a Scroll the person may no longer reach is listed
+as "Withdrawn", with no title, place or part). Inside a personal write the check reads on the scope's own transaction and never
 takes a second connection; the lock-free document read asks on the pool. *Implemented; runtime-verified locally.*
 
 ## Visited episodes for threads (#243, D-046)

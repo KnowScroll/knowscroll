@@ -145,6 +145,8 @@ reading a thread add no exposure, observation or Keep.
   label and the settings in words are copied when stored and shown only while the content is not withdrawn.
   `threads/snippets/open` asks Content where the snippet leads now: the same anchor, a Scroll anchor moved through
   the anchor map (`mapped`), or `changed` (a corrected Reel, or a passage that is gone). It never plays an old range.
+  Both reads are gated (`adapters/snippet-audience.ts`): a snippet that names a Scroll made for another thread (D-049)
+  is `unavailable` to anyone outside that thread, so a snippet cannot be used to quote it.
 - **Episodes** in a thread view are the declared series that contains the root revision, by part, or the root alone.
   Each carries the caller's own `visited` (an activated exposure of that asset) and says `corrected` or `unavailable`
   when it is. No answer has any field for another member's position, current episode or seen marker.

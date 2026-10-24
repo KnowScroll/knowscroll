@@ -17,6 +17,7 @@ import {
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import { makeAttemptLedger } from '@knowscroll/backend/reasoning/nest-providers';
 import { heartbeatRecorder, socialUseCases } from '@knowscroll/backend/modules/social/nest-providers';
+import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { everyStoreSeeder } from '../support/every-store.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
@@ -360,7 +361,10 @@ describe('account deletion (real database)', () => {
           request_hash: 'a'.repeat(64),
         })
         .execute();
-      const exports = dataExportFor(database.db, boss, { gather: exportCurrentPerson, lockTimeoutMs: 5_000 });
+      const exports = dataExportFor(database.db, boss, {
+        gather: (scope, person) => exportCurrentPerson(scope, person, openToEveryone),
+        lockTimeoutMs: 5_000,
+      });
       expect((await exports.request(erased.authority, { exportId: randomUUID() })).kind).toBe('accepted');
       expect(await countWhere('ops.operator_sign_ins', 'account_id', erased.accountId)).toBe(1);
       expect(await countWhere('social.roster_entries', 'owner_account_id', friend.accountId)).toBe(1);
@@ -525,7 +529,10 @@ describe('account deletion (real database)', () => {
         kind: 'refused',
         reason: 'unavailable',
       });
-      const exports = dataExportFor(database.db, boss, { gather: exportCurrentPerson, lockTimeoutMs: 5_000 });
+      const exports = dataExportFor(database.db, boss, {
+        gather: (scope, person) => exportCurrentPerson(scope, person, openToEveryone),
+        lockTimeoutMs: 5_000,
+      });
       expect(await exports.request(person.authority, { exportId: randomUUID() })).toEqual({
         kind: 'refused',
         reason: 'scope_refused',

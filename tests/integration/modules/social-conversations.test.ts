@@ -664,7 +664,7 @@ describe('direct conversations (real PostgreSQL)', () => {
       if (link.delivery.status !== 'available') throw new Error('CI token');
       const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
       const outcome = await withScope(a.authority, (scope) =>
-        socialErasure.export!.read(scope, { accountId: a.accountId }),
+        socialErasure.export!.read(scope, { accountId: a.accountId, reach: (ids) => Promise.resolve(new Set(ids)) }),
       );
       if (outcome.kind !== 'entered') throw new Error('CI export');
       const file = JSON.stringify(outcome.value);

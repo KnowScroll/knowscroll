@@ -29,7 +29,12 @@ import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowsc
 import { visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
-import { scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
+import { orderAudienceProviders, scenarioWorkerProviders } from '@knowscroll/backend/modules/scenarios/nest-providers';
+import {
+  CHECK_ASSET_AUDIENCE,
+  READ_ORDER_AUDIENCE,
+  type CheckAssetAudience,
+} from '@knowscroll/backend/modules/content';
 import {
   resolveBranchesQueue,
   suggestDraftQueue,
@@ -169,10 +174,12 @@ export const jobWiring: Provider[] = [
   ...composerProviders({ isOperator: () => false }),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...contentProviders(),
-  ...madeToOrderProviders({ database: DATABASE }),
+  ...madeToOrderProviders({ database: DATABASE, orderAudience: READ_ORDER_AUDIENCE }),
   ...scrollProductionSenderProviders({ boss: PG_BOSS }),
   // Scenarios (D-049): the planner answers a draft, and a sweep binds branches to their Scrolls.
   ...threadGuestProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, database: DATABASE }),
+  // Who may reach a branch's Scroll, so the data export keeps a title only for those still in its thread.
+  ...orderAudienceProviders({ database: DATABASE }),
   ...scenarioWorkerProviders({
     withPersonalScope: WITH_PERSONAL_SCOPE,
     database: DATABASE,
@@ -201,6 +208,7 @@ export const jobWiring: Provider[] = [
       RESOLVE_CONTENT_REQUEST,
       SUGGEST_SCENARIO_DRAFT,
       RESOLVE_SCENARIO_BRANCHES,
+      CHECK_ASSET_AUDIENCE,
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
       APPLY_ACTION_EVIDENCE,
@@ -225,6 +233,7 @@ export const jobWiring: Provider[] = [
       resolveRequest: ResolveRequest,
       suggestDraft: SuggestStep,
       resolveBranches: () => Promise<ResolveSummary>,
+      audience: CheckAssetAudience,
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
       applyActionEvidence: ApplyActionEvidence,
@@ -265,7 +274,10 @@ export const jobWiring: Provider[] = [
             eraseAccountData: eraseCurrentAccount,
             lockTimeoutMs: config.scopeLockTimeoutMs,
           }),
-          exports: dataExportFor(db, boss, { gather: exportCurrentPerson, lockTimeoutMs: config.scopeLockTimeoutMs }),
+          exports: dataExportFor(db, boss, {
+            gather: (scope, person) => exportCurrentPerson(scope, person, audience),
+            lockTimeoutMs: config.scopeLockTimeoutMs,
+          }),
         },
         logEvent,
       ),

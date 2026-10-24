@@ -116,6 +116,18 @@ export function scenarioProviders(tokens: ScenarioTokens & { readonly enqueueJob
         };
       },
     },
+    ...orderAudienceProviders(tokens),
+  ];
+}
+
+/**
+ * Who may reach the Scroll of a branch (`READ_ORDER_AUDIENCE`, which Content asks): the members of its
+ * thread now. Both processes that serve a person's reads compose it: the API for every way in by ID,
+ * and the worker for the data export, which must not list a title the person can no longer read.
+ * Needs Social's `READ_THREAD_STANDING`.
+ */
+export function orderAudienceProviders(tokens: { readonly database: symbol }) {
+  return [
     {
       provide: READ_ORDER_AUDIENCE,
       inject: [tokens.database, READ_THREAD_STANDING],

@@ -74,16 +74,20 @@ another node at a revision). The rules are pure, in `domain/`:
 ## Who may reach a branch's Scroll
 
 Only members of its thread, checked at read time: `READ_ORDER_AUDIENCE` through Content's
-`CHECK_ASSET_AUDIENCE`, which Experience asks wherever an ID could reach a Scroll: open, document read,
-save, like and hide (`findAsset`), the saved list and the saved page. For anyone else the Scroll is as
-missing as an unknown ID, and a saved entry reads as withdrawn with no title or summary (it can still be
-removed). A member who leaves loses it everywhere. A removed branch's Scroll is closed to everyone. The
+`CHECK_ASSET_AUDIENCE`, which Experience and Social ask wherever an ID could reach a Scroll or quote it: open,
+document read, save, like and hide (`findAsset`), navigation (a `return` to it, an offer of it, activating an
+offer, an exposure's context: one gate on the exact-encounter read), the saved list and the saved page, a
+snippet that names it (sent or opened), and the data export. For anyone else the Scroll is as missing as an
+unknown ID (a `return` to it is "exhausted"), a saved entry reads as withdrawn with no title or summary (it can
+still be removed), and the export keeps no title for it ("Withdrawn"). IDs compare in lower case. A member who
+leaves loses it everywhere. A removed branch's Scroll is closed to everyone. The
 Scroll is in no discovery lane, cannot be a share-link card, has no topic attribution and adds no coverage.
 
 Every one of these asks reads on `ReadOn`: inside a personal write it is that scope's own transaction, so
 a check never takes a second connection (the pool is 10 in the API and 5 in the worker; a second one per
 concurrent open would exhaust it). Only the lock-free document read, which holds no connection, asks on
-the pool.
+the pool. The data export asks as the person it is for (`ExportPerson.reach`), on its own transaction; the
+worker, which builds the export, composes `READ_ORDER_AUDIENCE` (`orderAudienceProviders`) for it.
 
 ## Tables, jobs and lock order
 
@@ -127,8 +131,9 @@ budgets for the Planner.
   is idempotent and commissions exactly one demand, also under concurrency; a removed or left member blocks a late
   result (and the check ran on the applying transaction); hypothetical inheritance; a perspective keeps its
   assumptions; a kept line that contradicts a premise is refused and a replaced premise holds in its new words;
-  hypothetical Scrolls carry no coverage; the audience on open, document read, save, like, and the saved lists
-  (a member who left, and a stranger); a pool of one still opens, acts and lists; twenty drafts a day; both
+  hypothetical Scrolls carry no coverage; the audience on open, document read, save, like, the saved lists,
+  navigation (return, offer, activation), a snippet that names it and the data export (a member who left, a
+  stranger, an upper-case ID); a pool of one still opens, acts and lists; twenty drafts a day; both
   caps; the sweep; the Planner never sees a name. `account-deletion.test.ts` (erasure).
 - All of the above use a labelled fixture model and production worker.
 - Runtime, real model: 9 requests in all (one for the root Scroll, three for the Planner, five for writers: one branch's

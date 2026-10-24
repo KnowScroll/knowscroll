@@ -31,6 +31,15 @@ import {
   readSavedPageMetadata,
 } from '../../../packages/backend/src/modules/content/adapters/discovery-store.js';
 import { gateSavedPageMetadata } from '../../../packages/backend/src/modules/experience/adapters/audience-gate.js';
+import {
+  UNREACHABLE_TITLE,
+  experienceExportRead,
+} from '../../../packages/backend/src/modules/experience/adapters/export.js';
+import { gateSnippetAnchors } from '../../../packages/backend/src/modules/social/adapters/snippet-audience.js';
+import {
+  resolveSnippetAnchor,
+  validateSnippetAnchor,
+} from '../../../packages/backend/src/modules/content/adapters/snippet-anchors.js';
 import { readShareableContent } from '../../../packages/backend/src/modules/content/adapters/shareable-content.js';
 import { makeReadOrderAudience } from '../../../packages/backend/src/modules/scenarios/application/audience.js';
 import { makeResolveBranches } from '../../../packages/backend/src/modules/scenarios/application/resolve.js';
@@ -958,6 +967,119 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(await save(stranger, target)).toEqual({ kind: 'refused', reason: 'asset_not_found' });
       expect(await like(stranger, target)).toMatchObject({ kind: 'refused', code: 'ASSET_NOT_FOUND' });
       expect(await savedOf(stranger)).toEqual([]);
+      // An ID is the same ID in any letter case.
+      const shouted = { ...target, assetId: target.assetId.toUpperCase() };
+      expect(await save(stranger, shouted)).toEqual({ kind: 'refused', reason: 'asset_not_found' });
+      expect(await like(stranger, shouted)).toMatchObject({ kind: 'refused', code: 'ASSET_NOT_FOUND' });
+    });
+
+    it('is not navigated to, offered or activated by ID for anyone who is not in its thread, nor after leaving it', async () => {
+      const { b, bRef, target } = await readyBranch();
+      const stranger = await seedFriend(database.db, friends);
+      const returnTo = (who: Friend) =>
+        content.navigate(who.authority, {
+          commandId: randomUUID(),
+          target: { kind: 'return', ...target },
+          capabilities: textCapabilities,
+        });
+      const exposuresOf = async (who: Friend) =>
+        (
+          await database.db
+            .selectFrom('experience.exposures')
+            .select('id')
+            .where('universe_id', '=', who.universeId)
+            .where('asset_id', '=', target.assetId)
+            .execute()
+        ).length;
+
+      // A member is offered it; a stranger gets what anyone gets for a Scroll that is not there.
+      const offered = await returnTo(b);
+      expect(offered).toMatchObject({ kind: 'accepted', outcome: { status: 'ready' } });
+      const nothing = { kind: 'accepted', outcome: { status: 'exhausted', reason: 'return_unavailable' } };
+      const strangers = await returnTo(stranger);
+      expect(strangers).toMatchObject(nothing);
+      expect(strangers.kind === 'accepted' && 'offer' in strangers.outcome).toBe(false);
+      expect(await exposuresOf(stranger)).toBe(0);
+
+      // After leaving, the offer made earlier cannot be activated, a new return finds nothing, and no exposure is made.
+      unwrap(await threads.leave(b.authority, { version: threadVersion, commandId: randomUUID(), thread: bRef }));
+      if (offered.kind !== 'accepted' || offered.outcome.status !== 'ready') throw new Error('CI offer missing');
+      const { sessionId, intentRevision, offer } = offered.outcome;
+      const activated = await content.activateOffer(b.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'offer', sessionId, offerId: offer.offerId, expectedIntentRevision: intentRevision },
+      });
+      expect(activated).toMatchObject({ kind: 'refused', code: 'OFFER_UNAVAILABLE' });
+      expect(await returnTo(b)).toMatchObject(nothing);
+      expect(await exposuresOf(b)).toBe(0);
+    });
+
+    it('is quoted by a snippet only to the members of its thread', async () => {
+      const { b, bRef, target } = await readyBranch();
+      const stranger = await seedFriend(database.db, friends);
+      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+      const anchor = {
+        kind: 'scroll_block',
+        blockId: 'no-such-block',
+        blockType: 'paragraph',
+        blockVersion: 1,
+      } as const;
+      const validate = (who: Friend) =>
+        withScope(who.authority, (scope) =>
+          gateSnippetAnchors(audience, validateSnippetAnchor, resolveSnippetAnchor).validateSnippet(
+            scope,
+            target,
+            anchor,
+          ),
+        );
+      // A member's anchor is looked at (this one names no block, so it is invalid); a stranger's is not even that.
+      expect(await validate(b)).toEqual({ kind: 'entered', value: { status: 'invalid' } });
+      expect(await validate(stranger)).toEqual({ kind: 'entered', value: { status: 'unavailable' } });
+      unwrap(await threads.leave(b.authority, { version: threadVersion, commandId: randomUUID(), thread: bRef }));
+      expect(await validate(b)).toEqual({ kind: 'entered', value: { status: 'unavailable' } });
+    });
+
+    it('keeps its title out of the data export of someone who left, and in it for someone who is in', async () => {
+      const { b, bRef, target, a, aRef } = await readyBranch();
+      const title = (await cards(a, aRef))[0]?.content?.title ?? '';
+      expect(title).not.toBe('');
+      expect(await save(b, target)).toMatchObject({ kind: 'applied' });
+      expect(await like(b, target)).toMatchObject({ kind: 'applied' });
+      const opened = await content.openExposure(b.authority, {
+        commandId: randomUUID(),
+        target: { kind: 'scroll', assetId: target.assetId },
+        origin: { kind: 'direct' },
+        capabilities: textCapabilities,
+      });
+      expect(opened.kind).toBe('opened');
+
+      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+      const exported = async (who: Friend) => {
+        const out = await withScope(who.authority, (scope) =>
+          experienceExportRead(scope, {
+            accountId: who.accountId,
+            reach: (assetIds) =>
+              audience(
+                { scope },
+                { ...scope.authority, actor: { kind: 'account', accountId: who.accountId } },
+                assetIds,
+              ),
+          }),
+        );
+        if (out.kind !== 'entered') throw new Error('CI export refused');
+        return JSON.stringify(out.value);
+      };
+      const inside = await exported(b);
+      expect(inside).toContain(title);
+      expect(inside).not.toContain(UNREACHABLE_TITLE);
+
+      unwrap(await threads.leave(b.authority, { version: threadVersion, commandId: randomUUID(), thread: bRef }));
+      const outside = await exported(b);
+      expect(outside).not.toContain(title);
+      // Every line that named it still says that they did something with it, and that it is no longer theirs to read.
+      expect(outside.split(UNREACHABLE_TITLE)).toHaveLength(inside.split(title).length);
     });
 
     it('closes it to a member who left: no new save or like, and the saved lists show it as gone', async () => {

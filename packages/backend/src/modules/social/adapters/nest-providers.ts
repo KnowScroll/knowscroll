@@ -2,11 +2,13 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import {
+  CHECK_ASSET_AUDIENCE,
   READ_CONTENT_SEQUENCE,
   READ_PUBLIC_CONTENT,
   READ_SHAREABLE_CONTENT,
   RESOLVE_SNIPPET_ANCHOR,
   VALIDATE_SNIPPET_ANCHOR,
+  type CheckAssetAudience,
   type ReadContentSequence,
   type ReadPublicContent,
   type ReadShareableContent,
@@ -26,6 +28,7 @@ import { makeContentShares } from '../application/content-shares.js';
 import type { ConversationPorts } from '../application/conversation-ports.js';
 import { conversationStore } from './postgres-conversations.js';
 import { shareStore } from './postgres-shares.js';
+import { gateSnippetAnchors } from './snippet-audience.js';
 import { makeReadRoster } from '../application/rosters.js';
 import { makeInvites } from '../application/invites.js';
 import { rosterStore } from './postgres-rosters.js';
@@ -222,6 +225,7 @@ const THREAD_INJECTIONS = (tokens: { readonly withPersonalScope: symbol }) => [
   READ_VISITED_ASSETS,
   VALIDATE_SNIPPET_ANCHOR,
   RESOLVE_SNIPPET_ANCHOR,
+  CHECK_ASSET_AUDIENCE,
 ];
 
 function threadDepsOf(
@@ -233,8 +237,17 @@ function threadDepsOf(
   readVisited: ReadVisitedAssets,
   validateSnippet: ValidateSnippetAnchor,
   resolveSnippet: ResolveSnippetAnchor,
+  audience: CheckAssetAudience,
 ): ThreadDeps {
-  return { withScope, fencePair, fenceOwn, readContent, readSequence, readVisited, validateSnippet, resolveSnippet };
+  return {
+    withScope,
+    fencePair,
+    fenceOwn,
+    readContent,
+    readSequence,
+    readVisited,
+    ...gateSnippetAnchors(audience, validateSnippet, resolveSnippet),
+  };
 }
 
 /**

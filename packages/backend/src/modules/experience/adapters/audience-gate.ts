@@ -1,6 +1,7 @@
 import type {
   CheckAssetAudience,
   FindAssetForAction,
+  ReadExactEncounter,
   ReadSavedMetadata,
   ReadSavedPageMetadata,
 } from '../../content/public.js';
@@ -25,6 +26,17 @@ export function gateFindAsset(find: FindAssetForAction, check: CheckAssetAudienc
   const holds = holdsOne(check);
   return async (scope, assetId) =>
     (await holds({ scope }, scope.authority, assetId)) ? find(scope, assetId) : undefined;
+}
+
+/**
+ * Navigation reads an exact encounter to offer it, to commit the offer, to activate it and to give its
+ * context: one gate on that read covers all four. A Scroll the caller may not reach is not found, so
+ * `return` to it, an offer for it and an exposure of it all refuse as an unavailable offer would.
+ */
+export function gateExactEncounter(read: ReadExactEncounter, check: CheckAssetAudience): ReadExactEncounter {
+  const holds = holdsOne(check);
+  return async (scope, request) =>
+    (await holds({ scope }, scope.authority, request.assetId)) ? read(scope, request) : undefined;
 }
 
 interface SavedRow {

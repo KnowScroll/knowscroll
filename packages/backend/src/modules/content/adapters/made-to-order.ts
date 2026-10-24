@@ -123,14 +123,24 @@ export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) 
 export function makeCheckAssetAudience(db: Kysely<Database>, readOrderAudience: ReadOrderAudience): CheckAssetAudience {
   return async (on, authority, assetIds) => {
     if (assetIds.length === 0) return new Set();
+    // An ID is the same ID in any letter case; the stored ones are lower case, so compare in lower case.
     const orders = await readerOn(db, on)
       .selectFrom('content.made_to_order_scrolls')
       .select('asset_id')
-      .where('asset_id', 'in', [...assetIds])
+      .where(
+        'asset_id',
+        'in',
+        assetIds.map((assetId) => assetId.toLowerCase()),
+      )
       .execute();
-    const ordered = orders.map((order) => order.asset_id);
+    const ordered = orders.map((order) => order.asset_id.toLowerCase());
     const held = ordered.length === 0 ? new Set<string>() : await readOrderAudience(on, authority, ordered);
     const orderedSet = new Set(ordered);
-    return new Set(assetIds.filter((assetId) => !orderedSet.has(assetId) || held.has(assetId)));
+    return new Set(
+      assetIds.filter((assetId) => {
+        const id = assetId.toLowerCase();
+        return !orderedSet.has(id) || held.has(id);
+      }),
+    );
   };
 }
