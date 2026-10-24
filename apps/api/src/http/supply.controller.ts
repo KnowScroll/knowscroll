@@ -7,10 +7,12 @@ import {
   READ_CONTENT_REQUEST,
   LIST_CONTENT_REQUESTS,
   CANCEL_CONTENT_REQUEST,
+  RETRY_CONTENT_REQUEST,
   type CreateRequest,
   type ReadRequest,
   type ListRequests,
   type CancelRequest,
+  type RetryRequest,
   type Refusal,
 } from '@knowscroll/backend/modules/supply';
 import { authorityOf } from './callers.js';
@@ -37,6 +39,7 @@ export class SupplyController {
     @Inject(READ_CONTENT_REQUEST) private readonly readRequest: ReadRequest,
     @Inject(LIST_CONTENT_REQUESTS) private readonly listRequests: ListRequests,
     @Inject(CANCEL_CONTENT_REQUEST) private readonly cancelRequest: CancelRequest,
+    @Inject(RETRY_CONTENT_REQUEST) private readonly retryRequest: RetryRequest,
   ) {}
 
   @Implement(apiContract.supply.create)
@@ -70,6 +73,15 @@ export class SupplyController {
   cancelRoute(@Req() request: Request) {
     return implement(apiContract.supply.cancel).handler(async ({ input }) => {
       const result = await this.cancelRequest(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
+      return result.value;
+    });
+  }
+
+  @Implement(apiContract.supply.retry)
+  retryRoute(@Req() request: Request) {
+    return implement(apiContract.supply.retry).handler(async ({ input }) => {
+      const result = await this.retryRequest(authorityOf(admittedCaller(request)), input);
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return result.value;
     });

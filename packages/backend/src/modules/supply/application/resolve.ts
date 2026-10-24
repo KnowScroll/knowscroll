@@ -1,4 +1,4 @@
-import { WAIT_LIMIT_MS, commissionSupply, isComing, nextPoll } from './commission.js';
+import { WAIT_LIMIT_MS, commissionSupply, isComing, nextPoll, waitStartOf } from './commission.js';
 import { checkedRevision, inventory, snapshot, sourceOf, type SkipExplanations } from './inventory.js';
 import type { MatchStep } from './matching.js';
 import type { Demand, ResolveRequest, SupplyPorts, UnavailableReason } from './ports.js';
@@ -31,7 +31,7 @@ async function waitingOutcome(p: SupplyPorts, scope: PersonalScopeTx, d: Demand)
   const work = d.workId === undefined ? undefined : await p.store.readWork(scope, d.workId);
   if (work?.recipe === undefined) return recommission(p, scope, d);
   const production = await p.readProduction(scope, work.recipe);
-  const waited = p.now().getTime() - Date.parse(d.createdAt);
+  const waited = p.now().getTime() - Date.parse(waitStartOf(d));
   return isComing(production.state) && waited < WAIT_LIMIT_MS
     ? { kind: 'wait' }
     : { kind: 'unavailable', reason: 'could_not_prepare' };
@@ -84,7 +84,7 @@ async function advanceWaiter(
     if (ending.kind === 'wait') {
       if (ending.relink)
         await p.store.finish(scope, { ...d, workId: ending.relink.workId, decision: ending.relink.decision });
-      await p.enqueue(scope, d.id, nextPoll(d.createdAt, p.now()));
+      await p.enqueue(scope, d.id, nextPoll(d, p.now()));
       return 'done';
     }
     const revision = await p.advance(scope);

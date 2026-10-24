@@ -1,5 +1,10 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
-import type { CancelContentRequest, ContentRequestList, ContentRequestStatus } from '@knowscroll/contracts';
+import type {
+  CancelContentRequest,
+  ContentRequestList,
+  ContentRequestStatus,
+  RetryContentRequest,
+} from '@knowscroll/contracts';
 import { id } from '../encounter/encounter-session.fixture';
 import { createRequestsListSession } from './requests-list-session';
 
@@ -52,7 +57,9 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
   let items = first;
   let listFailure = false;
   let cancelFailure: 'unknown' | 'refused' | false = false;
-  const calls: { method: string; path: string; body?: CancelContentRequest }[] = [];
+  let retryFailure: 'unknown' | 'refused' | false = false;
+  let retryOutcome: 'retrying' | 'not_retryable' = 'retrying';
+  const calls: { method: string; path: string; body?: CancelContentRequest | RetryContentRequest }[] = [];
   const scope = createAccountScope({
     account: { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'requests@fixture.test' },
     baseUrl: 'https://fixture.requests.test',
@@ -85,6 +92,37 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
           outcome: 'cancelled',
         });
       }
+      if (request.method === 'POST' && path === '/v1/content/requests/retry') {
+        const body = (await request.json()) as RetryContentRequest;
+        calls.push({ method: 'POST', path, body });
+        if (retryFailure === 'unknown') throw new Error('unknown_retry');
+        if (retryFailure === 'refused')
+          return json({ type: 'about:blank', title: 'Not found', status: 404, code: 'NOT_FOUND' }, 404);
+        if (retryOutcome === 'retrying')
+          items = items.map((item) =>
+            item.status.requestId === body.requestId
+              ? {
+                  ...item,
+                  status: {
+                    ...item.status,
+                    requestRevision: item.status.requestRevision + 1,
+                    status: 'preparing',
+                    phase: 'preparing',
+                  },
+                }
+              : item,
+          );
+        return json({
+          version: 'content-request-retry-receipt.v1',
+          commandId: body.commandId,
+          requestId: body.requestId,
+          recordedAt: stamp,
+          privacyEpoch: 1,
+          revision: 5,
+          replayed: false,
+          outcome: retryOutcome,
+        });
+      }
       calls.push({ method: request.method, path });
       if (listFailure) throw new Error('offline');
       return json({ version: 'content-request-list.v1', requests: items });
@@ -97,6 +135,7 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
     calls,
     reads: () => calls.filter((call) => call.method === 'GET').length,
     cancels: () => calls.filter((call) => call.path.endsWith('/cancel')),
+    retries: () => calls.filter((call) => call.path.endsWith('/retry')),
     setItems: (next: readonly Listed[]) => {
       items = next;
     },
@@ -105,6 +144,12 @@ export function requestsListHarness(first: readonly Listed[] = [preparing(10)]) 
     },
     setCancelFailure: (value: 'unknown' | 'refused' | false) => {
       cancelFailure = value;
+    },
+    setRetryFailure: (value: 'unknown' | 'refused' | false) => {
+      retryFailure = value;
+    },
+    setRetryOutcome: (value: 'retrying' | 'not_retryable') => {
+      retryOutcome = value;
     },
   };
 }

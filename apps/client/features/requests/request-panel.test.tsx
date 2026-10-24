@@ -100,4 +100,33 @@ describe('E04 request panel', () => {
       await act(() => h.scope.end());
     }
   });
+
+  it('Try again retries this same request, shows it preparing again, and says plainly when it cannot be tried again', async () => {
+    const h = requestHarness();
+    const screen = await render(sheet(h, jest.fn()));
+    try {
+      await fireEvent.changeText(screen.getByLabelText('What would you like now?'), 'Football tactics');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send request' }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'could_not_prepare' });
+      await act(() => h.session.refresh());
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      expect(h.calls.filter((call) => call.path.endsWith('/retry'))).toHaveLength(1);
+      expect(h.calls.filter((call) => call.path === '/v1/content/requests' && call.method === 'POST')).toHaveLength(1);
+      expect(screen.queryByText("We couldn't prepare this one")).toBeNull();
+
+      h.setStatus({ ...h.fields, requestRevision: 6, status: 'unavailable', reason: 'could_not_prepare' });
+      h.setRetryOutcome('not_retryable');
+      await act(() => h.session.refresh());
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      await waitFor(() => expect(screen.getByText(/can't be tried again/)).toBeTruthy());
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Ask differently' })).toBeTruthy();
+    } finally {
+      await screen.unmount();
+      await act(() => h.scope.end());
+    }
+  });
 });

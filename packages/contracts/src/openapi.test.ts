@@ -104,6 +104,7 @@ describe('the API contract', () => {
       apiContract.supply.create,
       apiContract.supply.read,
       apiContract.supply.cancel,
+      apiContract.supply.retry,
       apiContract.identity.requestSignIn,
       apiContract.identity.peekSignIn,
       apiContract.identity.redeemSignIn,
@@ -190,9 +191,13 @@ describe('the API contract', () => {
     const create = document.paths?.['/v1/content/requests']?.post;
     const read = document.paths?.['/v1/content/requests/{requestId}']?.get;
     const cancel = document.paths?.['/v1/content/requests/cancel']?.post;
+    const retry = document.paths?.['/v1/content/requests/retry']?.post;
     expect(create?.responses?.['200']).toBeDefined();
     expect(read?.responses?.['200']).toBeDefined();
     expect(cancel?.responses?.['200']).toBeDefined();
+    expect(retry?.responses?.['200']).toBeDefined();
+    for (const outcome of ['retrying', 'already_open', 'not_retryable'])
+      expect(JSON.stringify(retry?.responses?.['200'])).toContain(outcome);
     expect(read?.parameters).toContainEqual(expect.objectContaining({ name: 'requestId', in: 'path', required: true }));
     expect(read?.requestBody).toBeUndefined();
     const command = JSON.stringify(create?.requestBody);
