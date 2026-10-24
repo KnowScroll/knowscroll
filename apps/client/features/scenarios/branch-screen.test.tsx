@@ -57,7 +57,12 @@ jest.mock('../threads/scroll-open', () => {
         {children({})}
       </>
     ),
-    ThreadScrollArticle: ({ chrome }: { chrome: string }) => <Text>{`Article, chrome ${chrome}`}</Text>,
+    ThreadScrollArticle: ({ chrome, endSlot }: { chrome: string; endSlot?: React.ReactNode }) => (
+      <>
+        <Text>{`Article, chrome ${chrome}`}</Text>
+        {endSlot}
+      </>
+    ),
   };
 });
 

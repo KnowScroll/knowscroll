@@ -364,3 +364,12 @@ export function describeOption(option: Pick<ScenarioOption, 'changes' | 'kept' |
 /** The kind of a card in the reader's words, for its kicker and its accessible name. */
 export const kindWord = (card: Pick<ScenarioCard, 'kind'>): string =>
   card.kind === 'what_if' ? 'What if' : 'Another perspective';
+
+/**
+ * A branch named with its kind, "What if · <idea>", unless its own title already says it (a what-if usually starts
+ * "What if…"): the kind is then not said twice.
+ */
+export const kindedTitle = (card: Pick<ScenarioCard, 'kind' | 'title'>): string => {
+  const kind = kindWord(card);
+  return card.title.toLowerCase().startsWith(kind.toLowerCase()) ? card.title : `${kind} · ${card.title}`;
+};

@@ -6,6 +6,7 @@ import { returnTarget, saveHere, type AccountScope } from '@knowscroll/client-co
 import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button, PendingStripe, Skeleton, StateBlock, Text } from '@knowscroll/ui';
+import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
 import { useAccountScope } from '../../providers/account-scope';
 import { OpenScroll, ThreadScrollArticle } from '../threads/scroll-open';
 import { selectedKey } from '../threads/own-place';
@@ -34,14 +35,18 @@ function ReadyBranch({
     <>
       <View style={styles.article}>
         <OpenScroll scope={scope} assetId={card.content.assetId} onBack={onBack}>
-          {(scroll) => <ThreadScrollArticle scope={scope} scroll={scroll} chrome="own" />}
+          {(scroll) => (
+            <ThreadScrollArticle
+              scope={scope}
+              scroll={scroll}
+              chrome="own"
+              endSlot={
+                prompting ? <TryAnotherPrompt onContinue={onAsk} onDismiss={() => setPrompting(false)} /> : undefined
+              }
+            />
+          )}
         </OpenScroll>
       </View>
-      {prompting ? (
-        <View style={styles.footer}>
-          <TryAnotherPrompt onContinue={onAsk} onDismiss={() => setPrompting(false)} />
-        </View>
-      ) : null}
     </>
   );
 }
@@ -135,7 +140,9 @@ function BranchBody({
         onClose={scenarios.close}
         onChosen={() => {
           scenarios.branchStarted();
-          toThread();
+          // The sheet's own history entry goes first: leaving the branch before it has gone would pop that instead.
+          notePendingBack();
+          afterPendingBack(toThread);
         }}
       />
     </View>
@@ -174,7 +181,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   head: { gap: spacing[2], paddingHorizontal: layout.gutter, paddingBottom: spacing[3] },
   article: { flex: 1 },
-  footer: { paddingBottom: spacing[3] },
   state: { gap: spacing[4], padding: layout.gutter },
   preparing: { gap: spacing[2] },
 });

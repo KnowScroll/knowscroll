@@ -101,6 +101,7 @@ export function ThreadScrollArticle({
   anchorBlockId,
   afterHeader,
   floating,
+  endSlot,
   chrome = 'floating',
 }: {
   readonly scope: AccountScope;
@@ -110,6 +111,8 @@ export function ThreadScrollArticle({
   readonly afterHeader?: ReactNode;
   /** Controls drawn over the article, top right. */
   readonly floating?: ReactNode;
+  /** Drawn after the last block, inside the article (a branch's prompt to try another assumption). */
+  readonly endSlot?: ReactNode;
   /**
    * `floating`: a Back button over the article's top-left, which the article leaves room for. `own`: the screen
    * draws its own header above the article (a branch has a return chip), so there is no button and no room reserved.
@@ -146,6 +149,7 @@ export function ThreadScrollArticle({
         observer={recorder.observer}
         anchorBlockId={anchorBlockId}
         afterHeader={afterHeader}
+        endSlot={endSlot}
         testID="scroll-article"
         contentInset={{ top: own ? spacing[3] : insets.top + 72, bottom: spacing[24] + insets.bottom }}
         readingInset={{ top: own ? 0 : insets.top + 72, bottom: insets.bottom }}

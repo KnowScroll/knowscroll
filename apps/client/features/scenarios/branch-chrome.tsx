@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import type { ScenarioCard } from '@knowscroll/contracts';
-import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
+import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, Icon, Text, useTypeStyle } from '@knowscroll/ui';
 import { SPECULATIVE_NOTICE } from './branch-card';
-import { kindWord } from '@knowscroll/client-core';
+import { kindedTitle } from '@knowscroll/client-core';
 
 /** What a branch is, for the line under the thread's title (X03): "What if · a black hole were a portal". */
-export function branchSubtitle(card: Pick<ScenarioCard, 'kind' | 'title'>): string {
-  return `${kindWord(card)} · ${card.title}`;
-}
+export const branchSubtitle = (card: Pick<ScenarioCard, 'kind' | 'title'>): string => kindedTitle(card);
 
 /**
  * The navigator of a branch (X03): the way back first, naming where it goes, then the branch's own items.
@@ -126,7 +124,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: status.hypothetical.edge,
     backgroundColor: status.hypothetical.background,
-    marginHorizontal: layout.gutter,
   },
   input: {
     minHeight: 44,

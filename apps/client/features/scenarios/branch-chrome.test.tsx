@@ -36,6 +36,7 @@ describe('the line under a branch’s thread title', () => {
     expect(branchSubtitle({ kind: 'perspective', title: 'The physicist’s view' })).toBe(
       'Another perspective · The physicist’s view',
     );
+    expect(branchSubtitle({ kind: 'what_if', title: 'What if it spun faster?' })).toBe('What if it spun faster?');
   });
 });
 

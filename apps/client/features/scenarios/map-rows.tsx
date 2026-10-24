@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { MapRow } from '@knowscroll/client-core';
+import { kindedTitle, type MapRow } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
 import { SPECULATIVE_NOTICE } from './branch-card';
@@ -17,12 +17,13 @@ function YouBadge() {
   );
 }
 
-/** What a branch row says under its title, in words: its state, or that its premise is speculative. */
-function noteOf(row: Extract<MapRow, { kind: 'branch' }>): string | undefined {
-  if (row.status === 'preparing') return 'Preparing';
-  if (row.status === 'failed') return 'Couldn’t prepare this branch';
-  if (row.speculative && row.status === 'ready') return SPECULATIVE_NOTICE;
-  return undefined;
+/** What a branch row says under its title, in words: where it stands, then that its premise is speculative. */
+function notesOf(row: Extract<MapRow, { kind: 'branch' }>): readonly string[] {
+  if (row.status === 'removed') return [];
+  return [
+    row.status === 'preparing' ? 'Preparing' : row.status === 'failed' ? 'Couldn’t prepare this branch' : undefined,
+    row.speculative ? SPECULATIVE_NOTICE : undefined,
+  ].filter((note): note is string => note !== undefined);
 }
 
 /**
@@ -99,15 +100,17 @@ export function MapLine({
         </View>
       </Pressable>
     );
-  const note = noteOf(row);
+  const notes = notesOf(row);
   const perspective = row.branchKind === 'perspective';
   const removed = row.status === 'removed';
+  // A removed branch's title is gone from the map; it is only named as removed.
+  const name = removed ? row.title : kindedTitle({ kind: row.branchKind, title: row.title });
   return (
     <Pressable
       role="treeitem"
       aria-level={level}
       aria-disabled={!row.openable}
-      accessibilityLabel={`${perspective ? 'Another perspective' : 'What if'}: ${row.title}${note === undefined ? '' : `, ${note}`}${row.here ? ', you are here' : ''}`}
+      accessibilityLabel={`${name}${notes.map((note) => `, ${note}`).join('')}${row.here ? ', you are here' : ''}`}
       disabled={!row.openable}
       onPress={() => onOpenBranch(row.nodeId)}
       style={[
@@ -122,11 +125,11 @@ export function MapLine({
         <Text variant="ui" color={removed ? content.ink2 : content.ink} numberOfLines={2}>
           {row.title}
         </Text>
-        {note === undefined ? null : (
-          <Text variant="meta" color={status.hypothetical.foreground}>
+        {notes.map((note) => (
+          <Text key={note} variant="meta" color={status.hypothetical.foreground}>
             {note}
           </Text>
-        )}
+        ))}
       </View>
       {perspective ? (
         <Text variant="monoXs" color={content.ink2}>

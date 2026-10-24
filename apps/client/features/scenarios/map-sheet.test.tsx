@@ -71,7 +71,7 @@ describe('the map of a thread', () => {
     expect(screen.getByLabelText('Map of Black holes')).toBeOnTheScreen();
     await fireEvent.press(screen.getByLabelText('Part 2: Falling in'));
     expect(handlers.onOpenEpisode).toHaveBeenCalledWith('asset-2');
-    await fireEvent.press(screen.getByLabelText('What if: a black hole were a portal'));
+    await fireEvent.press(screen.getByLabelText('What if · a black hole were a portal'));
     expect(handlers.onOpenBranch).toHaveBeenCalledWith('n1');
   });
 
@@ -129,15 +129,21 @@ describe('the map of a thread', () => {
         branch({ nodeId: 'c', status: 'failed', title: 'it was cold', openable: false }),
       ]),
     );
-    expect(screen.getByLabelText(/What if: Removed/)).toBeDisabled();
+    expect(screen.getByLabelText('Removed')).toBeDisabled();
     expect(screen.getByText('Preparing')).toBeOnTheScreen();
     expect(screen.getByText('Couldn’t prepare this branch')).toBeOnTheScreen();
-    expect(screen.getByLabelText(/it spun faster, Preparing/)).toBeDisabled();
+    expect(screen.getByLabelText('What if · it spun faster, Preparing')).toBeDisabled();
   });
 
-  it('says a speculative branch’s premise in words, not as a tag', async () => {
-    await show(view([branch({ speculative: true })]));
-    expect(screen.getByText('Speculative scenario · not established science')).toBeOnTheScreen();
+  it('says a speculative branch’s premise in words, not as a tag, whether it is ready or still preparing', async () => {
+    await show(
+      view([
+        branch({ speculative: true }),
+        branch({ nodeId: 'p', speculative: true, status: 'preparing', openable: false }),
+      ]),
+    );
+    expect(screen.getAllByText('Speculative scenario · not established science')).toHaveLength(2);
+    expect(screen.getByText('Preparing')).toBeOnTheScreen();
     expect(screen.queryByText('Speculative')).toBeNull();
   });
 

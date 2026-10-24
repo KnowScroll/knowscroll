@@ -83,6 +83,7 @@ export {
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  kindedTitle,
   kindWord,
   ownSelection,
   subjectOfStatement,

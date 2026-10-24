@@ -36,7 +36,8 @@ export function ThreadHeader({
     <View style={styles.header}>
       <IconButton icon="back" label="Back" onPress={onBack} />
       <View style={styles.title}>
-        <Text variant="title" heading={1} numberOfLines={1}>
+        {/* With the Map beside it the title has less room: it wraps rather than losing its end. */}
+        <Text variant="title" heading={1} numberOfLines={onMap === undefined ? 1 : 2}>
           {title}
         </Text>
         {people === undefined ? null : (
@@ -46,7 +47,7 @@ export function ThreadHeader({
         )}
       </View>
       {onMap === undefined ? null : (
-        <Button label="Map" size="sm" variant="ghost" icon="hypothetical" onPress={onMap} testID="thread-map-button" />
+        <Button label="Map" size="sm" variant="ghost" onPress={onMap} testID="thread-map-button" />
       )}
       {onPeople === undefined ? null : <IconButton icon="person" label="People in this thread" onPress={onPeople} />}
       {onMenu === undefined ? null : <IconButton icon="more" label="Thread options" onPress={onMenu} />}

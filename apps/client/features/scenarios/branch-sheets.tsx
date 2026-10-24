@@ -1,11 +1,22 @@
 import { useRouter } from 'expo-router';
 import type { AccountScope } from '@knowscroll/client-core';
 import type { ContentThreadRef, ScenarioSuggestion } from '@knowscroll/contracts';
+import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
 import { branchHref } from '../threads/thread-links';
 import { MapSheet } from './map-sheet';
 import { ScenarioSheet } from './scenario-sheet';
 import type { useThreadMap } from './use-thread-map';
 import type { useThreadScenarios } from './use-thread-scenarios';
+
+/**
+ * Closes the map, then does what the member asked once the browser's Back that removes its history entry has
+ * landed: opening a branch or another sheet any sooner is popped again with it (no wait on native).
+ */
+function afterMapClosed(close: () => void, then: () => void): void {
+  notePendingBack();
+  close();
+  afterPendingBack(then);
+}
 
 /** The two overlays of a thread's branches: the sheet that asks for one (X01) and the map of them all (X04). */
 export function BranchSheets({
@@ -48,13 +59,13 @@ export function BranchSheets({
           onOpenEpisode(assetId);
         }}
         onOpenBranch={(nodeId) => {
-          map.close();
-          router.push(branchHref(thread, nodeId));
+          afterMapClosed(map.close, () => router.push(branchHref(thread, nodeId)));
         }}
         onOpenOffer={(draftId, optionId) => {
           const offer = suggestions.find((entry) => entry.draftId === draftId && entry.optionId === optionId);
-          map.close();
-          if (offer !== undefined) scenarios.openOffer(offer);
+          afterMapClosed(map.close, () => {
+            if (offer !== undefined) scenarios.openOffer(offer);
+          });
         }}
         onShowMore={map.showMore}
       />

@@ -7,6 +7,7 @@ import {
   createScenarioBoard,
   createScenarioComposer,
   describeOption,
+  kindedTitle,
   ownSelection,
   subjectOfStatement,
 } from './scenarios';
@@ -351,5 +352,17 @@ describe('the member’s own request', () => {
       },
     );
     expect(ownSelection({ kind: 'perspective', changes: [], kept: [], lens: ' ' })).toBeUndefined();
+  });
+});
+
+describe('a branch named with its kind', () => {
+  it('says the kind once: not before a title that already says it', () => {
+    expect(kindedTitle({ kind: 'what_if', title: 'What if Earth had no axial tilt?' })).toBe(
+      'What if Earth had no axial tilt?',
+    );
+    expect(kindedTitle({ kind: 'what_if', title: 'Earth with no tilt' })).toBe('What if · Earth with no tilt');
+    expect(kindedTitle({ kind: 'perspective', title: 'The seasons through sunlight geometry' })).toBe(
+      'Another perspective · The seasons through sunlight geometry',
+    );
   });
 });
