@@ -183,6 +183,47 @@ export function createRequestSession(
     listeners.forEach((listener) => listener());
     listeners.clear();
   });
+  /** Sends the draft as one deliberate request, once; the same command goes again only after an unknown outcome. */
+  function submit() {
+    if (!valid() || !visible || state.phase !== 'draft' || command) return;
+    if ((state.about || state.mode !== 'topic') && (!state.source || !sameSource(state.source, sourceNow()))) {
+      publish({ error: 'source' });
+      return;
+    }
+    if (state.mode === 'topic' && !state.topicId && !state.text.trim()) return;
+    const intent: CreateContentRequest['intent'] =
+      state.mode === 'topic'
+        ? {
+            kind: 'topic',
+            subject: state.topicId
+              ? { kind: 'catalogue', catalogueVersion: 'content-concepts.v1', topicId: state.topicId }
+              : { kind: 'text', text: state.text.trim() },
+            format: state.format,
+            ...(state.about ? { context: state.source! } : {}),
+          }
+        : { kind: 'variant', source: state.source!, to: state.mode };
+    command = {
+      version: 'content-request.v1',
+      commandId: newId(),
+      intent,
+      language: 'en',
+      capabilities: ENCOUNTER_CAPABILITIES,
+    };
+    void send();
+  }
+  /**
+   * "Ask differently" after a closed request: back to the draft with the same words, format and
+   * source, so the person edits instead of retyping. The closed request stays closed.
+   */
+  function editAgain() {
+    if (!valid() || state.phase !== 'accepted' || !state.receipt || state.status?.status === 'preparing') return;
+    generation += 1;
+    stop();
+    command = undefined;
+    cancelCommand = undefined;
+    polls = 0;
+    publish({ phase: 'draft', receipt: undefined, status: undefined, error: undefined, reading: false });
+  }
   return {
     getState: () => state,
     subscribe(this: void, listener: () => void) {
@@ -223,33 +264,7 @@ export function createRequestSession(
         ...(patch.text !== undefined ? { text: patch.text.slice(0, 500), topicId: undefined } : {}),
       });
     },
-    submit() {
-      if (!valid() || !visible || state.phase !== 'draft' || command) return;
-      if ((state.about || state.mode !== 'topic') && (!state.source || !sameSource(state.source, sourceNow()))) {
-        publish({ error: 'source' });
-        return;
-      }
-      if (state.mode === 'topic' && !state.topicId && !state.text.trim()) return;
-      const intent: CreateContentRequest['intent'] =
-        state.mode === 'topic'
-          ? {
-              kind: 'topic',
-              subject: state.topicId
-                ? { kind: 'catalogue', catalogueVersion: 'content-concepts.v1', topicId: state.topicId }
-                : { kind: 'text', text: state.text.trim() },
-              format: state.format,
-              ...(state.about ? { context: state.source! } : {}),
-            }
-          : { kind: 'variant', source: state.source!, to: state.mode };
-      command = {
-        version: 'content-request.v1',
-        commandId: newId(),
-        intent,
-        language: 'en',
-        capabilities: ENCOUNTER_CAPABILITIES,
-      };
-      void send();
-    },
+    submit,
     retrySend() {
       if (state.phase === 'send_unknown') void send();
     },
@@ -265,6 +280,20 @@ export function createRequestSession(
     },
     retryCancel() {
       if (state.phase === 'cancel_unknown') void runCancel();
+    },
+    /**
+     * "Ask differently" after a closed request: back to the draft with the same words, format and
+     * source, so the person edits instead of retyping. The closed request stays closed.
+     */
+    editAgain,
+    /**
+     * "Try again" after "Couldn't prepare": the same ask is sent once more as a new request, since
+     * the closed one cannot be reopened. Nothing waits on the closed one, so the person never gets two.
+     */
+    tryAgain() {
+      if (state.status?.status !== 'unavailable') return;
+      editAgain();
+      submit();
     },
     startAgain() {
       if (valid() && !['sending', 'send_unknown', 'cancelling', 'cancel_unknown'].includes(state.phase)) reset('topic');
