@@ -7,9 +7,6 @@ export type Audience =
   | { readonly mode: 'chosen_friends'; readonly friendAccountIds: ReadonlySet<string> }
   | { readonly mode: 'all_friends' };
 
-/** What an owner chose, with the defaults of a person who never opened the settings. */
-export const DEFAULT_AUDIENCE: Audience = { mode: 'nobody' };
-
 /**
  * Whether the owner's audience includes a visitor who is a friend right now. The caller has already
  * checked the friendship: a chosen-friends row alone never grants a visit.

@@ -391,6 +391,7 @@ export type FriendAvailability = z.infer<typeof FriendAvailabilitySchema>;
 export type RequestFriend = z.infer<typeof RequestFriendSchema>;
 export type FriendCommandAcceptance = z.infer<typeof FriendCommandAcceptanceSchema>;
 export type SharingVisibility = z.infer<typeof SharingVisibilitySchema>;
+export type OwnPresencePreference = z.infer<typeof OwnPresencePreferenceSchema>;
 export type VisitorWorldSnapshot = z.infer<typeof VisitorWorldSnapshotSchema>;
 
 function post<I extends z.ZodType, O extends z.ZodType>(path: `/v1/social/${string}`, input: I, output: O) {

@@ -118,7 +118,9 @@ export function makeSetVisibility(p: VisibilityPorts) {
       }
 
       const before = await p.visibility.publication(scope, gate.owner.universeId);
-      const planned = planPublication(own.places, chosenSystems, before?.systems ?? [], isPublicLabel, p.newPublicId);
+      const planned = planPublication(own.places, chosenSystems, before?.systems ?? [], isPublicLabel, () =>
+        p.newPublicId(),
+      );
       const chosenBefore = (await p.visibility.chosenFriends(scope, accountId)).map((friend) => friend.accountId);
       const systemsChanged = publicationChanged(before?.systems ?? [], planned);
       const audienceChanged = stored.audience !== command.audience.mode || !sameMembers(chosenBefore, friendAccountIds);

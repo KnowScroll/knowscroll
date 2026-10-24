@@ -124,7 +124,7 @@ export function makeRefreshVisit(p: RefreshPorts) {
           new Set(before.systems.map((system) => system.systemId)),
           before.systems,
           isPublicLabel,
-          p.newPublicId,
+          () => p.newPublicId(),
         );
         const changed = publicationChanged(before.systems, planned);
         if (!changed && before.geographyRevision === own.geographyRevision) return 'unchanged' as const;

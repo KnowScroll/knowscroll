@@ -540,6 +540,31 @@ export async function everyStoreSeeder(
           limited: false,
         })
         .execute();
+      // Authored erasure-only copy of what visitors may be shown: no sharing choice, no real planet.
+      const visitSystemId = randomUUID();
+      await tx
+        .insertInto('social.visit_publications')
+        .values({ universe_id: person.universeId, geography_revision: 1, refreshed_at: new Date() })
+        .execute();
+      await tx
+        .insertInto('social.visit_systems')
+        .values({
+          universe_id: person.universeId,
+          system_id: visitSystemId,
+          public_system_id: randomUUID(),
+          label: 'Authored erasure-only shared system',
+        })
+        .execute();
+      await tx
+        .insertInto('social.visit_planets')
+        .values({
+          universe_id: person.universeId,
+          planet_id: randomUUID(),
+          system_id: visitSystemId,
+          public_planet_id: randomUUID(),
+          label: 'Authored erasure-only shared planet',
+        })
+        .execute();
       await tx
         .insertInto('planner.runs')
         .values({
