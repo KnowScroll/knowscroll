@@ -50,7 +50,7 @@ export function VisitScreen({ handle }: { readonly handle: string }) {
 /** One visit: its data session and its map session, made when the screen mounts and dropped when it leaves. */
 function SignedInVisit({ scope, handle }: { readonly scope: AccountScope; readonly handle: string }) {
   const sessions = useVisitSessions(scope, handle);
-  useDocumentTitle('Visiting a friend · KnowScroll');
+  useDocumentTitle('Visiting a friend');
   if (!sessions) return <QuietGround label="Opening this universe" />;
   return <Visit visit={sessions.visit} map={sessions.map} />;
 }

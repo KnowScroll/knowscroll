@@ -31,9 +31,10 @@ function Row({
       <Pressable
         {...focus.props}
         testID={testID}
-        accessibilityRole={role}
+        role={role}
         accessibilityLabel={label}
-        accessibilityState={{ checked, disabled: disabled === true }}
+        aria-checked={checked}
+        aria-disabled={disabled === true}
         disabled={disabled}
         onPress={onPress}
         style={[styles.row, checked ? styles.checked : null, focus.style]}

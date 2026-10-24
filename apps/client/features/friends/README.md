@@ -7,14 +7,19 @@ explicit invitation entry page. Neither route implies that conversations are imp
 The F01–F02 v2.1 artboard supplies the paper register, public-name/handle rows, primary Add action,
 outlined controls, invitations and blocked/request states. This source uses existing tokens and
 components with a 680px maximum measure, wrapping controls, 44px-or-larger targets, scalable text,
-visible input focus and normal screen scrolling. F02 visibility, visits and live availability
-have no current implementation: there are no fake switches, visitor permissions or presence dots.
-All names/handles/relationships come from actual client-core reads. No contacts are uploaded.
+visible input focus and normal screen scrolling. F02 visibility lives in Privacy & history under
+Sharing & visibility (`../visibility/README.md`). A friend's row shows "Online" or "Recently active" only
+while the server's lease for that word holds, and nothing otherwise, and a Visit button opens the friend's
+universe (`../visit/README.md`). All names/handles/relationships come from actual client-core reads. No
+contacts are uploaded.
 
 One mounted scope-object-owned `FriendsSession` is created in an effect and disposed on cleanup;
 StrictMode creates a fresh session instead of reviving a disposed one. Scope end fences responses
-and removes private form/selection/token state. No Friends query cache, persistence, socket,
-background polling, observation or provider call is introduced. Initial profile, invite and roster
+and removes private form/selection/token state. No Friends query cache, persistence, observation or
+provider call is introduced. The one thing read in the background is availability: `use-availability.ts`
+mounts an `AvailabilitySession` (client-core) that rereads the friends pages every 20 s while this screen is
+focused and the app is open, keeps only the words with their leases, and stops when the screen or the scope
+ends. Reading it is not evidence for anyone. Initial profile, invite and roster
 reads are sequential because the core has one foreground read plus one latest queued selection.
 
 Profile setup/edit, exact handle lookup, current pair actions and four roster filters use current
