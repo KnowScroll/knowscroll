@@ -18,6 +18,7 @@ import { IconButton } from '../actions/icon-button';
 import { useDisplay } from '../display/display';
 import { dialogHostSemantics, dialogSemantics } from '../display/semantics';
 import { Text } from '../text/text';
+import { usePageInert } from './page-inert';
 import { useOverlayHistory } from './overlay-history';
 
 /**
@@ -60,6 +61,7 @@ export function BottomSheet({ visible, title, onClose, closeLabel = 'Close', chi
   const insets = useSafeAreaInsets();
   const [progress] = useState(() => new Animated.Value(0));
   useOverlayHistory(visible, onClose);
+  usePageInert(visible);
 
   useEffect(() => {
     if (!visible) {

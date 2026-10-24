@@ -1,8 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
+import { conversation, talkFixture, thread } from './talk-fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
-import { encounterFixture, id } from './encounter-fixture';
+import { signedInAccount } from './account-fixture';
+import { encounterFixture } from './encounter-fixture';
 
 /**
  * Automated accessibility checks (axe-core) over the main routes of the production export, at a
@@ -26,8 +28,10 @@ interface Violation {
 }
 
 /** Serious and critical WCAG 2.x A/AA violations on the page as it is now, in a readable shape. */
-async function seriousViolations(page: Page): Promise<Violation[]> {
-  const results = await new AxeBuilder({ page })
+async function seriousViolations(page: Page, within?: string): Promise<Violation[]> {
+  const builder = new AxeBuilder({ page });
+  if (within !== undefined) builder.include(within);
+  const results = await builder
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze();
   return results.violations
@@ -36,76 +40,49 @@ async function seriousViolations(page: Page): Promise<Violation[]> {
       rule: violation.id,
       impact: violation.impact ?? '',
       help: violation.help,
-      targets: violation.nodes.slice(0, 4).map((node) => `${node.target.join(' ')}  ${node.html.slice(0, 140)}`),
+      targets: violation.nodes
+        .slice(0, 4)
+        .map(
+          (node) =>
+            `${node.target.join(' ')}  ${node.html.slice(0, 100)}  ${JSON.stringify(node.any[0]?.data ?? {}).slice(0, 200)}`,
+        ),
     }));
+}
+
+/** Waits until a sheet has finished fading in: axe would read half-transparent text as low contrast. */
+async function sheetSettled(page: Page) {
+  const total = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[role="dialog"], [role="dialog"] *')].reduce(
+        (sum, node) => sum + Number.parseFloat(getComputedStyle(node).opacity),
+        0,
+      ),
+    );
+  let last = -1;
+  await expect
+    .poll(async () => {
+      const now = await total();
+      const settled = now === last;
+      last = now;
+      await page.waitForTimeout(120);
+      return settled;
+    })
+    .toBe(true);
 }
 
 /**
  * Waits until the route has painted its own content, then checks it: one main landmark (V01), and
  * no serious axe violation.
  */
-async function expectAccessible(page: Page, ready: () => Promise<void>, landmarks = true) {
+async function expectAccessible(page: Page, ready: () => Promise<void>, insideDialog = false) {
   await ready();
   // A skeleton or a spinner is not the screen: wait until the route has finished loading.
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
-  // Behind a modal sheet the page is inert, so its landmarks are hidden on purpose.
-  if (landmarks) await expect(page.getByRole('main')).toHaveCount(1);
-  expect(await seriousViolations(page)).toEqual([]);
-}
-
-const account = { accountId: id(1), universeId: id(2), privacyEpoch: 1, email: 'axe@fixture.test' };
-
-/** A signed-in account with an empty Talk inbox, nothing kept and no sessions beyond this one. */
-async function signedInAccount(page: Page) {
-  const ago = new Date(Date.now() - 60_000).toISOString();
-  await page.route('**/auth/session', (route) =>
-    route.fulfill({ json: { account, client: 'web', expiresAt: '2099-10-23T00:00:00.000Z' } }),
-  );
-  await page.route('**/auth/deletion/**', (route) => route.fulfill({ json: { state: 'in_progress' } }));
-  await page.route('**/v1/**', (route: Route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
-    const scope = { accountId: account.accountId, privacyEpoch: 1 };
-    if (isInboxPath(path)) return route.fulfill({ json: emptyInbox(path, body, account.accountId) });
-    if (path === '/v1/privacy/recording/read')
-      return route.fulfill({
-        json: { version: 'recording-policy.v1', ...body, scope, revision: 0, policy: { on: true, generation: 1 } },
-      });
-    if (path === '/v1/privacy/clear-exploration/status')
-      return route.fulfill({
-        json: { version: 'clear-exploration.v1', scope, target: body['target'], status: 'not_recorded' },
-      });
-    if (path === '/v1/account/sessions')
-      return route.fulfill({
-        json: {
-          sessions: [
-            {
-              id: id(10),
-              client: 'web',
-              deviceLabel: 'Chrome on macOS',
-              lastUsedAt: ago,
-              signedInAt: ago,
-              current: true,
-            },
-          ],
-        },
-      });
-    if (path === '/v1/saved')
-      return route.fulfill({
-        json: {
-          pagination: 'saved-page.v1',
-          consistency: 'live',
-          filter: new URL(request.url()).searchParams.get('filter'),
-          limit: 20,
-          scope,
-          continuation: { status: 'end' },
-          revision: 1,
-          items: [],
-        },
-      });
-    return route.fulfill({ status: 404, json: {} });
-  });
+  // Behind a modal dialog the page is out of reach (no landmarks to count, no contrast to ask of
+  // text under the scrim), so an open dialog is checked on its own.
+  if (insideDialog) await sheetSettled(page);
+  else await expect(page.getByRole('main')).toHaveCount(1);
+  expect(await seriousViolations(page, insideDialog ? '[role="dialog"]' : undefined)).toEqual([]);
 }
 
 test.describe('signed out', () => {
@@ -193,9 +170,41 @@ test.describe('a sheet', () => {
         if (size.width < 1024) await page.getByRole('button', { name: 'Got it' }).click();
         await sheet.open(page).click();
         await expect(page.getByRole('dialog')).toBeVisible();
-        await expectAccessible(page, () => expect(page.getByRole('dialog')).toBeVisible(), false);
+        await expectAccessible(page, () => expect(page.getByRole('dialog')).toBeVisible(), true);
       });
     }
+  }
+});
+
+test.describe('the keyboard map', () => {
+  test('over a desktop Explore has no serious axe violations', async ({ page }) => {
+    await encounterFixture(page, 'reel', { viewport: widths[2], series: true });
+    await page.route('**/media/gesture-fixture', (route) => route.fulfill({ status: 404, body: 'fixture only' }));
+    await page.goto('/explore');
+    await page.getByRole('button', { name: 'All shortcuts' }).click();
+    await expectAccessible(
+      page,
+      () => expect(page.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible(),
+      true,
+    );
+  });
+
+  for (const size of [widths[0], widths[2]]) {
+    test(`from Account at ${size.label} has no serious axe violations`, async ({ page }) => {
+      await signedInAccount(page);
+      await page.setViewportSize(size);
+      await page.goto('/account');
+      await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
+      // The page behind a modal sheet is out of reach while it is open, and back when it closes.
+      await expect(page.locator('#root')).toHaveAttribute('inert', '');
+      await expectAccessible(
+        page,
+        () => expect(page.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible(),
+        true,
+      );
+      await page.keyboard.press('Escape');
+      await expect(page.locator('#root')).not.toHaveAttribute('inert');
+    });
   }
 });
 
@@ -254,9 +263,30 @@ test.describe('the Universe', () => {
         await expectAccessible(
           page,
           () => expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible(),
-          false,
+          true,
         );
       }
     });
+  }
+});
+
+test.describe('Talk with something in it', () => {
+  const addresses = [
+    { name: 'the inbox', path: '/conversations', ready: 'Ravi fixture' },
+    {
+      name: 'a conversation',
+      path: `/conversations/${conversation.conversationId}?m=${conversation.membershipId}&r=1`,
+      ready: 'Starting the second part now.',
+    },
+    { name: 'a content thread', path: `/threads/${thread.threadId}?m=${thread.membershipId}&r=1`, ready: 'CI series' },
+  ] as const;
+  for (const size of widths) {
+    for (const address of addresses) {
+      test(`${address.name} at ${size.label} has no serious axe violations`, async ({ page }) => {
+        await talkFixture(page, size);
+        await page.goto(address.path);
+        await expectAccessible(page, () => expect(page.getByText(address.ready).first()).toBeVisible());
+      });
+    }
   }
 });

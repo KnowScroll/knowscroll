@@ -3,6 +3,7 @@ import { Text as NativeText, type StyleProp, type TextProps as NativeTextProps, 
 import { content, resolveType, type ResolvedTypeStyle, type TypeRole } from '@knowscroll/design-tokens';
 import { useDisplay } from '../display/display';
 import { headingSemantics } from '../display/semantics';
+import { longWordWrap } from './wrap';
 
 /** The resolved type style for a role at the current breakpoint and system text size. */
 export function useTypeStyle(role: TypeRole): ResolvedTypeStyle {
@@ -32,12 +33,20 @@ export interface TextProps extends Pick<
  */
 export function Text({ variant, color = content.ink, align, heading, children, style, ...rest }: TextProps) {
   const type = useTypeStyle(variant);
+  // Headings and display text may hold a word wider than a narrow line at a large text size.
+  const headingLike = heading !== undefined || variant === 'displayXl' || variant === 'displayL';
   return (
     <NativeText
       {...rest}
       {...(heading === undefined ? {} : headingSemantics(heading))}
       allowFontScaling={false}
-      style={[type, { color }, align === undefined ? null : { textAlign: align }, style]}
+      style={[
+        type,
+        headingLike ? longWordWrap : null,
+        { color },
+        align === undefined ? null : { textAlign: align },
+        style,
+      ]}
     >
       {children}
     </NativeText>

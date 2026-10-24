@@ -8,7 +8,7 @@ import {
 } from '@knowscroll/client-core';
 import { MAX_THREAD_FRIENDS, type ContentThreadRef, type ConversationContentRef } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, target as targetSize } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
+import { Banner, Button, Icon, spaceActivates, Text, useFocusRing, useTypeStyle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { PersonAvatar } from '../conversations/person-avatar';
 
@@ -32,6 +32,7 @@ function Row({
       {...focus.props}
       role="checkbox"
       aria-checked={selected}
+      {...spaceActivates(onToggle, disabled)}
       accessibilityLabel={person.displayName}
       disabled={disabled}
       onPress={onToggle}

@@ -70,6 +70,20 @@ exclude Reels, even though this controller has a working Reel player.
   `features/shell/route-map.test.ts` checks the route files against the route map).
 - `platform/`: platform files (`document-title(.web).ts`, `scope-storage(.web).ts`, `session-tokens(.web).ts`) and their web tests
   (`*.web.test.tsx`, the `web` Jest project, jest-expo/web in jsdom).
+- `features/shell/`: also `talk-frame.tsx` (the one `main` and, on tablets and desktops, the navigation rail with
+  Talk current, around a conversation or a thread, which are not tabs) and `keyboard-map.tsx` (every key the app
+  listens to, as a sheet from Account and from the desktop Explore footer; add a row there with any new key).
+- Talk by size (D03): below 1024 px a conversation or a thread is one column. From 1024 px a thread has its own pane
+  (episodes, the player, share) beside "Conversation" (messages, the asks, the message box); a direct conversation has
+  the inbox beside it, with its row current; the Talk tab itself shows the list beside a pane that says "Pick a
+  conversation". The rail is drawn from 768 px, also on a thread or a conversation. Presence ("Online") is not drawn: no
+  availability is read here.
+- Accessibility: `@axe-core/playwright` runs in the web smoke (`a11y-smoke.spec.ts`) over the main routes at 390, 834 and
+  1440 px; serious and critical violations fail it, and every route has one `main`. `keyboard-smoke.spec.ts` tabs
+  through screens and requires every stop to draw focus, and walks Explore, a sheet, the Universe, Talk and Privacy
+  by keys; `reflow-smoke.spec.ts` checks a 320 px phone, a landscape phone, doubled text and reduced motion. React Native
+  Web does not write `accessibilityState` to the DOM and reserves Space for button roles: set `aria-*` and use
+  `spaceActivates` on a checkbox, radio or switch.
 - `e2e/`: the Playwright web smoke over the static exports (`web-smoke.spec.ts` against `dist/`:
   links, Tab + Enter, modified clicks, page titles, focus order at 834 and 1440, no gallery;
   `gallery-smoke.spec.ts` against `dist-gallery/`: the gallery marker, the sheet's Esc, focus
@@ -481,7 +495,7 @@ direct conversations and threads together; a thread row shows its people, the la
   visible ⋯ on each message and a **What if…** on each snippet card, and `thread-screen.tsx` adds What if… and Another
   perspective above the message box. See the next section.
 - Not built: keep listening, a thread's own Like and Save (they stay on the full-screen
-  encounter), thumbnails on episode cards, the multi-pane desktop thread (D03), native text selection for passages.
+  encounter), thumbnails on episode cards, native text selection for passages.
 
 ## Idea rooms (#245, D-051)
 
