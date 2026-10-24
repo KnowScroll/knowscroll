@@ -7,8 +7,12 @@ import { Icon } from '../icons/icon';
 import type { IconName } from '../icons/icon-paths';
 import { Text } from '../text/text';
 
-/** Supply status attached to the thing requested: no percentages, no ETAs. */
-export type RequestStatus = 'requested' | 'preparing' | 'ready' | 'failed' | 'cancelled';
+/**
+ * Supply status attached to the thing requested: no percentages, no ETAs. `failed` is a request
+ * that could not be prepared and can be asked again; `unavailable` is one that cannot be made (E07:
+ * "can't be made"), which offers nothing to retry.
+ */
+export type RequestStatus = 'requested' | 'preparing' | 'ready' | 'failed' | 'unavailable' | 'cancelled';
 
 const looks: Record<
   RequestStatus,
@@ -44,6 +48,14 @@ const looks: Record<
     background: content.paper,
     border: status.danger.edge,
     foreground: status.danger.foreground,
+    dashed: false,
+  },
+  unavailable: {
+    word: "Can't be made",
+    icon: 'alert',
+    background: content.paper,
+    border: content.ink,
+    foreground: content.ink,
     dashed: false,
   },
   cancelled: {
