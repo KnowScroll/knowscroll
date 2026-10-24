@@ -19,16 +19,18 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 
  * what is yours (your encounters, saved items, requests, universe and sharing profile) and nothing
  * of anyone else. A download works once; after that, or after a week, ask again.
  */
-export function ExportPanel() {
+export function ExportPanel({ compact = false }: { readonly compact?: boolean }) {
   const { state: account } = useAccountScope();
   if (account.status !== 'signed_in') return <Text variant="bodyS">Sign in to download a copy of your data.</Text>;
-  return <SignedInExports scope={account.scope} />;
+  return <SignedInExports scope={account.scope} compact={compact} />;
 }
 
 function SignedInExports({
   scope,
+  compact,
 }: {
   readonly scope: Extract<ReturnType<typeof useAccountScope>['state'], { status: 'signed_in' }>['scope'];
+  readonly compact: boolean;
 }) {
   const session = useMemo(() => createDataExportsSession(scope, newCommandId), [scope]);
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
@@ -43,7 +45,7 @@ function SignedInExports({
   }, [session, preparing]);
   return (
     <View style={{ gap: spacing[4] }}>
-      <Text variant="body">
+      <Text variant={compact ? 'bodyS' : 'body'}>
         A copy of your encounters, saved items, requests, the places in your universe and your sharing profile. It holds
         nothing of anyone else.
       </Text>
@@ -111,27 +113,29 @@ function ExportReceipt({
       return (
         <ReceiptCard tone="preparing" state="Preparing" when={when}>
           <Text variant="meta" color={content.ink2}>
-            This page shows it here when it is ready.
+            History, Keep and messages. It shows here when it's ready.
           </Text>
         </ReceiptCard>
       );
     case 'ready':
       return (
-        <ReceiptCard tone="done" state="Ready" when={when}>
+        <ReceiptCard
+          tone="done"
+          state="Ready"
+          when={when}
+          action={<Button label="Download" size="sm" busy={opening} busyLabel="Preparing link…" onPress={onDownload} />}
+        >
           <Text variant="meta" color={content.ink2}>
             {entry.expiresAt === null ? 'Ready to download.' : `Available until ${day(entry.expiresAt)}.`} The download
             works once.
           </Text>
-          <View style={{ alignItems: 'flex-start' }}>
-            <Button label="Download" size="sm" busy={opening} busyLabel="Preparing link…" onPress={onDownload} />
-          </View>
         </ReceiptCard>
       );
     case 'downloaded':
       return (
         <ReceiptCard tone="done" state="Downloaded" when={when}>
           <Text variant="meta" color={content.ink2}>
-            The file was downloaded and removed from our servers. Ask for a new export for another copy.
+            Downloaded and removed from our servers. Ask for a new export for another copy.
           </Text>
         </ReceiptCard>
       );
@@ -145,13 +149,15 @@ function ExportReceipt({
       );
     case 'failed':
       return (
-        <ReceiptCard tone="failed" state="Failed" when={when}>
+        <ReceiptCard
+          tone="failed"
+          state="Failed"
+          when={when}
+          action={<Button label="Retry" size="sm" disabled={retryDisabled} onPress={onRetry} />}
+        >
           <Text variant="meta" color={content.ink2}>
             We couldn't finish this export. Nothing was sent anywhere.
           </Text>
-          <View style={{ alignItems: 'flex-start' }}>
-            <Button label="Retry" size="sm" disabled={retryDisabled} onPress={onRetry} />
-          </View>
         </ReceiptCard>
       );
   }

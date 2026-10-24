@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { requestAccountDeletion, type AccountDeletionOutcome } from '@knowscroll/client-core';
-import { content, spacing } from '@knowscroll/design-tokens';
+import { content, spacing, status } from '@knowscroll/design-tokens';
 import { Banner, Button, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
-import { Acknowledge, SettingsLabel } from '../account/settings-parts';
+import { Acknowledge, ConfirmBox, SettingsLabel } from '../account/settings-parts';
 
 const removed = [
   'Your account and email address.',
@@ -26,7 +26,14 @@ const stays = [
  * so the result is read from the receipt, which needs none. A request that gets no answer is not
  * assumed either way: "Check" asks the receipt whether it arrived.
  */
-export function DeletePanel({ titled = true }: { readonly titled?: boolean }) {
+export function DeletePanel({
+  titled = true,
+  compact = false,
+}: {
+  readonly titled?: boolean;
+  /** The desktop card draws its words one size smaller (D05). */
+  readonly compact?: boolean;
+}) {
   const router = useRouter();
   const { manager, state: account } = useAccountScope();
   const [understood, setUnderstood] = useState(false);
@@ -67,23 +74,23 @@ export function DeletePanel({ titled = true }: { readonly titled?: boolean }) {
   return (
     <View style={{ gap: spacing[4] }}>
       {titled ? (
-        <Text variant="title" heading={2}>
+        <Text variant="title" heading={2} color={status.danger.foreground}>
           Delete account
         </Text>
       ) : null}
-      <Text variant="body">
+      <Text variant={compact ? 'bodyS' : 'body'}>
         Removes your account, history, universe, kept items and messages you sent. People you messaged keep a "deleted
         account" placeholder.
       </Text>
       <SettingsLabel>What's removed</SettingsLabel>
       {removed.map((line) => (
-        <Text key={line} variant="bodyS">
+        <Text key={line} variant={compact ? 'meta' : 'bodyS'}>
           {line}
         </Text>
       ))}
       <SettingsLabel>What stays</SettingsLabel>
       {stays.map((line) => (
-        <Text key={line} variant="bodyS">
+        <Text key={line} variant={compact ? 'meta' : 'bodyS'}>
           {line}
         </Text>
       ))}
@@ -115,7 +122,7 @@ export function DeletePanel({ titled = true }: { readonly titled?: boolean }) {
       {scope === undefined ? (
         <Text variant="bodyS">Sign in to delete your account.</Text>
       ) : (
-        <View style={{ gap: spacing[4], alignItems: 'flex-start' }}>
+        <ConfirmBox>
           <Acknowledge label="I understand this cannot be undone" checked={understood} onChange={setUnderstood} />
           <Button
             label="Delete account"
@@ -125,7 +132,7 @@ export function DeletePanel({ titled = true }: { readonly titled?: boolean }) {
             disabled={!understood}
             onPress={() => void send()}
           />
-        </View>
+        </ConfirmBox>
       )}
     </View>
   );

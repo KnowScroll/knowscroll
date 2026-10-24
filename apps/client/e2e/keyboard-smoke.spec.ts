@@ -169,13 +169,13 @@ test('Talk by keyboard: Tab reaches the episodes, the arrows move between them, 
   await expect(part(2)).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('Privacy by keyboard on a desktop: the recording button is a stop, and the destructive step asks for an acknowledgement first', async ({
+test('Privacy by keyboard on a desktop: the recording switch is a switch, and the destructive step asks for an acknowledgement first', async ({
   page,
 }) => {
   await signedInAccount(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/account/privacy');
-  const recording = page.getByRole('button', { name: 'Pause recording' });
+  const recording = page.getByRole('switch', { name: 'Shape my universe from what I watch' });
   await recording.focus();
   await expect(recording).toBeFocused();
   const acknowledge = page.getByRole('checkbox', { name: 'I understand this cannot be undone' }).first();

@@ -1,9 +1,10 @@
-import { Link, Redirect, useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
-import { IconButton, Text, useDisplay, useFocusRing } from '@knowscroll/ui';
+import { StyleSheet, View } from 'react-native';
+import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
+import { IconButton, Text, useDisplay } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
+import { SettingsNav } from '../account/settings-page';
 import { SettingsLabel, SettingsRow } from '../account/settings-parts';
 import { ScreenFrame } from '../shell/screen-frame';
 import { ClearPanel } from './clear-panel';
@@ -68,81 +69,41 @@ function Hub() {
   );
 }
 
-function Card({ children }: { readonly children: ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
-}
-
-/** The other pages of the settings list (D05 `.sn`): only the ones that exist. Notifications and playback are not built. */
-const OTHER_SETTINGS = [
-  { title: 'Account', href: '/account' },
-  { title: 'Your requests', href: '/account/requests' },
-  { title: 'Friends & visibility', href: '/friends' },
-] as const;
-
-function SettingsLink({ title, href }: (typeof OTHER_SETTINGS)[number]) {
-  const focus = useFocusRing('onLight');
-  return (
-    <Link href={href} asChild>
-      <Pressable {...focus.props} accessibilityRole="link" style={{ ...styles.navItem, ...focus.style }}>
-        <Text variant="bodyS">{title}</Text>
-      </Pressable>
-    </Link>
-  );
-}
-
-/** The settings list beside the cards on desktops (D05 `.sn`). */
-function SettingsNav() {
-  const { state } = useAccountScope();
-  return (
-    <View style={styles.nav} role="navigation" aria-label="Settings">
-      <Text variant="heading" heading={2}>
-        Settings
-      </Text>
-      {OTHER_SETTINGS.map((item) => (
-        <SettingsLink key={item.href} {...item} />
-      ))}
-      <View aria-current="page" style={[styles.navItem, styles.navCurrent]}>
-        <Text variant="bodyS" color={content.paper}>
-          Privacy & history
-        </Text>
-      </View>
-      {state.status === 'signed_in' ? (
-        <Text variant="meta" color={content.ink2} style={styles.navNote}>
-          Signed in as {state.scope.account.email}
-        </Text>
-      ) : null}
-    </View>
-  );
+function Card({ children, danger = false }: { readonly children: ReactNode; readonly danger?: boolean }) {
+  return <View style={[styles.card, danger ? styles.cardDanger : null]}>{children}</View>;
 }
 
 /** D05: settings list on the left, one card for each control on the right. */
 function Desktop() {
   return (
     <View style={styles.desktop}>
-      <SettingsNav />
+      <SettingsNav current="privacy" />
       <View style={styles.cards}>
         <Text variant="meta" color={content.ink2} style={styles.lead}>
           Every action here says exactly what it changes, and reports done only when it is.
         </Text>
         <Card>
+          <Text variant="title" heading={2}>
+            Recording
+          </Text>
           <Recording />
         </Card>
         <Card>
           <Text variant="title" heading={2}>
             History & export
           </Text>
-          <ExportPanel />
+          <ExportPanel compact />
         </Card>
         <Card>
-          <ClearPanel />
+          <ClearPanel compact />
         </Card>
         {privacyExtensions.map((extension) => (
           <Card key={extension.id}>
             <extension.Panel />
           </Card>
         ))}
-        <Card>
-          <DeletePanel />
+        <Card danger>
+          <DeletePanel compact />
         </Card>
       </View>
     </View>
@@ -226,17 +187,9 @@ const styles = StyleSheet.create({
   page: { gap: spacing[1], paddingBottom: spacing[8] },
   note: { paddingTop: spacing[5] },
   desktop: { flexDirection: 'row', gap: spacing[8], alignItems: 'flex-start', paddingBottom: spacing[8] },
-  nav: { width: 260, gap: spacing[2] },
-  navItem: {
-    minHeight: target.comfortable,
-    paddingHorizontal: spacing[3],
-    borderRadius: radius.md,
-    justifyContent: 'center',
-  },
-  navCurrent: { backgroundColor: content.ink },
-  navNote: { paddingTop: spacing[4] },
   cards: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   lead: { flexBasis: '100%' },
+  cardDanger: { borderColor: status.danger.edge },
   card: {
     flexGrow: 1,
     flexBasis: CARD_MIN_WIDTH,

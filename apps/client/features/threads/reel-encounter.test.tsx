@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createAccountScope, memoryStore, type AccountScope } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
+import { defaultDevicePreferences } from '../account/device-preferences';
+import { DevicePreferencesProvider } from '../../providers/device-preferences';
 import { ReelEncounter } from './reel-encounter';
 
 // The real component, AccountScope and response parsing over labelled HTTP fixtures. Only the
@@ -9,7 +11,7 @@ let mockFocused = true;
 jest.mock('expo-router', () => ({ useIsFocused: () => mockFocused }));
 const mockViewProps = jest.fn<
   void,
-  [{ active: boolean; controls?: { tapToToggle?: boolean; controlsRef: unknown } }]
+  [{ active: boolean; initialMuted?: boolean; controls?: { tapToToggle?: boolean; controlsRef: unknown } }]
 >();
 const mockToggle = jest.fn();
 const mockSeekBy = jest.fn();
@@ -120,6 +122,13 @@ const encounter = (scope: AccountScope, active = true) => (
     <ReelEncounter scope={scope} assetId={id(6)} title="The edge" active={active} />
   </DisplayProvider>
 );
+const withSoundOff = (scope: AccountScope) => (
+  <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+    <DevicePreferencesProvider initial={{ ...defaultDevicePreferences, reelSound: false }}>
+      <ReelEncounter scope={scope} assetId={id(6)} title="The edge" active />
+    </DevicePreferencesProvider>
+  </DisplayProvider>
+);
 const lastActive = () => mockViewProps.mock.calls.at(-1)?.[0].active;
 
 beforeEach(() => {
@@ -136,6 +145,21 @@ describe('a Reel played inside a thread or a snippet viewer', () => {
     expect(screen.getByRole('button', { name: 'Watch' })).toBeOnTheScreen();
     expect(mockViewProps).not.toHaveBeenCalled();
     expect(fetched).not.toHaveBeenCalled();
+  });
+
+  it('opens with sound by default, and muted when "Start Reels with sound" is off', async () => {
+    const scope = fixtureScope();
+    const first = await render(encounter(scope));
+    await fireEvent.press(screen.getByRole('button', { name: 'Watch' }));
+    await waitFor(() => expect(lastActive()).toBe(true));
+    expect(mockViewProps.mock.calls.at(-1)?.[0].initialMuted).toBe(false);
+    await first.unmount();
+
+    mockViewProps.mockClear();
+    await render(withSoundOff(fixtureScope()));
+    await fireEvent.press(screen.getByRole('button', { name: 'Watch' }));
+    await waitFor(() => expect(lastActive()).toBe(true));
+    expect(mockViewProps.mock.calls.at(-1)?.[0].initialMuted).toBe(true);
   });
 
   it('pauses the player when another screen takes focus, and does not start it again by itself', async () => {
