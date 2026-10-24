@@ -512,4 +512,7 @@ What the v2.1 artboards (E01–E09, N01, A01, S01) leave open, and the few place
 - **Dev evidence panel** only with `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`; off by default and absent from every build that does not set it.
 - **Entry.** "Continue with email" is cobalt and "I have a sign-in link" the quiet outline (A01 as drawn); the placeholder row stays out.
 - **Overlays on the web** are drawn into the document body so they sit above the tab bar and rail.
+- **Sheets are not departures (D-006 k).** Closing a sheet over a playing Reel plays it on from where it was (`entry.resumePlaying`, read once by the remounted player); Back, a trail jump or a tab detour still return paused. A sheet action that navigates (Account, a conversation) waits for the browser Back that removes the sheet's history marker (`afterPendingBack`; the encounter marks that Back as pending), and the marker is popped once however many state changes land first.
+- **Direct opens read the exposure context.** `/reel/<id>` and `/scroll/<id>` show the Reel/Scroll switch from `GET /v1/experience/exposures/{id}/context`, so an existing twin is available (E06); a missing one stays unavailable there, because a direct route has no request flow.
+- **The Reel player fills its parent** and takes its chrome as `children`; it no longer measures a bounded height (`stageMaxHeight` is gone). A screen that wants a smaller player gives the player's parent a height.
 
