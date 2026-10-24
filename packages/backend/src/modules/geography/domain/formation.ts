@@ -92,13 +92,13 @@ export interface FormationPlan {
 }
 
 /**
- * A valid model proposal reconciled with what the rules require. Formation is decided by the rules,
- * never by a model's choice to omit something, so every required change the proposal left out is
- * added (places parents first). The model keeps what only it adds, such as routes and the choice
- * between canonical labels. When the combination conflicts (two operations on one place) or does
- * not fit one delta, the rules are applied alone, still validated like any proposal.
+ * A model proposal together with every change the rules require that it left out, creations first
+ * (parents before children) and the rest after, as the proposal that would be applied if they agree.
+ * It is not validated here. The operations of `proposal` keep their identity, so a finding on the
+ * merged list can be traced back to the model's own operation. Returns `proposal` itself when the
+ * rules require nothing more.
  */
-export function reconcileWithRules(proposal: GeographyProposal, facts: FormationFacts): FormationPlan {
+export function mergeWithRules(proposal: GeographyProposal, facts: FormationFacts): GeographyProposal {
   const required = requiredChanges(facts);
   const proposedPlaces = new Set(proposal.operations.filter(isCreation).map((operation) => operation.key));
   const proposedActivity = new Set(
@@ -109,15 +109,28 @@ export function reconcileWithRules(proposal: GeographyProposal, facts: Formation
       ? !proposedPlaces.has(operation.key)
       : operation.kind === 'set_activity' && !proposedActivity.has(operation.objectId),
   );
-  if (!missing.length) return { proposal, source: 'model' };
-  const nothingFromModel = proposal.operations.length === 0;
+  if (!missing.length) return proposal;
   const all = [...proposal.operations, ...missing];
-  const operations = [
-    ...all.filter(isCreation).sort((a, b) => creationRank(a) - creationRank(b)),
-    ...all.filter((operation) => !isCreation(operation)),
-  ];
-  const combined = { ...proposal, operations };
-  if (operations.length <= MAX_PROPOSAL_OPERATIONS && !proposalIssue(combined, facts))
-    return { proposal: combined, source: nothingFromModel ? 'rules' : 'model_with_rules' };
-  return { proposal: required, source: 'rules' };
+  return {
+    ...proposal,
+    operations: [
+      ...all.filter(isCreation).sort((a, b) => creationRank(a) - creationRank(b)),
+      ...all.filter((operation) => !isCreation(operation)),
+    ],
+  };
+}
+
+/**
+ * A valid model proposal reconciled with what the rules require. Formation is decided by the rules,
+ * never by a model's choice to omit something, so every required change the proposal left out is
+ * added (places parents first). The model keeps what only it adds, such as routes and the choice
+ * between canonical labels. When the combination conflicts (two operations on one place) or does
+ * not fit one delta, the rules are applied alone, still validated like any proposal.
+ */
+export function reconcileWithRules(proposal: GeographyProposal, facts: FormationFacts): FormationPlan {
+  const combined = mergeWithRules(proposal, facts);
+  if (combined === proposal) return { proposal, source: 'model' };
+  if (combined.operations.length <= MAX_PROPOSAL_OPERATIONS && !proposalIssue(combined, facts))
+    return { proposal: combined, source: proposal.operations.length === 0 ? 'rules' : 'model_with_rules' };
+  return { proposal: requiredChanges(facts), source: 'rules' };
 }

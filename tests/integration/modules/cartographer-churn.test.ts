@@ -152,6 +152,52 @@ describe('Cartographer runs under continuous reading (real PostgreSQL CI fixture
     expect(await ledgerOf(person)).toEqual(['completed']);
   });
 
+  it('accepts and applies a route the model adds to a second planet that is only due', async () => {
+    const { database, coherent, fixture, observe, state, runner, job } = world;
+    const person = await seedPerson(database.db);
+    await coherent(person);
+    const first = runner(person);
+    await first.run(await job(person, (await state(person)).activeRunId!), signal());
+    expect(await placeKinds(person)).toEqual(['planet', 'region', 'region', 'star', 'system']);
+
+    // Three Tides Scrolls make a second planet of the same system due.
+    for (let i = 0; i < 3; i++)
+      await observe(
+        person,
+        await fixture(undefined, 'earth.tides', [i === 1 ? 'earth.tides.alignment' : 'earth.tides.forcing']),
+      );
+    const runId = (await state(person)).activeRunId!;
+    // The model answers with its addition only: a route between the formed planet and the due one.
+    const tides = runner(person, (context) => {
+      const formed = context.facts.objects.find((place) => place.kind === 'planet')!;
+      const due = context.facts.candidates.find((c) => c.kind === 'planet' && c.conceptId === 'earth.tides')!;
+      return {
+        kind: 'success',
+        text: JSON.stringify({
+          version: 'cartographer-proposal.v1',
+          operations: [
+            {
+              kind: 'connect_route',
+              fromKey: formed.key,
+              toKey: due.key,
+              supportRefs: context.facts.supports.map((support) => support.ref),
+            },
+          ],
+        }),
+      };
+    });
+    await tides.run(await job(person, runId), signal());
+
+    // Valid on the first answer (no repair), and applied together with the places the rules owed.
+    expect(tides.model.calls).toHaveLength(1);
+    expect(await runsOf(person)).toContainEqual({ id: runId, status: 'accepted', outcome: 'applied_with_rules' });
+    const universe = await world.snapshot(person);
+    if (universe.status !== 'ready') throw new Error('CI ready expected');
+    expect(universe.page.objects.filter((place) => place.kind === 'planet')).toHaveLength(2);
+    expect(universe.page.routes).toHaveLength(1);
+    expect(await ledgerOf(person)).toEqual(['completed', 'completed']);
+  });
+
   /** A run claimed by code whose context layout hashed differently, that died after the claim. */
   async function frozenUnderOlderLayout(person: FixturePerson) {
     const { base, state, runner, job } = world;

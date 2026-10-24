@@ -44,12 +44,12 @@ const support = (topicId: string, facetId: string, unit: string): Support => ({
   activatedAt: '2026-10-19T00:00:00.000Z',
 });
 
-function contextOf(supports: Support[]): GeographyContext {
+function contextOf(supports: Support[], objects: FormationFacts['objects'] = []): GeographyContext {
   const facts: FormationFacts = {
     catalogue,
     supports,
     candidates,
-    objects: [],
+    objects,
     routes: [],
     evaluatedAt: '2026-10-20T00:00:00.000Z',
     completeness: 'not_asserted',
@@ -134,6 +134,58 @@ describe('what the Cartographer is asked', () => {
     const code = (issue as { params?: { safeCode?: string } }).params?.safeCode;
     expect(code).toBe('formation_support');
     expect(role.safeCustomIssues?.[code!]).toContain('two distinct units');
+  });
+
+  describe('a route the model adds to a planet that is only due', () => {
+    const [first, second] = CONCEPTS.filter((topic) => topic.parent === 'earth' && topic.facets.length >= 2);
+    const supportsOf = (topic: NonNullable<typeof first>) =>
+      topic.facets
+        .slice(0, 2)
+        .flatMap((facet, facetIndex) =>
+          [0, 1].map((n) => support(topic.id, facet.id, `${topic.id}:${facetIndex}:${n}`)),
+        );
+    const firstSupports = supportsOf(first!);
+    const secondSupports = supportsOf(second!);
+    const keyOf = (kind: Candidate['kind'], conceptId: string) => semanticKey(kind, conceptId);
+    // The system, its star and the first planet are formed; the second planet is due.
+    const formed = [keyOf('system', 'earth'), keyOf('star', 'earth'), keyOf('planet', first!.id)].map((key) => {
+      const candidate = candidates.find((c) => c.key === key)!;
+      return {
+        ...candidate,
+        label: candidate.labels[0]!,
+        objectRevision: 1,
+        originTransitionId: 'earlier',
+        activity: { availability: 'available' as const, state: 'active' as const },
+      };
+    });
+    const context = contextOf([...firstSupports, ...secondSupports], formed);
+    const route = (supportRefs: string[]): GeographyProposal => ({
+      version: 'cartographer-proposal.v1',
+      operations: [
+        {
+          kind: 'connect_route',
+          fromKey: keyOf('planet', first!.id),
+          toKey: keyOf('planet', second!.id),
+          supportRefs,
+        },
+      ],
+    });
+
+    it('is accepted, because the model is judged with the due places in front of it', () => {
+      const due = requiredChanges(context.facts).operations.map((operation) => operation.kind);
+      expect(due).toContain('form_planet');
+      const refs = [firstSupports[0]!.ref, secondSupports[0]!.ref];
+      expect(cartographerRole(context).outputSchema.safeParse(route(refs)).success).toBe(true);
+    });
+
+    it("is still refused, at the model's own operation, when it is not supported at both ends", () => {
+      const result = cartographerRole(context).outputSchema.safeParse(route([firstSupports[0]!.ref]));
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      const [issue] = result.error.issues;
+      expect(issue?.path).toEqual(['operations', 0]);
+      expect((issue as { params?: { safeCode?: string } }).params?.safeCode).toBe('support_authority');
+    });
   });
 
   it('gives every rule its own short plain hint', () => {

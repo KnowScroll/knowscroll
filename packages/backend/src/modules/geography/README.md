@@ -49,7 +49,8 @@ facet support today, so a Reel-only reader gets dust but no system until Reel co
    Otherwise the role `geography.cartographer` asks the model for a `cartographer-proposal.v1`. The
    context lists the places the rules entitle as ready `due` operations. Code applies all of them
    whatever the model returns, so the model returns only what it adds: another canonical label for a
-   due place, a route, a label revision. An empty answer is the normal reply. No model call happens
+   due place, a route, a label revision. An empty answer is the normal reply. The answer is judged
+   with the due operations merged in, so a route to a planet that is only due is valid. No model call happens
    inside a database transaction.
 4. Code picks what to apply (`planFor` in `application/run.ts`) and records it in the run's
    `outcome`:
