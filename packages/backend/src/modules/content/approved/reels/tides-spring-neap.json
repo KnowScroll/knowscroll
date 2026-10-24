@@ -16,7 +16,7 @@
         "claimIds": ["c1"]
       },
       {
-        "text": "At high water, the sea covers most of the same beach.",
+        "text": "At high water, the sea runs right up the beach to the dunes.",
         "claimIds": ["c2"]
       },
       {
@@ -86,7 +86,7 @@
         },
         {
           "id": "show-high-water",
-          "text": "the same wide sandy beach at high tide, with the sea covering most of it up to the dunes",
+          "text": "the sea at high tide, waves washing right up to the foot of grassy sand dunes, only a thin strip of wet sand left, bright daylight",
           "type": "presence",
           "claimId": "c2"
         },
@@ -98,7 +98,7 @@
         },
         {
           "id": "show-half-moon",
-          "text": "a half Moon, large in the frame, above a calm sea under a glowing dusk sky",
+          "text": "a bright half Moon high in a glowing dusk sky, exactly half of its disc lit and the other half dark, above a calm sea",
           "type": "presence",
           "claimId": "c4"
         }

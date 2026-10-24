@@ -44,12 +44,21 @@ export function createBoss(settings: DatabaseSettings, role: BossRole, diagnosti
 }
 
 /**
- * Creates every declared queue (and its dead-letter queue) or brings an existing queue's policy
- * in line with its declaration, and registers (or removes) its recurring schedule. Run by the
- * migrate command with an `install` instance. Idempotent. Queue policy changes apply to jobs sent
- * afterwards.
+ * Makes pg-boss match the release's queue declarations: creates every declared queue (and its
+ * dead-letter queue) or brings an existing queue's policy in line with its declaration, registers
+ * or removes each queue's recurring schedule, and removes the schedule of any queue that is no
+ * longer declared. The one owner of schedules: the migrate command runs it, with an `install`
+ * instance, once per deploy while the old release is quiesced.
+ *
+ * `queues` must be the complete registry: a schedule whose queue is missing from it is removed.
+ * Returns the schedules removed for that reason so the caller can log them. Idempotent; a second
+ * run removes nothing. Queue policy changes apply to jobs sent afterwards. A database error
+ * propagates and fails the migrate, which the deploy tool reports before the new release starts.
  */
-export async function applyQueueDeclarations(boss: PgBoss, queues: readonly QueueDefinition<unknown>[]): Promise<void> {
+export async function applyQueueDeclarations(
+  boss: PgBoss,
+  queues: readonly QueueDefinition<unknown>[],
+): Promise<readonly RemovedSchedule[]> {
   for (const queue of queues) {
     if (queue.policy.deadLetter) {
       const dead = deadLetterQueueName(queue.name);
@@ -83,4 +92,31 @@ export async function applyQueueDeclarations(boss: PgBoss, queues: readonly Queu
     if (queue.schedule === undefined) await boss.unschedule(queue.name);
     else await boss.schedule(queue.name, queue.schedule.cron, queue.schedule.payload as object, { tz: 'UTC' });
   }
+  return removeUndeclaredSchedules(boss, queues);
+}
+
+/** A recurring schedule `applyQueueDeclarations` removed because no declared queue owns it. */
+export interface RemovedSchedule {
+  readonly queue: string;
+  readonly key: string;
+}
+
+/**
+ * Deletes every pg-boss schedule whose queue is not declared. A queue that leaves the registry
+ * keeps its schedule row, and pg-boss goes on creating jobs that no consumer claims. A schedule is
+ * kept when its queue name is declared, whatever its key. The queue and its existing jobs are left
+ * alone.
+ */
+async function removeUndeclaredSchedules(
+  boss: PgBoss,
+  declared: readonly QueueDefinition<unknown>[],
+): Promise<readonly RemovedSchedule[]> {
+  const declaredNames = new Set(declared.map((queue) => queue.name));
+  const removed: RemovedSchedule[] = [];
+  for (const schedule of await boss.getSchedules()) {
+    if (declaredNames.has(schedule.name)) continue;
+    await boss.unschedule(schedule.name, schedule.key);
+    removed.push({ queue: schedule.name, key: schedule.key });
+  }
+  return removed;
 }

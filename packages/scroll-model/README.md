@@ -108,7 +108,9 @@ Dependency direction, enforced by dependency-cruiser and proved by `pnpm boundar
   - `predict_reveal` is not in v1.
 - **Envelope, document, honesty, personal parameters, limits, negotiation, locators and producer.** All as ruled. The details are in the sections below.
 
-### Coordinator rulings on the review of #254
+### Coordinator rulings on limits and fallback text
+
+Related: #254.
 
 - **Media cap.** At most 12 figure and media blocks per document.
 - **Text blocks' fallback text** is derived at negotiation and render time (`fallbackTextOf`), never stored.

@@ -171,7 +171,7 @@ export {
 
 /** Required owning effects for the recording-aware composition. All effects reuse the SAME
  * genuine recording transaction; no root, network, queue bypass or empty fallback is permitted.
- * The legacy composition is limited to genuine initial1/on and cannot collect after a toggle. */
+ * The legacy composition is limited to genuine initial 1/on and cannot collect after a toggle. */
 export interface ExperienceRecordingEffects {
   applyChannels(
     scope: RecordingScopeTx,

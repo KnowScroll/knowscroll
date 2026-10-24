@@ -47,7 +47,9 @@ tests); without either, components get the current window at 100 % text and moti
 | `Spinner`, `PendingStripe` | Busy arc (still under reduced motion); the 135° preparing stripe | Decorative |
 | `DisplayRoot`, `DisplayProvider`, `useDisplay` | Width → breakpoint, system text size, reduced motion, read once at the root (see above); pinnable for the gallery and tests | — |
 
-## Scroll renderer (`src/scroll`, S2.1 part 2, #230)
+## Scroll renderer (`src/scroll`)
+
+Related: S2.1 part 2, #230.
 
 Renders a consumer `scroll-document.v1` from `@knowscroll/scroll-model` (the client path only: `parseDocument`,
 `parseBlock`; the admission path, with its full-grid proof, never runs on a device, and a test scans the sources for
@@ -148,21 +150,23 @@ layout. An explicitly supplied nested child ID has no independent measured box: 
 to the existing open-disclosure anchor behaviour, without converting its offset to parent pixels.
 `initialPosition` is mount-only; remount for a different restore intent.
 
-`media/ReelPlayer` uses Expo SDK58's pinned expo-video58.0.11 on both platforms. Paused first frames
+`media/ReelPlayer` uses Expo SDK 58's pinned expo-video 58.0.11 on both platforms. Paused first frames
 serve as the poster; the title appears while loading. Visible buffering/error/retry states accompany
 custom play/pause, Mute/Unmute and ±10s seek controls. The sound toggle uses the same accessible
 pressed state, focus/keyboard behavior and wrapping phone control row as existing buttons. Explicit
 sound changes never play, seek, reload a source or emit an observation. Those controls explicitly fence the recorder at seeks; native
 controls/PiP/external/background playback are disabled because their offsurface/seek events would not
 satisfy the recorder contract. Web intersection/visibility plus route focus/AppState gate observations.
-A 60s grant refreshes at most every40s during intended playback, preserving position and the same
+A 60s grant refreshes at most every 40s during intended playback, preserving position and the same
 exposure; replacement is a recording discontinuity. Paused/hidden renewal is deferred until explicit
-Play (buffered media remains paused). SDK58 web replacement internally tries autoplay: audio is muted
+Play (buffered media remains paused). SDK 58 web replacement internally tries autoplay: audio is muted
 around replacement and paused immediately in the same JavaScript turn as well as after settlement;
 only current visible foreground Play intent may resume. Internal autoplay never records evidence. Playback failure requires Retry; teardown cancels renewal and clears the
 source. Native playback is still a separate emulator/device verification requirement.
 
-### Private local Reel positions (#234 prerequisite)
+### Private local Reel positions
+
+Related: #234.
 
 `ReelPlayer` accepts mount-only `initialPositionMs` (default zero; non-finite values become zero,
 finite values clamp to `[0, durationMs]`) and `positionRef: Ref<ReelPositionHandle>`. The same public
@@ -197,21 +201,25 @@ source, grant, position or recorder lifecycle; the app owns axis/edge/child arbi
 CI verifies the stage/control boundary and source/playhead continuity across wrapper rerenders;
 actual full-stage gestures and decoding require consumer browser/native evidence.
 
-### Responsive Reel geometry (#359)
+### Responsive Reel geometry
 
-ReelPlayer sizes only its video stage from the measured frame width (portrait ratio, capped480px,
-minimum160px until a smaller measured page budget is supplied); scrolling consumers cap it at
+Related: #359.
+
+ReelPlayer sizes only its video stage from the measured frame width (portrait ratio, capped 480px,
+minimum 160px until a smaller measured page budget is supplied); scrolling consumers cap it at
 half their actual viewport. Playback controls have their own natural height below it. Its page consumer must
 provide reachable vertical overflow for captions/actions/navigation. The frame no longer assumes a
-whole-window-minus300px space budget. Layout changes do not replace the SDK player/source or reset
+whole-window minus 300px space budget. Layout changes do not replace the SDK player/source or reset
 sound/playhead. renderStage still receives video/poster only; app continuation buttons are siblings
 of the gesture responder inside the measured stage, never over the playback controls. FormatSwitch
-bounds its full state labels to the parent width and permits wrapping while preserving44px targets.
+bounds its full state labels to the parent width and permits wrapping while preserving 44px targets.
 
 Web visibility observes the video stage itself, excluding the wrapping controls from its half-visible
 threshold. A short-page height cap changes geometry only; the SDK/source/playhead remain mounted.
 
-### RowLink (#242)
+### RowLink
+
+Related: #242.
 
 `RowLink` is one list row that is a link to a destination (Talk's conversations). It is at least 48 px tall, shows
 the focus ring on paper and, with `href`, is a real `<a>` on the web (Enter, middle-click, new tab). `label` is its
