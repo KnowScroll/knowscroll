@@ -47,6 +47,7 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     lastPlace: undefined,
     absent: false,
     selectedId: null,
+    youWereHere: null,
   };
   const publish = (patch: Partial<UniverseViewState>) => {
     state = { ...state, ...patch, historyDepth: history.size() };

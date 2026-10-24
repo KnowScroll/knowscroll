@@ -21,11 +21,17 @@ and removes private form/selection/token state. No Friends query cache, persiste
 provider call is introduced. The one thing read in the background is availability: `use-availability.ts`
 mounts an `AvailabilitySession` (client-core) that rereads the friends pages every 20 s while this screen is
 focused and the app is open, keeps only the words with their leases, and stops when the screen or the scope
-ends. Reading it is not evidence for anyone. Initial profile, invite and roster
+ends. Reading it is not evidence for anyone. Initial profile, invite and list
 reads are sequential because the core has one foreground read plus one latest queued selection.
 
-Profile setup/edit, exact handle lookup, current pair actions and four roster filters use current
-server revisions. All mutations go through the core. An immutable ACK clears all current fields;
+The list is one list: Friends, then Waiting (requests to answer as cards, requests sent with a Pending tag),
+then Blocked, folded until opened. Add a friend is the one primary action and opens its own panel (handle, the
+found person with Send invite, the invite link card, the contacts promise). A row's actions are in its ⋯ sheet,
+except answering a request and Unblock. `friends-roster.tsx` draws the list, `friend-rows.tsx` the rows,
+`add-friend-panel.tsx` and `invite-link-card.tsx` the panel. The session reads all four lists in turn
+(`readGroups`, ending on Friends) so one list can show them. Friends keeps Next and Previous page; Waiting and Blocked grow in place with Show more.
+
+Profile setup/edit, exact handle lookup and current pair actions use current server revisions. All mutations go through the core. An immutable ACK clears all current fields;
 sequential explicit reads refresh them before another choice. Unknown outcomes disable replacement
 commands and expose only the core's same-body retry. No ACK is painted as current friendship.
 Definitive refusals require Refresh current status before another mutation. List pages contain at

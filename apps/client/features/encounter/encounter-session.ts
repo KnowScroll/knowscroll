@@ -62,6 +62,11 @@ export interface EncounterState {
   readonly entry?: EncounterEntry;
   readonly trail: readonly EncounterEntry[];
   readonly outcome?: NavigationOutcome;
+  /**
+   * E08 "Somewhere new": the offers a discovery returned, waiting for the person to pick one. Nothing
+   * is activated until they do, so looking at the choices records nothing.
+   */
+  readonly choices?: readonly EncounterOffer[];
   readonly actionPending?: boolean;
   readonly actionFailed?: boolean;
   /** The ready Reel or Scroll the person asked for and opened from its notice; the encounter says so (E07). */
@@ -82,6 +87,11 @@ type OfferActivation = Extract<
 >;
 interface Work {
   region?: true;
+  /**
+   * E08: stop at the ready offers and let the person pick one before anything is activated. `back` is
+   * what to show again if they leave without picking; `picked` is set once they have.
+   */
+  choose?: { readonly back: Pick<EncounterState, 'phase' | 'outcome'>; picked?: true };
   uncertain?: boolean;
   keep?: { mode: 'resume' | 'top'; expected?: AvailableKeep; selected?: KeepEntryRef; handle?: KeepPlaceHandle };
   command: (fields: { recordingGeneration?: number }) => Promise<NavigationOutcome>;
@@ -125,7 +135,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
   let foreground = false;
   let busy = false;
   let work: Work | undefined;
-  let regionOrigin: { returnToMap: () => void; entry?: string; returned: boolean } | undefined;
+  let regionOrigin: { returnToMap: () => void; label: string; entry?: string; returned: boolean } | undefined;
   let latestSession: { sessionId: string; intentRevision: number } | undefined;
   let action: { readonly input: ApplyActionRequest; readonly entry: EncounterEntry } | undefined;
   let actionRunning = false;
@@ -393,10 +403,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         return;
       }
       publish({ phase: 'ready_offer', outcome });
+      if (current.choose && !current.choose.picked && outcome.bufferedOffers.length > 0) {
+        publish({ choices: [outcome.offer, ...outcome.bufferedOffers] });
+        return;
+      }
       // Prepared offers cannot activate while the tab/app is backgrounded.
       if (!foreground) return;
       history.park();
-      publish({ phase: 'activating' });
+      publish({ phase: 'activating', choices: undefined });
       if (!current.activation) {
         current.activationBody ??= freezeRecordingCommand({
           ...(await recordingCommandFields(scope)),
@@ -487,14 +501,21 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       busy = false;
     }
   }
-  const begin = (command: Work['command'], keep?: Work['keep'], region = false) => {
+  const begin = (command: Work['command'], keep?: Work['keep'], region = false, choose?: Work['choose']) => {
     if (!valid() || work || busy || actionRunning) return;
-    work = { command, activateId: newId(), ...(keep ? { keep } : {}), ...(region ? { region: true } : {}) };
+    work = {
+      command,
+      activateId: newId(),
+      ...(keep ? { keep } : {}),
+      ...(region ? { region: true } : {}),
+      ...(choose ? { choose } : {}),
+    };
     void run();
   };
   const open = (
     target: { kind: 'discover' } | { kind: 'return'; assetId: string; assetRevision: number },
     keep?: Work['keep'],
+    choose?: Work['choose'],
   ) => {
     if (!valid() || work || busy || actionRunning || action !== undefined) return false;
     target = freezeRecordingCommand(target);
@@ -503,20 +524,25 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     const session = latestSession
       ? { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision }
       : undefined;
-    begin(async (fields) => {
-      const common = freezeRecordingCommand({
-        ...fields,
-        commandId,
-        ...(session ? { session } : {}),
-        capabilities: ENCOUNTER_CAPABILITIES,
-      });
-      const result =
-        target.kind === 'discover'
-          ? await scope.api.experience.openExposure({ ...common, target })
-          : await scope.api.experience.openExposure({ ...common, target });
-      if (!result.status) throw new Error('expected_navigation_outcome');
-      return result;
-    }, keep);
+    begin(
+      async (fields) => {
+        const common = freezeRecordingCommand({
+          ...fields,
+          commandId,
+          ...(session ? { session } : {}),
+          capabilities: ENCOUNTER_CAPABILITIES,
+        });
+        const result =
+          target.kind === 'discover'
+            ? await scope.api.experience.openExposure({ ...common, target })
+            : await scope.api.experience.openExposure({ ...common, target });
+        if (!result.status) throw new Error('expected_navigation_outcome');
+        return result;
+      },
+      keep,
+      false,
+      choose,
+    );
     return true;
   };
   const requestSource = () => {
@@ -639,6 +665,14 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     });
     begin((fields) => scope.api.experience.navigate({ ...input, ...fields }));
   };
+  /** Leaves the E08 picker without choosing: back to the ending it came from. */
+  function leaveChoices() {
+    const back = work?.choose?.back;
+    if (!back || busy) return false;
+    work = undefined;
+    publish({ ...back, choices: undefined });
+    return true;
+  }
   async function runAction() {
     const pending = action;
     if (!pending || !valid() || actionRunning) return;
@@ -714,7 +748,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       };
     },
     open,
-    openRegion(displayed: AvailableRegionPreview, returnToMap: () => void) {
+    openRegion(displayed: AvailableRegionPreview, label: string, returnToMap: () => void) {
       if (!valid() || work || busy || actionRunning || action !== undefined) return false;
       const preview = RegionEncounterPreviewResponseSchema.safeParse(displayed);
       if (
@@ -737,7 +771,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
           ? { session: { sessionId: latestSession.sessionId, expectedIntentRevision: latestSession.intentRevision } }
           : {}),
       });
-      regionOrigin = { returnToMap, returned: false };
+      regionOrigin = { returnToMap, label, returned: false };
       begin(
         async (fields) => {
           const raw = await scope.api.experience.openRegionEncounter({ ...input, ...fields });
@@ -849,6 +883,25 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     refreshKeep: () => checkpointFor()?.refresh(),
     resolveKeepConflict: (choice: 'server' | 'candidate') => checkpointFor()?.resolveConflict(choice) ?? false,
     navigate,
+    /**
+     * E08 "Something different": asks for a fresh subject and, when the feed offers more than one,
+     * stops at the offers so the person picks. With a single offer it opens it as before.
+     */
+    chooseDirection() {
+      return open({ kind: 'discover' }, undefined, { back: { phase: state.phase, outcome: state.outcome } });
+    },
+    /** Opens the picked offer; the others stay unactivated and unrecorded. */
+    pickDirection(offerId: string) {
+      const outcome = work?.outcome;
+      if (!work?.choose || outcome?.status !== 'ready' || busy) return;
+      const picked = [outcome.offer, ...outcome.bufferedOffers].find((offer) => offer.offerId === offerId);
+      if (!picked) return;
+      const others = [outcome.offer, ...outcome.bufferedOffers].filter((offer) => offer.offerId !== offerId);
+      work.choose.picked = true;
+      work.outcome = { ...outcome, offer: picked, bufferedOffers: others };
+      void run();
+    },
+    leaveChoices,
     requests,
     openRequest(mode: RequestMode = 'topic') {
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
@@ -1001,6 +1054,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     back() {
       if (!valid()) return false;
+      if (state.choices) return leaveChoices();
       if (state.overlay) {
         const entry = history.current();
         if (entry) entry.restored = true;
@@ -1094,7 +1148,17 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     retryAction() {
       void runAction();
     },
-    canBack: () => valid() && (regionOrigin ? !regionOrigin.returned : history.canBack()),
+    /**
+     * U04: where this entry was opened from when it is the encounter a region card opened, for the chip
+     * that returns there. Gone once the person has returned or moved on to another entry.
+     */
+    regionOriginOf(entry: EncounterEntry): string | undefined {
+      return regionOrigin && !regionOrigin.returned && regionOrigin.entry === entry.exposureId
+        ? regionOrigin.label
+        : undefined;
+    },
+    canBack: () =>
+      valid() && (state.choices !== undefined || (regionOrigin ? !regionOrigin.returned : history.canBack())),
     end,
   };
 }

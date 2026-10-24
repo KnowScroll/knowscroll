@@ -279,6 +279,13 @@ it('opens only the displayed immutable card and returns exact scoped camera/hist
   expect(s.getState().historyDepth).toBe(before.historyDepth);
   expect(s.getState().overlay).toBeNull();
   expect(h.calls.some((c) => /activate|observations|actions/.test(c.path))).toBe(false);
+  // U04: the region left through its card says "you were here" when the person is back on the map.
+  expect(s.getState().youWereHere).toBe(fixtureId(14));
+  expect(createUniverseViewSession(h.scope, () => fixtureId(9000)).getState().youWereHere).toBe(fixtureId(14));
+  s.setForeground(true);
+  s.focus(fixtureId(14));
+  expect(s.getState().youWereHere).toBeNull();
+  expect(createUniverseViewSession(h.scope, () => fixtureId(9001)).getState().youWereHere).toBeNull();
   h.scope.end();
 });
 it('Close, background and pin changes cancel previews; a retained old card cannot open after replacement', async () => {

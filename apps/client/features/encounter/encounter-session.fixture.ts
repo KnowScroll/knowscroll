@@ -39,6 +39,7 @@ export function harness() {
   let saved = false;
   let contextNotFound = false;
   let contextGate: Promise<void> | undefined;
+  let bufferedCount = 0;
   let outcomeStatus: 'ready' | 'pending' | 'exhausted' = 'ready';
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const batches: RecordingObservationBatchRequest[] = [];
@@ -51,7 +52,11 @@ export function harness() {
     decisionId: id(2),
     replayed: false,
     ...(outcomeStatus === 'ready'
-      ? { status: 'ready', offer: offer(selected), bufferedOffers: [] }
+      ? {
+          status: 'ready',
+          offer: offer(selected),
+          bufferedOffers: Array.from({ length: bufferedCount }, (_, index) => offer(selected + 10 + index)),
+        }
       : outcomeStatus === 'pending'
         ? { status: 'pending', reason: 'buffer_preparing' }
         : { status: 'exhausted', reason: 'no_eligible_content' }),
@@ -112,6 +117,9 @@ export function harness() {
       }
       if (path === '/v1/experience/activate') {
         if (activationFailure) throw new Error('Unknown activation outcome');
+        // The fixture activates whichever of the ranked offers the request names.
+        const picked = Number((body.target as { offerId: string }).offerId.slice(-12)) - 100;
+        if (picked !== selected) selected = picked;
         return json({
           commandId: body.commandId,
           sessionId: id(1),
@@ -233,6 +241,10 @@ export function harness() {
     },
     setOutcomeSession: (value: string) => {
       outcomeSessionId = value;
+    },
+    /** How many further offers a ready outcome carries beside the first. */
+    setBuffered: (value: number) => {
+      bufferedCount = value;
     },
     setOutcome: (value: typeof outcomeStatus) => {
       outcomeStatus = value;

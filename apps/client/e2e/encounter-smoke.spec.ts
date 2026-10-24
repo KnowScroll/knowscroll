@@ -419,3 +419,112 @@ test('the narrow Scroll keeps its own bounded reading viewport and vertical read
   await expect(page.getByTestId('encounter-floating-actions')).toHaveCount(0);
   expect(await actionRowsOnScreen()).toBe(1);
 });
+
+test('a Scroll opened from the Reel by the format switch says where from, and the chip goes back to the Reel (E06)', async ({
+  page,
+}) => {
+  await encounterFixture(page, 'reel', { series: true });
+  const scrollOffer = {
+    offerId: id(150),
+    decisionId: id(250),
+    assetId: id(500),
+    assetRevision: document.revision,
+    explanationUnitId: 'ci-fixture-0',
+    metadata: {
+      kind: 'scroll',
+      title: 'CI encounter fixture 1, as a Scroll',
+      summary: 'HTTP fixture only',
+      language: 'en',
+    },
+    relation: { kind: 'format_variant' },
+    variants: [{ kind: 'reel', status: 'ready', assetId: id(300), assetRevision: document.revision }],
+  };
+  await page.route('**/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+    if (path === '/v1/experience/navigate' && (body.intent as { mode?: string }).mode === 'variant')
+      return route.fulfill({
+        json: {
+          commandId: body.commandId,
+          sessionId: id(3),
+          intentRevision: 2,
+          revision: 2,
+          decisionId: id(4),
+          replayed: false,
+          status: 'ready',
+          offer: scrollOffer,
+          bufferedOffers: [],
+        },
+      });
+    if (path === '/v1/experience/activate' && (body.target as { offerId?: string }).offerId === scrollOffer.offerId)
+      return route.fulfill({
+        json: {
+          commandId: body.commandId,
+          sessionId: id(3),
+          intentRevision: 2,
+          offerId: scrollOffer.offerId,
+          exposureId: id(450),
+          assetId: scrollOffer.assetId,
+          assetRevision: document.revision,
+          kind: 'scroll',
+          activatedAt: '2026-10-20T10:00:00.000Z',
+          revision: 2,
+          replayed: false,
+        },
+      });
+    if (path === `/v1/experience/exposures/${id(450)}/context`)
+      return route.fulfill({
+        json: {
+          exposureId: id(450),
+          assetId: scrollOffer.assetId,
+          assetRevision: document.revision,
+          revision: 2,
+          session: { sessionId: id(3), intentRevision: 2 },
+          actions: { saved: false, liked: false, hidden: false },
+          variants: scrollOffer.variants,
+          continuations: {
+            seriesPrevious: { status: 'unavailable', reason: 'series_boundary' },
+            seriesNext: { status: 'unavailable', reason: 'series_boundary' },
+            related: { status: 'unavailable', reason: 'no_related_ready' },
+          },
+        },
+      });
+    if (path.endsWith(`${id(450)}/document`))
+      return route.fulfill({
+        json: {
+          exposureId: id(450),
+          assetId: scrollOffer.assetId,
+          assetRevision: document.revision,
+          document: { ...document, assetId: scrollOffer.assetId, title: scrollOffer.metadata.title },
+          degradedEssential: [],
+        },
+      });
+    return route.fallback();
+  });
+  await page.goto('/explore');
+  await page.getByRole('button', { name: 'Got it' }).click();
+  await expect(page.getByText('CI encounter fixture 1', { exact: true }).first()).toBeVisible();
+  await page.getByRole('radio', { name: 'Scroll', exact: true }).first().click();
+  const chip = page.getByRole('button', { name: /^From the Reel.*Back to Reel$/ });
+  await expect(chip).toBeVisible();
+  await chip.click();
+  await expect(page.getByText('CI encounter fixture 1', { exact: true }).first()).toBeVisible();
+  await expect(chip).toHaveCount(0);
+});
+
+test('V01: at 320 px the first-arrival hint stays clear of the action rail', async ({ page }) => {
+  await encounterFixture(page, 'reel', { viewport: { width: 320, height: 640 } });
+  await page.goto('/explore');
+  const hint = page.getByRole('note', { name: 'How to move around' });
+  await expect(hint).toBeVisible();
+  const hintBox = await hint.boundingBox();
+  if (!hintBox) throw new Error('The hint is measurable');
+  for (const name of [/^Like/, /^Save/, /^Share/, /^Ask/]) {
+    const box = await page.getByRole('button', { name }).first().boundingBox();
+    if (!box) throw new Error(`The ${String(name)} button is measurable`);
+    const across = Math.min(hintBox.x + hintBox.width, box.x + box.width) - Math.max(hintBox.x, box.x);
+    const down = Math.min(hintBox.y + hintBox.height, box.y + box.height) - Math.max(hintBox.y, box.y);
+    expect(across > 0 && down > 0, `${String(name)} is covered by the hint`).toBe(false);
+  }
+});

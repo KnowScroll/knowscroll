@@ -66,6 +66,32 @@ export function ContentCard({
 }
 
 /**
+ * C02 and C04: the line between what the person had read and what arrived while their connection
+ * was lost. It is placed, never scrolled to, so a reader higher up keeps their place.
+ */
+export function AwayDivider() {
+  return (
+    <View style={styles.away} accessibilityLiveRegion="polite" testID="away-divider">
+      <View style={styles.awayRule} />
+      <Text variant="monoXs" color={content.ink2}>
+        WHILE YOU WERE AWAY
+      </Text>
+      <View style={styles.awayRule} />
+    </View>
+  );
+}
+
+/** The sequence of the first message under the divider, if the divider is drawn at all. */
+export function firstAwayMessage(
+  messages: readonly { readonly sequence: number }[],
+  awayAfterSequence: number | undefined,
+): number | undefined {
+  return awayAfterSequence === undefined
+    ? undefined
+    : messages.find((message) => message.sequence > awayAfterSequence)?.sequence;
+}
+
+/**
  * A received message that can be reported (P03): a long-press (a held mouse button on the web) opens the
  * report sheet, and a screen reader gets the same as a custom action. The web's right-click is left to the
  * browser, so the text can still be copied. The conversation's own menu is the visible, keyboard route to
@@ -172,6 +198,8 @@ export function OutgoingBubble({
 }
 
 const styles = StyleSheet.create({
+  away: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], paddingVertical: spacing[2] },
+  awayRule: { flex: 1, height: borderWidth.hairline, backgroundColor: content.ink },
   bubble: { maxWidth: '82%', borderRadius: radius.panel, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end', gap: spacing[1] },
   theirs: { alignSelf: 'flex-start' },
