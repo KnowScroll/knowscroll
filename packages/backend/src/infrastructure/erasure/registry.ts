@@ -40,6 +40,9 @@ export interface PersonalNonRowStore {
   readonly description: string;
 }
 
+/** What selective Clear does with one declared store. */
+export type ClearDisposition = 'erase' | 'preserve' | 'redact_accounting' | 'external_retention';
+
 /** What an eraser achieved for one module. `pending` means more work remains and a retry is safe. */
 export interface ErasureReport {
   readonly module: string;
@@ -91,10 +94,10 @@ export interface ModuleErasure {
    */
   eraseAccount?(scope: AccountDeletionTx): Promise<ErasureReport>;
   /** What the person's export holds of this module. Required in the real registry. */
-  export?: ModuleExport;
+  readonly export?: ModuleExport;
   /** Separate capability, owner callback and per-store disposition for selective Clear. */
-  clearExploration?: {
-    readonly dispositions: Readonly<Record<string, 'erase' | 'preserve' | 'redact_accounting' | 'external_retention'>>;
+  readonly clearExploration?: {
+    readonly dispositions: Readonly<Record<string, ClearDisposition>>;
     erase(scope: ClearCoreTx): Promise<ErasureReport>;
   };
 }
@@ -185,7 +188,7 @@ export async function eraseExploration(
 }
 
 /** `schema.table` for every row store a module declares, and `store:<name>` for the others. */
-function declaredStores(declaration: ModuleErasure): readonly string[] {
+export function declaredStores(declaration: ModuleErasure): readonly string[] {
   const names = new Set([
     ...declaration.tables.map((t) => `${t.schema}.${t.table}`),
     ...(declaration.accountTables ?? []).map((t) => `${t.schema}.${t.table}`),

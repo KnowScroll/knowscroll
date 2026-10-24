@@ -129,7 +129,9 @@ Expo specifics: `web.output: "single"` (static SPA; SDK 58 defaults to `server`)
 false` (no OTA updates yet). pnpm's default isolated `node_modules` works with SDK 58; no
 `node-linker=hoisted` is needed.
 
-## Native lane (`native.yml`, opt-in; #249, D-019)
+## Native lane (`native.yml`, opt-in; D-019)
+
+Related: #249.
 
 The Android build and emulator lane (`engineering/native-lane.md`). It runs on a manual dispatch or on a pull request
 labelled `run-native`, never as one of the six required `checks` jobs. Nothing here is a workspace dependency (no
@@ -166,10 +168,12 @@ with a version comment, as in `checks.yml`; Maestro and the Gradle distribution 
 - Real authentication (S1.3), a real model provider (S2.2), Socket.IO revocation of existing
   subscriptions, and client-side catch-up (the client app does not call the API yet).
 
-## S2.4 media additions (#233)
+## Media dependencies
+
+Related: S2.4, #233.
 
 `expo-video` is pinned to **58.0.11** in the catalog and both client/UI manifests, from the installed
-`expo@58.0.14/bundledNativeModules.json` range `~58.0.11` (MIT; Expo native peer SDK58).
+`expo@58.0.14/bundledNativeModules.json` range `~58.0.11` (MIT; Expo native peer SDK 58).
 The web export compiles the real web adapter; native playback requires the opt-in Android lane.
 Backend/build CI use the hosted runner's ffmpeg/ffprobe when present, otherwise install Ubuntu's
 ffmpeg package without recommended extras within a ten-minute setup deadline. When the hosted

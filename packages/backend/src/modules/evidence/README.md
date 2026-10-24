@@ -3,7 +3,9 @@
 Owns: `evidence.action_events` (`0005`, the explicit-action channel: a Save is not a consumption
 encounter), `evidence.observations` and `evidence.encounter_evidence` (`0012_evidence_observations`).
 
-## Recording pipeline prerequisite (#381, schema0042)
+## Recording-aware evidence
+
+Status: implemented in source and CI; not exercised on a running system. Related: #381, schema 0042.
 
 This source is a backend prerequisite, not installed Pause. HTTP/controller, client recorder,
 worker composition and Roles/Reasoning generation propagation remain separately allocated. Full
@@ -13,7 +15,7 @@ certification are pending. No runtime activation or provider authority follows f
 All intake and growth consumers enter the personal root, acquire the current own-account UPDATE
 barrier, then obtain Identity's genuine `RecordingScopeTx` for the ORIGINAL generation. Work that
 waited behind a toggle or Clear cannot apply afterward. Omitted-generation legacy wires/jobs are
-permitted only in actual initial1/on; v2 requires its submitted original generation. Queue schemas
+permitted only in actual initial 1/on; v2 requires its submitted original generation. Queue schemas
 remain Zod objects exposing `.shape.universeId` for erasure inventory, refuse reserved generation
 fields on v1 (including explicit undefined), and never strip malformed v2 into a legacy branch.
 
@@ -36,7 +38,7 @@ A historical pre-envelope row cannot prove its original body after timestamp/int
 reuse of that ID also refuses `lineage_mismatch`, even for a plausible old retry. There is no
 reconstruction, backfill or guessed hash. The future client owner must discard that old scoped
 batch and require a deliberate fresh session, never automatically relabel or re-ID its intervals.
-Fresh v1-shaped IDs remain accepted only at actual initial1/on. Necessary encounter history is
+Fresh v1-shaped IDs remain accepted only at actual initial 1/on. Necessary encounter history is
 unchanged. A 1001-row lifetime probe precedes generation filtering; oversized inconsistent history
 returns a typed `observation_limit`, and the 1000-event lifetime budget never resets on toggles.
 
@@ -151,7 +153,9 @@ Lock order for recording writers: personal root → own account UPDATE → fresh
 tables and both queues' payloads per universe (`adapters/erasure.ts`); raw observations are not promised
 replayable forever.
 
-## Reel observations (S2.4)
+## Reel observations
+
+Status: implemented, CI-tested against real PostgreSQL. Related: S2.4.
 
 `reel.playback` carries bounded pairs of continuous active-time and media-time intervals, without text
 or playback position shared to peers. Intake applies the same scope/epoch/activation/lineage/batch
@@ -162,13 +166,15 @@ unique active time, with experimental q≥0.6. Overlap, loops and duplicate deli
 missing/gapped instrumentation leaves short encounters unknown. Consumer navigation/open/grant renewal
 is not evidence. Diagnostics retain q, unique media, active time, duration and policy version.
 
-## Actual activity and prepared routing context (0019, #234 backend slice)
+## Activity and prepared routing context
 
-`activity.v0` keeps q, Like L, bookmark B, confirmed Share S (currently0), deliberate horizontal H
+Status: implemented, CI-tested against real PostgreSQL. Related: migration 0019, #234.
+
+`activity.v0` keeps q, Like L, bookmark B, confirmed Share S (currently 0), deliberate horizontal H
 and separated return R independently. Routing activity is `min(3,q+.5L+1.5B+S+1.5H+2R)`;
 unknown q remains null and never becomes qualification or usable format measurement. H belongs
 once to the activated **source** of an actually activated series/related destination. Variants,
-offers, failures and Back add no H. R belongs to a new explicitly activated return at least30min
+offers, failures and Back add no H. R belongs to a new explicitly activated return at least 30 min
 after the most recent actual same-explanation encounter; legacy/direct open and parked restore add
 none. These defaults are experimental routing policy, not formation or learning measurements.
 
@@ -184,18 +190,18 @@ jobs with an already-current vector do nothing. Required job failure rolls its o
 | `activity_revisions` | Immutable separate input vector, original channels, capped routing value; exact exposure/revision/hash keys | One per changed vector; bounded JSON; retained personal audit, full erasure |
 | `activity_current` | Current owned epoch/exposure -> matching revision FK | One/exposure; erase after topic contributions, before revisions |
 | `topic_contributions` | Current weighted capped value + independent original channel contributions and measured/qualified flags | <=16 actual attributed topics/exposure; sum topic weights<=1 enforced by content; replacement rather than additive replay |
-| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O | One/topic; exact requested topics<=100; update affected union<=32topics, no lifetime scan |
+| `topic_context` | Scope/topic decayed activity and independent channel aggregates; per-topic-format Q/O | One/topic; exact requested topics<=100; update affected union<=32 topics, no lifetime scan |
 
-Activity uses a14day half-life. Late qualification, original action toggles or metadata corrections
+Activity uses a 14-day half-life. Late qualification, original action toggles or metadata corrections
 replace the prior exposure contribution at the **same evaluation time**, including per-channel
 aggregates. Per-topic-format O counts usable qualification measurements and Q qualified encounters;
 unknown measurements enter neither. Format twins retain one explanation identity for established
 novelty and do not fabricate conceptual variety.
 
 `ReadPreparedActivity` is retained for direct legacy compatibility fixtures only (explicit
-`legacyPreparedRead: true`; absent from shipped providers). Its bounded read contains: actual latest20 activated
-encounters within24h, indexed candidate-relevant established explanation/facet probes independent
-of the24h window, requested-topic aggregates, candidate-bounded current Hide and scope watermark.
+`legacyPreparedRead: true`; absent from shipped providers). Its bounded read contains: actual latest 20 activated
+encounters within 24h, indexed candidate-relevant established explanation/facet probes independent
+of the 24h window, requested-topic aggregates, candidate-bounded current Hide and scope watermark.
 Hide is read only for supplied actual candidate asset IDs (<=100 unique UUIDs), with a separate
 selected-Hide recheck at navigation commit. Historical attribution is metadata, never opening permission.
 
@@ -206,8 +212,8 @@ pending/metadataGaps/watermark report page enumeration and outstanding work hone
 is not proof jobs finished. Metadata gaps remain unknown. No automatic scheduler or swipe-time history
 scan exists. Parent rollout must reconcile after metadata publication. No runtime invocation was
 performed by this source task. Rollback stops new consumers/jobs; retained factual metadata is not
-fabricated qualification. Migrations18/19 are additive and require the complete ordered deployment
-prefix, including separately owned15 before dev rollout.
+fabricated qualification. Migrations 18/19 are additive and require the complete ordered deployment
+prefix, including separately owned 15 before dev rollout.
 
 The erasure inventory includes all four activity tables and ordinary/retained/dead activity jobs.
 Full erasure removes them before Experience's exposure roots. No formation, Planet, provider,
@@ -220,7 +226,9 @@ uniqueness rule. The new current pointer and weighted scalar/channel/Q/O replace
 atomically; final redelivery of already-current A does nothing and creates no qualification row.
 
 
-## Personal-context integration (0020, #235)
+## Feeding Personal Context
+
+Status: implemented, CI-tested against real PostgreSQL. Related: migration 0020, #235.
 
 Evidence publishes a minimal backend-only `ActivityDerivedInput` under its existing personal root
 transaction. The required shipped API/worker effect is the personal-context owner; no Evidence
@@ -239,7 +247,7 @@ qualification and activity arithmetic remain unchanged. `ReadRecentTopicIds` use
 `recent_projected_topics.v0` and `hasMore`. It selects projection recency, never global highest A
 from rows measured at different times. The transactional index creation needs a reviewed rollout
 window with the migration's bounded lock/statement timeouts; no concurrent-creation workaround or
-rewrite of0019 is used.
+rewrite of 0019 is used.
 
 `ReadObservationTail` accepts≤20 caller-provided actual recent exposure IDs and returns≤20 event/
 exposure/sequence references, plus `hasMore`. Indexed observation sequences already covered by an
@@ -257,12 +265,14 @@ advance, shipped API and worker composition invoke the Planner request facility 
 transaction. Deduplicated unchanged projection invokes nothing. A callback/job failure rolls
 Evidence, PC and revision back; the callback supplies no harness and writes no evidence.
 
-## Observed static coverage (#237,0023 consumer)
+## Observed static coverage
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #237, migration 0023.
 
 The shipped activity composition prepares a separate `observed-static-coverage.v1` certificate,
 without changing qualification policy, q, scalar/channel/Q/O arithmetic or activity input hashes.
 Only the exact latest owned qualified Scroll revision under the personal root is considered:
-accepted summary-v1 seen block IDs (the existing500ms active-visible intersection/peak0.5 policy),
+accepted summary-v1 seen block IDs (the existing 500ms active-visible intersection/peak 0.5 policy),
 qualification-policy lineage, immutable Content facts v2 and the reviewed current exact mapping.
 Each binding requires ALL mapped static top-level paragraph/quote/callout IDs in the persisted seen
 set. Partial qualified reading cannot credit unseen facets. Heading, disclosure descendants,
@@ -272,7 +282,7 @@ These are observed coverage facts, never learning, understanding, belief or iden
 
 Certificates bind universe/epoch/activation, exact asset/document/provenance/explanation/framing,
 Evidence ID/revision/watermark/policy/summary digest, facts v2 digest, current mapping head/digest and
-catalogue/meaning identities. Max16 bindings/80 seen IDs and16KiB serialized certificate; unsupported,
+catalogue/meaning identities. Max 16 bindings/80 seen IDs and 16KiB serialized certificate; unsupported,
 missing, malformed or unapproved content remains unavailable. Content's shipped semantic approval
 list remains empty. No source/map is admitted by this consumer.
 
@@ -290,7 +300,9 @@ counts alone never authorize geography after a correction/retraction/withdrawal.
 
 A current descriptor or accepted activation/session alone is not an activity source. Explicit projection returns `no_current_source`, and reconciliation examines without queuing or changing metadata-gap counts, until an exact current qualification pointer (including an actual unknown qualification), non-NULL channel decision, or actual same-generation H/R exists. This refusal precedes credit/cache reads and preserves committed heads and effective credit. An explicit false channel decision remains a correction source; NULL does not become zero credit.
 
-## Fresh lifecycle channel selection (0044 source prerequisite)
+## Selecting the recording channel
+
+Status: implemented in source and CI; not exercised on a running system. Related: migration 0044.
 
 The real Activity provider now requires Experience READ_RECORDING_CHANNEL_SELECTION. For each
 positive effective L/B it uses at most two exact current asset/channel probes, requiring the
@@ -305,7 +317,7 @@ provider authority, history scan, backfill or recording control is added. Hosted
 fixtures, complete DI/process replacement and runtime acceptance remain separately required.
 
 The Activity provider also requires the actual Identity lifecycle read before any segment projection.
-A genuine current mode1 root missing its witness is not_ready: jobs/read preparation create no
+A genuine current mode 1 root missing its witness is not_ready: jobs/read preparation create no
 new projection, while producer necessary commands remain available with ineligible origins.
 Session/queue/grouped effect entry points fail if called as collection on not_ready authority.
 This is separate from missing providers, corrupt protocol or forged/closed scope refusal.

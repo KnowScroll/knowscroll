@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { pathOf, safeSegment } from './issue-paths.js';
 
 /**
  * Strict output handling for model answers (blueprint §15 "strictly validate the structured
@@ -205,8 +206,6 @@ export interface OutputIssue {
 /** Most issues kept; the rest are counted in a final `more` entry. */
 export const MAX_ISSUES = 8;
 
-const safeSegment = /^[A-Za-z0-9_-]{1,32}$/;
-
 /** Static, code-owned semantic feedback, never built from context or provider/user values. */
 export type SafeCustomIssues = Readonly<Record<string, string>>;
 const customCode = /^[a-z][a-z0-9_]{0,63}$/u;
@@ -228,11 +227,12 @@ export function validSafeCustomIssues(catalogue: SafeCustomIssues): boolean {
 }
 
 function customFeedback(
-  issue: Readonly<Record<string, unknown>>,
+  issue: z.core.$ZodIssue,
   catalogue: SafeCustomIssues | undefined,
 ): { readonly code: string; readonly detail: string } | undefined {
-  if (issue['code'] !== 'custom' || catalogue === undefined) return undefined;
-  const params = issue['params'];
+  if (issue.code !== 'custom' || catalogue === undefined) return undefined;
+  // `params` comes from role code and is untrusted here: only an own, declared `safeCode` counts.
+  const params: unknown = issue.params;
   if (typeof params !== 'object' || params === null || !Object.hasOwn(params, 'safeCode')) return undefined;
   const code = (params as Readonly<Record<string, unknown>>)['safeCode'];
   if (
@@ -246,135 +246,7 @@ function customFeedback(
   return { code, detail: catalogue[code] as string };
 }
 
-/** The parts of a Zod 4 schema definition the path walk reads (`schema._zod.def`). */
-interface SchemaDef {
-  readonly type?: string;
-  readonly shape?: Readonly<Record<string, unknown>>;
-  readonly element?: unknown;
-  readonly valueType?: unknown;
-  readonly innerType?: unknown;
-  readonly in?: unknown;
-  readonly options?: readonly unknown[];
-  readonly items?: readonly unknown[];
-  readonly rest?: unknown;
-  readonly left?: unknown;
-  readonly right?: unknown;
-  readonly getter?: () => unknown;
-}
-
-function defOf(schema: unknown): SchemaDef | undefined {
-  if (typeof schema !== 'object' || schema === null) return undefined;
-  const internals = (schema as { _zod?: { def?: SchemaDef } })._zod;
-  return internals?.def;
-}
-
-/** Wrappers that do not change which keys a value has. */
-const transparent = new Set(['optional', 'nullable', 'default', 'prefault', 'readonly', 'catch', 'nonoptional']);
-
-/** What one path segment means in the schema: its label in the summary and the schema below it. */
-interface Step {
-  readonly label: string;
-  readonly next: unknown;
-}
-
-/** Fixed diagnostic work bounds; exhaustion masks the remaining path, never widens validation. */
-const PATH_LIMITS = { segments: 10, chars: 256, candidates: 64, depth: 16, visits: 512 } as const;
-interface PathBudget {
-  visits: number;
-  exhausted: boolean;
-}
-const indexSegment = (segment: PropertyKey): segment is number =>
-  typeof segment === 'number' && Number.isSafeInteger(segment) && segment >= 0;
-
-/** Keep every schema branch through shared prefixes. Never inspect the rejected value/discriminant. */
-function stepsInto(
-  candidates: readonly unknown[],
-  segment: PropertyKey,
-  first: boolean,
-  budget: PathBudget,
-): readonly Step[] {
-  const pending = candidates.map((schema) => ({ schema, depth: 0 }));
-  const seen = new Set<unknown>();
-  const steps: Step[] = [];
-  const push = (schema: unknown, depth: number) => {
-    if (pending.length >= PATH_LIMITS.candidates || depth > PATH_LIMITS.depth) budget.exhausted = true;
-    else pending.push({ schema, depth });
-  };
-  while (pending.length > 0 && !budget.exhausted) {
-    const frame = pending.pop();
-    if (frame === undefined || seen.has(frame.schema)) continue;
-    seen.add(frame.schema);
-    if (++budget.visits > PATH_LIMITS.visits) {
-      budget.exhausted = true;
-      break;
-    }
-    const def = defOf(frame.schema);
-    if (def === undefined) continue;
-    const nextDepth = frame.depth + 1;
-    if (def.type !== undefined && transparent.has(def.type)) push(def.innerType, nextDepth);
-    else if (def.type === 'pipe') push(def.in, nextDepth);
-    else if (def.type === 'lazy' && def.getter !== undefined) push(def.getter(), nextDepth);
-    else
-      switch (def.type ?? '') {
-        case 'object':
-          if (
-            typeof segment === 'string' &&
-            safeSegment.test(segment) &&
-            def.shape !== undefined &&
-            Object.prototype.hasOwnProperty.call(def.shape, segment)
-          )
-            steps.push({ label: first ? segment : `.${segment}`, next: def.shape[segment] });
-          break;
-        case 'array':
-          if (indexSegment(segment)) steps.push({ label: `[${segment}]`, next: def.element });
-          break;
-        case 'tuple':
-          if (indexSegment(segment)) steps.push({ label: `[${segment}]`, next: def.items?.[segment] ?? def.rest });
-          break;
-        case 'record':
-        case 'map':
-          steps.push({ label: '[key]', next: def.valueType });
-          break;
-        case 'union':
-          if ((def.options?.length ?? 0) > PATH_LIMITS.candidates) budget.exhausted = true;
-          else for (const option of def.options ?? []) push(option, nextDepth);
-          break;
-        case 'intersection':
-          push(def.left, nextDepth);
-          push(def.right, nextDepth);
-          break;
-      }
-    if (steps.length > PATH_LIMITS.candidates) budget.exhausted = true;
-  }
-  return budget.exhausted ? [] : steps;
-}
-
-/** Schema-owned names only; unknown names and record/map keys stay masked under bounded traversal. */
-function pathOf(path: readonly PropertyKey[], schema?: unknown): string {
-  if (path.length === 0) return '(root)';
-  let candidates: readonly unknown[] = schema === undefined ? [] : [schema];
-  const budget: PathBudget = { visits: 0, exhausted: false };
-  let text = '';
-  for (const [index, segment] of path.slice(0, PATH_LIMITS.segments).entries()) {
-    let steps: readonly Step[] = [];
-    try {
-      steps = stepsInto(candidates, segment, index === 0, budget);
-    } catch {
-      budget.exhausted = true;
-    }
-    const labels = new Set(steps.map((step) => step.label));
-    const label = labels.size === 1 ? steps[0]?.label : labels.has('[key]') ? '[key]' : undefined;
-    // A number can be a model-chosen Map key. Only a proven array/tuple Step may print [n].
-    const rendered = label ?? (index === 0 ? '?' : '.?');
-    if (text.length + rendered.length > PATH_LIMITS.chars) break;
-    text += rendered;
-    candidates = budget.exhausted ? [] : [...new Set(steps.map((step) => step.next))];
-  }
-  return text;
-}
-
-function primitiveList(values: unknown): string | undefined {
-  if (!Array.isArray(values)) return undefined;
+function primitiveList(values: readonly unknown[]): string | undefined {
   const shown = values
     .slice(0, 5)
     .filter((value) => typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
@@ -386,37 +258,40 @@ function primitiveList(values: unknown): string | undefined {
  * A bound with its unit, which the schema knows and the model does not: "at most 4 characters",
  * "at least 1 item", "at most 10" (a number). A bare number would be ambiguous to the model.
  */
-function bound(limit: number, origin: unknown, phrase: string): string {
+function bound(limit: number, origin: string, phrase: string): string {
   const plural = limit === 1 ? '' : 's';
   const unit =
     origin === 'string' ? ` character${plural}` : origin === 'array' || origin === 'set' ? ` item${plural}` : '';
   return `${phrase} ${limit}${unit}`;
 }
 
-function detailOf(issue: Readonly<Record<string, unknown>>): string | undefined {
-  switch (issue['code']) {
+/** What the schema expected, from the issue's own typed fields; never its message or the received value. */
+function detailOf(issue: z.core.$ZodIssue): string | undefined {
+  switch (issue.code) {
     case 'invalid_type':
-      return typeof issue['expected'] === 'string' ? `expected ${issue['expected']}` : undefined;
+      return `expected ${issue.expected}`;
     case 'too_big':
-      return typeof issue['maximum'] === 'number'
-        ? bound(issue['maximum'], issue['origin'], issue['inclusive'] === false ? 'fewer than' : 'at most')
+      return typeof issue.maximum === 'number'
+        ? bound(issue.maximum, issue.origin, issue.inclusive === false ? 'fewer than' : 'at most')
         : undefined;
     case 'too_small':
-      return typeof issue['minimum'] === 'number'
-        ? bound(issue['minimum'], issue['origin'], issue['inclusive'] === false ? 'more than' : 'at least')
+      return typeof issue.minimum === 'number'
+        ? bound(issue.minimum, issue.origin, issue.inclusive === false ? 'more than' : 'at least')
         : undefined;
     // The received key names are never echoed: they come from the rejected answer.
     case 'unrecognized_keys':
       return 'unexpected keys';
     case 'invalid_value': {
-      const values = primitiveList(issue['values']);
+      const values = primitiveList(issue.values);
       return values === undefined ? undefined : `allowed: ${values}`;
     }
     case 'invalid_format':
-      return typeof issue['format'] === 'string' && safeSegment.test(issue['format'])
-        ? `format ${issue['format']}`
-        : undefined;
-    default:
+      return safeSegment.test(issue.format) ? `format ${issue.format}` : undefined;
+    case 'not_multiple_of':
+    case 'invalid_union':
+    case 'invalid_key':
+    case 'invalid_element':
+    case 'custom':
       return undefined;
   }
 }
@@ -430,6 +305,23 @@ function isAbsent(value: unknown, path: readonly PropertyKey[]): boolean {
     current = (current as Record<PropertyKey, unknown>)[segment];
   }
   return false;
+}
+
+/** One finding: custom feedback only from the role's catalogue, otherwise schema-derived and masked. */
+function summariseIssue(
+  issue: z.core.$ZodIssue,
+  value: unknown,
+  schema: unknown,
+  safeCustomIssues: SafeCustomIssues | undefined,
+): OutputIssue {
+  const path = pathOf(issue.path, schema);
+  const custom = customFeedback(issue, safeCustomIssues);
+  if (custom !== undefined) return { path, ...custom };
+  const detail = detailOf(issue);
+  if (issue.code === 'invalid_type' && issue.path.length > 0 && value !== undefined && isAbsent(value, issue.path))
+    return { path, code: 'missing', detail: `required${detail === undefined ? '' : `; ${detail}`}` };
+  const code = safeSegment.test(issue.code) ? issue.code : 'invalid';
+  return { path, code, ...(detail === undefined ? {} : { detail }) };
 }
 
 /**
@@ -446,25 +338,7 @@ export function summariseIssues(
   schema?: unknown,
   safeCustomIssues?: SafeCustomIssues,
 ): readonly OutputIssue[] {
-  const summary: OutputIssue[] = issues.slice(0, MAX_ISSUES).map((issue) => {
-    const record = issue as unknown as Readonly<Record<string, unknown>>;
-    const custom = customFeedback(record, safeCustomIssues);
-    if (custom !== undefined) return { path: pathOf(issue.path, schema), ...custom };
-    const detail = detailOf(record);
-    if (
-      record['code'] === 'invalid_type' &&
-      issue.path.length > 0 &&
-      value !== undefined &&
-      isAbsent(value, issue.path)
-    )
-      return {
-        path: pathOf(issue.path, schema),
-        code: 'missing',
-        detail: `required${detail === undefined ? '' : `; ${detail}`}`,
-      };
-    const code = typeof record['code'] === 'string' && safeSegment.test(record['code']) ? record['code'] : 'invalid';
-    return { path: pathOf(issue.path, schema), code, ...(detail === undefined ? {} : { detail }) };
-  });
+  const summary = issues.slice(0, MAX_ISSUES).map((issue) => summariseIssue(issue, value, schema, safeCustomIssues));
   if (issues.length > MAX_ISSUES)
     summary.push({ path: '(root)', code: 'more', detail: `${issues.length - MAX_ISSUES} more` });
   return summary;

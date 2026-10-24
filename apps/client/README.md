@@ -117,7 +117,9 @@ The interim direct Scroll session accepts only direct-open exposure lineage. A C
 ready/pending/exhausted response produces the existing controlled error state; the new Explore
 consumer will own those outcomes (#234). This compatibility guard adds no navigation UI.
 
-## Encounter navigation (#234)
+## Encounter navigation
+
+Related: #234.
 
 `features/encounter/encounter-session.ts` owns typed discover/revisit, semantic navigation,
 offer activation and current authorized exposure context. Each intent keeps its command IDs
@@ -190,7 +192,9 @@ The two encounter `.web.tsx` platform adapters are explicit app entries in `knip
 selects them by platform suffix. They remain fully scanned; production-export browser fixtures
 exercise the actual stage and path dialog.
 
-## Private Ask and format requests (#239)
+## Private Ask and format requests
+
+Related: #239.
 
 Ask opens a local E04 overlay over the exact parked encounter. The same host owns the path menu
 and request composer. The composer uses a bounded bottom sheet with a grab, rounded top corners
@@ -225,7 +229,9 @@ unconfirmed cancel is retried with its exact command ID. `RequestsList` and `use
 mounted anywhere; Keep's Requested view is meant to mount them. Closed-request copy lives in
 `request-copy.ts`: it says the request is closed and never names models, budgets or machinery.
 
-## Universe (#238)
+## Universe
+
+Related: #238.
 
 Each capability is marked **planned**, **implemented** (in source, covered by CI) or **runtime-verified**
 (driven in a browser against a local PostgreSQL, API and worker with worlds formed through the real
@@ -285,7 +291,9 @@ Files (`features/universe/`): `universe-session.ts` (state, history, memory, dus
 `universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
 `formation-presentation.tsx`. Choices are in D-039.
 
-## Mounted Keep lifecycle (#234/#246/#344)
+## Mounted Keep lifecycle
+
+Related: #234, #246, #344.
 
 The selected inline detail reads the real scope-object KeepPlaceSession. Resume checks current
 membership/ref/place before canonical return admission and again before mounting. Changed or
@@ -352,14 +360,18 @@ Hosted browser cases measure actual 320×568 to 1440×900 rectangles, reachable 
 enlargement and unchanged video/lineage across resize, over labelled HTTP/media fixtures (no
 decoded playback claim).
 
-## Friends (#377)
+## Friends
+
+Related: #377.
 
 Talk links to the real Friends interface outside the tab group. Mounted ephemeral client-core sessions
 use current reads, bounded explicit paging, same-body unknown retries and one-time invite delivery.
 Presence, visitor visibility and contacts upload are not implied. See
 [`features/friends/README.md`](features/friends/README.md) for lifecycle, fragment and evidence boundaries.
 
-## Talk and sharing (#242, D-042)
+## Talk and sharing (D-042)
+
+Related: #242.
 
 - `features/conversations/`: C01 (`conversations-screen.tsx`, `use-talk-inbox.ts`) and C02: `conversation-screen.tsx`
   finds the conversation to open, `thread-view.tsx` is the open thread (notices, composer, options menu) around
@@ -382,7 +394,9 @@ Presence, visitor visibility and contacts upload are not implied. See
 - Not built: group conversations ("Explore with friends", #243), a new-message button, starting a conversation from a
   friend's row, Report, a typing indicator and a native `/s` deep link.
 
-## Pause and Resume personal recording (#381)
+## Pause and Resume personal recording
+
+Related: #381.
 
 Privacy & history now mounts recording controls independently of Clear. The AccountScope's policy
 session fails collection closed while checking, offline, backgrounded or awaiting an ambiguous
@@ -408,7 +422,9 @@ fresh activation. Execute suites only in Actions. Actual API/database evidence q
 connected web/native/device journeys and final source composition/deployment remain Root-owned
 acceptance requirements. This source does not close full privacy, export or account deletion.
 
-## Native storage (#249, D-045)
+## Native storage (D-045)
+
+Related: #249.
 
 On Android and iOS the account scope's storage is `createSecureKeyValueStore` over `expo-secure-store`
 (`platform/secure-key-value-store.ts`, wired in `platform/scope-storage.ts`; _implemented, emulator-verified in

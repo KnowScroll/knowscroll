@@ -6,6 +6,19 @@ store, and the provider transports behind `ModelPort`. It owns no role: a role's
 output schema, semantic validator, context builder and applier live in its own module. The harness
 owns admission, budgets, transport, parsing, limits and attempt tracking. No tool loops.
 
+## What works today
+
+| Capability | Status |
+| --- | --- |
+| Personal harness: admission, budgets, quota preflight, dispatch, settlement and one repair | Implemented. CI exercises every transition against real PostgreSQL with the labelled fixture model. |
+| MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Real calls have been made from the production operator command; no generated Scroll has been accepted yet. |
+| Nonpersonal Scroll production scope | Implemented and operator-triggered only: no worker job is registered and both enable switches default off. |
+| Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
+| Selective Clear accounting and erasure of a person's attempts | Implemented and CI-tested. |
+| Crash sweep and request purge jobs | Implemented, scheduled in the worker and CI-tested. |
+| Operator commands | Implemented and runtime-verified from the built worker tree (`release/worker-operator-journey.test.ts`). |
+| Tool loops, a second queue, other providers | Not planned (blueprint §15). |
+
 ## Using it from a module
 
 ```ts
@@ -36,6 +49,10 @@ characters, 64 pending/candidate branches, 16 schema-wrapper/branch levels and 5
 issue path. Exhaustion or an unreadable schema masks the remaining path conservatively; it never
 changes validation. The eight-issue plus `more` bound stays unchanged. Old stored issues are replayed
 as recorded, so improved diagnostics do not rewrite historic repair requests.
+The schema is read in one place, `domain/schema-structure.ts`, through Zod's typed `schema.def` (never
+`_zod` or `_def`); `domain/issue-paths.ts` holds the masking and its bounds. A Zod upgrade that
+renames a definition field fails the type check, and one that changes how a schema describes
+itself fails `schema-structure.test.ts`, instead of silently masking every path.
 
 - `context` (D-021, blueprint §26 minimisation): `{ bundleRef, items: [{ ref, kind, text }] }`. The
   module freezes **prepared, bounded context** (topic/unit references and authorised excerpts),
@@ -93,7 +110,7 @@ is `OUTPUT_TRUNCATED`. There is no tool carrier, no forced tool choice and no st
 sent to the provider: the role's Zod schema (with its refinements) and the module's checks are the
 only contract, and a refusal reaches the single repair as fixed, path-located findings.
 
-## Nonpersonal Scroll production (#232 foundation)
+## Nonpersonal Scroll production
 
 The worker also injects `PRODUCTION_REASONING_HARNESS` (`ProductionReasoningHarness`) and
 `WITH_PRODUCTION_SCOPE` (`WithProductionScope`). Its additive methods are
@@ -106,7 +123,7 @@ context: a production role must prepare public/sanitised source material and job
 
 One `reasoning.production_scopes` row per database/world is the fixed Scroll supply root. Both
 `KS_REASONING_PRODUCTION_ENABLED=1` in worker configuration and `enabled=true` on that row are
-required. Both default off. This PR does not activate either. An operator may disable the root or
+required. Both default off. An operator may disable the root or
 advance its positive integer `generation` to fence queued/in-flight work; enabling a later generation
 does not make an old run current. No HTTP/frontend grant or automatic production activation exists.
 
@@ -139,7 +156,7 @@ revocation is accounted but never returned as applicable output. Sweep, purge, u
 write-off include both personal and production tables, independent of production enablement.
 Unknown/write-off never authorises another send, and late usage only updates the kept receipt.
 
-### Refused answers of production attempts (migration 0050)
+### Refused answers of production attempts
 
 A refused answer of a **nonpersonal production** attempt is kept in `production_rejected_answers`
 so a failing writer can be diagnosed from evidence: the harness verdict, the validator's own
@@ -150,7 +167,7 @@ rows. Only the production ledger implements `recordRejectedAnswer`, so a persona
 answer text. A failure to record is logged (`reasoning.rejected_answer_not_recorded`) and never
 changes the attempt's outcome. The operator lists and shows them (`reasoning rejected`).
 
-### Failure/concurrency brake policy `role-failure-brake.v1`
+## Failure/concurrency brake policy `role-failure-brake.v1`
 
 Independently of spend caps, **five unresolved or conclusively failing runs per role per reservation
 UTC day** bound new primary runs across all workers, personal universes and production together.
@@ -170,6 +187,10 @@ The migration backfills still-present failures; failures erased before this sche
 from older receipts, which lacked an outcome marker. Rolling old workers may finish work but do not
 enforce the new brake; enforce the policy only after all reasoning workers run this revision.
 
+Primary attempts stopped before dispatch (for example unavailable quota) must recheck the role brake before a new primary reservation. Reusing reserved work or replaying a settled answer remains possible; the single admitted repair remains bounded by its run. This prevents staging unlimited quota-stopped runs and bypassing the brake after quota recovers.
+
+Spend caps retain precedence when both a cap and the failure brake are full. Both checks and the new reservation remain under the same shared budget advisory lock; the ordering does not release a brake slot or allow an extra dispatch. Recovery integration cases use separate template-derived databases, so one case's deliberate unresolved liabilities cannot prevent another case from exercising its intended state transition.
+
 ## Tables
 
 | Table                          | Migration              | Holds                                                                                                                                                                                                           | Erasure                                                                                                                                                                                                            |
@@ -183,11 +204,11 @@ Personal rows are keyed `(universe_id, id)`, each attempt is tied to its run, an
 request to its attempt, by composite foreign keys that reference `identity.universes` with
 `ON DELETE RESTRICT`. CHECK constraints say what a row can say about the state machine: a
 `written_off` attempt has a reason, an actor and a time; every state past `reserved`/`not_sent`
-has a dispatch identity and time. The erasure declaration is `adapters/erasure.ts`; it also
-declares the non-row store `minimax/request-copies`: MiniMax keeps copies of what it was sent under
+has a dispatch identity and time. The erasure declaration is `adapters/erasure.ts` (built with
+`declareErasure`); it also declares the non-row store `minimax/request-copies`: MiniMax keeps copies of what it was sent under
 its own retention, which no eraser of ours can reach (the privacy copy must say so, D-021).
 
-### Personal payload erasure and late accounting (#246, migration0032)
+### Erasing a person's attempts, and late accounting
 
 Erasure locks the existing personal root, then run IDs and attempt IDs in order, before deleting
 protected requests or changing receipts. Retained runs/attempts receive an immutable
@@ -258,7 +279,43 @@ Cutroom is not a reasoning role. Its Reel orders keep a ledger of the same state
 (`content.reel_attempts`), because a Reel request is a content production request with its own
 budget in the shared pool, not a model call.
 
-## One `propose`, step by step (`application/execute-attempt.ts`)
+## How `propose` is built (`application/propose.ts`)
+
+`makeScopedReasoningHarness` is the one engine. A proposal runs as named steps that pass their
+values explicitly; no step keeps state in a closure flag.
+
+1. **Admission** (`admitProposal`, pure). The first failing check names the refusal: no provider,
+   an invalid role, run or context, or fewer context items than the role needs. Nothing is
+   recorded or reserved yet.
+2. **Purge** (`makeOpportunisticPurge`), described below.
+3. **Primary attempt** (`runPrimary`). The request is encoded (a request over the protected
+   store's limit is refused `request_too_large`), planned (`planAttempt`: exact bytes, hash,
+   reservation and budgets) and handed to `executeAttempt`, which does the steps in the next
+   section. `outcomeOf` reads the finished attempt back as a typed outcome.
+4. **Repair** (`runRepair`), only after a conclusively invalid answer and unless the caller set
+   `allowRepair: false`. It reads the kept refused answer when the role asks for it, builds the
+   richest request that fits (answer and notes, then the answer alone, then the findings alone) and
+   runs a second attempt caused by the first.
+
+**Purge.** Before the first attempt a proposal may delete expired protected request bytes, so
+expiry does not depend on the scheduled job being on time. It is ledger-owned bookkeeping in its own
+short transaction, with no authority check: it deletes up to 500 expired request bodies of **any**
+run in the database (never those of a dispatched attempt, and expired `reserved` attempts are first
+settled `not_sent`) and logs `reasoning.requests_purged`. It runs at most once per
+15 minutes (`settings.purgeIntervalMs`) per engine; a personal call builds an engine each time, so
+the personal guard keeps the throttle per process instead. A failure is logged
+(`reasoning.purge_failed`) and swallowed: a purge never fails a proposal, the interval is spent either
+way, and the scheduled `reasoning.purge-expired-requests` job is the backstop.
+
+**Personal runs.** `makeBoundPersonalHarness` builds the same engine for each call with the ledger
+and `withScope` of `application/personal-guard.ts`. The guard rechecks the owner's authority under the
+personal lock before every private read or write, and still lets every outcome be accounted after
+authority is gone. What one call has learned (the planned attempt, whether the latest refusal came
+from revoked authority, whether anything settled) lives in one `PersonalCall` object. An authority
+refusal is answered as a `refused` outcome, never thrown; `output_ineligible` is reported when an
+attempt was already settled.
+
+## One attempt, step by step (`application/execute-attempt.ts`)
 
 1. **Ledger inspection** (shared engine; personal adapters first acquire their fresh gated root): an attempt of a run admitted at another privacy epoch is refused
    (`run_mismatch`) and one of a closed run answers `run_closed`; an attempt recorded with another
@@ -408,7 +465,7 @@ For newly refused JSON extraction, the existing `OutputIssue.detail` can additio
 syntax category and a bounded UTF-16 character count of the trimmed candidate (the whole trimmed
 reply for an invalid fence). Categories are `expected_property`,
 `expected_comma_or_separator`, `unterminated_string`, `unexpected_end`, `unexpected_token` or
-`other`. Recognised fixed engine prefixes follow [Node22's V8 templates](https://github.com/nodejs/node/blob/v22.23.0/deps/v8/src/common/message-template.h);
+`other`. Recognised fixed engine prefixes follow [Node 22's V8 templates](https://github.com/nodejs/node/blob/v22.23.0/deps/v8/src/common/message-template.h);
 unknown messages fall back to `other`. Classification is a diagnostic hint, not a new parser.
 Only the built-in parser inspects object-shaped refused text; no recovery, lexical repair or
 broader extraction is attempted. Bare/exact-one-fence acceptance, refusal codes, size/depth limits,
@@ -421,26 +478,9 @@ Old refusals are not re-diagnosed: ledger replay uses their original stored issu
 repair request bytes/hashes stay stable. `issueFor`'s legacy detail and harness framing `hp2` are
 unchanged. This cannot diagnose earlier replies that were intentionally never retained.
 
-## Tests
+## Accounting without private payloads
 
-Unit tests: `domain/` and `adapters/` next to the code. Real-PostgreSQL integration tests:
-`tests/integration/modules/reasoning-attempts.test.ts` (every transition),
-`reasoning-harness.test.ts` (budgets, quota, protected store, repair, guard, canary, runs),
-`reasoning-recovery.test.ts` (the crash sweep, what a failure costs, epochs and closed runs, the
-database constraints, the purge, the stored-output bound), `reasoning-caps-race.test.ts` (the caps
-under concurrency), `reasoning-boundary.test.ts` (redaction at depth, feedback without model-chosen
-strings), plus `infrastructure/erasure.test.ts` and `transaction-guard.test.ts`. Release tests from
-the built tree: `release/worker-operator-journey.test.ts`. Role evaluation: the separate Vitest
-project `role-evaluation` (`tests/integration/evaluation/`), labelled synthetic contexts
-(insufficient evidence, malicious retrieved text, duplicate delivery, rejected and good proposals,
-source correction, privacy reset) run through the real harness with the fixture model; it asserts
-harness behaviour, not content quality. CI never calls a provider.
-
-Primary attempts stopped before dispatch (for example unavailable quota) must recheck the role brake before a new primary reservation. Reusing reserved work or replaying a settled answer remains possible; the single admitted repair remains bounded by its run. This prevents staging unlimited quota-stopped runs and bypassing the brake after quota recovers.
-
-Spend caps retain precedence when both a cap and the failure brake are full. Both checks and the new reservation remain under the same shared budget advisory lock; the ordering does not release a brake slot or allow an extra dispatch. Recovery integration cases use separate template-derived databases, so one case's deliberate unresolved liabilities cannot prevent another case from exercising its intended state transition.
-
-### Production accounting without private payloads
+### Production run accounting
 
 `ProductionReasoningHarness.readProductionRunAccounting(scope, runId)` reads at most 32 attempt
 IDs, steps/states, provider/model and nullable reported token usage under a live production root
@@ -451,7 +491,9 @@ reason is selected. Content can retain both primary and repair identities and pr
 without reaching reasoning SQL or its private payload stores. Usage comes from the retained receipt,
 including late usage reported after write-off; the attempt's state and identity remain unchanged.
 
-### Selective Clear accounting ownership (#345)
+### Selective Clear and accounting ownership
+
+Status: implemented, CI-tested against real PostgreSQL.
 
 `clearReasoning` is an opt-in owner port. Capture locks the personal run/attempt/receipt chain and
 returns at most 1000 bounded exact accounting tuples, never protected bytes or outputs. Missing or
@@ -468,23 +510,33 @@ and orphaned marked parent runs may be pruned. The normal ledger still owns sett
 late usage and brakes; Clear neither refunds nor increases caps. A later delivered answer remains
 redacted under the #337 marker checks. No production or pool row is read or changed here.
 
-## Personal recording foundation (#381, forward schema dependency)
+## Recording-aware personal roles (Planner and Cartographer)
+
+Status: implemented in source and covered by CI against real PostgreSQL with fixture owners. The
+Planner and Cartographer roles are off by default (`KS_PLANNER_ENABLED=0`,
+`KS_CARTOGRAPHER_ENABLED=0`) and the path has not been exercised on a running system.
+
+### The facade
 
 `RECORDING_REASONING_HARNESS` is a separate required personal facade. The existing generic
-`ReasoningHarness.propose` is only actual initial1/on compatibility; a first real toggle
-permanently makes omitted provenance ineligible. Generic close also requires actual1/on and an
+`ReasoningHarness.propose` is only actual initial 1/on compatibility; a first real toggle
+permanently makes omitted provenance ineligible. Generic close also requires actual 1/on and an
 unproved legacy run, so an old in-flight applier cannot commit through closure after a toggle. Neither path can stamp a later current generation
 onto an old run. This foundation installs no Role/API/UI/worker control and changes no production
 root, transport profile, cap, accounting state machine, reservation policy or paid permission.
+
+### Run identity and proof
 
 A strict `PersonalRecordingPurpose` contains version `personal-role-purpose.v1`, actual account,
 universe, privacy epoch, original recording generation, business run, current claim, immutable full
 frozen-context SHA and exact model-context SHA. Its only owner/purpose pairs are
 planner/personal-planner and geography/personal-cartographer. All fields are required; bounded UUID,
-int32 positive odd generation and lowercase64hex parsing has no default/coercion/transform. Own
+int32 positive odd generation and lowercase 64 hex parsing has no default/coercion/transform. Own
 undefined, extra/hidden/symbol fields, inherited objects and getters refuse. The facade snapshots
 purpose, authority and exact bounded context items; no mutable input or live capability crosses
 network waits. It hashes the actually supplied `{bundleRef,items}` independently before entry.
+
+### Owner proof
 
 Both `CHECK_PLANNER_RECORDING_RUN` and `CHECK_GEOGRAPHY_RECORDING_RUN` are mandatory real owner
 ports. A closed dispatcher selects the exact pair; missing functions fail construction/DI. Each
@@ -494,27 +546,33 @@ Prepared status, active business run and unexpired exact current claim remain re
 purpose or a caller-supplied hash cannot authorize a private read. Actual owner implementations
 and their positive combined fixture graph remain separately allocated dependencies.
 
+### Reads and writes under authority
+
 `proposePersonal({run,role,context,recordingPurpose},signal)` adapts the unchanged shared attempt
 engine with per-call personal access. BEFORE every `find`/`findLocked`, kept output/issues,
 protected request replay, admission, reservation and dispatch it obtains the real personal root,
 Identity own-account UPDATE gate once, original-generation/on capability and required owner proof.
 It then checks the exact reasoning-run metadata/proof header. An existing row must bind actual
 owner/purpose/epoch, role/version/policy/provider/model/bundle/refs, account/generation and both
-hashes. NULL proof remains legacy unknown and cannot pass the new facade; a generic initial1 call
+hashes. NULL proof remains legacy unknown and cannot pass the new facade; a generic initial 1 call
 cannot read a populated recording proof. No private output or validator issues enter the first
-metadata selection. Before private attempt selection, a fixed9-row raw prefix proves the at-most8
+metadata selection. Before private attempt selection, a fixed 9-row raw prefix proves the at most 8
 primary/repair sequence set and checks the exact planned request hash; changed same-ref text or
 instructions refuse before kept output selection. Protected bytes are read through that SAME
 transaction, exact run/attempt and hash, never a global unguarded replay query.
+
+### Storage
 
 Four nullable `reasoning.business_runs` proof columns are the only new storage dependency:
 `recording_account_id`, `recording_generation`, `recording_context_sha256` and
 `recording_model_context_sha256`. They are inserted together with a new proved run and compared
 on retry; no legacy adoption/default/backfill is performed. Root owns their separate forward DDL
-and codegen. This source preview normally includes the frozen schema43 prerequisite `2c49e1f0`; that composition
+and codegen. This source preview normally includes the frozen schema 43 prerequisite `2c49e1f0`; that composition
 remains source only and has no hosted fixture or runtime acceptance. Account linkage is declared; both full and selective erasers NULL all four proof
 fields in the same irreversible privacy-marker update. Usage receipts/brakes/late accounting
 remain unchanged and do not acquire account/context/proof data.
+
+### Applying the result and closing the run
 
 Application uses `withPersonalApply(authority,purpose,work(cap))` as its SOLE outer transaction.
 It locks root→own UPDATE exactly once→original generation→owner proof/reasoning header before
@@ -525,6 +583,8 @@ status and active claim. Only then may the callback write domain/owner terminal 
 roll back together. Copied, forged, closed, common-only and other-facade capabilities cannot close.
 No nested root, copied account SQL or second own-gate acquisition is used.
 
+### Accounting for a run after Clear
+
 `readPersonalRunAccounting(scope,runId,readExpectedBinding)` takes the own-account gate as the FIRST gate under a
 fresh already-held current personal root/epoch. It deliberately has no original-generation gate.
 After that gate, it invokes the fixed owning callback ONCE to read only the exact minimal Role
@@ -533,7 +593,7 @@ may retain that header locally for necessary retirement in this SAME transaction
 body, context or hashes are read. Reasoning compares only its own minimal exact header and a
 proof-complete boolean; partial, mismatched or legacy NULL provenance stays unproved. Neither
 NULL nor an absent original generation is stamped with current server state.
-It selects only the exact run's at-most8 attempt IDs/steps/states with a9-row overflow sentinel;
+It selects only the exact run's at most 8 attempt IDs/steps/states with a 9-row overflow sentinel;
 invalid sequence/proof/overflow yields unavailable, never zero liability. `not_found` means the
 exact parent is absent (the existing validated composite FK forbids orphan attempts). It proves
 ZERO RETAINED attempts, not never-admitted history, zero cost or a payment conclusion. This
@@ -551,14 +611,18 @@ unresolved. The reader changes no claim, run, output, receipt, reservation, job 
 It cannot close unknown work or authorize resend. Necessary owner cleanup must occur in that same
 transaction before releasing the root and cannot acquire another own gate.
 
+### While recording is paused or revoked
+
 Settlement, late usage, purge, sweep and write-off keep their independent existing transactions
 while paused or revoked. A sent result is accounted even when a later private read refuses; no
 answer is synthesized from in-memory settlement details. Pause between quota and dispatch sends
 nothing; pause after committed dispatch does not promise recall of that one invocation. An old
 unknown remains a financial/owner blocker until conclusive disposition, never a resumed attempt.
 
+### Verification and what remains
+
 New unit fixtures test strict purposes/getters/closed owner selection/exact input hashes and
-private-query refusal. PostgreSQL fixtures exercise real root/account wait races, initial1 replay
+private-query refusal. PostgreSQL fixtures exercise real root/account wait races, initial 1 replay
 revocation, exact pre-read request hashes, late usage/no-repair while off, payload-free accounting
 and copied/expired/common-cap close denial. Explicit deny-owner fixtures prove refusals only;
 they do not stand in for positive Planner/Geography proof adapters or complete recording pipeline
@@ -567,7 +631,7 @@ instead of an obsolete transaction-entry count. All suites run only in hosted Ac
 compose frozen DDL, actual role proofs, positive graph, PC availability/composite-witness consumers
 and all growth writers before any recording control or runtime acceptance.
 
-### Revoked undispatched reservation cancellation (#381 hosted correction)
+### Releasing a reservation after authority is revoked
 
 The personal wrapper may invoke `releaseUndispatchedPersonal` only after actual gates establish
 true revocation; a generic protected-read refusal is insufficient. This optional capability belongs to the actual personal PostgreSQL
@@ -608,3 +672,20 @@ provider results, unknown, late usage) remain unchanged. A stale claim A cannot 
 claim C's still-reserved identical request. Actual owner fixtures use the real Planner request,
 store, current PC snapshot, hashes, both owner checkers and durable recovery markers; the fixture
 role remains a financial protocol probe and never applies a personal proposal.
+
+## Tests
+
+Unit tests sit next to the code in `domain/`, `application/` and `adapters/`; the personal
+authority guard is pinned by `application/personal-guard.test.ts` and the schema reader by
+`domain/schema-structure.test.ts`. Real-PostgreSQL integration tests:
+`tests/integration/modules/reasoning-attempts.test.ts` (every transition),
+`reasoning-harness.test.ts` (budgets, quota, protected store, repair, guard, canary, runs),
+`reasoning-recovery.test.ts` (the crash sweep, what a failure costs, epochs and closed runs, the
+database constraints, the purge, the stored-output bound), `reasoning-caps-race.test.ts` (the caps
+under concurrency), `reasoning-boundary.test.ts` (redaction at depth, feedback without model-chosen
+strings), plus `infrastructure/erasure.test.ts` and `transaction-guard.test.ts`. Release tests from
+the built tree: `release/worker-operator-journey.test.ts`. Role evaluation: the separate Vitest
+project `role-evaluation` (`tests/integration/evaluation/`), labelled synthetic contexts
+(insufficient evidence, malicious retrieved text, duplicate delivery, rejected and good proposals,
+source correction, privacy reset) run through the real harness with the fixture model; it asserts
+harness behaviour, not content quality. CI never calls a provider.

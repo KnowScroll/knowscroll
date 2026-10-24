@@ -1,6 +1,7 @@
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { sql } from 'kysely';
-import { exportNothing, type ModuleErasure } from '../../../infrastructure/erasure/registry.js';
+import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
+import { exportNothing } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { applyActionEvidenceQueue, projectScrollReadingQueue, projectEncounterActivityQueue } from '../events.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
@@ -17,7 +18,7 @@ const tables = [
   'observations',
   'action_events',
 ] as const;
-export const evidenceErasure: ModuleErasure = {
+export const evidenceErasure = declareErasure({
   module: 'evidence',
   tables: tables.map((table) => ({ schema: 'evidence', table, ownerColumn: 'universe_id' })),
   nonRowStores: queues.map((queue) => ({
@@ -39,31 +40,27 @@ export const evidenceErasure: ModuleErasure = {
     );
     return { module: 'evidence', status: 'completed', removed };
   },
-};
-
-evidenceErasure.clearExploration = {
-  dispositions: Object.fromEntries([
-    ...evidenceErasure.tables.map((t) => [`${t.schema}.${t.table}`, 'erase']),
-    ...evidenceErasure.nonRowStores.map((s) => [`store:${s.name}`, 'erase']),
-  ]) as Record<string, 'erase' | 'preserve'>,
-  async erase(scope) {
-    let removed = 0;
-    for (const table of tables) {
-      const result =
-        await sql`delete from ${sql.table(`evidence.${table}`)} where universe_id=${scope.binding.universeId}::uuid`.execute(
-          clearCoreTransactionOf(scope),
-        );
-      removed += Number(result.numAffectedRows ?? 0);
-    }
-    removed += await deleteClearJobPayloads(
-      scope,
-      queues.map((queue) => queue.name),
-    );
-    return { module: 'evidence', status: 'completed', removed };
+  clear: {
+    defaultDisposition: 'erase',
+    async erase(scope) {
+      let removed = 0;
+      for (const table of tables) {
+        const result =
+          await sql`delete from ${sql.table(`evidence.${table}`)} where universe_id=${scope.binding.universeId}::uuid`.execute(
+            clearCoreTransactionOf(scope),
+          );
+        removed += Number(result.numAffectedRows ?? 0);
+      }
+      removed += await deleteClearJobPayloads(
+        scope,
+        queues.map((queue) => queue.name),
+      );
+      return { module: 'evidence', status: 'completed', removed };
+    },
   },
-};
-
-evidenceErasure.export = exportNothing(
-  evidenceErasure,
-  'Observations, qualification and scores derived from your activity: internal projections of the encounters listed under experience.',
-);
+  export: (declaration) =>
+    exportNothing(
+      declaration,
+      'Observations, qualification and scores derived from your activity: internal projections of the encounters listed under experience.',
+    ),
+});

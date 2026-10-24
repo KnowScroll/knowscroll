@@ -148,7 +148,9 @@ root and never takes one. Erasure: none (shared content; stated above).
 
 `reading_facts.v2` is a refreshable derived view, separate from immutable document/provenance bytes. Re-importing an unchanged source repairs it under the asset admission lock without creating a revision.
 
-## Approved Cutroom reuse and Reel media (S2.4, #233)
+## Approved Cutroom reuse and Reel media
+
+Status: implemented, CI-tested against real PostgreSQL. Related: S2.4, #233.
 
 The worker operator `content import-cutroom-reel --run <uuid> --script <name>` imports only the
 three D-005 approved runs (greenhouse, seasons-v5, tides-v4). Their original script/approval snapshots
@@ -194,7 +196,9 @@ job after a crash. See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
 
-## Admitted discovery and continuity (#234 first backend slice)
+## Discovery candidates and continuity
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #234.
 
 Implemented backend capabilities, without navigation/API consumers: `ReadDiscoveryCandidates`,
 `ReadExactEncounter`, `ReadContinuations`, `ResolveContinuityLink`, `ReadEncounterTopics` and
@@ -205,7 +209,7 @@ The present access model is shared admitted assets; no private-content access po
 | Table (`0016`)                | Purpose, query, indexes                                                                                                                                                                                                            | Growth, retention, erasure                                                                                                                                                           |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `content.discovery_revisions` | Admission-derived summary/facets, attribution version and indexed text; keyed exact asset/revision. GIN text/facet indexes plus language/current-status/kind and explanation indexes on existing tables support bounded retrieval. | One bounded metadata row/revision; summary<=2000 characters, <=16 facets. Shared retained projection, no personal erasure.                                                           |
-| `content.encounter_topics`    | Real primary/supporting/incidental attribution. Revision FK and topic/revision index; <=16 unique topics, positive weights sum<=1 enforced by SQL and domain validation.                                                           | At most16 rows/revision. Shared retained facts; no personal erasure.                                                                                                                 |
+| `content.encounter_topics`    | Real primary/supporting/incidental attribution. Revision FK and topic/revision index; <=16 unique topics, positive weights sum<=1 enforced by SQL and domain validation.                                                           | At most 16 rows/revision. Shared retained facts; no personal erasure.                                                                                                                 |
 | `content.series_units`        | Explicit versioned series/part -> immutable revision, primary series+revision+part and unique member constraint; asset/revision index supports exact metadata. No inferred total.                                                  | <=99 units/series revision; bounded admission batch<=100 units. Retained shared authority; no personal erasure.                                                                      |
 | `content.continuity_links`    | Versioned explicit previous/next series step or related move, exact source/target revisions, strength and private authority reference. Unique active source+direction index; UUID lookup.                                          | <=3 active links/source revision. Replacements require a new ID and increasing link revision; older immutable facts remain inactive. Retained shared authority; no personal erasure. |
 
@@ -265,7 +269,9 @@ It returns no document, provenance or render authority. Missing metadata remains
 offers and activations must separately use current `ReadExactEncounter` capability/admission checks;
 this historical read never authorises opening withdrawn content.
 
-## Current-head request binding (#239)
+## Binding a request to the current head of an encounter
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #239.
 
 `LOCK_CURRENT_ENCOUNTERS` is a separate public authority port; existing historical
 `ReadExactEncounter` and discovery/open semantics remain unchanged. Inside a caller's already
@@ -282,7 +288,9 @@ returns these public availability facts so readonly Supply status can monotonica
 and restore its exact one-time binding. It writes no personal state/hint; global changes require
 fresh resource reads. No new rights class is inferred beyond the existing shared admitted model.
 
-## Keep position target prerequisite (#246)
+## Keep position targets
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #246.
 
 `LOCK_KEEP_POSITION_TARGET(scope, owner, ref)` is a minimized Content read inside
 an already open own `PersonalScopeTx`. The production caller must first acquire
@@ -305,7 +313,7 @@ children never become parent anchors. Canonical document limits bound the list.
 Reel uses the same exact immutable document/media-key binding as the existing
 media-access port and canonical `ReelDocumentSchema`; only that document's actual
 validated `durationMs` leaves, never derived reading estimates. Existing codec
-limits are inherited from its validator, with no copied universal60second policy.
+limits are inherited from its validator, with no copied universal 60-second policy.
 No media existence/probe/byte-read claim follows from this database-only port.
 
 Output is only `{kind:'scroll', topLevelBlockIds}` or `{kind:'reel', durationMs}`.
@@ -317,7 +325,7 @@ or selective privacy clearing. Existing Content readers/mutators are unchanged.
 for both SHARE/mutation orderings, post-wait refusal, minimized canonical facts,
 bindings, unsupported data and rollback; no live Keep journey is claimed.
 
-`ReadSavedPageMetadata` is the bounded private-library consumer port for at most100
+`ReadSavedPageMetadata` is the bounded private-library consumer port for at most 100
 already-authorized Saved refs. It shares the existing metadata query and returns
 actual asset kind even when withdrawn metadata is absent. It neither infers kind
 from a title nor opens/authorizes withdrawn content. A missing/invalid actual
@@ -332,7 +340,9 @@ encounter, activity or provider work results from these list reads.
 
 `contentRegionStores` concretely inventories this shared projection: at most 16 bindings per mapping head, retained with immutable coverage history, no account/universe dependency, preserved by full and selective personal erasure. It is not personal state or admission authority. Up to three actual decision candidates are fenced under current Content asset/head SHARE locks through the personal commit.
 
-## Reels from Cutroom (#240, D-041)
+## Reels from Cutroom (D-041)
+
+Related: #240.
 
 Status: **implemented**, exercised against a labelled fake Cutroom and a disposable pool in CI.
 **Not yet runtime-verified**: no real order has been placed through it. The operator runbook is
@@ -390,7 +400,9 @@ here yet) is reported with a code and changes nothing.
 
 Related: `docs/v2/decisions.md` D-041, `docs/v2/carried-forward-facts.md` CF-60 to CF-66, `ops/pool/README.md`.
 
-## Shareable content for Social (#242, D-042)
+## Shareable content for Social (D-042)
+
+Status: implemented, CI-tested against real PostgreSQL. Related: #242.
 
 Social shows a Reel or Scroll as a card in a conversation and on the share landing. It reads the card's public
 metadata through two read ports in `public.ts`, never through Content's tables.

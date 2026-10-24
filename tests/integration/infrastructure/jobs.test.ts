@@ -101,6 +101,35 @@ describe('pg-boss queue declarations and consumers (real database)', () => {
     }
   });
 
+  it('removes the schedule of a queue the registry no longer declares, and keeps the declared ones', async () => {
+    const cron = { cron: '*/15 * * * *', payload: { v: 1, taskId: 'scheduled', holdMs: 0 } };
+    const declared = defineQueue({ ...fixtureQueue, schedule: cron });
+    const retired = defineQueue({ ...fixtureQueue, name: 'fixture.retired-task', schedule: cron });
+    const scheduledNames = async () =>
+      (await sql<{ name: string }>`select name from pgboss.schedule order by name`.execute(database.db)).rows.map(
+        (row) => row.name,
+      );
+    const install = createBoss(database.settings, 'install', diagnostics);
+    await install.start();
+    try {
+      // An older release declared both queues; the current one declares only the first.
+      await expect(applyQueueDeclarations(install, [declared, retired])).resolves.toEqual([]);
+      expect(await scheduledNames()).toEqual(['fixture.retired-task', fixtureQueue.name]);
+      await expect(applyQueueDeclarations(install, [declared])).resolves.toEqual([
+        { queue: 'fixture.retired-task', key: '' },
+      ]);
+      expect(await scheduledNames()).toEqual([fixtureQueue.name]);
+      // Running it again, as every deploy does, finds nothing to remove.
+      await expect(applyQueueDeclarations(install, [declared])).resolves.toEqual([]);
+      expect(await scheduledNames()).toEqual([fixtureQueue.name]);
+      // The retired queue and its jobs are left alone.
+      expect(await install.getQueue('fixture.retired-task')).not.toBeNull();
+      await applyQueueDeclarations(install, [fixtureQueue]);
+    } finally {
+      await install.stop({ graceful: false });
+    }
+  });
+
   it('lets a running handler finish when consumers drain', async () => {
     const finished: string[] = [];
     let started!: () => void;
