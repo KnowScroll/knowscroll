@@ -242,6 +242,8 @@ describe('personal data export (real database)', () => {
       'at',
       'blocked',
       'connections',
+      'conversations',
+      'count',
       'createdAt',
       'device',
       'displayName',
@@ -258,6 +260,7 @@ describe('personal data export (real database)', () => {
       'kind',
       'label',
       'lastUsedAt',
+      'messagesWritten',
       'openedAt',
       'place',
       'places',
@@ -272,6 +275,7 @@ describe('personal data export (real database)', () => {
       'saved',
       'savedAt',
       'sections',
+      'sharedLinks',
       'signedInAt',
       'signedInDevices',
       'social',
@@ -282,6 +286,7 @@ describe('personal data export (real database)', () => {
       'title',
       'truncated',
       'version',
+      'yourMessages',
       'email',
     ]);
     expect([...keys].filter((key) => !readable.has(key))).toEqual([]);
