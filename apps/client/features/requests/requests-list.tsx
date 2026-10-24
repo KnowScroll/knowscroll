@@ -33,15 +33,20 @@ function requestLine(item: ListedRequest): string {
 function RequestRow({
   item,
   cancelling,
+  retrying,
   onOpen,
   onCancel,
+  onRetry,
   onAskDifferently,
 }: {
   readonly item: ListedRequest;
   readonly cancelling: 'sending' | 'unknown' | undefined;
+  readonly retrying: 'sending' | 'unknown' | 'not_retryable' | undefined;
   readonly onOpen: (target: ReadyRequestTarget) => void;
   readonly onCancel: () => void;
-  /** Where a failed ask goes to be asked another way; the list cannot resend it (see below). */
+  /** Tries the same request again (`request.retry`). */
+  readonly onRetry: () => void;
+  /** Where a failed ask goes to be asked another way. */
   readonly onAskDifferently?: () => void;
 }) {
   const { status } = item;
@@ -76,8 +81,27 @@ function RequestRow({
           Cancelling wasn&apos;t confirmed. Press Cancel request to try the same request again.
         </Text>
       ) : null}
-      {chip === 'failed' && onAskDifferently ? (
-        <Button label="Ask differently" variant="ghost" size="sm" onPress={onAskDifferently} />
+      {chip === 'failed' ? (
+        <>
+          {retrying === 'not_retryable' ? (
+            <Text variant="bodyS">This one can&apos;t be tried again. Asking another way may work.</Text>
+          ) : (
+            <Button
+              label="Retry"
+              variant="ghost"
+              size="sm"
+              busy={retrying === 'sending'}
+              busyLabel="Trying again…"
+              onPress={onRetry}
+            />
+          )}
+          {retrying === 'unknown' ? (
+            <Text variant="bodyS">Trying again wasn&apos;t confirmed. Press Retry to send the same request again.</Text>
+          ) : null}
+          {onAskDifferently ? (
+            <Button label="Ask differently" variant="ghost" size="sm" onPress={onAskDifferently} />
+          ) : null}
+        </>
       ) : null}
     </View>
   );
@@ -85,11 +109,9 @@ function RequestRow({
 
 /**
  * E07's "Your requests": the person's own asks with their current state, newest first, each with the
- * one action it has (Open when ready, Cancel while preparing, Ask differently after "Couldn't prepare").
- * The list does not resend a closed ask: it knows the person's words but not whether they were a
- * catalogue topic, a facet or a variant, so a resend could be a different request. The request sheet,
- * which holds the exact ask, offers Try again; a `request.retry{requestId}` contract would let the list too. Calm words only: no percentages, no
- * waiting times. When a refresh fails the last known list stays, marked as possibly out of date.
+ * one action it has (Open when ready, Cancel while preparing, Retry or Ask differently after "Couldn't
+ * prepare"). Retry is `request.retry{requestId}`: the server re-drives that same request, so the list never
+ * sends a second ask or guesses what the first one was. Calm words only: no percentages, no waiting times. When a refresh fails the last known list stays, marked as possibly out of date.
  * Mount it anywhere the person looks for their requests; the session comes from `useRequestsList`.
  */
 export function RequestsList({
@@ -133,7 +155,9 @@ export function RequestsList({
           item={item}
           cancelling={state.cancelling?.requestId === item.status.requestId ? state.cancelling.phase : undefined}
           onOpen={onOpen}
+          retrying={state.retrying?.requestId === item.status.requestId ? state.retrying.phase : undefined}
           onCancel={() => session.cancel(item.status.requestId)}
+          onRetry={() => session.retry(item.status.requestId)}
           onAskDifferently={onAsk}
         />
       ))}

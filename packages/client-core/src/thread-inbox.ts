@@ -1,5 +1,6 @@
 import type { ContentThreadRef, ThreadMessage, ThreadSummary } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
+import { talkFailure } from './talk-failure';
 import { formatRange } from './thread-snippets';
 
 const VERSION = 'content-thread.v1' as const;
@@ -86,4 +87,82 @@ export function threadRowView(item: ThreadSummary): ThreadRowView {
     unread: invited || (!mine && item.latestMessageSequence > item.own.readThroughSequence),
     at: new Date(item.lastActivityAt),
   };
+}
+
+/** What the invitation card in Talk shows: the people and content named in words, nothing of the conversation. */
+export interface InvitationCardView {
+  readonly heading: string;
+  readonly detail: string;
+  readonly kind: 'reel' | 'scroll' | undefined;
+}
+
+/**
+ * C03's "new thread" card. An invitation names only who asked and what the thread is about; who else
+ * is in it stays unseen until the person joins.
+ */
+export function invitationCardView(item: ThreadSummary): InvitationCardView {
+  const inviter = item.people[0]?.displayName ?? 'A friend';
+  const metadata =
+    item.root.status === 'available'
+      ? item.root.metadata
+      : item.root.status === 'corrected'
+        ? item.root.current.metadata
+        : undefined;
+  const title = item.name ?? metadata?.title;
+  return {
+    heading: title === undefined ? `${inviter} started a thread` : `${inviter} started a thread · ${title}`,
+    detail: metadata === undefined ? 'with you' : `with you · ${kindWord(metadata.kind)}`,
+    kind: metadata?.kind,
+  };
+}
+
+/** How answering an invitation ended; `unavailable` means the invitation changed or ended meanwhile. */
+export type InvitationAnswer = 'done' | 'unavailable' | 'offline' | 'failed' | 'ended';
+
+/**
+ * Joins or declines an invitation from Talk (C03: Join thread, Ignore). Ignoring is the same
+ * `thread.respond` decline the thread's own screen sends: it ends the invitation for this person
+ * only, and nobody else's list or notice changes. The caller keeps `commandId` for the intent, so a
+ * retry after an unknown outcome is the same command.
+ */
+export async function answerThreadInvitation(
+  scope: AccountScope,
+  thread: ContentThreadRef,
+  response: 'join' | 'decline',
+  commandId: string,
+): Promise<InvitationAnswer> {
+  try {
+    await scope.api.threads.respond({ version: VERSION, commandId, thread, response });
+    return 'done';
+  } catch (error) {
+    const failure = talkFailure(error);
+    return failure === 'stale' ? 'failed' : failure;
+  }
+}
+
+/**
+ * Who a thread composer addresses ("Message Ravi and Meera"): each person's first word. When two
+ * people share a first word, each gets the first letter of the rest of the name ("Sam K."), and the
+ * handle if even that is shared, so nobody is ever named the same as someone else in the line.
+ * Nobody to address reads "everyone".
+ */
+export function composerAddressees(
+  people: readonly { readonly displayName: string; readonly handle: string }[],
+): string {
+  const words = (person: { readonly displayName: string }) => person.displayName.trim().split(/\s+/);
+  const firstWord = (person: { readonly displayName: string }) => words(person)[0] ?? '';
+  const withInitial = (person: { readonly displayName: string }) => {
+    const initial = words(person).slice(1).join(' ').charAt(0).toUpperCase();
+    return initial === '' ? firstWord(person) : `${firstWord(person)} ${initial}.`;
+  };
+  const sameAs = (
+    label: (person: { readonly displayName: string }) => string,
+    person: { readonly displayName: string },
+  ) => people.filter((other) => label(other).toLowerCase() === label(person).toLowerCase()).length > 1;
+  const names = people.map((person) => {
+    if (!sameAs(firstWord, person)) return firstWord(person);
+    return sameAs(withInitial, person) ? `@${person.handle}` : withInitial(person);
+  });
+  if (names.length === 0) return 'everyone';
+  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names.at(-1)!}`;
 }

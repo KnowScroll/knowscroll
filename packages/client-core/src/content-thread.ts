@@ -9,6 +9,7 @@ import type {
   ThreadParticipant,
 } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
+import { awayAfter, newestSequence } from './away-divider';
 import { mergeMessages } from './conversation-thread';
 import { talkFailure } from './talk-failure';
 
@@ -51,6 +52,8 @@ export interface ContentThreadState {
   readonly loadingOlder: boolean;
   /** The last read answer did not arrive; what is shown may be out of date. */
   readonly offline: boolean;
+  /** After a lost connection returned with new messages: the sequence the "While you were away" divider follows. */
+  readonly awayAfterSequence: number | undefined;
   /** Answering an invitation is in flight. */
   readonly responding: boolean;
 }
@@ -93,6 +96,7 @@ const emptyState: ContentThreadState = {
   hasOlder: false,
   loadingOlder: false,
   offline: false,
+  awayAfterSequence: undefined,
   responding: false,
 };
 
@@ -141,6 +145,7 @@ class ContentThreadSession {
   private readonly newId: () => string;
   private readonly listeners = new Set<() => void>();
   /** Where the next catch-up starts, and where the next page of older messages starts. */
+  private lostAfter: number | undefined;
   private catchUpCursor: string | undefined;
   private olderCursor: string | undefined;
   private readThrough = 0;
@@ -180,7 +185,20 @@ class ContentThreadSession {
     if (kind === 'ended') return;
     if (kind === 'unavailable') this.publish({ phase: 'unavailable' });
     else if (this.state.phase === 'loading') this.publish({ phase: 'failed', offline: kind === 'offline' });
-    else this.publish({ offline: true });
+    else {
+      if (!this.state.offline) this.lostAfter = newestSequence(this.state.messages);
+      this.publish({ offline: true });
+    }
+  }
+
+  /** The divider patch for messages read right after a lost connection came back. */
+  private returned(messages: readonly ThreadMessage[]): Partial<ContentThreadState> {
+    const ownId = this.state.participants.find((participant) => participant.you)?.person.personId;
+    const isOwn = (message: ThreadMessage) =>
+      message.status === 'available' && ownId !== undefined && message.author.personId === ownId;
+    const away = this.state.offline ? awayAfter(this.lostAfter, messages, isOwn) : undefined;
+    this.lostAfter = undefined;
+    return away === undefined ? {} : { awayAfterSequence: away };
   }
 
   // --- Reading ---
@@ -227,6 +245,7 @@ class ContentThreadSession {
       outgoing: settleOutgoing(this.state.outgoing, messages),
       hasOlder: this.olderCursor !== undefined,
       offline: false,
+      ...this.returned(messages),
     });
   }
 
@@ -254,7 +273,12 @@ class ContentThreadSession {
           page.changes.map((change) => change.message),
         );
         this.catchUpCursor = page.continuation.cursor;
-        this.publish({ messages, outgoing: settleOutgoing(this.state.outgoing, messages), offline: false });
+        this.publish({
+          messages,
+          outgoing: settleOutgoing(this.state.outgoing, messages),
+          offline: false,
+          ...this.returned(messages),
+        });
         if (page.continuation.kind === 'caught_up') break;
       }
       void this.markRead();

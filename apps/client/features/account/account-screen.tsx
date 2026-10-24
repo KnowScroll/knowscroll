@@ -2,10 +2,11 @@ import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, dimension, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, IconButton, StateBlock, Text } from '@knowscroll/ui';
+import { Banner, Button, Icon, IconButton, StateBlock } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 import { DeletionReceiptPanel } from './deletion-receipt-panel';
+import { IdentityCard } from './identity-card';
 import { SessionsList } from './sessions-list';
 import { KeyboardMapSheet } from '../shell/keyboard-map';
 import { SettingsActionRow, SettingsLabel, SettingsRow } from './settings-parts';
@@ -60,21 +61,7 @@ function SignedIn({ email }: { readonly email: string }) {
   };
   return (
     <View style={styles.signedIn}>
-      <View style={styles.identity}>
-        <View style={styles.avatar}>
-          <Text variant="title" style={styles.initial}>
-            {email.slice(0, 1).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.who}>
-          <Text variant="meta" color={content.ink2}>
-            Signed in as
-          </Text>
-          <Text variant="bodyS" style={styles.address} numberOfLines={2}>
-            {email}
-          </Text>
-        </View>
-      </View>
+      {state.status === 'signed_in' ? <IdentityCard scope={state.scope} email={email} /> : null}
       {state.status === 'signed_in' ? <SessionsList scope={state.scope} /> : null}
       <SettingsLabel>Settings</SettingsLabel>
       <SettingsRow title="Your requests" description="What you asked KnowScroll to make" href="/account/requests" />
@@ -82,6 +69,12 @@ function SignedIn({ email }: { readonly email: string }) {
         title="Friends & visibility"
         description="Who you know, and who can visit your universe"
         href="/friends"
+      />
+      <SettingsRow title="Notifications" description="What KnowScroll tells you about" href="/account/notifications" />
+      <SettingsRow
+        title="Accessibility & playback"
+        description="Motion, text size, sound"
+        href="/account/accessibility"
       />
       <SettingsRow
         title="Privacy & history"
@@ -182,28 +175,5 @@ const styles = StyleSheet.create({
   },
   signedIn: { gap: spacing[1] },
   signedOut: { gap: spacing[6] },
-  identity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[4],
-    padding: spacing[4],
-    marginBottom: spacing[2],
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    borderRadius: radius.lg,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    backgroundColor: content.continue,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initial: { color: content.onContinue },
-  who: { flex: 1, minWidth: 0 },
-  address: { fontWeight: '700' },
   signOut: { paddingTop: spacing[4], alignItems: 'flex-start' },
 });

@@ -21,6 +21,7 @@ import {
   type ReelPositionHandle,
 } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
+import { useDevicePreferences } from '../../providers/device-preferences';
 import { SCROLL_CAPABILITIES } from '../scroll/capabilities';
 import { ActivatedReelView } from '../reel/activated-reel-view';
 
@@ -154,6 +155,8 @@ export function ReelEncounter({
   readonly afterEnd?: ReactNode;
 }) {
   const { state, start } = useReelExposure(scope, assetId);
+  // "Start Reels with sound" (Account > Accessibility & playback) applies to a Reel in a thread too.
+  const { preferences } = useDevicePreferences();
   const [round, setRound] = useState(0);
   const [ended, setEnded] = useState(false);
   // The player's own visibility observer cannot tell that another screen now covers this one (on
@@ -227,6 +230,7 @@ export function ReelEncounter({
           active={playing}
           positionRef={handle}
           initialPositionMs={moment?.startMs}
+          initialMuted={!preferences.reelSound}
           controls={{ tapToToggle: false, controlsRef }}
         >
           {(playback) => <CompactControls playback={playback} controls={controlsRef} />}
