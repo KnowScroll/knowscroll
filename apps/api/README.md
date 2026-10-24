@@ -66,7 +66,7 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 | `src/http/request-context.ts` | Server-generated request ID (`x-request-id`) and `http.request_completed` with the route template |
 | `src/http/visibility.controller.ts` | `GET/POST /v1/social/visibility`, `GET/POST /v1/social/presence/preference` and `POST /v1/social/visits/read` over `VISIBILITY_USE_CASES`: private/no-store, every answer parsed again and bound to the caller's account and epoch (and a visit answer to the person asked for). A refused visit is the one `unavailable` snapshot, never a problem that says why (D-047) |
 | `src/realtime/scope.gateway.ts` | Socket.IO on `/socket.io`: authenticated connections (native: the bearer token in `auth.token`; web: the session cookie, only from `KS_PUBLIC_ORIGIN`); `subscribe_scope` joins first, then checks session validity and current access and leaves when refused (error ack on failure); every relayed hint re-authorised per socket (session and access, cache ≤ 30 s): `scope_revoked` for a dropped subscription, a disconnect for an invalid session; `revokeAccountSockets` notices disconnect an account's sockets; after a relay reconnect every socket is closed and must authenticate again; the one thing a client says over a socket is `presence_heartbeat`, answered `{ ok: true }` whether or not availability is shared, stored only for a person who chose to show it, and ignored when it follows the last by less than 10 s on one socket; no other socket commands |
-| `src/http/supply.controller.ts` | Scoped create/read/cancel adapters: immutable command receipts, current private request status and exhaustive sanitised refusal mapping |
+| `src/http/supply.controller.ts` | Scoped create/read/list/cancel/retry adapters: immutable command receipts, current private request status and exhaustive sanitised refusal mapping |
 | `src/http/geography.controller.ts` | Current own-world snapshot/catch-up reads; admitted caller authority only, no Cartographer request or transition acknowledgement |
 | `src/http/observations.controller.ts` | Legacy `POST /v1/observations/batch` and versioned `POST /v1/observations/recording-batch` (stored, not projected), plus the dev-only evidence diagnostics read (world allow-list; 404 elsewhere) |
 | `src/modules/*.ts` | Feature wiring: identity (read ports, sign-in use cases and the mail sender chosen by configuration, the operator use case), content (read ports, the document renderer, the import use case), experience and evidence (intake) providers bound to this app's tokens |
@@ -77,7 +77,7 @@ sign-in link for a disposable test account, D-007; `content import-editorial --f
 Routes: `GET /health` (release identity and relay state), `POST /auth/sign-in`, `POST /auth/redeem`,
 `GET /auth/session`, `POST /auth/sign-out`, `POST /v1/actions`, `GET /v1/saved`, `POST /v1/experience/open`,
 `POST /v1/experience/activate`, `POST /v1/experience/navigate`, `GET /v1/experience/exposures/{id}/document`, `POST /v1/observations/batch`
-`POST /v1/content/requests`, `GET /v1/content/requests/{requestId}`, `POST /v1/content/requests/cancel`
+`POST /v1/content/requests`, `GET /v1/content/requests/{requestId}`, `POST /v1/content/requests/cancel`, `POST /v1/content/requests/retry`
 and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` (404 outside `dev`, `stage`, `ci`, `local`). Request pipeline:
 request context → `Cache-Control: no-store` under `/auth` → origin guard (403) → JSON-only bodies
 (415 otherwise) → size-limited JSON parser (413) → body error handler → session/scope guard → Nest routes → oRPC handler
@@ -148,8 +148,8 @@ Experience consumers. Direct open/activate remains available. These are source c
 fixture or release checks do not establish a live reading journey.
 
 Supply's `POST /v1/content/requests`, `GET /v1/content/requests/{requestId}` and
-`POST /v1/content/requests/cancel` are thin adapters to Supply's create/read/cancel ports. They use
-the same origin, session, scope and JSON middleware as every account route. Create and cancel
+`POST /v1/content/requests/cancel` and `POST /v1/content/requests/retry` are thin adapters to Supply's create/read/cancel/retry ports. They use
+the same origin, session, scope and JSON middleware as every account route. Create, cancel and retry
 return their immutable command receipts; GET returns current status and schedules no work or
 retry. A ready result identifies available content without activating it. Unknown and foreign
 requests both answer `NOT_FOUND`; refusals disclose no private request body or backend detail.

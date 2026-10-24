@@ -17,6 +17,8 @@ function demandOf(r: Selectable<SupplyRequests>): Demand {
     decision: r.decision as Demand['decision'],
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
+    ...(r.retries > 0 ? { retries: r.retries } : {}),
+    ...(r.wait_started_at ? { waitStartedAt: r.wait_started_at.toISOString() } : {}),
     ...(r.brief ? { brief: r.brief as unknown as Demand['brief'] } : {}),
     ...(r.work_id ? { workId: r.work_id } : {}),
     ...(r.reason ? { reason: r.reason as Demand['reason'] } : {}),
@@ -90,6 +92,33 @@ export const supplyStore: SupplyStore = {
       .where('state', 'in', ['requested', 'deferred', 'matching'])
       .executeTakeFirst();
     if (changed.numUpdatedRows !== 1n) throw new Error('SUPPLY_REQUEST_NOT_OPEN');
+  },
+  async reopen(scope, d) {
+    const changed = await transactionOf(scope)
+      .updateTable('supply.requests')
+      .set({
+        state: d.status,
+        decision: d.decision,
+        work_id: d.workId ?? null,
+        request_revision: d.requestRevision,
+        revision: d.revision,
+        reason: d.reason ?? null,
+        content: d.content ? JSON.stringify(d.content) : null,
+        content_availability_revision: d.contentAvailabilityRevision ?? null,
+        source_availability_revision: d.sourceAvailabilityRevision ?? null,
+        retries: d.retries ?? 0,
+        wait_started_at: d.waitStartedAt ? new Date(d.waitStartedAt) : null,
+        updated_at: new Date(d.updatedAt),
+      })
+      .where('universe_id', '=', scope.authority.universeId)
+      .where('privacy_epoch', '=', scope.authority.privacyEpoch)
+      .where('id', '=', d.id)
+      .where('origin', '=', 'person')
+      .where(
+        sql<boolean>`(state in ('requested','deferred') or (state = 'unavailable' and reason = 'could_not_prepare'))`,
+      )
+      .executeTakeFirst();
+    if (changed.numUpdatedRows !== 1n) throw new Error('SUPPLY_REQUEST_NOT_RETRYABLE');
   },
   async lockCommissioning(scope) {
     await sql`select pg_advisory_xact_lock(hashtextextended('supply.commissioning', 0))`.execute(transactionOf(scope));

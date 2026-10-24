@@ -228,7 +228,7 @@ Missing siblings remain unavailable in the format switch; the menu offers explic
 or Request Scroll actions. Existing ready siblings keep the normal navigation path.
 
 `features/requests/request-session.ts` owns one memory-only draft/request per AccountScope. It sends
-real `supply.create/read/cancel` HTTP commands with the existing encounter capabilities. Private text
+real `supply.create/read/cancel/retry` HTTP commands with the existing encounter capabilities. Private text
 is bounded to 500 characters and is sent as a free-text ask: the server matches it to an exact
 catalogue topic or closes it as unsupported. Three explicit catalogue suggestions send their selected
 canonical intent, without interpreting private prose or claiming inventory. About-this/variant submissions freeze the exact exposure, immutable
@@ -240,16 +240,18 @@ current availability, fenced by scope/epoch/request revision. Polling runs at mo
 reads while the request panel is foreground, stops on terminal/close/scope end, and can be refreshed
 explicitly. Reopening reads current status. Ready never interrupts playback: Open rechecks status,
 then uses the existing exact-revision return/open/activation flow. Cancel affects only the caller's
-waiter according to server authority; closing is not cancellation. Scope end clears all draft,
-frozen command, source, receipt, status and timers. There is no production
-retry endpoint in this bounded consumer. CI fixtures cover these boundaries; actual connected web
+waiter according to server authority; closing is not cancellation. Try again after "Couldn't prepare" is
+`supply.retry{requestId}`: the same request goes back to preparing (a refusal to retry leaves it closed and says
+so), and an unconfirmed retry is sent again with its exact command. Scope end clears all draft,
+frozen command, source, receipt, status and timers. CI fixtures cover these boundaries; actual connected web
 and native request journeys remain coordinator-owned acceptance work.
 
 `features/requests/requests-list-session.ts` is the memory-only session behind "Your requests"
 (`/account/requests`, E07). It reads `supply.list`, keeps the highest request revision it has seen of each
 ask, looks again every ten seconds while the list is visible and something is preparing, and keeps the last
 list marked out of date when a refresh fails. Cancel is the same command as in the request sheet, and an
-unconfirmed cancel is retried with its exact command ID. `RequestsList` and `useRequestsList` can be
+unconfirmed cancel is retried with its exact command ID. A closed "Couldn't prepare" row has Retry
+(`supply.retry`, the same request, same exact-command rule) and Ask differently. `RequestsList` and `useRequestsList` can be
 mounted anywhere; Keep's Requested view is meant to mount them. Closed-request copy lives in
 `request-copy.ts`: it says the request is closed and never names models, budgets or machinery.
 

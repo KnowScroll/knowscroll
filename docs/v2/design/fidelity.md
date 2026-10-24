@@ -39,10 +39,10 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | E06 | Preparing segment, Back to Reel chip, ready toast | differs | Preparing stripe and ready notice with Later and Open exist; the From the Reel at 0:31 · Back to Reel chip on the Scroll is not drawn. | fixture | [E06](fidelity/pairs/E06.jpg) |
 | E07 | Requests list | matches | Fixed in #443: one line per ask with a chip; Open, Retry, Cancel on the chip or row (before: boxed cards with pre-chip words). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Requested in Keep | matches | Fixed in #443: Requested filter in Keep (before: only /account/requests). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
-| E07 | Couldn't prepare + Try again | matches | Fixed in #443: Try again and Ask differently in the sheet (`could_not_prepare` only); the list shows Ask differently and does not resend (D-054). | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
+| E07 | Couldn't prepare + Try again | matches | Fixed in #443 and #454: Try again retries the same request in the sheet, Retry and Ask differently in the list (`could_not_prepare` only; D-054). | fixture, #443, #454 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Can't be made, cancelled, exhausted | matches | Fixed in #443: Can't be made chip (new); cancelled dashed chip; exhausted says You've seen what's ready for now. | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
 | E07 | Placed where the request was made | matches | Fixed in #443: Ready — the Scroll you asked for on the opened encounter. | fixture, #443 | [E07](fidelity/pairs/E07.jpg) |
-| E07 | List retry and retry of the same request | missing | Needs contract: request.retry{requestId} (f252); until then Try again sends a fresh request from the sheet only (D-054). | n/a | [E07](fidelity/pairs/E07.jpg) |
+| E07 | List retry and retry of the same request | matches | `request.retry{requestId}` re-drives the same request (same ID, idempotent receipt, caps and the retry limit respected, "can't be retried" answered); Try again in the sheet and Retry in the list both send it (D-054, #454). | fixture, #454 | [E07](fidelity/pairs/E07.jpg) |
 | E08 | Natural thread ending | matches | Yellow card, Keep a way back, Something different, Done for now, thread rows (fixture). | fixture | [E08](fidelity/pairs/E08.jpg) |
 | E08 | Way back kept, Something new | differs | Way back kept is drawn; the Somewhere new direction picker with coloured subject cards is not (Something different opens a new subject). | fixture | [E08](fidelity/pairs/E08.jpg) |
 | E09 | Narration, captions, illustrated range | missing | No client work possible: a Reel document carries captions: burned_in only, no caption track, transcript or timing (D-054). The range of variants is the asset's own picture. | contract | [E09](fidelity/pairs/E09.jpg) |
@@ -103,7 +103,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 
 ## Not fixed, and why
 
-- **Needs contract:** retry of the same request (E07), a correction field on an encounter (E01, E05), caption track or transcript on a Reel (E09, E01).
+- **Needs contract:** a correction field on an encounter (E01, E05), caption track or transcript on a Reel (E09, E01).
 - **Larger than a sweep:** Friends roster as one list (F01), Account identity card, Notifications and Accessibility & playback (P01), recording as a switch (P02, D05), Talk invitation card with Ignore and Preview (C03), conversation header and Start a thread (C02), share sheet header (H01).
 - **Not opened:** thread presence and members sheet (C03), snippet range handles (H03), failed and dismissed branches (X02), branch map (X04), three-person worlds (U07), series threads on dev (C04). They are drawn in code and covered by tests; no dev data reaches them yet.
 

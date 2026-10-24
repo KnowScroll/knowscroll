@@ -134,6 +134,7 @@ Clients fence responses by AccountScope, keep the highest personal watermark, re
 hints/reconnect, and refuse to overwrite a newer request revision with an older snapshot. Offline
 UI must mark a retained snapshot as potentially stale; no percentages or ETAs are declared.
 
+`RetryContentRequestSchema` (`POST /v1/content/requests/retry`) re-drives the same request that closed as could-not-prepare: its own command ID, the request ID, and a receipt of `retrying`, `already_open` or `not_retryable`; the request ID never changes and current status is a separate read.
 `CancelContentRequestSchema` has its own command ID and private request ID.
 `CancelContentRequestReceiptSchema` keeps the original `cancelled`, `already_cancelled` or
 `already_closed` outcome after commit; ready/unavailable requests are already closed. Cancellation
