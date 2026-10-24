@@ -56,7 +56,7 @@ describe('structureOf', () => {
   it('follows a pipe or transform through its input side', () => {
     const piped = title.transform((text) => text.length);
     expect(structureOf(piped)).toEqual({ kind: 'wrapper', inner: title });
-    expect(structureOf(z.pipe(title, count))).toEqual({ kind: 'wrapper', inner: title });
+    expect(structureOf(z.pipe(title, z.string().min(1)))).toEqual({ kind: 'wrapper', inner: title });
   });
 
   it('resolves a lazy schema by running its getter', () => {
