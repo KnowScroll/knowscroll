@@ -159,6 +159,12 @@ describe('account sessions, export and deletion through the installed release', 
     const link = DataExportLinkSchema.parse(
       await (await call('POST', '/v1/account/exports/link', bearer(f), { exportId })).json(),
     );
+    // Only GET redeems it: a prefetcher's HEAD (or any other method) is refused and spends nothing.
+    for (const method of ['HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS']) {
+      const refused = await fetch(origin + link.path, { method });
+      expect(refused.status, method).toBe(405);
+      expect(refused.headers.get('allow')).toBe('GET');
+    }
     // The link needs no session, scope or origin: a browser follows it.
     const file = await fetch(origin + link.path);
     expect(file.status).toBe(200);
@@ -169,6 +175,8 @@ describe('account sessions, export and deletion through the installed release', 
     const body = JSON.parse(text) as { version: string; sections: Record<string, unknown> };
     expect(body.version).toBe('knowscroll-export.v1');
     expect(JSON.stringify(body.sections['experience'])).toContain('[Fixture] Keep HTTP Reel');
+    // Internal modules are not in the file at all.
+    expect(Object.keys(body.sections).sort()).toEqual(['experience', 'geography', 'identity', 'social', 'supply']);
     expect(text.replace(/keep-[0-9a-f-]{36}@fixture\.test/, '')).not.toMatch(UUID);
     expect(text).not.toContain(f.person.accountId);
     expect(text).not.toContain(f.person.universeId);
