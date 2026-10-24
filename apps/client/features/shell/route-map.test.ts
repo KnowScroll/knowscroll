@@ -46,6 +46,7 @@ describe('route map', () => {
         '/account/privacy/delete',
         '/account/privacy/export',
         '/account/privacy/shared-links',
+        '/account/privacy/visibility',
         '/account/requests',
         '/conversations',
         '/conversations/[conversationId]',
@@ -63,6 +64,7 @@ describe('route map', () => {
         '/signin',
         '/signin/link',
         '/universe',
+        '/visit/[handle]',
         '/welcome',
       ].sort(),
     );

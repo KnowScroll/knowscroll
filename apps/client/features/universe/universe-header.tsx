@@ -5,7 +5,7 @@ import { AccountButton, IconButton, Tag, Text, useDisplay } from '@knowscroll/ui
 import { useAccountInitial } from '../../providers/account-scope';
 import { SpaceChip } from './space-chip';
 import type { UniverseView } from './universe-layout';
-import type { UniverseViewSession, UniverseViewState } from './universe-session';
+import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 /**
  * What the header says for each view (U01, U02, U03): the screen title with search and the Lately
@@ -18,12 +18,15 @@ export function UniverseHeader({
   view,
   hasPlaces,
   onSearch,
+  visitor,
 }: {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly view: UniverseView;
   readonly hasPlaces: boolean;
   readonly onSearch: () => void;
+  /** A friend's universe (U06): their name, and none of the controls that mean something only for your own map. */
+  readonly visitor?: { readonly ownerName: string };
 }) {
   const router = useRouter();
   const initial = useAccountInitial();
@@ -40,6 +43,22 @@ export function UniverseHeader({
       onPress={() => session.setLately(!state.lately)}
     />
   );
+  if (view.kind === 'universe' && visitor)
+    return (
+      <View style={styles.root}>
+        {hasPlaces ? (
+          <View style={styles.row}>
+            <IconButton
+              icon="search"
+              label={`Search ${visitor.ownerName}’s universe`}
+              variant="onSpace"
+              onPress={onSearch}
+              testID="universe-search"
+            />
+          </View>
+        ) : null}
+      </View>
+    );
   if (view.kind === 'universe')
     return (
       <View style={styles.root}>
@@ -79,8 +98,9 @@ export function UniverseHeader({
     view.kind === 'system'
       ? undefined
       : session.places().find((place) => place.id === (view.kind === 'planet' ? view.planet.parentId : ''));
+  const universeName = visitor ? `${visitor.ownerName}’s universe` : 'Universe';
   const backLabel =
-    view.kind === 'system' ? 'Universe' : view.selectedRegion ? view.planet.label : (parent?.label ?? 'Universe');
+    view.kind === 'system' ? universeName : view.selectedRegion ? view.planet.label : (parent?.label ?? universeName);
   const title = view.kind === 'system' ? view.system.label : view.planet.label;
   return (
     <View style={styles.root}>
@@ -95,7 +115,7 @@ export function UniverseHeader({
         />
         <View style={styles.actions}>
           {view.kind === 'planet' && state.detail === 'low' ? <Tag label="Low detail" variant="onDark" /> : null}
-          {view.kind === 'system' ? lens : null}
+          {view.kind === 'system' && !visitor ? lens : null}
         </View>
       </View>
       {view.kind === 'system' ? (

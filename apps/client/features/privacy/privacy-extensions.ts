@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 import type { ComponentType } from 'react';
 import { SharedLinksSection } from '../sharing/shared-links-section';
+import { VisibilitySection } from '../visibility/visibility-section';
 
 /**
  * A privacy control another slice owns, shown in P02 between Clear exploration and Delete account
@@ -19,6 +20,13 @@ export interface PrivacyExtension {
 
 /** The slices that add a privacy control, in the order the hub shows them. */
 export const privacyExtensions: readonly PrivacyExtension[] = [
+  {
+    id: 'visibility',
+    title: 'Sharing & visibility',
+    description: 'Who can visit your universe, which systems they see, and whether friends see you online.',
+    href: '/account/privacy/visibility',
+    Panel: VisibilitySection,
+  },
   {
     id: 'shared-links',
     title: 'Shared links',

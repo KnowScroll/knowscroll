@@ -112,7 +112,7 @@ describe('visibility, availability and the friend visit over the installed API (
     });
   }
   async function beat(socket: Socket): Promise<PresenceHeartbeatAck> {
-    const raw = await socket.timeout(5000).emitWithAck(socketEvents.presenceHeartbeat);
+    const raw: unknown = await socket.timeout(5000).emitWithAck(socketEvents.presenceHeartbeat);
     return PresenceHeartbeatAckSchema.parse(raw);
   }
   async function availabilityOf(viewer: Person, subject: Person) {
