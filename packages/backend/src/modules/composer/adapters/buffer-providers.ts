@@ -34,6 +34,7 @@ import {
   REQUEST_BUFFER_PREPARATION,
 } from '../public.js';
 import { composerBufferStore } from './buffer-store.js';
+import { jevPoolStore } from './jev-pool-store.js';
 
 /** The API's side: serve and release a buffer, and ask for the next one in the activating transaction. */
 export function composerBufferProviders(t: { readonly enqueueJob: symbol }) {
@@ -114,6 +115,8 @@ export function composerBufferWorkerProviders(t: {
                 jev: {
                   assess: makeAssessShortlist(harness),
                   model: config.reasoning.minimax?.model ?? 'none',
+                  readPool: jevPoolStore.read,
+                  storePool: jevPoolStore.store,
                   closeRun: async (scope, runId, state) => {
                     try {
                       await harness.closeRun(scope, { runId, state });
