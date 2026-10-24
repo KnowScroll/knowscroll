@@ -513,38 +513,45 @@ test('the full-bleed Reel keeps every control reachable and the same video acros
       ).toBe(true);
     }
     // The full-bleed layout keeps its parts in order and apart: top bar, then the action rail, then the
-    // edge tab; the title above the progress row; and nothing drawn over anything else.
-    const rect = async (locator: ReturnType<Page['locator']>) => {
-      const box = await locator.boundingBox();
-      if (!box) throw new Error('A part of the Reel layout is missing');
-      return { left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height };
-    };
-    const switchRect = await rect(page.getByRole('radiogroup', { name: 'Format of this explanation' }));
-    const moreRect = await rect(page.getByRole('button', { name: 'More options', exact: true }));
-    const parts = {
-      rail: await rect(page.getByRole('group', { name: 'Actions' })),
-      tab: await rect(page.getByRole('button', { name: /^Another related explanation/ })),
-      title: await rect(page.getByTestId('encounter-reel-caption')),
-      progress: await rect(page.getByLabel('Reel progress')),
-      mute: await rect(page.getByRole('button', { name: 'Mute', exact: true })),
-    };
+    // edge tab; the title above the progress row; and nothing drawn over anything else. Polled, because
+    // a resize settles over a frame or two.
     const where = `${String(viewport.width)}×${String(viewport.height)}`;
-    expect(Math.max(switchRect.bottom, moreRect.bottom), `top bar above the rail at ${where}`).toBeLessThanOrEqual(
-      parts.rail.top + 1,
-    );
-    expect(parts.rail.bottom, `rail above the edge tab at ${where}`).toBeLessThanOrEqual(parts.tab.top + 1);
-    expect(parts.title.bottom, `title above the progress row at ${where}`).toBeLessThanOrEqual(parts.progress.top + 1);
-    const apart = (a: typeof parts.rail, b: typeof parts.rail) =>
-      a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1;
-    for (const [first, second] of [
-      ['rail', 'title'],
-      ['rail', 'mute'],
-      ['rail', 'progress'],
-      ['tab', 'title'],
-      ['tab', 'mute'],
-      ['tab', 'progress'],
-    ] as const)
-      expect(apart(parts[first], parts[second]), `${first} and ${second} do not overlap at ${where}`).toBe(true);
+    const layoutProblems = async () => {
+      const rect = async (locator: ReturnType<Page['locator']>) => {
+        const box = await locator.boundingBox();
+        if (!box) return { left: 0, top: 0, right: 0, bottom: 0 };
+        return { left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height };
+      };
+      const switchRect = await rect(page.getByRole('radiogroup', { name: 'Format of this explanation' }));
+      const moreRect = await rect(page.getByRole('button', { name: 'More options', exact: true }));
+      const parts = {
+        rail: await rect(page.getByRole('group', { name: 'Actions' })),
+        tab: await rect(page.getByRole('button', { name: /^Another related explanation/ })),
+        title: await rect(page.getByTestId('encounter-reel-caption')),
+        progress: await rect(page.getByLabel('Reel progress')),
+        mute: await rect(page.getByRole('button', { name: 'Mute', exact: true })),
+      };
+      const problems: string[] = [];
+      if (Math.max(switchRect.bottom, moreRect.bottom) > parts.rail.top + 1) problems.push('top bar above the rail');
+      if (parts.rail.bottom > parts.tab.top + 1) problems.push('rail above the edge tab');
+      if (parts.title.bottom > parts.progress.top + 1) problems.push('title above the progress row');
+      const apart = (first: typeof parts.rail, second: typeof parts.rail) =>
+        first.right <= second.left + 1 ||
+        second.right <= first.left + 1 ||
+        first.bottom <= second.top + 1 ||
+        second.bottom <= first.top + 1;
+      for (const [first, second] of [
+        ['rail', 'title'],
+        ['rail', 'mute'],
+        ['rail', 'progress'],
+        ['tab', 'title'],
+        ['tab', 'mute'],
+        ['tab', 'progress'],
+      ] as const)
+        if (!apart(parts[first], parts[second])) problems.push(`${first} overlaps ${second}`);
+      return problems;
+    };
+    await expect.poll(layoutProblems, { message: `Reel layout at ${where}` }).toEqual([]);
     const switchBox = await page.getByRole('radiogroup', { name: 'Format of this explanation' }).boundingBox();
     if (!switchBox) throw new Error('The full format switch remains available');
     expect(switchBox.x).toBeGreaterThanOrEqual(0);
