@@ -16,6 +16,7 @@ import { Banner, IconButton, StateBlock, Text, useTypeStyle } from '@knowscroll/
 import { useAccountScope } from '../../providers/account-scope';
 import { ScreenFrame } from '../shell/screen-frame';
 import { FriendButton as Button, FriendControls, FriendIdentity, friendsStyles } from './friend-controls';
+import { useAvailability } from './use-availability';
 import {
   discardInitialNativeFriendLink,
   friendInviteLink,
@@ -173,6 +174,7 @@ function FriendsView({
   readonly invite: boolean;
 }) {
   const router = useRouter();
+  const availabilityOf = useAvailability(scope);
   const subscribe = useCallback((listener: () => void) => session.subscribe(listener), [session]);
   const snapshot = useCallback(() => session.getState(), [session]);
   const state = useSyncExternalStore(subscribe, snapshot, snapshot);
@@ -293,6 +295,9 @@ function FriendsView({
       subscription.remove();
     };
   }, [invite, scope, session]);
+
+  /** A friend's universe. Whether anything is shown is the server's answer, not something this row knows. */
+  const visitFriend = (friendHandle: string) => router.push(`/visit/${encodeURIComponent(friendHandle)}`);
 
   async function execute<K extends FriendsCommandOperation>(operation: K, input: FriendsCommandDraft<K>) {
     if (!live() || workingRef.current || blocked || needsRefresh) return;
@@ -549,7 +554,13 @@ function FriendsView({
             </View>
           ) : null}
           {pair && lookupData?.person.personId.toLowerCase() === pair.peer.personId.toLowerCase() ? (
-            <FriendControls pair={pair} disabled={mutationsDisabled} onCommand={pairCommand} />
+            <FriendControls
+              pair={pair}
+              disabled={mutationsDisabled}
+              onCommand={pairCommand}
+              availability={availabilityOf(pair.peer.personId)}
+              onVisit={() => visitFriend(pair.peer.handle)}
+            />
           ) : null}
           {state.pair.status === 'unavailable' ||
           (state.pair.status === 'ready' && state.pair.data.status === 'unavailable') ? (
@@ -710,6 +721,8 @@ function FriendsView({
                 pair={item}
                 disabled={mutationsDisabled}
                 onCommand={pairCommand}
+                availability={availabilityOf(item.peer.personId)}
+                onVisit={() => visitFriend(item.peer.handle)}
               />
             ))}
           </>
@@ -743,7 +756,8 @@ function FriendsView({
         </Text>
       </Section>
       <Text variant="bodyS" color={content.ink2}>
-        Universe visibility, visits, live availability and conversations are not available here yet.
+        Who can visit your universe, and whether friends see you online, is in Privacy & history under Sharing &
+        visibility.
       </Text>
       {invite ? (
         <Button

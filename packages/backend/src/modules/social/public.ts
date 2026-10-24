@@ -36,6 +36,11 @@ import type {
   OwnSharingProfileSchema,
   SharingPersonLookupSchema,
   SharingProfileAcceptanceSchema,
+  SharingVisibilitySchema,
+  SharingVisibilityAcceptanceSchema,
+  OwnPresencePreferenceSchema,
+  PresencePreferenceAcceptanceSchema,
+  VisitorWorldSnapshotSchema,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority } from '../identity/public.js';
 import type { Operation } from './domain/friends.js';
@@ -161,3 +166,43 @@ export const THREAD_USE_CASES = Symbol('social.threadUseCases');
 /** The account's current inbox revision, for the socket gateway's subscribe acknowledgement. */
 export type ReadInboxRevision = (accountId: string) => Promise<number>;
 export const READ_INBOX_REVISION = Symbol('social.readInboxRevision');
+
+/**
+ * What a person lets friends see (D-047): who may visit their universe and which systems, whether
+ * they show as available, and a friend's visit. Every method takes the caller's claimed authority and
+ * an unparsed body and rechecks authority itself. Reads create no evidence, and no method tells
+ * anyone that a setting changed or that someone visited.
+ */
+export interface VisibilityUseCases {
+  readVisibility(authority: PersonalAuthority): Promise<Result<z.infer<typeof SharingVisibilitySchema>>>;
+  setVisibility(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof SharingVisibilityAcceptanceSchema>>>;
+  readPresencePreference(authority: PersonalAuthority): Promise<Result<z.infer<typeof OwnPresencePreferenceSchema>>>;
+  setPresencePreference(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof PresencePreferenceAcceptanceSchema>>>;
+  /** A friend's published universe. Anyone not allowed gets the same `unavailable` answer. */
+  readVisit(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof VisitorWorldSnapshotSchema>>>;
+}
+export const VISIBILITY_USE_CASES = Symbol('social.visibilityUseCases');
+
+/**
+ * One heartbeat from a signed-in person's open app. Stores a time only for a person who chose to show
+ * availability, so a hidden person leaves nothing. The caller (the socket gateway) has already
+ * checked the session; a heartbeat grants nothing and is never consumption evidence.
+ */
+export type RecordHeartbeat = (accountId: string) => Promise<void>;
+export const RECORD_HEARTBEAT = Symbol('social.recordHeartbeat');
+
+/**
+ * Redraws one universe's published copy from the owner's current Geography. The worker runs it after
+ * a scene projection, as a system actor that rechecks the universe and epoch itself.
+ */
+export type RefreshVisitPublication = (job: {
+  readonly universeId: string;
+  readonly privacyEpoch: number;
+}) => Promise<'refreshed' | 'unchanged' | 'skipped'>;
+export const REFRESH_VISIT_PUBLICATION = Symbol('social.refreshVisitPublication');

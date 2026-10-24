@@ -6,7 +6,8 @@ const Version = z.literal('sharing.v1');
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const EmptyRead = z.strictObject({});
-function isPublicLabel(s: string): boolean {
+/** A label safe to show another person: trimmed, no control characters. */
+export function isPublicLabel(s: string): boolean {
   return (
     s.trim() === s &&
     [...s].every((character) => {
@@ -83,6 +84,8 @@ export const SharingPersonLookupSchema = z.discriminatedUnion('status', [
 
 /** Hidden, expired and unknown presence have exactly one shape. expiryRevision fences delivery;
  * it is independent of pair, preference and projection revisions, never an exact peer timestamp.
+ * It is an opaque random token, new for each stretch of the peer's activity: compare it for
+ * equality only, because it counts nothing and cannot say how often the peer has been around.
  * Unknown has no revision/TTL: private heartbeat, hiding and expiry cannot change that shape.
  * validForMs is a relative freshness lease, not a heartbeat policy or peer event timestamp.
  * Its one-day transport ceiling selects no runtime duration. Future adapters check actual expiry;
@@ -272,14 +275,17 @@ export const VisitorAudienceSchema = z.discriminatedUnion('mode', [
   z.strictObject({ mode: z.literal('chosen_friends'), personIds: UniqueIds.refine((ids) => ids.length > 0) }),
   z.strictObject({ mode: z.literal('all_friends') }),
 ]);
-/** Own settings only. systemIds are own Geography IDs and NEVER appear in a visitor projection.
- * Audience widening never selects a system automatically. Defaults nobody/hidden are future
- * backend policy, not a wire transform, seeding instruction or runtime completion claim. */
+/** One of the caller's own systems and whether visitors may see it. `systemId` is the caller's own
+ * Geography ID and NEVER appears in a visitor projection; `label` is the owner's own word. */
+export const OwnVisibilitySystemSchema = z.strictObject({ systemId: UuidSchema, label: Label, shared: z.boolean() });
+/** Own settings only. Audience widening never selects a system automatically. Defaults are nobody,
+ * no systems shared and hidden availability (D-006 e), so a person who never opens this page shares
+ * nothing. `systems` lists the caller's own factual systems, so one read draws the whole page. */
 export const SharingVisibilitySchema = z.strictObject({
   ...Envelope,
   visibilityRevision: Revision,
   audience: VisitorAudienceSchema,
-  sharedSystemIds: UniqueIds,
+  systems: z.array(OwnVisibilitySystemSchema).max(100),
 });
 export const ReadSharingVisibilitySchema = EmptyRead;
 export const SetSharingVisibilitySchema = z.strictObject({
@@ -318,29 +324,41 @@ export const PresencePreferenceAcceptanceSchema = z
   })
   .refine((r) => r.acceptedPresencePreferenceRevision >= r.basePresencePreferenceRevision);
 
-/** Initial visitor read supports accessible semantic lists only. This is not a scene DSL or a
- * private Scene/Geography payload with a visibility flag. A graphical extension requires separate
- * reviewed public geometry/identity metadata; no private descriptor/seed/anchor is reused here. */
+/** The visitor read is a semantic list: systems, each with its planets. This is not a scene DSL or a
+ * private Scene/Geography payload with a visibility flag. It carries no position, size, seed, family,
+ * activity, reading or count of anything hidden; a client lays the list out itself. A graphical
+ * extension would need separately reviewed public geometry, never a private descriptor or anchor. */
 export const VisitorCapabilitiesSchema = z.strictObject({ presentations: z.array(z.literal('list.v1')).min(1).max(1) });
 const VisitorTarget = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('person'), personId: UuidSchema }),
   z.strictObject({ kind: z.literal('handle'), handle: SharingHandleSchema }),
 ]);
+/** What the visitor's answer was built from: their own view of the friendship and the version of
+ * what the owner publishes. publishedProjectionRevision is an opaque random token that changes when
+ * the published list does: compare it for equality only, because it cannot say how often the owner
+ * changed it. The owner's settings revision never leaves the owner. */
 const VisitorAuthority = z.strictObject({
   pairRevision: Revision,
-  visibilityRevision: Revision,
   publishedProjectionRevision: Revision,
 });
 export const ReadVisitorWorldSchema = z.strictObject({
   version: Version,
   target: VisitorTarget,
   capabilities: VisitorCapabilitiesSchema,
-  expected: VisitorAuthority.optional(),
 });
 const VisitorRead = { ...Envelope, target: VisitorTarget, capabilities: VisitorCapabilitiesSchema };
+const VisitorPlanet = z.strictObject({ publicPlanetId: UuidSchema, label: Label });
+const VisitorSystem = z.strictObject({
+  publicSystemId: UuidSchema,
+  label: Label,
+  planets: z.array(VisitorPlanet).max(100),
+});
+/** At most this many systems are published, and at most this many planets in each. */
+export const VISITOR_LIMITS = { systems: 100, planetsPerSystem: 100 } as const;
 export const VisitorWorldSnapshotSchema = z
   .discriminatedUnion('status', [
-    // Same coarse answer for denial, block, erased/corrected/stale or unpublished world.
+    // Same coarse answer for denial, block, revocation, an unknown person, an ended friendship, an
+    // erased or unpublished world: the wire cannot tell a visitor which of them it was.
     z.strictObject({ ...VisitorRead, status: z.literal('unavailable') }),
     z.strictObject({
       ...VisitorRead,
@@ -350,16 +368,20 @@ export const VisitorWorldSnapshotSchema = z
       projection: z.strictObject({
         presentation: z.literal('list.v1'),
         // Stable only within this authorised publication scope, never private Geography IDs.
-        systems: z.array(z.strictObject({ publicSystemId: UuidSchema, label: Label })).max(100),
+        systems: z.array(VisitorSystem).max(VISITOR_LIMITS.systems),
       }),
     }),
   ])
   .superRefine((r, ctx) => {
     if (r.status !== 'available') return;
+    const ids = r.projection.systems.flatMap((system) => [
+      system.publicSystemId,
+      ...system.planets.map((planet) => planet.publicPlanetId),
+    ]);
     if (
       (r.target.kind === 'person' && r.target.personId !== r.owner.personId) ||
       (r.target.kind === 'handle' && r.target.handle !== r.owner.handle) ||
-      new Set(r.projection.systems.map((s) => s.publicSystemId)).size !== r.projection.systems.length
+      new Set(ids).size !== ids.length
     )
       ctx.addIssue({
         code: 'custom',
@@ -373,6 +395,7 @@ export type FriendAvailability = z.infer<typeof FriendAvailabilitySchema>;
 export type RequestFriend = z.infer<typeof RequestFriendSchema>;
 export type FriendCommandAcceptance = z.infer<typeof FriendCommandAcceptanceSchema>;
 export type SharingVisibility = z.infer<typeof SharingVisibilitySchema>;
+export type OwnPresencePreference = z.infer<typeof OwnPresencePreferenceSchema>;
 export type VisitorWorldSnapshot = z.infer<typeof VisitorWorldSnapshotSchema>;
 
 function post<I extends z.ZodType, O extends z.ZodType>(path: `/v1/social/${string}`, input: I, output: O) {

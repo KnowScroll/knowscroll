@@ -50,6 +50,14 @@ the export `failed`, best effort: the recovery cron and a retry are the other wa
 only (the operation or export id, never a person), and the logged outcomes carry no account, universe or
 receipt id. The sweep `identity.sweep-sign-in-records` also retires exports.
 
+## Visit list refresh (#241, D-047)
+
+The `scenes.project` consumer calls Social's `REFRESH_VISIT_PUBLICATION` after it has projected a universe, so
+planets formed after a person chose their systems reach the friends who may visit. It runs as a system actor
+in its own transaction (`social.refresh-visit`), rechecks the universe and epoch itself, does nothing for a
+universe that shares nothing, and writes nothing when the list is unchanged. A failure retries the job; the
+projection that already committed is not repeated. No queue of its own, no model call and no network wait.
+
 Background worker: a Nest application context with no network listener. pg-boss claims jobs for
 the queues in the explicit consumer registry (`src/jobs.ts`); nothing is discovered by
 decorators. HTTP guards never run here, so every consumer's use case rechecks authority itself

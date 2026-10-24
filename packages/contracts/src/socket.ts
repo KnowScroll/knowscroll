@@ -19,6 +19,12 @@ import { UniverseIdSchema } from './ids.js';
  *   again) and resubscribe; the API does this to every socket when its notice relay reconnects,
  *   because a revocation sent while it was away may have been lost. 'io server disconnect' means
  *   the account's access was revoked: reconnect only after signing in again.
+ *
+ * Presence is the one thing a client says over the socket: `presence_heartbeat`, every
+ * `PRESENCE_HEARTBEAT_MS` while the app is open and visible. The answer is always the same
+ * `{ ok: true }` for a signed-in socket, so it cannot tell a person whether their availability is
+ * shared. The server stores a heartbeat only for a person who chose to show availability, and an
+ * availability that is not renewed expires on its own (blueprint §17).
  */
 export const socketEvents = {
   subscribeScope: 'subscribe_scope',
@@ -26,7 +32,19 @@ export const socketEvents = {
   scopeChanged: 'scope_changed',
   scopeResync: 'scope_resync',
   scopeRevoked: 'scope_revoked',
+  presenceHeartbeat: 'presence_heartbeat',
 } as const;
+
+/** How often an open, visible app sends `presence_heartbeat`. The server lets an availability lapse
+ * after three missed heartbeats, so a closed tab or a lost connection cannot stay "Online". */
+export const PRESENCE_HEARTBEAT_MS = 20_000;
+
+/** Acknowledgement of `presence_heartbeat`. Identical whether or not availability is shared. */
+export const PresenceHeartbeatAckSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), code: z.enum(['UNAUTHENTICATED', 'UNAVAILABLE']) }),
+]);
+export type PresenceHeartbeatAck = z.infer<typeof PresenceHeartbeatAckSchema>;
 
 /** The socket path on the API origin (proxied by Caddy, D-008). */
 export const SOCKET_PATH = '/socket.io';

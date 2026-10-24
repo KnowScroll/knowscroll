@@ -77,6 +77,11 @@ function SignedIn({ email }: { readonly email: string }) {
       <SettingsLabel>Settings</SettingsLabel>
       <SettingsRow title="Your requests" description="What you asked KnowScroll to make" href="/account/requests" />
       <SettingsRow
+        title="Friends & visibility"
+        description="Who you know, and who can visit your universe"
+        href="/friends"
+      />
+      <SettingsRow
         title="Privacy & history"
         description="Recording, export, clear exploration, delete"
         href="/account/privacy"

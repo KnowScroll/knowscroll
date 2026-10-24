@@ -13,7 +13,16 @@ import { SpaceChip } from './space-chip';
 import { UniverseStage } from './universe-stage';
 import { FlatPlanet } from './planet-scene';
 import { safeGeometry } from './scene-parts';
-import type { UniverseViewSession, UniverseViewState } from './universe-session';
+import type { UniverseMapSession, UniverseViewState } from './universe-session';
+
+/**
+ * A friend's universe seen as a visitor (U06): the visitor bar goes on top, the map is named after its
+ * owner, and the controls that only mean something for your own universe (Lately, the region hint) go.
+ */
+export interface VisitorChrome {
+  readonly ownerName: string;
+  readonly bar: ReactNode;
+}
 
 /**
  * The Universe as the artboards draw it: the map fills the screen, the header and chips float
@@ -25,12 +34,14 @@ export function UniverseSurface({
   state,
   index,
   status,
+  visitor,
 }: {
-  readonly session: UniverseViewSession;
+  readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
   readonly index: UniverseIndex;
   /** A quiet pill over the map: "Drawing…" or "Last map shown". */
   readonly status: string | undefined;
+  readonly visitor?: VisitorChrome;
 }) {
   const { breakpoint } = useDisplay();
   const insets = useSafeAreaInsets();
@@ -59,9 +70,16 @@ export function UniverseSurface({
   const bottomInset = wide ? spacing[5] : layout.tabBarSlot + insets.bottom;
 
   const header = searching ? (
-    <UniverseSearchPanel session={session} />
+    <UniverseSearchPanel session={session} {...(visitor ? { owner: visitor.ownerName } : {})} />
   ) : (
-    <UniverseHeader session={session} state={state} view={view} hasPlaces={places.length > 0} onSearch={openSearch} />
+    <UniverseHeader
+      session={session}
+      state={state}
+      view={view}
+      hasPlaces={places.length > 0}
+      onSearch={openSearch}
+      {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
+    />
   );
 
   const caption =
@@ -74,9 +92,11 @@ export function UniverseSurface({
           {view.planet.label}
         </Text>
         {view.planet.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
-        <Text variant="meta" color={space.label2} style={styles.captionHint}>
-          Tap a region to land.
-        </Text>
+        {visitor ? null : (
+          <Text variant="meta" color={space.label2} style={styles.captionHint}>
+            Tap a region to land.
+          </Text>
+        )}
       </View>
     ) : null;
 
@@ -141,6 +161,7 @@ export function UniverseSurface({
         />
       )}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
+        {visitor?.bar}
         {header}
         {status ? (
           <View style={styles.status}>
@@ -190,7 +211,12 @@ export function UniverseSurface({
                 <DrawingToggle session={session} state={state} />
               </View>
               <View style={styles.panelList}>
-                <OutlineList session={session} state={state} index={index} />
+                <OutlineList
+                  session={session}
+                  state={state}
+                  index={index}
+                  {...(visitor ? { label: `Places in ${visitor.ownerName}’s universe` } : {})}
+                />
               </View>
               {card ? <View style={styles.panelCard}>{card}</View> : null}
             </View>
@@ -201,7 +227,14 @@ export function UniverseSurface({
   return (
     <View style={styles.ground} testID="universe-screen">
       {stage}
-      {state.overlay === 'outline' ? <UniverseListSheet session={session} state={state} index={index} /> : null}
+      {state.overlay === 'outline' ? (
+        <UniverseListSheet
+          session={session}
+          state={state}
+          index={index}
+          {...(visitor ? { owner: visitor.ownerName } : {})}
+        />
+      ) : null}
     </View>
   );
 }
@@ -217,7 +250,7 @@ function DormantNote({
   index,
   systemId,
 }: {
-  session: UniverseViewSession;
+  session: UniverseMapSession;
   index: UniverseIndex;
   systemId: string;
 }) {
@@ -274,7 +307,7 @@ function SimplePlanet({
   state,
   width,
 }: {
-  session: UniverseViewSession;
+  session: UniverseMapSession;
   index: UniverseIndex;
   view: Extract<ReturnType<typeof viewFor>, { kind: 'planet' }>;
   state: UniverseViewState;

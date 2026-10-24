@@ -10,10 +10,11 @@ import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
 import { FriendsScreen, SignedInFriends } from './friends-screen';
 
+const mockPush = jest.fn();
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
-    useRouter: () => ({ navigate: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => false }),
+    useRouter: () => ({ navigate: jest.fn(), push: mockPush, replace: jest.fn(), canGoBack: () => false }),
     useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   };
 });
@@ -34,6 +35,9 @@ jest.mock('../../providers/account-scope', () => ({
   useAccountInitial: () => undefined,
 }));
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
+// The availability reads have their own tests; here they must not add requests to the call sequences below.
+const mockAvailability = jest.fn<'online' | 'recently_active' | undefined, [string]>(() => undefined);
+jest.mock('./use-availability', () => ({ useAvailability: () => (personId: string) => mockAvailability(personId) }));
 
 jest.mock('../../platform/command-id', () => ({
   newCommandId: () => jest.requireActual<{ randomUUID: () => string }>('node:crypto').randomUUID(),
@@ -282,9 +286,40 @@ it('advances an empty scan only after explicit Next and does not invent presence
     expect(h.calls.filter((c) => c.path.endsWith('/page'))).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: 'Next page' }));
     await screen.findByText('Peer fixture');
-    expect(screen.getByText('Friends · availability not shared')).toBeOnTheScreen();
-    expect(screen.queryByText('Online')).toBeNull();
+    // No word at all: hidden, expired and unknown are one answer, and the row does not claim to know which.
+    expect(screen.queryByText(/Online|Recently active|availability/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeEnabled();
+  } finally {
+    await view.unmount();
+    h.scope.end();
+  }
+});
+it.each([
+  ['online', 'Friends · Online'],
+  ['recently_active', 'Friends · Recently active'],
+] as const)('shows a friend who is %s with that word beside the friendship', async (word, shown) => {
+  mockAvailability.mockImplementation(() => word);
+  const h = fixture({ emptyScan: true });
+  const view = await render(h.tree);
+  try {
+    await screen.findByText('No visible people in this part of the scan. Choose Next to continue.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Next page' }));
+    await screen.findByText(shown);
+  } finally {
+    mockAvailability.mockImplementation(() => undefined);
+    await view.unmount();
+    h.scope.end();
+  }
+});
+it('opens a friend’s universe by their public handle, and says nothing about what they share', async () => {
+  const h = fixture({ emptyScan: true });
+  const view = await render(h.tree);
+  try {
+    await screen.findByText('No visible people in this part of the scan. Choose Next to continue.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Next page' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Visit Peer fixture’s universe' }));
+    expect(mockPush).toHaveBeenCalledWith('/visit/fixture.peer');
+    expect(h.calls.every((call) => !call.path.includes('/visits/'))).toBe(true);
   } finally {
     await view.unmount();
     h.scope.end();

@@ -219,7 +219,7 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
     ) as value`.execute(db.db)
     ).rows[0]!.value;
   }
-  it('private early errors and strict selectors preserve state; declared-only surfaces are not mounted', async () => {
+  it('private early errors and strict selectors preserve state; unimplemented surfaces are not mounted', async () => {
     const p = await person(),
       before = await socialRows();
     expect(await profile(p)).toMatchObject({ status: 'unclaimed', profileRevision: 0 });
@@ -250,10 +250,13 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
       'UNSUPPORTED_MEDIA_TYPE',
     );
     await problem(await post(root + 'profile', { [canary]: 'x'.repeat(5000) }, headers(p)), 'PAYLOAD_TOO_LARGE');
-    for (const route of ['friends/read', 'requests/read', 'visibility', 'conversations/typing', 'visits/read']) {
+    for (const route of ['friends/read', 'requests/read', 'conversations/typing']) {
       const response = await post(root + route, {}, headers(p));
       expect(response.status).toBe(404);
     }
+    // Sharing settings and visits are mounted (D-047): an empty body is refused by the strict schema.
+    for (const route of ['visibility', 'presence/preference', 'visits/read'])
+      await problem(await post(root + route, {}, headers(p)), 'INVALID_REQUEST');
     expect(await socialRows()).toEqual(before);
   });
   it('composes profile, lookup and deliberate friendship/withdrawal with real sessions and no consumption or jobs', async () => {
