@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { space, spacing } from '@knowscroll/design-tokens';
+import { spacing, status } from '@knowscroll/design-tokens';
 import { Banner, Button, Icon, Tag, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { AuthFrame } from './auth-frame';
@@ -37,15 +37,15 @@ export function RecoverScreen() {
 
   if (reason === 'link') {
     return (
-      <AuthFrame pageTitle="This link didn't work">
+      <AuthFrame pageTitle="This link didn't work" ground="paper">
         <View aria-hidden style={styles.glyph}>
-          <Icon name="link" size={32} color={space.label} />
+          <Icon name="link" size={48} color={status.danger.fill} />
         </View>
-        <Text variant="displayL" color={space.label} heading={1}>
+        <Text variant="displayL" heading={1}>
           This link didn't work
         </Text>
         <Banner kind="error" lead="Expired or already used." message="Nothing about your account changed." />
-        <Text variant="body" color={space.label}>
+        <Text variant="body">
           {email === undefined
             ? "We'll send a fresh link to your email address."
             : `We'll send a fresh link to ${email}.`}
@@ -55,17 +55,15 @@ export function RecoverScreen() {
           label="Send a new link"
           busyLabel="Sending…"
           busy={busy}
-          variant="space"
-          surface="dark"
+          variant="primary"
           fullWidth
           onPress={() => void sendNewLink()}
         />
         <Button
           label="Use a different email"
-          variant="ink"
+          variant="default"
           role="link"
           href="/signin"
-          surface="dark"
           fullWidth
           onPress={() => router.replace('/signin')}
         />
@@ -74,29 +72,25 @@ export function RecoverScreen() {
   }
 
   return (
-    <AuthFrame pageTitle="You were signed out">
-      <Tag label="Signed out" variant="onDark" />
-      <Text variant="displayL" color={space.label} heading={1}>
+    <AuthFrame pageTitle="You were signed out" ground="paper">
+      <Tag label="Signed out" />
+      <Text variant="displayL" heading={1}>
         You were signed out
       </Text>
-      <Text variant="body" color={space.label}>
-        It's been a while on this device. Sign in again to carry on.
-      </Text>
+      <Text variant="body">It's been a while on this device. Sign in again to carry on.</Text>
       <Button
         label="Sign in again"
-        variant="space"
+        variant="primary"
         role="link"
         href="/signin"
-        surface="dark"
         fullWidth
         onPress={() => router.replace('/signin')}
       />
       <Button
         label="Not you? Use another email"
-        variant="ink"
+        variant="default"
         role="link"
         href="/signin"
-        surface="dark"
         fullWidth
         onPress={() => router.replace('/signin')}
       />
