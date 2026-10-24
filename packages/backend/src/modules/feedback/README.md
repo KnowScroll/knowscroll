@@ -38,7 +38,7 @@ A content error may repeat about one Reel, because it points at a place.
 
 | Item | Detail |
 |---|---|
-| Table | `feedback.reports` (0067): account-keyed; reporter, kind, reason, target (asset and revision, message ID, room ID, reported account), anchor, note, time, `retain_until`. Message IDs are soft references. |
+| Table | `feedback.reports` (0068): account-keyed; reporter, kind, reason, target (asset and revision, message ID, room ID, reported account), anchor, note, time, `retain_until`. Message IDs are soft references. |
 | View | `ops.feedback_reports` (operator): ids, kind, reason, target kind, whether a note exists, time. No note, no accounts. |
 | Jobs | `feedback.purge-reports` (`events.ts`, scheduled daily at 03:17 UTC, worker): deletes reports whose `retain_until` has passed, 500 per transaction, at most 20 batches a run, skipping rows another transaction holds. Logs `feedback.reports_purged` with a count. Listed under the Operator's retention jobs. |
 | Notices | none |

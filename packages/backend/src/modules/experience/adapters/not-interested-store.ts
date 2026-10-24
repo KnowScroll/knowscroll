@@ -5,7 +5,7 @@ import type { NotInterestedStore } from '../application/not-interested.js';
 import { NOT_INTERESTED_DAYS, NOT_INTERESTED_LIMIT } from '../domain/not-interested.js';
 
 /**
- * `experience.not_interested` (migration 0067). Times come from the database clock, which is also
+ * `experience.not_interested` (migration 0068). Times come from the database clock, which is also
  * the clock `readNotInterested` compares against, so the lapse needs no agreement between hosts.
  * Every write first drops the person's lapsed rows and, after inserting, anything past the newest
  * `NOT_INTERESTED_LIMIT`, so a person never holds more than that many.

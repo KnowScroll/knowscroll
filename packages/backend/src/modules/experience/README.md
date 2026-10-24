@@ -425,7 +425,7 @@ and with them the markers. *Implemented; runtime-verified locally.*
 ## Not interested (#250, D-055)
 
 `POST /v1/feedback/not-interested` and `.../undo` (`NOT_INTERESTED_USE_CASES`, `setNotInterested` / `undoNotInterested`) keep one
-admitted asset out of the caller's offers for 14 days, or until Undo. Table `experience.not_interested` (0067): universe,
+admitted asset out of the caller's offers for 14 days, or until Undo. Table `experience.not_interested` (0068): universe,
 epoch, asset, `marked_at`, `expires_at`; one row per asset, at most 500 per person (a write drops lapsed rows and the oldest
 past 500). Each command is one transaction under the personal root with a command receipt: an identical retry answers the
 stored outcome, another asset under the key is `COMMAND_KEY_REUSED`, a missing or withdrawn asset is `ASSET_NOT_FOUND` and

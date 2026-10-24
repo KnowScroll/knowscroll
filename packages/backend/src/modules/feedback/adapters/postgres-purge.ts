@@ -4,7 +4,7 @@ import { withTransaction } from '../../../infrastructure/postgres/personal-scope
 import type { PurgeDueReports } from '../application/purge-reports.js';
 
 /**
- * Deletes reports about deleted accounts whose `retain_until` has passed (migration 0067, index
+ * Deletes reports about deleted accounts whose `retain_until` has passed (migration 0068, index
  * `reports_to_purge`). The clock is the database's. Rows another transaction holds are skipped, so the purge
  * never waits on a deletion in progress; the next run takes them.
  */
