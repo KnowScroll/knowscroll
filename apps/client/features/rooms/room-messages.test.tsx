@@ -134,6 +134,7 @@ describe('room messages', () => {
     expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
     expect(screen.queryByText('Ravi')).not.toBeOnTheScreen();
     // A moderator has options on every message; the collapsed one's are the second.
+    await fireEvent(screen.getByTestId('message-2'), 'hoverIn');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Message options' })[1]!);
     expect(moderator.onActions).toHaveBeenCalledWith(blockedByYou);
     // Shown for moderation on request, and put away again.
@@ -147,10 +148,36 @@ describe('room messages', () => {
   it('offers message options only where there is something to do: a card, or a moderator', async () => {
     const member = await show([text(1, ravi, 'plain'), card]);
     expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(1);
+    await fireEvent(screen.getByTestId('message-4'), 'hoverIn');
     await fireEvent.press(screen.getByRole('button', { name: 'Message options' }));
     expect(member.onActions).toHaveBeenCalledWith(card);
     await fireEvent.press(screen.getByTestId('start-thread'));
     expect(member.onStartThread).toHaveBeenCalledWith(card.messageId);
+  });
+
+  it('keeps ⋯ off the message until the pointer is over it or it has focus, and takes no touch while hidden', async () => {
+    await show([text(1, ravi, 'plain'), card]);
+    // Present for keyboards and screen readers, but not drawn and not pressable.
+    expect(screen.getByRole('button', { name: 'Message options' })).toBeOnTheScreen();
+    const hidden = () => screen.getByTestId('message-options-4', { hidden: true });
+    expect(hidden()).toHaveStyle({ opacity: 0 });
+    expect(hidden().props.pointerEvents).toBe('none');
+    const line = screen.getByTestId('message-4');
+    await fireEvent(line, 'hoverIn');
+    expect(hidden().props.pointerEvents).toBe('auto');
+    expect(hidden()).not.toHaveStyle({ opacity: 0 });
+    await fireEvent(line, 'hoverOut');
+    expect(hidden().props.pointerEvents).toBe('none');
+    await fireEvent(line, 'focus');
+    expect(hidden().props.pointerEvents).toBe('auto');
+  });
+
+  it('opens the same options with a long press on the message', async () => {
+    const member = await show([text(1, ravi, 'plain'), card]);
+    await fireEvent(screen.getByTestId('message-4'), 'longPress');
+    expect(member.onActions).toHaveBeenCalledWith(card);
+    await fireEvent(screen.getByTestId('message-1'), 'longPress');
+    expect(member.onActions).toHaveBeenCalledTimes(1);
   });
 
   it('gives a moderator the options on every message but never on a deleted account’s', async () => {

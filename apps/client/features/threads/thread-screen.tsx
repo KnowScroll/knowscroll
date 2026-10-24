@@ -163,6 +163,7 @@ function ReadyThread({
         onScroll={onScroll}
         onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
         branches={board.state.cards}
+        openedBranches={board.state.opened}
         onOpenBranch={branches.openBranch}
         onContinueBranch={branches.scenarios.continueBranch}
         onRemoveBranch={branches.scenarios.removeBranch}

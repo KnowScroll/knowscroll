@@ -26,6 +26,8 @@ export interface ScenarioBoardState {
   readonly cards: readonly ScenarioCard[];
   /** What this member was offered and has not made: private to them, not branches, never numbered. */
   readonly suggestions: readonly ScenarioSuggestion[];
+  /** The branches whose Scroll this member opened, by node: their own history, never anyone else's. */
+  readonly opened: readonly string[];
   /** The last read did not arrive; what is shown may be out of date. */
   readonly offline: boolean;
 }
@@ -52,7 +54,7 @@ export function createScenarioBoard(options: {
 }): ScenarioBoardController {
   const { scope, thread, newId } = options;
   const listeners = new Set<() => void>();
-  let state: ScenarioBoardState = { phase: 'loading', cards: [], suggestions: [], offline: false };
+  let state: ScenarioBoardState = { phase: 'loading', cards: [], suggestions: [], opened: [], offline: false };
   /** A removal that may or may not have reached the server keeps its command, so a retry is the same command. */
   const removals = new Map<string, string>();
   const publish = (patch: Partial<ScenarioBoardState>) => {
@@ -64,12 +66,20 @@ export function createScenarioBoard(options: {
   async function load(): Promise<void> {
     try {
       const list = await scope.api.scenarios.list({ version: VERSION, readId: newId(), thread });
-      if (list.status === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [], offline: false });
-      else publish({ phase: 'ready', cards: list.cards, suggestions: list.suggestions, offline: false });
+      if (list.status === 'unavailable')
+        publish({ phase: 'unavailable', cards: [], suggestions: [], opened: [], offline: false });
+      else
+        publish({
+          phase: 'ready',
+          cards: list.cards,
+          suggestions: list.suggestions,
+          opened: list.opened,
+          offline: false,
+        });
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
-      if (kind === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [] });
+      if (kind === 'unavailable') publish({ phase: 'unavailable', cards: [], suggestions: [], opened: [] });
       else if (state.phase === 'loading') publish({ phase: 'failed', offline: kind === 'offline' });
       else publish({ offline: true });
     }

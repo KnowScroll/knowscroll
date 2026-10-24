@@ -196,7 +196,7 @@ describe('what the member was offered and has not made', () => {
     title: 'What if the Sun became a black hole?',
     speculative: true,
   };
-  const list = { version: 'scenario.v1', readId: id(9), scope, status: 'ready', cards: [] };
+  const list = { version: 'scenario.v1', readId: id(9), scope, status: 'ready', cards: [], opened: [] };
 
   it('is a title, a kind and where it would continue, with no number and no branch of its own', () => {
     expect(ScenarioSuggestionSchema.safeParse(suggestion).success).toBe(true);
@@ -210,6 +210,10 @@ describe('what the member was offered and has not made', () => {
   it('is part of every ready list, and is bounded', () => {
     expect(ScenarioListSchema.safeParse({ ...list, suggestions: [suggestion] }).success).toBe(true);
     expect(ScenarioListSchema.safeParse(list).success).toBe(false);
+    // "Opened by you" is a list of the caller's own, by card, and every ready list says it.
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: [], opened: [id(8)] }).success).toBe(true);
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: [], opened: undefined }).success).toBe(false);
+    expect(ScenarioListSchema.safeParse({ ...list, suggestions: [], opened: ['not-an-id'] }).success).toBe(false);
     const tooMany = Array.from({ length: MAX_SCENARIO_SUGGESTIONS + 1 }, () => suggestion);
     expect(ScenarioListSchema.safeParse({ ...list, suggestions: tooMany }).success).toBe(false);
     expect(

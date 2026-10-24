@@ -641,3 +641,8 @@ On dev, one test account that read every 15 s started 229 Cartographer runs in f
 - **Focus follows the stage.** Each encounter is its own stage element, so a key that moves on would drop focus to the page. A stage that held focus when it went away hands focus to the next stage within three seconds, so the next key lands. The arrows ignore Alt, Ctrl and Cmd (browser Back, the person's own shortcuts).
 - **The web has a text size.** The app reads the browser's text size (root font size over 16 px) as its system text size, so the 200 % type rules apply on the web too. `reflow-smoke` doubles it and checks the right edge and overlaps.
 - **A modal sheet makes the page inert** (`usePageInert`), and axe checks an open dialog on its own.
+
+## D-056 · 2026-10-24 · Speculative is a status tag; "Opened by you" is the caller's own list (#250, fidelity round 2)
+
+- **Speculative joins Hypothetical and Corrected as a status label (amends D-006 a).** X02 draws a "Speculative" tag on a what-if the Planner flagged and the member confirmed. The card shows it in place of "Hypothetical" (a speculative branch is hypothetical, and the card's spoken name still says so), and keeps the line "Speculative scenario · not established science". Nothing else is labelled.
+- **"Opened by you" comes from the caller's own exposures.** The scenario list answers `opened`: the node IDs whose Scroll the caller activated, read through `ReadVisitedAssets` (the caller's own history at their current epoch, the same read that marks a thread's visited episodes). A card never carries it and no member's list names another member's visit, so a visit of someone else cannot be learned from the list. A branch that is still preparing has no Scroll and is never in it.

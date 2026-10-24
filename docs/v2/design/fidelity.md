@@ -68,9 +68,9 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | P03 | Report | missing | Owned by agent p250. | p250 | - |
 | R01 | Room preview | matches | Header, who is here to help, labelled AI inhabitants, pinned question, Join room (fixture and dev). | fixture and dev | [R01](fidelity/pairs/R01.jpg) |
 | R01 | Member view and Talk list | matches | Threads, Share into room, activity section; invited chip in Talk (fixture). | fixture | [R01](fidelity/pairs/R01.jpg) |
-| R02 | Discussion | differs | Messages, AI card (dotted outline, suggestion note), Ask buttons; every message has a ⋯ button the design hides, and the card Explore this is not drawn. | fixture | [R02](fidelity/pairs/R02.jpg) |
-| R03 | Poll | differs | Vote, results after voting, moderator tools; plain header, design is on a dark header. | fixture | [R03](fidelity/pairs/R03.jpg) |
-| R03 | Quiz | differs | One question at a time with explanations; same header difference. | fixture | [R03](fidelity/pairs/R03.jpg) |
+| R02 | Discussion | differs | Fixed in #PR: a message's ⋯ is drawn only while the pointer is over it or it has focus, and a long press on the message opens the same sheet (it stays in the page for keyboards and screen readers). Left: the AI card's Explore this, because What if is not built in rooms (a room discussion has no scenario branches yet), so there is nothing for it to open. | fixture, fixed in #PR | [R02](fidelity/pairs/R02.jpg) |
+| R03 | Poll | matches | Fixed in #PR: the dark header with a cream Back and "Room poll", reaching up under the status bar. The vote card keeps a border where the design draws it flat. | fixture, fixed in #PR | [R03](fidelity/pairs/R03.jpg) |
+| R03 | Quiz | matches | Fixed in #PR: the same dark header ("Room quiz"). | fixture, fixed in #PR | [R03](fidelity/pairs/R03.jpg) |
 | S01 | Keep list | differs | Filters and cards present; card art is a tile not the encounter thumbnail, and Remove from Keep is inline on every card. | dev | [S01](fidelity/pairs/S01.jpg) |
 | S01 | Keep detail and place | matches | Detail with Resume place and Open from the top (e2e keep-smoke). | e2e | [S01](fidelity/pairs/S01.jpg) |
 | U01 | Universe overview | matches | Map with systems, stations, Lately lens and list view (fixture). | fixture | [U01](fidelity/pairs/U01.jpg) |
@@ -88,7 +88,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | V01 | Compact 320 and 200% text | differs | Compact phone is icon-only; the first-arrival hint covers the action rail until dismissed. | dev 320x640 | [D01](fidelity/pairs/D01.jpg) |
 | X01 | What if sheet | matches | Sheet, From chip, idea, We'll explore summary with Changed/Kept, Explore. | dev | [X01](fidelity/pairs/X01.jpg) |
 | X01 | Branch preparing in the thread | matches | Dashed branch card with Preparing. | dev | [X01](fidelity/pairs/X01.jpg) |
-| X02 | Branch cards | differs | What-if card has the dashed look; own cards show What if and Remove buttons the design keeps off the card, and the speculative tag is missing on a hypothetical. | dev | [X02](fidelity/pairs/X02.jpg) |
+| X02 | Branch cards | matches | Fixed in #PR: Explore this is the card's one action; What if… and Remove are in ⋯ (Remove stays on a card that could not be prepared, as drawn); a speculative what-if carries a Speculative tag (D-056); and the card says "Opened by you" only to the member who opened its Scroll (the server tells each member their own list, never another's). | dev, fixture, fixed in #PR | [X02](fidelity/pairs/X02.jpg) |
 | X02 | Failed, dismissed, suggestion not made | not checked | Not reachable on dev without a failed branch; the branch-card tests cover them. | - | - |
 | X03 | Branch view | differs | Header, return chip, 1 · current chip, hypothetical frame present; a Scroll branch is drawn as paper article, the design shows a Reel branch. | dev | [X03](fidelity/pairs/X03.jpg) |
 | X04 | Branch map | not checked | The map sheet exists; it opens only after several branches, which dev does not have yet. | - | - |

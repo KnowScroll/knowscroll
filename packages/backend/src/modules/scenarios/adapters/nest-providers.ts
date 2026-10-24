@@ -11,6 +11,7 @@ import {
   type ReadScrollSourcePages,
   type ReadShareableContent,
 } from '../../content/public.js';
+import { READ_VISITED_ASSETS, type ReadVisitedAssets } from '../../experience/public.js';
 import type { WithPersonalScope } from '../../identity/public.js';
 import {
   ANNOUNCE_THREAD,
@@ -81,17 +82,25 @@ export function scenarioProviders(tokens: ScenarioTokens & { readonly enqueueJob
     workerPortsProvider(tokens),
     {
       provide: SCENARIO_USE_CASES,
-      inject: [SCENARIO_WORKER_PORTS, tokens.enqueueJob, READ_SCROLL_SOURCE_PAGES, COMMISSION_SCENARIO_ORDER],
+      inject: [
+        SCENARIO_WORKER_PORTS,
+        tokens.enqueueJob,
+        READ_SCROLL_SOURCE_PAGES,
+        COMMISSION_SCENARIO_ORDER,
+        READ_VISITED_ASSETS,
+      ],
       useFactory: (
         base: DraftWorkerPorts,
         enqueue: EnqueueJob,
         readSourcePages: ReadScrollSourcePages,
         commission: CommissionScenarioOrder,
+        readVisited: ReadVisitedAssets,
       ): ScenarioUseCases => {
         const ports: ScenarioPorts = {
           ...base,
           readSourcePages,
           commission,
+          readVisited,
           enqueueSuggest: (scope, job) =>
             enqueue(
               scope,

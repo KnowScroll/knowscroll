@@ -28,7 +28,7 @@ const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
   ...patch,
 });
 
-async function show(value: ScenarioCard, starterIsYou = false) {
+async function show(value: ScenarioCard, starterIsYou = false, openedByYou = false) {
   const open = jest.fn();
   const remove = jest.fn();
   const next = jest.fn();
@@ -38,6 +38,7 @@ async function show(value: ScenarioCard, starterIsYou = false) {
         card={value}
         starterIsYou={starterIsYou}
         startedLine="from the thread"
+        openedByYou={openedByYou}
         onOpen={open}
         onRemove={remove}
         onContinue={next}
@@ -76,9 +77,42 @@ describe('a branch card', () => {
     );
     await fireEvent.press(screen.getByText('Explore this'));
     expect(open).toHaveBeenCalledTimes(1);
+    // What if… is beside the card, not on it.
+    expect(screen.queryByText('What if…')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'More about this branch' }));
     await fireEvent.press(screen.getByText('What if…'));
     expect(next).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/watching|current|seen/i)).toBeNull();
+  });
+
+  it('keeps Remove off the card of a ready branch: in ⋯, and only for the one who asked', async () => {
+    const ready = card({
+      status: 'ready',
+      content: { kind: 'scroll', assetId: '0199a000-0000-7000-8000-0000000000aa', assetRevision: 1, title: 'A Scroll' },
+    });
+    await show(ready);
+    expect(screen.queryByText('Remove')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'More about this branch' }));
+    expect(screen.queryByText('Remove')).toBeNull();
+    await screen.unmount();
+    const mine = await show(ready, true);
+    expect(screen.queryByText('Remove')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'More about this branch' }));
+    await fireEvent.press(screen.getByText('Remove'));
+    expect(mine.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('says Opened by you only when the member did, and never that anyone else did', async () => {
+    const ready = card({
+      status: 'ready',
+      content: { kind: 'scroll', assetId: '0199a000-0000-7000-8000-0000000000aa', assetRevision: 1, title: 'A Scroll' },
+    });
+    await show(ready);
+    expect(screen.queryByText(/Opened/)).toBeNull();
+    await screen.unmount();
+    await show(ready, false, true);
+    expect(screen.getByText('Opened by you')).toBeOnTheScreen();
+    expect(screen.queryByText(/Opened by (?!you)/)).toBeNull();
   });
 
   it('says honestly when it could not be prepared, and lets only the one who asked remove it', async () => {
@@ -112,11 +146,11 @@ describe('a branch card', () => {
     expect(branchLabel(card({ status: 'removed' }))).toContain('removed');
   });
 
-  it('says a speculative premise in words, not as a second label beside Hypothetical', async () => {
+  it('tags a speculative what-if Speculative, in place of Hypothetical, and says the premise in words', async () => {
     await show(card({ speculative: true }));
     expect(screen.getByText('Speculative scenario · not established science')).toBeOnTheScreen();
-    expect(screen.getByText('Hypothetical')).toBeOnTheScreen();
-    expect(screen.queryByText('Speculative')).toBeNull();
+    expect(screen.getByText('Speculative')).toBeOnTheScreen();
+    expect(screen.queryByText('Hypothetical')).toBeNull();
   });
 
   it('says nothing of speculation for an ordinary what-if', async () => {
