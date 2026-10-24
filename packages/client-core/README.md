@@ -329,8 +329,9 @@ batches have unknowable original generation: adopting v2 explicitly discards/cou
 retains the disclosure, and removes the old key without destroying an existing v2 queue. Missing
 observations remain unknown, never inferred reading. Storage errors degrade to memory-only delivery.
 
-Web localStorage remains subject to quota/crash loss; native scope storage is still memory-only
-and is not crash-durable. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
+Web localStorage remains subject to quota/crash loss; native scope storage is kept in encrypted
+platform storage (`apps/client/platform/secure-key-value-store.ts`, D-045) and is durable a moment
+after a write, not at it, so a process killed in that moment loses that write. Authored race/replay/ACK/segment/UI/browser fixtures are intended for
 hosted Actions only. They do not establish real service qualification, native parity or deployment.
 
 ## Talk and share links (#242, D-042)
