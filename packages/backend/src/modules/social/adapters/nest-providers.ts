@@ -2,12 +2,23 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import {
+  READ_CONTENT_SEQUENCE,
   READ_PUBLIC_CONTENT,
   READ_SHAREABLE_CONTENT,
+  RESOLVE_SNIPPET_ANCHOR,
+  VALIDATE_SNIPPET_ANCHOR,
+  type ReadContentSequence,
   type ReadPublicContent,
   type ReadShareableContent,
+  type ResolveSnippetAnchor,
+  type ValidateSnippetAnchor,
 } from '../../content/public.js';
+import { READ_VISITED_ASSETS, type ReadVisitedAssets } from '../../experience/public.js';
 import { makeConversationCommands } from '../application/conversation-commands.js';
+import { makeThreadCommands } from '../application/thread-commands.js';
+import { makeThreadReads } from '../application/thread-reads.js';
+import type { ThreadPorts } from '../application/thread-ports.js';
+import { threadIdFor, threadStore } from './postgres-threads.js';
 import { makeConversationReads } from '../application/conversation-reads.js';
 import { makeContentShares } from '../application/content-shares.js';
 import type { ConversationPorts } from '../application/conversation-ports.js';
@@ -43,12 +54,14 @@ import {
   REFRESH_VISIT_PUBLICATION,
   SOCIAL_USE_CASES,
   VISIBILITY_USE_CASES,
+  THREAD_USE_CASES,
   type ConversationUseCases,
   type ReadInboxRevision,
   type RecordHeartbeat,
   type RefreshVisitPublication,
   type SocialUseCases,
   type VisibilityUseCases,
+  type ThreadUseCases,
 } from '../public.js';
 import { socialStore } from './postgres-store.js';
 import type { SocialPorts } from '../application/ports.js';
@@ -150,6 +163,29 @@ export function refreshVisitPublication(deps: {
   return makeRefreshVisit(ports);
 }
 
+/** Content threads over the same ports plus the content and experience reads they need. */
+export function threadUseCases(
+  deps: SocialDeps & {
+    readContent: ReadShareableContent;
+    readSequence: ReadContentSequence;
+    readVisited: ReadVisitedAssets;
+    validateSnippet: ValidateSnippetAnchor;
+    resolveSnippet: ResolveSnippetAnchor;
+  },
+): ThreadUseCases {
+  const ports: ThreadPorts = {
+    ...socialPorts(deps),
+    conversations: conversationStore(deps.readContent),
+    threads: threadStore,
+    threadIdFor,
+    readSequence: deps.readSequence,
+    readVisited: deps.readVisited,
+    validateSnippet: deps.validateSnippet,
+    resolveSnippet: deps.resolveSnippet,
+  };
+  return { ...makeThreadCommands(ports), ...makeThreadReads(ports) };
+}
+
 /** The inbox revision of one account, read on the pool (the gateway has no scope). */
 export function readInboxRevision(db: Kysely<Database>): ReadInboxRevision {
   return async (accountId) => {
@@ -213,6 +249,39 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
         readContent: ReadShareableContent,
         readPublicContent: ReadPublicContent,
       ) => conversationUseCases({ withScope, fencePair, fenceOwn, db, readContent, readPublicContent }),
+    },
+    {
+      provide: THREAD_USE_CASES,
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_ACCOUNT_PAIR,
+        FENCE_OWN_ACCOUNT,
+        READ_SHAREABLE_CONTENT,
+        READ_CONTENT_SEQUENCE,
+        READ_VISITED_ASSETS,
+        VALIDATE_SNIPPET_ANCHOR,
+        RESOLVE_SNIPPET_ANCHOR,
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fencePair: FenceAccountPair,
+        fenceOwn: FenceOwnAccount,
+        readContent: ReadShareableContent,
+        readSequence: ReadContentSequence,
+        readVisited: ReadVisitedAssets,
+        validateSnippet: ValidateSnippetAnchor,
+        resolveSnippet: ResolveSnippetAnchor,
+      ) =>
+        threadUseCases({
+          withScope,
+          fencePair,
+          fenceOwn,
+          readContent,
+          readSequence,
+          readVisited,
+          validateSnippet,
+          resolveSnippet,
+        }),
     },
     {
       provide: READ_INBOX_REVISION,

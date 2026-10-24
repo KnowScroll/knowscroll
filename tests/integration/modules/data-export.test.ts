@@ -287,6 +287,7 @@ describe('personal data export (real database)', () => {
       'supply',
       'systemsYouShare',
       'text',
+      'threads',
       'title',
       'truncated',
       'version',

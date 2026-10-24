@@ -1,10 +1,12 @@
-import { sql } from 'kysely';
+import { sql, type Transaction } from 'kysely';
 import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
 import { exportReading, type ModuleErasure, type ModuleExport } from '../../../infrastructure/erasure/registry.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
+import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { bumpInboxHeads } from './inbox-heads.js';
+import { releaseInvitees } from './invitee-links.js';
 import {
   eraseVisibilityAccountRows,
   eraseVisitRows,
@@ -34,9 +36,23 @@ export const socialStoreLifecycle = {
   'social.roster_entries': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.roster_heads': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.invites': { clear: 'preserve', onAccountErasure: 'delete with the account' },
-  'social.conversations': { clear: 'preserve', onAccountErasure: 'closed and kept for the other person' },
-  'social.conversation_members': { clear: 'preserve', onAccountErasure: 'the account membership is removed' },
+  'social.conversations': {
+    clear: 'preserve',
+    onAccountErasure: 'a direct conversation is closed and kept for the other person; a thread goes on for the others',
+  },
+  'social.conversation_members': {
+    clear: 'preserve',
+    onAccountErasure: 'the account membership is removed; invitations it made no longer depend on it',
+  },
   'social.messages': { clear: 'preserve', onAccountErasure: 'the account authored messages become tombstones' },
+  'social.content_threads': {
+    clear: 'preserve',
+    onAccountErasure: 'the starter link is cleared; the thread stays for the others',
+  },
+  'social.message_snippets': {
+    clear: 'preserve',
+    onAccountErasure: 'deleted with the author tombstoned message',
+  },
   'social.inbox_heads': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.content_shares': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   ...visibilityLifecycle,
@@ -61,6 +77,8 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'conversations', ownerColumn: 'pair_id' },
     { schema: 'social', table: 'conversation_members', ownerColumn: 'account_id' },
     { schema: 'social', table: 'messages', ownerColumn: 'author_account_id' },
+    { schema: 'social', table: 'content_threads', ownerColumn: 'starter_account_id' },
+    { schema: 'social', table: 'message_snippets', ownerColumn: 'message_id' },
     { schema: 'social', table: 'inbox_heads', ownerColumn: 'account_id' },
     { schema: 'social', table: 'content_shares', ownerColumn: 'owner_account_id' },
   ],
@@ -80,6 +98,8 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'requests', column: 'recipient_account_id' },
     { schema: 'social', table: 'command_bindings', column: 'actor_account_id' },
     { schema: 'social', table: 'conversation_members', column: 'account_id' },
+    { schema: 'social', table: 'conversation_members', column: 'invited_by_account_id' },
+    { schema: 'social', table: 'content_threads', column: 'starter_account_id' },
     { schema: 'social', table: 'messages', column: 'author_account_id' },
     { schema: 'social', table: 'inbox_heads', column: 'account_id' },
     { schema: 'social', table: 'content_shares', column: 'owner_account_id' },
@@ -114,9 +134,16 @@ export const socialErasure = declareErasure({
     const now = new Date();
     let removed = await eraseVisibilityAccountRows(trx, account);
 
+    await lockThreadsOf(trx, account);
     removed += Number(
       (await sql`delete from social.content_shares where owner_account_id = ${account}::uuid`.execute(trx))
         .numAffectedRows ?? 0,
+    );
+    removed += Number(
+      (
+        await sql`delete from social.message_snippets where message_id in (
+          select message_id from social.messages where author_account_id = ${account}::uuid)`.execute(trx)
+      ).numAffectedRows ?? 0,
     );
     const tombstoned = await sql`
       with mine as (
@@ -141,11 +168,15 @@ export const socialErasure = declareErasure({
       from social.conversation_members own
       join social.conversation_members other
         on other.conversation_id = own.conversation_id and other.account_id <> own.account_id
+      join identity.accounts account on account.id = other.account_id and account.status = 'active'
       join identity.universes universe on universe.account_id = other.account_id
       where own.account_id = ${account}::uuid`.execute(trx);
+    removed += await releaseThreadLinks(trx, account, now);
+    // A direct conversation closes with its person; a thread goes on for the others.
     await trx
       .updateTable('social.conversations')
       .set({ closed_at: now })
+      .where('kind', '=', 'direct')
       .where('closed_at', 'is', null)
       .where(
         'conversation_id',
@@ -208,6 +239,38 @@ export const socialErasure = declareErasure({
   export: (declaration) => exportSocial(declaration),
 });
 
+/**
+ * Takes the row of every thread the account is in, in id order, before anything else of theirs is
+ * touched. A send in flight holds its thread's row and then the members' inbox heads; waiting here
+ * first means deleting the account never holds a head while it waits for such a send.
+ */
+async function lockThreadsOf(trx: Transaction<Database>, account: string): Promise<void> {
+  await sql`select conversation_id from social.conversations
+    where kind = 'thread' and conversation_id in (
+      select conversation_id from social.conversation_members where account_id = ${account}::uuid)
+    order by conversation_id for update`.execute(trx);
+}
+
+/**
+ * The links other rows hold to this account: it stops being the starter of threads, and the people it
+ * invited stand on their own membership from now on (see `releaseInvitees`). Returns how many rows changed.
+ */
+async function releaseThreadLinks(trx: Transaction<Database>, account: string, now: Date): Promise<number> {
+  const starters = await sql`update social.content_threads set starter_account_id = null
+    where starter_account_id = ${account}::uuid`.execute(trx);
+  return Number(starters.numAffectedRows ?? 0) + (await releaseInvitees(trx, account, now));
+}
+
+const SHARED_WORDS: Readonly<Record<string, string>> = {
+  reel_range: 'a moment of a Reel',
+  scroll_passage: 'a passage of a Scroll',
+  scroll_block: 'a part of a Scroll',
+};
+
+/** What a card message shared, in words for the export. */
+const sharedWords = (snippetKind: string | null): string =>
+  (snippetKind === null ? undefined : SHARED_WORDS[snippetKind]) ?? 'a Reel or Scroll';
+
 /** The most messages one export file carries; the file says how many there are and whether it was cut. */
 const EXPORT_MESSAGE_LIMIT = 2000;
 
@@ -227,6 +290,8 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
       'social.conversations',
       'social.conversation_members',
       'social.messages',
+      'social.content_threads',
+      'social.message_snippets',
       'social.content_shares',
       'social.visibility_settings',
       'social.visibility_audience',
@@ -253,23 +318,34 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
         .where('account_id', '=', person.accountId)
         .executeTakeFirst();
       const messages = await trx
-        .selectFrom('social.messages')
-        .select(['recorded_at', 'body_text', 'asset_id', 'note'])
-        .where('author_account_id', '=', person.accountId)
-        .orderBy('recorded_at', 'desc')
-        .orderBy('sequence', 'desc')
+        .selectFrom('social.messages as m')
+        .leftJoin('social.message_snippets as s', 's.message_id', 'm.message_id')
+        .select(['m.recorded_at', 'm.body_text', 'm.asset_id', 'm.note', 's.kind as snippet_kind'])
+        .where('m.author_account_id', '=', person.accountId)
+        .orderBy('m.recorded_at', 'desc')
+        .orderBy('m.sequence', 'desc')
         .limit(EXPORT_MESSAGE_LIMIT)
+        .execute();
+      const started = await trx
+        .selectFrom('social.content_threads')
+        .select(['name', 'created_at'])
+        .where('starter_account_id', '=', person.accountId)
+        .orderBy('created_at', 'desc')
+        .limit(500)
         .execute();
       const written = await trx
         .selectFrom('social.messages')
         .select((eb) => eb.fn.countAll<string>().as('n'))
         .where('author_account_id', '=', person.accountId)
         .executeTakeFirstOrThrow();
-      const conversations = await trx
-        .selectFrom('social.conversation_members')
-        .select((eb) => eb.fn.countAll<string>().as('n'))
-        .where('account_id', '=', person.accountId)
-        .executeTakeFirstOrThrow();
+      const memberships = await trx
+        .selectFrom('social.conversation_members as m')
+        .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
+        .select(['c.kind', (eb) => eb.fn.countAll<string>().as('n')])
+        .where('m.account_id', '=', person.accountId)
+        .groupBy('c.kind')
+        .execute();
+      const membershipsOf = (kind: string) => Number(memberships.find((row) => row.kind === kind)?.n ?? 0);
       const links = await trx
         .selectFrom('social.content_shares')
         .select(['created_at', 'expires_at', 'revoked_at', 'conversation_id'])
@@ -295,18 +371,25 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
                 revoked: invite.revoked,
               },
         conversations: {
-          count: Number(conversations.n),
+          count: membershipsOf('direct'),
           messagesWritten: Number(written.n),
           truncated: Number(written.n) > messages.length,
           yourMessages: messages.map((message) =>
             message.body_text === null
               ? {
                   sentAt: message.recorded_at.toISOString(),
-                  shared: 'a Reel or Scroll',
+                  shared: sharedWords(message.snippet_kind),
                   ...(message.note === null ? {} : { note: message.note }),
                 }
               : { sentAt: message.recorded_at.toISOString(), text: message.body_text },
           ),
+        },
+        threads: {
+          count: membershipsOf('thread'),
+          started: started.map((thread) => ({
+            startedAt: thread.created_at.toISOString(),
+            ...(thread.name === null ? {} : { name: thread.name }),
+          })),
         },
         sharedLinks: links.map((link) => ({
           createdAt: link.created_at.toISOString(),

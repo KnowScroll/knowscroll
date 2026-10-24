@@ -8,6 +8,16 @@ import type {
   ConversationMuteAcceptanceSchema,
   ConversationReadAcceptanceSchema,
   ContentShareRevocationAcceptanceSchema,
+  ContentThreadCreationSchema,
+  ContentThreadViewSchema,
+  ThreadChangesPageSchema,
+  ThreadHistoryPageSchema,
+  ThreadInboxSchema,
+  ThreadInvitationResponseAcceptanceSchema,
+  ThreadLeaveAcceptanceSchema,
+  ThreadMessageAcceptanceSchema,
+  ThreadReadAcceptanceSchema,
+  ThreadSnippetOpeningSchema,
   CreateContentShareResultSchema,
   DirectConversationAcceptanceSchema,
   DirectConversationSnapshotSchema,
@@ -126,6 +136,32 @@ export interface ConversationUseCases {
   };
 }
 export const CONVERSATION_USE_CASES = Symbol('social.conversationUseCases');
+
+/**
+ * Content threads (a Reel or Scroll, the people it was shared with and their conversation). Every
+ * method takes the caller's claimed authority and an unparsed body and re-checks authority itself:
+ * membership, the friendship an invitation rests on and the source's current state. Reads create
+ * no evidence, and no answer carries another member's position, current episode or seen marker.
+ */
+export interface ThreadUseCases {
+  create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ContentThreadCreationSchema>>>;
+  send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadMessageAcceptanceSchema>>>;
+  respond(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ThreadInvitationResponseAcceptanceSchema>>>;
+  markRead(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadReadAcceptanceSchema>>>;
+  leave(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadLeaveAcceptanceSchema>>>;
+  read(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ContentThreadViewSchema>>>;
+  history(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadHistoryPageSchema>>>;
+  changes(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadChangesPageSchema>>>;
+  inbox(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadInboxSchema>>>;
+  openSnippet(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ThreadSnippetOpeningSchema>>>;
+}
+export const THREAD_USE_CASES = Symbol('social.threadUseCases');
 
 /** The account's current inbox revision, for the socket gateway's subscribe acknowledgement. */
 export type ReadInboxRevision = (accountId: string) => Promise<number>;

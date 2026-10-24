@@ -5,6 +5,7 @@ import { afterPendingBack } from '../../platform/after-pending-back';
 import { appApiOrigin } from '../../platform/api';
 import { useAccountScope } from '../../providers/account-scope';
 import { conversationHref } from '../conversations/conversation-links';
+import { threadHref } from '../threads/thread-links';
 import { ShareSheetContent } from './share-sheet-content';
 
 export interface ShareSheetBodyProps {
@@ -17,9 +18,9 @@ export interface ShareSheetBodyProps {
 }
 
 /**
- * H01, ready to sit inside a sheet: Send to a conversation, Copy link, Share elsewhere. The container
+ * H01, ready to sit inside a sheet: Send to a conversation, Explore with friends, Copy link, Share elsewhere. The container
  * owns the sheet's header and its place on the encounter: it pauses playback while the sheet is open,
- * restores it in `onClose` and keeps the sheet out of Back history (D-006 k). Opening a conversation
+ * restores it in `onClose` and keeps the sheet out of Back history (D-006 k). Opening a conversation or a thread
  * closes the sheet first, then navigates once the browser has finished that Back.
  */
 export function ShareSheetBody({ target, title, onClose }: ShareSheetBodyProps) {
@@ -38,6 +39,10 @@ export function ShareSheetBody({ target, title, onClose }: ShareSheetBodyProps) 
       onOpenConversation={(conversation) => {
         onClose();
         afterPendingBack(() => router.navigate(conversationHref(conversation)));
+      }}
+      onOpenThread={(thread) => {
+        onClose();
+        afterPendingBack(() => router.navigate(threadHref(thread)));
       }}
     />
   );

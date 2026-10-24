@@ -1440,13 +1440,25 @@ export interface SocialContentShares {
   token_hash: string;
 }
 
+export interface SocialContentThreads {
+  created_at: Timestamp;
+  name: string | null;
+  root_asset_id: string;
+  root_asset_revision: number;
+  starter_account_id: string | null;
+  thread_id: string;
+}
+
 export interface SocialConversationMembers {
   account_id: string;
   conversation_id: string;
+  invited_by_account_id: string | null;
+  invited_lineage: string | null;
   left_at: Timestamp | null;
   membership_id: string;
   membership_revision: Generated<Int8>;
   muted: Generated<boolean>;
+  pending: Generated<boolean>;
   read_through_sequence: Generated<Int8>;
 }
 
@@ -1454,6 +1466,7 @@ export interface SocialConversations {
   closed_at: Timestamp | null;
   conversation_id: string;
   created_at: Timestamp;
+  kind: Generated<string>;
   last_activity_at: Timestamp;
   last_change_sequence: Generated<Int8>;
   last_sequence: Generated<Int8>;
@@ -1488,6 +1501,23 @@ export interface SocialMessages {
   note: string | null;
   recorded_at: Timestamp;
   sequence: Int8;
+}
+
+export interface SocialMessageSnippets {
+  block_id: string | null;
+  block_label: string | null;
+  block_type: string | null;
+  block_version: number | null;
+  end_ms: number | null;
+  kind: string;
+  message_id: string;
+  quote: string | null;
+  quote_hash: string | null;
+  range_end: number | null;
+  range_start: number | null;
+  settings: Json | null;
+  settings_description: string | null;
+  start_ms: number | null;
 }
 
 export interface SocialPairs {
@@ -1722,10 +1752,12 @@ export interface DB {
   "scenes.state": ScenesState;
   "social.command_bindings": SocialCommandBindings;
   "social.content_shares": SocialContentShares;
+  "social.content_threads": SocialContentThreads;
   "social.conversation_members": SocialConversationMembers;
   "social.conversations": SocialConversations;
   "social.inbox_heads": SocialInboxHeads;
   "social.invites": SocialInvites;
+  "social.message_snippets": SocialMessageSnippets;
   "social.messages": SocialMessages;
   "social.pair_sides": SocialPairSides;
   "social.pairs": SocialPairs;

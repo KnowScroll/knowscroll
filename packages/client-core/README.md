@@ -378,3 +378,20 @@ they end with the scope. *Implemented; exercised in browsers locally, not yet on
   invalidates `scope.queryKey('talk')` (`TALK_QUERY_KEY`) on an inbox hint.
 - `@knowscroll/client-core/talk-fixture` (`src/test-support/talk-fixture.ts`) is a labelled in-memory Talk server for tests (it can fail the next call
   as network, unavailable, server or lost response). It never ships in a build.
+
+## Content threads and snippets (#243, D-046)
+
+Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemented; exercised in browsers locally, not yet on dev.*
+
+- `createContentThread({scope, thread, newId})`: `load` reads a snapshot (an invitation, an unavailable answer, or the
+  ready thread with messages, people, episodes and the caller's own visited markers); `refresh` catches up from the
+  cursor (a lost hint only delays an update, and a stale cursor starts over); `send` shows one bubble that becomes
+  `accepted`, `unconfirmed` (the retry reuses the command ID) or `not_sent`; `respond('join' | 'decline')` keeps one command
+  ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
+  episode or anything of another member.
+- `createExploreWithFriends(...)`: lists friends, creates the thread with one command ID per intent, and reports
+  `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
+- `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
+- `thread-snippets.ts`: `initialRange`, `nudgeRange`, `setRangeEnd`, `sentenceRanges`, `passageOf`, `formatRange` for the pickers.
+- `overlayBlockState` (`scroll-state/snippet-overlay.ts`): the sender's block settings, shown without writing the reader's own.
+- The Talk fixture serves `threads/create` and the thread reads for tests; it is a labelled fixture.
