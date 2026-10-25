@@ -84,4 +84,22 @@ describe('useOverlayHistory (web)', () => {
     expect(window.history.state).toEqual({ route: 'gallery' });
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('keeps a second overlay open when it opens in the same commit that closes the first (a sheet that opens another)', async () => {
+    const closeSecond = jest.fn();
+    function Swap({ first }: { first: boolean }) {
+      useOverlayHistory(first, () => undefined);
+      useOverlayHistory(!first, closeSecond);
+      return null;
+    }
+    act(() => root.render(<Swap first />));
+    act(() => root.render(<Swap first={false} />));
+    // Let any history traversal the first overlay's close started finish.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(closeSecond).not.toHaveBeenCalled();
+    // Browser Back still closes the one remaining overlay, once.
+    await act(() => afterPopState(() => window.history.back()));
+    expect(closeSecond).toHaveBeenCalledTimes(1);
+    expect(window.history.state).toEqual({ route: 'gallery' });
+  });
 });
