@@ -65,7 +65,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | P02 | History & export | matches | Receipts are tinted strips: striped Preparing, green Ready with Download, danger Failed with Retry (unit tests; the fixture server had no exports). | fixture, #449 | [P02 after](fidelity/pairs/P02-after.jpg) |
 | P02 | Clear exploration | matches | Removed and Stays lists, then the acknowledgement and the button inside a dashed box. | fixture, #449 | [P02 after](fidelity/pairs/P02-after.jpg) |
 | P02 | Delete account | matches | Removed and Stays lists; dashed danger box with the acknowledgement; receipt line as a tinted strip. | fixture, #449 | [P02 after](fidelity/pairs/P02-after.jpg) |
-| P03 | Report | missing | Owned by agent p250. | p250 | - |
+| P03 | Report | differs | Built in #446: Not interested with Undo, content-error and abuse forms with receipts, offline queue, from every drawn entry point. Departures (D-055): the acknowledgement says "we won't show this for a while", and Hide subject for a while and Copy link are not built. | #446 | - |
 | R01 | Room preview | matches | Header, who is here to help, labelled AI inhabitants, pinned question, Join room (fixture and dev). | fixture and dev | [R01](fidelity/pairs/R01.jpg) |
 | R01 | Member view and Talk list | matches | Threads, Share into room, activity section; invited chip in Talk (fixture). | fixture | [R01](fidelity/pairs/R01.jpg) |
 | R02 | Discussion | differs | Fixed in #455: a message's ⋯ is drawn only while the pointer is over it or it has focus, and a long press on the message opens the same sheet (it stays in the page for keyboards and screen readers). Left: the AI card's Explore this, because What if is not built in rooms (a room discussion has no scenario branches yet), so there is nothing for it to open. | fixture, fixed in #455 | [R02](fidelity/pairs/R02.jpg) |
@@ -93,7 +93,7 @@ Pairs: `fidelity/pairs/<id>.jpg`, design on top, the app below, left to right in
 | X03 | Branch view | differs | Header, return chip, 1 · current chip, hypothetical frame present; a Scroll branch is drawn as paper article, the design shows a Reel branch. | dev | [X03](fidelity/pairs/X03.jpg) |
 | X04 | Branch map | not checked | The map sheet exists; it opens only after several branches, which dev does not have yet. | - | - |
 
-**Count: 35 matches, 35 differs, 5 missing**, and 9 not checked (84 rows).
+**Count: 51 matches, 22 differs, 2 missing**, and 9 not checked (84 rows), after the sweep and fidelity round 2 (#448–#456) and P03 (#446).
 
 ## Fixed by the sweep
 
