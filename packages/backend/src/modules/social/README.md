@@ -85,7 +85,8 @@ Block end it for both people without saying why.
   a repeat is accepted and changes nothing, even under a new command ID. A change gives the message the
   conversation's next change number, so the changes feed carries it again with its reactions, and both inboxes
   hear a hint. It moves neither the message sequence nor the conversation's activity time. A page shows each kind
-  once with the people behind it and whether the reader is one of them; people the reader blocked are left out.
+  once with the people behind it and whether the reader is one of them; people the reader blocked are left out. The people
+  are ordered by display name and then person ID, never by when they reacted: no order of reacting is carried (D-147).
 - **Leave** closes the conversation for both. The other person keeps the history, sees that it ended
   (`ended: true`) and cannot send.
 - **A conversation shows in Talk once it has a message.** `start` alone does not announce.
@@ -256,7 +257,7 @@ and the installed API (`tests/integration/release/visits-http.test.ts`). Not run
 Clear never removes messages, cards, snippets, reactions, threads or links. `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), tombstone
 their messages, pick the peers, close conversations, delete their membership and heads, hint the peers, then
 the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
-invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`; a reply is marked `wasAReply`), their own reactions (kind, when, and whether on their own message or someone else's) and
+invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`; a reply is marked `wasAReply`), their own reactions (kind, when, and whether on their own message or someone else's; newest 2,000, with `reactionsGiven` and `reactionsTruncated`) and
 their shared links without tokens, how many threads they are in and started (with the names they gave), and in
 words who may visit, how many friends they chose, how they show as available and the titles of the systems they
 share (never a heartbeat, a public ID or who the friends are). It names no other person.

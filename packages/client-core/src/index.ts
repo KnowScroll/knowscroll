@@ -69,6 +69,7 @@ export {
 } from './talk-format';
 export {
   heldReactions,
+  liveReplyTarget,
   messagePreview,
   quoteView,
   reactorNames,

@@ -120,6 +120,37 @@ describe('conversation thread (labelled in-memory server)', () => {
     });
   });
 
+  it('sends a refused reply again as a plain message, once, and only a refused reply', async () => {
+    const { server, thread } = setup();
+    server.peerSays('soon removed');
+    await thread.load();
+    const original = thread.getState().messages[0]!.messageId;
+    server.tombstone(1);
+    // The reader has not caught up: the reply names a message that is gone, which the server refuses for good.
+    await thread.send(text('part 2 abhi start kiya'), original);
+    const [refused] = thread.getState().outgoing;
+    expect(refused).toMatchObject({ status: 'not_sent', replyTo: original });
+    await thread.sendWithoutQuote(refused!.commandId);
+    await thread.sendWithoutQuote(refused!.commandId);
+    expect(server.storedTexts()).toEqual([null, 'part 2 abhi start kiya']);
+    const sends = server.requests.filter((request) => request.path.endsWith('/conversations/send'));
+    expect(sends.map((request) => request.body['replyTo'])).toEqual([original, undefined]);
+    expect(new Set(sends.map((request) => request.body['commandId'])).size).toBe(2);
+    expect(thread.getState().outgoing).toEqual([]);
+  });
+
+  it('does not resend a plain message or one that is still unconfirmed without its quote', async () => {
+    const { server, thread } = setup();
+    await thread.load();
+    server.failNext('/v1/social/conversations/send', 'unavailable');
+    await thread.send(text('plain'));
+    const [plain] = thread.getState().outgoing;
+    expect(plain?.status).toBe('not_sent');
+    await thread.sendWithoutQuote(plain!.commandId);
+    expect(thread.getState().outgoing).toHaveLength(1);
+    expect(server.sendsReceived()).toBe(1);
+  });
+
   it('reacts and un-reacts, reading the message back with its count; a person reacting is mine, a peer is not', async () => {
     const { server, thread } = setup();
     server.peerSays('the far side bulges too');

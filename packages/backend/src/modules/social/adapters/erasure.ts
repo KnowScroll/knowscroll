@@ -390,6 +390,11 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
         .orderBy('r.reacted_at', 'desc')
         .limit(EXPORT_MESSAGE_LIMIT)
         .execute();
+      const reactionsGiven = await trx
+        .selectFrom('social.message_reactions')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('account_id', '=', person.accountId)
+        .executeTakeFirstOrThrow();
       const started = await trx
         .selectFrom('social.content_threads')
         .select(['name', 'created_at'])
@@ -448,6 +453,8 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
               : { text: message.body_text }),
             ...(message.reply_to_sequence === null ? {} : { wasAReply: true }),
           })),
+          reactionsGiven: Number(reactionsGiven.n),
+          reactionsTruncated: Number(reactionsGiven.n) > reactions.length,
           yourReactions: reactions.map((reaction) => ({
             reactedAt: reaction.reacted_at.toISOString(),
             kind: reaction.kind,

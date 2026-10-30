@@ -177,7 +177,10 @@ export interface ConversationStore {
       readonly now: Date;
     },
   ): Promise<void>;
-  /** The reactions on these messages, without people `viewerAccountId` has blocked, oldest first. */
+  /**
+   * The reactions on these messages, without people `viewerAccountId` has blocked, ordered by the reactor's
+   * display name and then person ID. Never by when they reacted: no order of reacting is carried (D-147).
+   */
   reactionsOf(
     reader: ConversationReader,
     conversationId: string,

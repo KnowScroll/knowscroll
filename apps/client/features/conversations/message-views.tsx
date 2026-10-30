@@ -136,10 +136,13 @@ export function OutgoingBubble({
   entry,
   onRetry,
   onDismiss,
+  onSendWithoutQuote,
 }: {
   readonly entry: OutgoingMessage;
   readonly onRetry: () => void;
   readonly onDismiss: () => void;
+  /** Sends a refused reply as a plain message: its original was removed, so it can never be sent with the quote. */
+  readonly onSendWithoutQuote: () => void;
 }) {
   const theme = useTalkTheme();
   const failed = entry.status === 'unconfirmed' || entry.status === 'not_sent';
@@ -161,7 +164,18 @@ export function OutgoingBubble({
           </Text>
           <Button label="Retry" size="sm" icon="retry" variant="space" onPress={onRetry} />
           {entry.status === 'not_sent' ? (
-            <Button label="Dismiss" size="sm" variant="space" onPress={onDismiss} />
+            <>
+              {entry.replyTo === undefined ? null : (
+                <Button
+                  label="Send without the quote"
+                  size="sm"
+                  variant="space"
+                  accessibilityHint="The message you answered was removed"
+                  onPress={onSendWithoutQuote}
+                />
+              )}
+              <Button label="Dismiss" size="sm" variant="space" onPress={onDismiss} />
+            </>
           ) : null}
         </View>
       ) : (

@@ -390,7 +390,9 @@ they end with the scope. *Implemented; exercised in browsers locally, not yet on
   answer can arrive in any order. `send(body, replyTo?)` names the message a reply answers (kept with the bubble, so a
   retry names the same one), and `react(messageId, kind, present)` puts one of the five reactions on or takes it off and
   then catches up, so the message comes back with its count. A refused reaction rereads the thread, which says why
-  (D-146, D-147). The same two calls are on `createContentThread`.
+  (D-146, D-147). `sendWithoutQuote(commandId)` sends a refused reply (its original was removed before it went) again as a
+  plain message under a new command; `liveReplyTarget` says whether a waiting reply's original still stands. The same
+  calls are on `createContentThread`.
 - `createShareSession(scope, target, origin)`: lists friends (the roster plus the inbox, to find an open
   conversation), starts a conversation if needed and sends the card for the exact asset revision, with one command
   ID per intent. `copyLink()` creates a public link and returns its URL once; `stopLink()` revokes it.

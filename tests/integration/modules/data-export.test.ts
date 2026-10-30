@@ -286,6 +286,8 @@ describe('personal data export (real database)', () => {
       'reactedAt',
       'question',
       'reactions',
+      'reactionsGiven',
+      'reactionsTruncated',
       'recordingOn',
       'requests',
       'requestsReceived',

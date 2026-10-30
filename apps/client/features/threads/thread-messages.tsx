@@ -166,7 +166,12 @@ function outgoingAsMessage(entry: OutgoingThreadMessage): OutgoingMessage {
         : entry.body.anchor.kind === 'scroll_passage'
           ? 'Sharing a passage…'
           : 'Sharing a part of a Scroll…';
-  return { commandId: entry.commandId, status: entry.status, body: { kind: 'text', text: words } };
+  return {
+    commandId: entry.commandId,
+    status: entry.status,
+    body: { kind: 'text', text: words },
+    ...(entry.replyTo === undefined ? {} : { replyTo: entry.replyTo }),
+  };
 }
 
 export interface ThreadMessagesProps {
@@ -345,6 +350,7 @@ export function ThreadMessages({
                   entry={outgoingAsMessage(entry)}
                   onRetry={() => void controller.retry(entry.commandId)}
                   onDismiss={() => controller.dismiss(entry.commandId)}
+                  onSendWithoutQuote={() => void controller.sendWithoutQuote(entry.commandId)}
                 />
               </View>
             ))}

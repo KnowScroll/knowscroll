@@ -297,6 +297,39 @@ describe('a content thread on the client', () => {
     expect(controller.getState().messages[1]).toMatchObject({ replyTo: { messageId: id(101) } });
   });
 
+  it('sends a refused reply again as a plain message, under a new command', async () => {
+    const stored: ThreadMessage[] = [];
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView(stored)),
+      send: (input: { body: { text: string }; replyTo?: string }) => {
+        if (input.replyTo !== undefined) return Promise.reject(unavailable());
+        stored.push(text(stored.length + 1, input.body.text));
+        return Promise.resolve({ messageSequence: stored.length, replayed: false });
+      },
+      changes: () =>
+        Promise.resolve({
+          status: 'ready',
+          changes: stored.map((message) => ({ changeSequence: message.sequence, message })),
+          continuation: { kind: 'caught_up', cursor: cursor(stored.length) },
+        }),
+      markRead: () => Promise.resolve({ acceptedThroughSequence: stored.length }),
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    await controller.load();
+    await controller.send({ kind: 'text', text: 'a reply to something gone' }, id(101));
+    const [refused] = controller.getState().outgoing;
+    expect(refused).toMatchObject({ status: 'not_sent', replyTo: id(101) });
+    await controller.sendWithoutQuote(refused!.commandId);
+    await controller.sendWithoutQuote(refused!.commandId);
+    const sends = scope.calls
+      .filter((call) => call.name === 'send')
+      .map((call) => call.input as Record<string, unknown>);
+    expect(sends.map((input) => input['replyTo'])).toEqual([id(101), undefined]);
+    expect(new Set(sends.map((input) => input['commandId'])).size).toBe(2);
+    expect(controller.getState().outgoing).toEqual([]);
+    expect(controller.getState().messages.map((message) => message.status)).toEqual(['available']);
+  });
+
   it('reacts with the wanted state, then catches up so the message comes back with the reaction', async () => {
     const stored: ThreadMessage[] = [text(1, 'the far side bulges too')];
     const scope = scopeOf({

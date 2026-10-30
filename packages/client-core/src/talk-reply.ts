@@ -89,3 +89,17 @@ export function reactorNames(people: readonly PublicPersonRef[], ownPersonId: st
     .sort((a, b) => a.localeCompare(b));
   return [...own, ...others];
 }
+
+/**
+ * The message a waiting reply answers, unless the reader's own copy shows it was removed meanwhile: then there is
+ * nothing left to answer and the reply chip goes. A message not loaded (older than the page) is taken as it is.
+ */
+export function liveReplyTarget<M extends QuotableMessage>(
+  target: M | undefined,
+  loaded: readonly QuotableMessage[],
+): M | undefined {
+  if (target === undefined) return undefined;
+  return loaded.find((candidate) => candidate.sequence === target.sequence)?.status === 'unavailable'
+    ? undefined
+    : target;
+}

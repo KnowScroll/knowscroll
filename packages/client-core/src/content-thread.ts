@@ -78,6 +78,11 @@ export interface ContentThreadController {
   readonly react: (messageId: string, kind: MessageReactionKind, present: boolean) => Promise<void>;
   readonly retry: (commandId: string) => Promise<void>;
   readonly dismiss: (commandId: string) => void;
+  /**
+   * A reply the server refused (its original was removed before it was sent) can never be sent as it is: this
+   * drops that bubble and sends the same words as a plain message, under a new command.
+   */
+  readonly sendWithoutQuote: (commandId: string) => Promise<void>;
   /** While the thread is on screen its newest messages count as read. Reading never creates evidence. */
   readonly setActive: (active: boolean) => void;
   /** Accepts or declines an invitation; joining reads the thread. Returns whether the server accepted. */
@@ -130,6 +135,7 @@ export function createContentThread(options: ContentThreadOptions): ContentThrea
     react: (messageId, kind, present) => session.react(messageId, kind, present),
     retry: (commandId) => session.retry(commandId),
     dismiss: (commandId) => session.dismiss(commandId),
+    sendWithoutQuote: (commandId) => session.sendWithoutQuote(commandId),
     setActive: (active) => session.setActive(active),
     respond: (response) => session.respond(response),
     leave: () => session.leave(),
@@ -409,6 +415,13 @@ class ContentThreadSession {
     const entry = this.state.outgoing.find((candidate) => candidate.commandId === commandId);
     if (entry && (entry.status === 'unconfirmed' || entry.status === 'not_sent'))
       await this.attempt(commandId, entry.body, entry.replyTo);
+  }
+
+  async sendWithoutQuote(commandId: string): Promise<void> {
+    const entry = this.state.outgoing.find((candidate) => candidate.commandId === commandId);
+    if (entry?.status !== 'not_sent' || entry.replyTo === undefined) return;
+    this.publish({ outgoing: this.state.outgoing.filter((candidate) => candidate.commandId !== commandId) });
+    await this.send(entry.body);
   }
 
   dismiss(commandId: string): void {

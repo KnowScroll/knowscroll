@@ -220,6 +220,7 @@ export function MessageList({
                   entry={entry}
                   onRetry={() => void controller.retry(entry.commandId)}
                   onDismiss={() => controller.dismiss(entry.commandId)}
+                  onSendWithoutQuote={() => void controller.sendWithoutQuote(entry.commandId)}
                 />
               </View>
             ))}

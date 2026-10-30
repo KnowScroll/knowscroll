@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   blockFriend,
+  liveReplyTarget,
   messagePreview,
   type AccountScope,
   type FeedbackTarget,
@@ -195,6 +196,8 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const root = threadRootOf(state.messages);
   const peer = state.peer;
   const canStartThread = root !== undefined && peer !== undefined && !state.ended && !accountDeleted;
+  // A reply waits only while its original stands: once it is removed there is nothing to answer.
+  const waitingReply = liveReplyTarget(replyTo, state.messages);
   return (
     <View style={[styles.ready, { backgroundColor: theme.ground }]}>
       <ThreadHeader
@@ -216,7 +219,9 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         }
         onReply={setReplyTo}
         onWatchTogether={
-          peer === undefined || accountDeleted ? undefined : (target) => setStarting({ root: target, watch: true })
+          peer === undefined || accountDeleted || state.ended
+            ? undefined
+            : (target) => setStarting({ root: target, watch: true })
         }
       />
       {state.ended ? null : (
@@ -225,13 +230,15 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
           value={draft}
           onChange={keepDraft}
           replyTo={
-            replyTo === undefined ? undefined : { author: replyTo.author.displayName, preview: messagePreview(replyTo) }
+            waitingReply === undefined
+              ? undefined
+              : { author: waitingReply.author.displayName, preview: messagePreview(waitingReply) }
           }
           onCancelReply={() => setReplyTo(undefined)}
           onSend={(text) => {
             keepDraft('');
             follow();
-            void controller.send({ kind: 'text', text }, replyTo?.messageId);
+            void controller.send({ kind: 'text', text }, waitingReply?.messageId);
             setReplyTo(undefined);
           }}
         />

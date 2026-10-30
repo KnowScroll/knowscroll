@@ -442,6 +442,57 @@ describe('replies and reactions (real PostgreSQL)', () => {
     });
   });
 
+  describe('the order of the people behind a reaction', () => {
+    it('is by name and then person ID, whenever each of them reacted, so no order of reacting is carried', async () => {
+      const { a, b, c, aRef, bRef, cRef } = await threadOfThree();
+      // b and c share a name, so the tie falls to the person ID.
+      for (const [person, name] of [
+        [a, 'Zed'],
+        [b, 'Amy'],
+        [c, 'Amy'],
+      ] as const)
+        await database.db
+          .updateTable('social.profiles')
+          .set({ display_name: name })
+          .where('account_id', '=', person.accountId)
+          .execute();
+      const first = unwrap(await threadSend(a, aRef, text('one')));
+      const second = unwrap(await threadSend(a, aRef, text('two')));
+      const refs = new Map([
+        [a.accountId, aRef],
+        [b.accountId, bRef],
+        [c.accountId, cRef],
+      ]);
+      // The same three people react to both messages, in opposite orders and with real, different times.
+      const react = async (message: { messageId: string; messageSequence: number }, order: readonly Friend[]) => {
+        for (const [index, person] of order.entries()) {
+          unwrap(await threadReact(person, refs.get(person.accountId)!, message.messageId, 'heart', true));
+          await database.db
+            .updateTable('social.message_reactions')
+            .set({ reacted_at: new Date(Date.UTC(2026, 9, 1, 10, index)) })
+            .where('account_id', '=', person.accountId)
+            .where('message_sequence', '=', String(message.messageSequence))
+            .execute();
+        }
+      };
+      await react(first, [a, b, c]);
+      await react(second, [c, b, a]);
+
+      const byId = [b, c].sort((x, y) => (x.person.personId < y.person.personId ? -1 : 1));
+      const expected = [...byId.map((person) => person.person.personId), a.person.personId];
+      for (const [viewer, ref] of [
+        [a, aRef],
+        [b, bRef],
+      ] as const) {
+        const seen = await threadView(viewer, ref);
+        for (const message of seen.messages) {
+          if (message.status !== 'available') throw new Error('CI message');
+          expect(message.reactions?.[0]?.people.map((person) => person.personId)).toEqual(expected);
+        }
+      }
+    });
+  });
+
   // ---- erasure and export ----
 
   describe('erasure and export', () => {
@@ -501,6 +552,8 @@ describe('replies and reactions (real PostgreSQL)', () => {
       if (outcome.kind !== 'entered') throw new Error('CI export');
       const file = JSON.stringify(outcome.value);
       expect(outcome.value['conversations']).toMatchObject({
+        reactionsGiven: 1,
+        reactionsTruncated: false,
         yourReactions: [{ kind: 'question', on: 'a message from someone else' }],
       });
       expect(file).not.toContain('written by ravi');

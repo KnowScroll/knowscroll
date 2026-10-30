@@ -15,6 +15,7 @@ import {
   TALK_QUERY_KEY,
   composerAddressees,
   findThread,
+  liveReplyTarget,
   messagePreview,
   type AccountScope,
   type ContentThreadController,
@@ -103,6 +104,8 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const [replyTo, setReplyTo] = useState<AvailableTalkMessage>();
   const [reporting, setReporting] = useState<FeedbackTarget>();
   const theme = useTalkTheme();
+  // A reply waits only while its original stands: once it is removed there is nothing to answer.
+  const waitingReply = liveReplyTarget(replyTo, state.messages);
   const board = useScenarioBoard(scope, thread);
   const positionRef = useRef<ReelPositionHandle>(null);
   const {
@@ -253,15 +256,15 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
             value={draft}
             onChange={keepDraft}
             replyTo={
-              replyTo === undefined
+              waitingReply === undefined
                 ? undefined
-                : { author: replyTo.author.displayName, preview: messagePreview(replyTo) }
+                : { author: waitingReply.author.displayName, preview: messagePreview(waitingReply) }
             }
             onCancelReply={() => setReplyTo(undefined)}
             onSend={(text) => {
               keepDraft('');
               follow();
-              void controller.send({ kind: 'text', text }, replyTo?.messageId);
+              void controller.send({ kind: 'text', text }, waitingReply?.messageId);
               setReplyTo(undefined);
             }}
           />

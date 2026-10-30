@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { MessageQuote } from '@knowscroll/contracts';
-import { heldReactions, messagePreview, quoteView, reactorNames, type QuotableMessage } from './talk-reply';
+import {
+  heldReactions,
+  liveReplyTarget,
+  messagePreview,
+  quoteView,
+  reactorNames,
+  type QuotableMessage,
+} from './talk-reply';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const asha = { kind: 'person' as const, personId: id(1), handle: 'ci.asha', displayName: 'Asha fixture' };
@@ -45,6 +52,16 @@ describe('the quote of a reply', () => {
     const gone = { messageId: id(101), sequence: 1, author: undefined, preview: '' };
     expect(quoteView(server, [{ status: 'unavailable', messageId: id(101), sequence: 1 }])).toEqual(gone);
     expect(quoteView(quote({ status: 'unavailable' }), [])).toEqual(gone);
+  });
+});
+
+describe('a waiting reply', () => {
+  const sent = text(1, 'who is on part 2?');
+  it('is kept while its original stands, or is not loaded, and goes once the reader’s copy is a tombstone', () => {
+    expect(liveReplyTarget(sent, [sent])).toBe(sent);
+    expect(liveReplyTarget(sent, [])).toBe(sent);
+    expect(liveReplyTarget(sent, [{ status: 'unavailable', messageId: sent.messageId, sequence: 1 }])).toBeUndefined();
+    expect(liveReplyTarget(undefined, [sent])).toBeUndefined();
   });
 });
 

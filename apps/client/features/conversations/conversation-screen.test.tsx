@@ -359,6 +359,45 @@ describe('conversation thread screen (labelled in-memory server)', () => {
       await finish(server);
     });
 
+    it('drops the reply chip when the message it answers is removed meanwhile', async () => {
+      const server = talkServer();
+      server.peerSays('soon removed');
+      await open(server);
+      await screen.findByText('soon removed');
+      await longPress('soon removed');
+      await fireEvent.press(await screen.findByRole('menuitem', { name: 'Reply' }));
+      expect(await screen.findByTestId('reply-chip')).toBeOnTheScreen();
+      server.tombstone(1);
+      await server.scope.queryClient.refetchQueries();
+      await waitFor(() => expect(screen.queryByTestId('reply-chip')).toBeNull());
+      await fireEvent.changeText(screen.getByLabelText(`Message ${peer.displayName}`), 'a plain one');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+      await waitFor(() => expect(server.storedTexts()).toEqual([null, 'a plain one']));
+      expect(server.requests.find((request) => request.path.endsWith('/conversations/send'))?.body).not.toHaveProperty(
+        'replyTo',
+      );
+      await finish(server);
+    });
+
+    it('offers to send a refused reply without the quote, once the message it answers was removed before it went', async () => {
+      const server = talkServer();
+      server.peerSays('soon removed');
+      await open(server);
+      await screen.findByText('soon removed');
+      await longPress('soon removed');
+      await fireEvent.press(await screen.findByRole('menuitem', { name: 'Reply' }));
+      // The removal has not reached this reader yet when the reply goes.
+      server.tombstone(1);
+      await fireEvent.changeText(screen.getByLabelText(`Message ${peer.displayName}`), 'part 2 abhi start kiya');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+      expect(await screen.findByText('Not sent')).toBeOnTheScreen();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Send without the quote' }));
+      await waitFor(() => expect(server.storedTexts()).toEqual([null, 'part 2 abhi start kiya']));
+      await waitFor(() => expect(screen.queryByText('Not sent')).toBeNull());
+      expect(screen.queryByRole('button', { name: 'Send without the quote' })).toBeNull();
+      await finish(server);
+    });
+
     it('says the original is gone in a quote, and does not offer to jump', async () => {
       const server = talkServer();
       server.peerSays('soon removed');
@@ -371,6 +410,26 @@ describe('conversation thread screen (labelled in-memory server)', () => {
       expect(screen.queryByRole('button', { name: /Go to the original message/ })).toBeNull();
       await finish(server);
     });
+  });
+
+  it('does not offer Watch together once the other person has left', async () => {
+    const server = talkServer();
+    await open(server);
+    await screen.findByText('No messages yet. Say hello.');
+    await server.scope.api.conversations.send({
+      version: 'direct-conversation.v1',
+      commandId: id(903),
+      conversation,
+      body: { kind: 'content', target: { assetId: id(77), assetRevision: 1 } },
+    });
+    await server.scope.queryClient.refetchQueries();
+    expect(await screen.findByRole('button', { name: 'Watch together' })).toBeOnTheScreen();
+    server.peerLeaves();
+    await server.scope.queryClient.refetchQueries();
+    await screen.findByText(`${peer.displayName} left this conversation.`);
+    expect(screen.queryByRole('button', { name: 'Watch together' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start a thread' })).toBeNull();
+    await finish(server);
   });
 
   it('starts a thread from a shared card with Watch together, for the same two people, and leaves the chat as it is', async () => {

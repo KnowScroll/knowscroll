@@ -257,6 +257,7 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
 
     async reactionsOf(reader, conversationId, sequences, viewerAccountId) {
       if (sequences.length === 0) return [];
+      // Ordered by a neutral key, never by when each person reacted: the wire carries no order of reacting (D-147).
       // Someone the reader blocked leaves no trace in what the reader sees (D-051's mask, as for words).
       const rows = await sql<{
         message_sequence: string;
@@ -277,7 +278,7 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
             where side.own_blocked
               and ((pair.low_account_id = ${viewerAccountId}::uuid and pair.high_account_id = reaction.account_id)
                 or (pair.high_account_id = ${viewerAccountId}::uuid and pair.low_account_id = reaction.account_id)))
-        order by reaction.reacted_at, profile.person_id`.execute(trxOf(reader));
+        order by profile.display_name collate "C", profile.person_id`.execute(trxOf(reader));
       return rows.rows.map((row): ReactionRow => ({
         sequence: Number(row.message_sequence),
         kind: row.kind,

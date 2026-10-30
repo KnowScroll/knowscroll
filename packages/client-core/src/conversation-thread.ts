@@ -67,6 +67,11 @@ export interface ThreadController {
   readonly react: (messageId: string, kind: MessageReactionKind, present: boolean) => Promise<void>;
   readonly retry: (commandId: string) => Promise<void>;
   readonly dismiss: (commandId: string) => void;
+  /**
+   * A reply the server refused (its original was removed before it was sent) can never be sent as it is: this
+   * drops that bubble and sends the same words as a plain message, under a new command.
+   */
+  readonly sendWithoutQuote: (commandId: string) => Promise<void>;
   /** While the thread is on screen its newest messages count as read. Reading never creates evidence. */
   readonly setActive: (active: boolean) => void;
   readonly mute: (muted: boolean) => Promise<boolean>;
@@ -301,6 +306,17 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     await catchUp();
   }
 
+  async function sendMessage(body: MessageBody, replyTo: string | undefined): Promise<void> {
+    const commandId = newId();
+    publish({
+      outgoing: [
+        ...state.outgoing,
+        { commandId, body, status: 'sending', ...(replyTo === undefined ? {} : { replyTo }) },
+      ],
+    });
+    await attempt(commandId, body, replyTo);
+  }
+
   return {
     getState: () => state,
     subscribe(listener) {
@@ -338,15 +354,12 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         failed(error);
       }
     },
-    async send(body, replyTo) {
-      const commandId = newId();
-      publish({
-        outgoing: [
-          ...state.outgoing,
-          { commandId, body, status: 'sending', ...(replyTo === undefined ? {} : { replyTo }) },
-        ],
-      });
-      await attempt(commandId, body, replyTo);
+    send: sendMessage,
+    async sendWithoutQuote(commandId) {
+      const entry = state.outgoing.find((candidate) => candidate.commandId === commandId);
+      if (entry?.status !== 'not_sent' || entry.replyTo === undefined) return;
+      publish({ outgoing: state.outgoing.filter((candidate) => candidate.commandId !== commandId) });
+      await sendMessage(entry.body, undefined);
     },
     async react(messageId, kind, present) {
       try {
