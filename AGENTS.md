@@ -5,7 +5,7 @@ KnowScroll is effortless discovery through Reel and Scroll encounters, with an e
 ## Read first, in this order
 
 1. `docs/STATUS.md`: what works, what is missing, and what is next. Verify Git, CI and the deployed revision before acting on it.
-2. Tracker #222 and the sub-issue you are working on.
+2. Tracker #462 (the v3 revamp; #222 is the v2 history) and the sub-issue you are working on.
 3. `docs/v2/architecture/02d-greenfield-blueprint.md` (authoritative architecture and behaviour) and `docs/v2/architecture/02e-future-session-handoff.md` (decisions that must survive context loss).
 4. `docs/v2/decisions.md`, the decisions made during implementation (D-030 sets the current working flow and budgets; D-060 onward record the v3 rulings and amend rules), and `docs/v2/carried-forward-facts.md`, the still-binding owner rulings from v1.
 5. For Universe, Scroll, room or Talk work: `docs/v2/design/v3/README.md` (the final v3 designs) and `docs/v2/v3-revamp/CHANGE-MAP.md` (a starting map, not proof).
