@@ -120,6 +120,17 @@ export function useReaderScroll(input: {
     }, REVEAL_SETTLE_MS);
   };
 
+  /**
+   * A section that grows (a call's answer is shown) moves every top below it, and its new height is
+   * reported a frame after the change. A jump made in that frame went to the old top and landed short;
+   * it is repeated to the new one. Later layout changes leave the reader's place alone.
+   */
+  const keepHeading = () => {
+    if (Date.now() - aim.current.at >= KEY_REPEAT_MS) return;
+    const y = tops.current[aim.current.index];
+    if (y !== undefined && y !== metrics.current.scrollTop) scroller.current?.scrollTo({ y, animated: false });
+  };
+
   const measureSection = (index: number) => (event: LayoutChangeEvent) => {
     heights.current[index] = event.nativeEvent.layout.height;
     if (heights.current.filter((height) => height !== undefined).length < sections) return;
@@ -130,7 +141,10 @@ export function useReaderScroll(input: {
       return at;
     });
     setOffsets([...tops.current]);
-    if (restored.current) return;
+    if (restored.current) {
+      keepHeading();
+      return;
+    }
     restored.current = true;
     if (startAt > 0) scroller.current?.scrollTo({ y: tops.current[startAt] ?? 0, animated: false });
   };

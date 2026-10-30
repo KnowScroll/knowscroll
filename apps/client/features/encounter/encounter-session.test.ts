@@ -369,7 +369,11 @@ describe('actual encounter controller over CI transport fixtures', () => {
       await ready(h);
       h.session.gesture('subjectPrevious');
       await waitForPhase(h.session, 'active');
-      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({ mode: 'vertical', direction: 'previous' });
+      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({
+        mode: 'vertical',
+        direction: 'previous',
+        format: 'reel',
+      });
       expect(commands(h, '/activate')).toHaveLength(2);
       const count = commands(h, '/navigate').length;
       h.session.back();
@@ -533,7 +537,7 @@ describe('Not interested from the encounter (P03, D-055)', () => {
       expect(commands(h, '/not-interested')).toHaveLength(1);
       expect(commands(h, '/not-interested')[0]!.body).toMatchObject({ assetId: first.offer.assetId });
       await waitFor(() => expect(commands(h, '/navigate')).toHaveLength(1));
-      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({ mode: 'vertical', direction: 'next' });
+      expect(commands(h, '/navigate')[0]!.body.intent).toEqual({ mode: 'vertical', direction: 'next', format: 'reel' });
       await waitFor(() => expect(h.session.getState().entry?.exposureId).not.toBe(first.exposureId));
       expect(h.session.feedback.getState().notInterested).toMatchObject({ status: 'acknowledged' });
 
@@ -1636,4 +1640,25 @@ it('retains original producer/activation/action bodies and leaves an old offer p
   } finally {
     h.scope.end();
   }
+});
+
+describe('A move to a new subject names the format the person is in (D-132)', () => {
+  it('sends scroll from a Scroll, so Next stays a Scroll while one is left', async () => {
+    const f = keptFixture('scroll');
+    try {
+      f.session.setForeground(true);
+      f.session.open({ kind: 'discover' });
+      await waitFor(() => expect(f.session.getState().phase).toBe('active'));
+      f.session.gesture('subjectNext');
+      // The fixture has no navigate endpoint; the request it records is what this test is about.
+      await waitFor(() => expect(f.calls.some((call) => call.path.endsWith('/navigate'))).toBe(true));
+      expect(f.calls.find((call) => call.path.endsWith('/navigate'))!.body.intent).toEqual({
+        mode: 'vertical',
+        direction: 'next',
+        format: 'scroll',
+      });
+    } finally {
+      f.scope.end();
+    }
+  });
 });

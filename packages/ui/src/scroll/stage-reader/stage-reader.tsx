@@ -169,7 +169,6 @@ export function StageReader({
   const onKey = (key: ReaderKey): boolean =>
     actOnKey(key, {
       stops: document.stops,
-      current,
       hasStage: document.stage !== undefined,
       commands,
       jump,

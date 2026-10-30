@@ -69,6 +69,7 @@ chunk references with their original input stamps, as the shared wire explicitly
 | scenes.objects   | Stable descriptor, system/chunk membership and finite slot; caller/epoch/object lookup                                |
 | scenes.chunks    | Immutable chunk versions; exact caller/epoch/chunk/revision lookup                                                    |
 | scenes.manifests | Immutable whole-manifest versions; caller/epoch/scene revision                                                        |
+| scenes.looks     | The look of each system, planet and region, assigned once; caller/epoch, never updated (U-1, below)                   |
 
 Migration 0027 is additive; all 26 prior SQL blobs remain unchanged. No seed, personal row or job
 is inserted by migration. Versions retain history until personal erasure; schema growth is
@@ -89,10 +90,52 @@ current manifest may serve its exact older chunks. Reads expose neither world se
 Geography context. Account/session/HTTP admission belongs to a future adapter; these ports still
 require current own personal authority.
 
+## The look of each place (U-1)
+
+Status: implemented and CI-tested against real PostgreSQL (migration 0070); not yet used on dev.
+Related: #465, D-077, D-078, D-102, D-103.
+
+The New Universe draws a planet in one of six painted types with optional rings and a moon, wraps
+each system in a haze family, and lays a planet's regions on fixed sites. That data is the **look**.
+It lives in `scenes.looks`, a sibling of `scenes.objects` (which `scenes.guard_object` freezes), so
+descriptors, chunks and manifests stay `scene-descriptor.v1`, `scene-chunk.v1` and
+`scene-manifest.v1`. Stars have no look.
+
+| Object | Look (`scene-look.v1`, generator `worldmap.v1`)                       | From |
+| ------ | ------------------------------------------------------------------- | ---- |
+| System | `haze`                                                              | the library plan (`LibrarySystem.haze`) |
+| Planet | `type`, `rings`, `moon`, `hueShift`, `variant`, `siteCount`           | the rule in `application/assign-looks.ts` (D-103), the planet's seed and its catalogue facets |
+| Region | `site`                                                              | the ordinal of its facet in its planet's catalogue entry |
+
+- **Assigned once.** The projector gives a look to every system, planet and region that has none, in
+  the transaction that stores the object. `assignLooks` is pure and reads only the stored looks and
+  the objects' seeds and catalogue meanings, never activity, evidence or what is in use now. The
+  database refuses an update, a look that names another object and a look for no object.
+- **Six planets, six types.** Least-used first, then a type the system does not hold, then the
+  planet's seeded order. A repeat records `variant` and turns its hue. Region sites do not depend on
+  which other regions have formed.
+- **Served on the manifest read.** A client that declares `looks: ['scene-look.v1']` and the
+  `worldmap.v1` generator gets `looks` for the objects in the manifest it reads. Every other client
+  gets the read it always got. Chunk reads are unchanged.
+- **Backfill.** `node dist/operator.js scenes backfill-looks [--dry-run] [--limit n]` sends a
+  `scenes.backfill-looks` job for each universe with a projected place that has no look. The job
+  (`application/backfill-looks.ts`) rechecks the owner under the personal root lock and inserts the
+  missing rows only: no slot, seed, family, anchor, chunk or manifest changes. It advances the root
+  and sends the disposable notice once, and only when it assigned something. Idempotent. Queue policy
+  as the projection's: 120s expiry, three 10s backoff retries, concurrency 1, dead letter.
+- **Growth.** A planet is drawn with its facets plus 4 spare sites, so a facet the plan appends
+  later takes the next site and moves nothing. Facets are append-only (a pinned table in
+  `assign-looks.test.ts`). A region past even the spare sites is left without a look, the scene
+  stays current, and `scenes.look_refused` is logged; only a structural disagreement between the
+  plan and the stored objects makes the scene unavailable. A visitor's device
+  derives its own look from public ids (D-047) and may repeat a type.
+- **Not built here.** The world generator that lays out continents and regions from a planet's seed
+  (`worldmap.v1`), and every screen that draws a look (U-2 to U-4).
+
 ## Erasure and verification
 
 Scenes erases before Geography. All projection tables across every epoch/version, seeds and every
-Scene pg-boss state/dead letter are removed using the existing registry/job eraser. No separate
+Scene pg-boss state/dead letter (projection, formation expiry and look backfill) are removed using the existing registry/job eraser; `scenes.looks` goes first because it references the objects. No separate
 cache exists. Root/epoch/owner fencing prevents late jobs from resurrecting reset/erased state.
 Queue policy:180s expiry, three 10s backoff retries, local concurrency 1,7d queued/2d settled
 retention plus the declared dead letter. No independent business role/attempt ledger is needed

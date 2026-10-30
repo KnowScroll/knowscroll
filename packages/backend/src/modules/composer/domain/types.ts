@@ -122,6 +122,23 @@ export interface ComposerSnapshot {
     readonly text: string;
     readonly exactTarget?: EncounterRef;
     readonly explanationUnitId?: string;
+    /**
+     * Vertical moves only. The format the person is in: while any candidate of it is eligible the
+     * other format is excluded (`format_sticky`). Unlike `format`, a hard requirement of an explicit
+     * format switch, it gives way when nothing of the format is eligible.
+     */
+    readonly stickyFormat?: 'reel' | 'scroll';
+    /**
+     * Vertical moves only. The series the person is in. Another part of it is a series move, never
+     * a new subject, so every candidate of it is excluded (`same_series`) whatever its revision.
+     */
+    readonly currentSeriesId?: string;
+    /**
+     * Vertical moves only. The assets the person can reach from this thread by the Related tab (any
+     * revision). Another perspective is a related move, never a new subject, so they and their format
+     * twins are excluded (`related_target`) unless that would leave nothing to offer.
+     */
+    readonly relatedAssetIds?: readonly string[];
   };
   readonly source?: EncounterRef;
   readonly candidates: readonly {
@@ -165,6 +182,22 @@ export interface CandidateEvaluation extends EncounterRef {
   readonly plan?: PlanInfluence;
   readonly score: number;
 }
+/** What sticky format did in one decision: `kept` the person's format, or `fell_back` because none of it was eligible. */
+export interface StickyFormatOutcome {
+  readonly preferred: 'reel' | 'scroll';
+  readonly outcome: 'kept' | 'fell_back';
+}
+
+/**
+ * What the related-target rule did in one decision: `applied` (it excluded `matched` otherwise eligible
+ * candidates, possibly none) or `fell_back` (excluding the `matched` candidates would have left nothing to
+ * offer, so none were excluded).
+ */
+export interface RelatedTargetOutcome {
+  readonly outcome: 'applied' | 'fell_back';
+  readonly matched: number;
+}
+
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
   readonly policyVersion: 'composer-policy.v0';
@@ -187,5 +220,9 @@ export interface ComposerDecision {
     readonly selectedProbability: number;
     readonly rankedWinner?: EncounterRef;
   };
+  /** Present when the input asked for sticky format. */
+  readonly stickyFormat?: StickyFormatOutcome;
+  /** Present when the input named related targets. */
+  readonly relatedTarget?: RelatedTargetOutcome;
   readonly outcome: 'ready' | 'exhausted';
 }

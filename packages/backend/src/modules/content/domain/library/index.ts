@@ -3,7 +3,7 @@ import { earthRecipes, earthSystem } from './earth.js';
 import { historyRecipes, historySystem } from './history.js';
 import { humanBodyRecipes, humanBodySystem } from './human-body.js';
 import { machineLearningRecipes, machineLearningSystem } from './machine-learning.js';
-import type { LibraryRecipe, LibrarySystem, SceneFamilyName } from './plan.js';
+import type { HazeFamilyName, LibraryRecipe, LibrarySystem, SceneFamilyName } from './plan.js';
 import { spaceRecipes, spaceSystem } from './space.js';
 
 /**
@@ -57,4 +57,11 @@ const sceneFamilies = new Map<string, SceneFamilyName>(
  */
 export function sceneFamilyOf(meaningId: string): SceneFamilyName | undefined {
   return sceneFamilies.get(meaningId);
+}
+
+const hazeFamilies = new Map<string, HazeFamilyName>(LIBRARY_SYSTEMS.map((system) => [system.id, system.haze]));
+
+/** The haze family of a system by its catalogue id; `undefined` for an id the plan does not hold. */
+export function hazeFamilyOf(systemId: string): HazeFamilyName | undefined {
+  return hazeFamilies.get(systemId);
 }

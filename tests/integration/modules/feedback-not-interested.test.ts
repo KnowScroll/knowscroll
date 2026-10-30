@@ -96,7 +96,7 @@ describe('Not interested (real PostgreSQL)', () => {
       sessionId: open.sessionId,
       expectedIntentRevision: open.intentRevision,
       from,
-      intent: { mode: 'vertical', direction: 'next' },
+      intent: { mode: 'vertical', direction: 'next', format: 'scroll' },
     });
   const mark = (person: FixturePerson, assetId: string, commandId = randomUUID()) =>
     cases.notInterested.set(person.authority, { commandId, assetId });
@@ -416,7 +416,7 @@ describe('Not interested (real PostgreSQL)', () => {
         sessionId: open.sessionId,
         expectedIntentRevision: open.intentRevision,
         from,
-        intent: { mode: 'vertical', direction: 'next' },
+        intent: { mode: 'vertical', direction: 'next', format: 'scroll' },
       });
       expect(next).toMatchObject({ kind: 'accepted' });
       const offered =

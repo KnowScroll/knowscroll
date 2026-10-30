@@ -47,7 +47,7 @@ option and `newlyLocked: false`, and nothing changes.
 
 | Item | Detail |
 |---|---|
-| Tables | `play.calls` (0072): one row per person, Scroll revision and call stop: the option locked, `correct`, the command, the time. Never updated. `play.scroll_results` (0072): per person and revision, calls locked, sparks and combo, replaced with each lock. |
+| Tables | `play.calls` (0073): one row per person, Scroll revision and call stop: the option locked, `correct`, the command, the time. Never updated. `play.scroll_results` (0073): per person and revision, calls locked, sparks and combo, replaced with each lock. |
 | Jobs, notices | none. A lock changes nothing another module reads, so it enqueues nothing and bumps no universe revision. |
 | Lock order | personal root, then the caller's own account; no other root |
 | Clear | erased (both tables) |

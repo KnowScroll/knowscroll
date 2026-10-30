@@ -17,7 +17,7 @@ interface TallyRow {
 }
 
 /**
- * `play.calls` and `play.scroll_results` (migration 0072). Every row is the caller's own and at
+ * `play.calls` and `play.scroll_results` (migration 0073). Every row is the caller's own and at
  * their current privacy epoch. A call row is only ever inserted: the first lock stands, so there is
  * no update here. Times come from the database clock, which also orders the calls.
  */

@@ -1652,6 +1652,14 @@ export interface ScenesFormationPresentations {
   universe_id: string;
 }
 
+export interface ScenesLooks {
+  kind: string;
+  object_id: string;
+  payload: Json;
+  privacy_epoch: number;
+  universe_id: string;
+}
+
 export interface ScenesManifests {
   payload: Json;
   privacy_epoch: number;
@@ -2034,6 +2042,7 @@ export interface DB {
   "scenarios.nodes": ScenariosNodes;
   "scenes.chunks": ScenesChunks;
   "scenes.formation_presentations": ScenesFormationPresentations;
+  "scenes.looks": ScenesLooks;
   "scenes.manifests": ScenesManifests;
   "scenes.objects": ScenesObjects;
   "scenes.state": ScenesState;

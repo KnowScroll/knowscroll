@@ -1,5 +1,6 @@
 import type { ContinuityLink, EncounterRef, EncounterSnapshot } from '../../content/public.js';
 import type { ComposerSnapshot, PreparedEvidenceInput, SemanticAssessments } from '../domain/types.js';
+import { sourceSeriesId } from '../domain/vertical-rules.js';
 import type { ReadPreparedEvidenceInput } from './ports.js';
 
 /**
@@ -53,6 +54,12 @@ export interface SnapshotInput {
   readonly links: readonly ContinuityLink[];
   readonly exactTarget?: EncounterRef;
   readonly variantFormat?: 'reel' | 'scroll';
+  /** Vertical subject moves: stay in this format while anything of it is eligible (`format_sticky`). */
+  readonly stickyFormat?: 'reel' | 'scroll';
+  /** Vertical subject moves: never offer another part of the source's series (`same_series`). */
+  readonly excludeSourceSeries?: boolean;
+  /** Vertical subject moves: the assets reachable by the Related tab, excluded as another perspective (`related_target`). */
+  readonly relatedAssetIds?: readonly string[];
   readonly evidence?: PreparedEvidenceInput;
   readonly semanticAssessments?: SemanticAssessments;
   /** Used when no prepared context exists, so the decision still names what it was ranked against. */
@@ -75,6 +82,7 @@ export interface AssembledSnapshot {
 export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
   const { source, candidates, links } = input;
   const assessments = presentAssessments(input);
+  const currentSeriesId = source ? sourceSeriesId(source, candidates) : undefined;
   const full: ComposerSnapshot = {
     universeId: input.universeId,
     privacyEpoch: input.privacyEpoch,
@@ -92,6 +100,11 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
         ? { explanationUnitId: source.explanationUnitId }
         : {}),
       ...(links[0] ? { continuityLinkId: links[0].linkId } : {}),
+      ...(input.mode === 'vertical' && input.stickyFormat ? { stickyFormat: input.stickyFormat } : {}),
+      ...(input.mode === 'vertical' && input.excludeSourceSeries && currentSeriesId ? { currentSeriesId } : {}),
+      ...(input.mode === 'vertical' && input.relatedAssetIds?.length
+        ? { relatedAssetIds: [...input.relatedAssetIds] }
+        : {}),
     },
     ...(source ? { source: refOf(source) } : {}),
     candidates: candidates.map((encounter) => candidateRow(input, encounter)),

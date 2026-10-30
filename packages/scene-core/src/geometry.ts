@@ -1,4 +1,5 @@
 import { SceneDescriptorSchema, SceneParseError } from './parse.js';
+import { seedState, variation } from './seed.js';
 import type { SceneFamily, SceneGeometry } from './types.js';
 
 export interface SceneGeometryOptions {
@@ -26,18 +27,6 @@ function sineSample(index: number): number {
 }
 function rounded(n: number): number {
   return Math.round(n * 1_000_000) / 1_000_000;
-}
-/** Fixed 32-bit integer mixing, never ambient randomness, clocks, locale or platform APIs. */
-function seedState(seed: string): number {
-  let state = 0x811c9dc5;
-  for (let index = 0; index < seed.length; index++) state = Math.imul(state ^ seed.charCodeAt(index), 0x01000193) >>> 0;
-  return state;
-}
-function variation(state: number, channel: number): number {
-  let n = (state + Math.imul(channel + 1, 0x9e3779b9)) >>> 0;
-  n = Math.imul(n ^ (n >>> 16), 0x85ebca6b);
-  n = Math.imul(n ^ (n >>> 13), 0xc2b2ae35);
-  return ((n ^ (n >>> 16)) >>> 0) / 0x1_0000_0000;
 }
 /**
  * Pure local geometry in descriptor coordinates. Persist the descriptor, not a sorted sibling

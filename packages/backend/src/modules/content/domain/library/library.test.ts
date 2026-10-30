@@ -3,7 +3,7 @@ import { researchUrl } from '../../../../infrastructure/research/public-pages.js
 import { CONCEPTS, conceptMeaning } from '../concepts.js';
 import { EARTH_SKY_KIT } from '@knowscroll/scroll-model';
 import { INTERACTIVE_KINDS, STAGE_KIT_IDS } from './plan.js';
-import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, sceneFamilyOf } from './index.js';
+import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, hazeFamilyOf, sceneFamilyOf } from './index.js';
 
 const recipes = RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] }));
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -86,6 +86,18 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
     ]);
     expect(sceneFamilyOf('earth.seasons.axial-tilt')).toBeUndefined();
     expect(sceneFamilyOf('astronomy')).toBeUndefined();
+  });
+
+  it('gives each system a haze family of the six, and no two systems the same while six or fewer exist', () => {
+    const hazes = LIBRARY_SYSTEMS.map((system) => system.haze);
+    const six = ['amber', 'cobalt', 'coral', 'pink', 'teal', 'violet'];
+    for (const haze of hazes) expect(six).toContain(haze);
+    // A seventh system has to share a family (D-102); until then every system has its own colour.
+    if (LIBRARY_SYSTEMS.length <= six.length) expect(new Set(hazes).size).toBe(LIBRARY_SYSTEMS.length);
+    if (LIBRARY_SYSTEMS.length === six.length) expect([...hazes].sort()).toEqual(six);
+    expect(LIBRARY_SYSTEMS.map((system) => hazeFamilyOf(system.id))).toEqual(hazes);
+    expect(hazeFamilyOf('earth.seasons')).toBeUndefined();
+    expect(hazeFamilyOf('astronomy')).toBeUndefined();
   });
 
   it('declares each facet once, with a meaning, under its planet', () => {
