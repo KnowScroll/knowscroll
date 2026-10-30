@@ -236,7 +236,7 @@ describe('a room discussion on the client', () => {
   it('leaves a message as it was when the server refuses the mark', async () => {
     const scope = scopeOf({
       readDiscussion: () => Promise.resolve(readyView([text(1, 'my own words')])),
-      markUseful: () => Promise.reject(rejected('INVALID_REQUEST')),
+      markUseful: () => Promise.reject(rejected('SHARING_UNAVAILABLE')),
     });
     const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
     await controller.load();
