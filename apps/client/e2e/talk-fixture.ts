@@ -54,7 +54,7 @@ const messages = [
   },
   {
     ...text(3, meera, 'I will catch up on Part 3 tonight.'),
-    replyTo: quoteOf(1, ravi, 'That last part surprised me.'),
+    replyTo: quoteOf(2, asha, 'Look at this one.'),
   },
 ];
 
@@ -118,7 +118,7 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
                 { kind: 'ha', mine: true, people: [asha, ravi] },
               ],
             },
-            { ...lastDirect, replyTo: quoteOf(1, asha, 'Starting the second part now.') },
+            lastDirect,
           ],
           limit: body['limit'],
           history: { kind: 'end' },

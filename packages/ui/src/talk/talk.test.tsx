@@ -151,7 +151,13 @@ describe('TalkMenu', () => {
     const onClose = jest.fn();
     const onReply = jest.fn();
     await renderOn(
-      <TalkMenu visible title="Message options" onClose={onClose} echoAlign="end" echo={<Text>the echoed message</Text>}>
+      <TalkMenu
+        visible
+        title="Message options"
+        onClose={onClose}
+        echoAlign="end"
+        echo={<Text>the echoed message</Text>}
+      >
         <MenuList>
           <MenuRow icon="reply" label="Reply" keyHint="R" onPress={onReply} />
           <MenuRow icon="flag" label="Report" danger onPress={() => undefined} />

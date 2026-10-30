@@ -14,7 +14,7 @@ export interface TalkMenuProps {
   readonly visible: boolean;
   /** The menu's accessible name ("Message options"). */
   readonly title: string;
-  /** Esc, Back, a tap on the dimmed chat and the system back gesture all call this; the menu never enters history. */
+  /** Esc, Back, a tap on the dimmed chat and the system back gesture all call this. */
   readonly onClose: () => void;
   /** Which side the echoed message sits on, so it stays where the bubble was. */
   readonly echoAlign: 'start' | 'end';

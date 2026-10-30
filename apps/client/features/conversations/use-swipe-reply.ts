@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, Vibration, type GestureResponderEvent } from 'react-native';
 
 /** How far a bubble must be dragged right to count as a reply (T3 kit: 60 px, with a haptic tick). */
@@ -38,10 +38,12 @@ export function useSwipeToReply(options: {
   readonly onReply: () => void;
 }) {
   const { enabled, reducedMotion, onReply } = options;
-  const shift = useRef(new Animated.Value(0)).current;
+  const [shift] = useState(() => new Animated.Value(0));
   const gesture = useRef<{ start: Point; swiping: boolean; ticked: boolean; across: number } | undefined>(undefined);
   const latest = useRef({ onReply, reducedMotion });
-  latest.current = { onReply, reducedMotion };
+  useEffect(() => {
+    latest.current = { onReply, reducedMotion };
+  }, [onReply, reducedMotion]);
 
   return useMemo(() => {
     const settle = () => {

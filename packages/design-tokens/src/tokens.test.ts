@@ -278,9 +278,11 @@ describe('Talk themes (T3 kit, D-145)', () => {
   });
 
   it('defines the same roles in both themes, so a screen never asks which one it is in', () => {
-    const roles = (value: object): string[] =>
+    const roles = (value: Record<string, unknown>): string[] =>
       Object.entries(value).flatMap(([key, inner]) =>
-        typeof inner === 'object' && inner !== null ? roles(inner).map((role) => `${key}.${role}`) : [key],
+        typeof inner === 'object' && inner !== null
+          ? roles(inner as Record<string, unknown>).map((role) => `${key}.${role}`)
+          : [key],
       );
     expect(roles(talkThemes.paper)).toEqual(roles(talkThemes.sky));
   });

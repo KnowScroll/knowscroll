@@ -1547,7 +1547,7 @@ describe('additive242 current-own-send, own-link list and public-only preview Op
         ),
       },
     });
-    const { readOwnSend, react, ...originalConversations } = apiContract.conversations;
+    const { readOwnSend, react: _react, ...originalConversations } = apiContract.conversations;
     const { list: ownShareList, ...originalContentShares } = apiContract.contentShares;
     const { publicContentShares, ...withoutPublic } = apiContract;
     const original = await generator.generate(

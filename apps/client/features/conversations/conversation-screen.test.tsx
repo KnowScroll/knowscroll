@@ -8,7 +8,12 @@ import { DisplayProvider } from '@knowscroll/ui';
 import { ConversationScreen } from './conversation-screen';
 
 const mockCopy = jest.fn();
-jest.mock('expo-clipboard', () => ({ setStringAsync: (text: string) => mockCopy(text) }));
+jest.mock('expo-clipboard', () => ({
+  setStringAsync: (text: string) => {
+    mockCopy(text);
+    return Promise.resolve();
+  },
+}));
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
