@@ -121,6 +121,12 @@ builds the thread guest, the made-to-order readers and the production sender for
 resolver job for every ask that is still open from before Create existed and prints the counts. It is
 idempotent and calls no provider.
 
+`node dist/operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>]` (`src/scenes-operator.ts`, D-102) gives worlds
+that were projected before looks existed their look. It sends one `scenes.backfill-looks` job for each universe that has
+a projected system, planet or region without one (at most `--limit`, default 100, and it says when more are left), and the
+`scenes.backfill-looks` consumer inserts the missing rows under that universe's lock. No slot, seed, family or anchor
+moves, no provider is called, and running it again assigns nothing. It needs only `KS_WORLD` and `DATABASE_URL`.
+
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,

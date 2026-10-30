@@ -5,6 +5,7 @@ export const machineLearningSystem = {
   id: 'machine-learning',
   meaning: 'How computers learn patterns from data, and how modern language models work.',
   sceneFamily: 'ridged.v1',
+  haze: 'teal',
   topics: [
     {
       id: 'machine-learning.attention',

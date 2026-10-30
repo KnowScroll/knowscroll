@@ -14,6 +14,9 @@ import only domain code. It has no behaviour, no storage and no model call.
 ## Files
 
 - `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `STAGE_KIT_IDS`).
+  A `LibrarySystem` also names its `sceneFamily` (the silhouette) and its `haze` (one of teal, cobalt,
+  coral, amber, pink, violet; a different one for each system). Scenes gives both to a system once and never
+  changes them, so edit them for new systems only (D-102).
 - `earth.ts`, `space.ts`, `machine-learning.ts`, `human-body.ts`, `computing.ts`, `history.ts`: one
   system each, with its planets, facets and recipes. The record key of a recipe is the operator key
   (`content produce-scroll --topic <key>`).

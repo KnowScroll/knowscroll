@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { SceneManifestSchema, SceneChunkSchema, SceneDescriptorSchema } from '@knowscroll/contracts';
+import { SceneManifestSchema, SceneChunkSchema, SceneDescriptorSchema, SceneLookSchema } from '@knowscroll/contracts';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { SceneStore, SceneState, StoredObject } from '../application/ports.js';
 import { projectSceneQueue, ProjectSceneJobSchema } from '../events.js';
@@ -38,6 +38,21 @@ export const sceneStore: SceneStore = {
     );
     const row = r.rows[0];
     return row ? { systemId: row.system_id, chunk: SceneChunkSchema.parse(row.payload) } : undefined;
+  },
+  async looks(scope) {
+    const r = await sql<{
+      payload: unknown;
+    }>`select payload from scenes.looks where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} order by object_id limit 1001`.execute(
+      transactionOf(scope),
+    );
+    return r.rows.map((row) => SceneLookSchema.parse(row.payload));
+  },
+  async saveLooks(scope, looks) {
+    const tx = transactionOf(scope);
+    for (const look of looks)
+      await sql`insert into scenes.looks(universe_id,privacy_epoch,object_id,kind,payload) values(${scope.authority.universeId}::uuid,${scope.authority.privacyEpoch},${look.objectId}::uuid,${look.kind},${JSON.stringify(look)}::jsonb) on conflict(universe_id,privacy_epoch,object_id) do nothing`.execute(
+        tx,
+      );
   },
   async save(scope, state, objects, changed) {
     const tx = transactionOf(scope),

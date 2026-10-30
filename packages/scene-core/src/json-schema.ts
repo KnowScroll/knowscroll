@@ -1,9 +1,16 @@
-import { SCENE_LIMITS } from './types.js';
+import {
+  HAZE_FAMILIES,
+  LOOK_LIMITS,
+  PLANET_TYPES,
+  SCENE_LIMITS,
+  SCENE_LOOK_VERSION,
+  WORLD_GENERATOR_VERSION,
+} from './types.js';
 
 /** Structural documentation only. The canonical parsers also enforce total byte/depth/node caps,
  * ordinary JSON ownership and cross-field identity/hierarchy/uniqueness invariants. */
 export interface SceneJsonSchema {
-  type?: 'object' | 'array' | 'string' | 'integer' | 'number' | 'null';
+  type?: 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean' | 'null';
   properties?: Record<string, SceneJsonSchema>;
   additionalProperties?: boolean;
   required?: string[];
@@ -117,3 +124,26 @@ export const SceneReturnLocatorJsonSchema = object({
     scale: number(0.125, 16),
   }),
 });
+
+const lookBase = {
+  schemaVersion: { type: 'string', const: SCENE_LOOK_VERSION } as SceneJsonSchema,
+  generatorVersion: { type: 'string', const: WORLD_GENERATOR_VERSION } as SceneJsonSchema,
+  objectId: id,
+};
+const boolean: SceneJsonSchema = { type: 'boolean' };
+export const SceneLookJsonSchema: SceneJsonSchema = {
+  anyOf: [
+    object({ ...lookBase, kind: { type: 'string', const: 'system' }, haze: choice(...HAZE_FAMILIES) }),
+    object({
+      ...lookBase,
+      kind: { type: 'string', const: 'planet' },
+      type: choice(...PLANET_TYPES),
+      rings: boolean,
+      moon: boolean,
+      hueShift: number(-LOOK_LIMITS.hueShift, LOOK_LIMITS.hueShift, true),
+      variant: number(0, LOOK_LIMITS.variant, true),
+      siteCount: number(1, LOOK_LIMITS.sites, true),
+    }),
+    object({ ...lookBase, kind: { type: 'string', const: 'region' }, site: number(0, LOOK_LIMITS.sites - 1, true) }),
+  ],
+};
