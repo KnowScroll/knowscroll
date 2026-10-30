@@ -5,8 +5,7 @@ import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
 
 /** The words a screen reader gets for one episode: its place, its title and each state as a word, never colour alone. */
 export function episodeLabel(episode: ThreadEpisode, selected: boolean, series: boolean): string {
-  const place =
-    series && episode.part !== undefined ? `Part ${String(episode.part)}` : episode.kind === 'reel' ? 'Reel' : 'Scroll';
+  const place = episodePlace(episode, series);
   const states = [
     selected ? 'selected' : undefined,
     episode.visited ? 'visited by you' : undefined,
@@ -16,7 +15,36 @@ export function episodeLabel(episode: ThreadEpisode, selected: boolean, series: 
   return `${place}, ${episode.title}${states.length === 0 ? '' : `, ${states.join(', ')}`}`;
 }
 
-function placeOf(episode: ThreadEpisode, series: boolean): string {
+/**
+ * The key handler of an episode list: the arrow keys step to the previous or next episode on the web
+ * (a swipe scrolls on a phone); up and down too in a vertical list. Alt+Arrow is the browser's Back and Forward and Ctrl and Cmd are the
+ * person's own shortcuts, so they pass through.
+ */
+export function episodeKeys(step: (by: 1 | -1) => void, alsoVertical = false): (event: unknown) => void {
+  return (event) => {
+    const keyEvent = event as {
+      key?: string;
+      altKey?: boolean;
+      ctrlKey?: boolean;
+      metaKey?: boolean;
+      preventDefault?: () => void;
+    };
+    if (keyEvent.altKey === true || keyEvent.ctrlKey === true || keyEvent.metaKey === true) return;
+    const by =
+      keyEvent.key === 'ArrowRight' || (alsoVertical && keyEvent.key === 'ArrowDown')
+        ? 1
+        : keyEvent.key === 'ArrowLeft' || (alsoVertical && keyEvent.key === 'ArrowUp')
+          ? -1
+          : undefined;
+    if (by === undefined) return;
+    // Called on the event itself: a detached `preventDefault` throws "Illegal invocation" in the browser.
+    keyEvent.preventDefault?.();
+    step(by);
+  };
+}
+
+/** "Part 2" in a declared series, else the format. */
+export function episodePlace(episode: ThreadEpisode, series: boolean): string {
   if (series && episode.part !== undefined) return `Part ${String(episode.part)}`;
   return episode.kind === 'reel' ? 'Reel' : 'Scroll';
 }
@@ -61,7 +89,7 @@ function EpisodeCard({
       </View>
       <View style={styles.cardText}>
         <Text variant="monoXs" color={content.ink2}>
-          {placeOf(episode, series)}
+          {episodePlace(episode, series)}
         </Text>
         <Text variant="uiS" numberOfLines={2}>
           {episode.title}
@@ -123,28 +151,11 @@ export function EpisodeNavigator({
   readonly folded: boolean;
   readonly onSelect: (assetId: string) => void;
 }) {
-  const step = (from: number, by: number) => {
-    const next = episodes[Math.min(Math.max(from + by, 0), episodes.length - 1)];
-    if (next !== undefined) onSelect(next.assetId);
-  };
   const current = episodes.findIndex((episode) => episode.assetId === selected);
-  // Arrow keys move between episodes on the web; a swipe scrolls on a phone.
-  const onKeyDown = (event: unknown) => {
-    const keyEvent = event as {
-      key?: string;
-      altKey?: boolean;
-      ctrlKey?: boolean;
-      metaKey?: boolean;
-      preventDefault?: () => void;
-    };
-    // Alt+Arrow is the browser's Back and Forward; Ctrl and Cmd are the person's own shortcuts.
-    if (keyEvent.altKey === true || keyEvent.ctrlKey === true || keyEvent.metaKey === true) return;
-    if (keyEvent.key === 'ArrowRight' || keyEvent.key === 'ArrowLeft') {
-      // Called on the event itself: a detached `preventDefault` throws "Illegal invocation" in the browser.
-      keyEvent.preventDefault?.();
-      step(current, keyEvent.key === 'ArrowRight' ? 1 : -1);
-    }
-  };
+  const onKeyDown = episodeKeys((by) => {
+    const next = episodes[Math.min(Math.max(current + by, 0), episodes.length - 1)];
+    if (next !== undefined) onSelect(next.assetId);
+  });
   return (
     <View role="group" accessibilityLabel="Episodes in this thread" onKeyDown={onKeyDown}>
       <ScrollView

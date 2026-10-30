@@ -1096,6 +1096,52 @@ A read of six documents found errors the validator cannot see. These change the 
 2. **A recipe gets a stage only when a kit draws its subject.** Tides and stars-fusion got pictures that show neither bulges nor a star's interior. Stage assignment is recipe data, per kit (S-1, S-6).
 3. **Every wave gets a factual read, and the validator refuses a Final call that restates an earlier call.** Two correct options were wrong or evasive, and one Final call repeated a call (S-6).
 4. **The common-guess rule and the prompt are brought into line** before the waves; two recipes were refused twice on it (S-1).
+
+## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
+
+Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
+
+- **A strip, not a card.** A thread opens with Back, a line saying what it is ("A THREAD · 3 PARTS"), the title, Series and options. The fixed series card and the horizontal part strip are gone from the phone. Rooms keep their own header.
+- **The conversation keeps the screen.** At 390 x 844 with the player docked the messages are 65.9 % of the viewport and the whole conversation region (asks and message box included) is 84.6 %. A test measures it. With the player opened in place it is 47 %: that is the person's choice.
+
+Confirmed by: `apps/client/e2e/thread-phone-smoke.spec.ts` (the 60 % measure).
+
+## D-141 · 2026-10-30 · Series is a sheet pulled down from the header, and its arrow keys only move the selection (T-A, #481)
+
+Amends D-006 k and D-053.
+
+- **An overlay, never a route.** Series lists the parts and the people. Back, Esc, Close and a tap on the scrim close only the sheet. The header stays in view and only what is below is dimmed (`PullDownSheet`).
+- **Pressing a row chooses it and closes the sheet.** The arrow keys (up, down, left, right) only move the selection to the neighbouring part; the sheet stays open. The keyboard map says so.
+- **The sheet exists below 1024 px only.** Resizing to a desktop with it open closes it and does not leave the player paused.
+
+Confirmed by: `thread-phone-smoke.spec.ts` (sheet, Back, Esc, arrows, resize), `episode-list.test.tsx`, `pull-down-sheet.test.tsx`.
+
+## D-142 · 2026-10-30 · The thread's player starts docked on a phone and the person's own choice wins (T-A, #481)
+
+Amends D-046 (selection and fold stay on the device).
+
+- **Docked is a 56 px bar** naming the open part, with Updated when the revision is corrected. Pressing it opens the player in place; folding docks it again.
+- **A default, then the person's choice.** Until the person folds or unfolds, a phone is docked and a desktop is open. Pressing Watch counts as unfolding, so a resize across 1024 px never docks a playing Reel.
+- **Nothing is sent.** Selection and fold stay in the account scope's storage on this device.
+
+Confirmed by: `own-place.test.tsx`, `thread-phone-smoke.spec.ts`, the resize test in `talk-smoke.spec.ts`.
+
+## D-143 · 2026-10-30 · Desktop has a series panel beside the conversation (T-A, #481)
+
+Amends D-053 (Talk panes).
+
+- **From 1024 px the conversation fills the left and a 400 px panel on the right** holds the parts, the player and the people. The panel is first in reading order and last on screen.
+- **The inbox is not beside a thread yet.** The thread has the rail only.
+- **No place.** Nothing says where another member is. A coarse place is T-D (D-065).
+
+Confirmed by: `thread-phone-smoke.spec.ts` (panel), `talk-smoke.spec.ts`.
+
+## D-144 · 2026-10-30 · A time under each run of messages in a thread (T-A, #481)
+
+- **A run** is one author's messages, each within five minutes of the one before and on one day. The last message of a run shows its clock time in the reader's own time zone; the day capsule above shows the date. Both come from `recordedAt`.
+- **Threads only.** The direct conversation list gets its times in T-B.
+
+Confirmed by: `talk-format.test.ts`, `thread-phone-smoke.spec.ts`.
 ## D-160 · 2026-10-30 · Who is here: a one-minute lease, on a member's own view, with the reader always in it (#487)
 
 D-069 says faces always, a number only from three, no "0 online" or "1 online", the cast never counted, and an allow-list in the contract. This is how the room module keeps it. It **builds on** D-051 and D-069 and changes neither.
