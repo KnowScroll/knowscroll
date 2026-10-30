@@ -38,7 +38,9 @@
     "react-native-web": "catalog:",
     "expo-video": "catalog:",
     "@knowscroll/contracts": "workspace:*",
-    "@knowscroll/scene-core": "workspace:*"
+    "@knowscroll/scene-core": "workspace:*",
+    "expo-gl": "catalog:",
+    "three": "catalog:"
   },
   "devDependencies": {
     "@babel/plugin-transform-parameters": "catalog:",
@@ -53,6 +55,7 @@
     "jest": "catalog:",
     "jest-expo": "catalog:",
     "test-renderer": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@types/three": "catalog:"
   }
 }

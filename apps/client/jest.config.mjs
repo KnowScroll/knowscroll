@@ -1,11 +1,16 @@
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import expoPreset from 'jest-expo/jest-preset.js';
+
+/** three.js is ES modules; its CommonJS entry is a deprecated shim, so tests load the module build. */
+const threeModule = join(dirname(createRequire(import.meta.url).resolve('three')), 'three.module.js');
 
 /*
  * jest-expo with two additions for workspace code:
  * - `@knowscroll/contracts`, `@knowscroll/scroll-model` and `@knowscroll/scene-core` resolve to
  *   their TypeScript sources (tests never need a build; their `.js` import specifiers name `.ts`
  *   files), like Vitest and tsc do through `@knowscroll/source`;
- * - oRPC ships ES modules only (`.mjs`), so they go through jest-expo's own Babel transform.
+ * - oRPC and three.js ship ES modules only, so they go through jest-expo's own Babel transform.
  */
 const babelTransform = expoPreset.transform['\\.[jt]sx?$'];
 const [nodeModulesPattern, ...otherIgnorePatterns] = expoPreset.transformIgnorePatterns;
@@ -17,11 +22,12 @@ const shared = {
     '^@knowscroll/scroll-model$': '<rootDir>/../../packages/scroll-model/src/index.ts',
     '^@knowscroll/scene-core$': '<rootDir>/../../packages/scene-core/src/index.ts',
     // The native gesture module does not exist in Jest (the Scroll blocks import it): a stand-in.
+    '^three$': threeModule,
     '^react-native-gesture-handler$': '<rootDir>/../../packages/ui/src/test-support/gesture-handler.mock.tsx',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: { '\\.mjs$': babelTransform },
-  transformIgnorePatterns: [nodeModulesPattern.replace('(?!(.pnpm|', '(?!(.pnpm|@orpc|'), ...otherIgnorePatterns],
+  transformIgnorePatterns: [nodeModulesPattern.replace('(?!(.pnpm|', '(?!(.pnpm|@orpc|three|'), ...otherIgnorePatterns],
 };
 
 /**

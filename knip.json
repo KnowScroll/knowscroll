@@ -19,7 +19,8 @@
         "platform/**/*.web.ts",
         "e2e/*.spec.ts",
         "features/encounter/encounter-overlay.web.tsx",
-        "features/encounter/gestures/reel-gesture-stage.web.tsx"
+        "features/encounter/gestures/reel-gesture-stage.web.tsx",
+        "features/universe/space/space-canvas.web.tsx"
       ],
       "project": [
         "app/**/*.tsx",
