@@ -9,6 +9,7 @@ import { READING_SECONDS_V2 } from '../../v2/measures.js';
 export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   // The model's own mistakes.
   stops_too_few: `Write at least ${LIMITS_V2.minStops} stops and calls in all: the spine needs enough dots for a ${READING_SECONDS_V2.min / 60} to ${READING_SECONDS_V2.max / 60} minute read.`,
+  read_stops_too_few: `Write at least ${LIMITS_V2.minReadStops} stops that explain (type "stop"), besides the calls: the picture and the reader's progress rest on them.`,
   stop_too_long: `Cut this to at most ${LIMITS_V2.stopWords} words (a stop's text and line together). One idea per stop; move the rest into the next stop.`,
   line_too_long: `A line stands alone and has at most ${LIMITS_V2.lineWords} words. Shorten it or put the idea in the stop's text.`,
   simple_too_long: `The simple text is shorter than the original: at most ${LIMITS_V2.stopWords} words, in plainer words.`,

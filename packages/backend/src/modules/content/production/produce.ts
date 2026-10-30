@@ -20,7 +20,7 @@ import { completeWriterPublication, isSentAttempt } from './publication-topic.js
 import { subjectOf, type ProductionKey, type ProductionSubject } from './subject.js';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
-import { productionVersionOf, REQUEST_BOUND_PER_TOPIC } from './topics.js';
+import { planRefusalOf, productionVersionOf, REQUEST_BOUND_PER_TOPIC } from './topics.js';
 import { writerPlanFor, type WriterPlan } from './writer-plan.js';
 
 export interface ProduceScrollDependencies {
@@ -354,6 +354,10 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     if (dryRun) return { outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC };
     const subject = await subjectOf(deps.db, key);
     if (subject === undefined) return { outcome: 'unknown_recipe', requestBound: REQUEST_BOUND_PER_TOPIC };
+    // A recipe the plan does not allow costs nothing: no job is reserved and no request is sent.
+    const refusal = planRefusalOf(key);
+    if (refusal !== undefined)
+      return { outcome: 'plan_refused', requestBound: REQUEST_BOUND_PER_TOPIC, codes: [refusal] };
     const reserved = await deps.withScope(deps.authority, (scope) =>
       store.create(productionTransactionOf(scope), key, subject.identity.assetId, deps.authority.generation, take),
     );

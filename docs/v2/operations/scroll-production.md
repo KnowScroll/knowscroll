@@ -248,7 +248,7 @@ node dist/operator.js content readmit-coverage                                 #
 node dist/operator.js content admit-continuity                                 # the series now points at the v2 revisions
 ```
 
-What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a job rejected with `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`), not a model problem, and used one request. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim.
+What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a recipe refused with `plan_refused` / `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`): it is `stopped` in `production-status`, no job was reserved and no request was sent. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim.
 
 Until the reader (S-1c) ships, a client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Run `admit-continuity` only when you want the series to point at the v2 revisions.
 

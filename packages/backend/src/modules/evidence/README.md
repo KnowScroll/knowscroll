@@ -146,7 +146,7 @@ Status: **implemented**, runtime-verified with labelled fixtures on real Postgre
 `summariseReading` takes each unit's rule from the reading facts: a block with `seen: {kind: 'visible',
 minVisibleMs}` counts after that much active visible time (never under the policy's minimum), a block
 with `seen: {kind: 'interaction', interactions}` (a call) counts when one of those value-free interactions
-was reported. A block without a rule counts as before. The policy, q and its thresholds are unchanged.
+was reported. Calls weigh 0 in the facts, so a seen call is stored as engagement and adds nothing to coverage. A block without a rule counts as before. The policy, q and its thresholds are unchanged.
 Tapping through the spine does not qualify (a property test); the option a call picked is not an
 interaction kind and never reaches this module (D-063). `observedBindings` accepts facts v2 and v3 and
 checks eligibility by version (`ELIGIBLE_BY_FACTS_VERSION`, kept equal to content's rule by a test).

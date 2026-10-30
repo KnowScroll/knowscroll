@@ -34,6 +34,18 @@ export function scrollV2PlanOf(key: string): ScrollV2Plan | undefined {
 }
 
 /**
+ * Why the plan does not let a recipe be produced at all, or `undefined`. A v2 recipe whose
+ * misconception source label no person has reviewed is a plan problem: the library admits only
+ * reviewed labels, so no request is spent on it until the plan says `reviewed` (D-129).
+ */
+export function planRefusalOf(key: string): 'misconception_source_unreviewed' | undefined {
+  const misconception = scrollV2PlanOf(key)?.misconception;
+  return misconception?.kind === 'myth' && !misconception.source.reviewed
+    ? 'misconception_source_unreviewed'
+    : undefined;
+}
+
+/**
  * The production recipe version of a job key: v15 for a recipe the plan marks v2, v14 for every
  * other recipe and for a Scroll ordered from code. Every place that names a job by recipe and
  * version asks here, so a v1 recipe's jobs are untouched.

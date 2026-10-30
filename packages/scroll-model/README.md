@@ -518,6 +518,7 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Rule | Value | Code when broken |
 |---|---|---|
 | Stops and calls | 6 to 14 | `stops_too_few`, `schema_too_big` |
+| Read stops (the units a facet binds to, D-127) | at least 3 | `read_stops_too_few` |
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
 | Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |

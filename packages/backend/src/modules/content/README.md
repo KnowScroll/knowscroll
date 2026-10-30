@@ -213,10 +213,12 @@ provider/browser evidence are separate requirements; no authored starter is labe
 Status: **implemented**; runtime-verified on real PostgreSQL with labelled fixtures, not yet on dev.
 
 - **Reading facts v3** (`adapters/reading-facts-v2.ts`, stored as `reading_facts` with `v: 3`): one unit
-  per stop and call, with the weight the document's own measures give it and a rule for when it counts.
-  A read stop counts after 40 % of the time its words take at 230 words a minute (never under the
-  policy's half second). A call counts when reported `locked` or `revealed`, never by being on screen and
-  never by the option picked. The recap is not a unit. v1 facts (`v: 2`) and Reels are unchanged;
+  per stop and call, each with a rule for when it counts. Only read stops weigh (the weight the
+  document's own measures give them); a call weighs 0, so playing never stands in for reading and not
+  playing never blocks it. A read stop counts after 40 % of the time its words take at 230 words a minute
+  (never under the policy's half second). A call is seen when reported `locked` or `revealed`, never by
+  being on screen and never by the option picked, and is stored as engagement only; its ten seconds stay
+  in the reading estimate. The recap is not a unit. v1 facts (`v: 2`) and Reels are unchanged;
   `ReadingFactsSchema` validates either on read.
 - **Provenance** (`scroll-provenance.v2`, `asset_provenance`): the claims a Scroll cites, their sources,
   the production record and, for every stop, aside and the recap, the claims it cites. No new table.

@@ -127,19 +127,24 @@ const TAP_SHARE = 0.39;
  * (but under) {@link TAP_SHARE} of the time its words take, each call for a few seconds, and any calls
  * locked in as fast as possible. The limits come from the document's words, not from the facts under test.
  */
-function tapTrace(seed: number, facts: ReadingFacts, nominalMs: ReadonlyMap<string, number>): Reading {
+function tapTrace(
+  seed: number,
+  facts: ReadingFacts,
+  nominalMs: ReadonlyMap<string, number>,
+  calls: { readonly maxMs: number; readonly lockAll: boolean } = { maxMs: 5_000, lockAll: false },
+): Reading {
   const random = generator(seed);
   const order = facts.blocks.filter(() => random() < 0.5 + 0.5 * random()).sort(() => random() - 0.5);
   let at = 0;
   const visits = order.map((block) => {
-    const limit = block.seen?.kind === 'visible' ? TAP_SHARE * (nominalMs.get(block.id) ?? 0) : 5_000;
+    const limit = block.seen?.kind === 'visible' ? TAP_SHARE * (nominalMs.get(block.id) ?? 0) : calls.maxMs;
     const length = Math.max(1, Math.floor(limit * (0.7 + 0.3 * random())));
     const visit = { blockId: block.id, from: at, to: at + length };
     at = visit.to + Math.floor(random() * 300);
     return visit;
   });
-  const calls = order.filter((block) => block.seen?.kind === 'interaction');
-  return { visits, locked: calls.filter(() => random() < 0.7).map((block) => block.id) };
+  const played = order.filter((block) => block.seen?.kind === 'interaction');
+  return { visits, locked: played.filter(() => calls.lockAll || random() < 0.7).map((block) => block.id) };
 }
 
 describe('Qualifying a v2 reading (pure, from the labelled Orrin fixture)', () => {
@@ -163,14 +168,41 @@ describe('Qualifying a v2 reading (pure, from the labelled Orrin fixture)', () =
   it('does not qualify the hardest tap: every dot in order, each just under its share, every call locked in', () => {
     const hardest: Reading = {
       visits: facts.blocks.map((block, index) => {
-        const length = block.seen?.kind === 'visible' ? TAP_SHARE * (nominalMs.get(block.id) ?? 0) : 5_000;
-        return { blockId: block.id, from: index * 20_000, to: index * 20_000 + Math.floor(length) };
+        const length = block.seen?.kind === 'visible' ? TAP_SHARE * (nominalMs.get(block.id) ?? 0) : 120_000;
+        return { blockId: block.id, from: index * 130_000, to: index * 130_000 + Math.floor(length) };
       }),
       locked: facts.blocks.filter((block) => block.seen?.kind === 'interaction').map((block) => block.id),
     };
     const result = qualify(facts, hardest);
     expect(result.qualification).toBe('not_qualified');
     expect(result.q).toBeLessThan(0.6);
+  });
+
+  it('never qualifies a reader who plays every call for as long as they like but skips the prose: playing is not reading', () => {
+    // Every call on screen for up to two minutes and locked in, every read stop under its share (or not visited).
+    for (let seed = 0; seed < 500; seed += 1) {
+      const trace = tapTrace(seed, facts, nominalMs, { maxMs: 120_000, lockAll: true });
+      const result = qualify(facts, trace);
+      expect(result.qualification, `seed ${String(seed)}`).not.toBe('qualified');
+    }
+    const everyCall: Reading = {
+      visits: facts.blocks.map((block, index) => ({
+        blockId: block.id,
+        from: index * 130_000,
+        to:
+          index * 130_000 +
+          (block.seen?.kind === 'visible' ? Math.floor(TAP_SHARE * (nominalMs.get(block.id) ?? 0)) : 120_000),
+      })),
+      locked: facts.blocks.filter((block) => block.seen?.kind === 'interaction').map((block) => block.id),
+    };
+    const result = qualify(facts, everyCall);
+    expect(result).toMatchObject({ qualification: 'not_qualified', coverage: 0 });
+  });
+
+  it('qualifies a reader who reads all the prose and never locks in a call: not playing does not block reading', () => {
+    const result = qualify(facts, walkthrough(facts, 2.5, false));
+    expect(result).toMatchObject({ qualification: 'qualified', coverage: 1 });
+    expect(result.q).toBeGreaterThanOrEqual(0.6);
   });
 
   it('never qualifies tapping through the spine: 500 generated traces, none gives a stop its reading time', () => {

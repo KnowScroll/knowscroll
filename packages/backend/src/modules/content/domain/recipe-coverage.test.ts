@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LIMITS_V2 } from '@knowscroll/scroll-model';
 import { conceptMeaning } from './concepts.js';
 import { validateCoverageMapping, type CoverageTarget } from './coverage.js';
 import { MIN_BODY_BLOCKS, planRecipeCoverage } from './recipe-coverage.js';
@@ -146,6 +147,10 @@ describe('recipe coverage rule v2 (the units of a scroll-document.v2)', () => {
     expect(plan.mapping.readingFactsVersion).toBe(3);
     // Eligible stops are s1, s3, s4, s6, s7 and s8: first s1, middle s4, last s8.
     expect(plannedBindings(plan)[0]?.requiredBlockIds).toEqual(['s1', 's4', 's8']);
+  });
+
+  it('can never refuse a published v2 Scroll for too few stops: the document validator asks for as many read stops', () => {
+    expect(LIMITS_V2.minReadStops).toBe(MIN_BODY_BLOCKS);
   });
 
   it('keeps the v1 rule and label for a v1 target', () => {

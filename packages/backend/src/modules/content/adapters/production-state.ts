@@ -15,7 +15,7 @@ import {
   type ScrollProductionReading,
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
-import { productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
+import { planRefusalOf, productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
 
 type Queryable = Kysely<Database> | Transaction<Database>;
 
@@ -60,10 +60,14 @@ export async function readLibraryStatus(
     const latest = jobs.at(-1);
     return {
       recipe,
-      state: productionStanding(
-        jobs.map((job) => job.state),
-        admitted,
-      ),
+      // A recipe the plan does not allow can start no take, so nothing is sent for it and no request chooses it.
+      state:
+        !admitted && planRefusalOf(recipe) !== undefined
+          ? 'stopped'
+          : productionStanding(
+              jobs.map((job) => job.state),
+              admitted,
+            ),
       ...(latest === undefined ? {} : { job: latest.state }),
       takes: jobs.length,
       ...(admitted ? { assetId: asset.id, revision: asset.revision } : {}),

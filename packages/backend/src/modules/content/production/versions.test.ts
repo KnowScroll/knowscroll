@@ -4,6 +4,7 @@ import { produceScrollJob } from './events.js';
 import { makeRunScrollProduction } from './job.js';
 import {
   parseScrollTopic,
+  planRefusalOf,
   productionVersionOf,
   SCROLL_PRODUCTION_V2_VERSION,
   SCROLL_PRODUCTION_VERSION,
@@ -43,6 +44,28 @@ describe('production versions: a recipe is v1 unless the plan marks it v2', () =
         reason: 'policy_version',
       },
     );
+  });
+});
+
+describe('a v2 recipe whose misconception source no person has reviewed', () => {
+  it('is refused by the plan, before any job or request, and only while the label is unreviewed', () => {
+    expect(planRefusalOf('greenhouse')).toBeUndefined();
+    const recipe = TOPICS.greenhouse as { scrollV2?: unknown };
+    const myth = (reviewed: boolean) => ({
+      variant: 'plain',
+      misconception: {
+        kind: 'myth',
+        claim: 'A CI fixture claim, never product content.',
+        source: { label: 'CI fixture label', reviewed },
+      },
+    });
+    recipe.scrollV2 = myth(false);
+    marked.push(() => delete recipe.scrollV2);
+    expect(planRefusalOf('greenhouse')).toBe('misconception_source_unreviewed');
+    recipe.scrollV2 = myth(true);
+    expect(planRefusalOf('greenhouse')).toBeUndefined();
+    recipe.scrollV2 = { variant: 'plain', misconception: { kind: 'none' } };
+    expect(planRefusalOf('greenhouse')).toBeUndefined();
   });
 });
 

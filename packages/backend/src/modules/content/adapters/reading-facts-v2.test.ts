@@ -25,12 +25,19 @@ const document = compiled.document;
 describe('reading facts v3 of the labelled Orrin fixture', () => {
   const facts = readingFactsOfV2(document);
 
-  it('makes every stop and call a unit, with the weights the document’s own measures give', () => {
+  it('makes every stop and call a unit, but only read stops weigh: playing never stands in for reading', () => {
     expect(facts.v).toBe(3);
     expect(facts.blocks.map((block) => block.id)).toEqual(document.stops.map((stop) => stop.id));
-    expect(facts.blocks.map((block) => block.weight)).toEqual(document.measures.stops.map((stop) => stop.weight));
+    const measured = new Map(document.measures.stops.map((stop) => [stop.stopId, stop.weight]));
+    for (const [index, stop] of document.stops.entries())
+      expect(facts.blocks[index]?.weight).toBe(stop.kind === 'read' ? measured.get(stop.id) : 0);
+    expect(facts.blocks.some((block) => block.type !== 'stop' && block.weight > 0)).toBe(false);
+    expect(facts.totalWeight).toBe(
+      document.stops.reduce((total, stop) => total + (stop.kind === 'read' ? (measured.get(stop.id) ?? 0) : 0), 0),
+    );
+    expect(facts.totalWeight).toBeGreaterThan(0);
     expect(facts.nested).toEqual([]);
-    expect(facts.totalWeight).toBe(document.measures.totalWeight - document.measures.recapWeight);
+    // The ten seconds a call takes stay in the estimate, so honest play does not look like under-reading.
     expect(facts.estimatedReadingMs).toBe(document.measures.readingSeconds * 1000);
   });
 
