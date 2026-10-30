@@ -78,7 +78,7 @@ function extentOf(focus: RigFocus): { halfWidth: number; halfDepth: number; reac
  * tall phone screen from nearby.
  */
 export function fitDistance(halfWidth: number, halfDepth: number, aspect: number, kind: RigFocus['kind']): number {
-  const wide = (halfWidth * (kind === 'system' ? 0.98 : 1.12)) / (TAN_HALF_FOV * Math.max(aspect, 0.1));
+  const wide = (halfWidth * (kind === 'system' ? 0.72 : 1.0)) / (TAN_HALF_FOV * Math.max(aspect, 0.1));
   const tall = (halfDepth * Math.sin(ELEVATION[kind]) + halfWidth * 0.15 + 0.8) / (TAN_HALF_FOV * 0.9);
   return Math.max(wide, tall, MIN_DISTANCE[kind]);
 }
