@@ -43,6 +43,8 @@ tags:
 - assertNotVisible: Simple lists shown.*
 - takeScreenshot: space-03-drawing
 # Labels over the scene are ordinary views at projected points: a tap on one is a tap on a view.
+# The planet labels circle past the system label, so the tap may land on either; both name what
+# was chosen.
 - tapOn: Sample system, a system
-- assertVisible: Sample system \(system\)
+- assertVisible: '.* \((system|planet)\)'
 - takeScreenshot: space-04-label-tapped
