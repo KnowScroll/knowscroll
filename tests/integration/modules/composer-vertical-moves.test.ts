@@ -202,14 +202,14 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
 
   let seasons: Awaited<ReturnType<typeof publishRecipe>>;
   let hemispheres: Awaited<ReturnType<typeof publishRecipe>>;
-  let limits: Awaited<ReturnType<typeof publishRecipe>>;
+  let part3: Awaited<ReturnType<typeof publishRecipe>>;
   const elsewhere: Awaited<ReturnType<typeof admitScroll>>[] = [];
   const reels: Awaited<ReturnType<typeof admitReel>>[] = [];
 
   beforeAll(async () => {
     seasons = await publishRecipe('seasons');
     hemispheres = await publishRecipe('seasons-hemispheres');
-    limits = await publishRecipe('seasons-limits');
+    part3 = await publishRecipe('seasons-elsewhere');
     const admitted = await admitLibraryContinuityUseCase(database.db)({ dryRun: false });
     expect(admitted).toMatchObject({ seriesRevisionsAdmitted: 1, linksAdmitted: 4 });
     elsewhere.push(await admitScroll('earth.tides'), await admitScroll('space.stars'));
@@ -226,7 +226,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(offered.length).toBeGreaterThan(0);
       const ids = offered.map((offer) => offer.assetId);
       expect(ids).not.toContain(hemispheres.assetId);
-      expect(ids).not.toContain(limits.assetId);
+      expect(ids).not.toContain(part3.assetId);
       expect(ids).not.toContain(seasons.assetId);
       expect(ids.sort()).toEqual(elsewhere.map((scroll) => scroll.assetId).sort());
       expect(offered.every((offer) => offer.metadata.kind === 'scroll')).toBe(true);
@@ -234,7 +234,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
 
       const decision = await decisionOf(next.decisionId);
       expect(exclusionsIn(decision, hemispheres.assetId)).toEqual(['same_series']);
-      expect(exclusionsIn(decision, limits.assetId)).toEqual(['same_series']);
+      expect(exclusionsIn(decision, part3.assetId)).toEqual(['same_series']);
       expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'kept' });
       for (const reel of reels) expect(exclusionsIn(decision, reel.assetId)).toEqual(['format_sticky']);
       expect(decision.input.intent).toMatchObject({ stickyFormat: 'scroll', currentSeriesId: 'library.earth.seasons' });
@@ -251,7 +251,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
         const ids = offers(ready(await nextSubject(person, stand, format, direction))).map((offer) => offer.assetId);
         expect(ids.length).toBeGreaterThan(0);
         expect(ids).not.toContain(hemispheres.assetId);
-        expect(ids).not.toContain(limits.assetId);
+        expect(ids).not.toContain(part3.assetId);
       }
 
       // The stored decision of a move that names no format has no format preference: today's ranking, minus the series.
@@ -304,7 +304,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const decision = await decisionOf(next.decisionId);
       expect(decision.stickyFormat).toEqual({ preferred: 'reel', outcome: 'kept' });
       // The Seasons Scrolls match the Reel's topic, so without the format rule they would lead.
-      for (const scroll of [seasons, hemispheres, limits]) {
+      for (const scroll of [seasons, hemispheres, part3]) {
         expect(exclusionsIn(decision, scroll.assetId)).toEqual(['format_sticky']);
         expect(decision.evaluations.find((e) => e.assetId === scroll.assetId)?.features.intent).toBe(1);
       }
@@ -335,7 +335,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const stand = await standOn(person, seasons);
       const buffer = await prepareFor(person.universeId);
       expect(buffer.selection.map((s) => s.assetId)).not.toContain(hemispheres.assetId);
-      expect(buffer.selection.map((s) => s.assetId)).not.toContain(limits.assetId);
+      expect(buffer.selection.map((s) => s.assetId)).not.toContain(part3.assetId);
       const decision = await decisionOf(buffer.decision_id);
       expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'kept' });
 
@@ -357,7 +357,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       if (format === 'reel') expect([...kinds]).toEqual(['reel']);
       const ids = offers(next).map((offer) => offer.assetId);
       expect(ids).not.toContain(hemispheres.assetId);
-      expect(ids).not.toContain(limits.assetId);
+      expect(ids).not.toContain(part3.assetId);
     });
   });
 });
