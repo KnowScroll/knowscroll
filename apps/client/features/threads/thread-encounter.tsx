@@ -66,7 +66,7 @@ function Dock({
         {...focus.props}
         role="button"
         aria-expanded={false}
-        accessibilityLabel={`Open ${place}, ${episode.title}`}
+        accessibilityLabel={`Open ${place}, ${episode.title}${episode.state === 'corrected' ? ', updated' : ''}`}
         onPress={onOpen}
         style={[styles.dockOpen, focus.style]}
       >
@@ -81,6 +81,7 @@ function Dock({
             {episode.title}
           </Text>
         </View>
+        {episode.state === 'corrected' ? <Tag variant="corrected" label="Updated" /> : null}
         <Icon name="chevronDown" size={20} />
       </Pressable>
       {onRead === undefined ? null : <Button label="Read" size="sm" variant="primary" onPress={onRead} />}

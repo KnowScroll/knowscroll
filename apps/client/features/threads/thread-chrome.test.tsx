@@ -73,14 +73,7 @@ describe('the thread header', () => {
   const header = async (onMap?: () => void) => {
     await render(
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <ThreadHeader
-          title="Black holes"
-          people="Asha, Ravi"
-          onBack={jest.fn()}
-          onMap={onMap}
-          onPeople={jest.fn()}
-          onMenu={jest.fn()}
-        />
+        <ThreadHeader title="Black holes" people="Asha, Ravi" onBack={jest.fn()} onMap={onMap} onMenu={jest.fn()} />
       </DisplayProvider>,
     );
   };

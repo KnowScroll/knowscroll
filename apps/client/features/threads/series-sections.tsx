@@ -21,6 +21,7 @@ export function PartsSection({
   series,
   heading,
   onSelect,
+  onStep,
   onMap,
 }: {
   readonly episodes: readonly ThreadEpisode[];
@@ -29,6 +30,7 @@ export function PartsSection({
   /** The panel names the section; the sheet already carries the name as its title. */
   readonly heading: string | undefined;
   readonly onSelect: (assetId: string) => void;
+  readonly onStep: (assetId: string) => void;
   /** Offered only once the thread has several branches (X04); never for a first exploration. */
   readonly onMap: (() => void) | undefined;
 }) {
@@ -39,7 +41,7 @@ export function PartsSection({
           {heading}
         </Text>
       )}
-      <EpisodeList episodes={episodes} selected={selected} series={series} onSelect={onSelect} />
+      <EpisodeList episodes={episodes} selected={selected} series={series} onSelect={onSelect} onStep={onStep} />
       {onMap === undefined ? null : (
         <Button label="Map" size="sm" variant="ghost" onPress={onMap} testID="thread-map-button" />
       )}

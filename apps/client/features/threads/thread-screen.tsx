@@ -126,6 +126,8 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
     state.root?.status === 'available' && state.root.target.assetId === current?.assetId
       ? state.root.metadata.summary
       : undefined;
+  // The sheet exists only below 1024 px: a resize to desktop with it open must not leave the player paused.
+  const sheetOpen = seriesOpen && !sideBySide;
   const showMap = branches.mapOffered
     ? () => {
         setSeriesOpen(false);
@@ -143,6 +145,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
           place.select(assetId);
           setSeriesOpen(false);
         }}
+        onStep={place.select}
         onMap={showMap}
       />
     );
@@ -157,7 +160,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
         folded={place.folded}
         onToggleFold={() => place.setFolded(!place.folded)}
         onShareMoment={setMoment}
-        paused={moment !== undefined || seriesOpen || menu}
+        paused={moment !== undefined || sheetOpen || menu}
         positionRef={positionRef}
         onOpened={onReelOpened}
         summary={rootSummary}
@@ -248,7 +251,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
         />
       )}
       <PullDownSheet
-        visible={seriesOpen && !sideBySide}
+        visible={sheetOpen}
         title={seriesHeading(series, episodes.length)}
         top={insets.top + headerHeight}
         onClose={() => setSeriesOpen(false)}

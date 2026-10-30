@@ -74,7 +74,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: also `talk-frame.tsx` (the one `main` and, on tablets and desktops, the navigation rail with
   Talk current, around a conversation or a thread, which are not tabs) and `keyboard-map.tsx` (every key the app
   listens to, as a sheet from Account and from the desktop Explore footer; add a row there with any new key).
-- Talk by size (D03, T3, D-140): below 1024 px a conversation or a thread is one column. A thread there is a 72 px header
+- Talk by size (D03, T3, D-140 to D-144): below 1024 px a conversation or a thread is one column. A thread there is a 72 px header
   strip (Back, "A THREAD · n PARTS", the title, Series, options), the docked player (a 56 px bar) and the conversation,
   which keeps over 60 % of a 390 x 844 screen. "Series" pulls the parts and the people down from the header as a sheet
   that Back, Esc and Close close first. From 1024 px a thread has the conversation with a 400 px series panel on its
@@ -491,7 +491,7 @@ Routes: `/threads/<id>` (C04, `?m=<membership>&r=<revision>` from Talk or the sh
 (the snippet viewer) and `/threads/<id>/read/<assetId>` (a Scroll read inside the thread). Talk (`/conversations`) lists
 direct conversations and threads together; a thread row shows its people, the last message and an invitation badge.
 
-- `features/threads/thread-screen.tsx` is C04 (T3, D-140): `thread-chrome.tsx` (the 72 px `ThreadStrip`, people, options,
+- `features/threads/thread-screen.tsx` is C04 (T3, D-140 to D-144): `thread-chrome.tsx` (the 72 px `ThreadStrip`, people, options,
   invitation; `ThreadHeader` stays for rooms), `series-sections.tsx` and `episode-list.tsx` (the parts as rows, in the
   Series sheet on a phone and in the panel on a desktop; the arrow keys step between rows), `episode-navigator.tsx` (the
   horizontal strip rooms still use, and the shared labels and keys), `thread-encounter.tsx` (the docked bar, or the open

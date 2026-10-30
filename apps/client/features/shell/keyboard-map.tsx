@@ -63,11 +63,15 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
   },
   {
     title: 'Talk',
-    where: 'While the message box or the episode list is focused',
+    where: 'While the message box or the episode list is focused (the Series sheet on a phone, the panel on a desktop)',
     shortcuts: [
       { keys: ['Enter'], spoken: 'Enter', action: 'Send the message' },
       { keys: ['Shift', 'Enter'], spoken: 'Shift and Enter', action: 'New line' },
-      { keys: ['←', '→'], spoken: 'Left and right arrow', action: 'Previous and next episode, in the episode list' },
+      {
+        keys: ['↑', '↓', '←', '→'],
+        spoken: 'Up, down, left and right arrow',
+        action: 'Previous and next episode, in the episode list; the Series sheet stays open',
+      },
     ],
   },
 ];

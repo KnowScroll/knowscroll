@@ -198,7 +198,6 @@ function ReadyDiscussion({
         title={view.discussion.title}
         people={`in ${view.room.name}`}
         onBack={onBack}
-        onPeople={undefined}
         onMenu={moderator ? () => setModerating(true) : undefined}
       />
       {state.offline ? (

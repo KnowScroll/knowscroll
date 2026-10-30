@@ -55,24 +55,28 @@ function EpisodeRow({
  * The thread's episodes in order, one row each (T3 "Series"): on a phone inside the Series sheet, on a
  * desktop in the thread's panel. Each row shows the caller's own state only: Now (selected on this
  * device), a check for what they opened and played, Updated for a corrected revision, dashed for one
- * that is gone. Another member's place is never drawn: there is none to draw. The arrow keys step
- * between rows while one has focus.
+ * that is gone. Another member's place is never drawn: there is none to draw. The arrow keys (up, down,
+ * left, right) move the selection between rows while one has focus; only a press chooses a row.
  */
 export function EpisodeList({
   episodes,
   selected,
   series,
   onSelect,
+  onStep,
 }: {
   readonly episodes: readonly ThreadEpisode[];
   readonly selected: string;
   readonly series: boolean;
+  /** A press or Enter on a row: choose it (a sheet closes). */
   readonly onSelect: (assetId: string) => void;
+  /** An arrow key: move the selection to the neighbour and nothing else (a sheet stays open). */
+  readonly onStep: (assetId: string) => void;
 }) {
   const current = episodes.findIndex((episode) => episode.assetId === selected);
   const onKeyDown = episodeKeys((by) => {
     const next = episodes[Math.min(Math.max(current + by, 0), episodes.length - 1)];
-    if (next !== undefined) onSelect(next.assetId);
+    if (next !== undefined) onStep(next.assetId);
   }, true);
   return (
     <View

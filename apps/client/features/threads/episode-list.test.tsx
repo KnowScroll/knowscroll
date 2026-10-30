@@ -17,6 +17,7 @@ const episode = (n: number, patch: Partial<ThreadEpisode> = {}): ThreadEpisode =
 
 async function show(selected = id(2)) {
   const onSelect = jest.fn();
+  const onStep = jest.fn();
   await render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
       <EpisodeList
@@ -24,10 +25,11 @@ async function show(selected = id(2)) {
         selected={selected}
         series
         onSelect={onSelect}
+        onStep={onStep}
       />
     </DisplayProvider>,
   );
-  return onSelect;
+  return { onSelect, onStep };
 }
 
 describe('the episode list', () => {
@@ -45,32 +47,34 @@ describe('the episode list', () => {
   });
 
   it('selects the episode that is pressed, whatever its state', async () => {
-    const onSelect = await show();
+    const { onSelect, onStep } = await show();
     await fireEvent.press(screen.getByRole('button', { name: 'Part 3, Forever?, updated' }));
     expect(onSelect).toHaveBeenCalledWith(id(3));
+    expect(onStep).not.toHaveBeenCalled();
   });
 
-  it('steps with the arrow keys, down and right to the next and up and left to the one before, never past the ends', async () => {
-    const onSelect = await show();
+  it('steps with the arrow keys, down and right to the next and up and left to the one before, never past the ends, and never chooses', async () => {
+    const { onSelect, onStep } = await show();
     const list = screen.getByTestId('episode-navigator');
     const press = (key: string) => fireEvent(list, 'keyDown', { key, preventDefault: jest.fn() });
     await press('ArrowDown');
-    expect(onSelect).toHaveBeenLastCalledWith(id(3));
+    expect(onStep).toHaveBeenLastCalledWith(id(3));
     await press('ArrowRight');
-    expect(onSelect).toHaveBeenLastCalledWith(id(3));
+    expect(onStep).toHaveBeenLastCalledWith(id(3));
     await press('ArrowUp');
-    expect(onSelect).toHaveBeenLastCalledWith(id(1));
+    expect(onStep).toHaveBeenLastCalledWith(id(1));
     await press('ArrowLeft');
-    expect(onSelect).toHaveBeenLastCalledWith(id(1));
+    expect(onStep).toHaveBeenLastCalledWith(id(1));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('leaves the browser’s own arrow shortcuts alone', async () => {
-    const onSelect = await show();
+    const { onStep } = await show();
     await fireEvent(screen.getByTestId('episode-navigator'), 'keyDown', {
       key: 'ArrowRight',
       altKey: true,
       preventDefault: jest.fn(),
     });
-    expect(onSelect).not.toHaveBeenCalled();
+    expect(onStep).not.toHaveBeenCalled();
   });
 });

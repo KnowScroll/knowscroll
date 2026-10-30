@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { talkFixture, thread } from './talk-fixture';
+
+const playableVideo = readFileSync(join(__dirname, 'fixtures', 'blue-60s.webm'));
 
 /**
  * T3 on a phone (#481): over labelled HTTP fixtures a content thread keeps most of the screen for the
@@ -76,6 +80,42 @@ test('the Series sheet hangs from the header, closes with Back before the thread
   await sheet.getByRole('button', { name: /^Part 2, CI part 2/ }).click();
   await expect(sheet).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Open Part 2 of 3, CI part 2/ })).toBeVisible();
+});
+
+test('arrow keys in the Series sheet move the selection and leave the sheet open', async ({ page }) => {
+  await talkFixture(page, PHONE);
+  await page.goto(threadAddress);
+  await page.getByTestId('thread-series-button').click();
+  const sheet = page.getByRole('dialog', { name: 'A SERIES · 3 PARTS' });
+  const part = (number: number) => sheet.getByRole('button', { name: new RegExp(`^Part ${String(number)},`) });
+  await part(1).focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(sheet).toBeVisible();
+  await expect(part(2)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect(sheet).toBeVisible();
+  await expect(part(1)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowDown');
+  await part(2).press('Enter');
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Open Part 2 of 3, CI part 2/ })).toBeVisible();
+});
+
+test('resizing to a desktop with the Series sheet open does not leave the player paused', async ({ page }) => {
+  await talkFixture(page, PHONE);
+  await page.route('**/media/talk-fixture', (route) =>
+    route.fulfill({ status: 200, contentType: 'video/webm', body: playableVideo }),
+  );
+  await page.goto(threadAddress);
+  await page.getByTestId('thread-series-button').click();
+  await expect(page.getByRole('dialog', { name: 'A SERIES · 3 PARTS' })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Watch', exact: true }).click();
+  await expect(page.locator('video')).toHaveCount(1);
+  const playing = () => page.locator('video').evaluate((node) => !(node as HTMLVideoElement).paused);
+  if (!(await playing())) await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect.poll(playing).toBe(true);
 });
 
 test('pressing the dock opens the player in place, and folding docks it again', async ({ page }) => {
