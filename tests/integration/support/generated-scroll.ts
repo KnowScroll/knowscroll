@@ -160,6 +160,7 @@ export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success
 export function fixtureProduction(
   db: Kysely<Database>,
   script: Parameters<typeof fixtureModel>[0],
+  research: (url: string) => ResearchPage = fixtureResearchFor,
 ): { readonly calls: FixtureModelPort['calls']; readonly produce: ReturnType<typeof makeProduceScroll> } {
   const fixture = fixtureModel(script, { label: 'generated-scroll-CI-fixture' });
   const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
@@ -180,7 +181,7 @@ export function fixtureProduction(
     withScope,
     harness,
     model: model.model,
-    research: (url) => Promise.resolve(fixtureResearchFor(url)),
+    research: (url) => Promise.resolve(research(url)),
   });
   return { calls: fixture.calls, produce };
 }

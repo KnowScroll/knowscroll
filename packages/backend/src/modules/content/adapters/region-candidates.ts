@@ -21,8 +21,10 @@ const Query = z.strictObject({
   capabilities: ClientCapabilities,
   expected: CoverageRefSchema.optional(),
 });
+const SCROLL_SCHEMAS = ['scroll-document.v1', 'scroll-document.v2'];
 const supported = (q: RegionEncounterQuery & { readonly capabilities: z.infer<typeof ClientCapabilities> }) =>
-  !!conceptMeaning(q.topicId, q.facetId) && q.capabilities.documentSchemas.includes('scroll-document.v1');
+  !!conceptMeaning(q.topicId, q.facetId) &&
+  SCROLL_SCHEMAS.some((schema) => q.capabilities.documentSchemas.includes(schema));
 
 /** Derived keys find canonical matches beyond unrelated inventory. The101st key is never
  * hydrated, classified as eligible, or interpreted as catalogue exhaustion. */

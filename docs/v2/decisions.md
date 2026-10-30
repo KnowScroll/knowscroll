@@ -170,18 +170,15 @@ What remained after the necessary workarounds was a session table and token hash
 
 Consequences: `KS_AUTH_ADAPTER` defaults to `session` (`none` is gone; `test-bearer` stays a CI fixture, and it too must send the scope claim). Production refuses to start unless `KS_MAIL_SENDER=agentmail` is fully configured; the v2 API unit reads `/etc/knowscroll/secrets/shared/agentmail.env` and the v2 settings gain `KS_MAIL_SENDER=agentmail`, `KS_ALLOW_OPERATOR_SIGN_IN=1` and `KS_OPERATOR_SIGN_IN_PATTERN` (Ansible `roles/worlds_v2`; apply before deploying a revision with S1.3). The v2 programs run as their own users `ks2-<world>` with `/etc/knowscroll` invisible to them, and the v2 web app gets a Content-Security-Policy and `X-Frame-Options: DENY` from Caddy (both applied by Ansible). No signing secret is needed. Open for the owner before live (re-review N2): valid addresses still spend the domain and world budgets, so a few dozen client addresses can switch sign-in off for a domain or the world; the options are in the identity README ("Before live"). OAuth does not apply until a third-party provider is added ("other sign-in options" stays a placeholder); when one is, revisit this entry rather than growing the first-party code into an OAuth server.
 
-
 ## D-023 · 2026-10-20 · Owner: continuation through remaining phases
 
 The owner's Codex continuation request authorises continuing the existing v2 programme through all remaining implementation phases, connected real-service journeys and verified dev/stage delivery. The earlier inferred pause before Phase 3 is superseded; report after each phase and continue the next unblocked phase. Main/production, total paid budgets, individual Reel-script approval, destructive actions and unavailable credentials retain their explicit owner controls. No PIO or Software Factory workflow is reinstated.
 
 Use the existing tracker #222, branches and implementation work. The Codex coordinator integrates, reviews, merges and deploys; bounded Sol agents own named issues/worktrees. Historical Claude agent IDs and attribution settings are not current assignments or controls.
 
-
 ## D-024 · 2026-10-20 · Owner: bounded additional MiniMax allowance for Scroll production
 
 For #232 the owner explicitly approved up to 24 additional MiniMax model requests total: 12 development and 12 dev generation. Every admitted attempt/repair must be recorded, uncertainty consumes the allocation until reconciliation, and a new agent/session does not reset it. The historical harness six-call grant is exhausted and separate. Coordinator shared ledger: SSD `knowscroll-dev/v2/agents/coordinator/provider-allowance-232.json`; harness database attempts remain the execution authority. This does not change D-018's separate Cutroom budget or per-script approvals.
-
 
 ## D-025 · 2026-10-20 · Coordinator: navigation lineage and mutable encounter context
 
@@ -210,7 +207,6 @@ except newly reserved discriminators (`target` for activation, `status` for open
 Interim consumers refuse unsupported new commands before any effect. Shared contracts land and
 pass independent review/Actions before feature consumers.
 
-
 ## D-026 · 2026-10-20 · Coordinator: initial layered 2D Universe renderer
 
 Use the existing react-native-svg dependency for the initial layered 2D Universe renderer, with ordinary accessible RN/Web controls and lists. The [source/design study](discovery/scene-renderer-study.md) evaluates committed U01–U08/D02, blueprint§13/§18 and current scene-core/Scroll runtime evidence; U07 explicitly permits layered SVG without 3D. This is an initial implementation choice, not populated-scene or physical-device performance acceptance. Keep descriptor/formation/identity independent of rendering and revisit from actual scene/device evidence if needed.
@@ -219,7 +215,6 @@ The server persists meaning-selected family/template, opaque personal seed, gene
 
 
 Initial finite scene convention (coordinator refinement 2026-10-20, clarified 2026-10-21): the established Earth system and its star retain distinct object kinds, and both use the existing terraced.v1 family/template fields. Star names an object kind and renderer semantic, not a fourth SceneFamily; the earlier phrase “star family” was ambiguous. Seasons uses terraced.v1, Tides archipelago.v1, and Greenhouse ridged.v1. Regions inherit their canonical parent's selected family. These are cosmetic rendering conventions, not scientific classifications, formation evidence or new meaning authority. Persist family/template, seed, generator and anchors before variation; unsupported/ambiguous meaning labels fail closed and alias resolution remains Geography-owned. The initial projector does not bootstrap nonempty historical worlds: empty worlds remain empty, and any later bootstrap requires an explicit reviewed maintenance path.
-
 
 ## D-027 · 2026-10-20 · Coordinator: public social view revisions do not expose private transitions
 
@@ -1046,6 +1041,30 @@ No reverse animations were designed.
 
 Taken for the owner; listed under Waiting for owner on #462.
 
+## D-100 · 2026-10-30 · The three.js gate: both platforms draw, with two native fixes and four things not verified (v3 U-0, #464)
+
+Records the gate that D-073 asked for. D-073 (the owner's ruling) chose three.js for the space views, a DOM canvas on the web and `expo-gl` on native, and amends D-026. D-074 says no orbit or route lines: none are drawn here. Everything below builds on D-073 and does not change it.
+
+**Verdict: accept three.js.** One scene (orange sun with haze, a ringed planet, a planet with a moon, nebula dust) draws on the web and in the Android emulator lane. The gate's "30 fps" is met on the web and not on the emulator: see the evidence.
+
+- **Where it runs.** `features/universe/space/`. The web draws on a DOM `<canvas>` with `THREE.WebGLRenderer`. Native draws on an `expo-gl` `GLView` and calls `gl.endFrameEXP()` after each frame. Everything above the canvas host is shared. `three` is loaded on first use (`import()`), so other screens do not carry it. Versions are in the dependency matrix.
+- **Pacing.** A frame is drawn at most every 33 ms (30 fps cap). One frame advances the scene by at most 0.1 s. The drawing buffer uses at most 1.5 pixels per layout pixel; on native the view is laid out smaller and scaled up, because a `GLView` buffer has one pixel per device pixel.
+- **When it runs.** The loop is cancelled, not just skipped, when the route is unfocused, `AppState` is not active (on the web, the tab is hidden) or, on the web only, the canvas is off screen. It resumes at the same scene time.
+- **Reduced motion.** One frame at a fixed calm time and no loop. A resize redraws that one frame, or, if the view could not draw at the time, when it next can.
+- **A scene is a pure function of time.** Every motion is computed from the time value `t`, never accumulated, so one frame is a complete picture and the fly-ins can be scrubbed.
+- **No canvas for textures.** Textures are plain pixel arrays made in code, because Hermes has no canvas. The same seed paints the same pixels.
+- **Labels and targets are views.** Names and tap targets are React Native views placed at projected points (44 px at least). Picking is by those 2D regions, never by raycasting the scene. The canvas itself is hidden from assistive technology.
+- **Fallback is the Simple views, never a blank.** WebGL missing, a context that cannot be created, a lost context (web), a frame that throws, or a low-memory warning replaces the drawing with the two plain lists (systems as headings, planets as rows), with the same names in the same order. This is what the Simple drawing switch will also show.
+- **One surface at a time.** `expo-gl` can make a new GL context when the app returns from the background, and the canvas then reports a new surface. The view releases the old renderer and loop, and starts again on the new surface. A view that unmounts stops its loop and releases the renderer (and, on the web, the browser's context).
+- **Where it can be reached.** Only the developer gallery page `/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`, not in a production export). The Universe tab does not use it until the U-2 slice.
+- **Gate evidence.** Web, Chromium with software WebGL (Playwright, `e2e/space-gallery.spec.ts`): frames 33.3 ms apart on average (minimum 33.2 ms), 0.4 ms of CPU per draw, pixels read back and changing, reduced motion draws 1 frame in 2 s, the loop stops off screen and in a hidden tab, and the plain lists replace the scene without WebGL and on a lost context. Android emulator (`maestro/space.yaml` in `native.yml`, API 35, swiftshader): the `expo-gl` scene draws and a label tap works; with system animations off (reduced motion) exactly 1 frame; with the loop on, 876 frames, never faster than 32.1 ms apart, 8.1 ms of CPU per draw, **68.5 ms apart on average (about 15 fps)**. The software GL of the emulator cannot reach 30 fps, so its timing proves the path and the cap, not phone speed. Whether a phone holds 30 fps is open: U-2 must measure it on a physical phone before any planet view is built on this.
+- **Two native fixes the gate found.** The release build's R8 renamed the Expo `GLView` and the app crashed on creating it: `plugins/keep-expo-gl-views.js` adds a keep rule for the expo-gl classes. three.js refuses any context that is `instanceof WebGLRenderingContext` and the `expo-gl` WebGL 2 context inherits from it: the native host hands three.js a proxy that hides that inheritance, answers `getContextAttributes()` and ignores colour-space hints the context refuses.
+- **Not verified, and why it is acceptable for now.**
+  - *Native off-screen pause.* The canvas reports leaving the screen on the web only (`IntersectionObserver`). On native the loop follows route focus and `AppState`; a canvas scrolled out of view inside a focused screen keeps drawing. No U-2 screen scrolls its map, and this is not driven on a device.
+  - *Low memory.* The trigger is the `AppState` `memoryWarning` event. React Native raises it on iOS; on Android it is not known to be raised, and nothing was driven on a device. A device-memory class check that starts in the lists belongs with the Simple drawing switch (findings Slice 5) and is deferred to it.
+  - *Native context loss.* `expo-gl` raises no loss event. A context made anew after a resume arrives as a new surface, which the view handles (unit-tested, not driven on a device).
+  - *Phones and iOS.* Nothing was run on a physical phone or on iOS, and no long run was checked for memory.
+
 ## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
 
 The V3 Scrolls need stops, calls, asides, a recap and a pinned stage. D-032 found that a model writing long, nested JSON loses count of its brackets, and the V3 block table nests: `stage.states[{stop, changes}]`, a call with its options and common guess, an aside with `anchor_stop`. This entry settles how the model writes a v2 Scroll. It changes nothing in v1: `scroll-document.v1`, `scroll-authoring.v1` and writer `scroll-writer.v13` still publish the library.
@@ -1132,6 +1151,102 @@ D-123 found two Scrolls refused twice on `common_guess_invalid` and `common_gues
 - **A Final call may not restate a call.** `final_call_restates_call` refuses a Final call whose prompt, or whose correct option, is near-identical to an earlier call's. The measure is the share of content words two texts have in common (letters and digits, lower case, filler words dropped, plurals cut back), compared as sets. The pinned threshold is 0.6. A text with fewer than three content words is not judged. The tests use a near-copy (0.83) and different questions on the same subject (0.1 at most). Heavy paraphrase is not caught; a person's read of each wave (D-123) still is needed.
 - **Prompt `scroll-writer.v15`** carries all of this: the second-option rule, the four stage choices, no stage on calls, and a Final call that is a new case.
 
+## D-127 · 2026-10-30 · Coverage v2: a v2 Scroll binds its facets to read stops (S-1b, #472)
+
+A planet forms from facet coverage (D-033). Coverage v1 binds a facet to top-level paragraphs, quotes and callouts, and a v2 document has none of those, so no planet could form from a v2 Scroll. This adds `scroll-recipe-coverage.v2`. Coverage v1 is unchanged and still decides every v1 Scroll.
+
+**Amends** D-033 for documents whose reading facts are v3 (D-128).
+
+- **Same shape, new units.** The eligible units are the read stops that cite at least one documented claim. The primary facet needs the first, middle and last of them; a supporting facet needs the last two. Fewer than three eligible stops claim no coverage, the same bar as v1.
+- **Calls bind nothing.** A call is play, not explanation, and D-063 keeps play out of formation. A binding that names a call is refused at admission (`CONTENT_COVERAGE_LOCATOR_INVALID`). Calls do not weigh in coverage either (D-128).
+- **The bar is checked before publication.** The v2 document validator asks for at least three read stops (`read_stops_too_few`, `LIMITS_V2.minReadStops`, kept equal to the coverage bar by a test), so a published v2 Scroll can never be refused coverage for too few stops, and a writer that falls short gets its one repair.
+- **Same mapping, one more version number.** The stored mapping keeps `scroll-static-coverage.v1` as its policy, so the region bindings and every reader of a mapping keep working. Its `readingFactsVersion` is 3 and the review reference says `scroll-recipe-coverage.v2`.
+- **Decided by code, at publication.** The rule runs in the publication transaction like v1. `content readmit-coverage` applies the rule that matches each stored revision.
+- **Verified.** Unit tests of the rule, and an integration test on real PostgreSQL that publishes a labelled v2 fixture over a v1 revision and reads back both heads. Shown failing when the eligible unit is changed.
+
+## D-128 · 2026-10-30 · Reading facts v3: what counts as reading a v2 stop (S-1b, #472)
+
+The Reader qualifies a reading by `q = 0.5 · coverage + 0.5 · dwell` (blueprint §8). A v2 Scroll is read stop by stop, and a reader can jump to any stop from the spine, so a stop must count as read by more than being on screen for half a second.
+
+**Amends** the qualification input for v2 documents. The policy (`scroll-qualification.v0`), its weights and its thresholds (q at least 0.6, coverage at least 0.5) do not change.
+
+- **Facts v3.** Content stores, with each v2 revision, one unit per stop and call: a rule for when it counts, a weight, and the reading estimate (the measures' reading time, calls included). **Only read stops weigh**, with the weight the document's own measures give them (an aside weighing with the stop it opens beside); the total is the sum of those weights. A call is a unit so that its `locked` or `revealed` is accepted at intake and stored as engagement, but it weighs 0. The recap is the payoff screen and is not a unit.
+- **A read stop** counts after it was visible, while the article was active, for 40 % of the time its own words take at 230 words a minute, and never less than the policy's half second. A reader up to two and a half times faster than the pace still reads it.
+- **A call** is seen when it was reported as locked in or revealed (never by being on screen). Seeing it adds nothing to coverage, so **playing never stands in for reading and not playing never blocks it**: a reader who plays every call but skims the prose does not qualify, and one who reads all the prose and locks no call does. Calls reach q only through the reading estimate, which counts ten seconds for each (findings §5a: no change to q). The option picked is not a reportable interaction at all, so nothing about it reaches evidence (D-063). The new value-free kinds are `locked` and `revealed`, declared for `call_it` and `final_call`.
+- **Tapping through the spine does not qualify.** Without time on each stop the read stops are not seen, so coverage stays low; the 40 % rule closes the gap v1's half second would leave for a skimming tapper (coverage 1 with a fifth of the dwell would reach 0.6).
+- **Evidence carries the rule, not content.** A unit without a rule counts as v1 always has, so v1 facts and Reels are untouched. The two hash the same way in coverage certificates; a mapping names the facts version it was decided for.
+- **Verified.** A pure test with 500 generated tapping traces and the hardest tap (every dot, each read stop just under 40 %, every call locked and on screen for two minutes), none qualifying; 500 traces with all calls locked and the prose skimmed, none qualifying; full prose with no call locked qualifies; a walk at the full pace and a fast reader qualify. Shown failing when the share is 0, when stops count after half a second, and (the call traces) when calls carry the weight of their words.
+
+## D-129 · 2026-10-30 · v2 Scrolls are admitted by the production job and served by schema (S-1b, #472)
+
+The production job published only v1 Scrolls. A v2 Scroll is now produced, admitted and served through the same job, the same attempt ledger and the same coverage rule, and a client that cannot render it is not given it.
+
+**Amends** D-037 and D-120 (the writer ran only in the spike).
+
+- **The plan marks a recipe v2.** `LibraryRecipe.scrollV2` carries the variant and the misconception. Every recipe stays v1 until the plan marks it. This entry marks none; marking the Seasons recipes is the next step.
+- **A job per version.** A v2 recipe's jobs use `scroll-production.v15`, a v1 recipe's `.v14`. A recipe already published as v1 is therefore a new job and its Scroll a new revision of the same asset (the identity never changes, D-033). A v2 recipe counts as published only when its current revision is a v2 document, so `produce-library` and `production-status` treat a v1 Scroll as not yet regenerated. A queued job whose version does not match the plan is dropped.
+- **Same bounds.** One writer request and at most one repair, in a worker, through the attempt ledger. No model call or network wait is inside a transaction or on HTTP. The writer role is the S-0 v2 writer at its current version (`writer-v2.ts`); the stage rules belong to S-1a. The citations a Scroll makes must fit its provenance (at most 48 different passages): that is checked while the answer is validated, so the one repair can fix it.
+- **Refused by the plan, before any request.** A recipe whose misconception source label no person has reviewed (`reviewed: false`) is refused at dispatch (`plan_refused`, `misconception_source_unreviewed`): no job is reserved, nothing is sent, and `production-status` shows it as `stopped`, so neither `produce-library` nor Quartermaster picks it. The document validator still reports the label as a notice and the stored compile still refuses it, should the plan change while a job runs.
+- **Provenance for citations.** `scroll-provenance.v2` records the claims a v2 Scroll cites (the exact source passages), their sources, the production record, and for each stop, aside and the recap the claims it cites. It is stored beside the revision and never served.
+- **Served by schema.** The document endpoint serves a v2 document whole to a client that declares `scroll-document.v2`, and answers `cannot_render` to any other. A v2 document has no blocks to substitute. `parseDocumentV2` is the client path (it skips measures and hash unless asked, like v1). `renderableFormats`, `canRender`, region candidates and the Planner's capabilities accept either schema.
+- **A v1 revision stands in, or nothing does.** Discovery offers a client that cannot render a v2 current revision the latest earlier v1 revision of the same asset, if one exists; otherwise the asset is not offered to it. An exact revision pinned by an offer or a link is never swapped. **Limit:** this assumes every v2 revision regenerates a v1 one. A later correction of a v2 revision (v3) would be offered to a v1-only client as the oldest v1 revision, which may be older than the one it first saw; the rule has to be revisited the first time a v2 Scroll is corrected.
+- **Not in this entry.** Snippet anchors for v2 passages, the reader (S-1c), play (S-2).
+- **Verified.** Integration tests on real PostgreSQL: regeneration over a v1 revision, the rejected source, the status, the served schemas, the fallback; unit tests of the versions and the stored compile.
+
+## D-130 · 2026-10-30 · The context carries a series total counted from admitted units (S-1b, #472)
+
+**Amends** D-059: "Series total is not invented. The context response carries a part number and no total." D-072 allows counts for Scrolls, and a count must be real.
+
+- `series.total` in the exposure context is the number of `content.series_units` of the series revision the Scroll is in. It is never declared, estimated or taken from the library plan.
+- It appears for any unit that is in an admitted series, Scroll or Reel, and nowhere else. A series with no counted units has no `series` at all. Every other field of the context is unchanged.
+- The Composer's snapshot does not carry it: ranking never reads the total.
+
+## D-133 · 2026-10-30 · The stage engine and the Earth & sky kit: what is drawn, how it moves, where it sits (S-1c, #472)
+
+D-120 and D-124 fixed what a stage state may say and what code derives from it. This entry decides how the reader draws it.
+
+**Builds on** D-124. The physics stays in `scroll-model` (`stagePhysics`); the drawing only places things.
+
+- **One scene, from the derived state.** `sceneOf(state)` turns a settled state and its physics into positions and angles. It decides no physics: which half leans, how high the Sun stands and each pin's mark come from `stagePhysics`.
+- **Where Earth is.** June is at the right, September at the top, December at the left, March at the bottom. The orbit views show the four of them as pale Earths with the same axis, so the one fixed lean can be seen. A pale Earth that would sit on the real one is not drawn.
+- **Two orbits.** `orbit` is nearly a circle with the Sun in the middle. `orbit-stretched` is flatter with the Sun off-centre toward the near side. It is an illustration and says so in its words.
+- **Side views.** The Sun is at the left and its light arrives in parallel. Each hemisphere's pin sits at a distance from the point that faces the Sun that follows its Sun height (22, 50 or 76 degrees), so Ray's angle and the size of the patch the beam covers come out of the geometry: a low Sun spreads over more ground. The axis leans toward the Sun for a leaning north, away for a leaning south, and is upright when neither leans (a lean toward the viewer cannot be drawn flat).
+- **Drawing agrees with physics, by test.** For every month, the half that leans in the orbit picture is the half `stagePhysics` names; the side-view lean matches; the higher Sun covers less ground and has the warmer pin. Shown failing when the orbit's axis turn was changed.
+- **The stage at a stop** is the last state set at or before it. A call sets none, so a call never shows its own answer.
+- **How it moves.** A move inside one view, or between the two orbits, glides over the subject motion token's 320 ms (Earth by the short way round, the axis and the pins blended). A move to a different view fades one picture into the other. Under reduced motion every move is a 160 ms cross-fade and nothing between two states is drawn. A move that starts while another is under way starts from the picture on screen.
+- **Its name.** The picture is one image whose accessible name is the state's description from the document. "Text" (key T) swaps the picture for those sentences.
+- **Where it sits.** On a phone the stage is a third of the screen (at least 176, at most 300 px) pinned above the text, with the part label on it. From a tablet the top bar carries the title and the part. There is no V3 frame for a Scroll on a desktop, so a desktop is a centred column about 750 px wide with the stage pinned at its top and the thread beside it, as for any Scroll.
+- **Calls are played on the device.** Pick, lock in, then the answer and why; a wrong pick adds the Plot twist, and the reviewed source of the common guess shows when that was the pick. Nothing is saved or sent but the reveal (D-135); locking, sparks and the Plot twist's effects are S-2.
+- **Not decided here.** Parallax, an animated Ray, other kits, the stage's own drags (the stage takes none in this version).
+
+Confirmed by: `earth-sky-scene.test.ts`, `use-stage-pictures.test.tsx`, `stage-reader.test.tsx`, `stage-reader-smoke.spec.ts` (picture follows stops, tween and cross-fade, axe at 390 and 1440).
+
+## D-134 · 2026-10-30 · Gestures and keys of the Stage + Spine reader (S-1c, #472)
+
+**Builds on** D-071 (swipe between Parts from text and stop surfaces only) and D-053 (keys act on the focused part, never the page).
+
+- **Swipe, by finger only.** A mouse or pen drag across the text is selecting it (the way to "Simpler" and "Ask about this"), so it never moves a Part or asks for a new topic; on a desktop every move is a button and a key. A sideways drag of a finger of at least 64 px that is clearly more sideways than vertical moves between Parts: left is the next Part, right the one before. It is read only on the text. The stage, the spine and the dock are outside it, so the stage keeps its own drags. A drag that starts in the 24 px edge zone of a phone is the platform's Back. A drag that starts on a field or slider is that control's.
+- **Vertical reading never navigates.** Only a pull up from the very end of the text, at least 96 px, asks for a new topic. A fling that ends at the end is not that: the pull must start at the end. On iOS the scroll view's overscroll past the end (72 px) is the same ask, and only when the drag began at the end; Android uses the button.
+- **One move, one path.** Swipe, key and button call the same thing. A Part is the series continuation the server admitted for this Scroll, sent with its displayed link. A new topic is the vertical move in the same format. Where there is no admitted Part the button is absent and the swipe and key do nothing.
+- **Keys.** They work while the reader itself has focus (Tab to it or click it) and nowhere else: down or Space the next stop, up the one before, right the next Part, left the one before, N a new topic, U your Universe, A Ask, T the text version, F the other format, 1 to 4 pick in a call, Enter lock in. A control inside keeps its own keys. The keyboard map lists them, and a test fails when a key is added without a row.
+- **Quick presses add up.** A key pressed while the last is still scrolling continues from where that one was heading.
+- **Soft snap.** Native uses the scroll view's snap offsets. The web settles on a stop's top when scrolling has been still for 140 ms and the text is within 48 px of it, and never at the very end. CSS scroll snapping pulled a long last section back to the first stop, so it is not used.
+- **Not decided here.** The Part 2 entry animation and a swipe that works at once mid-read (S-5; this reader does not credit it).
+
+Confirmed by: `part-gesture.test.ts`, `reader-keys.test.ts`, `keyboard-map.test.tsx`, `stage-reader-smoke.spec.ts` (swipe left, a short nudge and a stage drag move nothing, N, a pull up in the middle and at the end). Shown failing when the swipe distance was 8 px (the nudge swiped), when an unlisted key was added to the reader, and when the iOS pull ignored where the drag began.
+
+## D-135 · 2026-10-30 · What the stage reader reports, and which screens read a v2 Scroll (S-1c, #472)
+
+**Builds on** D-063 and D-128.
+
+- **The stop on screen is the one visible stop.** The reader tells the recorder that stop is wholly visible and every other is not. The stage, the spine, an aside and the end tray are not units. Going to another stop, leaving the screen or replacing the observer closes the stop. Activity is the article's own rule, so time with a sheet over the reader never counts.
+- **A jump gives only the time it was on screen.** A dot tap or key scrolls without animation, so the stops passed on the way get no time. Reading every stop for 50 % of its own words' time plus 0.3 s reports above the 40 % rule for each; tapping through every dot reports none.
+- **A call is reported once, as revealed.** The event has no field for the option picked. `locked` is not reported until locking exists (S-2).
+- **A place is a stop.** Keep and resume store the stop id as the block id with offset 0. Opening at a place scrolls to that stop.
+- **Who reads v2.** Explore and `/scroll/<id>` declare `scroll-document.v2` and draw it. Threads, snippets and everything else still declare v1 only, so the server sends them an earlier v1 revision or nothing. A v2 document reaching a screen that did not declare it shows the update state and is not activated.
+
+Confirmed by: `stage-reader.test.tsx`, `scroll-session.test.ts`, `scroll-v2-reader-trace.test.ts` (what the reader reports, qualified by the server's own rules: a full read qualifies, tapping every dot does not), and the two reading tests of `stage-reader-smoke.spec.ts`, which check every observation against the intake schema. Shown failing when the stop on screen was reported as not visible.
+
 ## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
 
 Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
@@ -1177,6 +1292,7 @@ Confirmed by: `thread-phone-smoke.spec.ts` (panel), `talk-smoke.spec.ts`.
 - **Threads only.** The direct conversation list gets its times in T-B.
 
 Confirmed by: `talk-format.test.ts`, `thread-phone-smoke.spec.ts`.
+
 ## D-160 · 2026-10-30 · Who is here: a one-minute lease, on a member's own view, with the reader always in it (#487)
 
 D-069 says faces always, a number only from three, no "0 online" or "1 online", the cast never counted, and an allow-list in the contract. This is how the room module keeps it. It **builds on** D-051 and D-069 and changes neither.

@@ -1,0 +1,50 @@
+# The space renderer gate (v3 U-0, D-100), only in a build made with EXPO_PUBLIC_KS_GALLERY=1: the sample sun,
+# planets and nebula drawn by three.js on an expo-gl surface in the emulator. The page's readout says which
+# backend drew and how many frames; "Simple lists shown" would mean WebGL failed, and fails the flow. The
+# screenshots are the evidence that pixels reached the screen (the emulator renders with swiftshader, so
+# the frame timing is a software-GL figure, not a device figure).
+#
+# Two parts. The lane turns system animations off, which the app reads as reduced motion: the first part
+# proves that mode on a device (exactly one frame, no loop). The second part opens the page with
+# `?motion=full` (a developer-gallery override) to prove the loop.
+appId: com.knowscroll.client
+name: Space renderer on expo-gl
+tags:
+  - gallery
+  - space
+---
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-space
+- extendedWaitUntil:
+    visible:
+      id: ks-space-gallery
+    timeout: 60000
+# Reduced motion: one frame was drawn and the loop never started.
+- extendedWaitUntil:
+    visible: Drawing with expo-gl · 1 frames.*reduced motion.*
+    timeout: 120000
+- assertNotVisible: Simple lists shown.*
+- takeScreenshot: space-01-reduced-motion-one-frame
+
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-space?motion=full
+- extendedWaitUntil:
+    visible:
+      id: ks-space-gallery
+    timeout: 60000
+- extendedWaitUntil:
+    visible: Drawing with expo-gl.*
+    timeout: 120000
+- takeScreenshot: space-02-first-frames
+# Keep drawing: at least ten frames have gone by.
+- extendedWaitUntil:
+    visible: Drawing with expo-gl · [0-9]{2,} frames.*
+    timeout: 180000
+- assertNotVisible: Simple lists shown.*
+- takeScreenshot: space-03-drawing
+# Labels over the scene are ordinary views at projected points: a tap on one is a tap on a view.
+# The planet labels circle past the system label, so the tap may land on either; both name what
+# was chosen.
+- tapOn: Sample system, a system
+- assertVisible: '.* \((system|planet)\)'
+- takeScreenshot: space-04-label-tapped

@@ -518,6 +518,7 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Rule | Value | Code when broken |
 |---|---|---|
 | Stops and calls | 6 to 14 | `stops_too_few`, `schema_too_big` |
+| Read stops (the units a facet binds to, D-127) | at least 3 | `read_stops_too_few` |
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
 | Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
@@ -529,6 +530,21 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Document | 128 KiB; measures and hash recomputed | `document_too_large`, `measures_mismatch`, `integrity_mismatch` |
 
 What counts as a word, and what does not (`simple` texts), is in D-121. `validateDocumentV2` returns `valid {document, notices}` or `invalid {issues}`. A notice (`misconception_source_unreviewed`) does not refuse the document.
+
+### Delivery and reading (D-128, D-129)
+
+Status: **implemented**, unit-tested.
+
+- `parseDocumentV2(input, {verify?})` is the client path: the size, the schema, the budget and the structure
+  rules, with the measures, the reading time and the hash checked only with `verify: true` (as v1's
+  `parseDocument`). `validateDocumentV2` always verifies.
+- `negotiateV2(document, capabilities)` offers the document whole to a client that declares
+  `scroll-document.v2`, and reports `unsupported-document` to any other. A v2 document has no blocks to
+  substitute.
+- `INTERACTION_KINDS_V2`: a call reports `locked` or `revealed`, nothing else. No kind carries the option
+  picked or whether it was right (D-063).
+- `./internal` has `ScrollProvenanceV2` (`scroll-provenance.v2`): the claims, sources, production record
+  and, per stop, aside and recap, the claims it cites.
 
 ### The kit
 
@@ -568,6 +584,7 @@ The labelled examples are CI fixtures, not product content (`production.kind: "f
 | `attention-slowly` | Drag-to-target diagram, heatmap chart with an anchored caption number, illustrative slider simulation, disclosure with code, table |
 | `weight-other-worlds` | Non-illustrative simulation with a personal input and cards, value bindings for its range and default, anchored fallback-text numbers, bar chart |
 | `spring-neap-tides` | Step-through diagram on the grid layout, illustrative slider simulation with cards and bands, timeline. Its two claims are the real passages from the frozen v1 library pack `1aca9029bc97`. |
+| `seasons-stage-ci` | A `scroll-document.v2` about the seasons: a stage with seven states, two Call its and a Final call, a tangent and a limits aside, a recap. It is the reader's fixture (S-1c): its title and kicker say it is a CI fixture, its measures and hash are checked by `seasons-fixture.test.ts`, and `fixtures/regenerate-v2.mjs` rewrites it after a deliberate change to the v2 rules (`pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-v2.mjs && pnpm format`). |
 
 Layout:
 - `fixtures/documents/<name>.json`: the exported consumer documents.

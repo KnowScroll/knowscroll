@@ -290,7 +290,11 @@ export const ExposureContextResponseSchema = z.strictObject({
   revision: z.number().int().min(0),
   session: z.strictObject({ sessionId: UuidSchema, intentRevision: IntentRevision }).optional(),
   actions: z.strictObject({ saved: z.boolean(), liked: z.boolean(), hidden: z.boolean() }),
-  series: SeriesPositionSchema.optional(),
+  /**
+   * Where this unit stands in its admitted series. `total` is the number of admitted `series_units` of that
+   * series revision, never an invented figure (D-059, D-072).
+   */
+  series: SeriesPositionSchema.extend({ total: z.number().int().min(1).max(99) }).optional(),
   variants: EncounterOfferSchema.shape.variants,
   continuations: z.strictObject({
     seriesPrevious: ContinuationStateSchema.refine(

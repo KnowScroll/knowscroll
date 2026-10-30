@@ -11,6 +11,11 @@ export const LIMITS_V2 = {
   documentBytes: 131_072,
   /** Stops of all kinds: the dots of the spine. */
   minStops: 6,
+  /**
+   * Read stops a Scroll must have. They are what its facets bind to (coverage v2 needs three), so a
+   * Scroll of calls and almost nothing else could be published and then never form a place.
+   */
+  minReadStops: 3,
   maxStops: 14,
   /** The words of one stop's text (heading excluded). */
   stopWords: 60,

@@ -6,8 +6,14 @@ import {
   type AccountScope,
 } from '@knowscroll/client-core';
 import { DirectActivateExposureResponseSchema } from '@knowscroll/contracts';
-import { parseDocument, type ScrollDocument } from '@knowscroll/scroll-model';
-import { SCROLL_CAPABILITIES } from './capabilities';
+import { parseScrollDocument } from '@knowscroll/client-core';
+import type { ClientCapabilities } from '@knowscroll/contracts';
+import {
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  type ScrollDocument,
+  type ScrollDocumentV2,
+} from '@knowscroll/scroll-model';
+import { SCROLL_CAPABILITIES, STAGE_CAPABILITIES } from './capabilities';
 
 /** The lineage the recorder's observations carry. */
 export interface OpenedScroll {
@@ -21,6 +27,24 @@ export interface OpenedScroll {
   readonly degradedEssential: readonly { readonly blockId: string; readonly originalType: string }[];
 }
 
+/** A v2 Scroll, opened for the Stage + Spine reader: the same lineage, a stop-based document. */
+export type OpenedStageScroll = Omit<OpenedScroll, 'document'> & { readonly document: ScrollDocumentV2 };
+
+/** Either kind of opened Scroll, for the places that only need what both share (lineage, keep positions). */
+export type AnyOpenedScroll = OpenedScroll | OpenedStageScroll;
+
+/** Whether an opened Scroll is a v2 document, which the Stage + Spine reader draws (v1 keeps the article). */
+export function isStageScroll(scroll: AnyOpenedScroll): scroll is OpenedStageScroll {
+  return scroll.document.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION;
+}
+
+/** The ids a position in this Scroll can name: block ids in v1, stop ids in v2. */
+export function positionIds(scroll: AnyOpenedScroll): readonly string[] {
+  return isStageScroll(scroll)
+    ? scroll.document.stops.map((stop) => stop.id)
+    : scroll.document.sections.flatMap((section) => section.blocks.map((block) => block.id));
+}
+
 /**
  * Where opening a Scroll stands. Every state has a screen: loading, unavailable (no such Scroll, or
  * access ended), needs an update (the declared capabilities cannot render it), offline, an error to
@@ -31,6 +55,8 @@ export type ScrollSessionState =
   | { readonly status: 'loading' }
   | { readonly status: 'activating' }
   | { readonly status: 'ready'; readonly scroll: OpenedScroll }
+  /** A v2 document, for a caller that declared it can read one (`stage: true`). */
+  | { readonly status: 'ready_stage'; readonly scroll: OpenedStageScroll }
   | { readonly status: 'unavailable' }
   | { readonly status: 'needs_update' }
   | { readonly status: 'offline' }
@@ -41,6 +67,8 @@ export interface ScrollSessionOptions {
   readonly assetId: string;
   /** Mints a UUID per user intent (a command ID); one per step, kept for every retry of that step. */
   readonly newId: () => string;
+  /** The caller draws v2 documents (the Stage + Spine reader): declare `scroll-document.v2` and accept one. */
+  readonly stage?: boolean;
 }
 
 export interface ScrollSession {
@@ -77,7 +105,9 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
   let openCommandId: string | undefined;
   let activationBody: { commandId: string; exposureId: string; recordingGeneration?: number } | undefined;
   let opened: { exposureId: string; assetRevision: number } | undefined;
-  let loaded: { document: ScrollDocument; degradedEssential: OpenedScroll['degradedEssential'] } | undefined;
+  let loaded:
+    { document: ScrollDocument | ScrollDocumentV2; degradedEssential: OpenedScroll['degradedEssential'] } | undefined;
+  const capabilities: ClientCapabilities = options.stage === true ? STAGE_CAPABILITIES : SCROLL_CAPABILITIES;
 
   const set = (next: ScrollSessionState): void => {
     if (disposed) return;
@@ -107,7 +137,7 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
           commandId: openCommandId,
           target: { kind: 'scroll', assetId: options.assetId },
           origin: { kind: 'direct' },
-          capabilities: SCROLL_CAPABILITIES,
+          capabilities,
         });
         if (disposed) return;
         // A direct open must return exposure lineage; Composer ready/pending is a different flow.
@@ -122,9 +152,9 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
         const response = await options.scope.api.experience.exposureDocument({ exposureId: opened.exposureId });
         if (disposed) return;
         // The client path: structure, bounds and cheap checks; the server proved the rest at admission.
-        const parsed = parseDocument(response.document);
-        if (parsed.kind !== 'valid') {
-          set({ status: 'error' });
+        const parsed = parseScrollDocument(response.document);
+        if (parsed.kind !== 'valid' || (parsed.schema === 'v2' && options.stage !== true)) {
+          set({ status: parsed.kind === 'valid' ? 'needs_update' : 'error' });
           return;
         }
         loaded = { document: parsed.document, degradedEssential: response.degradedEssential };
@@ -141,20 +171,22 @@ export function createScrollSession(options: ScrollSessionOptions): ScrollSessio
       );
       if (activated.commandId !== activationBody.commandId || activated.exposureId !== activationBody.exposureId)
         throw new Error('activation_lineage');
-      set({
-        status: 'ready',
-        scroll: {
-          exposureId: opened.exposureId,
-          ...(activationBody.recordingGeneration === undefined
-            ? {}
-            : { recordingGeneration: activationBody.recordingGeneration }),
-          recordingSessionId: activationBody.commandId,
-          assetId: options.assetId,
-          assetRevision: opened.assetRevision,
-          document: loaded.document,
-          degradedEssential: loaded.degradedEssential,
-        },
-      });
+      const lineage = {
+        exposureId: opened.exposureId,
+        ...(activationBody.recordingGeneration === undefined
+          ? {}
+          : { recordingGeneration: activationBody.recordingGeneration }),
+        recordingSessionId: activationBody.commandId,
+        assetId: options.assetId,
+        assetRevision: opened.assetRevision,
+        degradedEssential: loaded.degradedEssential,
+      };
+      const { document } = loaded;
+      set(
+        document.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION
+          ? { status: 'ready_stage', scroll: { ...lineage, document } }
+          : { status: 'ready', scroll: { ...lineage, document } },
+      );
     } catch (error) {
       if (error instanceof ScopeEndedError || disposed) return;
       set(failure(error));

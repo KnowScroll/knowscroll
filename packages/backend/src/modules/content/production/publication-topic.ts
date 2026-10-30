@@ -1,7 +1,7 @@
 import { sql, type Transaction } from 'kysely';
 import { z } from 'zod';
-import { parseDocument } from '@knowscroll/scroll-model';
-import { ScrollProvenance } from '@knowscroll/scroll-model/internal';
+import { parseDocument, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import { ScrollProvenance, ScrollProvenanceV2, type ProductionRecord } from '@knowscroll/scroll-model/internal';
 import { MINIMAX_MODELS } from '../../../infrastructure/config/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
@@ -15,7 +15,15 @@ import { inAdmissionTransaction } from '../adapters/postgres-store.js';
 import { admitRecipeCoverage } from '../application/admit-recipe-coverage.js';
 import { validateTopics } from '../domain/discovery.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
-import { explanationUnitFor, parseScrollTopic, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
+import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
+import {
+  explanationUnitFor,
+  parseScrollTopic,
+  PRODUCTION_VERSIONS,
+  productionVersionOf,
+  TOPICS,
+  type ScrollTopic,
+} from './topics.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
 const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
@@ -73,6 +81,7 @@ async function readPublishedRevision(
     )
     .select([
       'job.topic',
+      'job.policy_version',
       'job.target_revision',
       sql<boolean>`job.claims is not null`.as('claims_present'),
       sql<boolean>`job.writer_output is not null`.as('writer_output_present'),
@@ -88,7 +97,7 @@ async function readPublishedRevision(
     ])
     .where('job.id', '=', jobId)
     .where('job.state', '=', 'published')
-    .where('job.policy_version', '=', SCROLL_PRODUCTION_VERSION)
+    .where('job.policy_version', 'in', PRODUCTION_VERSIONS)
     .where('job.writer_run_id', '=', writerRunId)
     .where('job.scope_generation', '=', generation)
     .where('revision.provenance_kind', '=', 'generated')
@@ -98,6 +107,39 @@ async function readPublishedRevision(
     .executeTakeFirst();
 }
 
+/** What a stored document and its provenance state about themselves, whichever schema the revision has. */
+interface StoredLineage {
+  readonly document: {
+    readonly schemaVersion: string;
+    readonly assetId: string;
+    readonly revision: number;
+    readonly explanationUnitId: string;
+    readonly integrity: { readonly sha256: string };
+  };
+  readonly provenance: {
+    readonly schemaVersion: string;
+    readonly assetId: string;
+    readonly revision: number;
+    readonly documentSha256: string;
+    readonly production: ProductionRecord;
+  };
+  /** The writer instructions a Scroll of this schema must name. */
+  readonly writerPromptVersion: string;
+}
+
+function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
+  if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
+    const document = parseDocumentV2(row.document);
+    const provenance = ScrollProvenanceV2.safeParse(row.provenance);
+    if (document.kind !== 'valid' || !provenance.success) return undefined;
+    return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_V2_PROMPT_VERSION };
+  }
+  const document = parseDocument(row.document);
+  const provenance = ScrollProvenance.safeParse(row.provenance);
+  if (document.kind !== 'valid' || !provenance.success) return undefined;
+  return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_PROMPT_VERSION };
+}
+
 /** The stored document and provenance are the recipe's, at the revision the job targeted. */
 function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
   const topic = parseScrollTopic(row.topic);
@@ -105,26 +147,27 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
     topic === undefined ||
     row.asset_id !== TOPICS[topic].assetId ||
     row.revision !== row.target_revision ||
-    row.explanation_unit_id !== explanationUnitFor(topic)
+    row.explanation_unit_id !== explanationUnitFor(topic) ||
+    row.policy_version !== productionVersionOf(topic)
   )
     return undefined;
-  const document = parseDocument(row.document);
-  const provenance = ScrollProvenance.safeParse(row.provenance);
-  if (document.kind !== 'valid' || !provenance.success) return undefined;
-  const production = provenance.data.production;
+  const stored = storedLineage(row);
+  if (stored === undefined) return undefined;
+  const { document, provenance } = stored;
+  const production = provenance.production;
   if (
-    document.document.schemaVersion !== row.document_version ||
-    provenance.data.schemaVersion !== row.provenance_version ||
-    document.document.assetId !== row.asset_id ||
-    document.document.revision !== row.revision ||
-    document.document.explanationUnitId !== row.explanation_unit_id ||
-    document.document.integrity.sha256 !== row.document_sha256 ||
-    provenance.data.assetId !== row.asset_id ||
-    provenance.data.revision !== row.revision ||
-    provenance.data.documentSha256 !== row.document_sha256 ||
+    document.schemaVersion !== row.document_version ||
+    provenance.schemaVersion !== row.provenance_version ||
+    document.assetId !== row.asset_id ||
+    document.revision !== row.revision ||
+    document.explanationUnitId !== row.explanation_unit_id ||
+    document.integrity.sha256 !== row.document_sha256 ||
+    provenance.assetId !== row.asset_id ||
+    provenance.revision !== row.revision ||
+    provenance.documentSha256 !== row.document_sha256 ||
     production.kind !== 'model' ||
     production.runId !== writerRunId ||
-    production.promptVersion !== WRITER_PROMPT_VERSION
+    production.promptVersion !== stored.writerPromptVersion
   )
     return undefined;
   return { topic, production };
@@ -294,7 +337,7 @@ export async function completeWriterPublication(
     .select('id')
     .where('id', '=', jobId)
     .where('state', '=', 'writer')
-    .where('policy_version', '=', SCROLL_PRODUCTION_VERSION)
+    .where('policy_version', 'in', PRODUCTION_VERSIONS)
     .where('scope_generation', '=', scope.authority.generation)
     .where('writer_run_id', '=', writerRunId)
     .forUpdate()

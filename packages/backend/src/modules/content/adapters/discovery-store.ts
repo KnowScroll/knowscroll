@@ -1,9 +1,10 @@
 import type { ReadEncounterAttribution } from '../public.js';
 import { createHash } from 'node:crypto';
 import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
-import { negotiate, parseDocument } from '@knowscroll/scroll-model';
 import { sql, type Kysely } from 'kysely';
+import { SCROLL_DOCUMENT_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
+import { canRenderScroll, isScrollDocumentV2 } from './render-scroll.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import {
   validateTopics,
@@ -42,8 +43,23 @@ function canRender(row: Row, capabilities: unknown): boolean {
       ReelDocumentSchema.safeParse(row.document).success
     );
   }
-  const parsed = parseDocument(row.document);
-  return parsed.kind === 'valid' && negotiate(parsed.document, capabilities).kind === 'negotiated';
+  return canRenderScroll(row.document, capabilities);
+}
+/**
+ * The latest earlier v1 revision of each asset whose current revision is a v2 document the client
+ * cannot render. A regenerated Scroll keeps its asset, so the v1 revision it replaced is the fallback
+ * for a client that has not learned v2; an asset with none is simply not offered to that client.
+ */
+async function olderV1Rows(db: Kysely<Database>, assetIds: readonly string[]): Promise<ReadonlyMap<string, Row>> {
+  if (assetIds.length === 0) return new Map();
+  const found = await sql<{ asset_id: string; revision: number }>`select distinct on (r.asset_id) r.asset_id,r.revision
+    from content.asset_revisions r join content.assets a on a.id=r.asset_id and a.status='admitted'
+    where r.asset_id=any(${assetIds}::uuid[]) and r.document_version=${SCROLL_DOCUMENT_SCHEMA_VERSION} and r.revision<a.revision
+    order by r.asset_id,r.revision desc`.execute(db);
+  if (found.rows.length === 0) return new Map();
+  const pairs = sql.join(found.rows.map((row) => sql`(${row.asset_id}::uuid,${row.revision})`));
+  const older = await rows(db, sql`(r.asset_id,r.revision) in (${pairs})`, 100);
+  return new Map(older.map((row) => [row.asset_id, row]));
 }
 function snapshot(row: Row): EncounterSnapshot {
   validateTopics(row.topics);
@@ -117,12 +133,19 @@ export const readDiscoveryCandidates: ReadDiscoveryCandidates = async (scope, q)
     sql`r.revision=a.revision and r.asset_id=any(${ids.rows.map((r) => r.asset_id)}::uuid[])`,
     100,
   );
-  return [...candidates]
-    .sort(
-      (a, b) =>
-        ids.rows.findIndex((r) => r.asset_id === a.asset_id) - ids.rows.findIndex((r) => r.asset_id === b.asset_id),
-    )
-    .filter((r) => canRender(r, q.capabilities))
+  const unsupportedV2 = candidates
+    .filter((row) => row.kind === 'scroll' && isScrollDocumentV2(row.document) && !canRender(row, q.capabilities))
+    .map((row) => row.asset_id);
+  const fallbacks = await olderV1Rows(db, unsupportedV2);
+  const byAsset = new Map(candidates.map((row) => [row.asset_id, row]));
+  return ids.rows
+    .flatMap(({ asset_id }) => {
+      const row = byAsset.get(asset_id);
+      if (row === undefined) return [];
+      if (canRender(row, q.capabilities)) return [row];
+      const older = fallbacks.get(asset_id);
+      return older !== undefined && canRender(older, q.capabilities) ? [older] : [];
+    })
     .slice(0, q.limit ?? 100)
     .map(snapshot);
 };

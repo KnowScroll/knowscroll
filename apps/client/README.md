@@ -58,7 +58,7 @@ the screen in the document, so reading and Tab order is top bar → content → 
 the phone pill floats over the bottom, and on tablets and desktops the rail is drawn over a left
 margin the screens leave free (`sceneStyle`), with the desktop avatar last in the rail.
 
-The encounter controller advertises both `scroll-document.v1` and `reel-document.v1` when
+The encounter controller advertises `scroll-document.v1`, `scroll-document.v2` and `reel-document.v1` when
 opening discovery or a Saved revisit. Its Scroll block/version declaration still comes from the
 actual renderer registry. A Scroll-only capability declaration would correctly make the backend
 exclude Reels, even though this controller has a working Reel player.
@@ -97,6 +97,7 @@ exclude Reels, even though this controller has a working Reel player.
   article revision, in the account scope's storage), the capabilities this build declares
   (`capabilities.ts`, exported directly by the renderer registry). The route uses `packages/ui` `ScrollArticle` with AccountScope block state and a recorder observer; the resume keeper freezes before unmount closes visibility intervals. `features/diagnostics/evidence-panel.tsx` is the dev-only
   evidence view, off unless `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`, and then only where `GET /health` names a world with operator tools.
+- `features/scroll/stage-reader-surface.tsx` and `features/encounter/encounter-stage.tsx`: the Stage + Spine reader of a v2 Scroll (D-133 to D-135; status: **implemented**, web smoke-tested; native by unit tests only, not run on a device). `scroll-session.ts` opens a v2 document as `ready_stage` only for a caller that passes `stage: true` and declares `STAGE_CAPABILITIES`; `isStageScroll` picks the reader (Explore, `/scroll/<id>`), and a v1 document keeps the article. The reader's Part moves are the encounter session's series intents, Next ↑ is the vertical move, and ••• holds Save and Share. A position is a stop id. `e2e/stage-reader-smoke.spec.ts` runs it over the labelled `seasons-stage-ci` fixture: the picture follows the stops, a dot jumps, Part 2 and Next by button, key and swipe, reduced motion, axe at 390 and 1440, and the reading facts a full read and a tap through the dots report.
 - `features/operator/`: the Operator screen. It has its own flat grey look on purpose (`operator-theme.ts`), takes its state from client-core's `createOperatorSession`, and shows the unknown-page screen when the server says the account is not an operator.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
@@ -328,6 +329,34 @@ float over it.
 Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on the web pans with
 arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
 token; reduced motion stops drift and plays the formation as one still.
+
+### Space renderer (v3 U-0, D-073, D-100)
+
+`features/universe/space/` draws the space views with three.js. It is the gate for lane U and the base of the
+3D Universe: nothing in the Universe tab uses it yet. It is reached only through the developer gallery page
+`/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; not in a production export).
+
+| Capability | Status |
+| --- | --- |
+| One three.js scene (orange sun with haze, two painted planets that revolve, no orbit lines, nebula dust, stars) | runtime-verified (web, browser) |
+| Web canvas host: a DOM canvas, WebGL 2 context made by three.js | runtime-verified (web, browser) |
+| Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | runtime-verified (Android emulator; no phone or iOS yet) |
+| 30 fps cap (a frame at most every 33 ms), time step clamped to 0.1 s, pixel ratio capped at 1.5 | runtime-verified (web, Android emulator) |
+| Loop stops when the route is unfocused, the app is not active or the tab is hidden | runtime-verified (web); native: implemented (unit tests, not driven on a device) |
+| Loop stops when the canvas is scrolled off screen | runtime-verified (web only; native does not report it, see D-100) |
+| Reduced motion: one frame, no loop | runtime-verified (web, Android emulator) |
+| No WebGL, context creation failure, context loss or a failed frame: the plain lists (`SpaceSimpleLists`) | runtime-verified (web; on the emulator a failed context creation showed the lists) |
+| A new native surface after resume replaces the renderer and loop; unmount releases them | implemented (unit tests, not driven on a device) |
+| Low memory (`AppState` `memoryWarning`) shows the plain lists | implemented (unit test; raised by iOS, not known on Android; device-memory check deferred to the Simple drawing slice) |
+| Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web, Android emulator) |
+| Real Universe data, Overview/Lately/Far/System levels, fly-ins | planned (U-2 onward) |
+
+How it fits together. A platform canvas host (`space-canvas.web.tsx`, `space-canvas.tsx`) hands `SpaceView` a
+`SpaceSurface`. `SpaceView` loads `space-renderer.ts` (three.js) on first use, builds the scene from a
+`SpaceDefinition` and runs one loop (`render-loop.ts` over the pure clock in `frame-clock.ts`). A scene is a pure
+function of the time `t`, so one frame is a valid picture. Textures are plain pixel arrays (`texture-data.ts`),
+because Hermes has no canvas. The web smoke is `e2e/space-gallery.spec.ts`; the emulator flow is
+`maestro/space.yaml`.
 
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
 (pure placement), `overview-scene.tsx`, `system-scene.tsx`, `planet-scene.tsx` (drawing and targets),

@@ -25,6 +25,8 @@ export interface ProduceScrollResult {
     | 'scope_refused'
     /** The key is neither a library recipe nor a stored order; nothing was started. */
     | 'unknown_recipe'
+    /** The plan does not allow the recipe to be produced (`codes` says why); no job was reserved and nothing was sent. */
+    | 'plan_refused'
     | 'paused'
     /** A take above 1 was asked for before every earlier take was rejected; nothing was started. */
     | 'take_refused'

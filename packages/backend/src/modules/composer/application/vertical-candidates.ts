@@ -30,5 +30,9 @@ export async function readVerticalCandidates(
 
 /** The renderable formats a client's declared document schemas allow. */
 export function renderableFormats(documentSchemas: readonly string[]): readonly ('reel' | 'scroll')[] {
-  return (['reel', 'scroll'] as const).filter((format) => documentSchemas.includes(`${format}-document.v1`));
+  return (['reel', 'scroll'] as const).filter((format) =>
+    [`${format}-document.v1`, ...(format === 'scroll' ? ['scroll-document.v2'] : [])].some((schema) =>
+      documentSchemas.includes(schema),
+    ),
+  );
 }

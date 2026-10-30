@@ -200,6 +200,7 @@ describe('experience open, activate and the document read (real database)', () =
     if (opened.kind !== 'opened') throw new Error('fixture open refused');
     const read = await useCases.readExposureDocument(person.authority, opened.outcome.exposureId);
     if (read.kind !== 'document') throw new Error('document refused');
+    if (read.document.schemaVersion !== 'scroll-document.v1') throw new Error('CI expected a v1 document');
     const types = read.document.sections.flatMap((section) => section.blocks.map((block) => block.type));
     expect(types).toContain('fallback');
     expect(types).not.toContain('list');

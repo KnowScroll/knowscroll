@@ -211,6 +211,7 @@ describe('the thin journey through the built API, worker and operator command', 
 
     const read = await client.experience.exposureDocument({ exposureId: opened.exposureId });
     expect(read.document.title).toBe('Why the sky is blue');
+    if (read.document.schemaVersion !== 'scroll-document.v1') throw new Error('CI expected a v1 document');
     expect(read.degradedEssential).toEqual([]);
     for (const internal of ['claims', 'sources', 'production', 'authored'])
       expect(JSON.stringify(read)).not.toContain(internal);

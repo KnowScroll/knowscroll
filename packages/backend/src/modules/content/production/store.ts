@@ -3,7 +3,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { RoleReceipt } from './types.js';
-import { SCROLL_PRODUCTION_VERSION } from './topics.js';
+import { productionVersionOf } from './topics.js';
 
 export type CreateJobResult =
   | { readonly kind: 'job'; readonly row: ProductionRow; readonly created: boolean }
@@ -37,7 +37,7 @@ export function productionStore(db: Kysely<Database>) {
     /** The recipe's latest take at the current version. */
     async read(topic: string): Promise<ProductionRow | undefined> {
       return (
-        await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} order by take desc limit 1`.execute(
+        await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${productionVersionOf(topic)} order by take desc limit 1`.execute(
           db,
         )
       ).rows[0];
@@ -63,7 +63,7 @@ export function productionStore(db: Kysely<Database>) {
     ): Promise<CreateJobResult> {
       const read = async () =>
         (
-          await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} and take=${take} for update`.execute(
+          await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${productionVersionOf(topic)} and take=${take} for update`.execute(
             tx,
           )
         ).rows[0];
@@ -73,7 +73,7 @@ export function productionStore(db: Kysely<Database>) {
         const earlier = (
           await sql<{
             state: string;
-          }>`select state from content.scroll_production_runs where topic=${topic} and policy_version=${SCROLL_PRODUCTION_VERSION} and take<${take}`.execute(
+          }>`select state from content.scroll_production_runs where topic=${topic} and policy_version=${productionVersionOf(topic)} and take<${take}`.execute(
             tx,
           )
         ).rows;
@@ -81,7 +81,7 @@ export function productionStore(db: Kysely<Database>) {
           return { kind: 'take_refused' };
       }
       const inserted =
-        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${SCROLL_PRODUCTION_VERSION},${take},(select coalesce((select revision from content.assets where id=${assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
+        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${productionVersionOf(topic)},${take},(select coalesce((select revision from content.assets where id=${assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
           tx,
         );
       if (inserted.rows[0]) return { kind: 'job', row: inserted.rows[0], created: true };

@@ -11,9 +11,11 @@ import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import {
   INTERACTION_KINDS,
+  INTERACTION_KINDS_V2,
   type BlockStateSnapshot,
   type Framing,
   type ScrollDocument,
+  type ScrollDocumentV2,
 } from '@knowscroll/scroll-model';
 import type { AccountAccess, PersonalAuthority, PersonalScopeTx, ReadOn } from '../identity/public.js';
 import type { AssetKind } from './domain/provenance.js';
@@ -101,8 +103,11 @@ export type CannotRenderReason = 'capabilities_invalid' | 'unsupported_document'
 export type RenderScrollResult =
   | {
       readonly kind: 'rendition';
-      /** The document negotiated for the client: unsupported blocks replaced by fallbacks, never provenance. */
-      readonly document: ScrollDocument;
+      /**
+       * The document negotiated for the client: unsupported blocks replaced by fallbacks, never provenance.
+       * A `scroll-document.v2` is served whole, to a client that declared the schema.
+       */
+      readonly document: ScrollDocument | ScrollDocumentV2;
       /** Essential blocks the client will see only as fallback text. */
       readonly degradedEssential: readonly { readonly blockId: string; readonly originalType: string }[];
     }
@@ -122,11 +127,16 @@ export type RenderScroll = (request: {
 
 export const RENDER_SCROLL = Symbol('content.renderScroll');
 
-/** Whether the admitted block kind declares this value-free interaction in the canonical Scroll registry. */
+/**
+ * Whether the admitted block kind (a v1 block type, or a v2 call) declares this value-free
+ * interaction in the canonical Scroll registry.
+ */
 export function isReadingInteractionAllowed(blockType: string, interactionKind: string): boolean {
-  if (!Object.hasOwn(INTERACTION_KINDS, blockType)) return false;
-  const declared: Readonly<Record<string, readonly string[] | undefined>> = INTERACTION_KINDS;
-  return declared[blockType]?.includes(interactionKind) === true;
+  const declared: Readonly<Record<string, readonly string[] | undefined>> = {
+    ...INTERACTION_KINDS,
+    ...INTERACTION_KINDS_V2,
+  };
+  return Object.hasOwn(declared, blockType) && declared[blockType]?.includes(interactionKind) === true;
 }
 
 /**
@@ -232,6 +242,15 @@ export type AdmitContinuity = (tx: AdmissionTx, admission: ContinuityAdmission) 
 export const READ_DISCOVERY_CANDIDATES = Symbol('content.readDiscoveryCandidates');
 export const READ_EXACT_ENCOUNTER = Symbol('content.readExactEncounter');
 export const READ_CONTINUATIONS = Symbol('content.readContinuations');
+/**
+ * How many units the admitted series revision holds (`content.series_units`), or `undefined` when it
+ * holds none. The only source of a series total: it is counted, never declared or invented (D-059).
+ */
+export type ReadSeriesTotal = (
+  scope: PersonalScopeTx,
+  series: { readonly seriesId: string; readonly seriesRevision: number },
+) => Promise<number | undefined>;
+export const READ_SERIES_TOTAL = Symbol('content.readSeriesTotal');
 export const RESOLVE_CONTINUITY_LINK = Symbol('content.resolveContinuityLink');
 export const READ_ENCOUNTER_TOPICS = Symbol('content.readEncounterTopics');
 export const READ_SAVED_METADATA = Symbol('content.readSavedMetadata');

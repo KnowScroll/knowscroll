@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineQueue } from '../../../infrastructure/jobs/queues.js';
-import { MAX_TAKES_PER_RECIPE, SCROLL_PRODUCTION_VERSION } from './topics.js';
+import { MAX_TAKES_PER_RECIPE, productionVersionOf } from './topics.js';
 
 /**
  * One request to produce the Scroll of a library recipe, or of an order placed from code (`order-…`).
@@ -45,7 +45,7 @@ export const produceScrollQueue = defineQueue({
 
 /** The job a sender enqueues for `take` of `recipe` under the current recipe version. */
 export function produceScrollJob(recipe: string, take = 1): ProduceScrollJob {
-  return { v: 1, recipe, policyVersion: SCROLL_PRODUCTION_VERSION, take };
+  return { v: 1, recipe, policyVersion: productionVersionOf(recipe), take };
 }
 
 /**

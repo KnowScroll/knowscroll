@@ -6,6 +6,7 @@ import {
   createReelRecorder,
   createScrollRecorder,
   feedbackFor,
+  parseScrollDocument,
   ScopeEndedError,
   type AccountScope,
   type AvailableRegionPreview,
@@ -28,8 +29,8 @@ import type {
   NavigateExperienceRequest,
   NavigationOutcome,
 } from '@knowscroll/contracts';
-import { parseDocument } from '@knowscroll/scroll-model';
 import { afterPendingBack } from '../../platform/after-pending-back';
+import type { AnyOpenedScroll } from '../scroll/scroll-session';
 import { createRequestSession, type RequestMode } from '../requests/request-session';
 import { savedRemovalFor, type SavedRemovalState } from '../saved/saved-query';
 import type { EncounterGestureMove } from './gestures/arbitration';
@@ -333,7 +334,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     if (offer.metadata.kind === 'scroll') {
       const loaded = await scope.api.experience.exposureDocument({ exposureId });
       if (!valid()) throw new ScopeEndedError();
-      const parsed = parseDocument(loaded.document);
+      const parsed = parseScrollDocument(loaded.document);
       if (
         parsed.kind !== 'valid' ||
         loaded.exposureId !== exposureId ||
@@ -343,10 +344,13 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
         parsed.document.revision !== offer.assetRevision
       )
         throw new Error('document_lineage');
+      const lineage = { ...exposure, degradedEssential: loaded.degradedEssential };
+      const scroll: AnyOpenedScroll =
+        parsed.schema === 'v2' ? { ...lineage, document: parsed.document } : { ...lineage, document: parsed.document };
       return {
         ...common,
         kind: 'scroll',
-        scroll: { ...exposure, document: parsed.document, degradedEssential: loaded.degradedEssential },
+        scroll,
         recorder: createScrollRecorder({ exposure, scope, newId }),
       };
     }
