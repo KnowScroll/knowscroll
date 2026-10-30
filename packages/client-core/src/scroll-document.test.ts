@@ -32,11 +32,12 @@ function documentV2(): Record<string, unknown> {
     blocks: [{ type: 'paragraph', text: filler(56, at) }],
     simple: filler(20, at + 30),
   });
-  const call = (at: number, kind: 'call_it' | 'final_call'): Stop => ({
+  // Each call has its own words, so the Final call is not taken for a restatement of an earlier call.
+  const call = (at: number, kind: 'call_it' | 'final_call', prompt: string, options: [string, string]): Stop => ({
     kind,
     id: `s${String(at)}`,
-    prompt: `Which of these ${filler(6, at)}`.replace(/\.$/u, '?'),
-    options: [filler(5, at + 1), filler(5, at + 2)],
+    prompt,
+    options,
     answer: 0,
     explain: filler(40, at + 3),
     twist: filler(30, at + 4),
@@ -44,9 +45,16 @@ function documentV2(): Record<string, unknown> {
   });
   const stops: Stop[] = [
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(read),
-    call(11, 'call_it'),
-    call(12, 'final_call'),
-  ].flatMap((stop, index) => (index === 4 ? [stop, call(20, 'call_it')] : [stop]));
+    call(11, 'call_it', 'Which lantern burns longest in the harbour?', ['The copper one', 'The granite one']),
+    call(12, 'final_call', 'Who keeps the orchard saddle tidy each autumn?', ['The quarry cook', 'The thistle warden']),
+  ].flatMap((stop, index) =>
+    index === 4
+      ? [
+          stop,
+          call(20, 'call_it', 'Where does the willow ferry dock at dusk?', ['By the meadow gate', 'Under the beacon']),
+        ]
+      : [stop],
+  );
   const asides: Aside[] = [
     { id: 'a1', kind: 'limits', title: 'Where this stops', text: filler(30, 9), anchorStop: 's8', collapsed: false },
   ];

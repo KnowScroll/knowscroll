@@ -222,6 +222,9 @@ export function validateDocumentV2(input: unknown, options: ValidateV2Options = 
   const issues: IssueV2[] = [
     ...idIssues(document),
     ...(document.stops.length < LIMITS_V2.minStops ? [{ code: 'stops_too_few', path: 'stops' } as const] : []),
+    ...(document.stops.filter((stop) => stop.kind === 'read').length < LIMITS_V2.minReadStops
+      ? [{ code: 'read_stops_too_few', path: 'stops' } as const]
+      : []),
     ...document.stops.flatMap(stopTextIssues),
     ...callIssues(document),
     ...restatementIssues(document),

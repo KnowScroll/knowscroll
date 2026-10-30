@@ -10,6 +10,7 @@ import type { ReasonCode } from '../issues.js';
 export const V2_REASON_CODES = [
   // Stops and their text.
   'stops_too_few',
+  'read_stops_too_few',
   'stop_too_long',
   'line_too_long',
   'simple_too_long',

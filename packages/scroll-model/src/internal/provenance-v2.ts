@@ -11,6 +11,9 @@ import { CheckRecord, Claim, ProductionRecord, Source } from './provenance.js';
  */
 export const SCROLL_PROVENANCE_V2_SCHEMA_VERSION = 'scroll-provenance.v2';
 
+/** What one v2 revision's provenance can record. A writer's answer is checked against these before it is accepted. */
+export const PROVENANCE_V2_LIMITS = { claims: 48, sources: 24, citations: 32 } as const;
+
 export const ScrollProvenanceV2 = z.strictObject({
   schemaVersion: z.literal(SCROLL_PROVENANCE_V2_SCHEMA_VERSION),
   assetId: OpaqueId,
@@ -18,12 +21,12 @@ export const ScrollProvenanceV2 = z.strictObject({
   /** `integrity.sha256` of the document revision this provenance belongs to. */
   documentSha256: Sha256Hex,
   /** The passages the document cites, verbatim, each the exact text of its source snapshot. */
-  claims: z.array(Claim).max(48),
-  sources: z.array(Source).max(24),
+  claims: z.array(Claim).max(PROVENANCE_V2_LIMITS.claims),
+  sources: z.array(Source).max(PROVENANCE_V2_LIMITS.sources),
   /** For each stop, aside and the recap (`recap`), the claims it cites. Every part cites at least one. */
   citations: z
     .array(z.strictObject({ partId: LocalId, claimIds: z.array(OpaqueId).min(1).max(8) }))
-    .max(32)
+    .max(PROVENANCE_V2_LIMITS.citations)
     .refine((entries) => new Set(entries.map((entry) => entry.partId)).size === entries.length, {
       message: 'citation_part_duplicate',
     }),

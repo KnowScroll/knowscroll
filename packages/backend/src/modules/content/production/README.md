@@ -24,8 +24,12 @@ request and at most one repair, none inside a transaction.
   `.v14` (`productionVersionOf`). A v2 recipe counts as published only when its current revision is a v2
   document, so a v1 Scroll published earlier is regenerated as the next revision of the same asset.
   A queued job whose version does not match the plan is dropped.
-- **Library refusal.** A misconception whose source label is not `reviewed` ends the job as rejected
-  (`misconception_source_unreviewed`) after the one request; no repair can fix a recipe.
+- **Plan refusal.** A recipe whose misconception source label is not `reviewed` is refused at dispatch
+  (`plan_refused`, `misconception_source_unreviewed`) before any job is reserved or request sent;
+  `production-status` shows it `stopped`. The stored compile refuses it too, should the plan change
+  while a job runs.
+- **Citation bound.** A Scroll may cite at most 48 different passages (the provenance's bound); the
+  validated compile finds it, so the one repair can fix it (`citations_too_many`).
 - **Same publication.** Revision, provenance, topic attribution and coverage (`scroll-recipe-coverage.v2`)
   commit in one transaction. `content produce-scroll`, `produce-library` and `production-status` work for v2
   recipes unchanged.

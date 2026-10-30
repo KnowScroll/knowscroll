@@ -220,7 +220,7 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
     }
   });
 
-  it('rejects a v2 Scroll whose misconception source no person has reviewed, after one paid request', async () => {
+  it('refuses a v2 recipe whose misconception source no person has reviewed before any job or request', async () => {
     const undo = markScrollV2('greenhouse', {
       variant: 'stage',
       misconception: {
@@ -236,16 +236,26 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
         () => fixtureResearchPageV2,
       );
       const result = await run.produce('greenhouse', false, signal());
-      expect(result).toMatchObject({ outcome: 'rejected', codes: ['misconception_source_unreviewed'] });
-      expect(run.calls).toHaveLength(1);
+      expect(result).toMatchObject({ outcome: 'plan_refused', codes: ['misconception_source_unreviewed'] });
+      // Nothing was sent, no job row was reserved, and nothing was stored.
+      expect(run.calls).toHaveLength(0);
+      expect(
+        await database.db
+          .selectFrom('content.scroll_production_runs')
+          .select('id')
+          .where('topic', '=', 'greenhouse')
+          .execute(),
+      ).toEqual([]);
       expect(await revisionsOf(TOPICS.greenhouse.assetId)).toEqual([]);
+      // The operator's status and the Quartermaster see a recipe no take can start.
+      expect((await readLibraryStatus(database.db, ['greenhouse']))[0]).toMatchObject({ state: 'stopped' });
     } finally {
       undo();
     }
   });
 
   it('counts a series total from its admitted units and leaves recipes the plan does not mark as v1', async () => {
-    for (const key of ['seasons-hemispheres', 'seasons-limits'] as const) {
+    for (const key of ['seasons-hemispheres', 'seasons-elsewhere'] as const) {
       const run = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[key]))));
       expect(await run.produce(key, false, signal())).toMatchObject({ outcome: 'published', revision: 1 });
       expect((await revisionsOf(TOPICS[key].assetId))[0]).toMatchObject({ document_version: 'scroll-document.v1' });
