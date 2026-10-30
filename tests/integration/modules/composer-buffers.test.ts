@@ -158,7 +158,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       sessionId: outcome.sessionId,
       expectedIntentRevision: outcome.intentRevision,
       from,
-      intent: { mode: 'vertical', direction: 'next' },
+      intent: { mode: 'vertical', direction: 'next', format: 'scroll' },
     });
 
   const jobsFor = async (universeId: string): Promise<PrepareBufferJob[]> =>
@@ -340,7 +340,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
       sessionId: open.sessionId,
       expectedIntentRevision: open.intentRevision,
       from,
-      intent: { mode: 'vertical' as const, direction: 'next' as const },
+      intent: { mode: 'vertical' as const, direction: 'next' as const, format: 'scroll' as const },
     };
     const served = ready(await cases.navigate(person.authority, command));
     expect(served.decisionId).toBe(buffer.decision_id);
@@ -502,7 +502,7 @@ describe('Worker-prepared Composer buffers and Jev (real PostgreSQL, labelled CI
           sessionId: open.sessionId,
           expectedIntentRevision: open.intentRevision,
           from,
-          intent: { mode: 'vertical', direction: 'next' },
+          intent: { mode: 'vertical', direction: 'next', format: 'scroll' },
         }),
       );
       expect(scopeCalls).toBeGreaterThanOrEqual(4);
