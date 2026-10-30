@@ -214,6 +214,31 @@ test.describe('by finger', () => {
     await expect.poll(() => navigations(commands).length).toBe(1);
     expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
   });
+
+  test('a pull that starts at the end is a new topic even when the scroll report is late', async ({ page }) => {
+    const { commands } = await open(page);
+    const text = await page.getByTestId('stop-scroller').boundingBox();
+    if (text === null) throw new Error('the text is on the page');
+    // Holds back the first scroll report for 2 s: the page is at the end, the reader has not been told.
+    await page.getByTestId('stop-scroller').evaluate((node) => {
+      let held = true;
+      node.addEventListener(
+        'scroll',
+        (event) => {
+          if (!held) return;
+          held = false;
+          event.stopImmediatePropagation();
+          window.setTimeout(() => node.dispatchEvent(new Event('scroll')), 2000);
+        },
+        true,
+      );
+    });
+    await scrollToTheEnd(page);
+    const x = text.x + text.width / 2;
+    await fingerDrag(page, { x, y: text.y + text.height * 0.95 }, { x, y: text.y + text.height * 0.05 });
+    await expect.poll(() => navigations(commands).length).toBe(1);
+    expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
+  });
 });
 
 test('a mouse drag across the text selects it and moves nowhere: sideways, or upward at the end', async ({ page }) => {

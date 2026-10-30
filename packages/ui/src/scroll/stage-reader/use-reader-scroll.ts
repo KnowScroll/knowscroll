@@ -6,7 +6,7 @@ import type {
   ScrollViewInstance,
   ScrollViewProps,
 } from 'react-native';
-import { currentSection, settleTarget } from './current-stop';
+import { currentSection, scrolledToEnd, settleTarget } from './current-stop';
 import { SNAPS_IN_SCRIPT, snapProps } from './snap';
 
 /** How long a scroll must be still before the text settles on a nearby stop. */
@@ -76,10 +76,7 @@ export function useReaderScroll(input: {
     revealing.current = { index, at: Date.now() };
   }, []);
   const heading = (): number => (Date.now() - aim.current.at < KEY_REPEAT_MS ? aim.current.index : current);
-  const atEnd = useCallback(() => {
-    const { scrollTop, viewport: visible, content } = metrics.current;
-    return content > visible && scrollTop + visible >= content - 4;
-  }, []);
+  const atEnd = useCallback(() => scrolledToEnd(metrics.current), []);
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -171,5 +168,5 @@ export function useReaderScroll(input: {
     },
     ...snapProps(offsets),
   };
-  return { current, viewport, jump, revealIn, reportReveal, heading, atEnd, measureSection, scrollProps };
+  return { current, viewport, jump, revealIn, reportReveal, heading, measureSection, scrollProps };
 }

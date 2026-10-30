@@ -1480,6 +1480,16 @@ Confirmed by: `router.test.ts`, `triggers.test.ts`, `rooms-residents.test.ts` (i
 
 Confirmed by: `rooms-residents.test.ts` ("holds back a turn while someone types", "stores a discussion and a time, never a person", "an answer that was paid for"), `rooms-erasure.test.ts` (Clear and account deletion end a queued resident turn), `account-scope-socket.test.ts`.
 
+## D-183 · 2026-10-31 · On the web, a pull to a new topic is judged from the page at the touch (S-1c follow-up, #472)
+
+**Amends** D-134 ("Vertical reading never navigates": a pull counts when it starts at the end).
+
+- **The race.** The reader keeps its own record of the scroll position from scroll reports. On the web a report is throttled and the last one comes only when scrolling stops, so for a moment after the text reaches its end the record still says it is not there. A pull that began in that moment was read as ordinary reading and asked for nothing.
+- **The rule.** When a finger lands on the text, the web asks the scrolling element under it where it is now (at its end within 4 px, and only if the text scrolls at all). The same rule, `scrolledToEnd`, serves the reader's own record. A pull that begins in the middle of the text is still reading.
+- **Native** is unchanged: the pull is the scroll view's own `onScrollEndDrag`, which carries live values.
+
+Confirmed by: `current-stop.test.ts` ("whether the text is scrolled to its end"), `stage-reader-smoke.spec.ts` ("a pull that starts at the end is a new topic even when the scroll report is late"; "a pull up past the end is a new topic; the same pull in the middle of the text is reading"). Shown failing with the touch reading the reader's record: the late-report test failed 10 of 10.
+
 ## D-180 · 2026-10-30 · Play is its own module, behind a wall in both directions (S-2, #473)
 
 **Builds on** D-063, D-064 and D-082.
