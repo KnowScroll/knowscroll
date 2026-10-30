@@ -25,6 +25,11 @@ export interface FormatSwitchProps {
   readonly onSelect: (format: EncounterFormat) => void;
   /** Show the ▶ / ≡ glyphs (Components.html first instance). */
   readonly showIcons?: boolean;
+  /**
+   * Draw only "Reel" and "Scroll", for a bar with no room for "· preparing" or "· unavailable". The state
+   * stays in each option's accessible name, and an unavailable one is still dimmed.
+   */
+  readonly terse?: boolean;
 }
 
 interface Focusable {
@@ -36,6 +41,7 @@ function Option({
   selected,
   availability,
   showIcons,
+  terse,
   onSelect,
   onArrow,
   register,
@@ -44,6 +50,7 @@ function Option({
   selected: boolean;
   availability: FormatAvailability;
   showIcons: boolean;
+  terse: boolean;
   onSelect: (format: EncounterFormat) => void;
   onArrow: (from: EncounterFormat) => void;
   register: (format: EncounterFormat, node: Focusable | null) => void;
@@ -94,7 +101,7 @@ function Option({
       {showIcons ? <Icon name={format} size={14} color={foreground} /> : null}
       <Text variant="uiS" color={foreground} style={styles.label}>
         {formatLabel[format]}
-        {suffix}
+        {terse ? '' : suffix}
       </Text>
     </Pressable>
   );
@@ -107,7 +114,13 @@ function Option({
  * sibling shows the pending stripe and "· preparing"; choosing it starts the caller's request
  * flow. Options are 44 px tall (the export draws 38; D-006 n).
  */
-export function FormatSwitch({ selected, availability = {}, onSelect, showIcons = false }: FormatSwitchProps) {
+export function FormatSwitch({
+  selected,
+  availability = {},
+  onSelect,
+  showIcons = false,
+  terse = false,
+}: FormatSwitchProps) {
   const nodes = useRef<Partial<Record<EncounterFormat, Focusable | null>>>({});
   const availabilityOf = (format: EncounterFormat): FormatAvailability =>
     format === selected ? 'ready' : (availability[format] ?? 'ready');
@@ -126,6 +139,7 @@ export function FormatSwitch({ selected, availability = {}, onSelect, showIcons 
           selected={format === selected}
           availability={availabilityOf(format)}
           showIcons={showIcons}
+          terse={terse}
           onSelect={onSelect}
           onArrow={onArrow}
           register={(key, node) => {
