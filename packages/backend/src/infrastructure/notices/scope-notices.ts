@@ -14,7 +14,7 @@ export const SCOPE_NOTICE_CHANNEL = 'ks_scope_changed';
  */
 export const ScopeNoticeSchema = z.object({
   v: z.literal(1),
-  scope: z.object({ kind: z.enum(['universe', 'inbox']), id: z.uuid() }),
+  scope: z.object({ kind: z.enum(['universe', 'inbox', 'room']), id: z.uuid() }),
   revision: z.number().int().min(0),
   eventId: z.uuid(),
 });
@@ -53,6 +53,25 @@ export async function notifyInboxChanged(
   const notice: ScopeNotice = {
     v: 1,
     scope: { kind: 'inbox', id: change.universeId },
+    revision: change.revision,
+    eventId: change.eventId,
+  };
+  await sql`select pg_notify(${SCOPE_NOTICE_CHANNEL}, ${JSON.stringify(ScopeNoticeSchema.parse(notice))})`.execute(trx);
+}
+
+/**
+ * Queues the hint of a room's change (a message sent, someone arriving or leaving) in the transaction that
+ * commits it. The hint names the room, never a person or what changed, and reaches only the sockets of current
+ * members that subscribed to it. The revision is the commit's wall-clock time in milliseconds: subscribers keep
+ * the highest they have seen and reread, so a hint that is lost or out of order costs a delay at most.
+ */
+export async function notifyRoomChanged(
+  trx: Transaction<Database>,
+  change: { readonly roomId: string; readonly revision: number; readonly eventId: string },
+): Promise<void> {
+  const notice: ScopeNotice = {
+    v: 1,
+    scope: { kind: 'room', id: change.roomId },
     revision: change.revision,
     eventId: change.eventId,
   };

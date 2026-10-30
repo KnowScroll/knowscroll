@@ -13,7 +13,7 @@ import only domain code. It has no behaviour, no storage and no model call.
 
 ## Files
 
-- `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`).
+- `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `STAGE_KIT_IDS`).
 - `earth.ts`, `space.ts`, `machine-learning.ts`, `human-body.ts`, `computing.ts`, `history.ts`: one
   system each, with its planets, facets and recipes. The record key of a recipe is the operator key
   (`content produce-scroll --topic <key>`).
@@ -39,6 +39,7 @@ import only domain code. It has no behaviour, no storage and no model call.
   It names no block type; `interactive` and `interactiveKind` carry that. Medical and similar topics
   say they are physiology or history, not advice.
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.
+- `stageKit` names the drawing kit that draws the recipe's subject, and only then. A recipe with a kit gets a pinned picture when the v2 writer produces it; every other recipe is a plain Scroll with calls and no picture (D-125). Today the Earth & sky kit (`earth-sky.v1`) draws three Seasons recipes and nothing else: tides, stars, exoplanets, the greenhouse recipes and other worlds (`seasons-elsewhere`) stay plain until a kit exists for them. Adding a kit to a recipe is a person's decision, and `library.test.ts` pins the list. A brief stays free of the picture, because the v1 writer reads it too.
 - Research pages must be allowlisted (`infrastructure/research/public-pages.ts`) and fetchable. The
   writer is offered the passages of all a recipe's pages together, at most 64 (it needs at least
   4), so name one long page or two short ones. Run `node scripts/check-library-sources.mjs` after

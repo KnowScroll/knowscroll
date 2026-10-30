@@ -1,4 +1,6 @@
+import type { Kysely } from 'kysely';
 import type { WorkerConfig } from '../../../infrastructure/config/index.js';
+import type { Database } from '../../../infrastructure/postgres/database.js';
 import { uuidv7, stableUuid } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/index.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
@@ -37,6 +39,7 @@ import { makeContribute, type ContributePorts } from '../application/contribute.
 import { makeDiscussionCommands } from '../application/discussion-commands.js';
 import { makeDiscussionReads } from '../application/discussion-reads.js';
 import { makeInhabitantCommands } from '../application/inhabitant-commands.js';
+import { makeMemberCommands } from '../application/member-commands.js';
 import type { RoomPorts } from '../application/ports.js';
 import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
@@ -45,6 +48,7 @@ import { contributeQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
   READ_REPORTABLE_ROOM_MESSAGE,
+  READ_ROOM_MEMBERSHIP,
   READ_ROOM_REPORTS,
   ROOM_USE_CASES,
   type ContributeAsInhabitant,
@@ -53,6 +57,8 @@ import {
 } from '../public.js';
 import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
+import { presenceStore } from './postgres-presence.js';
+import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
 import { readReportableRoomMessage } from './report-reads.js';
@@ -90,6 +96,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     fenceOwn: deps.fenceOwn,
     rooms: roomStore,
     discussions: discussionStore,
+    presence: presenceStore,
     ai: aiStore,
     activities: activityStore,
     people: {
@@ -145,6 +152,7 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
   return {
     ...makeRoomReads(ports),
     ...makeRoomCommands(ports),
+    ...makeMemberCommands(ports),
     ...makeDiscussionCommands(ports),
     ...makeDiscussionReads(ports),
     ...makeInhabitantCommands(ports),
@@ -168,9 +176,18 @@ export function contributeAsInhabitant(
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
-export function roomsProviders(tokens: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol }) {
+export function roomsProviders(tokens: {
+  readonly withPersonalScope: symbol;
+  readonly enqueueJob: symbol;
+  readonly database: symbol;
+}) {
   return [
     { provide: READ_REPORTABLE_ROOM_MESSAGE, useValue: readReportableRoomMessage },
+    {
+      provide: READ_ROOM_MEMBERSHIP,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => readRoomMembership(db),
+    },
     {
       provide: ROOM_USE_CASES,
       inject: [

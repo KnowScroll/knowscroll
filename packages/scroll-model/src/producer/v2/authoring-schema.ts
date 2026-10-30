@@ -19,16 +19,16 @@ const prose = (min: number, max: number) => z.string().trim().min(min).max(max);
 /** Evidence handles (`e1`, `e2`, ...) the item rests on. */
 const cites = z.array(prose(1, 12)).min(1).max(8);
 
-/** Only what changes at this item; every other value carries over from the item before. */
+/**
+ * Only what changes at this item; every other value carries over from the item before. The writer
+ * chooses the view, the month, the Moon's phase and the focus: the tilt, the pins and Ray's angle
+ * are derived by code from the month (D-124). Only a read stop may carry one: a call never changes
+ * the picture, and the document's own admission refuses a state on a call.
+ */
 const stagePatch = z
   .strictObject({
     view: z.enum(STAGE_ENUMS.view).optional(),
     earthAt: z.enum(STAGE_ENUMS.earthAt).optional(),
-    axis: z.enum(STAGE_ENUMS.axis).optional(),
-    ray: z.enum(STAGE_ENUMS.ray).optional(),
-    orbit: z.enum(STAGE_ENUMS.orbit).optional(),
-    northPin: z.enum(STAGE_ENUMS.northPin).optional(),
-    southPin: z.enum(STAGE_ENUMS.southPin).optional(),
     moonAt: z.enum(STAGE_ENUMS.moonAt).optional(),
     focus: z.enum(STAGE_ENUMS.focus).optional(),
   })
@@ -51,7 +51,7 @@ const stopItem = z.strictObject({
 const callFields = {
   cites,
   prompt: prose(1, 200),
-  /** The correct option first; code shuffles the order. */
+  /** The correct option first (and, in the myth's call, the common guess second); code shuffles the order. */
   options: z.array(prose(1, 120)).min(LIMITS_V2.optionsPerCall.min).max(LIMITS_V2.optionsPerCall.max),
   explain: prose(1, 600),
   twist: prose(1, 600),
@@ -59,17 +59,11 @@ const callFields = {
   simple: prose(1, 600),
 };
 
-const callItem = z.strictObject({
-  type: z.literal('call_it'),
-  ...callFields,
-  /** Which option (counting from 0, never 0 itself) is the common wrong guess. Only the first call of a myth Scroll has one. */
-  commonGuess: z
-    .number()
-    .int()
-    .min(1)
-    .max(LIMITS_V2.optionsPerCall.max - 1)
-    .optional(),
-});
+/**
+ * The writer gives the common guess no number: the SECOND option of the first call_it of a myth
+ * Scroll is the wrong option that states the misconception, and code marks it (D-126).
+ */
+const callItem = z.strictObject({ type: z.literal('call_it'), ...callFields });
 
 const finalCallItem = z.strictObject({ type: z.literal('final_call'), ...callFields });
 

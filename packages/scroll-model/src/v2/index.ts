@@ -1,20 +1,28 @@
 /**
  * `scroll-document.v2` (public entry, shared by server, worker and, later, clients): the document,
- * its limits and measures, the kit enums and the admission validator. Added beside v1, which keeps
+ * its limits and measures, the kit (the words a writer may choose, and the physics code derives from them) and the admission validator. Added beside v1, which keeps
  * its own schema, limits and measures untouched (D-120).
  */
 export {
   applyStagePatch,
-  changesStage,
+  AXIAL_TILT_DEGREES,
   describeStageState,
   EARTH_SKY_KIT,
   INITIAL_STAGE_STATE,
+  settleStageState,
   STAGE_ENUMS,
   STAGE_KEYS,
+  stageParts,
+  stagePhysics,
   StageStateSchema,
+  type HemispherePhysics,
+  type PinMark,
   type StageKey,
+  type StagePart,
   type StagePatch,
+  type StagePhysics,
   type StageState,
+  type SunHeight,
 } from './kit.js';
 export { FIELD_LIMITS_V2, LIMITS_V2, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 export {

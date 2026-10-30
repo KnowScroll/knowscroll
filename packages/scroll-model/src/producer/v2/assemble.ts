@@ -14,11 +14,12 @@ import {
 } from '../../v2/document.js';
 import {
   applyStagePatch,
-  changesStage,
   describeStageState,
   EARTH_SKY_KIT,
   INITIAL_STAGE_STATE,
+  settleStageState,
   type StagePatch,
+  type StageState,
 } from '../../v2/kit.js';
 import { FIELD_LIMITS_V2 as F, SCROLL_LIMITS_V2_VERSION } from '../../v2/limits.js';
 import { computeMeasuresV2 } from '../../v2/measures.js';
@@ -53,6 +54,12 @@ export interface AssemblyMap {
 export type Assembly =
   | { readonly kind: 'assembled'; readonly document: ScrollDocumentV2; readonly map: AssemblyMap }
   | { readonly kind: 'unassemblable' };
+
+/**
+ * The place of the common guess among a call's authored options: the correct option is first, the
+ * wrong option that states the myth is second. Position, not a number the writer must count (D-126).
+ */
+export const COMMON_GUESS_SLOT = 1;
 
 /** One line of plain NFC text: runs of whitespace, line breaks included, become one space. */
 const oneLine = (value: string): string => value.normalize('NFC').replace(/\s+/gu, ' ').trim();
@@ -111,9 +118,14 @@ function callStop(
   recipe: RecipeDataV2,
   isFirstCall: boolean,
 ): CallItStop | FinalCallStop {
+  // The reviewed source is the recipe's, never the model's: it only ever rides on the myth's own first call.
+  const guessSource =
+    item.type === 'call_it' && isFirstCall && recipe.misconception.kind === 'myth'
+      ? recipe.misconception.source
+      : undefined;
   const shuffled = shuffleOptions(
     item.options.map(oneLine),
-    item.type === 'call_it' ? item.commonGuess : undefined,
+    guessSource === undefined ? undefined : COMMON_GUESS_SLOT,
     seed,
   );
   const shared = {
@@ -126,11 +138,9 @@ function callStop(
     simple: oneLine(item.simple),
   };
   if (item.type === 'final_call') return { kind: 'final_call', ...shared };
-  const source = recipe.misconception.kind === 'myth' ? recipe.misconception.source : undefined;
-  // The reviewed source is the recipe's, never the model's: it only ever rides on the myth's own first call.
   const guess =
-    isFirstCall && source !== undefined && shuffled.commonGuess !== undefined && shuffled.commonGuess >= 0
-      ? { commonGuess: { option: shuffled.commonGuess, source } }
+    guessSource !== undefined && shuffled.commonGuess !== undefined
+      ? { commonGuess: { option: shuffled.commonGuess, source: guessSource } }
       : {};
   return { kind: 'call_it', ...shared, ...guess };
 }
@@ -151,15 +161,28 @@ function readStop(item: Extract<AuthoredItemV2, { type: 'stop' }>, id: string): 
   };
 }
 
-/** The stage: a state for the first stop and for every stop whose patch changes something. */
+const sameState = (first: StageState, second: StageState): boolean =>
+  first.view === second.view &&
+  first.earthAt === second.earthAt &&
+  first.moonAt === second.moonAt &&
+  first.focus === second.focus;
+
+/**
+ * The stage: a state for the first stop and for every stop after which the picture really differs.
+ * What the writer chose carries over from stop to stop; what is stored is only what the view can
+ * show (`settleStageState`), so a choice that changes nothing visible records nothing, and the tilt,
+ * pins and Ray are never stored at all: they follow from the month (D-124).
+ */
 function buildStage(stops: readonly Stop[], patches: readonly (StagePatch | undefined)[]): Stage {
   const states: Stage['states'] = [];
-  let state = INITIAL_STAGE_STATE;
+  let chosen = INITIAL_STAGE_STATE;
+  let shown: StageState | undefined;
   stops.forEach((stop, index) => {
-    const patch = patches[index];
-    if (index > 0 && !changesStage(state, patch)) return;
-    state = applyStagePatch(state, patch);
-    states.push({ stop: stop.id, state, alt: describeStageState(state) });
+    chosen = applyStagePatch(chosen, patches[index]);
+    const settled = settleStageState(chosen);
+    if (shown !== undefined && sameState(shown, settled)) return;
+    shown = settled;
+    states.push({ stop: stop.id, state: settled, alt: describeStageState(settled) });
   });
   return { kit: EARTH_SKY_KIT, states };
 }

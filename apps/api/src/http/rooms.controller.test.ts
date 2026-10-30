@@ -88,6 +88,44 @@ describe('RoomsController', () => {
     expect(failure).toMatchObject({ status: problemDetails('TOO_MANY_REQUESTS').status });
   });
 
+  it('hands a member’s own settings and the lease of an open room to their use cases, as the caller', async () => {
+    const setPreferences = vi.fn<RoomUseCases['setPreferences']>(() =>
+      Promise.resolve({
+        kind: 'ok',
+        value: {
+          version: 'rooms.v1',
+          scope,
+          commandId,
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.preferences',
+          roomId,
+          you: { aiLevel: 'off', keepOut: true },
+        },
+      }),
+    );
+    const setPresence = vi.fn<RoomUseCases['setPresence']>(() =>
+      Promise.resolve({ kind: 'ok', value: { version: 'rooms.v1', scope, roomId, state: 'here' } }),
+    );
+    const request = await admitted();
+    const controller = controllerOver({ setPreferences, setPresence });
+    const preferences = { version: 'rooms.v1' as const, commandId, roomId, aiLevel: 'off' as const, keepOut: true };
+    expect(await call(controller.preferencesRoute(request), preferences)).toMatchObject({
+      you: { aiLevel: 'off', keepOut: true },
+    });
+    expect(setPreferences).toHaveBeenCalledExactlyOnceWith(authority, preferences);
+    const presence = { version: 'rooms.v1' as const, roomId, state: 'here' as const };
+    expect(await call(controller.presenceRoute(request), presence)).toMatchObject({ state: 'here' });
+    expect(setPresence).toHaveBeenCalledExactlyOnceWith(authority, presence);
+    // A person who is not a member of the room is refused in the one shape every room refusal has.
+    const refusedPresence = await call(
+      controllerOver({ setPresence: () => refused('unavailable') }).presenceRoute(request),
+      presence,
+    ).catch((error: unknown) => error);
+    expect(refusedPresence).toMatchObject({ status: problemDetails('SHARING_UNAVAILABLE').status });
+  });
+
   it.each([
     ['invalid_input', 'INVALID_REQUEST'],
     ['command_key_reused', 'COMMAND_KEY_REUSED'],

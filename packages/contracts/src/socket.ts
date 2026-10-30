@@ -6,15 +6,20 @@ import { UniverseIdSchema } from './ids.js';
  * hints only: no commands, no private content. A client that gets a hint (or a resync) refetches
  * through authorised HTTP reads.
  *
- * Two scopes exist, both named by the caller's own universe ID. `universe` changes when the
- * person's universe changes. `inbox` changes when a conversation the person belongs to has a new
- * message or the person's own conversation settings change; its revision is the person's inbox
- * revision. A peer's reading, muting or typing never moves it.
+ * Three scopes exist. `universe` and `inbox` are named by the caller's own universe ID. `universe`
+ * changes when the person's universe changes. `inbox` changes when a conversation the person belongs
+ * to has a new message or the person's own conversation settings change; its revision is the person's
+ * inbox revision. A peer's reading, muting or typing never moves it. `room` is named by a room's ID and
+ * only a current member may subscribe: it changes when someone sends a message in the room or when who
+ * has the room open changes. A hint never says what changed, and a room has nothing to catch up from: its
+ * revision is only the commit time in milliseconds, not a position.
  *
  * Client rules:
- * - Revisions only grow, but hints, acks, command responses and reads can arrive in any order and
- *   more than once: keep the **highest** revision seen per scope and refetch only when a hint is
- *   above it.
+ * - For `universe` and `inbox`, revisions only grow, but hints, acks, command responses and reads can
+ *   arrive in any order and more than once: keep the **highest** revision seen per scope and refetch only
+ *   when a hint is above it. A `room` hint is never deduplicated by revision (two messages a second apart
+ *   have nothing to tell them apart but a clock): coalesce a burst with a short quiet window, refetching
+ *   once at the start and once at the end.
  * - When the server closes the connection ('transport close'), reconnect (which authenticates
  *   again) and resubscribe; the API does this to every socket when its notice relay reconnects,
  *   because a revocation sent while it was away may have been lost. 'io server disconnect' means
@@ -49,7 +54,8 @@ export type PresenceHeartbeatAck = z.infer<typeof PresenceHeartbeatAckSchema>;
 /** The socket path on the API origin (proxied by Caddy, D-008). */
 export const SOCKET_PATH = '/socket.io';
 
-export const SCOPE_KINDS = ['universe', 'inbox'] as const;
+export const SCOPE_KINDS = ['universe', 'inbox', 'room'] as const;
+/** `id` is the caller's own universe for `universe` and `inbox`, and a room's ID for `room`. */
 export const ScopeRefSchema = z.object({ kind: z.enum(SCOPE_KINDS), id: UniverseIdSchema });
 
 export const SubscribeScopeRequestSchema = z.object({ scope: ScopeRefSchema });

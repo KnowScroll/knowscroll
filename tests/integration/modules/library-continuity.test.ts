@@ -48,16 +48,16 @@ describe('content admit-continuity over the library plan (real PostgreSQL, CI fi
     const hemispheres = await publishRecipe(cases, 'seasons-hemispheres');
     await publishRecipe(cases, 'greenhouse');
 
-    // seasons-limits and greenhouse-limits are not published yet.
+    // seasons-elsewhere (Part 3) and greenhouse-limits are not published yet.
     const dry = await admit(true);
     expect(dry).toMatchObject({ dryRun: true, seriesRevisionsAdmitted: 0, linksAdmitted: 0 });
     expect(dry.seriesSkipped.find((entry) => entry.seriesId === 'library.earth.seasons')).toEqual({
       seriesId: 'library.earth.seasons',
-      unpublished: ['seasons-limits'],
+      unpublished: ['seasons-elsewhere'],
     });
     expect(await rowCounts()).toEqual({ units: 0, links: 0 });
 
-    const limits = await publishRecipe(cases, 'seasons-limits');
+    const elsewhere = await publishRecipe(cases, 'seasons-elsewhere');
     const dryAfter = await admit(true);
     expect(dryAfter).toMatchObject({ seriesRevisionsAdmitted: 1, linksAdmitted: 4 });
     expect(await rowCounts()).toEqual({ units: 0, links: 0 });
@@ -111,7 +111,7 @@ describe('content admit-continuity over the library plan (real PostgreSQL, CI fi
     });
     expect(continuations.seriesNext).toMatchObject({
       status: 'ready',
-      target: limits,
+      target: elsewhere,
       relation: { kind: 'series_step', part: 3 },
     });
     // seasons-hemispheres declares no related move, and the response carries no count but the series total.
