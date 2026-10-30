@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { talliesAfterEach, type CallItStop, type FinalCallStop } from '@knowscroll/scroll-model';
+import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
+import { talliesAfterEach } from '../model';
 
 /** Whether a lock is kept, in the words the screen needs (the app's play session says; the reader only shows). */
 export type StageKeeping =

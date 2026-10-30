@@ -44,6 +44,7 @@ export {
   snapToGrid,
   stageParts,
   stagePhysics,
+  talliesAfterEach,
   walkBlocks,
 } from '@knowscroll/scroll-model';
 
