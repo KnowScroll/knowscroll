@@ -1,7 +1,22 @@
 import * as THREE from 'three';
-import { buildSpace } from './scene/build-scene';
+import {
+  flyDone,
+  flyPose,
+  FLY_SECONDS,
+  isFar as isFarPose,
+  rigPose,
+  withDrift,
+  type CameraPose,
+  type RigFocus,
+  type RigSpec,
+} from './camera-rig';
+import { buildSpace, type BuiltSpace } from './scene/build-scene';
+import type { PaintCache } from './scene/context';
 import type { SpaceDefinition } from './space-definition';
 import type { SpaceAnchor, SpaceProbe, SpaceSurface } from './space-surface';
+
+/** What the person's camera looks at and how far they have panned and zoomed. The renderer adds the size. */
+export type SpaceCameraSpec = Omit<RigSpec, 'width' | 'height'>;
 
 /** The drawing of one space view on one surface. */
 export interface SpaceRenderer {
@@ -9,8 +24,22 @@ export interface SpaceRenderer {
   draw(t: number): void;
   /** Layout size changed (a rotation or a window resize). */
   resize(width: number, height: number): void;
-  /** The named points of the scene in layout pixels, for the labels drawn over the canvas. */
+  /**
+   * Replaces what is drawn (a place formed, Lately was switched, the ship moved). The camera, the
+   * highlight and the pose in flight are kept.
+   */
+  setDefinition(definition: SpaceDefinition): void;
+  /**
+   * Aims the camera. When the focus changes (the whole universe to a system and back) and `animate` is
+   * true, the camera flies there: 2.4 s going in, 0.3 s coming out. Otherwise it jumps.
+   */
+  setCamera(spec: SpaceCameraSpec, animate: boolean): void;
+  /** Glows around one system (the one picked on the Far level), or none. */
+  setHighlight(systemId: string | null): void;
+  /** The named points of the scene in layout pixels, for the labels and tap targets drawn over the canvas. */
   anchors(): SpaceAnchor[];
+  /** Whether the universe is far enough away to read as the Far level (U08) at the last frame. */
+  isFar(): boolean;
   /** Reads a coarse sample of the last frame. Call right after `draw`, before the next frame. */
   probe(): SpaceProbe;
   /**
@@ -26,12 +55,24 @@ const SKY_CLEAR = 0x020308;
 const PROBE_ROWS = [0.25, 0.4, 0.55] as const;
 /** A sampled pixel counts as lit when its red, green and blue add up to more than this. */
 const LIT_THRESHOLD = 60;
+/** A fly into a system is this far along before the other systems are taken out of the scene. */
+const ALONE_AFTER = 0.85;
+
+const sameFocus = (a: RigFocus, b: RigFocus): boolean =>
+  a.kind === b.kind && (a.kind !== 'system' || (b.kind === 'system' && a.systemId === b.systemId));
+
+/** An in-flight move of the camera between two foci. `startedAt` is set by the first frame that draws it. */
+interface Fly {
+  readonly from: CameraPose;
+  readonly seconds: number;
+  startedAt: number | null;
+}
 
 /**
  * Creates the three.js renderer for `surface` and builds the scene on it. Throws when the surface
  * cannot give three.js a WebGL 2 context; the caller turns that into the Simple lists.
  */
-export function createSpaceRenderer(surface: SpaceSurface, definition: SpaceDefinition): SpaceRenderer {
+export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinition): SpaceRenderer {
   const renderer = new THREE.WebGLRenderer({
     canvas: surface.canvas as HTMLCanvasElement,
     context: surface.context,
@@ -43,12 +84,47 @@ export function createSpaceRenderer(surface: SpaceSurface, definition: SpaceDefi
   renderer.setSize(surface.width, surface.height, false);
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setClearColor(SKY_CLEAR);
-  const space = buildSpace(definition, surface.width / surface.height, surface.pixelRatio);
   let size = { width: surface.width, height: surface.height };
+  // The painted planets of this renderer; they are dropped with it, so nothing outlives the screen.
+  const paintCache: PaintCache = new Map();
+  let space: BuiltSpace = buildSpace(initial, size.width / size.height, surface.pixelRatio, paintCache);
+  let spec: SpaceCameraSpec | null = null;
+  let fly: Fly | null = null;
+  let highlighted: string | null = null;
+  let definitionCamera: CameraPose = {
+    position: initial.camera.position,
+    target: initial.camera.target,
+    fov: space.camera.fov,
+  };
+  let lastPose: CameraPose = definitionCamera;
+  let far = false;
+
+  /** The pose at scene time `t`: where the rig wants the camera, or part-way there during a fly. */
+  const poseAt = (t: number): CameraPose => {
+    const wanted = withDrift(spec === null ? definitionCamera : rigPose({ ...spec, ...size }), t);
+    if (fly === null) return wanted;
+    fly.startedAt ??= t;
+    const elapsed = t - fly.startedAt;
+    if (flyDone(elapsed, fly.seconds)) {
+      fly = null;
+      return wanted;
+    }
+    return flyPose(fly.from, wanted, elapsed, fly.seconds);
+  };
+  /** A System view shows one system alone once the camera has nearly arrived. */
+  const showOnlyFocus = (t: number): void => {
+    const focus = spec?.focus;
+    const arrived = fly === null || (fly.startedAt !== null && (t - fly.startedAt) / fly.seconds > ALONE_AFTER);
+    space.showOnly(focus?.kind === 'system' && arrived ? focus.systemId : null);
+  };
 
   return {
     draw(t) {
       space.poseAt(t);
+      lastPose = poseAt(t);
+      far = spec !== null && spec.focus.kind === 'universe' && isFarPose(lastPose);
+      space.setCamera(lastPose);
+      showOnlyFocus(t);
       renderer.render(space.scene, space.camera);
       surface.present?.();
     },
@@ -58,21 +134,54 @@ export function createSpaceRenderer(surface: SpaceSurface, definition: SpaceDefi
       space.camera.aspect = width / height;
       space.camera.updateProjectionMatrix();
     },
+    setDefinition(next) {
+      const previous = space;
+      space = buildSpace(next, size.width / size.height, surface.pixelRatio, paintCache);
+      previous.dispose();
+      definitionCamera = { position: next.camera.position, target: next.camera.target, fov: space.camera.fov };
+      space.highlight(highlighted);
+      space.setCamera(lastPose);
+    },
+    setCamera(next, animate) {
+      const focusChanged = spec !== null && !sameFocus(spec.focus, next.focus);
+      if (focusChanged && animate) {
+        fly = {
+          from: lastPose,
+          seconds: next.focus.kind === 'system' ? FLY_SECONDS.down : FLY_SECONDS.up,
+          startedAt: null,
+        };
+      } else if (focusChanged) fly = null;
+      spec = next;
+    },
+    setHighlight(systemId) {
+      highlighted = systemId;
+      space.highlight(systemId);
+    },
     anchors() {
       space.camera.updateMatrixWorld();
       const point = new THREE.Vector3();
-      return space.anchors.map(({ id, kind, name, object }) => {
-        object.getWorldPosition(point).project(space.camera);
+      const edge = new THREE.Vector3();
+      const right = new THREE.Vector3().setFromMatrixColumn(space.camera.matrixWorld, 0);
+      return space.anchors.map(({ id, kind, name, systemId, object, radius }) => {
+        object.getWorldPosition(point);
+        edge.copy(point).addScaledVector(right, radius);
+        point.project(space.camera);
+        edge.project(space.camera);
+        const x = (point.x * 0.5 + 0.5) * size.width;
+        const y = (-point.y * 0.5 + 0.5) * size.height;
         return {
           id,
           kind,
           name,
-          x: (point.x * 0.5 + 0.5) * size.width,
-          y: (-point.y * 0.5 + 0.5) * size.height,
-          visible: point.z < 1,
+          systemId,
+          x,
+          y,
+          radiusPx: Math.abs((edge.x * 0.5 + 0.5) * size.width - x),
+          visible: point.z < 1 && object.visible,
         };
       });
     },
+    isFar: () => far,
     probe() {
       const gl = renderer.getContext();
       const width = gl.drawingBufferWidth;
@@ -91,6 +200,7 @@ export function createSpaceRenderer(surface: SpaceSurface, definition: SpaceDefi
     },
     dispose(options) {
       space.dispose();
+      paintCache.clear();
       renderer.dispose();
       if (options?.releaseContext === true && surface.context === undefined) renderer.forceContextLoss();
     },

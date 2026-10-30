@@ -33,18 +33,19 @@ export interface PlanetGenome {
 }
 
 /**
- * The look of a planet from its stable id, chosen type and system haze family. The same inputs give
- * the same planet on every device. Assigning types so that they do not repeat is the server's job
- * in a later slice; this function only paints the type it is given.
+ * The painting of a planet from its stable id, its type and its system's haze family. The same inputs
+ * give the same planet on every device. The server assigns the look (type, hue, rings, moon; D-103):
+ * when the caller passes those as overrides they are used as given, and only size, tilt and spin,
+ * which never encode anything, come from the id.
  */
 export function planetGenome(
   id: string,
   type: PlanetType,
   family: HazeFamily,
-  overrides: Partial<Pick<PlanetGenome, 'rings' | 'moon'>> = {},
+  overrides: Partial<Pick<PlanetGenome, 'rings' | 'moon' | 'hueShift'>> = {},
 ): PlanetGenome {
   const random = seededRandom(id);
-  const hueShift = FAMILY_HUE_SHIFT[family] + (random() - 0.5) * 30;
+  const familyHueShift = FAMILY_HUE_SHIFT[family] + (random() - 0.5) * 30;
   const size = 0.8 + random() * 0.5;
   const tilt = (random() - 0.5) * 0.7;
   const spin = 0.12 + random() * 0.12;
@@ -53,7 +54,7 @@ export function planetGenome(
   return {
     id,
     type,
-    hueShift,
+    hueShift: overrides.hueShift ?? familyHueShift,
     size,
     tilt,
     spin,

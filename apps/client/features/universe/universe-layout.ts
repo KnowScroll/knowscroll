@@ -84,74 +84,6 @@ export function viewFor(index: UniverseIndex, focusId: string | null): UniverseV
 const difference = (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y });
 const length = (v: Vec) => Math.hypot(v.x, v.y);
 
-/** Lattice spacing of the projector's canonical slots, in world units. */
-const LATTICE = 300;
-
-/** Orbit ellipses of a system, in composition units (one unit is one pixel at zoom 1). */
-export const ORBIT_BANDS = [
-  { rx: 112, ry: 62 },
-  { rx: 158, ry: 88 },
-  { rx: 204, ry: 112 },
-] as const;
-export type OrbitBand = 0 | 1 | 2;
-/** The outermost orbit a system uses; the one it is as wide as. */
-export const outerOrbit = (bands: readonly OrbitBand[]) => ORBIT_BANDS[bands.at(-1) ?? 0];
-/** Radii of a star and a planet in composition units. */
-export const STAR_RADIUS = 22;
-export const PLANET_RADIUS = 17;
-
-export interface PlacedPlanet {
-  readonly descriptor: SceneDescriptor;
-  /** Relative to the star. */
-  readonly position: Vec;
-  readonly band: OrbitBand;
-}
-export interface SystemComposition {
-  readonly star: SceneDescriptor | undefined;
-  readonly planets: readonly PlacedPlanet[];
-  /** Orbit bands that carry a planet, innermost first. */
-  readonly bands: readonly OrbitBand[];
-  /** Half-width and half-height of everything drawn, in composition units. */
-  readonly extent: Size;
-  /** The route lines between planets of this system, by planet id. */
-  readonly routes: readonly {
-    readonly id: string;
-    readonly fromId: string;
-    readonly toId: string;
-    readonly from: Vec;
-    readonly to: Vec;
-  }[];
-}
-
-/**
- * A planet sits on the orbit whose band matches its distance from the star on the lattice, in the
- * direction its persisted anchor has from the star. Two planets can only share a spot if the
- * projector gave them the same slot, which it never does.
- */
-export function composeSystem(index: UniverseIndex, system: SceneDescriptor): SystemComposition {
-  const star = index.stars.get(system.objectId);
-  const origin = (star ?? system).anchor;
-  const planets = (index.planets.get(system.objectId) ?? []).map((descriptor): PlacedPlanet => {
-    const relative = difference(descriptor.anchor, origin);
-    const distance = length(relative);
-    // One lattice step is the inner orbit, up to two steps the middle one, beyond that the outer.
-    // Planets in a line (300, 600, 900 from the star) therefore never share an orbit and a spot.
-    const band: OrbitBand = distance < LATTICE * 1.2 ? 0 : distance < LATTICE * 2.4 ? 1 : 2;
-    const angle = Math.atan2(relative.y, relative.x);
-    const { rx, ry } = ORBIT_BANDS[band];
-    return { descriptor, band, position: { x: Math.cos(angle) * rx, y: Math.sin(angle) * ry } };
-  });
-  const bands = ([0, 1, 2] as const).filter((band) => planets.some((p) => p.band === band));
-  const outer = ORBIT_BANDS[bands.at(-1) ?? 0];
-  const positions = new Map(planets.map((p) => [p.descriptor.objectId, p.position]));
-  const routes = index.routes.flatMap((route) => {
-    const from = positions.get(route.fromObjectId),
-      to = positions.get(route.toObjectId);
-    return from && to ? [{ id: route.id, fromId: route.fromObjectId, toId: route.toObjectId, from, to }] : [];
-  });
-  return { star, planets, bands, extent: { width: outer.rx + 34, height: outer.ry + 58 }, routes };
-}
-
 /** Where a region pin sits on its planet's disc, as a fraction of the disc radius from its centre. */
 export interface PlacedRegion {
   readonly descriptor: SceneDescriptor;
@@ -197,63 +129,10 @@ export function composeRegions(index: UniverseIndex, planet: SceneDescriptor): r
   return placed;
 }
 
-/**
- * Where a room station sits around the system of its topic, relative to the star: just outside the
- * outermost orbit, on the lower side (so a name below it never meets a system's own label above). The
- * angle comes from the tail of the room's ID (the front of a time-ordered ID is the same for rooms made
- * together), so a station keeps its place whatever else is on the map. It is personal decoration beside
- * a real place: it encodes no activity and no count.
- */
-export function stationOffset(roomId: string, bands: readonly OrbitBand[], unit: number, gap = 34): Vec {
-  const hex = roomId.replaceAll('-', '');
-  const share = Number.parseInt(hex.slice(20, 28), 16) / 0xffffffff;
-  const angle = (24 + share * 132) * (Math.PI / 180);
-  const outer = outerOrbit(bands);
-  return { x: Math.cos(angle) * (outer.rx * unit + gap), y: Math.sin(angle) * (outer.ry * unit + gap) };
-}
-
-/** One or two ends of world extent: the camera fits these. */
-export function worldBounds(systems: readonly SceneDescriptor[]): { center: Vec; width: number; height: number } {
-  if (!systems.length) return { center: { x: 0, y: 0 }, width: 0, height: 0 };
-  const xs = systems.map((s) => s.anchor.x),
-    ys = systems.map((s) => s.anchor.y);
-  const [left, right, top, bottom] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  return { center: { x: (left + right) / 2, y: (top + bottom) / 2 }, width: right - left, height: bottom - top };
-}
-
-/** Size, in world units, of the cluster a system draws in the overview (orbits and planets). */
-export const SYSTEM_CLUSTER_WORLD = 130;
-
-/** Zoom that shows every system with room for its cluster; never magnifies past a readable size. */
-export function overviewScale(systems: readonly SceneDescriptor[], stage: Size): number {
-  const { width, height } = worldBounds(systems);
-  const room = SYSTEM_CLUSTER_WORLD * 2.6;
-  return Math.min(1.7, stage.width / (width + room), stage.height / (height + room * 1.2));
-}
-
 /** Deterministic unit-interval numbers from an opaque ID, for decoration only. */
 export function unitsFromId(id: string): readonly [number, number] {
   const hex = id.replaceAll('-', '');
   return [Number.parseInt(hex.slice(0, 8), 16) / 0xffffffff, Number.parseInt(hex.slice(8, 12), 16) / 0xffff];
-}
-
-/**
- * World positions of dust cues. They never occupy a place's slot: one lone cue before anything
- * exists sits at the centre, otherwise cues drift on a ring outside the established systems.
- */
-export function placeDust(cueIds: readonly string[], systems: readonly SceneDescriptor[]): ReadonlyMap<string, Vec> {
-  const ids = [...cueIds].sort();
-  const bounds = worldBounds(systems);
-  if (ids.length === 1 && !systems.length) return new Map([[ids[0]!, { x: 0, y: 0 }]]);
-  const reach = Math.max(bounds.width, bounds.height) / 2 + SYSTEM_CLUSTER_WORLD * 1.6;
-  return new Map(
-    ids.map((id) => {
-      const [angleUnit, radiusUnit] = unitsFromId(id);
-      const angle = angleUnit * Math.PI * 2;
-      const radius = reach + radiusUnit * SYSTEM_CLUSTER_WORLD;
-      return [id, { x: bounds.center.x + Math.cos(angle) * radius, y: bounds.center.y + Math.sin(angle) * radius }];
-    }),
-  );
 }
 
 export interface LabelRequest {

@@ -7,9 +7,10 @@ import {
   type AccountScope,
   type UniverseSceneState,
 } from '@knowscroll/client-core';
-import type { SceneClientCapabilities } from '@knowscroll/contracts';
+import { SCENE_LOOK_VERSION, WORLD_GENERATOR_VERSION, type SceneClientCapabilities } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
+import { ZOOM_LIMITS } from './space/camera-rig';
 import { createCameraHistory, type CameraEntry } from './universe-camera-history';
 import { createDeviceMemory } from './universe-device-memory';
 import { clearHereMarker, readHereMarker, writeHereMarker } from './universe-here-marker';
@@ -50,8 +51,11 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
     descriptors: ['scene-descriptor.v1'],
     chunks: ['scene-chunk.v1'],
     manifests: ['scene-manifest.v1'],
-    generators: ['silhouette.v1'],
+    generators: ['silhouette.v1', WORLD_GENERATOR_VERSION],
     families: ['terraced.v1', 'ridged.v1', 'archipelago.v1'],
+    // The space views draw type, rings, moon and haze from the server's looks (D-102); the client never makes its own.
+    // Keys stay in the schema's order: the session compares a read's capabilities with what it sent by their JSON.
+    looks: [SCENE_LOOK_VERSION],
     detail,
     reducedMotion,
   };
@@ -376,7 +380,21 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       return true;
     },
     camera(frame: UniverseFrame) {
-      if (live() && foreground) withFrame(boundedFrame(frame));
+      if (!live() || !foreground) return;
+      // The 3D views stop where their camera does, so the next pinch or key press moves it at once.
+      const kind = places().find((place) => place.id === state.focusId)?.kind;
+      const limits =
+        kind === undefined
+          ? ZOOM_LIMITS.universe
+          : kind === 'system' || kind === 'star'
+            ? ZOOM_LIMITS.system
+            : undefined;
+      const bounded = boundedFrame(frame);
+      withFrame(
+        limits === undefined
+          ? bounded
+          : { ...bounded, scale: Math.min(limits.max, Math.max(limits.min, bounded.scale)) },
+      );
     },
     /** Frames the current view as the screen first draws it. */
     fit() {

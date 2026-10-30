@@ -48,3 +48,17 @@ tags:
 - tapOn: Sample system, a system
 - assertVisible: '.* \((system|planet)\)'
 - takeScreenshot: space-04-label-tapped
+
+# The Universe tab's own composition (three systems, a station, the ship), laid out by the code the tab uses,
+# on the same expo-gl surface. Its frame numbers are the real scene's.
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-space?motion=full&scene=universe
+- extendedWaitUntil:
+    visible:
+      id: ks-space-gallery
+    timeout: 60000
+- extendedWaitUntil:
+    visible: Drawing with expo-gl · [0-9]{2,} frames.*
+    timeout: 180000
+- assertNotVisible: Simple lists shown.*
+- takeScreenshot: space-05-universe-composition

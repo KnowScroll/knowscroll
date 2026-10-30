@@ -34,10 +34,15 @@ export interface SpaceProbe {
 /** A named point of the scene in layout pixels, for the labels and tap targets drawn over it. */
 export interface SpaceAnchor {
   readonly id: string;
-  readonly kind: 'system' | 'planet';
+  readonly kind: 'system' | 'planet' | 'station' | 'dust';
+  /** Empty for dust, which has no name. */
   readonly name: string;
+  /** The system it belongs to; dust belongs to none. */
+  readonly systemId: string | null;
   readonly x: number;
   readonly y: number;
+  /** Radius of the body on screen, in layout pixels. */
+  readonly radiusPx: number;
   /** False when the point is behind the camera. */
   readonly visible: boolean;
 }
