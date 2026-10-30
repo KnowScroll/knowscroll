@@ -11,9 +11,9 @@ const MARKER = '# KnowScroll: keep the expo-gl view (D-100)';
 
 /**
  * The release build shrinks and renames classes with R8. Expo modules find a native view's
- * constructor by reflection, and the lane's first run of the space renderer crashed the app with
- * "Didn't find a correct constructor for class ..." the moment a `GLView` was created. These
- * rules keep the expo-gl classes and the constructors of every Expo view as they are.
+ * constructor by reflection; with the names changed, creating a `GLView` crashes the app with
+ * "Didn't find a correct constructor for class ...". This rule keeps the expo-gl classes (the view
+ * and its native bridge) as they are.
  *
  * @param {import('expo/config-plugins').ExportedConfig} config
  */
@@ -24,12 +24,7 @@ module.exports = function withKeepExpoGlViews(config) {
       const rulesPath = path.join(modified.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
       const existing = fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, 'utf8') : '';
       if (!existing.includes(MARKER)) {
-        const rules = [
-          MARKER,
-          '-keep class expo.modules.gl.** { *; }',
-          '-keepclassmembers class * extends expo.modules.kotlin.views.ExpoView { <init>(...); }',
-          '',
-        ].join('\n');
+        const rules = [MARKER, '-keep class expo.modules.gl.** { *; }', ''].join('\n');
         fs.writeFileSync(rulesPath, `${existing}${existing.endsWith('\n') || existing === '' ? '' : '\n'}${rules}`);
       }
       return modified;

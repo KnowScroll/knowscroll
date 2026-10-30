@@ -78,6 +78,22 @@ describe('the render loop', () => {
     expect(frames.requests()).toBe(0);
   });
 
+  it('draws the still again on resume when a resize cleared it while the view was inactive', () => {
+    const frames = manualScheduler();
+    const drawn: number[] = [];
+    const loop = createRenderLoop({ draw: (t) => drawn.push(t), reducedMotion: true, scheduler: frames.scheduler });
+    loop.setActive(true);
+    loop.setActive(false);
+    loop.redraw();
+    expect(drawn).toHaveLength(1);
+    loop.setActive(true);
+    expect(drawn).toEqual([STILL_TIME_SECONDS, STILL_TIME_SECONDS]);
+    loop.setActive(false);
+    loop.setActive(true);
+    expect(drawn).toHaveLength(2);
+    expect(frames.requests()).toBe(0);
+  });
+
   it('stops for good when disposed', () => {
     const frames = manualScheduler();
     const drawn: number[] = [];

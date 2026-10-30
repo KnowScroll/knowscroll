@@ -13,8 +13,12 @@ export interface SpaceRenderer {
   anchors(): SpaceAnchor[];
   /** Reads a coarse sample of the last frame. Call right after `draw`, before the next frame. */
   probe(): SpaceProbe;
-  /** Releases the GPU resources. The surface itself belongs to its host. */
-  dispose(): void;
+  /**
+   * Releases the GPU resources. The surface itself belongs to its host. `releaseContext` also asks
+   * the browser to free the WebGL context at once (the view is going away for good); it is ignored
+   * on native, where the `GLView` owns its context.
+   */
+  dispose(options?: { releaseContext?: boolean }): void;
 }
 
 const SKY_CLEAR = 0x020308;
@@ -85,9 +89,10 @@ export function createSpaceRenderer(surface: SpaceSurface, definition: SpaceDefi
       }
       return { litPixels: lit, sampledPixels: width * PROBE_ROWS.length, signature };
     },
-    dispose() {
+    dispose(options) {
       space.dispose();
       renderer.dispose();
+      if (options?.releaseContext === true && surface.context === undefined) renderer.forceContextLoss();
     },
   };
 }

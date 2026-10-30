@@ -19,7 +19,8 @@ export interface SpaceSurface {
 }
 
 /** Why the 3D drawing is not available; every reason ends in the Simple lists. */
-export type SpaceFailure = 'webgl-unavailable' | 'context-creation-failed' | 'context-lost' | 'render-failed';
+export type SpaceFailure =
+  'webgl-unavailable' | 'context-creation-failed' | 'context-lost' | 'low-memory' | 'render-failed';
 
 /** A coarse reading of what the last frame drew, for the developer gallery and the gate tests. */
 export interface SpaceProbe {

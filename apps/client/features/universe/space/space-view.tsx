@@ -1,10 +1,11 @@
 import { useIsFocused } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { space, spacing, target } from '@knowscroll/design-tokens';
 import { Text, useDisplay } from '@knowscroll/ui';
 import { loadSpaceRenderer } from './load-space-renderer';
 import { createRenderLoop, type RenderLoop } from './render-loop';
+import { reuseUnchangedAnchors } from './reuse-anchors';
 import { SpaceCanvas } from './space-canvas';
 import type { SpaceDefinition } from './space-definition';
 import type { SpaceRenderer } from './space-renderer';
@@ -51,7 +52,8 @@ const browserScheduler = {
  * A 3D space view: the sun, haze, planets and dust of the Universe drawn by three.js on the
  * platform canvas, with accessible labels laid over it. It owns the frame loop and decides when
  * the loop may run: not when the route is unfocused, the app is not active, the canvas is off
- * screen or WebGL has failed. When 3D is not available it shows `fallback` instead, never a blank.
+ * screen, WebGL has failed or the device is short of memory. When 3D is not available it shows
+ * `fallback` instead, never a blank.
  *
  * Reduced motion draws one frame and never starts a loop.
  */
@@ -61,38 +63,58 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
   const appActive = useAppActive();
   const [onScreen, setOnScreen] = useState(true);
   const [failure, setFailure] = useState<SpaceFailure | null>(null);
-  const [ready, setReady] = useState(false);
   const [anchors, setAnchors] = useState<readonly SpaceAnchor[]>([]);
   const loop = useRef<RenderLoop | null>(null);
   const renderer = useRef<SpaceRenderer | null>(null);
-  const disposed = useRef(false);
+  /** Bumped for every new surface and on unmount, so a start that was overtaken never draws. */
+  const generation = useRef(0);
   const frames = useRef(0);
 
-  const live = useRef({ diagnostics, reducedMotion, definition });
+  const active = failure === null && focused && appActive && onScreen;
+  const live = useRef({ diagnostics, reducedMotion, definition, active, failed: false });
   useEffect(() => {
-    live.current = { diagnostics, reducedMotion, definition };
+    live.current = { ...live.current, diagnostics, reducedMotion, definition, active };
   });
 
-  const fail = useCallback((reason: SpaceFailure, detail?: string) => {
+  /** Stops the loop and releases the renderer, if there are any. */
+  const teardown = useCallback((releaseContext = false) => {
     loop.current?.dispose();
     loop.current = null;
-    renderer.current?.dispose();
+    renderer.current?.dispose({ releaseContext });
     renderer.current = null;
-    setFailure(reason);
-    live.current.diagnostics?.onFailure?.(reason, detail);
   }, []);
 
+  const fail = useCallback(
+    (reason: SpaceFailure, detail?: string) => {
+      if (live.current.failed) return;
+      live.current.failed = true;
+      generation.current += 1;
+      teardown();
+      setFailure(reason);
+      live.current.diagnostics?.onFailure?.(reason, detail);
+    },
+    [teardown],
+  );
+
+  /**
+   * A canvas surface is ready. It can come again for the same view: on Android `expo-gl` makes a
+   * new GL context after the app returns from the background. The old renderer belongs to the dead
+   * context, so it is released and the new one starts from scratch.
+   */
   const startDrawing = useCallback(
     async (surface: SpaceSurface) => {
+      teardown();
+      generation.current += 1;
+      const mine = generation.current;
       try {
         const { createSpaceRenderer } = await loadSpaceRenderer();
-        if (disposed.current) return;
+        if (generation.current !== mine) return;
         const created = createSpaceRenderer(
           { ...surface, preserveDrawingBuffer: live.current.diagnostics !== undefined },
           live.current.definition,
         );
         renderer.current = created;
-        loop.current = createRenderLoop({
+        const drawing = createRenderLoop({
           reducedMotion: live.current.reducedMotion,
           scheduler: browserScheduler,
           draw: (t, atMs) => {
@@ -106,42 +128,49 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
             const drawMs = performance.now() - started;
             frames.current += 1;
             const probe = frames.current % PROBE_EVERY === 1 ? created.probe() : undefined;
-            setAnchors(created.anchors());
+            setAnchors((previous) => reuseUnchangedAnchors(previous, created.anchors()));
             live.current.diagnostics?.onFrame({ t, atMs, drawMs, probe });
           },
         });
-        setReady(true);
+        loop.current = drawing;
+        drawing.setActive(live.current.active);
       } catch (error) {
-        fail('context-creation-failed', describe(error));
+        if (generation.current === mine) fail('context-creation-failed', describe(error));
       }
     },
-    [fail],
+    [fail, teardown],
   );
 
-  const active = ready && failure === null && focused && appActive && onScreen;
   useEffect(() => {
     loop.current?.setActive(active);
   }, [active]);
 
-  useEffect(
-    () => () => {
-      disposed.current = true;
-      loop.current?.dispose();
-      renderer.current?.dispose();
-    },
-    [],
-  );
+  // The device is short of memory: the lists are lighter than a GL scene.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('memoryWarning', () => fail('low-memory'));
+    return () => subscription.remove();
+  }, [fail]);
+
+  // Mount and unmount. A strict-mode mount runs this twice; the second run starts clean.
+  useEffect(() => {
+    live.current.failed = false;
+    return () => {
+      generation.current += 1;
+      teardown(true);
+    };
+  }, [teardown]);
 
   const resize = useCallback((width: number, height: number) => {
     renderer.current?.resize(width, height);
     loop.current?.redraw();
   }, []);
+  const onSurface = useCallback((surface: SpaceSurface) => void startDrawing(surface), [startDrawing]);
 
   if (failure !== null) return <>{fallback(failure)}</>;
   return (
     <View style={styles.fill}>
       <SpaceCanvas
-        onSurface={(surface) => void startDrawing(surface)}
+        onSurface={onSurface}
         onResize={resize}
         onFailure={fail}
         onOnScreen={setOnScreen}
@@ -155,7 +184,7 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
 }
 
 /** A label and tap target over a point of the scene: an ordinary view at the projected position. */
-function AnchorLabel({
+const AnchorLabel = memo(function AnchorLabel({
   anchor,
   onChoose,
 }: {
@@ -178,7 +207,7 @@ function AnchorLabel({
       </Text>
     </Pressable>
   );
-}
+});
 
 /** Wide enough for a place name; the text is centred under its point. */
 const LABEL_WIDTH = 144;

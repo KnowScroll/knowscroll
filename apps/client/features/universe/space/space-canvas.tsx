@@ -47,6 +47,8 @@ function asWebGL2Context(gl: ExpoWebGLRenderingContext): ExpoWebGLRenderingConte
     desynchronized: false,
   };
   const ownAttributes = typeof gl.getContextAttributes === 'function' ? gl.getContextAttributes() : undefined;
+  // three.js reads hundreds of methods per frame: bind each once.
+  const bound = new Map<string | symbol, unknown>();
   return new Proxy(gl, {
     getPrototypeOf: () => Object.prototype,
     set(target, key, value) {
@@ -60,7 +62,13 @@ function asWebGL2Context(gl: ExpoWebGLRenderingContext): ExpoWebGLRenderingConte
     get(target, key) {
       if (key === 'getContextAttributes' && !ownAttributes) return () => attributes;
       const value: unknown = Reflect.get(target, key);
-      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+      if (typeof value !== 'function') return value;
+      let method = bound.get(key);
+      if (method === undefined) {
+        method = (value as (...args: unknown[]) => unknown).bind(target);
+        bound.set(key, method);
+      }
+      return method;
     },
   });
 }

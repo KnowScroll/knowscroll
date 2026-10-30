@@ -21,7 +21,10 @@ export interface RenderLoop {
    * foreground. Inactive means no frame is scheduled at all.
    */
   setActive(active: boolean): void;
-  /** Draws once more at the current time (after a resize), loop or not. */
+  /**
+   * The picture was cleared (a resize): under reduced motion draws the still again now, or, while
+   * inactive, as soon as the view becomes active. With motion the loop redraws by itself.
+   */
   redraw(): void;
   /** Stops for good. */
   dispose(): void;
@@ -39,6 +42,8 @@ export function createRenderLoop({ draw, reducedMotion, scheduler }: RenderLoopO
   let active = false;
   let disposed = false;
   let stillDrawn = false;
+  /** The still was drawn, then the canvas was cleared while the view could not draw. */
+  let stillStale = false;
 
   const frame = (nowMs: number): void => {
     handle = null;
@@ -63,8 +68,9 @@ export function createRenderLoop({ draw, reducedMotion, scheduler }: RenderLoopO
         return;
       }
       if (reducedMotion) {
-        if (!stillDrawn) {
+        if (!stillDrawn || stillStale) {
           stillDrawn = true;
+          stillStale = false;
           draw(clock.t, 0);
         }
         return;
@@ -74,7 +80,9 @@ export function createRenderLoop({ draw, reducedMotion, scheduler }: RenderLoopO
       handle = scheduler.request(frame);
     },
     redraw() {
-      if (!disposed && active && reducedMotion) draw(clock.t, 0);
+      if (disposed || !reducedMotion) return;
+      if (active) draw(clock.t, 0);
+      else if (stillDrawn) stillStale = true;
     },
     dispose() {
       disposed = true;
