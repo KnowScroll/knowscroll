@@ -590,10 +590,18 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
   composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
   corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked (a moderator who blocked the author gets it collapsed with "Show for moderation", and the options to remove it). An open discussion reads afresh when the person comes back to it, and when the Friends session announces an accepted block or unblock (`announceBlocksChanged`, a counter in the scope's query cache). `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
-  cannot be asked. `message-options-sheet.tsx` holds "Start a thread from this" and the moderator's remove and restore;
-  `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
-- `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite) and
-  `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pin, hide). Each command keeps its command ID until the
+  cannot be asked. `message-options-sheet.tsx` holds "Start a topic from this message", "Ask Nova about this", "Other side",
+  "Challenge" and "Useful" (v3 R-3, D-167, D-168; a resident that is busy or resting is named with the reason and its button
+  is off), "Start a thread from this" and the moderator's remove and restore; a resident's answer to an ask says "Asked by Lena ·
+  The other side" (`ask-words.ts`, `resident-message.tsx`) and has Challenge and Other side beside it. `start-topic-sheet.tsx` is
+  the title and one of four tags; `topic-card.tsx` is the card a topic leaves in General, with the room's own figures;
+  `topics-list.tsx` is the forum list (Hot, New, Unanswered, a tag filter, "New topic", replies and who spoke last, Useful on a
+  topic only) read with `useRoomTopics`; a topic that began from a message shows it first (`TopicOrigin`). The welcome is in
+  the AI notice (`ai-notice.tsx`) and "while you were away" is `away-card.tsx` above General (folded for a Quieter reader);
+  `ai-here.tsx` states the room's limits. `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
+- `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite, dismiss
+  "while you were away"), `readRoomTopics` and `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pointed
+  asks, Useful, pin, hide). Each command keeps its command ID until the
   server answers. A discussion catches up on focus, on reconnect and every 20 seconds.
 - Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
 - Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes

@@ -177,8 +177,8 @@ supply's authority and the reverse. Injected as `ROOM_REASONING_HARNESS` and `WI
   concurrency. Its refusal is `budget_exhausted` with dimension `ambient_global` (or the scope's own `scope`); a resident
   treats either as "nothing to say now", and posts nothing.
 - **Never a person's allowance.** Asked turns stay `interactive` on the asker's personal scope, so a spent rooms scope or ambient
-  share never stops an ask. The resident roles have their own ids (`rooms.ambient-explainer`, `rooms.ambient-skeptic`), so
-  the role cap and the failure brake of asked roles are separate.
+  share never stops an ask. The resident roles have their own ids (`rooms.ambient-explainer`, `rooms.ambient-skeptic`, and `rooms.ambient-away` for
+  "while you were away", D-169), so the role cap and the failure brake of asked roles are separate.
 - **What it admits.** Public/sanitised room material: a room's recent messages without names, with keep-out applied by the
   rooms module before the context is built. The request bytes are kept 48 hours like any request and belong to no
   person, so no Clear or deletion erases them; they expire.

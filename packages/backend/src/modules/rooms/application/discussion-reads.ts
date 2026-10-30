@@ -176,6 +176,13 @@ export function makeDiscussionReads(p: RoomPorts) {
             return DiscussionViewSchema.parse({ ...roomEnvelope(scope), readId: query.readId, status: 'unavailable' });
           const starter =
             discussion.startedByAccountId === null ? undefined : people.get(discussion.startedByAccountId);
+          // A topic that began from a message shows that message first, as this reader may see it (hidden, blocked, kept as written).
+          const originRow =
+            discussion.originMessageId === null || discussion.root !== null
+              ? undefined
+              : (await p.discussions.messageInRoom(lock, discussion.originMessageId))?.message;
+          const [origin] =
+            originRow === undefined ? [] : await viewRoomMessages(p, scope, lock, [originRow], viewerOf(entered));
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -187,9 +194,11 @@ export function makeDiscussionReads(p: RoomPorts) {
               discussionId: discussion.discussionId,
               kind: discussion.kind,
               title: discussion.title,
+              ...(discussion.tag === null ? {} : { tag: discussion.tag }),
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),
             },
+            ...(origin === undefined ? {} : { origin }),
             ...(content === undefined || discussion.root === null
               ? {}
               : {

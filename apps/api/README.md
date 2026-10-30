@@ -356,7 +356,9 @@ the member's `inbox_heads` revision. A `room` scope (v3 R-1, named by a room's I
 that room (`READ_ROOM_MEMBERSHIP`, read again on every relayed hint: a room scope skips the authorisation cache, so a removed member hears nothing more at once) and acks revision 0; its
 hints (a message sent, a presence lease starting or ending, someone leaving) carry the commit time in milliseconds.
 `RoomsController` also serves `POST /v1/rooms/preferences` (a member's own AI level, keep-out choice and notice mark; a
-command) and `POST /v1/rooms/presence` (`here` or `away`; not a command). Tests: `tests/integration/release/conversations-http.test.ts` runs the
+command) and `POST /v1/rooms/presence` (`here` or `away`; not a command). v3 R-3 (D-167 to D-169) adds `POST /v1/rooms/topics/list` (the
+room's topics, sorted and tagged; a read), `POST /v1/rooms/discussions/useful` (mark a message Useful or take it back; a command),
+`POST /v1/rooms/away/dismiss` (a command), and `POST /v1/rooms/inhabitants/ask` takes either a resident or an `about` message and a kind. Tests: `tests/integration/release/conversations-http.test.ts` runs the
 installed API, a typed client, a Socket.IO hint, recovery after a missed hint and the landing states.
 
 ### Content threads (#243, D-046)

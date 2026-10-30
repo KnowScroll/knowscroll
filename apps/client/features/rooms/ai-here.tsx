@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { RoomPreferencesChange } from '@knowscroll/client-core';
-import type { RoomAiLevel, RoomYou } from '@knowscroll/contracts';
+import type { RoomAiLevel, RoomLimits, RoomYou } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { SwitchRow, Text } from '@knowscroll/ui';
 import { AI_NOTICE } from './ai-notice';
@@ -32,10 +32,13 @@ const LEVELS: readonly { readonly level: RoomAiLevel; readonly label: string; re
 export function AiHere({
   you,
   working,
+  limits,
   onChange,
 }: {
   readonly you: RoomYou;
   readonly working: boolean;
+  /** What the room's AI may do, as the rules say it; shown to every member (D-068). */
+  readonly limits?: RoomLimits;
   readonly onChange: (change: RoomPreferencesChange) => void;
 }) {
   const active = LEVELS.find((entry) => entry.level === you.aiLevel)!;
@@ -77,6 +80,27 @@ export function AiHere({
       <Text variant="meta" color={content.ink2}>
         {AI_NOTICE.body}
       </Text>
+      {limits === undefined ? null : <LimitsNote limits={limits} />}
+    </View>
+  );
+}
+
+/**
+ * The room's limits in plain words (R3: "the room menu shows the current limits to everyone"). Asking has its own, and
+ * never uses up what the room's residents may say on their own.
+ */
+export function LimitsNote({ limits }: { readonly limits: RoomLimits }) {
+  return (
+    <View style={styles.limits} testID="room-limits">
+      <Text variant="monoXs" color={content.ink2}>
+        Limits
+      </Text>
+      <Text variant="meta" color={content.ink2} testID="limits-asked">
+        {`Asking: up to ${String(limits.asked.perPersonPerHour)} asks an hour each, and ${String(limits.asked.perRoomPerDay)} a day for the room. Asking never uses up what AI may say on its own.`}
+      </Text>
+      <Text variant="meta" color={content.ink2} testID="limits-unprompted">
+        {`On its own: at most one turn for every ${String(limits.unprompted.humanMessagesPerTurn)} messages people write, ${String(limits.unprompted.perHour)} an hour and ${String(limits.unprompted.perDay)} a day. The Explainer up to ${String(limits.unprompted.explainerPerHour)} an hour, the Skeptic ${String(limits.unprompted.skepticPerHour)}.`}
+      </Text>
     </View>
   );
 }
@@ -92,4 +116,5 @@ const styles = StyleSheet.create({
   },
   level: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: content.paper },
   levelOn: { backgroundColor: content.accent },
+  limits: { gap: spacing[1] },
 });

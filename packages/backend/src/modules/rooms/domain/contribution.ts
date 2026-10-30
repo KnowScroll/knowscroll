@@ -72,15 +72,19 @@ const PERSON_CLAIM =
   /\b(?:i am|i'm|as)\s+(?:a\s+|an\s+)?(?:human|real person|person|student|engineer|teacher|developer)\b/i;
 
 /**
- * What is wrong with an inhabitant's words, if anything. An inhabitant never pretends to be a person
- * and never sends people away to a link; a model that does is refused and gets one fixed hint to
- * revise. This is a guard against the two failures that matter, not a judgement of quality.
+ * What is wrong with a resident's words, if anything, up to `maxChars` characters. A resident never pretends to be
+ * a person and never sends people away to a link; a model that does is refused and gets one fixed hint to revise.
+ * This is a guard against the two failures that matter, not a judgement of quality.
  */
-export function contributionProblem(text: string): ContributionProblem | undefined {
+export function textProblem(text: string, maxChars: number): ContributionProblem | undefined {
   const trimmed = text.trim();
   if (trimmed === '') return 'empty';
-  if ([...trimmed].length > CONTRIBUTION_MAX_CHARS) return 'too_long';
+  if ([...trimmed].length > maxChars) return 'too_long';
   if (LINK.test(trimmed)) return 'has_link';
   if (PERSON_CLAIM.test(trimmed)) return 'claims_to_be_a_person';
   return undefined;
 }
+
+/** What is wrong with an inhabitant's contribution, if anything (`textProblem` at the contribution length). */
+export const contributionProblem = (text: string): ContributionProblem | undefined =>
+  textProblem(text, CONTRIBUTION_MAX_CHARS);

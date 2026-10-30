@@ -181,10 +181,15 @@ describe('room messages', () => {
     expect(screen.queryByText('WORDS TO MODERATE')).not.toBeOnTheScreen();
   });
 
-  it('offers message options only where there is something to do: a card, a moderator, or another person’s words to report', async () => {
-    const member = await show([text(1, ravi, 'plain'), card, text(5, asha, 'mine')]);
-    // Another person's plain message can be reported and their card can start a thread; your own has nothing to do.
-    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(2);
+  it('offers message options on every message that can be started from, asked about or reported, and on no marker', async () => {
+    const member = await show([
+      text(1, ravi, 'plain'),
+      card,
+      text(5, asha, 'mine'),
+      { messageId: id(110), sequence: 6, status: 'unavailable' },
+    ]);
+    // Another person's message and a card, and your own words too (you can ask about or start a topic from them).
+    expect(screen.getAllByRole('button', { name: 'Message options' })).toHaveLength(3);
     await fireEvent(screen.getByTestId('message-4'), 'hoverIn');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Message options' })[1]!);
     expect(member.onActions).toHaveBeenCalledWith(card);
@@ -200,8 +205,7 @@ describe('room messages', () => {
   });
 
   it('keeps ⋯ off the message until the pointer is over it or the control has focus, yet in the page for assistive tech', async () => {
-    // Your own words have no ⋯, so the card's is the only one.
-    await show([text(1, asha, 'mine'), card]);
+    await show([card]);
     const options = () => screen.getByRole('button', { name: 'Message options' });
     const wrapper = () => screen.getByTestId('message-options-4');
     expect(options()).toBeOnTheScreen();
@@ -226,9 +230,9 @@ describe('room messages', () => {
     // Another person's plain message can be reported, so it has the options too.
     await fireEvent(screen.getByTestId('message-1'), 'longPress');
     expect(member.onActions).toHaveBeenCalledWith(plain);
-    // Your own words have nothing to do.
+    // Your own words can be asked about and started from too.
     await fireEvent(screen.getByTestId('message-5'), 'longPress');
-    expect(member.onActions).toHaveBeenCalledTimes(2);
+    expect(member.onActions).toHaveBeenCalledTimes(3);
   });
 
   it('gives a moderator the options on every message but never on a deleted account’s', async () => {
@@ -246,21 +250,52 @@ describe('room messages', () => {
   it('decides the actions from the message, the role and whose message it is', () => {
     expect(actionsFor(card, 'member', asha.personId)).toEqual({
       canStartThread: true,
+      canStartTopic: false,
+      canAsk: true,
+      canUseful: true,
       canModerate: false,
       canReport: true,
     });
     expect(actionsFor(text(1, ravi, 'x'), 'moderator', asha.personId)).toEqual({
       canStartThread: false,
+      canStartTopic: true,
+      canAsk: true,
+      canUseful: true,
       canModerate: true,
       canReport: true,
     });
-    // Your own words and a marker have nothing to report.
-    expect(actionsFor(text(1, asha, 'x'), 'member', asha.personId).canReport).toBe(false);
-    expect(actionsFor({ messageId: id(1), sequence: 1, status: 'unavailable' }, 'moderator', asha.personId)).toEqual({
+    // Your own words can be asked about and started from, but not marked Useful or reported.
+    expect(actionsFor(text(1, asha, 'x'), 'member', asha.personId)).toEqual({
       canStartThread: false,
+      canStartTopic: true,
+      canAsk: true,
+      canUseful: false,
       canModerate: false,
       canReport: false,
     });
-    expect(actionsFor(skeptic, 'member', asha.personId).canReport).toBe(true);
+    expect(actionsFor({ messageId: id(1), sequence: 1, status: 'unavailable' }, 'moderator', asha.personId)).toEqual({
+      canStartThread: false,
+      canStartTopic: false,
+      canAsk: false,
+      canUseful: false,
+      canModerate: false,
+      canReport: false,
+    });
+    // A resident's answer can be reported, marked Useful, challenged and made a topic.
+    expect(actionsFor(skeptic, 'member', asha.personId)).toMatchObject({
+      canReport: true,
+      canUseful: true,
+      canAsk: true,
+    });
+    // A card a topic left is opened, not asked about, marked or started from.
+    const topicCard = {
+      ...text(7, ravi, 'x'),
+      body: { kind: 'topic' as const, topic: { discussionId: id(300), title: 'A topic' } },
+    } as RoomMessage;
+    expect(actionsFor(topicCard, 'member', asha.personId)).toMatchObject({
+      canStartTopic: false,
+      canAsk: false,
+      canUseful: false,
+    });
   });
 });

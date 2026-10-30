@@ -18,6 +18,7 @@ import {
   ask,
   joinRoom,
   makeModerator,
+  markUseful,
   memberView,
   readActivity,
   readDiscussion,
@@ -28,6 +29,7 @@ import {
   setPresence,
   startPoll,
   startTopic,
+  startTopicFrom,
   unwrap,
   votePoll,
   type RoomWorld,
@@ -381,6 +383,187 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
       await residents.close();
     }
   });
+
+  /**
+   * A room where a person made marks of Useful, started a topic from another member's words, left a card, has a place
+   * and wrote in a window that a resident summarised. Returns what the checks below read.
+   */
+  async function markedPerson() {
+    const { roomId } = await seedRoom(world);
+    const person = await namedPerson();
+    const staying = await seedFriend(world.db, world.friends);
+    unwrap(await joinRoom(world, person, roomId));
+    unwrap(await joinRoom(world, staying, roomId));
+    const general = (await memberView(world, person, roomId)).general.discussionId;
+    const mine = unwrap(await say(world, person, roomId, general, 'a claim the person made'));
+    const theirs = unwrap(await say(world, staying, roomId, general, 'a reply that stays with the room'));
+    unwrap(await markUseful(world, person, roomId, general, theirs.messageId));
+    unwrap(await markUseful(world, staying, roomId, general, mine.messageId));
+    // The person makes a topic from the other member's words: the card they leave carries no words of its own.
+    const topic = unwrap(
+      await startTopicFrom(
+        world,
+        person,
+        roomId,
+        { discussionId: general, messageId: theirs.messageId },
+        { title: 'Comparing notes' },
+      ),
+    );
+    unwrap(await setPresence(world, person, roomId));
+    unwrap(await setPresence(world, staying, roomId));
+    const written = await world.db
+      .selectFrom('rooms.messages')
+      .select('recorded_at')
+      .where('message_id', '=', mine.messageId)
+      .executeTakeFirstOrThrow();
+    const from = new Date(new Date(written.recorded_at).getTime() - 60_000);
+    const through = new Date(new Date(written.recorded_at).getTime() + 60_000);
+    // A resident's summary of the window that covered what the person wrote (its text is what must not outlive it).
+    const summaryId = randomUUID();
+    await sql`
+      insert into rooms.summaries (summary_id, room_id, window_no, resident, state, covers_from, covers_through, body,
+        created_at, settled_at, role_version, prompt_version, model, dispatched)
+      values (${summaryId}::uuid, ${roomId}::uuid, 1, 'skeptic', 'ready', ${from}, ${through},
+        'People compared notes about a claim.', ${through}, ${through}, 'away.1', 'hp2', 'fixture-model-v1', true)`.execute(
+      world.db,
+    );
+    return { roomId, general, person, staying, mine, theirs, topic, summaryId };
+  }
+
+  it('deletes a person’s marks of Useful, the marks on their words and their place, and erases the summaries that read them', async () => {
+    const { roomId, person, staying, mine, theirs, topic, summaryId } = await markedPerson();
+    const marks = (messageId: string) =>
+      world.db.selectFrom('rooms.message_useful').selectAll().where('message_id', '=', messageId).execute();
+    expect(await marks(theirs.messageId)).toHaveLength(1);
+    expect(await marks(mine.messageId)).toHaveLength(1);
+
+    // The export names the room and when, never whose message it was or what it said.
+    const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
+      exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+    );
+    if (exported.kind !== 'entered') throw new Error('export refused');
+    const section = exported.value.sections['rooms'] as { usefulMarks: { room: string; markedAt: string }[] };
+    expect(section.usefulMarks).toHaveLength(1);
+    expect(JSON.stringify(section)).not.toContain('a reply that stays with the room');
+    // The card the person left is described as the topic they started, never as shared content.
+    expect(JSON.stringify(section)).toContain('"startedTopic":"Comparing notes"');
+    expect(JSON.stringify(section)).not.toContain('a Reel or Scroll');
+
+    const receiptId = randomUUID();
+    const deleting = deleteAccountFor(database.db, boss, {
+      eraseAccountData: eraseCurrentAccount,
+      lockTimeoutMs: 5_000,
+    });
+    expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
+    expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+
+    expect(await countOf('rooms.message_useful', 'account_id', person.accountId)).toBe(0);
+    // The mark on the deleted person's own words goes with them; the mark the person made on someone else's is gone too.
+    expect(await marks(mine.messageId)).toEqual([]);
+    expect(await marks(theirs.messageId)).toEqual([]);
+    expect(await countOf('rooms.read_positions', 'account_id', person.accountId)).toBe(0);
+    expect(await countOf('rooms.read_positions', 'account_id', staying.accountId)).toBe(1);
+    expect(
+      await world.db
+        .selectFrom('rooms.summaries')
+        .select(['state', 'body'])
+        .where('summary_id', '=', summaryId)
+        .execute(),
+    ).toEqual([{ state: 'stale', body: null }]);
+
+    // The topic the person began stays for the room, with no starter, and their card is a marker with no topic behind it.
+    const cards = await world.db
+      .selectFrom('rooms.messages')
+      .select(['author_account_id', 'topic_discussion_id', 'body_text'])
+      .where('discussion_id', '=', (await memberView(world, staying, roomId)).general.discussionId)
+      .execute();
+    expect(cards.every((row) => row.topic_discussion_id === null)).toBe(true);
+    const after = await readDiscussion(world, staying, roomId, topic.discussionId);
+    if (after.status !== 'ready') throw new Error('expected ready');
+    expect(after.discussion.startedBy).toBeUndefined();
+  });
+
+  it('keeps marks of Useful, places and summaries through a Clear, as it keeps the room', async () => {
+    const { roomId, general, person, theirs, summaryId } = await markedPerson();
+    await clearRecordingPerson(database, boss, person);
+    expect(await countOf('rooms.message_useful', 'account_id', person.accountId)).toBe(1);
+    expect(await countOf('rooms.read_positions', 'account_id', person.accountId)).toBe(1);
+    expect(
+      await world.db.selectFrom('rooms.summaries').select('state').where('summary_id', '=', summaryId).execute(),
+    ).toEqual([{ state: 'ready' }]);
+    const cleared = { ...person, authority: { ...person.authority, privacyEpoch: 2 } };
+    const view = await readDiscussion(world, cleared, roomId, general);
+    if (view.status !== 'ready') throw new Error('expected ready');
+    expect(view.messages.find((message) => message.messageId === theirs.messageId)).toMatchObject({
+      usefulByYou: true,
+    });
+  });
+
+  /**
+   * A person whose return a resident has been asked to write up: the summary is queued, and its model call is a real
+   * pg-boss job under the person's universe.
+   */
+  async function queuedSummary() {
+    const T0 = new Date('2026-10-30T06:00:00Z');
+    const residents = await roomWorld(database, { now: T0 }, { residentsEnabled: true });
+    const { roomId } = await seedRoom(residents);
+    const person = await namedPerson();
+    const writer = await seedFriend(residents.db, residents.friends);
+    unwrap(await joinRoom(residents, person, roomId));
+    unwrap(await joinRoom(residents, writer, roomId));
+    const general = (await memberView(residents, person, roomId)).general.discussionId;
+    unwrap(await setPresence(residents, person, roomId));
+    for (let index = 0; index < 16; index++) {
+      residents.clock.now = new Date(T0.getTime() + 13 * 3_600_000 + index * 60_000);
+      unwrap(await say(residents, writer, roomId, general, `Interesting point about orbits number ${String(index)}`));
+    }
+    residents.clock.now = new Date(T0.getTime() + 14 * 3_600_000);
+    unwrap(await setPresence(residents, person, roomId));
+    const summary = () =>
+      residents.db
+        .selectFrom('rooms.summaries')
+        .select(['state', 'dispatched'])
+        .where('room_id', '=', roomId)
+        .executeTakeFirstOrThrow();
+    expect(await summary()).toEqual({ state: 'queued', dispatched: false });
+    expect(await summaryJobsOf(person.universeId)).toBe(1);
+    return { residents, person, summary };
+  }
+
+  it('ends a queued summary with the job that Clear erases, so no window waits for a call nobody will make', async () => {
+    const { residents, person, summary } = await queuedSummary();
+    try {
+      await clearRecordingPerson(database, boss, person);
+      expect(await summaryJobsOf(person.universeId)).toBe(0);
+      // The call may already have been running, so the window stays used, but nothing is queued.
+      expect(await summary()).toEqual({ state: 'failed', dispatched: true });
+    } finally {
+      await residents.close();
+    }
+  });
+
+  it('ends a queued summary when the account behind its job is deleted', async () => {
+    const { residents, person, summary } = await queuedSummary();
+    try {
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+      expect(await summaryJobsOf(person.universeId)).toBe(0);
+      expect(await summary()).toEqual({ state: 'failed', dispatched: true });
+    } finally {
+      await residents.close();
+    }
+  });
+
+  async function summaryJobsOf(universeId: string): Promise<number> {
+    const row = await sql<{ n: string }>`select count(*)::text as n from pgboss.job
+      where name = 'rooms.summarise' and data ->> 'universeId' = ${universeId}`.execute(database.db);
+    return Number(row.rows[0]?.n ?? 0);
+  }
 
   async function castJobsOf(universeId: string): Promise<number> {
     const row = await sql<{ n: string }>`select count(*)::text as n from pgboss.job

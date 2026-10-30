@@ -124,7 +124,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     expect(request).toMatchObject({
       state: 'completed',
       inhabitant: 'skeptic',
-      role_version: 'inhabitant.1',
+      role_version: 'inhabitant.2',
       model: 'fixture-model-v1',
     });
     expect(request.prompt_version).toMatch(/\S/);
@@ -294,6 +294,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
           inhabitant: 'skeptic',
           requested_by_account_id: filler.accountId,
           command_id: randomUUID(),
+          ask_kind: 'ask',
           state: 'declined',
           dispatched: true,
           created_at: world.clock.now,

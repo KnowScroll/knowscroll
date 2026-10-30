@@ -53,6 +53,15 @@ export interface RoomFixtureOptions {
    * to one line (`quieter`) or as a marker with no words (`off`). Omitted means no resident has spoken.
    */
   readonly resident?: 'lively' | 'quieter' | 'off';
+  /**
+   * R-3: what the room has beyond a plain conversation. `asked`: Halley answered a challenge Asha made (an AI message that
+   * says who asked what); `topics`: the room has topics and a card for one in General; `welcome`: a newcomer's template
+   * welcome (needs `noticeSeen: false`); `away`: this member's "while you were away".
+   */
+  readonly asked?: boolean;
+  readonly topics?: boolean;
+  readonly welcome?: boolean;
+  readonly away?: 'preparing' | 'ready' | 'folded';
 }
 
 /** Every request the fixture answered, in order, so a test can see what the screen asked for. */
@@ -100,9 +109,89 @@ export async function roomFixture(
               ...(options.resident === 'quieter' ? { folded: true as const } : {}),
             },
           ];
-  const messages = [...spoken, ...resident];
+  // R-3: Halley answered a challenge Asha made of Kenji's message.
+  const asked = options.asked
+    ? [
+        {
+          messageId: id(605),
+          sequence: 5,
+          status: 'available' as const,
+          author: { kind: 'ai' as const, inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic' },
+          recordedAt: new Date(Date.now() - Math.max(options.lastMessageMinutesAgo - 5, 0) * 60_000).toISOString(),
+          body: {
+            kind: 'text' as const,
+            text: 'That holds for lensing. One gap: very small primordial black holes are harder to rule out.',
+          },
+          suggestion: 'assumption' as const,
+          ask: { kind: 'challenge' as const, by: asha, about: id(602) },
+        },
+      ]
+    : [];
+  // R-3: the card the topic leaves where it began.
+  const topicCard = options.topics
+    ? [
+        {
+          messageId: id(606),
+          sequence: 6,
+          status: 'available' as const,
+          author: kenji,
+          recordedAt: new Date(Date.now() - Math.max(options.lastMessageMinutesAgo - 6, 0) * 60_000).toISOString(),
+          body: {
+            kind: 'topic' as const,
+            topic: {
+              discussionId: id(503),
+              title: 'Could we ever detect dark matter directly?',
+              tag: 'question' as const,
+            },
+          },
+        },
+      ]
+    : [];
+  const messages = [...spoken, ...resident, ...asked, ...topicCard];
   const lastAt = spoken.at(-1)!.recordedAt;
-  const state: { you: RoomYou } = {
+  const topics = [
+    {
+      discussionId: id(502),
+      kind: 'topic' as const,
+      title: 'Dark matter or modified gravity?',
+      tag: 'debate' as const,
+      pinned: true,
+      lastActivityAt: '2026-10-24T07:00:00.000Z',
+      replyCount: 8,
+      lastReplyBy: { name: 'Halley', ai: true },
+      startedBy: asha,
+      usefulCount: 9,
+      answered: true,
+    },
+    {
+      discussionId: id(503),
+      kind: 'topic' as const,
+      title: 'Could we ever detect dark matter directly?',
+      tag: 'question' as const,
+      pinned: false,
+      lastActivityAt: '2026-10-24T06:00:00.000Z',
+      replyCount: 7,
+      lastReplyBy: { name: 'Kenji', ai: false },
+      startedBy: kenji,
+      usefulCount: 4,
+      answered: true,
+    },
+    {
+      discussionId: id(504),
+      kind: 'topic' as const,
+      title: 'Is Pluto a planet again?',
+      tag: 'explainer' as const,
+      pinned: false,
+      lastActivityAt: '2026-10-24T05:00:00.000Z',
+      replyCount: 0,
+      startedBy: ravi,
+      usefulCount: 0,
+      answered: false,
+    },
+  ];
+  const summaries = topics.map(({ usefulCount: _useful, answered: _answered, ...summary }) => summary);
+  const state: { you: RoomYou; away: boolean } = {
+    away: options.away !== undefined,
     you: {
       aiLevel: 'lively',
       keepOut: false,
@@ -135,22 +224,54 @@ export async function roomFixture(
             title: 'General',
             pinned: false,
             lastActivityAt: lastAt,
+            replyCount: 0,
           },
-          discussions: [
-            {
-              discussionId: id(502),
-              kind: 'topic',
-              title: 'Dark matter or modified gravity?',
-              pinned: true,
-              lastActivityAt: '2026-10-24T07:00:00.000Z',
-              startedBy: asha,
-            },
-          ],
+          discussions: options.topics
+            ? summaries
+            : [
+                {
+                  discussionId: id(502),
+                  kind: 'topic',
+                  title: 'Dark matter or modified gravity?',
+                  pinned: true,
+                  lastActivityAt: '2026-10-24T07:00:00.000Z',
+                  replyCount: 0,
+                  startedBy: asha,
+                },
+              ],
           canPost: true,
           you: state.you,
           here: { faces, ...(faces.length >= 3 ? { count: faces.length } : {}) },
           memberTotal: 24,
+          limits: {
+            asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
+            unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
+          },
           lastMessageAt: lastAt,
+          ...(options.welcome && !options.noticeSeen
+            ? {
+                welcome: {
+                  resident: { kind: 'ai', inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer' },
+                  text: 'Welcome to Space room. Stars, planets, black holes and how we know any of it. Ask me anything here, or just say hello in General.',
+                },
+              }
+            : {}),
+          ...(state.away && options.away !== undefined
+            ? {
+                away: {
+                  resident: { kind: 'ai', inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic' },
+                  since: new Date(Date.now() - 14 * 3_600_000).toISOString(),
+                  state: options.away === 'preparing' ? 'preparing' : 'ready',
+                  ...(options.away === 'preparing'
+                    ? {}
+                    : {
+                        text: 'Two people compared dark matter with modified gravity.\nA new topic asks whether it can be detected directly, and one question about lensing is still open.',
+                        coversFrom: new Date(Date.now() - 14 * 3_600_000).toISOString(),
+                      }),
+                  ...(options.away === 'folded' ? { folded: true } : {}),
+                },
+              }
+            : {}),
         },
       });
     if (path === '/v1/rooms/discussions/read')
@@ -180,6 +301,80 @@ export async function roomFixture(
           requestCursor: body['cursor'],
           changes: [],
           continuation: { kind: 'caught_up', cursor: cursor(messages.length) },
+        },
+      });
+    if (path === '/v1/rooms/topics/list') {
+      const wanted = topics
+        .filter((topic) => body['tag'] === undefined || topic.tag === body['tag'])
+        .filter((topic) => body['sort'] !== 'unanswered' || !topic.answered);
+      return route.fulfill({
+        json: {
+          ...base,
+          status: 'ready',
+          roomId: room.roomId,
+          sort: body['sort'],
+          canPost: true,
+          topics: wanted,
+        },
+      });
+    }
+    if (path === '/v1/rooms/away/dismiss') {
+      state.away = false;
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'room.away-dismiss',
+          roomId: room.roomId,
+        },
+      });
+    }
+    if (path === '/v1/rooms/discussions/useful')
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'message.useful',
+          roomId: room.roomId,
+          discussionId: body['discussionId'],
+          messageId: body['messageId'],
+          useful: body['useful'],
+        },
+      });
+    if (path === '/v1/rooms/inhabitants/ask') {
+      const about = body['about'] as { kind: string } | undefined;
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'inhabitant.ask',
+          roomId: room.roomId,
+          discussionId: body['discussionId'],
+          inhabitant: about === undefined ? body['inhabitant'] : about.kind === 'about' ? 'explainer' : 'skeptic',
+          kind: about === undefined ? 'ask' : about.kind,
+        },
+      });
+    }
+    if (path === '/v1/rooms/discussions/create')
+      return route.fulfill({
+        json: {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'discussion.create',
+          roomId: room.roomId,
+          discussionId: id(510),
         },
       });
     if (path === '/v1/rooms/presence')

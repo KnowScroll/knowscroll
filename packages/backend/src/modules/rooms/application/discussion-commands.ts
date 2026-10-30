@@ -3,18 +3,23 @@ import {
   DiscussionCreationSchema,
   DiscussionPinAcceptanceSchema,
   HideRoomMessageSchema,
+  MarkUsefulSchema,
   PinDiscussionSchema,
   RoomMessageAcceptanceSchema,
   RoomMessageHidingAcceptanceSchema,
   SendRoomMessageSchema,
+  UsefulAcceptanceSchema,
   type SendRoomBody,
   type SnippetAnchor,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
 import type { SnippetAnchorInput, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
+import { mentionedResident } from '../domain/asks.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { titleFrom } from '../domain/titles.js';
+import { usefulRefusal } from '../domain/useful.js';
+import { askDecisionFor, queueAsk } from './ask-turn.js';
 import { scheduleCastCheck } from './cast-schedule.js';
 import { receiptBase, runCommand } from './command.js';
 import {
@@ -26,6 +31,7 @@ import {
   type Result,
   type RoomLock,
   type RoomPorts,
+  type TopicTag,
 } from './ports.js';
 
 /** The content port's anchor input from the wire anchor: personal values travel only when the sender confirmed them. */
@@ -98,9 +104,10 @@ export function makeDiscussionCommands(p: RoomPorts) {
   return {
     /**
      * Starts a discussion in a room that is open: about a topic in words, about a Reel or Scroll the
-     * caller names (a content thread), or from a card in another discussion of this room. A root must be
-     * the current admitted revision. Starting a thread from shared content is how a room hears about it;
-     * it is not a recommendation and not evidence.
+     * caller names (a content thread), or from a message of this room. A card for content starts a content thread
+     * about it; a message with words starts a topic that begins with that message, leaves a card where it was and
+     * may carry a tag from a closed list (D-167). A root must be the current admitted revision. Starting a thread
+     * from shared content is how a room hears about it; it is not a recommendation and not evidence.
      */
     create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionCreationSchema>>> {
       const parsed = CreateDiscussionSchema.safeParse(input);
@@ -120,9 +127,13 @@ export function makeDiscussionCommands(p: RoomPorts) {
           const start = command.start;
           let root: ContentRef | undefined;
           let title: string;
+          let tag: TopicTag | undefined;
           let originMessageId: string | undefined;
+          // The discussion a topic card is left in: set only for a topic that began from a message with words.
+          let cardIn: string | undefined;
           if (start.kind === 'topic') {
             title = start.title;
+            tag = start.tag;
           } else if (start.kind === 'content') {
             const card = await availableCard(scope, start.root);
             if (card === undefined) return refuse('unavailable');
@@ -132,23 +143,48 @@ export function makeDiscussionCommands(p: RoomPorts) {
             const origin = await p.discussions.messageInRoom(lock, start.messageId);
             if (origin === undefined || origin.discussionId !== start.discussionId) return refuse('unavailable');
             const { message } = origin;
-            if (message.hidden || message.content === null) return refuse('unavailable');
-            const card = await availableCard(scope, message.content);
-            if (card === undefined) return refuse('unavailable');
-            root = message.content;
+            if (message.hidden) return refuse('unavailable');
+            if (message.content !== null) {
+              const card = await availableCard(scope, message.content);
+              if (card === undefined) return refuse('unavailable');
+              root = message.content;
+              title = start.title ?? cardTitle(card);
+            } else if (message.text !== null) {
+              // A topic that begins with this message: only someone who has not blocked its author can read it to start from it.
+              if (
+                message.authorAccountId !== null &&
+                (await p.blocked(scope, owner.accountId, [message.authorAccountId])).has(message.authorAccountId)
+              )
+                return refuse('unavailable');
+              title = start.title ?? titleFrom(message.text, 'Topic');
+              tag = start.tag;
+              cardIn = start.discussionId;
+            } else return refuse('unavailable');
             originMessageId = message.messageId;
-            title = start.title ?? cardTitle(card);
           }
           return ok(async () => {
             const discussionId = p.newId();
             await p.discussions.create(lock, {
               discussionId,
               title,
+              tag,
               root,
               originMessageId,
               startedByAccountId: owner.accountId,
               now,
             });
+            if (cardIn !== undefined) {
+              // The original message stays where it was; the card says a topic began from it and keeps updating.
+              await p.discussions.append(lock, cardIn, {
+                kind: 'person',
+                messageId: p.newId(),
+                commandId: p.newId(),
+                authorAccountId: owner.accountId,
+                recordedAt: now,
+                topicDiscussionId: discussionId,
+              });
+              await p.rooms.announce(lock, now);
+            }
             return DiscussionCreationSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'discussion.create',
@@ -163,8 +199,9 @@ export function makeDiscussionCommands(p: RoomPorts) {
     /**
      * Sends a text message, a card for current content, or a snippet. A snippet is checked against
      * the exact current revision and the discussion's own content; the message and its anchor commit
-     * together. A text message that reads as a question or a strong claim also queues the check of whether a
-     * resident answers it, in the same transaction (D-164). Sending is not consumption evidence for anyone.
+     * together. A text message that names a resident (@Nova, @Halley) asks it, within the asked-turn bounds (D-167);
+     * one that reads as a question or a strong claim queues the check of whether a resident answers it, in the same
+     * transaction (D-164). Sending is not consumption evidence for anyone.
      */
     send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomMessageAcceptanceSchema>>> {
       const parsed = SendRoomMessageSchema.safeParse(input);
@@ -177,7 +214,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
         request: command,
         acceptance: RoomMessageAcceptanceSchema,
         requires: 'member',
-        mode: 'read',
+        // A message that names a resident may ask it, and the asked-turn bounds are counts: take the room FOR UPDATE.
+        mode: command.body.kind === 'text' && command.body.text.includes('@') ? 'write' : 'read',
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
@@ -205,15 +243,33 @@ export function makeDiscussionCommands(p: RoomPorts) {
                 : { content: body.target, ...(body.note === undefined ? {} : { note: body.note }) }),
             });
             if (snippet !== undefined) await p.discussions.saveSnippet(lock, messageId, snippet);
-            if (body.kind === 'text')
-              await scheduleCastCheck(p, scope, lock, {
-                room: standing.room,
-                discussionId: command.discussionId,
-                messageId,
-                authorAccountId: owner.accountId,
-                text: body.text,
-                now,
-              });
+            if (body.kind === 'text') {
+              const mention = mentionedResident(body.text, standing.room.cast);
+              // A message that names a resident is addressed to it: it is an ask (within the asked bounds), and no
+              // resident also decides on its own whether to answer the same words.
+              if (mention !== undefined) {
+                const decision = await askDecisionFor(p, lock, owner.accountId, command.discussionId, now);
+                if (decision === 'allowed')
+                  await queueAsk(p, scope, lock, {
+                    kind: 'mention',
+                    inhabitant: mention,
+                    roomId: command.roomId,
+                    discussionId: command.discussionId,
+                    causeMessageId: messageId,
+                    accountId: owner.accountId,
+                    commandId: command.commandId,
+                    now,
+                  });
+              } else
+                await scheduleCastCheck(p, scope, lock, {
+                  room: standing.room,
+                  discussionId: command.discussionId,
+                  messageId,
+                  authorAccountId: owner.accountId,
+                  text: body.text,
+                  now,
+                });
+            }
             await p.rooms.announce(lock, now);
             return RoomMessageAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
@@ -264,6 +320,59 @@ export function makeDiscussionCommands(p: RoomPorts) {
     },
 
     /**
+     * Marks a message Useful, or takes the mark back (D-167). One mark per member per message, and the same value
+     * again is accepted. A member cannot mark their own message, a message that is not shown to them or one whose
+     * author they blocked, and there is no negative mark. The mark is shown to its maker only; an author is never told
+     * who marked theirs. It is conversation: it is no evidence for anyone and changes no universe.
+     */
+    markUseful(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof UsefulAcceptanceSchema>>> {
+      const parsed = MarkUsefulSchema.safeParse(input);
+      if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
+      const command = parsed.data;
+      return runCommand(p, authority, {
+        operation: 'rooms.message-useful',
+        commandId: command.commandId,
+        roomId: command.roomId,
+        request: command,
+        acceptance: UsefulAcceptanceSchema,
+        requires: 'member',
+        mode: 'read',
+        async decide({ scope, entered, now }) {
+          const { lock, owner, standing } = entered;
+          if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
+          const found = await discussionOf(lock, command.discussionId);
+          if (found.kind === 'refused') return found;
+          const message = await p.discussions.messageById(lock, command.discussionId, command.messageId);
+          if (message === undefined) return refuse('unavailable');
+          if (command.useful) {
+            const refusal = usefulRefusal({
+              shown: !message.hidden && (message.text !== null || message.content !== null),
+              ownMessage: message.authorAccountId === owner.accountId,
+            });
+            if (refusal === 'own_message') return refuse('invalid_input');
+            if (refusal !== undefined) return refuse('unavailable');
+            if (
+              message.authorAccountId !== null &&
+              (await p.blocked(scope, owner.accountId, [message.authorAccountId])).has(message.authorAccountId)
+            )
+              return refuse('unavailable');
+          }
+          return ok(async () => {
+            await p.discussions.setUseful(lock, command.messageId, owner.accountId, command.useful, now);
+            return UsefulAcceptanceSchema.parse({
+              ...receiptBase(scope, now, command.commandId),
+              operation: 'message.useful',
+              roomId: command.roomId,
+              discussionId: command.discussionId,
+              messageId: command.messageId,
+              useful: command.useful,
+            });
+          });
+        },
+      });
+    },
+
+    /**
      * A moderator removes a message from view, or restores it. The message keeps its place and gets a
      * fresh change number, so everyone's catch-up replaces the bubble with the marker.
      */
@@ -290,6 +399,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
           if (message === undefined || message.hidden === command.hidden) return refuse('unavailable');
           return ok(async () => {
             await p.discussions.setHidden(lock, command.discussionId, command.messageId, command.hidden ? now : null);
+            // A summary that read this message may carry its words: erase it (D-169).
+            if (command.hidden) await p.summaries.markStale(lock, { coveringAt: message.recordedAt });
             return RoomMessageHidingAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'discussion.hide',

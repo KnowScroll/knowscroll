@@ -10,12 +10,13 @@ import type { ReadVisitedAssets } from '../../experience/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
+import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 import type { CapCounts, RefusalCap } from '../domain/router.js';
 import type { SpeechTrigger } from '../domain/triggers.js';
-import type { CastDueJob, CastPassJob } from '../events.js';
+import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
 export type Result<T> =
@@ -169,6 +170,8 @@ export interface DiscussionRow {
   /** `general` is the room's own place to talk (one per room); `topic` is any other. */
   readonly kind: 'general' | 'topic' | 'today';
   readonly title: string;
+  /** A label the starter picked from a closed list; none for General and for a topic started without one. */
+  readonly tag: TopicTag | null;
   readonly root: ContentRef | null;
   readonly originMessageId: string | null;
   /** Null once the starter's account was deleted. */
@@ -177,11 +180,15 @@ export interface DiscussionRow {
   readonly lastSequence: number;
   readonly lastChangeSequence: number;
   readonly lastActivityAt: Date;
+  readonly createdAt: Date;
 }
+
+export type TopicTag = 'question' | 'debate' | 'explainer' | 'share';
 
 export interface NewDiscussion {
   readonly discussionId: string;
   readonly title: string;
+  readonly tag: TopicTag | undefined;
   readonly root: ContentRef | undefined;
   readonly originMessageId: string | undefined;
   readonly startedByAccountId: string;
@@ -206,6 +213,8 @@ export interface MessageRow {
   readonly note: string | null;
   /** Why a resident spoke on its own; none for a person's message and for an asked contribution. */
   readonly trigger: SpeechTrigger | null;
+  /** The topic a card names; set only on the card a topic started from a message leaves (D-167). */
+  readonly topicDiscussionId: string | null;
 }
 
 export type NewMessage =
@@ -218,6 +227,8 @@ export type NewMessage =
       readonly text?: string;
       readonly content?: ContentRef;
       readonly note?: string;
+      /** A topic card: the discussion started from a message of this one. It has no words of its own. */
+      readonly topicDiscussionId?: string;
     }
   | {
       readonly kind: 'ai';
@@ -235,6 +246,32 @@ export interface Counters {
   readonly changeSequence: number;
 }
 
+/** What a list row or a topic card says about a discussion: how much is in it, who spoke last, and what people found useful. */
+export interface DiscussionFigures {
+  /** Shown messages: not removed, not a deleted account's. */
+  readonly replyCount: number;
+  /** Marks of Useful on its messages. */
+  readonly usefulCount: number;
+  /** Someone other than its starter, or a resident, has written in it. */
+  readonly answered: boolean;
+  /** Who wrote the newest shown message: a person's account, or a resident's role. */
+  readonly lastReplyBy: { readonly accountId: string } | { readonly inhabitant: InhabitantId } | undefined;
+}
+
+/** A shown message of the room's recent window, and where it sits. */
+export interface WindowMessage {
+  readonly message: MessageRow;
+  readonly discussionId: string;
+  readonly discussionTitle: string;
+  readonly discussionKind: 'general' | 'topic' | 'today';
+  /** The starter of the discussion, whose own typing the title is. */
+  readonly startedByAccountId: string | null;
+  /** The author of the message a topic began from, whose words its title may be made of; none for any other discussion. */
+  readonly originAuthorAccountId: string | null;
+  /** The message a topic began from has been removed, so a title made of its words is no longer to be read. */
+  readonly originHidden: boolean;
+}
+
 /**
  * Discussion rows. Every method is one explicit query or write, inside the room's lock; none
  * decides access. Counters are atomic increments on the discussion row, so sends in one discussion
@@ -245,6 +282,27 @@ export interface DiscussionStore {
   load(lock: RoomLock, discussionId: string): Promise<DiscussionRow | undefined>;
   /** The room's discussions other than General, pinned first and then newest activity. */
   list(lock: RoomLock, limit: number): Promise<readonly DiscussionRow[]>;
+  /** The room's topics (not General, not Today), with one tag when asked, the most recently active first, at most `limit`. */
+  listTopics(
+    lock: RoomLock,
+    query: { readonly tag?: TopicTag; readonly limit: number },
+  ): Promise<readonly DiscussionRow[]>;
+  /** The figures a list or a topic card shows for these discussions. A discussion with no messages has zero of each. */
+  figures(lock: RoomLock, discussionIds: readonly string[]): Promise<ReadonlyMap<string, DiscussionFigures>>;
+  /**
+   * The newest shown messages of the whole room recorded after `after` and no later than `through` (at most `limit`),
+   * oldest first, each with the discussion it is in. A removed message and a deleted account's are not among them.
+   */
+  windowMessages(
+    lock: RoomLock,
+    query: { readonly after: Date; readonly through: Date; readonly limit: number },
+  ): Promise<readonly WindowMessage[]>;
+  /** How many shown messages recorded after `since` were written by someone other than this account (up to `limit`). */
+  newMessagesFor(lock: RoomLock, accountId: string, since: Date, limit: number): Promise<number>;
+  /** Marks a message Useful for this member, or takes the mark back. One mark per member per message. */
+  setUseful(lock: RoomLock, messageId: string, accountId: string, marked: boolean, now: Date): Promise<void>;
+  /** Which of these messages this member has marked Useful. */
+  usefulAmong(lock: RoomLock, accountId: string, messageIds: readonly string[]): Promise<ReadonlySet<string>>;
   /** The room's General discussion; every room has one. */
   general(lock: RoomLock): Promise<DiscussionRow | undefined>;
   /** When the newest message a member can see was sent, anywhere in the room; none while nobody has written. */
@@ -322,10 +380,19 @@ export interface AiTurnRow {
   readonly state: TurnState;
   readonly createdAt: Date;
   readonly trigger: TurnTrigger;
-  /** The message an unprompted turn answers; none for an ask. */
+  /** What a member asked (`ask`, `challenge`, `other_side`, `about` or `mention`); none for an unprompted turn. */
+  readonly askKind: AskKind | null;
+  /** The message an unprompted turn answers, or the one a pointed ask or a mention is about; none for a plain ask. */
   readonly causeMessageId: string | null;
   /** The answer held back while someone types; none otherwise. */
   readonly held: HeldAnswer | null;
+}
+
+/** The ask an AI message answers. `byAccountId` is none once the asker's account was deleted. */
+export interface AskedFor {
+  readonly kind: AskKind;
+  readonly byAccountId: string | null;
+  readonly aboutMessageId: string | null;
 }
 
 export interface AiProvenance {
@@ -386,6 +453,8 @@ export interface AiStore {
   ): Promise<{ readonly inhabitant: InhabitantId; readonly state: 'declined' | 'failed' } | undefined>;
   /** Writes a member's ask as a queued turn. */
   insertAsk(lock: RoomLock, ask: AiTurnRow & { readonly commandId: string }): Promise<void>;
+  /** For these AI messages, what the member asked that they answer: the kind, who asked and which message it was about. */
+  askedFor(lock: RoomLock, messageIds: readonly string[]): Promise<ReadonlyMap<string, AskedFor>>;
   /** The turn by ID inside the room's lock, for the worker's apply step. */
   read(lock: RoomLock, turnId: string): Promise<AiTurnRow | undefined>;
   /**
@@ -429,6 +498,81 @@ export interface CastStore {
   messagesBy(lock: RoomLock, accountId: string): Promise<number>;
   /** Until when someone is typing in the discussion, if anyone is (D-165). Never says who. */
   typingUntil(lock: RoomLock, discussionId: string, now: Date): Promise<Date | undefined>;
+}
+
+// --- Where a member left off, and the summary of a window ---------------------------------
+
+/** A member's own place in a room: the last time their device had it open, and the away mark of a long return. */
+export interface ReadPosition {
+  readonly hereUntil: Date;
+  /** When they left, set when they came back after a long absence to enough new messages; none otherwise. */
+  readonly awaySince: Date | undefined;
+  /** The window of the summary written for that return. */
+  readonly awayWindow: number | undefined;
+}
+
+/**
+ * Where members left off (migration 0076): one private row per member per room, written only by the member's own
+ * presence command. It is never read for anyone else, never sent, and carries no content.
+ */
+export interface PositionStore {
+  /** Notes that the member's device has the room open at `now` and returns the row as it stood before. */
+  touch(lock: RoomLock, accountId: string, now: Date): Promise<ReadPosition | undefined>;
+  read(lock: RoomLock, accountId: string): Promise<ReadPosition | undefined>;
+  /** Records a long return: when they left and the window of the summary written for it. */
+  markAway(lock: RoomLock, accountId: string, away: { readonly since: Date; readonly window: number }): Promise<void>;
+  /** The member has read it. */
+  dismissAway(lock: RoomLock, accountId: string): Promise<void>;
+  /** Their row goes when they leave or are removed. */
+  forget(lock: RoomLock, accountId: string): Promise<void>;
+}
+
+export type SummaryState = 'queued' | 'ready' | 'declined' | 'failed' | 'stale';
+
+/** One window's summary: a resident's words about what the room said, cached for everyone who returns in the window. */
+export interface SummaryRow {
+  readonly summaryId: string;
+  readonly roomId: string;
+  readonly windowNo: number;
+  readonly state: SummaryState;
+  readonly coversFrom: Date;
+  readonly coversThrough: Date;
+  /** The words; only while the summary is `ready`. */
+  readonly body: string | null;
+  readonly createdAt: Date;
+}
+
+export interface NewSummary {
+  readonly summaryId: string;
+  readonly windowNo: number;
+  readonly coversFrom: Date;
+  readonly coversThrough: Date;
+  readonly now: Date;
+}
+
+/** How a queued summary ended. A summary that reached the provider stays dispatched whatever happens next. */
+export type SummaryOutcome =
+  | { readonly state: 'failed'; readonly at: Date; readonly dispatched: boolean }
+  | { readonly state: 'declined'; readonly at: Date; readonly provenance: AiProvenance }
+  | { readonly state: 'ready'; readonly at: Date; readonly body: string; readonly provenance: AiProvenance };
+
+/**
+ * The summaries of a room's windows (migration 0076). The unique key (room, window) is the cap: a window is claimed
+ * once however many members return in it. A summary is the ledger of its own call.
+ */
+export interface SummaryStore {
+  /** Claims the window with a queued summary, or answers the one that already holds it. */
+  claim(lock: RoomLock, summary: NewSummary): Promise<{ readonly claimed: boolean; readonly summary: SummaryRow }>;
+  read(lock: RoomLock, summaryId: string): Promise<SummaryRow | undefined>;
+  forWindow(lock: RoomLock, windowNo: number): Promise<SummaryRow | undefined>;
+  /** Settles a queued summary. A summary that reached the provider keeps `dispatched` whatever a later step believes. */
+  settle(lock: RoomLock, summaryId: string, outcome: SummaryOutcome): Promise<void>;
+  /**
+   * Erases the words of every ready summary that covered what was just removed: a message recorded at `coveringAt` (a
+   * moderator removed it), or any message `byAccount` wrote (they keep their messages out of what AI reads now). The window
+   * is not written again.
+   */
+  markStale(lock: RoomLock, cause: { readonly coveringAt: Date } | { readonly byAccount: string }): Promise<void>;
 }
 
 // --- Optional room activity (R03) ---------------------------------------------------------
@@ -540,6 +684,8 @@ export interface RoomPorts {
   readonly presence: PresenceStore;
   readonly ai: AiStore;
   readonly cast: CastStore;
+  readonly positions: PositionStore;
+  readonly summaries: SummaryStore;
   readonly activities: ActivityStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
@@ -567,4 +713,6 @@ export interface RoomPorts {
   enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
   /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */
   enqueueCastPass(scope: PersonalScopeTx, job: CastPassJob, startAfter?: Date): Promise<void>;
+  /** Queues the model call that writes one window's "while you were away", in the caller's open transaction. */
+  enqueueSummary(scope: PersonalScopeTx, job: SummariseJob): Promise<void>;
 }

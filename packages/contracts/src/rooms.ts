@@ -40,6 +40,8 @@ export const ROOM_PRESENCE_LEASE_MS = 60_000;
 export const ROOM_PRESENCE_BEAT_MS = 25_000;
 /** The most faces a room view carries; the count may be larger. */
 export const ROOM_FACES_MAX = 12;
+/** The most discussions a room view or a topics list carries. */
+export const DISCUSSIONS_LISTED_MAX = 50;
 
 function isPublicLabel(value: string): boolean {
   return (
@@ -120,6 +122,21 @@ export type RoomSummary = z.infer<typeof RoomSummarySchema>;
 export const RoomDiscussionKindSchema = z.enum(['general', 'topic', 'today']);
 export type RoomDiscussionKind = z.infer<typeof RoomDiscussionKindSchema>;
 
+/**
+ * What a topic is, from a closed list (D-167): a question, a debate, an explainer or something shared. A tag is a label the
+ * starter picks; it gives a topic no behaviour of its own, and a topic need not have one.
+ */
+export const RoomTopicTagSchema = z.enum(['question', 'debate', 'explainer', 'share']);
+export type RoomTopicTag = z.infer<typeof RoomTopicTagSchema>;
+
+/**
+ * What a member asked of a resident (D-167): the plain `ask` of a discussion, a `challenge` (the Skeptic tests one
+ * message), the `other_side` (the Skeptic argues the opposite of one message), `about` (the Explainer answers one
+ * message) or a `mention` (an @name in a message). An asked turn never counts against the unprompted caps.
+ */
+export const RoomAskKindSchema = z.enum(['ask', 'challenge', 'other_side', 'about', 'mention']);
+export type RoomAskKind = z.infer<typeof RoomAskKindSchema>;
+
 /** How much a room's AI inhabitants may speak to one member: Lively, Quieter or Off (R3 question 5). */
 export const RoomAiLevelSchema = z.enum(['lively', 'quieter', 'off']);
 export type RoomAiLevel = z.infer<typeof RoomAiLevelSchema>;
@@ -129,11 +146,16 @@ export const RoomDiscussionSummarySchema = z.strictObject({
   discussionId: UuidSchema,
   kind: RoomDiscussionKindSchema,
   title: DiscussionTitle,
+  tag: RoomTopicTagSchema.optional(),
   root: ConversationContentProjectionSchema.optional(),
   /** Absent once the starter's account was deleted. */
   startedBy: PublicPersonRefSchema.optional(),
   pinned: z.boolean(),
   lastActivityAt: z.iso.datetime(),
+  /** Messages in it that are shown (not removed, not a deleted account's). */
+  replyCount: Counter,
+  /** Who spoke last, when the reader may be told: the name only, and whether it is a resident. Absent when the reader blocked them. */
+  lastReplyBy: z.strictObject({ name: z.string().min(1).max(80), ai: z.boolean() }).optional(),
 });
 export type RoomDiscussionSummary = z.infer<typeof RoomDiscussionSummarySchema>;
 
@@ -214,6 +236,54 @@ export const RoomHereSchema = z
   );
 export type RoomHere = z.infer<typeof RoomHereSchema>;
 
+/**
+ * What the room's AI may do, as the rules in force say it (D-068, D-167). Shown to every member in the room menu. Asked
+ * turns have their own bounds and never count against the unprompted ones.
+ */
+export const RoomLimitsSchema = z.strictObject({
+  asked: z.strictObject({
+    perPersonPerHour: z.number().int().positive(),
+    perRoomPerDay: z.number().int().positive(),
+  }),
+  unprompted: z.strictObject({
+    /** One unprompted turn per this many human messages. */
+    humanMessagesPerTurn: z.number().int().positive(),
+    perHour: z.number().int().positive(),
+    perDay: z.number().int().positive(),
+    explainerPerHour: z.number().int().positive(),
+    skepticPerHour: z.number().int().positive(),
+  }),
+});
+export type RoomLimits = z.infer<typeof RoomLimitsSchema>;
+
+/**
+ * The welcome a resident gives a member who has not yet read the AI notice. A template filled from the room's own name
+ * and topic: it is not a model's words and costs no call (D-168).
+ */
+export const RoomWelcomeSchema = z.strictObject({
+  resident: AiAuthorSchema,
+  text: z.string().min(1).max(400),
+});
+export type RoomWelcome = z.infer<typeof RoomWelcomeSchema>;
+
+/**
+ * "While you were away": what a resident wrote, once for a window, for members who came back after a long absence
+ * (D-169). It is the resident's own and labelled; `since` is when this member left, `coversFrom` where the words start.
+ * Present only for the member it was written for, until they dismiss it; absent for a member whose AI level is Off.
+ */
+export const RoomAwaySchema = z
+  .strictObject({
+    resident: AiAuthorSchema,
+    since: z.iso.datetime(),
+    state: z.enum(['preparing', 'ready']),
+    text: z.string().min(1).max(1200).optional(),
+    coversFrom: z.iso.datetime().optional(),
+    /** The reader's level is Quieter: show one line, the words on request. */
+    folded: z.literal(true).optional(),
+  })
+  .refine((away) => (away.state === 'ready') === (away.text !== undefined));
+export type RoomAway = z.infer<typeof RoomAwaySchema>;
+
 export const ReadRoomSchema = z.strictObject({ ...Read, roomId: UuidSchema });
 export const RoomViewSchema = z.discriminatedUnion('status', [
   /** Not a room the caller may see: unknown, closed to outsiders, or an ended account. One shape for all. */
@@ -245,7 +315,7 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     /** The room's General: where a member lands. It is not in `discussions`. */
     general: RoomDiscussionSummarySchema,
     /** The other discussions: pinned first, then newest activity. A paused room can still be read. */
-    discussions: z.array(RoomDiscussionSummarySchema).max(50),
+    discussions: z.array(RoomDiscussionSummarySchema).max(DISCUSSIONS_LISTED_MAX),
     canPost: z.boolean(),
     /** The caller's own settings in this room. */
     you: RoomYouSchema,
@@ -255,6 +325,12 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     memberTotal: Counter,
     /** When the newest visible message was sent, anywhere in the room; absent while nobody has written. */
     lastMessageAt: z.iso.datetime().optional(),
+    /** The bounds on what the room's AI may do, for the room menu. */
+    limits: RoomLimitsSchema,
+    /** A resident's welcome, until the member has read the AI notice. */
+    welcome: RoomWelcomeSchema.optional(),
+    /** A resident's "while you were away", for a member who came back after a long absence. */
+    away: RoomAwaySchema.optional(),
   }),
 ]);
 export type RoomView = z.infer<typeof RoomViewSchema>;
@@ -348,6 +424,23 @@ const MessageIdentity = { messageId: UuidSchema, sequence: Revision };
 export const RoomAuthorSchema = z.discriminatedUnion('kind', [PublicPersonRefSchema, AiAuthorSchema]);
 export type RoomAuthor = z.infer<typeof RoomAuthorSchema>;
 
+/** What a member asked that a resident's message answers: the kind, who asked and which message it was about (D-167). */
+export const RoomMessageAskSchema = z.strictObject({
+  kind: RoomAskKindSchema,
+  /** Absent once the asker's account was deleted, and when the reader has blocked them. */
+  by: PublicPersonRefSchema.optional(),
+  /** The message the ask pointed at, when it pointed at one. */
+  about: UuidSchema.optional(),
+});
+export type RoomMessageAsk = z.infer<typeof RoomMessageAskSchema>;
+
+/** A topic named by a card in the discussion it began from: its title and tag. Its figures are the room list's. */
+export const RoomTopicCardSchema = z.strictObject({
+  discussionId: UuidSchema,
+  title: DiscussionTitle,
+  tag: RoomTopicTagSchema.optional(),
+});
+
 export const RoomMessageSchema = z.discriminatedUnion('status', [
   z.strictObject({
     ...MessageIdentity,
@@ -356,6 +449,7 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
     recordedAt: z.iso.datetime(),
     body: z.discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('text'), text: ConversationTextSchema }),
+      z.strictObject({ kind: z.literal('topic'), topic: RoomTopicCardSchema }),
       z.strictObject({
         kind: z.literal('content'),
         content: ConversationContentProjectionSchema,
@@ -374,8 +468,12 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
      * reader whose AI level is Off receives `muted` instead.
      */
     trigger: RoomSpeechTriggerSchema.optional(),
+    /** Present on a resident's message that answered a member's ask; a resident that spoke on its own has `trigger` instead. */
+    ask: RoomMessageAskSchema.optional(),
     /** The reader's AI level is Quieter and this is a resident speaking on its own: show one line, the words on request. */
     folded: z.literal(true).optional(),
+    /** The reader marked this message Useful. No count is ever sent with a message, and an author is never told who marked theirs. */
+    usefulByYou: z.literal(true).optional(),
     /**
      * The reader is a moderator who has blocked the author. A block collapses the author's words for the
      * reader (`blocked`), but a moderator must still be able to moderate them, so the words are sent and
@@ -407,13 +505,18 @@ const Messages = z
 
 /** Starts a discussion: about nothing in particular, about a Reel or Scroll, or from a card in another discussion of the room. */
 export const StartDiscussionSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('topic'), title: DiscussionTitle }),
+  z.strictObject({ kind: z.literal('topic'), title: DiscussionTitle, tag: RoomTopicTagSchema.optional() }),
   z.strictObject({ kind: z.literal('content'), root: ConversationContentRefSchema, title: DiscussionTitle.optional() }),
+  /**
+   * From a message of the room. A card for a Reel or Scroll starts a content thread about it; a message with words
+   * starts a topic that begins with that message and leaves a card where it was (D-167).
+   */
   z.strictObject({
     kind: z.literal('message'),
     discussionId: UuidSchema,
     messageId: UuidSchema,
     title: DiscussionTitle.optional(),
+    tag: RoomTopicTagSchema.optional(),
   }),
 ]);
 export const CreateDiscussionSchema = z.strictObject({ ...Command, roomId: UuidSchema, start: StartDiscussionSchema });
@@ -486,9 +589,12 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
         discussionId: UuidSchema,
         kind: RoomDiscussionKindSchema,
         title: DiscussionTitle,
+        tag: RoomTopicTagSchema.optional(),
         pinned: z.boolean(),
         startedBy: PublicPersonRefSchema.optional(),
       }),
+      /** The message a topic began from, as this reader may see it: its first item. Absent for any other discussion. */
+      origin: RoomMessageSchema.optional(),
       /** Present when the discussion is a content thread: the root, its episodes and the caller's own visited markers. */
       content: z
         .strictObject({
@@ -857,21 +963,91 @@ export const ActivityModerationAcceptanceSchema = z.strictObject({
 
 /**
  * Asks a labelled AI inhabitant to contribute to a discussion. The answer is a queued request: the
- * contribution, if any, arrives later as an ordinary message the discussion reads. The ask is
- * bounded per room and day and per person and day; nothing an inhabitant says starts production.
+ * contribution, if any, arrives later as an ordinary message the discussion reads. A plain ask names the
+ * resident (`inhabitant`); a challenge, the other side or an ask about a message names the message (`about`),
+ * and the kind decides the resident: the Skeptic tests or argues against it, the Explainer answers it. The ask is
+ * bounded per person and hour and per room and day, apart from the unprompted caps; nothing an inhabitant says
+ * starts production.
  */
-export const AskInhabitantSchema = z.strictObject({
-  ...Command,
-  roomId: UuidSchema,
-  discussionId: UuidSchema,
-  inhabitant: InhabitantIdSchema,
-});
+export const AskInhabitantSchema = z
+  .strictObject({
+    ...Command,
+    roomId: UuidSchema,
+    discussionId: UuidSchema,
+    inhabitant: InhabitantIdSchema.optional(),
+    about: z.strictObject({ kind: z.enum(['challenge', 'other_side', 'about']), messageId: UuidSchema }).optional(),
+  })
+  .refine((command) => (command.inhabitant === undefined) !== (command.about === undefined));
 export const InhabitantAskAcceptanceSchema = z.strictObject({
   ...Receipt,
   operation: z.literal('inhabitant.ask'),
   roomId: UuidSchema,
   discussionId: UuidSchema,
   inhabitant: InhabitantIdSchema,
+  kind: RoomAskKindSchema,
+});
+
+// --- Topics and Useful ----------------------------------------------------------------------
+
+/** How the list of topics is ordered: pinned ones first, then Hot (a code formula), the newest, or those no one else has answered. */
+export const RoomTopicSortSchema = z.enum(['hot', 'new', 'unanswered']);
+export type RoomTopicSort = z.infer<typeof RoomTopicSortSchema>;
+
+/** A room's topics as a forum list (R3 B2). Reading it creates nothing and tells nobody. */
+export const ReadRoomTopicsSchema = z.strictObject({
+  ...Read,
+  roomId: UuidSchema,
+  sort: RoomTopicSortSchema,
+  tag: RoomTopicTagSchema.optional(),
+});
+/**
+ * A topic in the list: the discussion's own summary, how many people marked answers in it Useful, and whether anyone
+ * but its starter has spoken in it. `usefulCount` is the only count of Useful marks any answer carries: it sits on a
+ * topic of the list and on nothing a message's author reads.
+ */
+export const RoomTopicItemSchema = RoomDiscussionSummarySchema.extend({
+  usefulCount: Counter,
+  answered: z.boolean(),
+});
+export type RoomTopicItem = z.infer<typeof RoomTopicItemSchema>;
+export const RoomTopicsSchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    roomId: UuidSchema,
+    sort: RoomTopicSortSchema,
+    canPost: z.boolean(),
+    topics: z.array(RoomTopicItemSchema).max(DISCUSSIONS_LISTED_MAX),
+  }),
+]);
+
+/**
+ * Marks a message Useful, or takes the mark back (R3 B2). One mark per member per message, never on one's own message,
+ * and there is no downvote. The same value again is accepted. It is conversation, never evidence.
+ */
+export const MarkUsefulSchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  discussionId: UuidSchema,
+  messageId: UuidSchema,
+  useful: z.boolean(),
+});
+export const UsefulAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('message.useful'),
+  roomId: UuidSchema,
+  discussionId: UuidSchema,
+  messageId: UuidSchema,
+  useful: z.boolean(),
+});
+
+/** The member has read their "while you were away"; it is not shown again. The same command again is accepted. */
+export const DismissAwaySchema = z.strictObject({ ...Command, roomId: UuidSchema });
+export const AwayDismissalSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('room.away-dismiss'),
+  roomId: UuidSchema,
 });
 
 /** The room, who is in it and what a member sets for themselves. */
@@ -883,6 +1059,8 @@ export const roomsRoomContract = {
   invite: roomsPost('/v1/rooms/invite', InviteToRoomSchema, RoomInviteAcceptanceSchema),
   preferences: roomsPost('/v1/rooms/preferences', SetRoomPreferencesSchema, RoomPreferencesAcceptanceSchema),
   presence: roomsPost('/v1/rooms/presence', SetRoomPresenceSchema, RoomPresenceAckSchema),
+  dismissAway: roomsPost('/v1/rooms/away/dismiss', DismissAwaySchema, AwayDismissalSchema),
+  topics: roomsPost('/v1/rooms/topics/list', ReadRoomTopicsSchema, RoomTopicsSchema),
   moderate: roomsPost('/v1/rooms/moderate', ModerateRoomSchema, RoomModerationAcceptanceSchema),
   reports: roomsPost('/v1/rooms/reports', ReadRoomReportsSchema, RoomReportsSchema),
   stations: roomsPost('/v1/rooms/stations', ReadRoomStationsSchema, RoomStationsSchema),
@@ -898,6 +1076,7 @@ export const roomsDiscussionContract = {
   openSnippet: roomsPost('/v1/rooms/discussions/snippets/open', OpenRoomSnippetSchema, RoomSnippetOpeningSchema),
   pin: roomsPost('/v1/rooms/discussions/pin', PinDiscussionSchema, DiscussionPinAcceptanceSchema),
   hideMessage: roomsPost('/v1/rooms/discussions/hide', HideRoomMessageSchema, RoomMessageHidingAcceptanceSchema),
+  markUseful: roomsPost('/v1/rooms/discussions/useful', MarkUsefulSchema, UsefulAcceptanceSchema),
   askInhabitant: roomsPost('/v1/rooms/inhabitants/ask', AskInhabitantSchema, InhabitantAskAcceptanceSchema),
 };
 
@@ -955,6 +1134,36 @@ export const ROOM_COUNT_AND_ACTIVITY_FIELDS: readonly {
     view: 'member',
     path: 'discussions.lastActivityAt',
     why: 'when the discussion last had a message: orders the list',
+  },
+  {
+    route: 'read',
+    view: 'member',
+    path: 'general.replyCount',
+    why: 'how many messages the discussion shows: a topic card in it reads the topic by this figure',
+  },
+  {
+    route: 'read',
+    view: 'member',
+    path: 'discussions.replyCount',
+    why: 'how many messages the discussion shows: a topic card reads the topic by this figure',
+  },
+  {
+    route: 'topics',
+    view: 'ready',
+    path: 'topics.lastActivityAt',
+    why: 'when the topic last had a message: orders the list',
+  },
+  {
+    route: 'topics',
+    view: 'ready',
+    path: 'topics.replyCount',
+    why: 'how many messages the topic shows: the forum list',
+  },
+  {
+    route: 'topics',
+    view: 'ready',
+    path: 'topics.usefulCount',
+    why: 'how many marks of Useful its answers have: shown on the topic, never on a message or to an author',
   },
   {
     route: 'preferences',

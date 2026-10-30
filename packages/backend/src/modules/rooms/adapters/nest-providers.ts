@@ -53,7 +53,8 @@ import type { RoomPorts } from '../application/ports.js';
 import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
 import { makeStationReads } from '../application/stations.js';
-import { castDueQueue, castPassQueue, contributeQueue } from '../events.js';
+import { makeSummarise, type SummarisePorts } from '../application/summarise.js';
+import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
@@ -63,21 +64,25 @@ import {
   READ_ROOM_REPORTS,
   ROOM_USE_CASES,
   RUN_CAST_PASS,
+  SUMMARISE,
   type ContributeAsInhabitant,
   type DecideCast,
   type HoldCast,
   type ReadRoomReports,
   type RoomUseCases,
   type RunCastPass,
+  type Summarise,
 } from '../public.js';
 import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
 import { castStore } from './postgres-cast.js';
 import { holdCast } from './typing-holds.js';
+import { positionStore } from './postgres-positions.js';
 import { presenceStore } from './postgres-presence.js';
 import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
+import { summaryStore } from './postgres-summaries.js';
 import { readReportableRoomMessage } from './report-reads.js';
 import { gateSnippetAnchors } from './snippet-audience.js';
 
@@ -121,6 +126,8 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     presence: presenceStore,
     ai: aiStore,
     cast: castStore,
+    positions: positionStore,
+    summaries: summaryStore,
     activities: activityStore,
     people: {
       async byAccounts(scope, accountIds) {
@@ -174,6 +181,14 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
         jobId: stableUuid(`rooms-cast-due:${job.causeMessageId}:${job.trigger}:${String(job.round)}`),
         duplicate: 'ignore',
         startAfter,
+      });
+    },
+    enqueueSummary: async (scope, job) => {
+      if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
+      await deps.enqueue(scope, summariseQueue, job, {
+        // One job per summary: a redelivery of the presence beat cannot queue a second call for the window.
+        jobId: stableUuid(`rooms-summarise:${job.summaryId}`),
+        duplicate: 'ignore',
       });
     },
     enqueueCastPass: async (scope, job, startAfter) => {
@@ -237,6 +252,25 @@ export function runCastPass(
     generation: deps.generation,
   };
   return makeCastPass(ports, deps.harness, deps.withRoomScope);
+}
+
+/** The worker's model call that writes one window's "while you were away", under the room scope. */
+export function runSummarise(
+  deps: RoomsDeps & {
+    readonly harness: ProductionReasoningHarness;
+    readonly withRoomScope: WithProductionScope;
+    readonly ownerActive: CheckPersonalOwnerActive;
+    readonly model: string;
+    readonly generation: number;
+  },
+): Summarise {
+  const ports: SummarisePorts = {
+    ...roomPorts(deps),
+    ownerActive: deps.ownerActive,
+    model: deps.model,
+    generation: deps.generation,
+  };
+  return makeSummarise(ports, deps.harness, deps.withRoomScope);
 }
 
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
@@ -416,6 +450,65 @@ export function roomsWorkerProviders(tokens: {
         config: WorkerConfig,
       ) =>
         runCastPass({
+          withScope,
+          fenceOwn,
+          readPeople,
+          readFriends,
+          readContent,
+          readSequence,
+          readVisited,
+          validateSnippet,
+          resolveSnippet,
+          checkAudience,
+          readBlocked,
+          harness,
+          withRoomScope,
+          ownerActive,
+          enqueue,
+          residentsEnabled: config.reasoning.roomEnabled,
+          generation: config.reasoning.roomGeneration,
+          model: config.reasoning.minimax?.model ?? 'unconfigured',
+        }),
+    },
+    {
+      provide: SUMMARISE,
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_PUBLIC_PEOPLE,
+        READ_FRIEND_ACCOUNTS,
+        READ_SHAREABLE_CONTENT,
+        READ_CONTENT_SEQUENCE,
+        READ_VISITED_ASSETS,
+        VALIDATE_SNIPPET_ANCHOR,
+        RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
+        READ_BLOCKED_AMONG,
+        ROOM_REASONING_HARNESS,
+        WITH_ROOM_SCOPE,
+        CHECK_PERSONAL_OWNER_ACTIVE,
+        tokens.enqueueJob,
+        tokens.workerConfig,
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        readPeople: ReadPublicPeople,
+        readFriends: ReadFriendAccounts,
+        readContent: ReadShareableContent,
+        readSequence: ReadContentSequence,
+        readVisited: ReadVisitedAssets,
+        validateSnippet: ValidateSnippetAnchor,
+        resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
+        readBlocked: ReadBlockedAmong,
+        harness: ProductionReasoningHarness,
+        withRoomScope: WithProductionScope,
+        ownerActive: CheckPersonalOwnerActive,
+        enqueue: EnqueueJob,
+        config: WorkerConfig,
+      ) =>
+        runSummarise({
           withScope,
           fenceOwn,
           readPeople,

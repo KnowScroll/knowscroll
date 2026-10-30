@@ -2,7 +2,7 @@ import { ORPCError } from '@orpc/client';
 import { describe, expect, it } from 'vitest';
 import { problemDetails } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
-import { createRoom } from './room';
+import { createRoom, readRoomTopics } from './room';
 
 const id = (n: number) => `0199b000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const roomId = id(1);
@@ -181,6 +181,59 @@ describe('a room on the client', () => {
       .filter((call) => call.name === 'preferences')
       .map((call) => (call.input as { commandId: string }).commandId);
     expect(commands[0]).toBe(commands[1]);
+  });
+
+  it('dismisses "while you were away" and the card goes from the view at once', async () => {
+    const away = {
+      resident: { kind: 'ai' as const, inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic' },
+      since: '2026-10-23T20:00:00.000Z',
+      state: 'preparing' as const,
+    };
+    const scope = scopeOf({
+      read: () => Promise.resolve({ ...member, away }),
+      dismissAway: () => Promise.resolve({}),
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    expect((controller.getState().view as { away?: unknown }).away).toBeDefined();
+    expect(await controller.dismissAway()).toBe(true);
+    expect((controller.getState().view as { away?: unknown }).away).toBeUndefined();
+    expect(scope.calls.find((call) => call.name === 'dismissAway')?.input).toMatchObject({ roomId });
+  });
+
+  it('starts a topic from a message with a title and a tag under one command, and from nothing with a tag', async () => {
+    const scope = scopeOf({
+      read: () => Promise.resolve(member),
+      createDiscussion: () => Promise.resolve({ discussionId: id(77) }),
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    const from = {
+      kind: 'message' as const,
+      discussionId: id(5),
+      messageId: id(6),
+      title: 'Is it the Moon?',
+      tag: 'question' as const,
+    };
+    expect(await controller.startDiscussion(from)).toBe(id(77));
+    expect(await controller.startDiscussion({ kind: 'topic', title: 'Tides', tag: 'share' })).toBe(id(77));
+    expect(
+      scope.calls
+        .filter((call) => call.name === 'createDiscussion')
+        .map((call) => (call.input as { start: unknown }).start),
+    ).toEqual([from, { kind: 'topic', title: 'Tides', tag: 'share' }]);
+  });
+
+  it('reads the topics in the order and with the tag asked for, and says so when the server cannot', async () => {
+    const topics = [{ discussionId: id(9), title: 'A topic', usefulCount: 2 }];
+    let answer: () => Promise<unknown> = () => Promise.resolve({ status: 'ready', topics });
+    const scope = scopeOf({ topics: () => answer() });
+    expect(await readRoomTopics(scope, newId, roomId, { sort: 'hot', tag: 'debate' })).toEqual(topics);
+    expect(scope.calls[0]?.input).toMatchObject({ roomId, sort: 'hot', tag: 'debate' });
+    await readRoomTopics(scope, newId, roomId, { sort: 'new' });
+    expect(scope.calls[1]?.input).not.toHaveProperty('tag');
+    answer = () => Promise.resolve({ status: 'unavailable' });
+    await expect(readRoomTopics(scope, newId, roomId, { sort: 'new' })).rejects.toThrow('ROOM_TOPICS_UNAVAILABLE');
   });
 
   it('keeps the lease with plain here and away calls, and a missed beat changes nothing on screen', async () => {

@@ -199,6 +199,7 @@ export function MemberBody({
             <AiHere
               you={view.you}
               working={state.working}
+              limits={view.limits}
               onChange={(change) => void controller.setPreferences(change)}
             />
           </View>

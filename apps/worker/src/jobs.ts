@@ -45,12 +45,15 @@ import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
   RUN_CAST_PASS,
+  SUMMARISE,
   castDueQueue,
   castPassQueue,
+  summariseQueue,
   contributeQueue,
   type ContributeAsInhabitant,
   type DecideCast,
   type RunCastPass,
+  type Summarise,
 } from '@knowscroll/backend/modules/rooms';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
@@ -253,6 +256,7 @@ export const jobWiring: Provider[] = [
       CONTRIBUTE_AS_INHABITANT,
       DECIDE_CAST,
       RUN_CAST_PASS,
+      SUMMARISE,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
       PROJECT_ENCOUNTER_ACTIVITY,
@@ -285,6 +289,7 @@ export const jobWiring: Provider[] = [
       contributeAsInhabitant: ContributeAsInhabitant,
       decideCast: DecideCast,
       runCastPass: RunCastPass,
+      summarise: Summarise,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
       projectActivity: ProjectEncounterActivity,
@@ -395,6 +400,9 @@ export const jobWiring: Provider[] = [
             }),
             jobConsumer(castPassQueue, async (payload, delivery) => {
               await runCastPass(payload, delivery.signal);
+            }),
+            jobConsumer(summariseQueue, async (payload, delivery) => {
+              await summarise(payload, delivery.signal);
             }),
           ]
         : []),

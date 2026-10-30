@@ -23,7 +23,7 @@ const FRIEND_LOOKUP_LIMIT = 1000;
  * lock (FOR UPDATE), checks current authority, and commits its effect and receipt together. Joining
  * a room, leaving it and being invited are communication state: none is consumption evidence, and
  * joining never changes the person's universe. A member who leaves or is removed loses their presence
- * lease in the same transaction, and the room hears of it.
+ * lease and the place where they left off in the same transaction, and the room hears of it.
  */
 export function makeRoomCommands(p: RoomPorts) {
   return {
@@ -90,6 +90,7 @@ export function makeRoomCommands(p: RoomPorts) {
             ok(async () => {
               await p.rooms.end(entered.lock, entered.owner.accountId, 'left', now);
               await p.presence.clear(entered.lock, entered.owner.accountId);
+              await p.positions.forget(entered.lock, entered.owner.accountId);
               await p.rooms.announce(entered.lock, now);
               return RoomLeaveAcceptanceSchema.parse({
                 ...receiptBase(scope, now, command.commandId),
@@ -178,6 +179,7 @@ export function makeRoomCommands(p: RoomPorts) {
             return ok(async () => {
               await p.rooms.end(lock, targetAccountId, 'removed', now);
               await p.presence.clear(lock, targetAccountId);
+              await p.positions.forget(lock, targetAccountId);
               await p.rooms.announce(lock, now);
               return accepted();
             });

@@ -1,7 +1,8 @@
+import type { AskKind } from '../domain/asks.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 import type { SpeechTrigger } from '../domain/triggers.js';
-import type { TurnState, TurnTrigger } from '../application/ports.js';
+import type { SummaryState, TopicTag, TurnState, TurnTrigger } from '../application/ports.js';
 
 /**
  * The text columns of migration 0062 are closed sets by CHECK constraints, but the generated row types
@@ -42,3 +43,7 @@ export const turnTriggerOf = closed<TurnTrigger>('trigger', [
   'overstated_claim',
   'answer_overstated',
 ]);
+
+export const askKindOf = closed<AskKind>('ask_kind', ['ask', 'challenge', 'other_side', 'about', 'mention']);
+export const topicTagOf = closed<TopicTag>('tag', ['question', 'debate', 'explainer', 'share']);
+export const summaryStateOf = closed<SummaryState>('state', ['queued', 'ready', 'declined', 'failed', 'stale']);

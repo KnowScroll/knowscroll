@@ -1,4 +1,13 @@
-import type { RoomAiLevel, RoomListItem, RoomReports, RoomStation, RoomView } from '@knowscroll/contracts';
+import type {
+  RoomAiLevel,
+  RoomListItem,
+  RoomReports,
+  RoomStation,
+  RoomTopicItem,
+  RoomTopicSort,
+  RoomTopicTag,
+  RoomView,
+} from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { talkFailure } from './talk-failure';
 
@@ -33,10 +42,37 @@ export async function readRoomReports(
   return answer.reports;
 }
 
+/**
+ * The room's topics as a forum list (R3 B2): pinned first, then Hot, New or Unanswered, optionally one tag. A failed
+ * request throws; `talkFailure` classifies it. Only a member reads it.
+ */
+export async function readRoomTopics(
+  scope: AccountScope,
+  newId: () => string,
+  roomId: string,
+  query: { readonly sort: RoomTopicSort; readonly tag?: RoomTopicTag },
+): Promise<readonly RoomTopicItem[]> {
+  const answer = await scope.api.rooms.topics({
+    version: VERSION,
+    readId: newId(),
+    roomId,
+    sort: query.sort,
+    ...(query.tag === undefined ? {} : { tag: query.tag }),
+  });
+  if (answer.status !== 'ready') throw new Error('ROOM_TOPICS_UNAVAILABLE');
+  return answer.topics;
+}
+
 export type StartDiscussion =
-  | { readonly kind: 'topic'; readonly title: string }
+  | { readonly kind: 'topic'; readonly title: string; readonly tag?: RoomTopicTag }
   | { readonly kind: 'content'; readonly root: { readonly assetId: string; readonly assetRevision: number } }
-  | { readonly kind: 'message'; readonly discussionId: string; readonly messageId: string };
+  | {
+      readonly kind: 'message';
+      readonly discussionId: string;
+      readonly messageId: string;
+      readonly title?: string;
+      readonly tag?: RoomTopicTag;
+    };
 
 export type ModerateAction = { readonly kind: 'pause' } | { readonly kind: 'resume' };
 
@@ -88,6 +124,8 @@ export interface RoomController {
    * changes what the screen shows and never reports a failure: a missed beat only lets the lease lapse.
    */
   readonly setPresence: (state: 'here' | 'away') => Promise<void>;
+  /** The member has read their "while you were away": it is not shown again. Returns whether the server accepted it. */
+  readonly dismissAway: () => Promise<boolean>;
 }
 
 export interface RoomOptions {
@@ -206,6 +244,16 @@ export function createRoom(options: RoomOptions): RoomController {
       if (accepted === undefined) return false;
       if (state.view?.status === 'member') publish({ view: { ...state.view, you: accepted.you } });
       return true;
+    },
+    async dismissAway() {
+      const accepted = await command('dismiss-away', (commandId) =>
+        scope.api.rooms.dismissAway({ version: VERSION, commandId, roomId }),
+      );
+      if (accepted !== undefined && state.view?.status === 'member') {
+        const { away: _read, ...rest } = state.view;
+        publish({ view: rest });
+      }
+      return accepted !== undefined;
     },
     async setPresence(presence) {
       try {

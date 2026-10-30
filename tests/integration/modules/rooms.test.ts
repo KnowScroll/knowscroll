@@ -403,7 +403,7 @@ describe('idea rooms (real PostgreSQL)', () => {
       expect(await consumptionRows(world.db)).toBe(before);
     });
 
-    it('refuses a root that is not the current admitted revision, and a text message as a root', async () => {
+    it('refuses a root that is not the current admitted revision', async () => {
       const { roomId } = await seedRoom(world);
       const [asha] = await joined(world, roomId, 1);
       const withdrawn = await seedContent(world.db, { title: 'Gone' });
@@ -415,15 +415,6 @@ describe('idea rooms (real PostgreSQL)', () => {
         start: { kind: 'content', root: { assetId: withdrawn.assetId, assetRevision: 1 } },
       });
       expect(refused.kind).toBe('refused');
-      const talk = await startTopic(world, asha!, roomId);
-      const text = unwrap(await say(world, asha!, roomId, talk, 'only words'));
-      const fromText = await world.rooms.create(asha!.authority, {
-        version,
-        commandId: randomUUID(),
-        roomId,
-        start: { kind: 'message', discussionId: talk, messageId: text.messageId },
-      });
-      expect(fromText.kind).toBe('refused');
     });
 
     it('shares a Reel moment inside a content thread and opens it, and refuses a moment of other content', async () => {

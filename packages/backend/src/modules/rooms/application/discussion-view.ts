@@ -9,13 +9,17 @@ import type { PersonalScopeTx } from '../../identity/public.js';
 import { snippetCard } from '../../social/public.js';
 import { nameOf, type CastMember } from '../domain/cast.js';
 import type { AiLevel } from '../domain/membership.js';
-import type { ContentCard, ContentRef, MessageRow, RoomLock, RoomPorts } from './ports.js';
+import type { AskedFor, ContentCard, ContentRef, MessageRow, RoomLock, RoomPorts, TopicTag } from './ports.js';
 
 const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`;
 
 /** A message nobody can read any more: a deleted account's, kept so the numbering stays whole. */
 const isTombstone = (row: MessageRow): boolean =>
-  row.authorAccountId === null && row.inhabitant === null && row.text === null && row.content === null;
+  row.authorAccountId === null &&
+  row.inhabitant === null &&
+  row.text === null &&
+  row.content === null &&
+  row.topicDiscussionId === null;
 
 /** Who is reading, as far as the shape of a message depends on it. */
 export interface Reader {
@@ -25,6 +29,21 @@ export interface Reader {
   readonly aiLevel: AiLevel;
   /** The room's cast, for the names residents go by. */
   readonly cast: readonly CastMember[];
+}
+
+/** What a page of messages needs besides the rows, read once for the whole page. */
+export interface ViewLookups {
+  readonly authors: ReadonlyMap<string, PublicPersonRef>;
+  readonly snippets: ReadonlyMap<string, StoredSnippetAnchor>;
+  readonly cards: ReadonlyMap<string, ContentCard>;
+  /** Accounts the reader blocked. */
+  readonly blocked: ReadonlySet<string>;
+  /** For a resident's message that answered an ask: what was asked. */
+  readonly asks: ReadonlyMap<string, AskedFor>;
+  /** The topics that cards of the page name. */
+  readonly topics: ReadonlyMap<string, { readonly title: string; readonly tag: TopicTag | null }>;
+  /** The messages of the page the reader marked Useful. */
+  readonly useful: ReadonlySet<string>;
 }
 
 /**
@@ -38,14 +57,8 @@ export interface Reader {
  * A resident's message carries its name and, when it spoke on its own, why; for a reader whose AI level is Off
  * it is a `muted` marker with no words, and for Quieter it is `folded` (an asked contribution always shows in full).
  */
-export function viewRoomMessage(
-  row: MessageRow,
-  authors: ReadonlyMap<string, PublicPersonRef>,
-  snippets: ReadonlyMap<string, StoredSnippetAnchor>,
-  cards: ReadonlyMap<string, ContentCard>,
-  blocked: ReadonlySet<string>,
-  reader: Reader,
-): RoomMessage {
+export function viewRoomMessage(row: MessageRow, lookups: ViewLookups, reader: Reader): RoomMessage {
+  const { authors, snippets, cards, blocked } = lookups;
   const identity = { messageId: row.messageId, sequence: row.sequence };
   if (row.hidden) return { ...identity, status: 'removed' };
   if (isTombstone(row)) return { ...identity, status: 'unavailable' };
@@ -58,9 +71,14 @@ export function viewRoomMessage(
     status: 'available' as const,
     recordedAt: row.recordedAt.toISOString(),
     ...(blockedAuthor ? { blockedByYou: true as const } : {}),
+    ...(lookups.useful.has(row.messageId) ? { usefulByYou: true as const } : {}),
   };
   if (row.inhabitant !== null && row.aiKind !== null && row.text !== null) {
     if (row.trigger !== null && reader.aiLevel === 'off') return { ...identity, status: 'muted' };
+    const asked = lookups.asks.get(row.messageId);
+    const askerId = asked?.byAccountId ?? undefined;
+    // A person the reader blocked is left out of "asked by", as everywhere in a room (D-051).
+    const asker = askerId === undefined || blocked.has(askerId) ? undefined : authors.get(askerId);
     return {
       ...base,
       author: {
@@ -72,12 +90,38 @@ export function viewRoomMessage(
       body: { kind: 'text', text: row.text },
       suggestion: row.aiKind,
       ...(row.trigger === null ? {} : { trigger: row.trigger }),
+      ...(asked === undefined
+        ? {}
+        : {
+            ask: {
+              kind: asked.kind,
+              ...(asker === undefined ? {} : { by: asker }),
+              ...(asked.aboutMessageId === null ? {} : { about: asked.aboutMessageId }),
+            },
+          }),
       ...(row.trigger !== null && reader.aiLevel === 'quieter' ? { folded: true as const } : {}),
     };
   }
   const author = row.authorAccountId === null ? undefined : authors.get(row.authorAccountId);
   if (author === undefined) return { ...identity, status: 'unavailable' };
   if (row.text !== null) return { ...base, author, body: { kind: 'text', text: row.text } };
+  if (row.topicDiscussionId !== null) {
+    const topic = lookups.topics.get(row.topicDiscussionId);
+    return topic === undefined
+      ? { ...identity, status: 'unavailable' }
+      : {
+          ...base,
+          author,
+          body: {
+            kind: 'topic',
+            topic: {
+              discussionId: row.topicDiscussionId,
+              title: topic.title,
+              ...(topic.tag === null ? {} : { tag: topic.tag }),
+            },
+          },
+        };
+  }
   if (row.content === null) return { ...identity, status: 'unavailable' };
   const content = cards.get(keyOf(row.content)) ?? { status: 'unavailable' as const, target: row.content };
   const note = row.note === null ? {} : { note: row.note };
@@ -87,7 +131,7 @@ export function viewRoomMessage(
     : { ...base, author, body: { kind: 'snippet', snippet: snippetCard(anchor, content), ...note } };
 }
 
-/** Views a page of messages, reading every distinct author, card and snippet anchor once. */
+/** Views a page of messages, reading every distinct author, card, snippet anchor, ask and topic once. */
 export async function viewRoomMessages(
   p: RoomPorts,
   scope: PersonalScopeTx,
@@ -103,12 +147,39 @@ export async function viewRoomMessages(
   );
   const refs = new Map(withContent.map((row) => [keyOf(row.content!), row.content!]));
   const cards = refs.size === 0 ? [] : await p.readContent(scope, [...refs.values()]);
-  const authorIds = [...new Set(shown.flatMap((row) => (row.authorAccountId === null ? [] : [row.authorAccountId])))];
+  const asks = await p.ai.askedFor(
+    lock,
+    shown.filter((row) => row.inhabitant !== null && row.trigger === null).map((row) => row.messageId),
+  );
+  const authorIds = [
+    ...new Set([
+      ...shown.flatMap((row) => (row.authorAccountId === null ? [] : [row.authorAccountId])),
+      ...[...asks.values()].flatMap((asked) => (asked.byAccountId === null ? [] : [asked.byAccountId])),
+    ]),
+  ];
   const authors =
     authorIds.length === 0 ? new Map<string, PublicPersonRef>() : await p.people.byAccounts(scope, authorIds);
   const blocked = authorIds.length === 0 ? new Set<string>() : await p.blocked(scope, viewer.accountId, authorIds);
-  const byKey = new Map(cards.map((card) => [keyOf(card.target), card]));
-  return rows.map((row) => viewRoomMessage(row, authors, snippets, byKey, blocked, viewer));
+  const topics = new Map<string, { title: string; tag: TopicTag | null }>();
+  for (const id of new Set(shown.flatMap((row) => (row.topicDiscussionId === null ? [] : [row.topicDiscussionId])))) {
+    const discussion = await p.discussions.load(lock, id);
+    if (discussion !== undefined) topics.set(id, { title: discussion.title, tag: discussion.tag });
+  }
+  const useful = await p.discussions.usefulAmong(
+    lock,
+    viewer.accountId,
+    shown.map((row) => row.messageId),
+  );
+  const lookups: ViewLookups = {
+    authors,
+    snippets,
+    cards: new Map(cards.map((card) => [keyOf(card.target), card])),
+    blocked,
+    asks,
+    topics,
+    useful,
+  };
+  return rows.map((row) => viewRoomMessage(row, lookups, viewer));
 }
 
 function episodeOf(

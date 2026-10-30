@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-167 to D-169.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -36,7 +36,11 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | A resident answers a question nobody answered, after the wait, with a one-line why; a strong claim draws one Skeptic rebuttal; nothing else speaks until a person does (v3 R-2, D-164) | Implemented (CI-verified; fixture model). Off until `KS_REASONING_ROOM_ENABLED`; not yet runtime-verified |
 | Unprompted caps (1 per 3 human messages, 8 an hour, 40 a day, per resident, per person), quiet refusals, the AI level (Lively shows, Quieter folds, Off hides), keep-out on every context path (v3 R-2) | Implemented (CI-verified) |
 | A typing hold: a resident does not speak over a member who is typing (v3 R-2, D-165) | Implemented (CI-verified) |
-| A "while you were away" summary that excludes kept-out messages (v3 R-3) | Planned (not built); the builder it must use already substitutes kept-out messages |
+| Challenge a message, ask for the other side, ask about it, or name a resident (@Nova, @Halley): an asked turn of its own kind that never counts against the unprompted caps (v3 R-3, D-167) | Implemented (CI-verified; fixture model). Not yet runtime-verified |
+| Start a topic from any message: it becomes the topic's first item and leaves a card; browse topics as a list with tags, sorted Hot, New or Unanswered (v3 R-3, D-168) | Implemented (CI-verified) |
+| Mark a message Useful: one mark per member, never one's own, counted only on a topic (v3 R-3, D-168) | Implemented (CI-verified) |
+| A welcome from a resident when joining: a template, no model call (v3 R-3, D-169) | Implemented (CI-verified) |
+| A "while you were away" card for a member who comes back after 12 hours to 15 new messages: Halley writes it once per room and 12-hour window, without kept-out members and removed messages, and it is erased when what it read is removed (v3 R-3, D-169) | Implemented (CI-verified; fixture model). Off until `KS_REASONING_ROOM_ENABLED`; not yet runtime-verified |
 | What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -46,22 +50,27 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `rooms` | A room: slug, name, topic (a library system or planet), join rule, status, guidelines. Its old `inhabitants` array is no longer read (D-163) |
 | `room_cast` | The residents that live in a room: role, name (from a fixed catalogue) and position; two to four per room, an Explainer and a Skeptic always (D-163) |
 | `members` | One row per person per room: role (`member`, `moderator`), joined, ended (`left`, `removed`), and the member's own settings: `ai_level` (`lively`, `quieter`, `off`), `keep_out` and `notice_seen_at` |
+| `read_positions` | Private: one row per member per room, the last time their device had it open (moved by their own presence beats) and, after a long return, when they left and the window of the summary written for it. Never sent to anyone but its member |
 | `room_presence` | One lease row per member who has the room open: `last_seen_at`, renewed by their own device and read only while it is under a minute old |
 | `invitations` | A member's invitation of a friend; valid while the inviter is still a member |
-| `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional root (an exact asset revision), origin message, starter, pin, counters |
-| `messages` | A person's text or card, an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
+| `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional `tag` (question, debate, explainer, share; topics only), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters |
+| `messages` | A person's text or card, a topic card (`topic_discussion_id`: the topic a member started from a message, no words of its own), an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
+| `message_useful` | One mark of Useful per member per message (`message_id`, `account_id`, `marked_at`). Never on one's own message; counted only on a topic of the list; the author is never told |
+| `summaries` | A resident's "while you were away" for one room and 12-hour window: the unique key (room, window) is the one-call cap, the words (`ready` only), the span they cover, and the provenance of the call. Erased (`stale`) when what it read is removed |
 | `message_snippets` | The anchor of a snippet message, copied from the exact revision when sent |
-| `ai_turns` | One row per AI turn, asked or unprompted: the trigger (`asked`, or why a resident spoke), the message it answers, the cap that decided it (`caps_clear`, or the cap that refused it), the counts it compared, an answer held back for someone typing, and the provenance of the contribution. The rate-bound ledger; an AI message never exists without a row |
+| `ai_turns` | One row per AI turn, asked or unprompted: the trigger (`asked`, or why a resident spoke), for an ask its kind (`ask`, `challenge`, `other_side`, `about`, `mention`), the message it answers or is about, the cap that decided it (`caps_clear`, or the cap that refused it), the counts it compared, an answer held back for someone typing, and the provenance of the contribution. The rate-bound ledger; an AI message never exists without a row |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
 | `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
 
 Use cases (`public.ts`, `RoomUseCases`): `list`, `read`, `join`, `leave`, `invite`, `moderate`,
 `setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
-`readDiscussion`, `history`, `changes`, `send` (which also queues the resident check for a question or a strong claim), `openSnippet`, `pin`,
-`hideMessage`, `ask`, `stations`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. The worker's
-`ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue and `RunCastPass` the
-`rooms.cast-pass` queue (the last two only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
+`readDiscussion`, `history`, `changes`, `send` (which asks the resident a text message names, or else queues the resident check for a
+question or a strong claim), `openSnippet`, `pin`, `hideMessage`, `markUseful`, `ask` (a plain ask, or one pointed at a message),
+`topics`, `dismissAway`, `stations`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
+a topic from a message. `setPresence` also moves the member's place and, on a long return, claims the window and queues the summary. The
+worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue, `RunCastPass` the
+`rooms.cast-pass` queue and `Summarise` the `rooms.summarise` queue (the last three only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
 Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`.
 
 Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribution text rules,
@@ -101,6 +110,20 @@ conversations or threads.
   Clear drops the contribution even if the model finished, but the call was made, so the ask stays counted and
   leaving and rejoining buys no extra call. Only an ask that ended before any call (the asker had already gone,
   no provider configured) is handed back, and the any-outcome bound keeps those from piling up.
+- **Asks come in kinds (D-167).** A plain ask names a resident; a challenge or the other side goes to the Skeptic and a question about
+  a message to the Explainer, whatever the client says; a text that names a resident (`@Nova`, `@Halley`) asks it, once. Each is an
+  `ai_turns` row with `trigger = asked`, its kind and the message it is about, and counts against the asked bounds only. A pointed ask
+  must name a message of the discussion that is shown to the asker, by someone they have not blocked. The message of a member who
+  keeps messages out is accepted and ends without a call, so the choice is not revealed. A mention never fails its message.
+- **Topics and Useful (D-168).** A topic that begins from a message reads it as its first item (so a removal or a block applies to
+  it) and leaves a card where the message was. Its title is the starter's typing and is withheld from AI when the starter or the
+  author of the message keeps out, or that message was removed. Useful is one mark per member per message, refused on one's own
+  message, on one that is not shown and on one whose author the member blocked; a message carries only `usefulByYou`.
+- **The welcome and "while you were away" (D-169).** The welcome is a template read from the room, so it costs no call. A long
+  return claims the window (a 12-hour UTC block) with one insert on a unique key, queues the one summary job in the same transaction
+  and records the member's own mark; everyone who returns in the window reads the same words. The summary reads the window through
+  the same builder as every context path and leaves kept-out members and removed messages out altogether. Removing a message it
+  read, turning keep-out on after writing in it, or deleting the account erases it (`stale`) and the window is not rewritten.
 - **The router is pure and runs under the room lock (D-081, D-164).** `domain/router.ts` takes facts read under the lock
   and answers: let go, look again later, refuse (a cap), or speak. Its caps are code, not configuration. A message that
   reads as a question (or, for the Skeptic, as a claim stated very strongly) queues `rooms.cast-due` for after the wait
@@ -191,7 +214,15 @@ and the next delivery posts it, or drops it with the turn still counted, without
 again. `dispatched` is only ever raised. After an Explainer that overstated, the same transaction queues the Skeptic's one
 reply.
 
-`rooms.contribute` (IDs only: universe, epoch, request). Steps: (1) one transaction rechecks the
+`rooms.summarise` (IDs only: universe, epoch, room, summary) writes one window's "while you were away", in the same three steps as
+`rooms.cast-pass`: (1) one transaction rechecks authority and that the summary is still queued, the room open and Halley in the cast, and
+builds the bounded window (no call, and the summary handed back, when fewer than five messages are readable); (2) the room-scope harness makes
+one call (plus at most one repair) as the `ambient` role `rooms.ambient-away`, on a run whose ID is the summary ID; (3) one transaction stores
+the words (`ready`), or settles it `declined` or `failed`, announces the room, and the run is closed. A summary made stale during the
+call is never stored but stays counted.
+
+`rooms.contribute` (IDs only: universe, epoch, request). A pointed ask or a mention reads the message it is about as the turn's
+focus, and ends without a call when that message is gone or its author keeps messages out. Steps: (1) one transaction rechecks the
 asker's authority and reads the room's own discussion into the bounded context; (2) the harness makes
 one model call (plus at most one repair) outside any transaction, on a run whose ID is the request ID,
 so a redelivery never pays twice and an unknown outcome is never resent; (3) one transaction rechecks
@@ -219,6 +250,9 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | Store | Exploration Clear | Account deletion |
 | --- | --- | --- |
 | members, invitations | kept (a member's AI level, keep-out choice and notice mark are part of the membership) | the person's rows are deleted |
+| message_useful | kept: explicit communication, like votes | the person's marks, and the marks on their messages, are deleted |
+| read_positions | kept: a lease of the account, not exploration | the person's rows are deleted; also deleted when they leave or are removed |
+| summaries | kept (they hold the room's words, no account) | one that read what the person wrote is erased (`stale`) before their messages become tombstones; a queued one whose job is erased with a universe ends as failed |
 | room_presence | kept: a lease of the account, not exploration; it ends by itself after a minute | the person's rows are deleted; also deleted when they leave or are removed |
 | discussions | kept | the starter link is cleared; the discussion stays for the others |
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
@@ -227,11 +261,11 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | room_cast, typing_holds | kept: no account | kept: no account (a hold lapses in seconds) |
 | activities | kept | the creator link is cleared; the poll or quiz stays with the room |
 | poll_votes | kept | the person's votes are deleted |
-| pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
+| pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass`, `rooms.summarise` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
 The export holds the person's rooms (with their AI level, keep-out choice and when they read the AI notice; never where they were), the discussions they started and their own words (newest 2,000, with
-`truncated`), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words) and the activities they started; it names no other person and no AI text, and a
+`truncated`; a topic card is "a topic they started"), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words), the room and time of each mark of Useful they made (never whose message it was) and the activities they started; it names no other person and no AI text, and a
 person who never took part in a room has no section.
 
 ## Failure and recovery
@@ -251,7 +285,8 @@ person who never took part in a room has no section.
 - Tests: `tests/integration/modules/rooms.test.ts`, `rooms-residents.test.ts` and `rooms-residents-migration.test.ts` (residents, the router's caps,
   keep-out bytes, levels, typing, the room scope), `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
   `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
-  `rooms-stations.test.ts`, `rooms-activities.test.ts`, and `tests/integration/release/rooms-http.test.ts` over the installed API;
+  `rooms-stations.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),
+  `rooms-away.test.ts` ("while you were away"), and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.
 - Operator: `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
   (naming needs a claimed profile and never undoes a removal; `--remove` only takes the role from a current member;

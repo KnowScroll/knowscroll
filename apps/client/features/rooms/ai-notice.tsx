@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
+import type { RoomWelcome } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
+import { AiLabel } from './ai-label';
 
 /**
  * What a member is told about AI in a room. True of what the room does today: residents are always labelled, answer when
@@ -13,12 +15,30 @@ export const AI_NOTICE = {
 } as const;
 
 /**
- * The notice a member sees once, when they first open the room after joining. Acknowledging it records that they
- * have read it; after that the same words live only in the room menu under "AI here".
+ * The notice a member sees once, when they first open the room after joining, with the welcome a resident gives
+ * (a template of the room's own words: no model is asked). Acknowledging it records that they have read it; after that
+ * the same words live only in the room menu under "AI here".
  */
-export function AiNoticeCard({ busy, onAcknowledge }: { readonly busy: boolean; readonly onAcknowledge: () => void }) {
+export function AiNoticeCard({
+  busy,
+  welcome,
+  onAcknowledge,
+}: {
+  readonly busy: boolean;
+  readonly welcome?: RoomWelcome | undefined;
+  readonly onAcknowledge: () => void;
+}) {
   return (
     <View style={styles.card} testID="ai-notice" role="region" accessibilityLabel="About AI in this room">
+      {welcome === undefined ? null : (
+        <View style={styles.welcome} testID="room-welcome">
+          <View style={styles.who}>
+            <Text variant="ui">{welcome.resident.name}</Text>
+            <AiLabel label={welcome.resident.label} />
+          </View>
+          <Text variant="bodyS">{welcome.text}</Text>
+        </View>
+      )}
       <Text variant="ui">{AI_NOTICE.title}</Text>
       <Text variant="meta" color={content.ink2}>
         {AI_NOTICE.body}
@@ -43,4 +63,6 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper2,
     alignItems: 'flex-start',
   },
+  welcome: { gap: spacing[1] },
+  who: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
 });
