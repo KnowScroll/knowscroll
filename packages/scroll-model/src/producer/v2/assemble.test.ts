@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { authoredV2, PUBLICATION_V2, recipeV2 } from '../../test-support/v2-fixtures.js';
-import { INITIAL_STAGE_STATE } from '../../v2/kit.js';
+import { describeStageState, INITIAL_STAGE_STATE } from '../../v2/kit.js';
 import { assembleScrollV2, shuffleOptions } from './assemble.js';
 import { AuthoredScrollV2 } from './authoring-schema.js';
 
@@ -47,27 +47,48 @@ describe('assembleScrollV2', () => {
     expect(map.asideItem).toEqual([8]);
   });
 
-  it('carries unnamed stage values over, and records a state only where something changes', () => {
+  it('carries unnamed stage values over, and records a state only where the picture really changes', () => {
+    const patches: Record<number, object> = {
+      0: { view: 'orbit' },
+      2: { earthAt: 'jun' },
+      3: { earthAt: 'dec' },
+      5: { moonAt: 'full' },
+      6: { view: 'moon-orbit' },
+    };
     const authored = AuthoredScrollV2.parse({
       ...authoredV2(),
-      items: authoredV2().items.map((item, index) => {
-        if (item.type === 'aside') return item;
-        if (index === 0) return { ...item, stage: { view: 'orbit', ray: 'low' } };
-        if (index === 1) return { ...item, stage: { ray: 'low' } };
-        if (index === 2) return { ...item, stage: { northPin: 'warm' } };
-        return { ...item, stage: undefined };
-      }),
+      items: authoredV2().items.map((item, index) =>
+        item.type === 'aside' ? item : { ...item, stage: patches[index] },
+      ),
     });
     const { document } = assemble(authored);
-    expect(document.stage?.states.map((state) => state.stop)).toEqual(['s1', 's3']);
-    expect(document.stage?.states[0]?.state).toEqual({ ...INITIAL_STAGE_STATE, view: 'orbit', ray: 'low' });
-    expect(document.stage?.states[1]?.state).toEqual({
-      ...INITIAL_STAGE_STATE,
-      view: 'orbit',
-      ray: 'low',
-      northPin: 'warm',
+    // s3 repeats June; s6 sets a Moon phase in a view with no Moon, which settles away; s7 shows it.
+    expect(document.stage?.states.map((state) => state.stop)).toEqual(['s1', 's4', 's7']);
+    expect(document.stage?.states[0]?.state).toEqual({ ...INITIAL_STAGE_STATE, view: 'orbit' });
+    expect(document.stage?.states[1]?.state).toEqual({ ...INITIAL_STAGE_STATE, view: 'orbit', earthAt: 'dec' });
+    expect(document.stage?.states[2]?.state).toEqual({
+      view: 'moon-orbit',
+      earthAt: 'mar',
+      moonAt: 'full',
+      focus: 'none',
     });
     expect(document.stage?.states[0]?.alt).toContain('Earth circles the Sun');
+  });
+
+  it('stores only a state the view can draw: a focus on a part that is not there settles to none', () => {
+    const authored = AuthoredScrollV2.parse({
+      ...authoredV2(),
+      items: authoredV2().items.map((item, index) =>
+        item.type === 'aside' ? item : { ...item, stage: index === 0 ? { view: 'orbit', focus: 'moon' } : undefined },
+      ),
+    });
+    expect(assemble(authored).document.stage?.states[0]?.state.focus).toBe('none');
+  });
+
+  it('records every state of the stage with the description its physics gives, never one the writer chose', () => {
+    const { document } = assemble();
+    for (const entry of document.stage?.states ?? []) expect(entry.alt).toBe(describeStageState(entry.state));
+    expect(Object.keys(document.stage?.states[0]?.state ?? {}).sort()).toEqual(['earthAt', 'focus', 'moonAt', 'view']);
   });
 
   it('writes the description of every state itself: the writer cannot supply one', () => {

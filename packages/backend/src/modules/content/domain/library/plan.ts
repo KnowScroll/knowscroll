@@ -39,6 +39,14 @@ export interface LibrarySystem {
   readonly topics: readonly LibraryTopic[];
 }
 
+/**
+ * The drawing kits a Scroll's pinned picture can be made from. A kit draws one family of subjects, and a
+ * recipe names a kit only where that kit draws what the recipe is about (D-125). `scroll-model` owns
+ * the kits themselves; this list names them for the plan, and a test keeps the two in step.
+ */
+export const STAGE_KIT_IDS = ['earth-sky.v1'] as const;
+export type StageKitId = (typeof STAGE_KIT_IDS)[number];
+
 type Interactivity =
   | { readonly interactive: true; readonly interactiveKind: InteractiveKind }
   | { readonly interactive: false; readonly interactiveKind: null };
@@ -59,6 +67,12 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
   readonly facetId: Facet;
   /** A second angle the brief explicitly asks the closing section to cover. */
   readonly supportingFacetId?: Facet;
+  /**
+   * The kit that draws this recipe's subject, when one does. Only such a recipe gets a pinned picture
+   * (a `stage` Scroll); every other recipe is a plain Scroll with calls and no picture, until a kit
+   * exists for it. Deciding this is a person's job, per recipe, never the writer's or the system's.
+   */
+  readonly stageKit?: StageKitId;
   /** Angle, what to explain and what to avoid. */
   readonly brief: string;
   /** One to three allowlisted public pages the writer may draw on. */

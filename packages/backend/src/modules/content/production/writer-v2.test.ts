@@ -30,11 +30,11 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v14 writer', () => {
+describe('the v15 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v14');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v15');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v14');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v15');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
@@ -49,6 +49,34 @@ describe('the v14 writer', () => {
     expect(outcome.document.misconception.kind === 'myth' && outcome.document.misconception.source.label).toContain(
       'Private Universe',
     );
+  });
+
+  it('accepts an answer that follows the prompt literally: a two-option myth call with the guess second, no stage on any call', () => {
+    const answer = fixtureAuthoredV2();
+    const first = answer.items.find((item) => item.type === 'call_it');
+    expect(first?.options).toHaveLength(2);
+    expect(JSON.stringify(answer)).not.toContain('commonGuess');
+    expect(
+      answer.items.every((item) => item.type === 'stop' || item.type === 'aside' || item.stage === undefined),
+    ).toBe(true);
+    const outcome = compileGeneratedScrollV2(answer, context());
+    expect(outcome.kind).toBe('compiled');
+    if (outcome.kind !== 'compiled') return;
+    const call = outcome.document.stops.find((stop) => stop.kind === 'call_it');
+    if (call?.kind !== 'call_it') throw new Error('expected a Call it');
+    // The second authored option is the one the misconception names, wherever the shuffle put it.
+    expect(call.commonGuess?.option).toBe(call.options.indexOf(first?.options[1] ?? ''));
+    expect(call.options[call.answer]).toBe(first?.options[0]);
+    expect(writerRoleV2(context()).outputSchema.safeParse(answer).success).toBe(true);
+  });
+
+  it('refuses the shapes the v14 prompt allowed: a number for the guess and a tilt chosen by the writer', () => {
+    const withGuess = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
+    withGuess.items[1] = { ...withGuess.items[1], commonGuess: 2 };
+    expect(AuthoredScrollV2.safeParse(withGuess).success).toBe(false);
+    const withAxis = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
+    withAxis.items[0] = { ...withAxis.items[0], stage: { view: 'sun-earth', axis: 'sideways' } };
+    expect(AuthoredScrollV2.safeParse(withAxis).success).toBe(false);
   });
 
   it('keeps asides, stages and the misconception to what the recipe decided', () => {
@@ -87,7 +115,7 @@ describe('the v14 writer', () => {
   });
 });
 
-describe('the v14 writer role', () => {
+describe('the v15 writer role', () => {
   it('accepts the fixture answer and refuses a broken one with fixed codes only', () => {
     const role = writerRoleV2(context());
     expect(role.outputSchema.safeParse(fixtureAuthoredV2()).success).toBe(true);
@@ -124,7 +152,7 @@ describe('the v14 writer role', () => {
   });
 });
 
-describe('the v14 instructions', () => {
+describe('the v15 instructions', () => {
   it('state the shape, the budget, the voice and the rules the checks enforce', () => {
     const text = writerInstructionsV2(spikeRecipeV2('seasons'));
     for (const phrase of [
@@ -143,10 +171,12 @@ describe('the v14 instructions', () => {
     expect(text.length).toBeLessThan(32_768);
   });
 
-  it('name the misconception of the recipe, with no source, and keep the common guess to it', () => {
+  it('name the misconception of the recipe, with no source, and put its wrong option second, with no number to count', () => {
     const text = writerInstructionsV2(spikeRecipeV2('seasons'));
     expect(text).toContain('closer to the Sun in summer');
-    expect(text).toContain('"commonGuess"');
+    expect(text).toContain('the wrong option that states this idea SECOND');
+    expect(text).toContain('write no number for it');
+    expect(text).not.toContain('commonGuess');
     expect(text).toContain('without naming any study or source');
     expect(text).not.toContain('Private Universe');
   });
@@ -160,12 +190,67 @@ describe('the v14 instructions', () => {
   it('describe the picture and its kit only for a stage recipe', () => {
     const stage = writerInstructionsV2(spikeRecipeV2('seasons'));
     expect(stage).toContain('PINNED PICTURE');
-    expect(stage).toContain('view: sun-earth | orbit | earth-close | moon-orbit | night-sky');
-    expect(stage).toContain('ray: off | overhead | high | low');
+    expect(stage).toContain('view: sun-earth | orbit | orbit-stretched | earth-close | moon-orbit');
+    expect(stage).toContain('earthAt: jan | feb');
+    // The writer chooses no tilt, pin or Ray: code derives them from the month.
+    for (const gone of ['axis:', 'northPin', 'southPin', 'ray:', 'upright']) expect(stage).not.toContain(gone);
+    expect(stage).toContain('Earth’s tilt is fixed');
+    expect(stage).toContain('"orbit" shows Earth’s orbit from above, drawn to scale');
+    expect(stage).toContain('"orbit-stretched" is the same orbit stretched');
+    expect(stage).toContain('follow from the month');
     const plain = writerInstructionsV2(spikeRecipeV2('dns-lookup'));
     expect(plain).toContain('NO PICTURE');
     expect(plain).not.toContain('earthAt');
     expect(plain).not.toContain('"stage":{…}');
+  });
+
+  it('say a call never changes the picture, and say it as the validator does', () => {
+    const text = writerInstructionsV2(spikeRecipeV2('seasons'));
+    expect(text).toContain('A call never changes the picture');
+    expect(text).toContain('Write "stage" on stops only, never on a call_it or the final_call');
+    expect(text).toContain('show the answer by changing the picture on the stop right after the call');
+    expect(text).not.toContain('set the picture to show the answer when the call is revealed');
+    // The shape the prompt shows carries no stage on a call either.
+    const shape = text.slice(text.indexOf('call_it: {'), text.indexOf('aside: {'));
+    expect(shape).not.toContain('"stage"');
+    const stop = text.slice(text.indexOf('stop: {'), text.indexOf('call_it: {'));
+    expect(stop).toContain('"stage":{…}');
+  });
+
+  it('ask for a Final call that is a new case', () => {
+    expect(writerInstructionsV2(spikeRecipeV2('seasons'))).toContain('its question and its correct answer must be new');
+  });
+
+  it('say Earth’s axis is tilted and never sideways, for a stage recipe only, and that such a text is refused', () => {
+    const stage = writerInstructionsV2(spikeRecipeV2('seasons'));
+    expect(stage).toContain('Earth’s axis is tilted by a fixed angle');
+    expect(stage).toContain('never call it sideways or say it lies on its side');
+    expect(stage).toContain('A text that does so is refused');
+    // Uranus really does spin sideways, so a plain Scroll about other worlds is not told otherwise.
+    const elsewhere = writerInstructionsV2(spikeRecipeV2('seasons-elsewhere'));
+    expect(elsewhere).toContain('NO PICTURE');
+    expect(elsewhere).not.toContain('never call it sideways');
+  });
+
+  it('give "Seasons elsewhere" no picture, because the kit draws no other world', () => {
+    const recipe = spikeRecipeV2('seasons-elsewhere');
+    expect(recipe.variant).toBe('plain');
+    expect(writerInstructionsV2(recipe)).not.toContain('earthAt');
+    expect(writerInstructionsV2(recipe)).not.toContain('Earth for comparison');
+  });
+
+  it('refuse a stage Scroll that calls Earth’s axis sideways, with a fixed hint the repair can use', () => {
+    const answer = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
+    answer.items[2] = {
+      ...answer.items[2],
+      text: 'Earth’s sideways axis points the same way all year, and that is what makes the seasons.',
+    };
+    const outcome = compileGeneratedScrollV2(AuthoredScrollV2.parse(answer), context());
+    expect(outcome.kind === 'refused' && outcome.issues).toContainEqual({
+      code: 'earth_axis_sideways',
+      path: 'items.2',
+    });
+    expect(writerRoleV2(context()).safeCustomIssues?.['earth_axis_sideways']).toContain('never call it sideways');
   });
 
   it('tell the writer to ignore the v1 layout words of a brief', () => {

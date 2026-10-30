@@ -94,12 +94,31 @@ export function filler(count: number, tag: number): string {
   return sentences.join(' ');
 }
 
+/**
+ * `count` invented words that no other `tag` shares, in letters only so that no figure appears. The
+ * call questions and options use them: `filler` cycles through thirty words, so two filler
+ * questions would restate one another and the Final call would be refused (D-126).
+ */
+export function distinct(count: number, tag: number): string {
+  const letters = (value: number): string => {
+    let rest = value;
+    let out = '';
+    do {
+      out = String.fromCharCode(97 + (rest % 26)) + out;
+      rest = Math.floor(rest / 26);
+    } while (rest > 0);
+    return out;
+  };
+  return Array.from({ length: count }, (_, at) => `zq${letters(tag * 100 + at)}`).join(' ');
+}
+
 const patch = (tag: number) => ({ earthAt: (['jan', 'mar', 'jun', 'sep', 'dec', 'feb', 'may'] as const)[tag % 7] });
 
 /**
  * A valid authored Scroll: eight stops, two Call its and a Final call, a limits aside after stop
  * seven, a recap and questions. About 700 words, so about three and a half minutes to read.
- * `variant: 'plain'` leaves the stage out.
+ * `variant: 'plain'` leaves the stage out. Only stops change the picture, never a call, and the
+ * first Call it's second option is the common guess (D-126).
  */
 export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScrollV2 {
   const stageFor = (tag: number, first = false) =>
@@ -114,12 +133,11 @@ export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScroll
   const call = (tag: number, type: 'call_it' | 'final_call', cites: string[], extra: object = {}) => ({
     type,
     cites,
-    prompt: `Which of these ${filler(8, tag)}`.replace(/\.$/u, '?'),
-    options: [filler(6, tag + 1), filler(6, tag + 2), filler(6, tag + 3)],
+    prompt: `Which of these ${distinct(8, tag)}?`,
+    options: [distinct(6, tag * 10 + 1), distinct(6, tag * 10 + 2), distinct(6, tag * 10 + 3)],
     explain: filler(36, tag + 4),
     twist: filler(26, tag + 5),
     simple: filler(20, tag + 6),
-    ...stageFor(tag + 1),
     ...extra,
   });
   return AuthoredScrollV2.parse({
@@ -127,7 +145,7 @@ export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScroll
     dek: 'A planet that leans and a guess that most people get wrong, told in short steps.',
     items: [
       stop(1, ['e1', 'e2'], true),
-      call(2, 'call_it', ['e1', 'e4'], { commonGuess: 1 }),
+      call(2, 'call_it', ['e1', 'e4']),
       stop(3, ['e4']),
       stop(4, ['e1', 'e3']),
       call(5, 'call_it', ['e3', 'e5']),
