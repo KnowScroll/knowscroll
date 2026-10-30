@@ -50,6 +50,16 @@ the export `failed`, best effort: the recovery cron and a retry are the other wa
 only (the operation or export id, never a person), and the logged outcomes carry no account, universe or
 receipt id. The sweep `identity.sweep-sign-in-records` also retires exports.
 
+## Quiet sweep (v3 U-3, #467, D-104, D-105)
+
+The registry holds `geography.sweep-quiet` (every 15 minutes: the oldest 100 universes whose `next_quiet_at` has passed are looked at; each that can be
+settled gets one `geography.settle-quiet` job in the same transaction, any other is parked a day ahead) and `geography.settle-quiet` (one universe: a short transaction under the
+personal root that applies only the activity changes current support implies). Both are rules only: no model call, no ledger run, no network
+wait. Both follow `KS_CARTOGRAPHER_ENABLED`. The settle runs as a system actor and rechecks the account, epoch and recording generation
+itself; it stands aside while recording is paused or a Cartographer run holds the universe. Logs `geography.quiet_swept` (count handed
+over) and `geography.quiet_settled` (outcome code and places changed). Status: implemented, covered by
+`tests/integration/modules/quiet-sweep.test.ts`; not yet runtime-verified on dev.
+
 ## Visit list refresh (#241, D-047)
 
 The `scenes.project` consumer calls Social's `REFRESH_VISIT_PUBLICATION` after it has projected a universe, so

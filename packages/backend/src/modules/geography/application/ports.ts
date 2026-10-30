@@ -79,6 +79,12 @@ export interface GeographyState extends GeographyRevisions {
   readonly activeRunId?: string;
   /** The earliest the next run may start (`pacing.ts`); absent means no wait. */
   readonly nextRunNotBefore?: string;
+  /**
+   * The earliest the quiet sweep needs to look at this universe (`domain/quiet.ts`); absent means no
+   * place can go quiet. Scheduling state only: a lower bound that every apply and every sweep pass
+   * rewrites. The sweep also pushes it ahead while a settle is in flight.
+   */
+  readonly nextQuietAt?: string;
 }
 export interface GeographyView {
   readonly state: GeographyState;
@@ -164,7 +170,8 @@ export interface GeographyStore {
   deltas(scope: PersonalScopeTx, after: number, limit: number): Promise<readonly UniverseDelta[]>;
   saveObject(scope: PersonalScopeTx, object: Place, supportRefs: readonly string[]): Promise<void>;
   saveRoute(scope: PersonalScopeTx, route: Route, supportRefs: readonly string[]): Promise<void>;
-  writeDelta(scope: PersonalScopeTx, runId: string, hash: string, delta: UniverseDelta): Promise<void>;
+  /** `runId` is absent for a delta no Cartographer run made (a quiet-sweep settle). */
+  writeDelta(scope: PersonalScopeTx, runId: string | undefined, hash: string, delta: UniverseDelta): Promise<void>;
 }
 export interface GeographyPorts {
   readonly withScope: WithPersonalScope;

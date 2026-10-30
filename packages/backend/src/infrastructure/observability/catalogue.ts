@@ -255,6 +255,10 @@ export const diagnosticCatalogue = {
   // The sweep closed personal runs a role left admitted and idle; the role starts a new run when it next needs one.
   'reasoning.idle_runs_closed': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
+  // The quiet sweep (D-104): how many universes with a place due to go quiet it handed to a settle.
+  'geography.quiet_swept': { severity: 'info', module: 'geography', fields: ['count'] },
+  // One universe's settle: what it did (a code) and how many places changed activity. No person, no place.
+  'geography.quiet_settled': { severity: 'info', module: 'geography', fields: ['outcome', 'count'] },
   // The daily purge removed reports about deleted accounts whose 90 days were over (D-055).
   'feedback.reports_purged': { severity: 'info', module: 'feedback', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },
