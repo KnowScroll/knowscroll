@@ -38,7 +38,7 @@ export interface SeenInput {
 /**
  * How far the other person has read, as the reader may be told, or `undefined` for no answer at all.
  * SEEN is mutual: it exists only while both people share, so a person who hides theirs sees nothing of
- * the other's, and a person who is not shown cannot tell a hidden switch from a message not yet read.
+ * the other's. Saying nothing gives no reason.
  * A conversation that has ended (the other person left, or deleted their account) shows none.
  */
 export function visiblePeerRead(input: SeenInput): number | undefined {

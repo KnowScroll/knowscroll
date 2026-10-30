@@ -187,8 +187,8 @@ const OwnSettings = z.strictObject({ readThroughSequence: Counter, muted: z.bool
 const Ended = z.literal(true).optional();
 /**
  * How far the other person has read: SEEN (D-066, D-150). Present only while the conversation stands and both
- * people share their read position, so its absence says nothing about who hid theirs or whether anything was
- * read. A position, never a time: the time under a message is when it was sent.
+ * people share their read position. Its absence gives no reason (the other person hides theirs, the reader hides
+ * their own, either person left). A position, never a time: the time under a message is when it was sent.
  */
 const PeerRead = z.strictObject({ throughSequence: Counter }).optional();
 export const DirectConversationSummarySchema = z

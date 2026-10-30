@@ -47,7 +47,7 @@ export interface ThreadState {
   /**
    * How far the other person has read, when the server says so: only while both people share their read
    * position (SEEN, D-066) and the conversation stands. `undefined` shows nothing, and is the one answer for
-   * every reason the server may have to say nothing.
+   * every reason the server may have to say nothing (it gives none).
    */
   readonly peerReadThrough: number | undefined;
   /** The last read answer did not arrive; what is shown may be out of date. */

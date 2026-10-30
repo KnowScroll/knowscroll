@@ -80,8 +80,8 @@ Block end it for both people without saying why.
 - **SEEN** (`application/seen.ts`, rule in `domain/conversations.ts`: `visiblePeerRead`). A snapshot and a changes page
   carry `peerRead { throughSequence }` only while both people share their read position (a switch on the person's
   settings row, on by default) and the conversation stands. In every other case the field is absent: the other person
-  hides theirs, the reader hides their own, either person left, the other account is gone. One shape, so none of
-  them can be told apart; a blocked pair gets `unavailable` as for any read. Both switches are read under the pair
+  hides theirs, the reader hides their own, either person left, the other account is gone. The absence gives no
+  reason (a person who expects a read and sees none can guess the other hid theirs: that is what mutual means); a blocked pair gets `unavailable` as for any read. Both switches are read under the pair
   lock on each read, so a change shows at the other person's next read. A read writes nothing. A `mark read` that
   moves the position also bumps the other person's inbox head (a disposable hint) only while SEEN is mutual. It is a
   position, never a time: the app draws the sent time with the word. Threads and rooms have no such field.

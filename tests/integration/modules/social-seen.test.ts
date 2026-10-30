@@ -241,7 +241,7 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
       expect(await seen(a, aRef)).toEqual({ throughSequence: 2 });
     });
 
-    it('does not tell a hidden switch from a message not yet read: both are an absent field, never a flag', async () => {
+    it('gives no reason when it says nothing: the field is absent, with no flag about who hid theirs', async () => {
       const { a, b, aRef, bRef } = await pair();
       await send(a, aRef, 'one');
       await setSeen(b, false);
