@@ -34,6 +34,7 @@ export { Banner, type BannerKind, type BannerProps } from './status/banner';
 export { Skeleton, type SkeletonProps } from './status/skeleton';
 export { ErrorState, OfflineState, StateBlock, type StateAction, type StateBlockProps } from './status/state-block';
 export { BottomSheet, Scrim, type BottomSheetProps } from './overlay/bottom-sheet';
+export { PullDownSheet, type PullDownSheetProps } from './overlay/pull-down-sheet';
 export { destinations, unreadDescription, type Destination } from './navigation/destinations';
 export { TabBar, type TabBarProps } from './navigation/tab-bar';
 export { NavRail, type NavRailProps } from './navigation/nav-rail';

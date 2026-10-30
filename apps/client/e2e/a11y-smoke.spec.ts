@@ -291,4 +291,16 @@ test.describe('Talk with something in it', () => {
       });
     }
   }
+  test('the Series sheet of a content thread at phone has no serious axe violations', async ({ page }) => {
+    await talkFixture(page, widths[0]);
+    await page.goto(`/threads/${thread.threadId}?m=${thread.membershipId}&r=1`);
+    await page.getByTestId('thread-series-button').click();
+    await expectAccessible(page, () => expect(page.getByRole('dialog')).toBeVisible(), true);
+  });
+  test('a content thread at phone with its player open has no serious axe violations', async ({ page }) => {
+    await talkFixture(page, widths[0]);
+    await page.goto(`/threads/${thread.threadId}?m=${thread.membershipId}&r=1`);
+    await page.getByRole('button', { name: /^Open Part 1 of 3/ }).click();
+    await expectAccessible(page, () => expect(page.getByRole('button', { name: 'Watch', exact: true })).toBeVisible());
+  });
 });

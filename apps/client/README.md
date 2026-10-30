@@ -74,11 +74,13 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: also `talk-frame.tsx` (the one `main` and, on tablets and desktops, the navigation rail with
   Talk current, around a conversation or a thread, which are not tabs) and `keyboard-map.tsx` (every key the app
   listens to, as a sheet from Account and from the desktop Explore footer; add a row there with any new key).
-- Talk by size (D03): below 1024 px a conversation or a thread is one column. From 1024 px a thread has its own pane
-  (episodes, the player, share) beside "Conversation" (messages, the asks, the message box); a direct conversation has
-  the inbox beside it, with its row current; the Talk tab itself shows the list beside a pane that says "Pick a
-  conversation". The rail is drawn from 768 px, also on a thread or a conversation. Presence ("Online") is not drawn: no
-  availability is read here.
+- Talk by size (D03, T3, D-140 to D-144): below 1024 px a conversation or a thread is one column. A thread there is a 72 px header
+  strip (Back, "A THREAD · n PARTS", the title, Series, options), the docked player (a 56 px bar) and the conversation,
+  which keeps over 60 % of a 390 x 844 screen. "Series" pulls the parts and the people down from the header as a sheet
+  that Back, Esc and Close close first. From 1024 px a thread has the conversation with a 400 px series panel on its
+  right (parts, the player, the people); a direct conversation has the inbox beside it, with its row current; the Talk
+  tab itself shows the list beside a pane that says "Pick a conversation". The rail is drawn from 768 px, also on a
+  thread or a conversation. Presence ("Online") is not drawn: no availability is read here.
 - Accessibility: `@axe-core/playwright` runs in the web smoke (`a11y-smoke.spec.ts`) over the main routes at 390, 834 and
   1440 px; serious and critical violations fail it, and every route has one `main`. `keyboard-smoke.spec.ts` tabs
   through screens and requires every stop to draw focus, and walks Explore, a sheet, the Universe, Talk and Privacy
@@ -489,11 +491,15 @@ Routes: `/threads/<id>` (C04, `?m=<membership>&r=<revision>` from Talk or the sh
 (the snippet viewer) and `/threads/<id>/read/<assetId>` (a Scroll read inside the thread). Talk (`/conversations`) lists
 direct conversations and threads together; a thread row shows its people, the last message and an invitation badge.
 
-- `features/threads/thread-screen.tsx` is C04: `thread-chrome.tsx` (header, people, options, invitation), the horizontal
-  `episode-navigator.tsx` (own states: visited, now, ready, updated, no longer available), `thread-encounter.tsx` (the
-  folded or open encounter area), `thread-messages.tsx` and the composer. The navigator owns its horizontal gesture and
-  keeps focus order. Which episode is selected, and whether the area is folded, are kept in the account scope's storage
-  on this device only; nothing about them is sent.
+- `features/threads/thread-screen.tsx` is C04 (T3, D-140 to D-144): `thread-chrome.tsx` (the 72 px `ThreadStrip`, people, options,
+  invitation; `ThreadHeader` stays for rooms), `series-sections.tsx` and `episode-list.tsx` (the parts as rows, in the
+  Series sheet on a phone and in the panel on a desktop; the arrow keys step between rows), `episode-navigator.tsx` (the
+  horizontal strip rooms still use, and the shared labels and keys), `thread-encounter.tsx` (the docked bar, or the open
+  encounter area), `thread-messages.tsx` (day capsules and a time under each run: another author, five minutes or a new
+  day starts one) and the composer. Which episode is selected, and whether the player is docked, are kept in the account
+  scope's storage on this device only; nothing about them is sent. A phone starts docked until the person unfolds the
+  player themselves; watching unfolds it for good, so a resize never docks a playing Reel. Not built here: painted worlds
+  and faces on the header (art, and a coarse place is T-D), the dark New Universe look, replies and reactions (T-B).
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
   activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
   moment ("Watch from here") and always has a Back to thread button that returns to the same message.

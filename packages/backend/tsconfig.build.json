@@ -7,5 +7,5 @@
     "outDir": "dist"
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/modules/content/adapters/cutroom/wire-v1"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.fixture.ts", "src/modules/content/adapters/cutroom/wire-v1"]
 }
