@@ -16,7 +16,8 @@ export const spaceGalleryMarker = 'ks-space-gallery';
 const BACKEND = Platform.OS === 'web' ? 'WebGL on a DOM canvas' : 'expo-gl';
 
 function readoutText(stats: SpaceGalleryStats, reducedMotion: boolean): string {
-  if (stats.failure !== null) return `Simple lists shown (${stats.failure})`;
+  if (stats.failure !== null)
+    return `Simple lists shown (${stats.failure}${stats.failureDetail === null ? '' : `: ${stats.failureDetail}`})`;
   const interval = stats.meanIntervalMs === null ? 'n/a' : `${stats.meanIntervalMs.toFixed(1)} ms`;
   const draw = stats.meanDrawMs === null ? 'n/a' : `${stats.meanDrawMs.toFixed(1)} ms`;
   const lit = stats.lastProbe === null ? 'n/a' : `${stats.lastProbe.litPixels}/${stats.lastProbe.sampledPixels}`;
@@ -56,8 +57,8 @@ export function SpaceGalleryScreen() {
   const diagnostics = useMemo(
     () => ({
       onFrame: (sample: Parameters<SpaceGalleryRecorder['record']>[0]) => recorder.record(sample),
-      onFailure: (reason: SpaceFailure) => {
-        recorder.fail(reason);
+      onFailure: (reason: SpaceFailure, detail?: string) => {
+        recorder.fail(reason, detail);
         setStats(recorder.stats());
       },
     }),

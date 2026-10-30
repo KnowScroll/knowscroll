@@ -32,9 +32,12 @@ export interface SpaceViewProps {
   /** Developer gallery only. Makes the drawing readable and reports every frame. */
   readonly diagnostics?: {
     readonly onFrame: (sample: SpaceFrameSample) => void;
-    readonly onFailure?: (reason: SpaceFailure) => void;
+    readonly onFailure?: (reason: SpaceFailure, detail?: string) => void;
   };
 }
+
+/** What went wrong, in one short line, for the developer gallery (never shown to a person). */
+const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error)).slice(0, 300);
 
 /** The pixel probe costs a read-back, so it samples now and then, not every frame. */
 const PROBE_EVERY = 15;
@@ -70,13 +73,13 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
     live.current = { diagnostics, reducedMotion, definition };
   });
 
-  const fail = useCallback((reason: SpaceFailure) => {
+  const fail = useCallback((reason: SpaceFailure, detail?: string) => {
     loop.current?.dispose();
     loop.current = null;
     renderer.current?.dispose();
     renderer.current = null;
     setFailure(reason);
-    live.current.diagnostics?.onFailure?.(reason);
+    live.current.diagnostics?.onFailure?.(reason, detail);
   }, []);
 
   const startDrawing = useCallback(
@@ -96,8 +99,8 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
             const started = performance.now();
             try {
               created.draw(t);
-            } catch {
-              fail('render-failed');
+            } catch (error) {
+              fail('render-failed', describe(error));
               return;
             }
             const drawMs = performance.now() - started;
@@ -108,8 +111,8 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
           },
         });
         setReady(true);
-      } catch {
-        fail('context-creation-failed');
+      } catch (error) {
+        fail('context-creation-failed', describe(error));
       }
     },
     [fail],

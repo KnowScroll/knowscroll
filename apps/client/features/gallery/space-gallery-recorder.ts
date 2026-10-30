@@ -10,6 +10,8 @@ export interface SpaceGalleryStats {
   readonly meanDrawMs: number | null;
   readonly lastProbe: { readonly litPixels: number; readonly sampledPixels: number; readonly signature: number } | null;
   readonly failure: SpaceFailure | null;
+  /** One line on what failed, for the developer. */
+  readonly failureDetail: string | null;
 }
 
 const KEPT_FRAMES = 240;
@@ -23,6 +25,7 @@ export class SpaceGalleryRecorder {
   private frameCount = 0;
   private probe: SpaceGalleryStats['lastProbe'] = null;
   private failureReason: SpaceFailure | null = null;
+  private failureText: string | null = null;
 
   record(sample: SpaceFrameSample): void {
     this.frameCount += 1;
@@ -31,8 +34,9 @@ export class SpaceGalleryRecorder {
     if (sample.probe !== undefined) this.probe = sample.probe;
   }
 
-  fail(reason: SpaceFailure): void {
+  fail(reason: SpaceFailure, detail?: string): void {
     this.failureReason = reason;
+    this.failureText = detail ?? null;
   }
 
   /** Forgets the frames kept so far (a test starts its measurement here). */
@@ -52,6 +56,7 @@ export class SpaceGalleryRecorder {
       meanDrawMs: mean(this.samples.map((sample) => sample.drawMs)),
       lastProbe: this.probe,
       failure: this.failureReason,
+      failureDetail: this.failureText,
     };
   }
 
