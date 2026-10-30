@@ -220,3 +220,17 @@ store a held revision. Apply with the new binary; the generated database types c
 partial index serves the sweep's query), `geography.deltas.run_id` becomes nullable (a settle that only changes activity has no
 Cartographer run), and every state that has places is set due once so the first passes store each world's true time. Additive;
 an older writer never touches the column. Apply with the new binary; the generated database types change by the same column.
+
+0075 is replies and reactions in Talk (v3 T-B, #482, D-146 to D-148): `social.messages.reply_to_sequence` (the earlier message of the same conversation a
+message answers; a composite foreign key keeps it inside the conversation, and a check keeps it before the message and off a tombstone) and
+`social.message_reactions` (one row per person, kind and message; five kinds). Additive: the column is nullable, so older writers keep working.
+Apply with the new binary; the generated database types change by the same table and column.
+
+0076 is asks, topics and "while you were away" (v3 R-3, #489, D-167 to D-169): `rooms.ai_turns.ask_kind` and a replaced decision check (every
+asked turn has a kind, and a pointed ask or a mention names its message), the one-turn-per-message index narrowed to unprompted turns and a
+new one that lets a message that names a resident ask once; `rooms.discussions.tag` and `title_derived` (a topic's title is the first words of the message it began from); `rooms.messages.topic_discussion_id` and a replaced
+shape check (a person's card for a topic they started); `rooms.message_useful` (one mark per member per message); two small partial indexes on `rooms.messages` (removed messages and topic cards, so a reply count is not a count over a whole discussion); `rooms.read_positions`
+(where a member left off, private); `rooms.summaries` (one row per room and 12-hour window, the unique key being the one-call cap, with
+the provenance columns of a model call); and the `ops.room_turns` view gains `ask_kind`. The new check requires `ask_kind` on every asked
+turn, so a process from before this migration cannot ask until it restarts, as at 0071; every other change is additive. Apply with the new
+binary; the generated database types change by the same columns and tables, and the worker registers the `rooms.summarise` queue.

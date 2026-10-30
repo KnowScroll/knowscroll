@@ -280,7 +280,8 @@ Geography and Scenes path and the CI fixture model; not on dev).
 | Capability                                                                                   | Status                           |
 | -------------------------------------------------------------------------------------------- | -------------------------------- |
 | Overview and Far levels and a system, drawn in 3D (v3 U-2, D-106, D-107)                     | runtime-verified (web); Android: lane |
-| Planet and region views, region card and Open/return (SVG)                                   | runtime-verified                 |
+| Planet globe (U03), landed map (U04), region card and Open/return, from the world generator (v3 U-4, D-108 to D-110) | runtime-verified (web); native: not driven |
+| Land not reached yet: grey outlines on the map only, never named, counted or chosen (D-109)  | runtime-verified (web, accessibility snapshot) |
 | Dust cues and their note                                                                     | runtime-verified                 |
 | Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
 | Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
@@ -306,16 +307,26 @@ float over it.
 - **Labels and targets stay views.** `space-overlay.tsx` places a 48 px button and a label (`placeLabels`) at each
   projected point (a target shrinks, never below 24 px, only where bodies crowd each other: D-107); the canvas is hidden from assistive technology. Where 3D cannot run (no WebGL, a lost context, a
   failed frame, low memory) `SpaceSimpleLists` shows the same names in the same order and every place still opens.
-- **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
-  persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
-  palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
-  the camera and opens its card with one encounter. Open goes through the real encounter engine; the
-  encounter carries a "From <region> · <planet>" chip that is Back (`encounterOrigin`, the same chip as
-  the format switch's), and Back, by button or chip, returns to the same view with the card closed. The
-  region left through its card then shows "<region> · you were here" and a ring (`universe-here-marker.ts`):
-  a private marker kept in the account scope's storage (purged with the scope, dropped after 14 days),
-  cleared when the person chooses that region again. The card offers Open and Close only: there is
-  no read yet for more encounters from a region.
+- **Planet globe (U03) and landed map (U04)** (`planet/`, D-108 to D-110). A planet opens as a globe: every continent in
+  full colour under clouds, turning once in 70 s, with the ring and the moon its look gives it, and the names of the
+  regions that have formed written on it. A drag turns it (the camera's pan, in reduced motion the only thing that does);
+  "Drag to rotate · tap to land" and one "Land on <planet>" button take the person to the map at planet level. The map is
+  the same planet flat, with irregular region borders: formed regions in colour with their names in screen space (never
+  scaled with the camera), land not reached yet in flat grey under cloud (D-109). Choosing a region drops the camera
+  about twice as close, dims the rest and opens a dark-glass card with one encounter. Everything is drawn from
+  `scene-core`'s `worldmap.v1` generator (`buildGlobe`, `buildMap`, `chartWorld`) by `use-planet-world.ts`, built after
+  the first frame and kept by the session. The look (type, hue, rings, moon, sites) is the server's; a planet without
+  one is drawn plainly, regions on sites in the order they were made. A press within 350 ms of the camera moving is
+  ignored, so a drag that ends over a region or the globe does not choose or land. Back from an encounter lands on
+  the planet's map at planet level, with the region marked "<region> · you were here" and an orange dot
+  (`universe-here-marker.ts`: a private marker kept in the account scope's storage, purged with the scope, dropped after
+  14 days, cleared when the person chooses that region again). The card offers Open and Close only: there is no read
+  yet for more encounters from a region. Open goes through the real encounter engine; the encounter carries a
+  "From <region> · <planet>" chip that is Back (`encounterOrigin`).
+- **Accessibility of the planet views.** The drawing is hidden from assistive technology. The globe has one control, and a
+  formed region on the map is one 48 px target named "Name, a region", in site order; the plain list (Simple drawing) names
+  the same regions in the same order. Grey land has no target, no text and no press handler. A friend's planet turns
+  but does not land.
 - **Routes.** Only the Cartographer's routes (between planets of one system) exist, and they are a "Route to B"
   chip on a planet (D-074). No line is drawn on any screen.
 - **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn as toon nebulae
@@ -337,13 +348,13 @@ float over it.
   or command. Only the Reel or Scroll that Open starts is an encounter.
 
 Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on the web pans with
-arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
+arrows (on a globe they turn it), zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
 token; reduced motion stops drift and plays the formation as one still.
 
 ### Space renderer (v3 U-0 gate, U-2 in use; D-073, D-100, D-106, D-107)
 
 `features/universe/space/` draws the space views with three.js. The Universe tab uses it for the Overview, Far, a
-system and the Empty, loading and Offline sky; planet and region views stay SVG. It is also reached through the
+system and the Empty, loading and Offline sky; a planet's globe and map are SVG (D-108). It is also reached through the
 developer gallery page `/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; `?scene=universe` draws the
 tab's own layout of a labelled sample universe, for the frame numbers).
 
@@ -376,10 +387,11 @@ smokes are `e2e/space-gallery.spec.ts` and `e2e/universe-space-smoke.spec.ts`; t
 `maestro/space.yaml` and `maestro/universe.yaml`.
 
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
-(pure placement of regions and labels), `space/` (the 3D views, above), `planet-scene.tsx` (the SVG planet),
-`universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
+(pure placement of labels and the outline), `space/` (the 3D views, above), `planet/` (the SVG globe and landed
+map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the formation story's star and planet),
+`universe-surface.tsx` (phone and desktop layout),
 `universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
-`formation-presentation.tsx`. Choices are in D-039.
+`formation-presentation.tsx`. Choices are in D-039, D-108 to D-110.
 
 ## Mounted Keep lifecycle
 
@@ -470,6 +482,15 @@ Related: #242.
   `createConversationThread` in client-core: first a snapshot, then catch-up reads from a cursor. A message the
   person sends shows as sending, sent, "not confirmed" or "not sent", and a retry reuses the same command ID. The
   draft is kept in the account scope's storage.
+- Talk in the New Universe look, with replies and reactions (v3 T-B, D-145 to D-149; *implemented, runtime-verified only on the fixture stack*): the
+  conversation and a thread's messages are dark (`TalkThemeProvider`, `sky` by default) with a glass header,
+  a capsule per day, bubbles in runs and the time under each run. `talk-message.tsx` is one message (the bubble,
+  its quote, its reaction pills, the swipe in `use-swipe-reply.ts`, the long-press menu, the keys R and E, the options
+  button on the web); `use-message-jump.ts` scrolls to a quote's original and lights it; `reactor-sheet.tsx` is "who
+  reacted". The message box (`composer.tsx`) holds the "Replying to" chip. A shared card has "Watch together", which
+  opens the same sheet as Start a thread and creates a thread for the same two people (D-149). The thread's messages
+  (`features/threads/thread-messages.tsx`) use the same message, and its menu adds What if... and Another perspective.
+  Not drawn yet: the Talk list in the new look, SEEN, the Paper setting (T-C), the party and places (T-D).
 - `features/sharing/`: `share-sheet-body.tsx` is what a sheet container renders for H01: it needs only the exact
   asset revision, the title and a close callback. It reads the account scope and the API origin itself, and wraps
   `share-sheet-content.tsx`, which switches between `share-menu.tsx` (Send to a conversation, Copy link, Share
@@ -590,10 +611,18 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
   composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
   corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked (a moderator who blocked the author gets it collapsed with "Show for moderation", and the options to remove it). An open discussion reads afresh when the person comes back to it, and when the Friends session announces an accepted block or unblock (`announceBlocksChanged`, a counter in the scope's query cache). `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
-  cannot be asked. `message-options-sheet.tsx` holds "Start a thread from this" and the moderator's remove and restore;
-  `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
-- `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite) and
-  `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pin, hide). Each command keeps its command ID until the
+  cannot be asked. `message-options-sheet.tsx` holds "Start a topic from this message", "Ask Nova about this", "Other side",
+  "Challenge" and "Useful" (v3 R-3, D-167, D-168; a resident that is busy or resting is named with the reason and its button
+  is off), "Start a thread from this" and the moderator's remove and restore; a resident's answer to an ask says "Asked by Lena ·
+  The other side" (`ask-words.ts`, `resident-message.tsx`) and has Challenge and Other side beside it. `start-topic-sheet.tsx` is
+  the title and one of four tags; `topic-card.tsx` is the card a topic leaves in General, with the room's own figures;
+  `topics-list.tsx` is the forum list (Hot, New, Unanswered, a tag filter, "New topic", replies and who spoke last, Useful on a
+  topic only) read with `useRoomTopics`; a topic that began from a message shows it first (`TopicOrigin`). The welcome is in
+  the AI notice (`ai-notice.tsx`) and "while you were away" is `away-card.tsx` above General (folded for a Quieter reader);
+  `ai-here.tsx` states the room's limits. `room-snippet-sheet.tsx` opens a shared moment ("Watch from here").
+- `packages/client-core` holds the state: `createRoom` (preview or member view, join, leave, pause, start, invite, dismiss
+  "while you were away"), `readRoomTopics` and `createRoomDiscussion` (messages with sending bubbles, catch-up, asks, pointed
+  asks, Useful, pin, hide). Each command keeps its command ID until the
   server answers. A discussion catches up on focus, on reconnect and every 20 seconds.
 - Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
 - Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes

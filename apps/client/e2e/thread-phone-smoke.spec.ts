@@ -139,8 +139,8 @@ test('messages are dated by day and timed by run, and nobody is shown watching o
   const times = page.getByTestId('message-time');
   await expect(times).toHaveCount(3);
   for (const time of await times.allTextContents()) expect(time).toMatch(/\d{1,2}:\d{2}/);
-  // One capsule for the day, in words (the fixture's messages are all of one October day, long past).
-  await expect(page.getByText(/^(\d{1,2} Oct|Oct \d{1,2})(,? 2026)?$/)).toHaveCount(1);
+  // One capsule for the day, in words with the weekday (T3: "Sat 24 Oct"; the fixture's messages are all of one October day, long past).
+  await expect(page.getByRole('heading', { name: /^[A-Za-z]{3},? \d{1,2} Oct( 2026)?$/ })).toHaveCount(1);
   // Nothing in the page says where anyone else is; the Series sheet, too, only names the parts and the people.
   const nobodyPlaced = /watching|(?:is|are) on part/i;
   expect(await page.locator('body').innerText()).not.toMatch(nobodyPlaced);

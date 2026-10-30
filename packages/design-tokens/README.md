@@ -17,6 +17,7 @@ never mixes raw hexes from both.
 | `src/shape.ts` | `radius`, `borderWidth`, `borderStyle`, `elevation`, `pressOffset`, `opacity`, `icon`, `iconStroke()` |
 | `src/motion.ts` | `easing`, `motion`, `sheetRise`, `motionDuration()` |
 | `src/layers.ts` | `layer` (z-order), `focusRing`, `highlightRing` |
+| `src/universe.ts` | `universe` (the New Universe palette: sky, Paper, Ink, cobalt, focus, highlight, orange, red, glass, chunky shadows), `talkThemes` (`sky`, `paper`), `defaultTalkTheme` |
 | `fonts/` | Bricolage Grotesque, Instrument Sans, DM Mono with their OFL licences (byte-for-byte, see `fonts/README.md`) |
 
 The package exports its TypeScript sources (`"."` → `src/index.ts`, `"./fonts/*"`). Its only
@@ -101,6 +102,12 @@ Decorative opacities: star glow .16 / .08, background stars .3–.7, dormant orb
 
 Dormant: saturation −35 %, orbit at 10 %, no glow, no twinkle; the body stays where it was.
 Planet size never encodes consumption (D-006 m).
+
+## The New Universe palette and the Talk themes (v3, D-145)
+
+*Implemented. The Paper theme is defined and tested; the per-person switch comes with T-C.*
+
+`universe` is the Universe file's foundations by name: `sky #020308`, `paper #FFFDF2`, `ink #15302A`, `cobalt #2C46E8`, `focus #FFE44D`, `highlight #FFEC7A`, `orange #FF684C`, `red #FF3B30`, glass (a 42 % fill, a 15 % white hairline, blur 22) and the offset shadows (`0 4px 0` on bubbles, `0 5px 0` on cards and chips). `talkThemes.sky` and `talkThemes.paper` give each role of T3's kit a value (ground, bubbles, quote strips, capsule, bar, field, Send, pill, menu, flash, focus); both define the same roles, and `tokens.test.ts` holds every text pair to 4.5:1 and the focus ring to 3:1. `ui`'s `TalkThemeProvider` takes the theme's name. A new role in the type scale, `bubble` (Instrument Sans 500 16/22), is the words in a bubble.
 
 ## Typography
 

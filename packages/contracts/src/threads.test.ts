@@ -3,7 +3,9 @@ import {
   ContentThreadViewSchema,
   CreateContentThreadSchema,
   MAX_THREAD_FRIENDS,
+  ReactToThreadMessageSchema,
   SendThreadBodySchema,
+  SendThreadMessageSchema,
   SnippetAnchorSchema,
   ThreadMessageSchema,
   ThreadSummarySchema,
@@ -158,5 +160,44 @@ describe('what a thread answer can carry', () => {
     };
     expect(ThreadSummarySchema.safeParse(summary).success).toBe(true);
     expect(ThreadSummarySchema.safeParse({ ...summary, people: [] }).success).toBe(false);
+  });
+});
+
+describe('replies and reactions in a thread (v3 T-B)', () => {
+  const send = {
+    version: 'content-thread.v1',
+    commandId: id(70),
+    thread: ref,
+    body: { kind: 'text', text: 'wait, really?' },
+  };
+  it('names the message a reply answers, by ID', () => {
+    expect(SendThreadMessageSchema.safeParse({ ...send, replyTo: id(71) }).success).toBe(true);
+    expect(SendThreadMessageSchema.safeParse({ ...send, replyTo: 'x' }).success).toBe(false);
+  });
+  it('states a wanted reaction, one of five', () => {
+    const react = {
+      version: 'content-thread.v1',
+      commandId: id(72),
+      thread: ref,
+      messageId: id(71),
+      kind: 'mind_blown',
+      present: true,
+    };
+    expect(ReactToThreadMessageSchema.safeParse(react).success).toBe(true);
+    expect(ReactToThreadMessageSchema.safeParse({ ...react, kind: 'angry' }).success).toBe(false);
+    expect(ReactToThreadMessageSchema.safeParse({ ...react, present: 1 }).success).toBe(false);
+  });
+  it('lets a thread message carry reactions and a quote like a direct one', () => {
+    const message = {
+      messageId: id(73),
+      sequence: 2,
+      status: 'available',
+      author: person,
+      recordedAt: '2026-10-31T08:00:00.000Z',
+      body: { kind: 'text', text: 'hello' },
+      reactions: [{ kind: 'ha', mine: true, people: [person] }],
+      replyTo: { messageId: id(71), sequence: 1, original: { status: 'unavailable' } },
+    };
+    expect(ThreadMessageSchema.safeParse(message).success).toBe(true);
   });
 });

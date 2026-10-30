@@ -71,12 +71,16 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   }, [focusParam, foreground, snapshot, session]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !foreground || state.overlay || !state.focusId) return;
-    // A region, planet or system with its own target gets focus; a planet's own close-up is the map itself.
+    // A region, planet or system with its own target gets focus. Back from an encounter lands on the region
+    // marked "you were here"; a planet's globe or map is otherwise the stage itself.
     (
       document.querySelector<HTMLElement>(`[data-testid="universe-focus-${state.focusId}"]`) ??
+      (state.youWereHere
+        ? document.querySelector<HTMLElement>(`[data-testid="universe-focus-${state.youWereHere}"]`)
+        : null) ??
       document.querySelector<HTMLElement>('[data-testid="universe-map"]')
     )?.focus();
-  }, [foreground, state.overlay, state.focusId, state.historyDepth]);
+  }, [foreground, state.overlay, state.focusId, state.historyDepth, state.youWereHere, state.landed]);
 
   const dust = state.dust.cues.length > 0;
   if (read.status === 'empty' && !dust)

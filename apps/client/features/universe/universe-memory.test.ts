@@ -18,6 +18,7 @@ describe('what the Universe remembers on this device', () => {
     const scope = scopeWith(store);
     const memory = {
       focusId: fixtureId(12),
+      landed: true,
       frame: { x: 4, y: -2, scale: 1.5 },
       lately: true,
       lastPlace: { id: fixtureId(12), label: 'CI planet', kind: 'planet' as const },
@@ -47,6 +48,7 @@ describe('what the Universe remembers on this device', () => {
     );
     expect(loadUniverseMemory(scope)).toEqual({
       focusId: null,
+      landed: false,
       frame: { x: 10000, y: 0, scale: 0.125 },
       lately: false,
       lastPlace: undefined,
@@ -59,6 +61,7 @@ describe('what the Universe remembers on this device', () => {
     expect(isAbsent(undefined, 1e12)).toBe(false);
     const memory: UniverseMemory = {
       focusId: null,
+      landed: false,
       frame: { x: 0, y: 0, scale: 1 },
       lately: false,
       lastPlace: undefined,

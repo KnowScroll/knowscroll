@@ -167,6 +167,30 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.markUseful)
+  markUsefulRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.markUseful).handler(async ({ input }) =>
+      value(await this.useCases.markUseful(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.topics)
+  topicsRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.topics).handler(async ({ input }) =>
+      value(await this.useCases.topics(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.dismissAway)
+  dismissAwayRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.dismissAway).handler(async ({ input }) =>
+      value(await this.useCases.dismissAway(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.reports)
   reportsRoute(@Req() request: Request) {
     return implement(apiContract.rooms.reports).handler(async ({ input }) =>

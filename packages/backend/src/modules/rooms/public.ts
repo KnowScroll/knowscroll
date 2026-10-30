@@ -4,6 +4,7 @@ import type {
   ActivityListSchema,
   ActivityModerationAcceptanceSchema,
   ActivityViewSchema,
+  AwayDismissalSchema,
   DiscussionChangesPageSchema,
   DiscussionCreationSchema,
   DiscussionHistoryPageSchema,
@@ -23,10 +24,12 @@ import type {
   RoomReportsSchema,
   RoomSnippetOpeningSchema,
   RoomStationsSchema,
+  RoomTopicsSchema,
   RoomViewSchema,
+  UsefulAcceptanceSchema,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
-import type { CastDueJob, CastPassJob, ContributeJob } from './events.js';
+import type { CastDueJob, CastPassJob, ContributeJob, SummariseJob } from './events.js';
 import type { Result } from './application/ports.js';
 
 export type { Result as RoomResult, RoomRefusal, ReadRoomReports, RoomReportRow } from './application/ports.js';
@@ -34,12 +37,15 @@ export {
   CastDueJobSchema,
   CastPassJobSchema,
   ContributeJobSchema,
+  SummariseJobSchema,
   castDueQueue,
   castPassQueue,
   contributeQueue,
+  summariseQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
+  type SummariseJob,
 } from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export { DEFAULT_CAST, type CastMember } from './domain/cast.js';
@@ -70,8 +76,15 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof RoomPreferencesAcceptanceSchema>>>;
-  /** The caller's device has the room open, or has closed it: a lease of one minute that shows their face (D-069). */
+  /**
+   * The caller's device has the room open, or has closed it: a lease of one minute that shows their face (D-069). A return
+   * after a long absence to enough new messages opens the window's "while you were away" (D-169).
+   */
   setPresence(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomPresenceAckSchema>>>;
+  /** The caller has read their "while you were away": it is not shown again. */
+  dismissAway(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof AwayDismissalSchema>>>;
+  /** The room's topics as a forum list: pinned first, then Hot, New or Unanswered, with one tag when asked (D-167). */
+  topics(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomTopicsSchema>>>;
   create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionCreationSchema>>>;
   send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomMessageAcceptanceSchema>>>;
   pin(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionPinAcceptanceSchema>>>;
@@ -79,6 +92,8 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof RoomMessageHidingAcceptanceSchema>>>;
+  /** The caller marks a message Useful, or takes the mark back: one per member per message, never their own (D-167). */
+  markUseful(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof UsefulAcceptanceSchema>>>;
   /** The reports on this room's messages, for its moderators alone (D-055). */
   reports(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReportsSchema>>>;
   readDiscussion(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionViewSchema>>>;
@@ -143,6 +158,13 @@ export type DecideCast = (job: CastDueJob) => Promise<void>;
 export const DECIDE_CAST = Symbol('rooms.decideCast');
 export type RunCastPass = (job: CastPassJob, signal: AbortSignal) => Promise<void>;
 export const RUN_CAST_PASS = Symbol('rooms.runCastPass');
+
+/**
+ * The worker's consumer of `rooms.summarise` (D-169): the model call that writes one window's "while you were away", under
+ * the room scope, as a resident's habit. Registered with the cast jobs, only where the worker holds the rooms grant.
+ */
+export type Summarise = (job: SummariseJob, signal: AbortSignal) => Promise<void>;
+export const SUMMARISE = Symbol('rooms.summarise');
 
 /**
  * Port for the socket gateway: a member of the room is typing in a discussion, which only holds back an AI turn

@@ -12,14 +12,21 @@ import {
   dayKey,
   dayLabel,
   type OutgoingRoomMessage,
+  type PointedAsk,
   type RoomDiscussionController,
   type RoomDiscussionState,
 } from '@knowscroll/client-core';
-import type { ConversationContentProjection, RoomMessage, ThreadEpisode } from '@knowscroll/contracts';
+import type {
+  ConversationContentProjection,
+  RoomDiscussionSummary,
+  RoomMessage,
+  ThreadEpisode,
+} from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { SnippetCard } from '../threads/snippet-card';
 import { FoldedResident, ResidentHeader } from './resident-message';
+import { TopicCard } from './topic-card';
 
 type Available = Extract<RoomMessage, { status: 'available' }>;
 
@@ -52,6 +59,12 @@ const titleOf = (card: ConversationContentProjection): string | undefined =>
 /** What the person can do with a message beyond reading it, found from the message and their role. */
 export interface MessageActions {
   readonly canStartThread: boolean;
+  /** A message with words, not a card or a topic's card, can begin a topic (D-167). */
+  readonly canStartTopic: boolean;
+  /** Anything with words or a shared card can be challenged, argued against or asked about. */
+  readonly canAsk: boolean;
+  /** Anyone can mark a message Useful that is not their own; a resident's answer included. */
+  readonly canUseful: boolean;
   readonly canModerate: boolean;
   /** Anyone can report a message that is not their own, an AI inhabitant's included (P03). */
   readonly canReport: boolean;
@@ -65,8 +78,13 @@ export function actionsFor(
   const isCard = message.status === 'available' && message.body.kind === 'content';
   const mine =
     message.status === 'available' && message.author.kind === 'person' && message.author.personId === ownPersonId;
+  const collapsed = message.status === 'available' && message.blockedByYou === true;
+  const available = message.status === 'available' && !collapsed;
   return {
     canStartThread: isCard,
+    canStartTopic: available && message.body.kind === 'text',
+    canAsk: available && message.body.kind !== 'topic',
+    canUseful: available && !mine && message.body.kind !== 'topic',
     canModerate: role === 'moderator' && (message.status === 'removed' || message.status === 'available'),
     canReport: message.status === 'available' && !mine,
   };
@@ -116,18 +134,28 @@ function Bubble({
   mine,
   partOf,
   actions,
+  topics,
   onOpenSnippet,
   onStartThread,
+  onOpenTopic,
 }: {
   readonly message: Available;
   readonly mine: boolean;
   readonly partOf: (assetId: string) => string | undefined;
   readonly actions: MessageActions;
+  readonly topics: ReadonlyMap<string, RoomDiscussionSummary>;
   readonly onOpenSnippet: (messageId: string) => void;
   readonly onStartThread: (messageId: string) => void;
+  readonly onOpenTopic: (discussionId: string) => void;
 }) {
   const align = mine ? styles.mine : styles.theirs;
   const { body } = message;
+  if (body.kind === 'topic')
+    return (
+      <View style={align}>
+        <TopicCard topic={body.topic} figures={topics.get(body.topic.discussionId)} onOpen={onOpenTopic} />
+      </View>
+    );
   if (body.kind === 'snippet') {
     const target = body.snippet.content.target;
     return (
@@ -291,7 +319,19 @@ export interface RoomMessagesProps {
   readonly onStartThread: (messageId: string) => void;
   /** Opens the message's actions (moderator tools, starting a thread). */
   readonly onActions: (message: RoomMessage) => void;
+  /** The room's own figures for its topics, read with the room: what a topic card says about its topic. */
+  readonly topics?: ReadonlyMap<string, RoomDiscussionSummary>;
+  readonly onOpenTopic?: (discussionId: string) => void;
+  /** A resident can be asked now (the room is open and none is busy or resting). */
+  readonly canAsk?: boolean;
+  /** Challenges a resident's message or asks for the other side of it. */
+  readonly onAskAbout?: (kind: PointedAsk, messageId: string) => void;
+  /** What stands above the first message: where a topic began. */
+  readonly header?: ReactNode;
 }
+
+const NO_TOPICS: ReadonlyMap<string, RoomDiscussionSummary> = new Map();
+const noop = () => undefined;
 
 /**
  * The discussion's messages by day. A person's name sits above each other person's bubble; an AI
@@ -310,6 +350,11 @@ export function RoomMessages({
   onOpenSnippet,
   onStartThread,
   onActions,
+  topics = NO_TOPICS,
+  onOpenTopic = noop,
+  canAsk = false,
+  onAskAbout = noop,
+  header,
 }: RoomMessagesProps) {
   const now = new Date();
   const partOf = (assetId: string) => {
@@ -341,6 +386,7 @@ export function RoomMessages({
       scrollEventThrottle={100}
       testID="room-messages"
     >
+      {header}
       {state.hasOlder ? (
         <Button
           label="Earlier messages"
@@ -385,6 +431,8 @@ export function RoomMessages({
                         label={message.author.label}
                         suggestion={message.suggestion}
                         trigger={message.trigger}
+                        ask={message.ask}
+                        ownPersonId={ownPersonId}
                       />
                     ) : mine ? null : (
                       <Text variant="metaS" color={content.ink2}>
@@ -395,7 +443,14 @@ export function RoomMessages({
                   {folded ? null : (
                     <MessageLine
                       sequence={message.sequence}
-                      hasActions={actions.canStartThread || actions.canModerate || actions.canReport}
+                      hasActions={
+                        actions.canStartThread ||
+                        actions.canStartTopic ||
+                        actions.canAsk ||
+                        actions.canUseful ||
+                        actions.canModerate ||
+                        actions.canReport
+                      }
                       onActions={() => onActions(message)}
                     >
                       {message.status === 'available' && collapsedOf(message) ? (
@@ -416,9 +471,16 @@ export function RoomMessages({
                             mine={mine}
                             partOf={partOf}
                             actions={actions}
+                            topics={topics}
                             onOpenSnippet={onOpenSnippet}
                             onStartThread={onStartThread}
+                            onOpenTopic={onOpenTopic}
                           />
+                          {message.usefulByYou === true ? (
+                            <Text variant="metaS" color={content.ink2} testID={`useful-${message.messageId}`}>
+                              You marked this useful
+                            </Text>
+                          ) : null}
                           {message.blockedByYou === true ? (
                             <View style={styles.revealed}>
                               <Text variant="metaS" color={content.ink2}>
@@ -443,9 +505,27 @@ export function RoomMessages({
                     </MessageLine>
                   )}
                   {message.status === 'available' && message.author.kind === 'ai' && !folded ? (
-                    <Text variant="metaS" color={content.ink2}>
-                      A suggestion. Nothing is made unless someone chooses it.
-                    </Text>
+                    <>
+                      <View style={styles.askRow} testID={`ai-actions-${message.messageId}`}>
+                        <Button
+                          label="Challenge"
+                          size="sm"
+                          disabled={!canAsk}
+                          onPress={() => onAskAbout('challenge', message.messageId)}
+                          testID={`challenge-${message.messageId}`}
+                        />
+                        <Button
+                          label="Other side"
+                          size="sm"
+                          disabled={!canAsk}
+                          onPress={() => onAskAbout('other_side', message.messageId)}
+                          testID={`other-side-${message.messageId}`}
+                        />
+                      </View>
+                      <Text variant="metaS" color={content.ink2}>
+                        A suggestion. Nothing is made unless someone chooses it.
+                      </Text>
+                    </>
                   ) : null}
                 </View>
               );
@@ -496,6 +576,7 @@ const styles = StyleSheet.create({
     borderColor: content.rule,
   },
   item: { gap: spacing[1] },
+  askRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   line: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   lineBody: { flex: 1 },
   hidden: { opacity: 0 },

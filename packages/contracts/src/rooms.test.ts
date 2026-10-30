@@ -112,11 +112,14 @@ interface Def {
   readonly entries?: unknown;
 }
 const LEAVES = new Set(['string', 'number', 'int', 'boolean', 'literal', 'enum', 'null', 'undefined', 'date', 'any']);
-/** A key speaks of a count or of activity when one of its camelCase words does, or it starts with lastMessage or lastActivity. */
+/**
+ * A key speaks of a count or of activity when one of its camelCase words does, or it starts with lastMessage,
+ * lastActivity or lastReply (who spoke last), or it says whether anyone has answered.
+ */
 const SPEAKS_OF_PEOPLE_OR_ACTIVITY = (key: string): boolean =>
-  /^last(Message|Activity)/.test(key) ||
+  /^last(Message|Activity|Reply)/.test(key) ||
   (key.match(/[A-Z]?[a-z]+/g) ?? []).some((word) =>
-    /^(count|total|online|here|active|unread|seen)$/.test(word.toLowerCase()),
+    /^(count|total|online|here|active|unread|seen|answered)$/.test(word.toLowerCase()),
   );
 
 /** Every key path of a schema whose name matches, with the `status` branch it sits on. */

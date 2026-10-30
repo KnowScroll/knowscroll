@@ -17,6 +17,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
+import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import { ok, refuse, roomEnvelope, type ContentRef, type Result, type RoomLock, type RoomPorts } from './ports.js';
@@ -176,6 +177,16 @@ export function makeDiscussionReads(p: RoomPorts) {
             return DiscussionViewSchema.parse({ ...roomEnvelope(scope), readId: query.readId, status: 'unavailable' });
           const starter =
             discussion.startedByAccountId === null ? undefined : people.get(discussion.startedByAccountId);
+          // A topic that began from a message shows that message first, as this reader may see it (hidden, blocked, kept as written).
+          const originRow =
+            discussion.originMessageId === null || discussion.root !== null
+              ? undefined
+              : (await p.discussions.messageInRoom(lock, discussion.originMessageId))?.message;
+          const [origin] =
+            originRow === undefined ? [] : await viewRoomMessages(p, scope, lock, [originRow], viewerOf(entered));
+          const title = (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
+            discussion.discussionId,
+          )!;
           return DiscussionViewSchema.parse({
             ...roomEnvelope(scope),
             readId: query.readId,
@@ -186,10 +197,12 @@ export function makeDiscussionReads(p: RoomPorts) {
             discussion: {
               discussionId: discussion.discussionId,
               kind: discussion.kind,
-              title: discussion.title,
+              title,
+              ...(discussion.tag === null ? {} : { tag: discussion.tag }),
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),
             },
+            ...(origin === undefined ? {} : { origin }),
             ...(content === undefined || discussion.root === null
               ? {}
               : {

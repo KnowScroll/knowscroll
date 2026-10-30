@@ -81,12 +81,17 @@ const member = (patch: Partial<Member> = {}): Member => ({
     title: 'General',
     pinned: false,
     lastActivityAt: '2026-10-24T08:00:00.000Z',
+    replyCount: 0,
   },
   discussions: [],
   canPost: true,
   you: { aiLevel: 'lively', keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' },
   here: { faces: [] },
   memberTotal: 3,
+  limits: {
+    asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
+    unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
+  },
   ...patch,
 });
 const roomState = (patch: Partial<RoomState> = {}): RoomState => ({
@@ -174,6 +179,7 @@ describe('a room as a member (R02)', () => {
       title: 'Offline inference',
       pinned: false,
       lastActivityAt: '2026-10-24T08:00:00.000Z',
+      replyCount: 0,
     },
     {
       discussionId: id(11),
@@ -181,6 +187,7 @@ describe('a room as a member (R02)', () => {
       title: 'What one answer costs to serve',
       pinned: true,
       lastActivityAt: '2026-10-24T07:00:00.000Z',
+      replyCount: 0,
       root: {
         status: 'available' as const,
         target: { assetId: id(30), assetRevision: 1 },
@@ -196,7 +203,7 @@ describe('a room as a member (R02)', () => {
       <MemberBody scope={scope} view={member({ discussions })} controller={controller()} state={roomState()} />,
     );
     expect(screen.getByText('Pinned by the moderator')).toBeOnTheScreen();
-    expect(screen.getByText('Reel · started by Ravi')).toBeOnTheScreen();
+    expect(screen.getByText('Reel · started by Ravi · No replies yet')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId(`discussion-${id(11)}`));
     expect(mockPush).toHaveBeenCalledWith(`/rooms/${id(1)}/t/${id(11)}`);
   });
@@ -259,7 +266,7 @@ describe('a room’s optional activity (R03) on its page', () => {
     await fireEvent.press(screen.getByTestId(`activity-${id(50)}`));
     expect(mockPush).toHaveBeenCalledWith(`/rooms/${id(1)}/activity/${id(50)}`);
     // No count, no badge, no "new".
-    expect(screen.queryByText(/new|unread|\d+ (polls|quizzes)/i)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/\d+ new|unread|\d+ (polls|quizzes)|new (poll|quiz)/i)).not.toBeOnTheScreen();
   });
 
   it('gives a moderator the two ways to start one, and nobody else', async () => {

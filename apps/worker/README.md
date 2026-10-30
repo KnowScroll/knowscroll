@@ -143,7 +143,9 @@ names an account with a claimed profile a moderator of a room, or takes the role
 no provider call. The `rooms.contribute` consumer answers a member's ask of an AI inhabitant with the personal
 harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`). The `rooms.cast-due` and `rooms.cast-pass` consumers
 (v3 R-2, D-162) are registered only while `KS_REASONING_ROOM_ENABLED=1`: the first decides, with no model call, whether a resident
-answers a message; the second makes the model call of an allowed turn under the nonpersonal `rooms` reasoning scope.
+answers a message; the second makes the model call of an allowed turn under the nonpersonal `rooms` reasoning scope. So does
+`rooms.summarise` (v3 R-3, D-169): one call per room and 12-hour window that writes "while you were away", under the same scope as an
+`ambient` role, with kept-out members and removed messages left out of what it reads.
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and

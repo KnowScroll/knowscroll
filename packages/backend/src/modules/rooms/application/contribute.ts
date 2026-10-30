@@ -1,6 +1,7 @@
 import { HARNESS_PROMPT_VERSION } from '../../../reasoning/public.js';
 import type { ReasoningHarness } from '../../../reasoning/public.js';
 import type { CheckPersonalOwnerActive, PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
+import { pointedKind } from '../domain/asks.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import type { ContributeJob } from '../events.js';
 import { assembleMaterial } from './inhabitant-context.js';
@@ -48,7 +49,8 @@ async function standingAsk(p: ContributePorts, scope: PersonalScopeTx, requestId
 
 /**
  * One ask of an AI inhabitant becomes at most one labelled message (blueprint §15 "AI inhabitant"
- * role). The person who asked is a member whose universe and epoch the job names.
+ * role). The person who asked is a member whose universe and epoch the job names. A pointed ask or a mention reads
+ * the message it is about as the turn's focus; if that message is gone or kept out, the ask ends without a call.
  *
  * Steps: (1) one transaction rechecks authority, reads this room's own discussion and reduces it to
  * the bounded context; (2) outside any transaction the harness makes one model call (plus at most
@@ -82,7 +84,14 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
         turn: found.request,
         room: found.standing.room,
         discussion: found.discussion,
+        ...(found.request.causeMessageId === null ? {} : { focus: found.request.causeMessageId }),
       });
+      if (found.request.causeMessageId !== null && material.focus === undefined) {
+        // The message the ask pointed at is gone, or its author keeps messages out: there is nothing to answer, and no
+        // call was made, so the ask is not counted.
+        await p.ai.settle(found.lock, job.requestId, { state: 'failed', at: p.now(), dispatched: false });
+        return undefined;
+      }
       return { request: found.request, context: contributionContext(material) };
     });
     if (prepared.kind !== 'entered' || prepared.value === undefined) return;
@@ -97,7 +106,7 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
           purpose: 'inhabitant-contribution',
           policyVersion: INHABITANT_POLICY_VERSION,
         },
-        role: inhabitantRole(request.inhabitant),
+        role: inhabitantRole(request.inhabitant, pointedKind(request.askKind)),
         context,
         limits: { allowRepair: true },
       },
