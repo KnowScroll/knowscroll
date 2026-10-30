@@ -7,7 +7,7 @@ import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { PlayUseCases } from '@knowscroll/backend/modules/play';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
-import { makeReviewGate, readScrollCalls } from '@knowscroll/backend/modules/content/nest-providers';
+import { makeReviewGate, readScrollPlayFacts } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   fixtureAuthoredV2,
   fixtureResearchPageV2,
@@ -53,7 +53,7 @@ async function publishOrrin(db: Parameters<typeof fixtureProduction>[0]): Promis
   });
   const scroll = { assetId: TOPICS.seasons.assetId, revision: 1 };
   const held = await makeWithPersonalScope(db, { lockTimeoutMs: 5_000 })((await seedPerson(db)).authority, (scope) =>
-    readScrollCalls(scope, scroll.assetId, scroll.revision),
+    readScrollPlayFacts(scope, scroll.assetId, scroll.revision),
   );
   expect(held).toEqual({ kind: 'entered', value: undefined });
   expect(await makeReviewGate(db).release({ ...scroll, decidedBy: 'cli:ci-reviewer' })).toMatchObject({
@@ -70,6 +70,7 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
   let scroll: Scroll;
   let calls: Awaited<ReturnType<typeof callsOfRevision>>;
   const callIt = () => calls.filter((call) => call.kind === 'call_it');
+  const finalCall = () => calls.find((call) => call.kind === 'final_call')!;
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('play');
@@ -109,6 +110,13 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
       ...over,
     });
   const rows = async (person: FixturePerson) => ({
+    landmarks: (
+      await sql<{
+        n: number;
+      }>`select count(*)::int as n from play.landmarks where universe_id = ${person.universeId}::uuid`.execute(
+        database.db,
+      )
+    ).rows[0]!.n,
     calls: (
       await sql<{
         n: number;
@@ -186,15 +194,17 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
     expect((await rows(person)).calls).toBe(1);
   });
 
-  it('refuses a forged option, a call that is not in the revision and the Final call, and stores nothing', async () => {
+  it('refuses a forged option of any call, a stop that is not a call and another revision, and stores nothing', async () => {
     const person = await reader();
     const [first] = callIt();
-    const final = calls.find((call) => call.kind === 'final_call')!;
+    const final = finalCall();
     expect(await lock(person, first!, first!.options.length)).toEqual({ kind: 'refused', reason: 'option_invalid' });
+    expect(await lock(person, final, final.options.length)).toEqual({ kind: 'refused', reason: 'option_invalid' });
     expect(await lock(person, { id: 'not-a-stop' }, 0)).toEqual({ kind: 'refused', reason: 'call_not_found' });
-    expect(await lock(person, final, 0)).toEqual({ kind: 'refused', reason: 'call_not_found' });
+    // A read stop is not a call.
+    expect(await lock(person, { id: 's1' }, 0)).toEqual({ kind: 'refused', reason: 'call_not_found' });
     expect(await lock(person, first!, 0, { revision: 2 })).toEqual({ kind: 'refused', reason: 'exposure_required' });
-    expect(await rows(person)).toEqual({ calls: 0, results: 0 });
+    expect(await rows(person)).toEqual({ landmarks: 0, calls: 0, results: 0 });
   });
 
   it("refuses a revision the person has no activated exposure to, and another person's exposure does not count", async () => {
@@ -207,8 +217,8 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
     const opened = await recordingPerson(database);
     await openActive(c, opened, scroll, { activate: false });
     expect(await lock(opened, first!, 0)).toEqual({ kind: 'refused', reason: 'exposure_required' });
-    expect(await rows(stranger)).toEqual({ calls: 0, results: 0 });
-    expect(await rows(opened)).toEqual({ calls: 0, results: 0 });
+    expect(await rows(stranger)).toEqual({ landmarks: 0, calls: 0, results: 0 });
+    expect(await rows(opened)).toEqual({ landmarks: 0, calls: 0, results: 0 });
   });
 
   it('gives back the same results after a reload, to its owner only', async () => {
@@ -280,6 +290,8 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
     const [first, second] = callIt();
     await lock(person, first!, picks(first!).right);
     await lock(person, second!, picks(second!).wrong);
+    const final = finalCall();
+    await lock(person, final, picks(final).wrong);
     const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scopeTx) =>
       exportCurrentPerson(scopeTx, { accountId: person.accountId }, openToEveryone),
     );
@@ -293,23 +305,230 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
           calls: { question?: string; picked?: string; right: boolean }[];
         }[];
       };
+      landmarks: { items: { name: string; finish: string; earnedAt: string; scroll?: string }[] };
     };
     expect(section.scrolls.items).toHaveLength(1);
     const [item] = section.scrolls.items;
     expect(item).toMatchObject({ title: 'Why Orrin has summers and winters', sparks: 1, combo: 0 });
     expect(item!.calls.map((call) => [call.question, call.picked, call.right])).toEqual([
+      [final.prompt, final.options[picks(final).wrong], false],
       [second!.prompt, second!.options[picks(second!).wrong], false],
       [first!.prompt, first!.options[picks(first!).right], true],
     ]);
+    // The landmark is listed in words: its name, its finish, the day, and the Scroll it came from.
+    expect(section.landmarks.items).toEqual([
+      {
+        name: LEANING_AXIS.name,
+        finish: 'plain',
+        earnedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u) as string,
+        scroll: 'Why Orrin has summers and winters',
+      },
+    ]);
     expect(JSON.stringify(section)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    expect(JSON.stringify(section)).not.toContain(LEANING_AXIS.key);
+    expect(await rows(person)).toEqual({ landmarks: 1, calls: 3, results: 1 });
 
     await clearRecordingPerson(database, boss, person);
-    expect(await rows(person)).toEqual({ calls: 0, results: 0 });
+    expect(await rows(person)).toEqual({ landmarks: 0, calls: 0, results: 0 });
     const fresh = { ...person.authority, privacyEpoch: person.authority.privacyEpoch + 1 };
     expect(await play.readResults(fresh, { assetId: scroll.assetId, revision: scroll.revision })).toMatchObject({
       kind: 'results',
       results: { calls: [], sparks: 0, combo: 0 },
     });
+    expect(await play.readLandmarks(fresh)).toEqual({ kind: 'landmarks', landmarks: [] });
+  });
+});
+
+/** The landmark the `seasons` recipe names; the published Orrin fixture carries it from the plan (D-188). */
+const LEANING_AXIS = { key: 'the-leaning-axis', name: 'The Leaning Axis' };
+
+describe('The Final call and its landmark (real PostgreSQL, labelled CI fixtures)', () => {
+  let database: TestDatabase<Database>;
+  let play: PlayUseCases;
+  let c: Awaited<ReturnType<typeof scrollUseCases>>;
+  let scroll: Scroll;
+  let calls: Awaited<ReturnType<typeof callsOfRevision>>;
+  const callIt = () => calls.filter((call) => call.kind === 'call_it');
+  const finalCall = () => calls.find((call) => call.kind === 'final_call')!;
+
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('play_final');
+    await enableProductionScope(database.db);
+    scroll = await publishOrrin(database.db);
+    calls = await callsOfRevision(database, scroll);
+    c = await scrollUseCases(database, { recording: true });
+    play = playFor(database);
+  });
+  afterAll(async () => {
+    await c.close();
+    await database.drop();
+  });
+
+  async function reader() {
+    const person = await recordingPerson(database);
+    await openActive(c, person, scroll);
+    return person;
+  }
+  const lock = (
+    person: FixturePerson,
+    call: { readonly id: string },
+    option: number,
+    over: Partial<CallLockRequest> = {},
+  ) =>
+    play.lockCall(person.authority, {
+      commandId: randomUUID(),
+      assetId: scroll.assetId,
+      revision: scroll.revision,
+      stopId: call.id,
+      option,
+      recordingGeneration: 1,
+      ...over,
+    });
+  const landmarkRows = async (person: FixturePerson) =>
+    (
+      await sql<{ landmark_key: string; landmark_name: string; tier: string }>`
+        select landmark_key, landmark_name, tier from play.landmarks where universe_id = ${person.universeId}::uuid`.execute(
+        database.db,
+      )
+    ).rows;
+
+  it("carries the recipe's landmark and the tilt control in the stored revision, set by code", async () => {
+    const final = finalCall();
+    expect(final).toMatchObject({ kind: 'final_call', binding: { kind: 'tilt' } });
+    const stored = await database.db
+      .selectFrom('content.asset_revisions')
+      .select('document')
+      .where('asset_id', '=', scroll.assetId)
+      .where('revision', '=', scroll.revision)
+      .executeTakeFirstOrThrow();
+    expect((stored.document as { landmark?: unknown }).landmark).toEqual(LEANING_AXIS);
+  });
+
+  it('judges the Final call on the server, and awards the gold landmark for a right answer', async () => {
+    const person = await reader();
+    const final = finalCall();
+    const answer = await lock(person, final, picks(final).right);
+    expect(answer).toMatchObject({
+      kind: 'saved',
+      outcome: {
+        stopId: final.id,
+        correct: true,
+        newlyLocked: true,
+        results: { sparks: 1, combo: 1, landmark: { ...LEANING_AXIS, tier: 'gold' } },
+      },
+    });
+    expect(await landmarkRows(person)).toEqual([
+      { landmark_key: LEANING_AXIS.key, landmark_name: LEANING_AXIS.name, tier: 'gold' },
+    ]);
+  });
+
+  it('awards the plain landmark for a wrong Final call: it is never lost for a miss', async () => {
+    const person = await reader();
+    const final = finalCall();
+    expect(await lock(person, final, picks(final).wrong)).toMatchObject({
+      kind: 'saved',
+      outcome: { correct: false, results: { sparks: 0, combo: 0, landmark: { ...LEANING_AXIS, tier: 'plain' } } },
+    });
+    expect(await landmarkRows(person)).toMatchObject([{ tier: 'plain' }]);
+  });
+
+  it('doubles a right Final call after a combo of two, on the server, with the shared rule', async () => {
+    const person = await reader();
+    const [first, second] = callIt();
+    await lock(person, first!, picks(first!).right);
+    await lock(person, second!, picks(second!).right);
+    const final = finalCall();
+    expect(await lock(person, final, picks(final).right)).toMatchObject({
+      outcome: { results: { sparks: 4, combo: 3, landmark: { tier: 'gold' } } },
+    });
+    const broken = await reader();
+    await lock(broken, first!, picks(first!).right);
+    await lock(broken, second!, picks(second!).wrong);
+    expect(await lock(broken, final, picks(final).right)).toMatchObject({
+      outcome: { results: { sparks: 2, combo: 1 } },
+    });
+  });
+
+  it('is idempotent: a retry answers the same landmark and writes nothing, and a second lock changes nothing', async () => {
+    const person = await reader();
+    const final = finalCall();
+    const request = { commandId: randomUUID() };
+    const once = await lock(person, final, picks(final).wrong, request);
+    const again = await lock(person, final, picks(final).wrong, request);
+    expect(once).toMatchObject({ outcome: { replayed: false, results: { landmark: { tier: 'plain' } } } });
+    expect(again).toMatchObject({ outcome: { replayed: true, results: { landmark: { tier: 'plain' } } } });
+    // Another command locking the Final call again, and right this time, does not upgrade the landmark.
+    const second = await lock(person, final, picks(final).right);
+    expect(second).toMatchObject({
+      kind: 'saved',
+      outcome: { correct: false, newlyLocked: false, results: { landmark: { tier: 'plain' } } },
+    });
+    expect(await landmarkRows(person)).toHaveLength(1);
+    expect(
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int as n from play.calls where universe_id = ${person.universeId}::uuid`.execute(
+          database.db,
+        )
+      ).rows[0]!.n,
+    ).toBe(1);
+  });
+
+  it('refuses without an activated exposure and awards nothing, to a stranger or to someone who only opened it', async () => {
+    const final = finalCall();
+    const stranger = await recordingPerson(database);
+    expect(await lock(stranger, final, picks(final).right)).toEqual({ kind: 'refused', reason: 'exposure_required' });
+    const opened = await recordingPerson(database);
+    await openActive(c, opened, scroll, { activate: false });
+    expect(await lock(opened, final, picks(final).right)).toEqual({ kind: 'refused', reason: 'exposure_required' });
+    expect(await landmarkRows(stranger)).toEqual([]);
+    expect(await landmarkRows(opened)).toEqual([]);
+  });
+
+  it('awards nothing while recording is paused, and the landmark stays absent after resuming', async () => {
+    const person = await reader();
+    await sql`update identity.universes set recording_on = false, recording_generation = 2 where id = ${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    const final = finalCall();
+    expect(await lock(person, final, picks(final).right, { recordingGeneration: 2 })).toEqual({
+      kind: 'not_saved',
+      outcome: { recorded: false, reason: 'recording_paused', currentGeneration: 2 },
+    });
+    expect(await landmarkRows(person)).toEqual([]);
+    await sql`update identity.universes set recording_on = true, recording_generation = 3 where id = ${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    expect(await play.readLandmarks(person.authority)).toEqual({ kind: 'landmarks', landmarks: [] });
+    expect(
+      await play.readResults(person.authority, { assetId: scroll.assetId, revision: scroll.revision }),
+    ).toMatchObject({ kind: 'results', results: { calls: [], sparks: 0 } });
+  });
+
+  it("lists a person's own landmarks, and no one else's", async () => {
+    const mine = await reader();
+    const final = finalCall();
+    await lock(mine, final, picks(final).right);
+    const other = await reader();
+    const listed = await play.readLandmarks(mine.authority);
+    expect(listed).toMatchObject({
+      kind: 'landmarks',
+      landmarks: [
+        {
+          assetId: scroll.assetId,
+          revision: scroll.revision,
+          ...LEANING_AXIS,
+          tier: 'gold',
+          earnedAt: expect.any(String) as string,
+        },
+      ],
+    });
+    expect(await play.readLandmarks(other.authority)).toEqual({ kind: 'landmarks', landmarks: [] });
+    // Reading the results back after a reload carries the landmark too.
+    expect(
+      await playFor(database).readResults(mine.authority, { assetId: scroll.assetId, revision: scroll.revision }),
+    ).toMatchObject({ kind: 'results', results: { landmark: { ...LEANING_AXIS, tier: 'gold' } } });
   });
 });
 
@@ -365,8 +584,8 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
       at = visit.to + 100;
       return visit;
     });
-    // The person plays: each Call it is locked before the same reading is reported.
-    for (const call of (await callsOfRevision(world.database, scrolls[0]!)).filter((entry) => entry.kind === 'call_it'))
+    // The person plays: every call, the Final call included, is locked before the same reading is reported.
+    for (const call of await callsOfRevision(world.database, scrolls[0]!))
       expect(
         await play.lockCall(person.authority, {
           commandId: randomUUID(),
@@ -426,6 +645,13 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
     };
     expect(await sparks(rightReader)).toBeGreaterThan(0);
     expect(await sparks(wrongReader)).toBe(0);
+    // The landmark differs too: gold for the right Final call, plain for the wrong one.
+    const finish = async (person: FixturePerson) => {
+      const listed = await play.readLandmarks(person.authority);
+      return listed.kind === 'landmarks' ? listed.landmarks.map((landmark) => landmark.tier) : [];
+    };
+    expect(await finish(rightReader)).toEqual(['gold']);
+    expect(await finish(wrongReader)).toEqual(['plain']);
     // ... and reading does not: the same qualification, the same activity, the same contribution.
     const withoutId = (projected: typeof right.projected) => ({ ...projected, evidenceId: undefined });
     expect(withoutId(right.projected)).toEqual(withoutId(wrong.projected));

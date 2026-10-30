@@ -78,6 +78,7 @@ describe('the twenty topics of the writer spike', () => {
     expect(spikeRecipeV2('seasons-elsewhere')).toEqual({
       variant: 'plain',
       misconception: { kind: 'none' },
+      landmark: { key: 'the-sideways-giant', name: 'The Sideways Giant' },
       defaulted: false,
     });
   });

@@ -485,8 +485,9 @@ A header like v1's (`assetId`, `revision`, `language`, `explanationUnitId`, `ser
 | Field | Set by | Meaning |
 |---|---|---|
 | `misconception` | the recipe, by code | `{kind: 'myth', claim, source: {label, reviewed}}` or `{kind: 'none'}`. The source is a human-reviewed label, never model text. |
+| `landmark` (optional) | the recipe, by code | `{key, name}`: what a locked Final call awards, like "The Leaning Axis" (D-188). Absent: the Scroll awards none. Never model text. |
 | `stage` (optional) | the model's choices, settled by code | `{kit: 'earth-sky.v1', states[{stop, state, alt}]}`: the read stops that change the picture. `state` is `{view, earthAt, moonAt, focus}`, settled to what the view draws. Tilt, pins and Ray are derived from it and never stored. `alt` is derived by code. A plain Scroll has none. |
-| `stops[]` | the model | `read` (optional heading, paragraph, optional line; `simple`), `call_it` (prompt, 2 or 3 options, `answer`, `explain`, `twist`, optional `commonGuess`, `simple`) and `final_call` (the same without a common guess). Ids `s1`, `s2`, … by code. |
+| `stops[]` | the model | `read` (optional heading, paragraph, optional line; `simple`), `call_it` (prompt, 2 or 3 options, `answer`, `explain`, `twist`, optional `commonGuess`, `simple`) and `final_call` (the same without a common guess, and with an optional `binding: {kind: 'tilt'}` that code sets from the recipe: the control the reader turns on the picture, D-187). Ids `s1`, `s2`, … by code. |
 | `asides[]` | the model | `tangent`, `limits` or `definition`, with `anchorStop` (the stop it opens next to) and `collapsed`. |
 | `recap` | the model | Up to 3 captions and `smallPrintAside`, the limits aside the "Small print" chip links to. |
 | `askSuggestions[]` | the model | 1 to 3 questions for the Ask sheet. |
@@ -505,7 +506,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `aside` | new | implemented (a limits aside is required and never last) |
 | `stage` | new | model implemented (Earth & sky kit; the physics is derived by code, D-124); stage engine and drawing planned (S-1b) |
 | `call_it` | new | implemented as a stop; locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
-| `final_call` | new | implemented as the last stop; `binding` to a simulation, `bonus` and `landmark` planned (S-3) |
+| `final_call` | new | implemented as the last stop (S-3): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
 | `scale`, `scene`, `sort`, `fork`, `guide` | new | planned (slice 8) |
 | `quote`, `table`, `code`, `media` | kept | planned |
@@ -522,6 +523,7 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
 | Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
+| Final call binding | a `tilt` binding needs a stage whose picture at the Final call draws Earth's axis (any view but the Moon's) | `final_call_binding_invalid` |
 | Calls, Final call included | at most 4; at least one Call it; exactly one Final call, the last stop, whose question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `call_it_missing`, `final_call_missing`, `final_call_misplaced`, `final_call_restates_call` |
 | Other interactives | at most 2 (none is built; a constant only) | n/a |
 | Limits aside | at least one, anchored before the Final call, linked from the recap | `limits_aside_missing`, `limits_aside_last`, `recap_small_print_unknown` |
@@ -543,7 +545,7 @@ Status: **implemented**, unit-tested.
   substitute.
 - `INTERACTION_KINDS_V2`: a call reports `locked` or `revealed`, nothing else. No kind carries the option
   picked or whether it was right (D-063).
-- `tallyOf` / `talliesAfterEach` (`src/v2/play.ts`, D-064, D-180): the sparks and combo of a Scroll's calls in the order locked: a spark for each right call, the combo a run of right calls, a wrong call keeps the sparks and ends the run. A device uses it to show play at once and while recording is paused; the server keeps its own copy and judges every lock from the stored revision (`modules/play`), and a test checks the two agree. It sums nothing across Scrolls.
+- `tallyOf` / `talliesAfterEach` / `sparksEarned` / `finalBonusReady` (`src/v2/play.ts`, D-064, D-180, D-187): the sparks and combo of a Scroll's calls in the order locked: a spark for each right call, a second one for a right Final call after a combo of two or more (`COMBO_FOR_FINAL_BONUS`), the combo a run of right calls, a wrong call keeps the sparks and ends the run. A device uses it to show play at once and while recording is paused; the server judges every lock from the stored revision with its own copy of the rule (`modules/play/domain`), and a test runs both over every run of calls. `landmarkTier` is the finish of a landmark: gold for a right Final call, plain otherwise (D-188). It sums nothing across Scrolls.
 - `./internal` has `ScrollProvenanceV2` (`scroll-provenance.v2`): the claims, sources, production record
   and, per stop, aside and recap, the claims it cites.
 
@@ -564,6 +566,8 @@ Code derives the rest, by `stagePhysics` and `settleStageState`:
 - A table of the lean toward the Sun by month (the sine of the year) says which half leans toward it. That half has a high Sun, a warm pin and a steep Ray; the other half the opposite; at the equinoxes neither leans and both pins are neutral.
 - `settleStageState` sets aside what the view does not draw: the month where the view has no seasons, a Moon phase where there is no Moon, a focus on a part that is not there. `stageParts(view)` lists what each view draws.
 - `describeStageState` writes the text version and accessible name from the settled state, so it cannot contradict the picture.
+
+**The tilt of the Final call (D-187).** A Final call may hand the reader Earth's tilt (`binding: tilt`, from the recipe). `TILT_RANGE` (0 to 90 degrees in whole degrees) and `physicsAtTilt(state, tilt)` work out the Sun's latitude (`asin(sin(tilt) · sin(season))`, `sunLatitudeDegrees`), each pin's distance from it and which half leans toward the Sun, and `describeStageAtTilt` writes the text version for that tilt. At today's 23.4 degrees they agree with `stagePhysics` and `describeStageState` in every month. Properties are tested over every month and whole degree of the range. Nothing of a reader's tilt is part of a document or of what a device reports.
 
 Properties tested for every month and view: the pins and Ray agree with the season of each hemisphere (against the noon Sun height computed in the test), the halves mirror six months apart, and no description says the axis is on its side. A call never carries a stage state. Which recipes get a stage is recipe data, not the kit's: see `stageKit` in the content module's library plan (D-125).
 

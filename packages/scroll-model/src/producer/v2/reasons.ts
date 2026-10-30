@@ -22,6 +22,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   call_options_duplicate: 'Every option of a call must be different.',
   final_call_restates_call:
     'The final_call asks again what an earlier call asked. Make it a new case that uses the whole idea, with a new question and a new correct answer.',
+  final_call_binding_invalid:
+    'The final_call hands the reader Earth’s tilt, so the picture at the end must show Earth and its axis: do not end the Scroll on the Moon view.',
   aside_before_stop: 'An aside belongs to the stop before it. Put it after the stop it comments on.',
   aside_after_final_call: 'Put asides before the final_call, never after it.',
   aside_anchor_unknown: 'An aside must follow a stop or a call.',

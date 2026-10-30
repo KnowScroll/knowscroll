@@ -302,6 +302,51 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     ).toContain('reading_length_out_of_brief@measures.readingSeconds');
   });
 
+  it('takes a Final call that hands the reader the tilt only on a stage that draws the axis, and a landmark with it', () => {
+    const bound = (document: ScrollDocumentV2) => {
+      const final = call(document, document.stops.length - 1);
+      if (final.kind !== 'final_call') throw new Error('the last stop is the Final call');
+      final.binding = { kind: 'tilt' };
+      document.landmark = { key: 'ci-fixture-axis', name: 'The CI Fixture Axis' };
+    };
+    expect(broken(bound)).toEqual([]);
+    // No stage at all: there is no axis to turn.
+    expect(broken(bound, 'plain')).toEqual([
+      'final_call_binding_invalid@stops.' + String(fixture('plain').stops.length - 1) + '.binding',
+    ]);
+    // A stage that ends on the Moon view draws no axis.
+    const last = fixture().stops.length - 1;
+    expect(
+      broken((document) => {
+        bound(document);
+        const states = stageOf(document).states;
+        const state = states.at(-1);
+        if (state === undefined) throw new Error('the fixture has a stage');
+        state.state = { view: 'moon-orbit', earthAt: 'mar', moonAt: 'full', focus: 'none' };
+        state.alt = describeStageState(state.state);
+      }),
+    ).toEqual(['final_call_binding_invalid@stops.' + String(last) + '.binding']);
+  });
+
+  it('refuses a binding or a landmark that is not one the schema knows', () => {
+    expect(
+      broken((document) => {
+        const final = call(document, document.stops.length - 1);
+        if (final.kind === 'final_call') (final as { binding?: unknown }).binding = { kind: 'slider' };
+      }),
+    ).not.toEqual([]);
+    expect(
+      broken((document) => {
+        (document as { landmark?: unknown }).landmark = { key: 'Bad Key', name: 'A landmark' };
+      }),
+    ).not.toEqual([]);
+    expect(
+      broken((document) => {
+        (document as { landmark?: unknown }).landmark = { key: 'a-landmark', name: 'A landmark', points: 3 };
+      }),
+    ).not.toEqual([]);
+  });
+
   it('notes an unreviewed source without refusing the Scroll', () => {
     const document = fixture();
     if (document.misconception.kind !== 'myth') throw new Error('the fixture names a myth');

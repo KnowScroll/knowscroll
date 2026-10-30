@@ -98,8 +98,15 @@ describe('the renderer on the device', () => {
       'callsOf',
       'stageParts',
       'stagePhysics',
-      // The tally of a Scroll's calls (sparks and combo): arithmetic over locks, no admission.
+      // The tally of a Scroll's calls (sparks and combo) and the finish of a landmark: arithmetic over locks, no admission.
       'talliesAfterEach',
+      'finalBonusReady',
+      'landmarkTier',
+      // The tilt a reader turns at the Final call: the kit's physics at one angle, no grid and no admission.
+      'AXIAL_TILT_DEGREES',
+      'TILT_RANGE',
+      'physicsAtTilt',
+      'describeStageAtTilt',
     ]);
     const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
     const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>

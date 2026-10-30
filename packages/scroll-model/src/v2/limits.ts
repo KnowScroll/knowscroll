@@ -55,4 +55,5 @@ export const FIELD_LIMITS_V2 = {
   stateDescriptionChars: 600,
   claimChars: 160,
   sourceLabelChars: 120,
+  landmarkNameChars: 40,
 } as const;

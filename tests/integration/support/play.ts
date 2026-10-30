@@ -3,8 +3,8 @@ import {
   fencePersonalRecording,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
-import { READ_SCROLL_CALLS } from '@knowscroll/backend/modules/content';
-import { readScrollCalls } from '@knowscroll/backend/modules/content/nest-providers';
+import { READ_SCROLL_PLAY_FACTS } from '@knowscroll/backend/modules/content';
+import { readScrollPlayFacts } from '@knowscroll/backend/modules/content/nest-providers';
 import { HAS_ACTIVATED_EXPOSURE } from '@knowscroll/backend/modules/experience';
 import { hasActivatedExposure } from '@knowscroll/backend/modules/experience/nest-providers';
 import { FENCE_OWN_ACCOUNT, FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
@@ -24,7 +24,7 @@ export function playFor(database: TestDatabase<Database>): PlayUseCases {
     [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5_000 }).fenceOwnAccount],
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [HAS_ACTIVATED_EXPOSURE, hasActivatedExposure],
-    [READ_SCROLL_CALLS, readScrollCalls],
+    [READ_SCROLL_PLAY_FACTS, readScrollPlayFacts],
   ]);
   return buildFromProviders(playProviders({ withPersonalScope: SCOPE }), PLAY_USE_CASES, values) as PlayUseCases;
 }

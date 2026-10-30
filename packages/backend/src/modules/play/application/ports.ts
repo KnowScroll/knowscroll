@@ -1,5 +1,5 @@
 import type { HasActivatedExposure } from '../../experience/public.js';
-import type { ReadScrollCalls } from '../../content/public.js';
+import type { ReadScrollPlayFacts } from '../../content/public.js';
 import type {
   FenceOwnAccount,
   FencePersonalRecording,
@@ -7,7 +7,7 @@ import type {
   RecordingScopeTx,
   WithPersonalScope,
 } from '../../identity/public.js';
-import type { Tally } from '../domain/results.js';
+import type { LandmarkTier, Tally } from '../domain/results.js';
 
 export interface ReceiptKey {
   readonly commandId: string;
@@ -38,18 +38,41 @@ export interface NewCall extends StoredCall {
   readonly commandId: string;
 }
 
-/** Everything the person has on one Scroll revision: the calls in the order locked, and the tally. */
+/** A landmark as the person earned it: the key and name the Scroll gave, and the finish. */
+export interface StoredLandmark {
+  readonly key: string;
+  readonly name: string;
+  readonly tier: LandmarkTier;
+}
+
+export interface NewLandmark extends StoredLandmark {
+  readonly assetId: string;
+  readonly revision: number;
+}
+
+/** A landmark in the person's list: where and when it was earned. */
+export interface LandmarkListing extends NewLandmark {
+  readonly earnedAt: Date;
+}
+
+/** Everything the person has on one Scroll revision: the calls in the order locked, the tally and the landmark earned. */
 export interface StoredPlay {
   readonly calls: readonly StoredCall[];
   readonly tally: Tally;
+  /** Present once the Final call of a revision that names a landmark was locked. */
+  readonly landmark?: StoredLandmark | undefined;
 }
 
-/** `play.calls` and `play.scroll_results`. Reads use the personal scope; writes need the recording capability. */
+/** `play.calls`, `play.scroll_results` and `play.landmarks`. Reads use the personal scope; writes need the recording capability. */
 export interface PlayStore {
-  /** The person's calls and tally on one revision; nothing locked is no calls and a zero tally. */
+  /** The person's calls, tally and landmark on one revision; nothing locked is no calls and a zero tally. */
   readPlay(scope: PersonalScopeTx, assetId: string, revision: number): Promise<StoredPlay>;
   /** Stores a first lock and replaces the tally, in the caller's transaction. */
   insertCall(scope: RecordingScopeTx, call: NewCall, tally: Tally): Promise<void>;
+  /** Awards a landmark once: an award that already exists is left as it was. */
+  insertLandmark(scope: RecordingScopeTx, landmark: NewLandmark): Promise<void>;
+  /** The person's own landmarks, newest first. */
+  listLandmarks(scope: PersonalScopeTx): Promise<readonly LandmarkListing[]>;
 }
 
 export interface PlayPorts {
@@ -67,6 +90,6 @@ export interface PlayPorts {
     outcome: Readonly<Record<string, unknown>>,
   ) => Promise<void>;
   readonly hasActivatedExposure: HasActivatedExposure;
-  readonly readCalls: ReadScrollCalls;
+  readonly readFacts: ReadScrollPlayFacts;
   readonly store: PlayStore;
 }

@@ -15,21 +15,51 @@ import { RecordingGenerationSchema } from './recording.js';
  *
  * Sparks belong to one Scroll. There is no total across Scrolls, no level and no ranking of people
  * (D-064).
+ *
+ * The Final call is locked like a Call it (D-187). When a Scroll names a landmark, locking its Final
+ * call awards it, gold for a right answer and plain for any other (D-188); the landmark is part of
+ * the Scroll's results and of the person's own list. It is a trophy of one Scroll, never a level.
  */
 
 /** A call has two or three options (`scroll-limits.v2`); this is the zero-based index of one. */
 export const CallOptionSchema = z.number().int().min(0).max(2);
 
-/** What a person has locked on one Scroll revision, and what it earned. Zeroes when nothing was locked. */
+/** The finish of a landmark: gold for a right Final call, plain for any other. */
+export const LandmarkTierSchema = z.enum(['gold', 'plain']);
+
+/** A landmark a person earned: its stable key, the name they saw, and its finish. */
+export const EarnedLandmarkSchema = z.strictObject({
+  key: LocalId,
+  name: z.string().min(4).max(40),
+  tier: LandmarkTierSchema,
+});
+
+/**
+ * What a person has locked on one Scroll revision, and what it earned. Zeroes when nothing was
+ * locked. `landmark` is present once the Scroll's Final call was locked, when the Scroll names one.
+ */
 export const ScrollResultsSchema = z.strictObject({
   assetId: AssetIdSchema,
   revision: z.number().int().min(1),
-  /** The calls the person locked, in the order they locked them. At most four a Scroll. */
+  /** The calls the person locked, in the order they locked them, the Final call included. At most four a Scroll. */
   calls: z.array(z.strictObject({ stopId: LocalId, option: CallOptionSchema, correct: z.boolean() })).max(4),
-  /** One for each call that was right. */
-  sparks: z.number().int().min(0).max(4),
+  /** One for each call that was right, and one more for a right Final call after a combo of two or more. */
+  sparks: z.number().int().min(0).max(5),
   /** Right calls in a row, in the order they were locked. A wrong call ends it. */
   combo: z.number().int().min(0).max(4),
+  landmark: EarnedLandmarkSchema.optional(),
+});
+
+/** One landmark in the person's own list: which Scroll revision it was earned on, and when. */
+export const LandmarkListEntrySchema = EarnedLandmarkSchema.extend({
+  assetId: AssetIdSchema,
+  revision: z.number().int().min(1),
+  earnedAt: z.iso.datetime(),
+});
+
+/** The person's own landmarks, newest first. Their own and none else's. */
+export const ReadLandmarksResponseSchema = z.strictObject({
+  landmarks: z.array(LandmarkListEntrySchema).max(200),
 });
 
 export const ReadScrollResultsRequestSchema = z.strictObject({
@@ -85,6 +115,9 @@ export const CallLockResponseSchema = z.discriminatedUnion('recorded', [CallLock
 
 export type CallOption = z.infer<typeof CallOptionSchema>;
 export type ScrollResults = z.infer<typeof ScrollResultsSchema>;
+export type LandmarkTier = z.infer<typeof LandmarkTierSchema>;
+export type EarnedLandmark = z.infer<typeof EarnedLandmarkSchema>;
+export type ReadLandmarksResponse = z.infer<typeof ReadLandmarksResponseSchema>;
 export type ReadScrollResultsRequest = z.infer<typeof ReadScrollResultsRequestSchema>;
 export type CallLockRequest = z.infer<typeof CallLockRequestSchema>;
 export type CallLockSaved = z.infer<typeof CallLockSavedSchema>;
@@ -103,4 +136,6 @@ export const playContract = {
   lockCall: post('/v1/play/calls/lock', CallLockRequestSchema, CallLockResponseSchema),
   /** The person's own results for one revision. A read, so it works while recording is paused. */
   readResults: post('/v1/play/results/read', ReadScrollResultsRequestSchema, ScrollResultsSchema),
+  /** The person's own landmarks (the Universe's overlay reads this later). A read, so it works while recording is paused. */
+  readLandmarks: post('/v1/play/landmarks/read', z.strictObject({}), ReadLandmarksResponseSchema),
 };

@@ -32,9 +32,9 @@ function changed(
 
 describe('the v15 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v15');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v16');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v15');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v16');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
