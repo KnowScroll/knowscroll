@@ -24,6 +24,8 @@ set local statement_timeout = '60s';
 -- daily channel and topic is every other discussion; this migration creates only general and topic.
 alter table rooms.discussions
   add column kind text not null default 'topic' check (kind in ('general', 'topic', 'today'));
+-- Existing room inventory is a handful of rows at rollout; the transactional migrator cannot run CONCURRENTLY.
+-- squawk-ignore require-concurrent-index-creation
 create unique index discussions_one_general on rooms.discussions(room_id) where kind = 'general';
 
 insert into rooms.discussions (discussion_id, room_id, title, last_activity_at, created_at, kind)
