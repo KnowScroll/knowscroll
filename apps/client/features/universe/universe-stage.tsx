@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
-import { PlanetScene } from './planet-scene';
+import { PlanetStage } from './planet/planet-stage';
 import { SpaceStage } from './space/space-stage';
 import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
@@ -52,6 +52,8 @@ export function UniverseStage({
   onDust,
   stations,
   onStation,
+  visitor,
+  onRefused,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -60,9 +62,13 @@ export function UniverseStage({
   readonly onDust: () => void;
   readonly stations?: SceneProps['stations'];
   readonly onStation?: SceneProps['onStation'];
+  /** A friend's universe: a planet's globe turns but does not land. */
+  readonly visitor?: boolean;
+  /** A planet whose world could not be drawn: the screen swaps in the plain list. */
+  readonly onRefused: (planetId: string) => void;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
-  const view = viewFor(index, state.focusId);
+  const view = viewFor(index, state.focusId, state.landed);
   const responder = useMemo(() => cameraResponder(session), [session]);
   const surface = useRef<ComponentRef<typeof View>>(null);
   const zoom = (factor: number) => {
@@ -114,7 +120,9 @@ export function UniverseStage({
       ? 'Universe map. Arrow keys pan, plus and minus zoom, slash searches.'
       : view.kind === 'system'
         ? `${view.system.label} system map. Arrow keys pan, plus and minus zoom.`
-        : `${view.planet.label} planet map. Arrow keys pan, plus and minus zoom.`;
+        : view.landed
+          ? `${view.planet.label} planet map. Arrow keys pan, plus and minus zoom.`
+          : `${view.planet.label} globe. Arrow keys turn it.`;
   return (
     <View
       ref={surface}
@@ -133,7 +141,14 @@ export function UniverseStage({
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         {view.kind !== 'planet' ? <SpaceStage {...sceneProps} view={view} /> : null}
         {view.kind === 'planet' ? (
-          <PlanetScene {...sceneProps} planet={view.planet} selectedRegion={view.selectedRegion} />
+          <PlanetStage
+            {...sceneProps}
+            planet={view.planet}
+            landed={view.landed}
+            selectedRegion={view.selectedRegion}
+            visitor={visitor === true}
+            onRefused={onRefused}
+          />
         ) : null}
       </View>
     </View>

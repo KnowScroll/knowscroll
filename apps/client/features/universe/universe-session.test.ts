@@ -1,6 +1,7 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { waitFor } from '@testing-library/react-native';
+import { PLANET_ZOOM } from './planet/map-camera';
 import { ZOOM_LIMITS } from './space/camera-rig';
 import { createUniverseViewSession } from './universe-session';
 import { saveUniverseMemory } from './universe-memory';
@@ -274,9 +275,10 @@ it('opens only the displayed immutable card and returns exact scoped camera/hist
   s.setForeground(false);
   expect(encounter.back()).toBe(true);
   expect(returned).toBe(1);
-  expect(s.getState().frame).toEqual(before.frame);
-  expect(s.getState().locator).toEqual(before.locator);
-  expect(s.getState().focusId).toBe(before.focusId);
+  // U04: back from the encounter lands on the planet's map at planet level, not on the region's own camera.
+  expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: true, frame: { x: 0, y: 0, scale: 1 } });
+  expect(s.getState().locator).toMatchObject({ objectId: fixtureId(12), frame: { x: 0, y: 0, scale: 1 } });
+  expect(before.focusId).toBe(fixtureId(14));
   expect(s.getState().historyDepth).toBe(before.historyDepth);
   expect(s.getState().overlay).toBeNull();
   expect(h.calls.some((c) => /activate|observations|actions/.test(c.path))).toBe(false);
@@ -405,6 +407,7 @@ describe('what a person does on the map', () => {
     const h = universeHarness();
     saveUniverseMemory(h.scope, {
       focusId: fixtureId(999),
+      landed: false,
       frame: { x: 3, y: 4, scale: 2 },
       lately: false,
       lastPlace: { id: fixtureId(999), label: 'Gone', kind: 'planet' },
@@ -498,7 +501,77 @@ describe('device memory and routes', () => {
   });
 });
 
-it('stops the zoom of the 3D views where their camera stops, and leaves the planet drawing its own range', async () => {
+describe('landing on a planet (U03 to U04)', () => {
+  it('lands from the globe, chooses regions on the map, and steps up map to system and region to map', async () => {
+    const h = universeHarness(5, 0),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.focus(fixtureId(10));
+    s.focus(fixtureId(12));
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: false });
+    s.camera({ x: 40, y: 0, scale: 1 });
+    expect(s.land()).toBe(true);
+    // Landing starts the map at planet level: the globe's turn is not carried over.
+    expect(s.getState()).toMatchObject({ landed: true, overlay: null, frame: { x: 0, y: 0, scale: 1 } });
+    expect(s.land()).toBe(false);
+    s.focus(fixtureId(14));
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(14), landed: true, overlay: 'place' });
+    expect(s.up()).toBe(true);
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: true, overlay: null });
+    expect(s.up()).toBe(true);
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(10), landed: false });
+    // Browser Back follows where the person has been: system, then the map, then the globe.
+    s.focus(fixtureId(12));
+    s.land();
+    expect(s.back()).toBe(true);
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: false });
+    // Landing, choosing and stepping up read and write nothing but the map.
+    expect(h.calls.every((path) => path.startsWith('/v1/universe/'))).toBe(true);
+    h.scope.end();
+  });
+
+  it('lands only on a planet in view, while the screen is in front', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.focus(fixtureId(12));
+    s.setForeground(false);
+    expect(s.land()).toBe(false);
+    s.setForeground(true);
+    s.focus(fixtureId(10));
+    expect(s.land()).toBe(false);
+    s.focus(fixtureId(12));
+    s.focus(fixtureId(14));
+    expect(s.land()).toBe(false);
+    h.scope.end();
+  });
+
+  it('remembers on this device that the person had landed, and forgets it with the account', async () => {
+    const h = universeHarness();
+    saveUniverseMemory(h.scope, {
+      focusId: fixtureId(12),
+      landed: true,
+      frame: { x: 0, y: 0, scale: 1 },
+      lately: false,
+      lastPlace: { id: fixtureId(12), label: 'CI planet 2', kind: 'planet' },
+      seenAt: Date.now(),
+    });
+    const s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: true });
+    s.up();
+    s.focus(fixtureId(12));
+    expect(s.getState().landed).toBe(false);
+    expect(h.scope.storage.get('universe.view.v1')).toContain('"landed":false');
+    h.scope.end();
+    expect(h.store.keys()).toEqual([]);
+  });
+});
+
+it('stops the zoom of the 3D views where their camera stops, and gives the planet map its own range', async () => {
   const h = universeHarness(),
     s = createUniverseViewSession(h.scope);
   s.setForeground(true);
@@ -512,6 +585,8 @@ it('stops the zoom of the 3D views where their camera stops, and leaves the plan
   expect(s.getState().frame.scale).toBe(ZOOM_LIMITS.system.max);
   s.focus(fixtureId(12));
   s.camera({ x: 0, y: 0, scale: 8 });
-  expect(s.getState().frame.scale).toBe(8);
+  expect(s.getState().frame.scale).toBe(PLANET_ZOOM.max);
+  s.camera({ x: 0, y: 0, scale: 0.1 });
+  expect(s.getState().frame.scale).toBe(PLANET_ZOOM.min);
   h.scope.end();
 });

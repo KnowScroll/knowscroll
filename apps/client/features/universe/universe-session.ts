@@ -10,6 +10,7 @@ import {
 import { SCENE_LOOK_VERSION, WORLD_GENERATOR_VERSION, type SceneClientCapabilities } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneGeometry } from '@knowscroll/scene-core';
 import { boundedFrame, DRAW_LIMITS, INITIAL_FRAME, returnLocator, type UniverseFrame } from './universe-camera';
+import { PLANET_ZOOM } from './planet/map-camera';
 import { ZOOM_LIMITS } from './space/camera-rig';
 import { createCameraHistory, type CameraEntry } from './universe-camera-history';
 import { createDeviceMemory } from './universe-device-memory';
@@ -26,6 +27,8 @@ export type { UniversePlace } from './universe-places';
 export type { DustState } from './universe-dust';
 
 export interface UniverseViewState extends CameraEntry {
+  /** On a planet: its landed map (U04) is showing instead of its globe (U03). A focused region is always landed. */
+  readonly landed: boolean;
   readonly read: UniverseSceneState;
   readonly overlay: 'outline' | 'place' | 'search' | null;
   readonly detail: 'full' | 'low';
@@ -85,6 +88,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     read: core.getState(),
     frame: { ...INITIAL_FRAME },
     focusId: null,
+    landed: false,
     overlay: null,
     detail,
     reducedMotion,
@@ -127,6 +131,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       history.clear();
       publish({
         focusId: null,
+        landed: false,
         frame: { ...INITIAL_FRAME },
         locator: undefined,
         overlay: null,
@@ -140,7 +145,9 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     const restored = memory.restore((id) => places().some((place) => place.id === id));
     if (!restored) return;
     publish({
-      ...(restored.camera ? { focusId: restored.camera.focusId, frame: restored.camera.frame } : {}),
+      ...(restored.camera
+        ? { focusId: restored.camera.focusId, frame: restored.camera.frame, landed: restored.camera.landed }
+        : {}),
       lastPlace: restored.lastPlace,
       absent: restored.absent,
     });
@@ -158,6 +165,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         read,
         frame: { ...INITIAL_FRAME },
         focusId: null,
+        landed: false,
         locator: undefined,
         overlay: null,
         notice: undefined,
@@ -170,7 +178,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     formation.update();
     if (state.focusId && (read.snapshot || read.geography) && !validCamera(state)) {
       history.clear();
-      publish({ focusId: null, locator: undefined, overlay: null, notice: 'place_unavailable' });
+      publish({ focusId: null, landed: false, locator: undefined, overlay: null, notice: 'place_unavailable' });
     }
     if (!hadSnapshot && read.snapshot) restoreMemory();
     if (read.geography) dust.seeGeography(read.geography.geography.revision);
@@ -191,6 +199,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       notice: undefined,
       frame: { ...INITIAL_FRAME },
       focusId: null,
+      landed: false,
       locator: undefined,
       overlay: null,
       selectedId: null,
@@ -222,7 +231,12 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     const planet = all.find((place) => place.id === region?.parentId);
     return [region?.label, planet?.label].filter((part) => part !== undefined && part !== '').join(' · ');
   };
-  const here = (): CameraEntry => ({ frame: { ...state.frame }, focusId: state.focusId, locator: state.locator });
+  const here = (): CameraEntry => ({
+    frame: { ...state.frame },
+    focusId: state.focusId,
+    locator: state.locator,
+    landed: state.landed,
+  });
   const focus = (id: string) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
     cancelPreview();
@@ -240,6 +254,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     if (state.youWereHere === id) clearHereMarker(scope);
     publish({
       focusId: id,
+      // A planet opens as its globe; a region is only ever chosen on the map.
+      landed: place.kind === 'region',
       notice: undefined,
       frame,
       overlay: null,
@@ -253,6 +269,20 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     // A region opens its card at once: choosing a pin is how a person lands on it (U04).
     if (place.kind === 'region') showOverlay('place');
     return true;
+  };
+  /** The camera on a region's planet, landed, at planet level: where the person comes back to from an encounter. */
+  const planetMapCamera = (regionId: string): CameraEntry => {
+    const planetId = places().find((place) => place.id === regionId)?.parentId ?? null;
+    const frame = { ...INITIAL_FRAME };
+    const chunk = planetId
+      ? state.read.snapshot?.chunks.find((c) => c.objects.some((o) => o.objectId === planetId))
+      : undefined;
+    return {
+      frame,
+      focusId: planetId,
+      landed: true,
+      locator: chunk && planetId ? returnLocator(chunk.chunkId, planetId, frame) : undefined,
+    };
   };
   const back = () => {
     if (!live() || !foreground) return false;
@@ -365,7 +395,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         JSON.stringify(selected) !== JSON.stringify(displayed.target)
       )
         return false;
-      const saved = { camera: here(), history: history.snapshot() };
+      // Back from the encounter lands on the planet's map, at planet level, with the region marked (U04).
+      const saved = { camera: planetMapCamera(selected.regionId), history: history.snapshot() };
       const accepted = encounterSessionFor(scope).openRegion(displayed, regionChipOf(selected.regionId), () => {
         if (!live() || returnPoint !== saved) return;
         history.restore(saved.history);
@@ -388,13 +419,9 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
           ? ZOOM_LIMITS.universe
           : kind === 'system' || kind === 'star'
             ? ZOOM_LIMITS.system
-            : undefined;
+            : PLANET_ZOOM;
       const bounded = boundedFrame(frame);
-      withFrame(
-        limits === undefined
-          ? bounded
-          : { ...bounded, scale: Math.min(limits.max, Math.max(limits.min, bounded.scale)) },
-      );
+      withFrame({ ...bounded, scale: Math.min(limits.max, Math.max(limits.min, bounded.scale)) });
     },
     /** Frames the current view as the screen first draws it. */
     fit() {
@@ -419,18 +446,44 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     up() {
       if (!live() || !foreground) return false;
       const all = places();
-      const parentId = all.find((place) => place.id === state.focusId)?.parentId;
-      const parent = all.find((place) => place.id === parentId && place.kind !== 'star');
+      const place = all.find((candidate) => candidate.id === state.focusId);
+      const parentId = place?.parentId;
+      const parent = all.find((candidate) => candidate.id === parentId && candidate.kind !== 'star');
       cancelPreview();
       formation.skip();
       history.push(here());
+      // A region steps up to its planet's map, where the person was; everything else to its parent.
       publish({
         focusId: parent?.id ?? null,
+        landed: place?.kind === 'region' && parent !== undefined,
         frame: { ...INITIAL_FRAME },
         locator: undefined,
         overlay: null,
         selectedId: null,
         notice: undefined,
+      });
+      memory.saveNow();
+      return true;
+    },
+    /**
+     * Lands on the planet in focus: its globe gives way to its map at planet level, nothing chosen.
+     * A step of the camera only: it reads nothing and writes nothing.
+     */
+    land() {
+      if (!live() || !foreground) return false;
+      const focused = places().find((candidate) => candidate.id === state.focusId);
+      if (focused?.kind !== 'planet' || state.landed) return false;
+      cancelPreview();
+      formation.skip();
+      history.push(here());
+      const frame = { ...INITIAL_FRAME };
+      publish({
+        landed: true,
+        frame,
+        overlay: null,
+        selectedId: null,
+        notice: undefined,
+        locator: state.locator ? returnLocator(state.locator.chunkId, state.locator.objectId!, frame) : undefined,
       });
       memory.saveNow();
       return true;

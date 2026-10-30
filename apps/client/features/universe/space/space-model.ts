@@ -40,7 +40,7 @@ export function looksById(looks: readonly SceneLook[] | undefined): ReadonlyMap<
 }
 
 /** The plain colour set a palette stands for, for a place that has no look yet. */
-const PLAIN_TYPE: Readonly<Record<SceneDescriptor['palette'], PlanetType>> = {
+export const PLAIN_TYPE: Readonly<Record<SceneDescriptor['palette'], PlanetType>> = {
   sage: 'lush',
   ochre: 'barren',
   cobalt: 'ocean',

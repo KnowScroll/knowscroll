@@ -280,7 +280,8 @@ Geography and Scenes path and the CI fixture model; not on dev).
 | Capability                                                                                   | Status                           |
 | -------------------------------------------------------------------------------------------- | -------------------------------- |
 | Overview and Far levels and a system, drawn in 3D (v3 U-2, D-106, D-107)                     | runtime-verified (web); Android: lane |
-| Planet and region views, region card and Open/return (SVG)                                   | runtime-verified                 |
+| Planet globe (U03), landed map (U04), region card and Open/return, from the world generator (v3 U-4, D-108 to D-110) | runtime-verified (web); native: not driven |
+| Land not reached yet: grey outlines on the map only, never named, counted or chosen (D-109)  | runtime-verified (web, accessibility snapshot) |
 | Dust cues and their note                                                                     | runtime-verified                 |
 | Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
 | Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
@@ -306,16 +307,26 @@ float over it.
 - **Labels and targets stay views.** `space-overlay.tsx` places a 48 px button and a label (`placeLabels`) at each
   projected point (a target shrinks, never below 24 px, only where bodies crowd each other: D-107); the canvas is hidden from assistive technology. Where 3D cannot run (no WebGL, a lost context, a
   failed frame, low memory) `SpaceSimpleLists` shows the same names in the same order and every place still opens.
-- **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
-  persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
-  palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
-  the camera and opens its card with one encounter. Open goes through the real encounter engine; the
-  encounter carries a "From <region> · <planet>" chip that is Back (`encounterOrigin`, the same chip as
-  the format switch's), and Back, by button or chip, returns to the same view with the card closed. The
-  region left through its card then shows "<region> · you were here" and a ring (`universe-here-marker.ts`):
-  a private marker kept in the account scope's storage (purged with the scope, dropped after 14 days),
-  cleared when the person chooses that region again. The card offers Open and Close only: there is
-  no read yet for more encounters from a region.
+- **Planet globe (U03) and landed map (U04)** (`planet/`, D-108 to D-110). A planet opens as a globe: every continent in
+  full colour under clouds, turning once in 70 s, with the ring and the moon its look gives it, and the names of the
+  regions that have formed written on it. A drag turns it (the camera's pan, in reduced motion the only thing that does);
+  "Drag to rotate · tap to land" and one "Land on <planet>" button take the person to the map at planet level. The map is
+  the same planet flat, with irregular region borders: formed regions in colour with their names in screen space (never
+  scaled with the camera), land not reached yet in flat grey under cloud (D-109). Choosing a region drops the camera
+  about twice as close, dims the rest and opens a dark-glass card with one encounter. Everything is drawn from
+  `scene-core`'s `worldmap.v1` generator (`buildGlobe`, `buildMap`, `chartWorld`) by `use-planet-world.ts`, built after
+  the first frame and kept by the session. The look (type, hue, rings, moon, sites) is the server's; a planet without
+  one is drawn plainly, regions on sites in the order they were made. A press within 350 ms of the camera moving is
+  ignored, so a drag that ends over a region or the globe does not choose or land. Back from an encounter lands on
+  the planet's map at planet level, with the region marked "<region> · you were here" and an orange dot
+  (`universe-here-marker.ts`: a private marker kept in the account scope's storage, purged with the scope, dropped after
+  14 days, cleared when the person chooses that region again). The card offers Open and Close only: there is no read
+  yet for more encounters from a region. Open goes through the real encounter engine; the encounter carries a
+  "From <region> · <planet>" chip that is Back (`encounterOrigin`).
+- **Accessibility of the planet views.** The drawing is hidden from assistive technology. The globe has one control, and a
+  formed region on the map is one 48 px target named "Name, a region", in site order; the plain list (Simple drawing) names
+  the same regions in the same order. Grey land has no target, no text and no press handler. A friend's planet turns
+  but does not land.
 - **Routes.** Only the Cartographer's routes (between planets of one system) exist, and they are a "Route to B"
   chip on a planet (D-074). No line is drawn on any screen.
 - **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn as toon nebulae
@@ -337,13 +348,13 @@ float over it.
   or command. Only the Reel or Scroll that Open starts is an encounter.
 
 Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on the web pans with
-arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
+arrows (on a globe they turn it), zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
 token; reduced motion stops drift and plays the formation as one still.
 
 ### Space renderer (v3 U-0 gate, U-2 in use; D-073, D-100, D-106, D-107)
 
 `features/universe/space/` draws the space views with three.js. The Universe tab uses it for the Overview, Far, a
-system and the Empty, loading and Offline sky; planet and region views stay SVG. It is also reached through the
+system and the Empty, loading and Offline sky; a planet's globe and map are SVG (D-108). It is also reached through the
 developer gallery page `/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; `?scene=universe` draws the
 tab's own layout of a labelled sample universe, for the frame numbers).
 
@@ -376,10 +387,11 @@ smokes are `e2e/space-gallery.spec.ts` and `e2e/universe-space-smoke.spec.ts`; t
 `maestro/space.yaml` and `maestro/universe.yaml`.
 
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
-(pure placement of regions and labels), `space/` (the 3D views, above), `planet-scene.tsx` (the SVG planet),
-`universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
+(pure placement of labels and the outline), `space/` (the 3D views, above), `planet/` (the SVG globe and landed
+map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the formation story's star and planet),
+`universe-surface.tsx` (phone and desktop layout),
 `universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
-`formation-presentation.tsx`. Choices are in D-039.
+`formation-presentation.tsx`. Choices are in D-039, D-108 to D-110.
 
 ## Mounted Keep lifecycle
 
