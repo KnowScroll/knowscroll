@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Internals 05</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  World internals, round 05 (systems rendered with the U08 Far / U02 System 3D code; sun glow a fifth dimmer, haze a little fuller): the orbit dial with a wheel of systems (O1 wheel turning, O2 system search and filter, O3 dial at rest, O4 planet search).
+  Built on the approved looks: the 3D space overview from universe-above/universe-drafts-05.html (behind search) and the
+  landed map and planet palette from world-views/world-views-04.html (behind the outline sheet, and flattened for low detail).
+  Chrome follows the goScroll language used in world views: cream pills, dark glass cards, glass tab bar.
+-->
+<style>
+
+:root{
+  --paper:#FFFBF0; --cream:#fffdf2; --ink:#111111; --ink2:#4A463D; --accent:#2C46E8; --orange:#ff684c; --focus:#FFE44D;
+  --f-display:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;
+  --f-text:'Instrument Sans',system-ui,sans-serif;
+  --f-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --page:#0C0C0E; --page-ink:#F2EEE3; --page-ink2:#A29C8E; --page-edge:rgba(242,238,227,.16);
+}
+:root[data-theme="light"]{ --page:#E9E4D6; --page-ink:#111111; --page-ink2:#5B5649; --page-edge:rgba(17,17,17,.18); }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--page);color:var(--page-ink);font-family:var(--f-text);padding:32px 16px 80px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.intro{max-width:1240px;margin:0 auto 18px}
+.intro .kicker{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.intro h1{font:800 36px/40px var(--f-display);letter-spacing:-.02em;margin-top:6px}
+.intro p{color:var(--page-ink2);font-size:15px;line-height:22px;margin-top:8px;max-width:860px}
+.jump{max-width:1240px;margin:16px auto 30px;display:flex;flex-wrap:wrap;gap:8px}
+.jump a,.jump button{border:1.5px solid var(--page-edge);border-radius:999px;padding:8px 14px;font:600 13px/1 var(--f-text);color:var(--page-ink);text-decoration:none}
+.planet-row{max-width:1300px;margin:0 auto 56px;content-visibility:auto;contain-intrinsic-size:1000px}
+.planet-row>header{margin:0 0 16px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.planet-row h2{font:800 24px/28px var(--f-display);letter-spacing:-.01em}
+.planet-row header span{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.phones{display:flex;flex-wrap:wrap;gap:28px;justify-content:center}
+figure{display:flex;flex-direction:column;gap:10px;width:390px}
+figcaption b{font:500 11px/14px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;display:block;color:var(--page-ink2)}
+figcaption span{font:700 16px/21px var(--f-display);display:block;margin-top:2px}
+figcaption small{font-size:12.5px;line-height:18px;color:var(--page-ink2);display:block;margin-top:3px}
+
+/* ---------- phone ---------- */
+.phone{width:390px;height:844px;position:relative;overflow:hidden;border-radius:38px;background:#000;
+  box-shadow:0 0 0 8px #050505,0 0 0 9px #26272b,0 30px 60px -24px rgba(0,0,0,.8);isolation:isolate;color:var(--cream)}
+.paused *{animation-play-state:paused!important}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;justify-content:space-between;align-items:center;padding:0 30px 0 34px;font:600 15px/1 var(--f-text);z-index:40;pointer-events:none}
+.statusbar i{width:26px;height:12px;border:1.5px solid currentColor;border-radius:4px;display:inline-block;position:relative}
+.statusbar i:after{content:"";position:absolute;inset:1.5px;right:5px;background:currentColor;border-radius:1.5px}
+.starfield{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#0a0d14 0,#000 70%)}
+.starfield svg{position:absolute;inset:0}
+
+/* top bar: goScroll pill */
+.map-top{position:absolute;z-index:30;left:14px;right:14px;top:56px;display:flex;align-items:center;gap:8px}
+.pill{display:flex;align-items:center;gap:8px;height:42px;padding:0 14px 0 10px;border:1px solid rgba(21,48,42,.2);border-radius:15px;background:rgba(255,253,242,.94);
+  color:#15302a;font:800 14px/1 var(--f-text);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 6px 18px -8px rgba(0,0,0,.5)}
+.pill svg{width:17px;height:17px}
+.level-chip{padding:4px 8px;border-radius:99px;background:var(--orange);color:#fff;font:800 10px/1 var(--f-text);letter-spacing:.11em;text-transform:uppercase}
+
+/* ---------- U03: the globe ---------- */
+.globe-wrap{position:absolute;z-index:5;left:50%;top:372px;width:292px;height:292px;transform:translate(-50%,-50%)}
+.atmosphere{position:absolute;inset:-12px;border-radius:50%;border:1px solid var(--atmo-line);box-shadow:0 0 26px var(--atmo-glow),inset 0 0 18px var(--atmo-glow)}
+.globe{position:absolute;inset:0;overflow:hidden;border-radius:50%;border:2px solid var(--rim);background:var(--globe-bg);
+  box-shadow:0 28px 58px rgba(0,0,0,.52),inset -28px -16px 52px rgba(2,10,20,.45)}
+.globe .surface{position:absolute;left:0;top:50%;margin-top:-180px;width:960px;height:360px;animation:spin 70s linear infinite}
+@keyframes spin{to{transform:translateX(-480px)}}
+.cloudband{animation:cloudspin 46s linear infinite}
+@keyframes cloudspin{to{transform:translateX(-480px)}}
+.globe .caps{position:absolute;inset:0;pointer-events:none}
+.shade{position:absolute;inset:-1px;border-radius:50%;background:radial-gradient(circle at 31% 24%,transparent 0 42%,rgba(5,15,30,.1) 56%,rgba(3,8,20,.74) 95%);pointer-events:none}
+.glint{position:absolute;inset:5% 34% 48% 11%;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.3),transparent 72%);transform:rotate(-26deg);filter:blur(8px);pointer-events:none}
+.ring{position:absolute;left:50%;top:372px;width:470px;height:470px;transform:translate(-50%,-50%);pointer-events:none}
+.ring.back{z-index:4}.ring.front{z-index:6}
+.moon{position:absolute;z-index:6;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;pointer-events:none;will-change:transform}
+.moon svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 12px rgba(255,249,226,.3))}
+.moon.behind{z-index:4;opacity:.7}
+.caption{position:absolute;z-index:10;left:24px;right:24px;top:556px;display:flex;flex-direction:column;gap:6px}
+.caption .eyebrow{font:500 11px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(255,253,242,.7)}
+.caption h1{font:800 32px/36px var(--f-display);letter-spacing:-.02em}
+.hint{display:flex;align-items:center;gap:8px;margin-top:4px;color:#b8e2e3;font:700 13px/1 var(--f-text)}
+.hint span{display:grid;width:26px;height:26px;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:50%;font-size:13px}
+
+/* ---------- U04: the landed map ---------- */
+.map{position:absolute;inset:0}
+.map svg{position:absolute;inset:0;width:390px;height:844px;display:block}
+.current-a{animation:current-drift 9s linear infinite}
+.current-b{animation:current-drift 14s linear infinite;opacity:.7}
+@keyframes current-drift{to{stroke-dashoffset:-37}}
+.cloud{animation:cloud-drift var(--d,12s) ease-in-out infinite alternate}
+@keyframes cloud-drift{from{transform:translateX(calc(var(--dx,6px)*-1))}to{transform:translateX(var(--dx,6px))}}
+.band-drift{animation:band 60s linear infinite}
+@keyframes band{to{transform:translateX(-390px)}}
+.bubble{animation:bubble 3.6s ease-in-out infinite}
+@keyframes bubble{0%,100%{opacity:.2}50%{opacity:1}}
+.port-ping{animation:ping 2.6s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ping{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.4);opacity:0}}
+.storm{animation:storm 40s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes storm{to{transform:rotate(360deg)}}
+
+/* goScroll map card, with the app's actions */
+.map-card{position:absolute;z-index:30;left:14px;right:14px;bottom:106px;padding:15px 16px 14px;border:1px solid rgba(255,255,255,.15);border-radius:24px;
+  background:rgba(6,26,38,.74);color:#fff;box-shadow:0 20px 46px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.14);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3)}
+.mc-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mc-kind{display:flex;align-items:center;gap:8px;color:var(--mc,#8edbe0);font:800 11px/1 var(--f-text);letter-spacing:.14em;text-transform:uppercase}
+.mc-kind::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent-c);box-shadow:0 0 10px var(--accent-c)}
+.mc-x{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff}
+.map-card h1{margin:9px 0 5px;font:800 23px/27px var(--f-display);letter-spacing:-.02em}
+.map-card p{color:rgba(214,238,245,.75);font:500 14px/20px var(--f-text)}
+.mc-acts{display:flex;gap:8px;margin-top:13px}
+.go{flex:1;display:flex;align-items:center;justify-content:space-between;height:48px;padding:0 8px 0 16px;border-radius:15px;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);font:800 15px/1 var(--f-text)}
+.go::after{content:"→";display:grid;width:32px;height:32px;place-items:center;border-radius:10px;background:var(--accent-c);color:#0b2028;font-size:16px}
+.ghost{display:flex;align-items:center;height:48px;padding:0 18px;border-radius:15px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);font:800 15px/1 var(--f-text)}
+
+/* bottom chips (app actions in goScroll language) */
+.chips{position:absolute;z-index:30;left:14px;right:14px;bottom:106px;display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 15px;border-radius:999px;font:800 14px/1 var(--f-text);white-space:nowrap}
+.chip.light{background:rgba(255,253,242,.94);color:#15302a;box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.chip.dark{background:rgba(6,20,30,.6);color:#fff;border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.chip svg{width:16px;height:16px}
+
+/* goScroll glass nav, app destinations */
+.worldnav{position:absolute;z-index:35;left:14px;right:14px;bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px;border:1px solid rgba(255,255,255,.15);
+  border-radius:24px;background:rgba(10,20,28,.42);box-shadow:0 18px 40px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.14);backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35)}
+.nav-tab{display:grid;gap:5px;justify-items:center;padding:9px 4px 8px;color:rgba(255,255,255,.6);border-radius:17px;font:800 11px/1 var(--f-text)}
+.nav-tab svg{width:21px;height:21px}
+.nav-tab.is-active{color:#fff;background:rgba(255,255,255,.13);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (max-width:440px){figure{width:100%}.phone{transform:scale(.86);transform-origin:top left;margin-bottom:-118px}}
+
+/* ---------- the 3D space behind search (approved space look, universe-drafts-05) ---------- */
+.phone canvas{position:absolute;inset:0;width:390px;height:844px;display:block}
+.labels{position:absolute;inset:0;pointer-events:none;z-index:1}
+.lbl{position:absolute;left:0;top:0;font:700 14px/18px var(--f-display);color:var(--cream);white-space:nowrap;text-shadow:0 0 6px rgba(0,0,0,.95),0 0 2px #000;will-change:transform}
+.lbl.sm{font-size:12.5px}
+.dimtop{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.86) 0,rgba(0,0,0,.6) 40%,rgba(0,0,0,.28) 72%,rgba(0,0,0,.45) 100%)}
+
+/* glyphs: one per kind of place, used in search results and the outline */
+.g-sun{display:inline-block;border-radius:50%;flex:none;background:radial-gradient(circle at 40% 38%,#fff3c4 0,#ffb347 36%,#ff6a2a 78%);box-shadow:0 0 10px rgba(255,140,60,.7)}
+.g-planet{position:relative;display:inline-block;border-radius:50%;flex:none;box-shadow:inset -3px -2px 4px rgba(0,0,0,.32)}
+.g-planet.ringed::after{content:"";position:absolute;left:-38%;right:-38%;top:40%;height:20%;border-radius:50%;border:2px solid var(--ring);transform:rotate(-16deg)}
+.g-region{flex:none;overflow:visible}
+
+/* ---------- U08: search ---------- */
+.s-top{position:absolute;z-index:30;left:14px;right:14px;top:56px;display:flex;gap:8px}
+.field{flex:1;min-width:0;height:50px;display:flex;align-items:center;gap:10px;padding:0 8px 0 14px;border-radius:16px;background:rgba(255,253,242,.97);color:#15302a;
+  font:600 16px/1 var(--f-text);box-shadow:0 0 0 2px var(--focus),0 10px 24px -10px rgba(0,0,0,.7)}
+.field svg{width:20px;height:20px;flex:none}
+.field .ph{color:rgba(21,48,42,.5);font-weight:500}
+.caret{width:2px;height:22px;background:#15302a;border-radius:1px;margin-left:-8px;animation:blink 1.05s steps(1) infinite}
+.caret.lead{margin:0 -7px 0 -4px}
+@keyframes blink{50%{opacity:0}}
+.field .clr{margin-left:auto;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(21,48,42,.1)}
+.field .clr svg{width:14px;height:14px}
+.cancel{height:50px;display:flex;align-items:center;padding:0 16px;border-radius:16px;background:rgba(6,20,30,.6);border:1px solid rgba(255,255,255,.2);color:#fff;
+  font:800 14px/1 var(--f-text);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.glass{border:1px solid rgba(255,255,255,.15);border-radius:22px;background:rgba(6,22,32,.8);color:#fff;box-shadow:0 20px 46px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.14);
+  backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3)}
+.results{position:absolute;z-index:30;left:14px;right:14px;top:118px;padding:6px}
+.res-head{display:flex;justify-content:space-between;padding:10px 12px 8px;font:500 10.5px/13px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(214,238,245,.6)}
+.res{display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 10px;border-radius:16px}
+.res.top{background:rgba(255,255,255,.09);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.res + .res:not(.top){border-top:1px solid rgba(255,255,255,.08);border-radius:0}
+.res .gw{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.07);display:grid;place-items:center;flex:none}
+.res .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.res .tt{font:800 16px/20px var(--f-text)}
+.res mark{background:none;color:var(--focus);box-shadow:inset 0 -2px 0 rgba(255,228,77,.55)}
+.res .pp{font:500 10.5px/13px var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:rgba(214,238,245,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res .fly{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:rgba(255,255,255,.55);flex:none}
+.res.top .fly{background:var(--focus);color:#111}
+.res .fly svg{width:16px;height:16px}
+.rfoot{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;font:600 12px/16px var(--f-text);color:rgba(214,238,245,.58)}
+.rfoot svg{width:14px;height:14px;flex:none}
+.hintcard{position:absolute;z-index:30;left:14px;right:14px;top:118px;padding:18px 16px 16px}
+.hintcard h2{font:800 20px/24px var(--f-display);letter-spacing:-.01em}
+.hintcard p{font:500 14px/20px var(--f-text);color:rgba(214,238,245,.75);margin-top:6px}
+.kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.kind{display:flex;align-items:center;gap:10px;height:46px;padding:0 12px;border-radius:14px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);font:700 14px/1 var(--f-text)}
+.kind .gb{width:22px;display:grid;place-items:center}
+
+/* ---------- U08: the outline sheet ---------- */
+.scrim{position:absolute;inset:0;z-index:50;background:rgba(2,8,14,.58)}
+.sheet{position:absolute;z-index:51;left:0;right:0;bottom:0;height:86%;background:#fffdf2;color:#15302a;border-radius:30px 30px 0 0;padding:10px 14px 0;display:flex;flex-direction:column;
+  box-shadow:0 -24px 60px rgba(0,0,0,.55)}
+.grab{align-self:center;width:44px;height:5px;border-radius:9px;background:rgba(21,48,42,.25);flex:none}
+.sh-head{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:0 4px 0 6px}
+.sh-head h2{font:800 28px/32px var(--f-display);letter-spacing:-.02em}
+.sh-head p{font:500 13px/18px var(--f-text);color:rgba(21,48,42,.66);margin-top:2px}
+.sh-x{width:42px;height:42px;border-radius:50%;background:rgba(21,48,42,.08);display:grid;place-items:center;flex:none}
+.sh-x svg{width:18px;height:18px}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.tog{border-radius:16px;background:#f4edd8;padding:11px 12px 12px;display:flex;flex-direction:column;gap:6px}
+.tog .tr{display:flex;align-items:center;justify-content:space-between;gap:8px;font:800 14px/1 var(--f-text)}
+.tog small{font:500 12px/15px var(--f-text);color:rgba(21,48,42,.66)}
+.sw{width:40px;height:24px;border-radius:12px;background:rgba(21,48,42,.22);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw.on{background:#14C79B}.sw.on::after{left:19px}
+.sh-label{display:flex;justify-content:space-between;font:500 11px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(21,48,42,.58);padding:18px 8px 6px}
+.outline{position:relative;flex:1;overflow:hidden;-webkit-mask-image:linear-gradient(#000 80%,transparent 98%);mask-image:linear-gradient(#000 80%,transparent 98%)}
+.orow{position:relative;height:48px;display:flex;align-items:center;gap:10px;padding-right:12px;border-radius:14px}
+.orow.anc{background:#f4edd8}
+.orow.cur{background:var(--focus);box-shadow:inset 0 0 0 2px #15302a}
+.orow .tw{width:18px;display:grid;place-items:center;color:rgba(21,48,42,.5);flex:none}
+.orow .tw svg{width:14px;height:14px}
+.orow .ot{flex:1;min-width:0;font:700 15px/1.2 var(--f-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orow.d0 .ot{font:800 17px/1.2 var(--f-display);letter-spacing:-.01em}
+.orow .ok{font:500 10.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:rgba(21,48,42,.58);white-space:nowrap}
+.orow.cur .ok{color:#15302a}
+.orow .guide{position:absolute;top:-2px;bottom:-2px;width:1.5px;background:rgba(21,48,42,.16)}
+.orow .here{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:11px;background:#15302a;color:#FFE44D;font:800 10px/1 var(--f-text);letter-spacing:.08em;text-transform:uppercase}
+
+/* ---------- U03: low detail (simple drawing) ---------- */
+.phone.flat{background:#0b0e13}
+.tag-plain{height:30px;display:inline-flex;align-items:center;padding:0 10px;border-radius:10px;border:1px solid rgba(255,253,242,.35);font:800 10px/1 var(--f-text);letter-spacing:.11em;text-transform:uppercase;color:#fffdf2;background:#141a22}
+.ld-head{position:absolute;left:20px;right:20px;top:114px;display:flex;flex-direction:column;gap:4px}
+.ld-head .eyebrow{font:500 11px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(255,253,242,.7)}
+.ld-head h1{font:800 30px/34px var(--f-display);letter-spacing:-.02em}
+.ld-map{position:absolute;left:16px;right:16px;top:176px;height:340px;border-radius:22px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,253,242,.14)}
+.ld-map svg{display:block}
+.ld-legend{position:absolute;left:20px;right:20px;top:528px;display:flex;gap:16px;font:600 12px/16px var(--f-text);color:rgba(255,253,242,.72)}
+.ld-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.ld-regions{position:absolute;left:16px;right:16px;top:558px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rbtn{height:48px;display:flex;align-items:center;gap:10px;padding:0 10px 0 12px;border-radius:15px;background:#fffdf2;color:#15302a;font:800 14px/1 var(--f-text);white-space:nowrap}
+.rbtn .ch{margin-left:auto;width:16px;height:16px;opacity:.55}
+.flat .worldnav{background:#141a22;backdrop-filter:none;-webkit-backdrop-filter:none}
+.flat .chip.dark{background:#141a22;backdrop-filter:none;-webkit-backdrop-filter:none}
+.flat .pill{backdrop-filter:none;-webkit-backdrop-filter:none;background:#fffdf2}
+.tools{max-width:1240px;margin:0 auto 26px;display:flex;flex-wrap:wrap;gap:8px}
+.tools button{border:1.5px solid var(--page-edge);border-radius:999px;padding:8px 14px;font:600 13px/1 var(--f-text)}
+.grid{display:flex;flex-wrap:wrap;gap:40px 28px;justify-content:center;max-width:1760px;margin:0 auto}
+#err{position:fixed;left:12px;bottom:12px;max-width:600px;background:#B23A0B;color:#fff;font:12px/16px var(--f-mono);padding:10px;border-radius:8px;display:none;white-space:pre-wrap;z-index:99}
+
+/* ===================== round 02 ===================== */
+.sec{max-width:1300px;margin:0 auto 60px}
+.sec>header{margin:0 auto 20px;max-width:1240px}
+.sec .tag{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.sec h2{font:800 24px/28px var(--f-display);letter-spacing:-.01em;margin-top:4px}
+.sec header p{color:var(--page-ink2);font-size:14px;line-height:21px;margin-top:6px;max-width:860px}
+.brain{max-width:1240px;margin:0 auto 48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+.brain div{border:1px solid var(--page-edge);border-radius:18px;padding:16px 16px 18px}
+.brain b{font:800 16px/20px var(--f-display);display:block}
+.brain p{font-size:13.5px;line-height:20px;color:var(--page-ink2);margin-top:6px}
+
+/* the U03 globe, scaled down */
+.mg{position:relative;flex:none}
+.mg-in{position:absolute;left:0;top:0;width:292px;height:292px;transform-origin:0 0}
+.mg .globe-wrap{top:50%}
+.mg .ring{top:50%}
+
+/* where you are */
+.crumbs{position:absolute;z-index:30;left:14px;right:14px;top:56px;display:flex;align-items:center;gap:8px}
+.here-chip{display:flex;align-items:center;gap:8px;height:42px;padding:0 14px 0 12px;border-radius:15px;background:rgba(6,20,30,.62);border:1px solid rgba(255,255,255,.22);color:#fff;
+  font:800 14px/1 var(--f-text);white-space:nowrap;min-width:0;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.swipe{position:absolute;z-index:30;left:0;right:0;text-align:center;font:500 10.5px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(255,253,242,.66)}
+.dots{position:absolute;z-index:30;left:0;right:0;display:flex;justify-content:center;gap:6px}
+.dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.35)}
+.dots i.on{width:20px;background:var(--focus)}
+
+/* carousel cards */
+.car{position:absolute;left:0;right:0;z-index:30}
+.ccard{position:absolute;top:0}
+.ccard.side{opacity:.5;transform:scale(.92)}
+.syscard{width:270px;height:188px;padding:12px 14px 14px;display:flex;flex-direction:column}
+.syscard svg{display:block}
+.syscard h3{font:800 22px/26px var(--f-display);letter-spacing:-.01em;margin-top:6px}
+.syscard .meta{font:600 13px/18px var(--f-text);color:rgba(214,238,245,.72);margin-top:2px}
+.syscard .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between}
+.youhere{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:12px;background:var(--focus);color:#111;font:800 10px/1 var(--f-text);letter-spacing:.08em;text-transform:uppercase}
+.enter{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 5px 0 14px;border-radius:13px;background:#fffdf2;color:#15302a;font:800 14px/1 var(--f-text);white-space:nowrap}
+.enter i{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:var(--focus);color:#111;font-style:normal}
+.enter.big{height:52px;padding:0 8px 0 18px;font-size:16px;border-radius:16px;box-shadow:0 5px 0 rgba(0,0,0,.3)}
+.enter.big i{width:36px;height:36px;border-radius:11px}
+.sunglow{position:absolute;inset:0;background:radial-gradient(circle at -12% 6%,rgba(255,150,70,.6) 0,rgba(255,110,40,.2) 20%,transparent 46%)}
+.pcap{position:absolute;z-index:30;left:20px;right:20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+.pcap .eyebrow{font:500 11px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(255,253,242,.7)}
+.pcap h1{font:800 32px/36px var(--f-display);letter-spacing:-.02em}
+.facts{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:2px}
+.fact{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);font:700 12px/1 var(--f-text);color:#eaf6f8}
+.fact.or::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--orange)}
+.side-name{position:absolute;z-index:30;font:700 13px/1 var(--f-display);color:rgba(255,253,242,.62);transform:translateX(-50%);white-space:nowrap}
+.ctas{position:absolute;z-index:30;left:14px;right:14px;display:flex;gap:8px;justify-content:center}
+.contcard{width:300px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.thumb{border-radius:14px;overflow:hidden;display:block;flex:none}
+.cc-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 2px}
+.cc-head b{font:800 18px/22px var(--f-display)}
+.cc-head span{font:500 10.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:rgba(214,238,245,.65)}
+.rchips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.rchip{height:40px;display:flex;align-items:center;gap:8px;padding:0 10px 0 8px;border-radius:12px;background:#fffdf2;color:#15302a;font:800 13px/1 var(--f-text);white-space:nowrap;flex:none}
+.rchip .od{width:8px;height:8px;border-radius:50%;background:var(--orange);margin-left:auto;box-shadow:0 0 0 2px rgba(255,104,76,.25)}
+.mapfade{position:absolute;inset:0;z-index:2;pointer-events:none}
+.locked-note{display:flex;align-items:center;gap:8px;font:600 13px/18px var(--f-text);color:rgba(214,238,245,.75)}
+.locked-note svg{width:16px;height:16px;flex:none;color:#ffe6a8}
+
+/* B: one sheet, three rails */
+.rsheet{position:absolute;z-index:51;left:0;right:0;bottom:0;height:79%;padding:10px 0 0;display:flex;flex-direction:column;border-radius:30px 30px 0 0;background:rgba(6,22,32,.9)}
+.rsheet .grab{background:rgba(255,255,255,.3)}
+.rs-head{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 0 20px}
+.rs-head h2{font:800 24px/28px var(--f-display);letter-spacing:-.01em}
+.rs-x{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center}
+.rs-x svg{width:18px;height:18px}
+.rl{font:500 10.5px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(214,238,245,.62);padding:16px 20px 8px;display:flex;justify-content:space-between;gap:10px}
+.rl span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail{display:flex;gap:8px;padding:0 16px;overflow:hidden}
+.spill{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 14px 0 11px;border-radius:14px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);font:800 14px/1 var(--f-text);white-space:nowrap;flex:none}
+.spill.on{background:var(--focus);color:#111;box-shadow:none}
+.ptile{position:relative;width:106px;flex:none;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0 10px;border-radius:18px;font:700 12.5px/15px var(--f-text);text-align:center;background:rgba(255,255,255,.04)}
+.ptile.on{background:rgba(255,228,77,.1);box-shadow:inset 0 0 0 2px var(--focus)}
+.ptile .yh{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px rgba(6,22,32,.9)}
+.ctile{flex:none;width:140px;border-radius:14px;padding:5px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);display:flex;flex-direction:column;gap:6px}
+.ctile.on{box-shadow:inset 0 0 0 2px var(--focus);background:rgba(255,228,77,.1)}
+.ctile .thumb{border-radius:10px}
+.ctile span{padding:0 4px 3px;display:flex;justify-content:space-between;font:700 12px/1 var(--f-text);color:rgba(234,246,248,.9)}
+.ctile span em{font:500 10px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;font-style:normal;color:rgba(214,238,245,.6)}
+.rs-chips{display:flex;gap:6px;padding:10px 16px 0;overflow:hidden}
+.rs-cta{padding:0 16px 28px;margin-top:auto}
+.rs-cta .enter{width:100%;justify-content:space-between}
+
+/* C: the orbit dial */
+.dial-sun{position:absolute;z-index:3;left:50%;top:742px;width:220px;height:220px;margin:-110px 0 0 -110px;border-radius:50%;
+  background:radial-gradient(circle,#fff3c4 0,#ffc061 14%,#ff7a2e 27%,rgba(255,106,42,.35) 40%,rgba(255,106,42,.08) 58%,transparent 70%)}
+.dial-p{position:absolute;z-index:30;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;font:700 12px/1 var(--f-display);color:rgba(255,253,242,.7);white-space:nowrap}
+.dial-p.on{color:#fff}
+.dial-p .ringsel{position:relative;padding:5px;border-radius:50%;box-shadow:0 0 0 2px var(--focus),0 0 18px rgba(255,228,77,.35)}
+.sysrow{position:absolute;z-index:30;left:14px;right:0;top:108px;display:flex;gap:8px;overflow:hidden}
+.sysrow .spill{background:rgba(6,20,30,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.sysrow .spill.on{background:var(--focus);box-shadow:none}
+
+/* simple drawing, round 02 */
+.plate{position:absolute;z-index:30;left:14px;top:108px;padding:10px 14px 12px;border-radius:16px;background:#0d1b24;color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.14)}
+.plate .eyebrow{font:500 10.5px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(214,238,245,.7)}
+.plate h1{font:800 24px/28px var(--f-display);letter-spacing:-.02em;margin-top:2px}
+.listbtn{margin-left:auto;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:#141a22;border:1px solid rgba(255,255,255,.22);color:#fff}
+.listbtn svg{width:17px;height:17px}
+.rstrip{position:absolute;z-index:30;left:0;right:0;bottom:104px}
+.rstrip .rl{display:inline-flex;margin:0 0 8px 14px;padding:6px 10px;border-radius:10px;background:#0d1b24;color:#fffdf2}
+.rrow{display:flex;gap:8px;padding:0 14px;overflow:hidden}
+.rcard{flex:none;width:172px;height:66px;display:flex;align-items:center;gap:10px;padding:0 10px 0 8px;border-radius:17px;background:#fffdf2;color:#15302a;box-shadow:0 5px 0 rgba(0,0,0,.28)}
+.rcard .thumb{border-radius:11px}
+.rcard b,.rtile b{display:block;font:800 14px/17px var(--f-text);white-space:nowrap}
+.rcard small,.rtile small{display:flex;align-items:center;gap:5px;font:600 11.5px/14px var(--f-text);color:rgba(21,48,42,.62);margin-top:3px;white-space:nowrap}
+.rcard small i,.rtile small i{width:7px;height:7px;border-radius:50%;background:var(--orange)}
+.flatsky{position:absolute;inset:0;background:#05070c}
+.flatsky svg{position:absolute;inset:0}
+.disc{position:absolute;z-index:5;left:50%;transform:translateX(-50%)}
+.disc svg{display:block;overflow:visible}
+.rtiles{position:absolute;z-index:30;left:14px;right:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rtile{height:80px;display:flex;align-items:center;gap:10px;padding:8px;border-radius:18px;background:#fffdf2;color:#15302a;box-shadow:0 5px 0 rgba(0,0,0,.3);min-width:0}
+.rtile div{min-width:0}
+
+/* ===================== round 03: the orbit dial with a system wheel ===================== */
+.orb{position:absolute;z-index:30;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;white-space:nowrap;font:700 12.5px/1 var(--f-display);color:rgba(255,253,242,.7)}
+.orb svg{display:block;overflow:visible}
+.orb .nm{position:absolute;top:100%;margin-top:8px}
+.orb mark,.pcap mark,.res mark,.more-row mark,.dial-p mark{background:none;color:var(--focus)}
+.orb .here-dot{position:absolute;right:6%;top:6%;width:10px;height:10px;border-radius:50%;background:var(--focus);box-shadow:0 0 0 2px #05070c}
+.wheel-shade{position:absolute;inset:0;z-index:20;pointer-events:none;background:radial-gradient(ellipse at 50% 30%,rgba(0,0,0,.2),rgba(0,0,0,.72) 75%)}
+.ib2{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(6,20,30,.62);border:1px solid rgba(255,255,255,.22);color:#fff;flex:none;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.ib2 svg{width:18px;height:18px}
+.crumbs .push{margin-left:auto}
+.fchips{position:absolute;z-index:30;left:14px;right:0;display:flex;gap:8px;overflow:hidden}
+.fchip{height:36px;display:inline-flex;align-items:center;gap:7px;padding:0 13px;border-radius:12px;background:rgba(6,20,30,.62);border:1px solid rgba(255,255,255,.2);color:#fff;font:800 13px/1 var(--f-text);white-space:nowrap;flex:none}
+.fchip.on{background:#fffdf2;color:#15302a;border-color:#fffdf2}
+.fchip em{font-style:normal;font:500 10.5px/1 var(--f-mono);opacity:.6}
+.fchip .dot{width:7px;height:7px;border-radius:50%;background:#14C79B}
+.sel-label{position:absolute;z-index:30;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 11px;border-radius:13px;background:rgba(6,20,30,.72);border:1px solid rgba(255,255,255,.22);font:800 12.5px/1 var(--f-text);white-space:nowrap}
+.sel-label svg{width:12px;height:12px;opacity:.7}
+.dial-p.dim{opacity:.3}
+.preview-tag{position:absolute;z-index:30;left:50%;transform:translateX(-50%);font:500 10px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:rgba(255,253,242,.55);white-space:nowrap}
+.dial-wrap.preview{opacity:.6}
+.presults{position:absolute;z-index:30;left:14px;right:14px;padding:6px}
+.res .gw.globe-gw{background:none}
+.more-row{display:flex;align-items:center;gap:10px;margin:4px 4px 2px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.05);font:700 13px/18px var(--f-text);color:rgba(234,246,248,.85)}
+.more-row svg{width:15px;height:15px;margin-left:auto;opacity:.6}
+
+/* ===================== round 05: the wheel is drawn by the Far / System 3D code ===================== */
+.wheel-gl{position:absolute;inset:0;width:390px;height:844px;z-index:25;pointer-events:none;mix-blend-mode:screen}
+.sysph{position:relative;flex:none}
+.orb .sysph + .here-dot{right:22%;top:-4px}
+</style>
+</head>
+<body>
+<header class="intro">
+  <span class="kicker">KnowScroll · Universe · World internals round 05</span>
+  <h1>Systems that look like systems</h1>
+  <p>Round 04’s hand-drawn haze and particles are gone. The systems on the wheel and in the top bar are now drawn by the same 3D code as U08 Far and U02 System: the same sun with its bloom, the same colour haze, the same painted planets going round, no orbit lines. Two changes only: the sun’s glow is about a fifth dimmer, and the haze is a little fuller and turns a little faster.</p>
+</header>
+<div class="tools"><button id="pause">Pause motion</button></div>
+<main id="grid"></main>
+<div id="err"></div>
+<script>window.addEventListener('error', e => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent += (e.message || 'error') + ' @ ' + (e.filename || '') + ':' + (e.lineno || '') + '\n'; });</script>
+<script>
+
+const TAU = Math.PI * 2;
+const rng = seed => { let h = 2166136261; for (const c of String(seed)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+const f1 = n => n.toFixed(1);
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+
+/* ===================== noise ===================== */
+const perm = new Uint8Array(512);
+(() => { const p = [...Array(256).keys()], r = rng('knowscroll-world'); for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0; [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) perm[i] = p[i & 255]; })();
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10), lerp = (a, b, t) => a + (b - a) * t;
+function grad(h, x, y, z) { h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14) ? x : z; return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+function noise(x, y, z) {
+  let X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); x -= X; y -= Y; z -= Z; X &= 255; Y &= 255; Z &= 255;
+  const u = fade(x), v = fade(y), w = fade(z), A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z, B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+  return lerp(lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u), lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+    lerp(lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u), lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+}
+function fbm(x, y, z, o) { let a = .5, f = 1, s = 0; for (let i = 0; i < o; i++) { s += a * noise(x * f, y * f, z * f); f *= 2.03; a *= .5; } return s; }
+
+/* ===================== contours: marching squares, chained and smoothed ===================== */
+const SEG = { 1: [['L', 'B']], 2: [['B', 'R']], 3: [['L', 'R']], 4: [['T', 'R']], 6: [['T', 'B']], 7: [['T', 'L']], 8: [['T', 'L']], 9: [['T', 'B']], 11: [['T', 'R']], 12: [['L', 'R']], 13: [['R', 'B']], 14: [['L', 'B']] };
+function contours(G, iso = 0, passes = 2) {
+  const { W, H, v, x0, y0, cell } = G, pts = new Map(), adj = new Map();
+  const val = (i, j) => (i <= 0 || j <= 0 || i >= W - 1 || j >= H - 1) ? -1 : v[j * W + i] - iso;
+  const key = (e, i, j) => e === 'T' ? `h${i},${j}` : e === 'B' ? `h${i},${j + 1}` : e === 'L' ? `v${i},${j}` : `v${i + 1},${j}`;
+  const link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); };
+  for (let j = 0; j < H - 1; j++) for (let i = 0; i < W - 1; i++) {
+    const a = val(i, j), b = val(i + 1, j), c = val(i + 1, j + 1), d = val(i, j + 1);
+    const idx = (a > 0 ? 8 : 0) | (b > 0 ? 4 : 0) | (c > 0 ? 2 : 0) | (d > 0 ? 1 : 0); if (idx === 0 || idx === 15) continue;
+    const P = { T: [i + a / (a - b), j], R: [i + 1, j + b / (b - c)], B: [i + d / (d - c), j + 1], L: [i, j + a / (a - d)] };
+    let segs = SEG[idx];
+    if (idx === 5) segs = (a + b + c + d) / 4 > 0 ? [['T', 'L'], ['R', 'B']] : [['T', 'R'], ['L', 'B']];
+    if (idx === 10) segs = (a + b + c + d) / 4 > 0 ? [['T', 'R'], ['L', 'B']] : [['T', 'L'], ['R', 'B']];
+    for (const [e1, e2] of segs) { const k1 = key(e1, i, j), k2 = key(e2, i, j); pts.set(k1, P[e1]); pts.set(k2, P[e2]); link(k1, k2); }
+  }
+  const seen = new Set(), loops = [];
+  for (const start of adj.keys()) { if (seen.has(start)) continue;
+    const loop = []; let prev = null, cur = start;
+    while (cur && !seen.has(cur)) { seen.add(cur); const p = pts.get(cur); loop.push([x0 + p[0] * cell, y0 + p[1] * cell]); const n = adj.get(cur); const next = n.find(k => k !== prev && !seen.has(k)); prev = cur; cur = next; }
+    if (loop.length > 5) loops.push(passes > 1 ? chaikin(chaikin(loop.filter((_, i) => i % 2 === 0))) : chaikin(loop)); }
+  return loops;
+}
+function chaikin(p) { const o = []; for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); } return o; }
+const toD = loops => loops.map(l => 'M' + l.map(q => f1(q[0]) + ' ' + f1(q[1])).join('L') + 'Z').join('');
+function grid(x0, y0, x1, y1, cell, fn) { const W = Math.ceil((x1 - x0) / cell) + 1, H = Math.ceil((y1 - y0) / cell) + 1, v = new Float32Array(W * H);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) v[j * W + i] = fn(x0 + i * cell, y0 + j * cell); return { W, H, v, x0, y0, cell }; }
+const derive = (G, fn) => ({ ...G, v: G.v.map((val, k) => fn(val, G.x0 + (k % G.W) * G.cell, G.y0 + Math.floor(k / G.W) * G.cell, k)) });
+
+/* ===================== the planets ===================== */
+const PLANETS = [
+  { id: 'inference', name: 'Inference & serving', type: 'lush', system: 'Machine learning', regions: ['Batching', 'Deployment', 'Latency', 'Cost'], sel: 1, route: 'Attention',
+    enc: { kind: 'A Reel', title: 'Where should the model run?', sum: 'Close to the people asking, or close to the hardware, and what each one costs.' } },
+  { id: 'attention', name: 'Attention', type: 'barren', system: 'Machine learning', regions: ['Context windows', 'Saliency', 'Heads', 'Memory'], sel: 0, route: 'Inference & serving', moon: true,
+    enc: { kind: 'A Scroll', title: 'Why long prompts get forgetful', sum: 'What happens to the middle of a very long context, and the tricks that help.' } },
+  { id: 'hardware', name: 'Hardware', type: 'scorched', system: 'Machine learning', regions: ['GPUs', 'Memory bandwidth', 'Interconnect', 'Cooling'], sel: 1, route: 'Inference & serving', rings: true, moon: true,
+    enc: { kind: 'A Reel', title: 'Why GPUs wait on memory', sum: 'Compute got fast. Moving the numbers around did not. Where the time really goes.' } },
+  { id: 'queues', name: 'Queues', type: 'gas', system: 'Backend systems', regions: ['Backpressure', 'Retries', 'Ordering', 'Dead letters'], sel: 0, route: 'Storage', rings: true,
+    enc: { kind: 'A Scroll', title: 'When consumers fall behind', sum: 'Buffers fill, latency climbs and something has to give. Backpressure decides what.' } },
+  { id: 'storage', name: 'Storage', type: 'frozen', system: 'Backend systems', regions: ['Replication', 'Indexes', 'Caching', 'Backups'], sel: 0, route: 'Queues', rings: true,
+    enc: { kind: 'A Reel', title: 'Leaders, followers and the lag', sum: 'Why a read can miss a write you just made, and how replicas catch up.' } },
+  { id: 'tactics', name: 'Tactics', type: 'ocean', system: 'Football', regions: ['Pressing', 'Formations', 'Set pieces', 'Counters'], sel: 0, moon: true,
+    enc: { kind: 'A Reel', title: 'Why teams press high', sum: 'Winning the ball near the goal is worth more than winning it anywhere else.' } },
+];
+
+/* ===================== one look per planet type: flat colour, soft edges ===================== */
+const T = {
+  lush:     { label: 'Lush world', sea: ['#1d7d97', '#0f5670', '#052c41'], shallow: '#4fc3c9', globe: ['#7fd9d6', '#3fa8bd', '#1c6f93', '#0d3f5e'],
+              land: ['#6fd27f', '#a6e58a', '#4fb878', '#93d6a8'], hi: '#e9d9a0', lo: '#2f8f5c', coast: '#1e5a4a', cloud: ['#f6fcff', '#9dc0d4'], atmo: '#83f2ea', rim: '#b9fff2',
+              accent: '#33c4b4', mc: '#8edbe0', wave: 'rgba(203,245,255,.26)', current: 'rgba(196,242,255,.32)', grat: 'rgba(190,240,255,.1)', detail: 'waves', cover: .1, shadow: '#04283a' },
+  ocean:    { label: 'Ocean world', sea: ['#33a7ea', '#1667b6', '#0a2f6a'], shallow: '#7fd8f7', globe: ['#8fdcff', '#3d9fe0', '#1a63b4', '#0b3270'],
+              land: ['#7ee08e', '#5fcf7c', '#a5e88a', '#4fc06e'], hi: '#ffe7a8', lo: '#2f9a62', coast: '#1d5a4c', cloud: ['#ffffff', '#a7cbe6'], atmo: '#9fe0ff', rim: '#d4f4ff',
+              accent: '#ffd058', mc: '#ffe39a', wave: 'rgba(225,246,255,.34)', current: 'rgba(225,246,255,.36)', grat: 'rgba(210,240,255,.12)', detail: 'waves', archipelago: true, cover: -.1, shadow: '#082a5e' },
+  frozen:   { label: 'Frozen world', sea: ['#4f8fcf', '#24599a', '#0c2a52'], shallow: '#8fc4ef', globe: ['#bfe3fb', '#7fb2e2', '#3e78b8', '#173f72'],
+              land: ['#f4fbff', '#dcefff', '#c4e2ff', '#e8f6ff'], hi: '#ffffff', lo: '#a9cdee', coast: '#4a77a8', cloud: ['#ffffff', '#b2c8de'], atmo: '#c8ecff', rim: '#f0fbff',
+              accent: '#7fc8ff', mc: '#bfe4ff', wave: 'rgba(235,248,255,.3)', current: 'rgba(225,244,255,.3)', grat: 'rgba(220,240,255,.12)', detail: 'floes', caps: true, cover: .14, shadow: '#08203f' },
+  scorched: { label: 'Scorched world', sea: ['#5c1a2a', '#360b1a', '#17040b'], shallow: '#9a2c2c', globe: ['#c4503f', '#8a2232', '#55122a', '#2a0812'],
+              land: ['#ff8a5b', '#ff6b4d', '#ffa766', '#ea5a43'], hi: '#ffc48a', lo: '#b8402f', coast: '#ff9a4a', border: '#6a1a1f', cloud: ['#efdde0', '#a08088'], atmo: '#ff9a7a', rim: '#ffc2aa',
+              accent: '#ff6a4a', mc: '#ffb49a', wave: 'rgba(255,160,90,.3)', current: '#ff8a3d', grat: 'rgba(255,150,120,.08)', detail: 'lava', glowCoast: true, cover: .12, shadow: '#0b0105' },
+  barren:   { label: 'Barren world', sea: ['#8a7a9c', '#5a4c6c', '#2c2338'], shallow: '#a596b8', globe: ['#b9a6cc', '#8a76a2', '#5c4b76', '#2f2440'],
+              land: ['#f2d49c', '#e4bf80', '#d6aa6c', '#f7e2b6'], hi: '#fff0cf', lo: '#b98c58', coast: '#7a5a3a', cloud: ['#f5edf8', '#bba9cb'], atmo: '#dcc6ff', rim: '#f2e8ff',
+              accent: '#e8b86a', mc: '#f2d4a0', wave: 'rgba(240,226,255,.22)', current: 'rgba(240,226,255,.26)', grat: 'rgba(240,230,255,.08)', detail: 'craters', cover: .16, shadow: '#1c1428' },
+  gas:      { label: 'Gas giant', bands: ['#ffb48c', '#f592b0', '#c294e0', '#ffd8a6', '#ee86a4'], shallow: '#ffd9e6', globe: ['#ffe2c8', '#f6a2b6', '#b884d8', '#5c3a86'],
+              land: ['#fff5ea', '#ffe3d0', '#ffd3df', '#f2e0ff'], hi: '#ffffff', lo: '#f3c6dc', coast: '#c98aa8', cloud: ['#ffffff', '#e0bcd0'], atmo: '#ffb8d6', rim: '#ffe4ef',
+              accent: '#ff7aa8', mc: '#ffc2d8', wave: 'rgba(255,255,255,.3)', current: 'rgba(255,255,255,.34)', grat: 'rgba(255,240,250,.08)', detail: 'bands', soft: true, cover: .08, shadow: '#7a3a6a' },
+};
+
+/* ===================== world builder: several continents, explored ones split into regions, the rest locked ===================== */
+const LOCK = { lush: ['#7b8d97', '#55666f', '#2a3a42'], ocean: ['#8496a6', '#5a6b7c', '#2c3c4c'], frozen: ['#9eacbb', '#76869a', '#3a4a5e'],
+  scorched: ['#6a565c', '#4a383e', '#251a1e'], barren: ['#8e869a', '#686076', '#363044'], gas: ['#cdbccc', '#a8949f', '#6e5a68'] };
+function placeConts(r, sizes, b, periodic) {
+  const dist = (a, c) => { let dx = Math.abs(a.x - c.x); if (periodic) dx = Math.min(dx, periodic - dx); return Math.hypot(dx, a.y - c.y); };
+  for (let loosen = 1; loosen > .4; loosen -= .1) {
+    const out = []; let guard = 0;
+    while (out.length < sizes.length && guard++ < 3000) { const s = sizes[out.length], c = { x: b.x0 + r() * (b.x1 - b.x0), y: b.y0 + r() * (b.y1 - b.y0), s, rot: r() * Math.PI, sx: .7 + r() * .6 };
+      if (out.some(o => dist(o, c) < (o.s + s) * loosen)) continue; out.push(c); }
+    if (out.length === sizes.length) return out;
+  }
+  return sizes.map((s, i) => ({ x: b.x0 + (i + .5) / sizes.length * (b.x1 - b.x0), y: (b.y0 + b.y1) / 2, s, rot: 0, sx: 1 }));
+}
+function buildWorld(P, o) {
+  const th = T[P.type], r = rng(P.id + o.tag), oz = r() * 50, N = o.noise;
+  const conts = placeConts(r, o.sizes, o.bounds, o.period), nExp = o.explored;
+  const dxOf = (x, c) => { let dx = x - c.x; if (o.period) { dx = ((dx % o.period) + o.period * 1.5) % o.period - o.period / 2; } return dx; };
+  const bump = (c, x, y) => { const dx = dxOf(x, c), dy = y - c.y, cs = Math.cos(c.rot), sn = Math.sin(c.rot), u = (dx * cs + dy * sn) / (c.s * c.sx), v = (-dx * sn + dy * cs) / (c.s / c.sx); return 1 - Math.hypot(u, v); };
+  const landFn = (x, y) => {
+    const wx = x + N(x, y, 110, oz + 1.1) * 48, wy = y + N(x, y, 110, oz + 2.3) * 48;
+    const base = Math.max(...conts.map(c => bump(c, wx, wy)));
+    const det = th.soft ? N(wx, wy, 80, oz + 3) * .35 + N(wx, wy, 34, oz + 4) * .14
+      : N(wx, wy, 70, oz + 3) * .42 + N(wx, wy, 30, oz + 4) * .26 + N(wx, wy, 13, oz + 5) * .16 + N(wx, wy, 6, oz + 6) * .09;
+    return base + det - .12;
+  };
+  const G = grid(o.x0, o.y0, o.x1, o.y1, o.cell, landFn);
+  // seeds: explored continents carry the planet's regions; each locked continent is one grey mass
+  const seeds = [], owner = [];
+  const perCont = o.perCont(P.regions.length, nExp);
+  conts.slice(0, nExp).forEach((c, ci) => { const k = perCont[ci], a0 = r() * TAU;
+    for (let q = 0; q < k; q++) { const a = a0 + q * TAU / k, d = k > 1 ? c.s * .45 : 0; seeds.push([c.x + Math.cos(a) * d * c.sx, c.y + Math.sin(a) * d / c.sx]); owner.push('region'); } });
+  conts.slice(nExp).forEach(c => { seeds.push([c.x, c.y]); owner.push('locked'); });
+  const warp = (x, y) => [N(x, y, 60, 9.1 + oz) * o.warp + N(x, y, 22, 5.5 + oz) * o.warp * .35, N(x, y, 60, 4.7 + oz) * o.warp + N(x, y, 22, 6.6 + oz) * o.warp * .35];
+  const D = []; for (let k = 0; k < G.v.length; k++) { const x = G.x0 + (k % G.W) * G.cell, y = G.y0 + Math.floor(k / G.W) * G.cell, [wx, wy] = warp(x, y);
+    D.push(seeds.map(s => { let dx = Math.abs(x + wx - s[0]); if (o.period) dx = Math.min(dx, o.period - dx); return Math.hypot(dx, y + wy - s[1]); })); }
+  const field = idx => derive(G, (val, x, y, k) => { const d = D[k]; let mine = Infinity, other = Infinity;
+    d.forEach((v, j) => { if (idx.includes(j)) mine = Math.min(mine, v); else other = Math.min(other, v); }); return Math.min(val, (other - mine) / 30); });
+  const deepest = F => { // a point well inside the region, close to its middle
+    let mx = -9, sx = 0, sy = 0, n = 0; F.v.forEach((v, k) => { if (v > mx) mx = v; if (v > 0) { sx += (k % F.W); sy += Math.floor(k / F.W); n++; } });
+    if (!n) return [F.x0, F.y0]; const cx = sx / n, cy = sy / n; let bk = 0, bd = Infinity;
+    F.v.forEach((v, k) => { if (v < mx * .35) return; const d = Math.hypot((k % F.W) - cx, Math.floor(k / F.W) - cy); if (d < bd) { bd = d; bk = k; } });
+    return [F.x0 + (bk % F.W) * F.cell, F.y0 + Math.floor(bk / F.W) * F.cell]; };
+  const regions = [], locked = [];
+  seeds.forEach((s, i) => { const F = field([i]); (owner[i] === 'region' ? regions : locked).push({ loops: contours(F, 0, 1), at: deepest(F), seed: s }); });
+  // keep names apart: push overlapping labels vertically, sized by the length of each name
+  for (let pass = 0; pass < 6; pass++) regions.forEach((g, i) => regions.forEach((h, j) => { if (j >= i) return;
+    const half = (P.regions[i].length + P.regions[j].length) * 4.3 + 8, dx = g.at[0] - h.at[0], dy = g.at[1] - h.at[1];
+    if (Math.abs(dx) < half && Math.abs(dy) < 24) { const push = (24 - Math.abs(dy)) / 2 + 1, sgn = dy >= 0 ? 1 : -1; g.at = [g.at[0], g.at[1] + push * sgn]; h.at = [h.at[0], h.at[1] - push * sgn]; } }));
+  const regIdx = owner.map((w, i) => w === 'region' ? i : -1).filter(i => i >= 0);
+  const explored = field(regIdx);
+  const pb = o.patchAll ? G : explored;
+  const hi = derive(pb, (val, x, y) => Math.min(val - .06, N(x, y, 90, 3.3 + oz) - .16)), lo = derive(pb, (val, x, y) => Math.min(val - .04, -N(x, y, 80, 7.9 + oz) - .2));
+  const landAt = (x, y) => { const i = Math.round((x - G.x0) / G.cell), j = Math.round((y - G.y0) / G.cell); return i < 0 || j < 0 || i >= G.W || j >= G.H ? -1 : G.v[j * G.W + i]; };
+  return { landAt, peaks: o.patchAll ? contours(G, .3, 1) : [], land: contours(G, 0, 1), shallow1: contours(G, -.07), shallow2: contours(G, -.15), regions, locked, conts, hi: contours(hi), lo: contours(lo) };
+}
+const MAPC = new Map();
+function mapWorld(P) {
+  if (MAPC.has(P.id)) return MAPC.get(P.id);
+  const th = T[P.type], arch = th.archipelago;
+  const w = buildWorld(P, { tag: 'map', x0: -30, y0: -30, x1: 420, y1: 880, cell: 4, warp: arch ? 14 : 34,
+    noise: (x, y, s, z) => noise(x / s, y / s, z), bounds: { x0: 70, x1: 320, y0: 190, y1: 730 },
+    sizes: arch ? [62, 58, 56, 52, 50, 46, 44] : [118, 86, 84, 72, 64], explored: arch ? 4 : 2,
+    perCont: (n, e) => arch ? Array(e).fill(1) : [n - 1, 1] });
+  MAPC.set(P.id, w); return w;
+}
+const GLOBEC = new Map();
+function globeWorld(P) { // a 480-unit band that wraps: noise is sampled on a cylinder, so the seam is invisible
+  if (GLOBEC.has(P.id)) return GLOBEC.get(P.id);
+  const th = T[P.type], k = 480 / TAU, arch = th.archipelago;
+  const N = (x, y, s, z) => { const u = x / 480 * TAU; return noise(Math.cos(u) * k / s + z * 3, Math.sin(u) * k / s + z, y / s); };
+  const w = buildWorld(P, { tag: 'globe', patchAll: true, x0: -60, y0: 0, x1: 540, y1: 360, cell: 3, warp: 20, period: 480, noise: N, bounds: { x0: 0, x1: 480, y0: 100, y1: 260 },
+    sizes: arch ? [40, 38, 36, 34, 34, 30, 30] : [68, 52, 50, 44, 40], explored: arch ? 4 : 2, perCont: (n, e) => arch ? Array(e).fill(1) : [n - 1, 1] });
+  const r = rng(P.id + 'clouds'), cz = r() * 9;
+  const CG = grid(-60, 0, 540, 360, 4, (x, y) => N(x, y, 50, cz) * .9 + N(x, y, 20, cz + 4) * .35 + N(x, y, 8, cz + 7) * .12 - .32);
+  w.clouds = contours(CG); w.cloudsMid = contours(CG, .1); w.cloudsCore = contours(CG, .2);
+  GLOBEC.set(P.id, w); return w;
+}
+
+/* ===================== chrome ===================== */
+const tabbar = () => `<nav class="worldnav">${[
+  ['Explore', '<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 3l4 4 4-4"/>'],
+  ['Universe', '<circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/>', 1],
+  ['Talk', '<path d="M4 5h16v11H9l-5 4z"/>'], ['Keep', '<path d="M6 3h12v18l-6-4-6 4z"/>']].map(([l, d, on]) =>
+  `<div class="nav-tab${on ? ' is-active' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg><span>${l}</span></div>`).join('')}</nav>`;
+const backIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+const listIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>';
+const fwdIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+function stars(seed) { const r = rng(seed); return `<div class="starfield"><svg viewBox="0 0 390 844">${Array.from({ length: 140 }, () =>
+  `<circle cx="${f1(r() * 390)}" cy="${f1(r() * 844)}" r="${f1(.4 + Math.pow(r(), 3) * 1.4)}" fill="#fffdf2" opacity="${f1(.2 + r() * .7)}"/>`).join('')}</svg></div>`; }
+function cloudPuff(r, x, y, sc, th) {
+  const lobes = 4 + ((r() * 3) | 0); let cx = 0, d = '';
+  for (let j = 0; j < lobes; j++) { const rr = 13 + r() * 13; d += `<circle cx="${f1(cx)}" cy="${f1(-rr * .42 + r() * 4)}" r="${f1(rr)}"/>`; cx += rr * (.75 + r() * .35); }
+  d += `<rect x="-8" y="-12" width="${f1(cx + 16)}" height="24" rx="12"/>`;
+  const flip = r() < .5 ? -1 : 1, anim = r() > .5 ? ` class="cloud" style="--d:${f1(9 + r() * 9)}s;--dx:${f1(4 + r() * 6)}px"` : '';
+  return `<g transform="translate(${f1(x)} ${f1(y)}) scale(${f1(sc * flip)} ${f1(sc)}) translate(${f1(-cx / 2)} 0)"><g${anim}><g fill="${th.cloud[1]}" transform="translate(0 5)">${d}</g><g fill="${th.cloud[0]}">${d}</g></g></g>`;
+}
+const textLabel = (x, y, name, th, size = 15) => `<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="${size}" fill="#15302a" paint-order="stroke" stroke="#fffdf2" stroke-width="5" stroke-linejoin="round">${name}</text>`;
+
+
+/* the planet view: saturated, flat cartoon biomes (every continent in full colour) */
+const BIO = {
+  lush:     { globe: ['#a4f5ee', '#43c9d6', '#178cba', '#0a4f7e'], land: ['#5fd36f', '#8ee25c', '#3fbf6a', '#b5ea6a'], lo: '#2a9a55', hi: '#f2d57e', peak: '#9a8460', ink: '#14402e', foam: '#e9fffb', trees: '#1f8a4a', forms: 'mountains' },
+  ocean:    { globe: ['#b8f4ff', '#3fb4f0', '#1670cc', '#0a3a80'], land: ['#7ee06a', '#5fd07a', '#a6ec6a', '#4fc36e'], lo: '#2f9e55', hi: '#ffe08a', peak: '#8a9a6a', ink: '#12403a', foam: '#f2fdff', trees: '#228a4c', forms: 'mountains' },
+  frozen:   { globe: ['#e6f8ff', '#8fcaf5', '#3c86d0', '#163f80'], land: ['#f6fcff', '#d8efff', '#c2e6ff', '#e9f8ff'], lo: '#9fd2f5', hi: '#ffffff', peak: '#7894bb', ink: '#24497a', foam: '#ffffff', forms: 'mountains' },
+  scorched: { globe: ['#ff9a6a', '#e0483e', '#8e1a36', '#3e0716'], land: ['#ff7a45', '#ff5a3c', '#ffa04a', '#f06a3a'], lo: '#8a2030', hi: '#ffd25a', peak: '#4a141c', ink: '#3a0a14', foam: '#ffd2a0', forms: 'volcanoes' },
+  barren:   { globe: ['#dcc6f2', '#9d82c4', '#60488a', '#2c1f48'], land: ['#f7cf86', '#eeb062', '#e39a52', '#f9dca0'], lo: '#c06a3a', hi: '#fff2cc', peak: '#7a4e2e', ink: '#4a2a18', foam: '#f4eaff', forms: 'mesas' },
+  gas:      { globe: ['#ffe2c0', '#ff9ab8', '#b07ae0', '#4e2a86'], land: ['#fff1e0', '#ffd6c0', '#ffc6da', '#ecd2ff'], lo: '#ff8fb6', hi: '#ffffff', peak: '#c070d0', ink: '#7a3a68', foam: '#ffffff', forms: 'swirls',
+              bands: ['#ffb07a', '#ff7fa6', '#b88aff', '#ffd27a', '#ff6f9a'] },
+};
+/* ===================== U03: the planet from orbit ===================== */
+function surfaceBand(P, th) {
+  const w = globeWorld(P), id = P.id;
+  let body = '';
+  if (th.detail === 'bands') {
+    for (let i = 0; i < 9; i++) { const y = i * 40, c = BIO.gas.bands[i % 5];
+      body += `<path d="M-60 ${y} ${Array.from({ length: 11 }, (_, k) => `Q${-60 + k * 60 + 30} ${y + (k % 2 ? 9 : -9)} ${-60 + k * 60 + 60} ${y}`).join(' ')} V${y + 44} H-60Z" fill="${c}"/>`; }
+    body = `<g filter="url(#soft${id})">${body}</g>`;
+  }
+  const B = BIO[P.type], all = toD(w.land), rf = rng(P.id + 'forms');
+  // soft shallows, then a white foam edge just outside every coast
+  body += `<path d="${toD(w.shallow2)}" fill="${th.shallow}" opacity=".35" fill-rule="evenodd" filter="url(#soft${id})"/><path d="${toD(w.shallow1)}" fill="${B.foam}" opacity=".35" fill-rule="evenodd" filter="url(#soft${id})"/>`;
+  if (th.glowCoast) body += `<path d="${all}" fill="none" stroke="#ffb03a" stroke-width="6" opacity=".8" filter="url(#soft${id})"/>`;
+  body += `<path d="${all}" fill="none" stroke="${B.foam}" stroke-width="3.6" stroke-linejoin="round" opacity=".85"/>`;
+  // every continent in full colour: explored regions and the rest alike
+  body += w.regions.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[i % 4]}" fill-rule="evenodd"/>`).join('');
+  body += w.locked.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[(i + 1) % 4]}" fill-rule="evenodd"/>`).join('');
+  // flat cartoon biomes: lowland, bright patches, highlands
+  body += `<path d="${toD(w.lo)}" fill="${B.lo}" opacity=".6" fill-rule="evenodd"/><path d="${toD(w.hi)}" fill="${B.hi}" opacity=".62" fill-rule="evenodd"/>`;
+  body += w.regions.map(g => `<path d="${toD(g.loops)}" fill="none" stroke="${B.ink}" stroke-opacity=".45" stroke-width="1" stroke-dasharray="3 3"/>`).join('');
+  body += `<path d="${all}" fill="none" stroke="${B.ink}" stroke-opacity=".7" stroke-width="1.4" stroke-linejoin="round"/>`;
+  const names = w.regions.map((g, i) => textLabel(g.at[0], g.at[1] + 5, P.regions[i], th, 14)).join('');
+  // cumulus seen from orbit: a cast shadow on the ground, a cool underside, a white body, brighter inner puffs and a sunlit core
+  const cb = toD(w.clouds), cm = toD(w.cloudsMid), cc = toD(w.cloudsCore);
+  const clouds = `<path d="${cb}" fill="#06182a" opacity=".22" fill-rule="evenodd" transform="translate(4 7)" filter="url(#cshadow${id})"/>`
+    + `<path d="${cb}" fill="#a9bcd2" opacity=".9" fill-rule="evenodd" transform="translate(0 2)" filter="url(#csoft${id})"/>`
+    + `<path d="${cb}" fill="#e6eef7" fill-rule="evenodd" filter="url(#csoft${id})"/>`
+    + `<path d="${cm}" fill="#f6f9fd" fill-rule="evenodd" transform="translate(-.6 -1)" filter="url(#csoft${id})"/>`
+    + `<path d="${cc}" fill="#ffffff" fill-rule="evenodd" transform="translate(-1.2 -2)" filter="url(#csoft${id})"/>`;
+  const defs = `<filter id="soft${id}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.6"/></filter>`
+    + `<filter id="csoft${id}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation=".9"/></filter><filter id="cshadow${id}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="3"/></filter>`;
+  return `<svg class="surface" viewBox="0 0 960 360"><defs>${defs}<clipPath id="slice${id}"><rect x="0" y="0" width="480" height="360"/></clipPath>
+    <g id="band${id}"><g clip-path="url(#slice${id})">${body}</g></g><g id="cl${id}"><g clip-path="url(#slice${id})">${clouds}</g></g><g id="nm${id}"><g clip-path="url(#slice${id})">${names}</g></g></defs>
+    <use href="#band${id}" x="0"/><use href="#band${id}" x="480"/><g class="cloudband"><use href="#cl${id}" x="0"/><use href="#cl${id}" x="480"/><use href="#cl${id}" x="960"/></g><use href="#nm${id}" x="0"/><use href="#nm${id}" x="480"/></svg>`;
+}
+function ringSVG(th, front) {
+  const rx = 215, ry = 48, arc = front ? `M${-rx} 0 A${rx} ${ry} 0 0 0 ${rx} 0` : `M${-rx} 0 A${rx} ${ry} 0 0 1 ${rx} 0`;
+  return `<svg class="ring ${front ? 'front' : 'back'}" viewBox="-235 -235 470 470"><g transform="rotate(-14)" fill="none" stroke-linecap="round">
+    <path d="${arc}" stroke="${th.land[2]}" stroke-width="13" opacity=".9"/><path d="${arc}" stroke="${th.land[1]}" stroke-width="4" transform="scale(1.05 1.07)" opacity=".8"/><path d="${arc}" stroke="${th.hi}" stroke-width="2" transform="scale(.95 .93)" opacity=".7"/></g></svg>`;
+}
+const MOON = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15.6" fill="#f1ead6"/><path d="M20 4.4A15.6 15.6 0 0 1 20 35.6 20.5 20.5 0 0 0 20 4.4Z" fill="#cbc3aa"/>
+  <circle cx="14.6" cy="15" r="4.1" fill="#ddd5bd"/><circle cx="24.4" cy="24.6" r="2.7" fill="#ddd5bd"/><circle cx="15.8" cy="26.4" r="2.1" fill="#ddd5bd"/></svg>`;
+function screenPlanet(P) {
+  const th = T[P.type], g = BIO[P.type].globe;
+  const bg = `radial-gradient(circle at 38% 32%, ${g[0]} 0, ${g[1]} 35%, ${g[2]} 72%, ${g[3]} 100%)`;
+  const caps = th.caps ? `<svg class="caps" viewBox="0 0 292 292"><defs><filter id="capb${P.id}"><feGaussianBlur stdDeviation="3"/></filter></defs><g filter="url(#capb${P.id})" fill="#fff">
+    <path d="M30 46 Q90 20 146 30 Q210 18 262 46 Q230 70 190 62 Q160 78 120 66 Q80 76 30 46Z" opacity=".9"/><path d="M40 252 Q100 236 146 246 Q200 232 252 252 Q200 290 146 286 Q90 292 40 252Z" opacity=".85"/></g></svg>` : '';
+  return `<div class="phone" data-anim style="--atmo-line:${th.atmo}aa;--atmo-glow:${th.atmo}66;--rim:${th.rim};--globe-bg:${bg}">
+    ${stars(P.id)}
+    <div class="map-top"><div class="pill">${backIcon}${P.system}</div></div>
+    ${P.rings ? ringSVG(th, false) : ''}
+    <div class="globe-wrap"><div class="atmosphere"></div><div class="globe soft">${surfaceBand(P, th)}${caps}<div class="shade"></div><div class="glint"></div></div></div>
+    ${P.rings ? ringSVG(th, true) : ''}
+    ${P.moon ? `<div class="moon" data-moon>${MOON}</div>` : ''}
+    <div class="caption"><span class="eyebrow">A planet in ${P.system}</span><h1>${P.name}</h1><div class="hint"><span>↔</span>Drag to rotate · tap a region to land</div></div>
+    <div class="chips">${P.route ? `<span class="chip light">Route to ${P.route}${fwdIcon}</span>` : ''}<span class="chip dark">${listIcon}List view</span></div>
+    ${tabbar()}<div class="statusbar"><span>9:41</span><i></i></div></div>`;
+}
+
+/* ===================== U04: landed on the map ===================== */
+/* Same saturated palette as the globe in U03, so landing reads as the same planet up close.
+   The world is drawn in map units and moved by a camera; names, markers and Uncharted tags are drawn
+   afterwards in screen space so they never scale with the camera and stay clear of the chrome. */
+const SAFE = { card: { top: 112, bottom: 520 }, here: { top: 112, bottom: 680 } };
+const pillLabel = (x, y, text, { fill = '#fffdf2', ink = '#15302a', dot, size = 13 } = {}) => {
+  const wd = text.length * size * .56 + (dot ? 40 : 26), px = Math.min(390 - wd / 2 - 14, Math.max(wd / 2 + 14, x));
+  return `<g transform="translate(${f1(px)} ${f1(y)})"><rect x="${f1(-wd / 2)}" y="-15" width="${f1(wd)}" height="30" rx="15" fill="${fill}" stroke="#15302a" stroke-width="2"/>
+    ${dot ? `<circle cx="${f1(-wd / 2 + 15)}" cy="0" r="4.5" fill="${dot}"/>` : ''}<text x="${dot ? 7 : 0}" y="${f1(size * .36)}" text-anchor="middle" font-family="Instrument Sans" font-weight="700" font-size="${size}" fill="${ink}">${text}</text></g>`;
+};
+function mapSVG(P, mode) {
+  const th = T[P.type], B = BIO[P.type], g4 = B.globe, r = rng(P.id + 'map'), id = P.id + mode, w = mapWorld(P), safe = SAFE[mode];
+  const sel = w.regions[P.sel];
+  // camera: the card view drops low over the chosen region and centres it above the card
+  const sp = sel.loops.reduce((a, l) => l.length > a.length ? l : a, []), xs = sp.map(p => p[0]), ys = sp.map(p => p[1]);
+  const bx0 = Math.min(...xs), bx1 = Math.max(...xs), by0 = Math.min(...ys), by1 = Math.max(...ys);
+  const z = mode === 'card' ? clamp(Math.min(300 / (bx1 - bx0), 330 / (by1 - by0)), 1.6, 2.1) : 1;
+  const tx = mode === 'card' ? 195 - (bx0 + bx1) / 2 * z : 0, ty = mode === 'card' ? (safe.top + safe.bottom) / 2 + 6 - (by0 + by1) / 2 * z : 0;
+  const S = (x, y) => [x * z + tx, y * z + ty], seen = (x, y, m = 0) => x > m && x < 390 - m && y > safe.top && y < safe.bottom;
+  const expB = w.regions.flatMap(g => g.loops.flat()), ex0 = Math.min(...expB.map(p => p[0])), ex1 = Math.max(...expB.map(p => p[0])), ey0 = Math.min(...expB.map(p => p[1])), ey1 = Math.max(...expB.map(p => p[1]));
+  const nearExp = (x, y, pad) => x > ex0 - pad && x < ex1 + pad && y > ey0 - pad && y < ey1 + pad;
+  let ground = '', detail = '', defs = `<filter id="glow${id}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="${f1(5 / z)}" flood-color="#fff" flood-opacity=".9"/></filter>
+    <filter id="soft${id}" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3"/></filter><filter id="shadow${id}" x="-10%" y="-10%" width="120%" height="130%"><feGaussianBlur stdDeviation="6"/></filter>`;
+  if (th.detail === 'bands') {
+    defs += `<linearGradient id="sky${id}" x1="0" y1="0" x2="0" y2="1">${B.bands.map((c, i) => `<stop offset="${i / (B.bands.length - 1)}" stop-color="${c}"/>`).join('')}</linearGradient>`;
+    ground = `<rect x="-400" y="-400" width="1200" height="1700" fill="url(#sky${id})"/><g class="band-drift" filter="url(#soft${id})">${Array.from({ length: 22 }, (_, i) => { const y = -200 + i * 60, c = B.bands[i % B.bands.length];
+      return `<path d="M-400 ${y} ${Array.from({ length: 14 }, (_, k) => `Q${-400 + k * 120 + 60} ${y + (k % 2 ? 14 : -14)} ${-400 + k * 120 + 120} ${y}`).join(' ')} V${y + 34} H-400Z" fill="${c}" opacity=".7"/>`; }).join('')}</g>`;
+    detail += `<g fill="none" stroke="${th.current}" stroke-width="3" stroke-linecap="round" stroke-dasharray="14 22" class="current-a"><path d="M-20 140 Q120 110 260 150 T420 130"/><path d="M-20 640 Q130 610 260 650 T420 630"/></g>`;
+  } else {
+    defs += `<radialGradient id="sea${id}" gradientUnits="userSpaceOnUse" cx="195" cy="380" r="640"><stop offset="0" stop-color="${g4[1]}"/><stop offset=".45" stop-color="${g4[2]}"/><stop offset="1" stop-color="${g4[3]}"/></radialGradient>`;
+    ground = `<rect x="-400" y="-400" width="1200" height="1700" fill="url(#sea${id})"/>`;
+    const paths = '<path class="current-a" d="M-20 110 Q120 50 260 100 T420 140"/><path class="current-b" d="M-20 720 Q140 680 260 740 T420 710"/><path class="current-a" d="M372 220 Q410 420 362 580"/><path class="current-b" d="M20 230 Q-16 420 30 600"/>';
+    detail += th.detail === 'lava'
+      ? `<g fill="none" stroke="${th.current}" stroke-width="4" stroke-linecap="round" stroke-dasharray="11 26" filter="url(#soft${id})">${paths}</g><g fill="none" stroke="#ffc08a" stroke-width="2" stroke-linecap="round" stroke-dasharray="11 26">${paths}</g>`
+      : `<g fill="none" stroke="${th.current}" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="11 26">${paths}</g>`;
+    for (let gy = -60; gy < 900; gy += 54) for (let gx = -40; gx < 430; gx += 54) {
+      if (r() > .62) continue; const x = gx + r() * 70, y = gy + r() * 70; if (w.landAt(x, y) > -.14) continue; const k = 7 + r() * 5, rot = f1(r() * 22 - 11);
+      if (th.detail === 'waves') detail += `<path d="M0 0 q${f1(k / 2)} ${f1(-k * .55)} ${f1(k)} 0 t${f1(k)} 0" transform="translate(${f1(x)} ${f1(y)}) rotate(${rot})" fill="none" stroke="${th.wave}" stroke-width="2.2" stroke-linecap="round"/>`;
+      else if (th.detail === 'floes') { const s = 5 + r() * 8; detail += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(s)}" ry="${f1(s * .6)}" transform="rotate(${rot} ${f1(x)} ${f1(y)})" fill="#eef8ff" opacity=".85"/>`; }
+      else if (th.detail === 'lava') detail += r() < .5 ? `<circle class="bubble" style="animation-delay:-${f1(r() * 3.6)}s" cx="${f1(x)}" cy="${f1(y)}" r="${f1(2 + r() * 3)}" fill="#ff9a4a"/>`
+        : `<path d="M0 0 q8 6 16 0 t16 0" transform="translate(${f1(x)} ${f1(y)}) rotate(${rot})" fill="none" stroke="rgba(255,138,61,.5)" stroke-width="2" stroke-linecap="round"/>`;
+      else if (th.detail === 'craters') { const rr = 5 + r() * 12; detail += `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(rr)}" fill="rgba(30,20,44,.28)"/><path d="M${f1(x - rr)} ${f1(y)} a${f1(rr)} ${f1(rr)} 0 0 1 ${f1(rr * 2)} 0" fill="none" stroke="rgba(245,232,255,.3)" stroke-width="2"/>`; }
+    }
+  }
+  // land, as on the globe: soft shallows, a foam edge, flat saturated regions with biome patches, dashed region borders, an inked coast
+  const all = toD(w.land), regLoops = toD(w.regions.flatMap(g => g.loops));
+  let land = `<path d="${toD(w.shallow2)}" fill="${th.shallow}" opacity=".3" fill-rule="evenodd" filter="url(#soft${id})"/><path d="${toD(w.shallow1)}" fill="${B.foam}" opacity=".28" fill-rule="evenodd" filter="url(#soft${id})"/>`;
+  land += `<path d="${all}" fill="${th.shadow}" opacity=".45" fill-rule="evenodd" transform="translate(0 8)" filter="url(#shadow${id})"/>`;
+  if (th.glowCoast) land += `<path d="${regLoops}" fill="none" stroke="#ffb03a" stroke-width="8" opacity=".7" filter="url(#soft${id})"/>`;
+  land += `<path d="${regLoops}" fill="none" stroke="${B.foam}" stroke-width="4" stroke-linejoin="round" opacity=".85"/>`;
+  land += w.regions.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[i % 4]}" fill-rule="evenodd"/>`).join('');
+  defs += `<clipPath id="exp${id}"><path d="${regLoops}" clip-rule="evenodd"/></clipPath>`;
+  land += `<g clip-path="url(#exp${id})"><path d="${toD(w.lo)}" fill="${B.lo}" opacity=".5" fill-rule="evenodd"/><path d="${toD(w.hi)}" fill="${B.hi}" opacity=".55" fill-rule="evenodd"/></g>`;
+  land += w.regions.map(g => `<path d="${toD(g.loops)}" fill="none" stroke="${B.ink}" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="4 4"/>`).join('');
+  land += `<path d="${regLoops}" fill="none" stroke="${B.ink}" stroke-opacity=".75" stroke-width="1.6" stroke-linejoin="round"/>`;
+  // uncharted: flat grey, no detail
+  const LK = LOCK[P.type];
+  land += w.locked.map(g => `<path d="${toD(g.loops)}" fill="${LK[1]}" fill-rule="evenodd" transform="translate(0 4)"/><path d="${toD(g.loops)}" fill="${LK[0]}" fill-rule="evenodd"/><path d="${toD(g.loops)}" fill="none" stroke="${LK[2]}" stroke-opacity=".6" stroke-width="1.4" stroke-linejoin="round"/>`).join('');
+  // the chosen region: everything else dims, the region keeps full colour under a white glow
+  let focus = '';
+  if (mode === 'card') focus = `<path d="M-400 -400H800V1300H-400Z${toD(sel.loops)}" fill="#03121e" opacity=".42" fill-rule="evenodd"/>
+    <path d="${toD(sel.loops)}" fill="none" stroke="#fff" stroke-width="${f1(3 / z)}" stroke-linejoin="round" filter="url(#glow${id})"/>`;
+  // a frame of puffy cloud at the edge of what's charted
+  let clouds = ''; const rc = rng(P.id + 'cloud');
+  const ring = (x0, x1, y0, y1, s1, s2, lo, hi) => { const pts = []; for (let x = x0; x <= x1; x += s1) pts.push([x, y0], [x, y1]); for (let y = y0 + s2; y < y1 - s2 * .5; y += s2) pts.push([x0, y], [x1, y]);
+    pts.forEach(([px2, py2]) => { const x = px2 + rc() * 30 - 15, y = py2 + rc() * 30 - 15; if (y < 66 || nearExp(x, y, 18) || (x > 50 && x < 340 && y > 150 && y < 760)) return; clouds += cloudPuff(rc, x, y, lo + rc() * (hi - lo), th); }); };
+  ring(-30, 420, 0, 900, 80, 95, .9, 1.4);
+  // uncharted veils in map space
+  const rv = rng(P.id + 'veil'); let veils = '';
+  defs += `<radialGradient id="veil${id}" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".62" stop-color="#eef6fb" stop-opacity=".26"/><stop offset="1" stop-color="#e2eef8" stop-opacity="0"/></radialGradient>`;
+  w.locked.forEach((g, i) => { const c = w.conts[w.conts.length - w.locked.length + i], [ax, ay] = g.at;
+    veils += `<ellipse cx="${f1(ax)}" cy="${f1(ay)}" rx="${f1(c.s * 1.1)}" ry="${f1(c.s * .9)}" fill="url(#veil${id})"/>`;
+    for (let q = 0; q < 2; q++) veils += cloudPuff(rv, ax + (rv() - .5) * c.s * 1.4, ay + (rv() - .5) * c.s, .5 + rv() * .35, th); });
+  // ---- screen space: names, markers, Uncharted tags ----
+  let ui = '';
+  const [sx, sy] = S(sel.at[0], sel.at[1]);
+  w.locked.forEach(g => { let [x, y] = S(g.at[0], g.at[1] + 4); if (!seen(x, y, 64) || y > safe.bottom - 24) return;
+    // keep clear of the chosen region's marker and name: slide the tag past them
+    if (Math.abs(x - sx) < 170 && y > sy - 64 && y < sy + 48) y = y < sy - 8 ? sy - 66 : sy + 50;
+    if (y < safe.top + 14 || y > safe.bottom - 24) return;
+    ui += `<g transform="translate(${f1(x)} ${f1(y)})"><rect x="-58" y="-14" width="116" height="28" rx="14" fill="rgba(12,40,56,.78)" stroke="rgba(255,255,255,.55)" stroke-width="1.4"/>
+      <path d="M-45 -1h9v8h-9zM-43.5 -1v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#ffe6a8" stroke-width="1.8" stroke-linecap="round"/><text x="10" y="4.5" text-anchor="middle" font-family="Instrument Sans" font-weight="800" font-size="11" letter-spacing="1.6" fill="#fff3d6">UNCHARTED</text></g>`; });
+  w.regions.forEach((g, i) => { const [x, y] = S(g.at[0], g.at[1]);
+    if (i === P.sel) return;
+    if (mode === 'card') { if (seen(x, y, P.regions[i].length * 4.3 + 10)) ui += `<g opacity=".8">${textLabel(x, y + 5, P.regions[i], th, 14)}</g>`; return; }
+    ui += textLabel(x, y + 5, P.regions[i], th, 15); });
+  if (mode === 'card') ui += pillLabel(sx, sy, P.regions[P.sel], { fill: '#FFE44D', ink: '#111', size: 15 });
+  else ui += `<g transform="translate(${f1(sx)} ${f1(sy - 22)})"><circle class="port-ping" r="13" fill="none" stroke="#fff" stroke-width="2"/><circle r="13" fill="var(--orange)" stroke="#fff" stroke-width="2.5"/><circle r="4.5" fill="#fff"/></g>`
+    + pillLabel(sx, sy + 14, `${P.regions[P.sel]} · you were here`, { dot: 'var(--orange)' });
+  return `<svg viewBox="0 0 390 844"><defs>${defs}</defs><g transform="translate(${f1(tx)} ${f1(ty)}) scale(${f1(z)})">${ground}${detail}${land}${focus}${veils}${clouds}</g>${ui}</svg>`;
+}
+function screenMap(P, mode) {
+  const th = T[P.type], E = P.enc;
+  const top = `<div class="map-top"><div class="pill">${backIcon}${mode === 'card' ? P.name : P.system}<span class="level-chip">${mode === 'card' ? 'Region' : 'Planet'}</span></div></div>`;
+  const bottom = mode === 'card'
+    ? `<div class="map-card" style="--accent-c:${th.accent};--mc:${th.mc}"><div class="mc-top"><span class="mc-kind">${E.kind} · in ${P.regions[P.sel]}</span><span class="mc-x">✕</span></div><h1>${E.title}</h1><p>${E.sum}</p>
+        <div class="mc-acts"><span class="go">Open</span><span class="ghost">Close</span></div></div>`
+    : `<div class="chips">${P.route ? `<span class="chip light">Route to ${P.route}${fwdIcon}</span>` : ''}<span class="chip dark">${listIcon}List view</span></div>`;
+  return `<div class="phone" data-anim><div class="map">${mapSVG(P, mode)}</div>${top}${bottom}${tabbar()}<div class="statusbar"><span>9:41</span><i></i></div></div>`;
+}
+
+
+/* ===================== the internals: search, outline, simple drawing ===================== */
+const ICON = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>', fwd: '<path d="M9 5l7 7-7 7"/>', down: '<path d="M5 9l7 7 7-7"/>',
+  arrow: '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>', device: '<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18.5h2"/>',
+};
+const ic = (n, sw = 2.4) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
+const byId = id => PLANETS.find(p => p.id === id);
+
+/* glyphs: a sun for a system, a tiny painted planet, a patch of land for a region, the station for a room */
+const sunGlyph = (s = 18) => `<span class="g-sun" style="width:${s}px;height:${s}px"></span>`;
+function planetGlyph(type, s = 20, ringed) {
+  const g = BIO[type].globe, bg = type === 'gas' ? `linear-gradient(170deg, ${BIO.gas.bands.join(',')})` : `radial-gradient(circle at 34% 30%, ${g[0]}, ${g[1]} 42%, ${g[2]} 78%, ${g[3]})`;
+  return `<span class="g-planet${ringed ? ' ringed' : ''}" style="width:${s}px;height:${s}px;background:${bg};--ring:${T[type].land[1]}"></span>`;
+}
+const BLOBS = ['M-8 -2Q-8 -7-3 -6Q0 -10 4 -7Q9 -6 7 -1Q9 3 6 5Q2 4 1 7Q-3 9-5 5Q-9 4-8 -2Z', 'M-6 -7Q-1 -9 2 -6Q6 -9 8 -4Q6 0 8 3Q7 8 2 7Q-1 5-3 8Q-8 7-7 2Q-10 -3-6 -7Z',
+  'M-5 -8Q0 -6 3 -8Q9 -7 7 -2Q4 1 8 4Q6 9 1 7Q-3 9-6 6Q-9 2-6 -1Q-9 -6-5 -8Z', 'M-8 0Q-9 -6-3 -6Q0 -10 5 -7Q9 -3 6 1Q8 6 3 7Q0 5-3 8Q-8 7-6 3Q-9 2-8 0Z'];
+const regionGlyph = (type, i, s = 18) => `<svg class="g-region" width="${s}" height="${s}" viewBox="-10 -10 20 20"><path d="${BLOBS[i % 4]}" fill="${BIO[type].land[i % 4]}" stroke="${BIO[type].ink}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+const roomGlyph = (s = 22) => `<svg width="${s}" height="${s}" viewBox="-16 -10 32 20" aria-hidden="true"><rect x="-7" y="-4" width="14" height="8" rx="2.5" fill="#15302a" stroke="currentColor" stroke-width="1.6"/><path d="M-13 0h6M7 0h6" stroke="currentColor" stroke-width="1.6"/>
+  <rect x="-15.5" y="-3" width="3.5" height="6" fill="currentColor"/><rect x="12" y="-3" width="3.5" height="6" fill="currentColor"/><circle r="1.6" fill="#ffb347"/></svg>`;
+const glyph = g => g[0] === 'sun' ? sunGlyph() : g[0] === 'planet' ? planetGlyph(g[1], 20, g[2]) : g[0] === 'region' ? regionGlyph(g[1], g[2]) : roomGlyph();
+
+const statusbar = '<div class="statusbar"><span>9:41</span><i></i></div>';
+const spacePhone = inner => `<div class="phone" data-scene="overview" data-anim><canvas></canvas><div class="labels"></div><div class="dimtop"></div>${inner}${tabbar()}${statusbar}</div>`;
+
+/* U08 · Search, empty query */
+function screenSearchEmpty() {
+  const kinds = [['Systems', sunGlyph()], ['Planets', planetGlyph('lush')], ['Regions', regionGlyph('lush', 1, 20)], ['Rooms', `<span style="color:#fffdf2">${roomGlyph()}</span>`]];
+  return spacePhone(`<div class="s-top"><div class="field">${ic('search', 2.2)}<i class="caret lead"></i><span class="ph">Search your universe</span></div><span class="cancel">Cancel</span></div>
+    <div class="hintcard glass"><h2>Find any place you've been</h2><p>Choosing a result flies you there. Back returns you to where you were looking.</p>
+      <div class="kinds">${kinds.map(([l, g]) => `<span class="kind"><span class="gb">${g}</span>${l}</span>`).join('')}</div>
+      <div class="rfoot" style="padding:14px 2px 0">${ic('device', 2)}Search stays on this device.</div></div>`);
+}
+
+/* U08 · Search, typed */
+const RESULTS = [
+  { t: 'Cost', m: [0, 4], path: 'Region · Inference & serving · Machine learning', g: ['region', 'lush', 3] },
+  { t: 'Cost of living', m: [0, 4], path: 'Planet · Economics', g: ['planet', 'ocean'] },
+  { t: 'Carbon cost', m: [7, 11], path: 'Region · Energy · Climate', g: ['region', 'scorched', 2] },
+  { t: 'Cost model room', m: [0, 4], path: 'Room · Economics', g: ['room'] },
+];
+function screenSearch() {
+  const rows = RESULTS.map((r, i) => `<div class="res${i === 0 ? ' top' : ''}"><span class="gw"${r.g[0] === 'room' ? ' style="color:#fffdf2"' : ''}>${glyph(r.g)}</span>
+    <span class="tx"><span class="tt">${r.t.slice(0, r.m[0])}<mark>${r.t.slice(r.m[0], r.m[1])}</mark>${r.t.slice(r.m[1])}</span><span class="pp">${r.path}</span></span><span class="fly">${ic(i === 0 ? 'arrow' : 'fwd')}</span></div>`).join('');
+  return spacePhone(`<div class="s-top"><div class="field">${ic('search', 2.2)}<span>cost</span><i class="caret"></i><span class="clr">${ic('close', 2.6)}</span></div><span class="cancel">Cancel</span></div>
+    <div class="results glass"><div class="res-head"><span>4 places</span><span>Best match first</span></div>${rows}
+      <div class="rfoot">${ic('device', 2)}Only places in your universe. Search stays on this device.</div></div>`);
+}
+
+/* U08 · List view: the outline sheet over the landed map */
+const OUTLINE = [
+  { t: 'Machine learning', k: 'System', d: 0, g: ['sun'], anc: 1, open: 1 },
+  { t: 'Attention', k: '4 regions', d: 1, g: ['planet', 'barren'] },
+  { t: 'Inference & serving', k: 'Planet', d: 1, g: ['planet', 'lush'], anc: 1, open: 1 },
+  { t: 'Batching', k: 'Region', d: 2, g: ['region', 'lush', 0] },
+  { t: 'Deployment', k: 'Region', d: 2, g: ['region', 'lush', 1], cur: 1 },
+  { t: 'Latency', k: 'Region', d: 2, g: ['region', 'lush', 2] },
+  { t: 'Cost', k: 'Region', d: 2, g: ['region', 'lush', 3] },
+  { t: 'Hardware', k: '4 regions', d: 1, g: ['planet', 'scorched', 1] },
+  { t: 'Backend systems', k: '2 planets', d: 0, g: ['sun'] },
+  { t: 'Football', k: '1 planet', d: 0, g: ['sun'] },
+];
+function outlineRow(o) {
+  const leaf = o.g[0] === 'region' || o.g[0] === 'room', guides = Array.from({ length: o.d }, (_, l) => `<i class="guide" style="left:${17 + l * 22}px"></i>`).join('');
+  return `<div class="orow d${o.d}${o.anc ? ' anc' : ''}${o.cur ? ' cur' : ''}" style="padding-left:${8 + o.d * 22}px">${guides}<span class="tw">${leaf ? '' : ic(o.open ? 'down' : 'fwd', 2.6)}</span>${glyph(o.g)}
+    <span class="ot">${o.t}</span>${o.cur ? '<span class="here">Looking here</span>' : `<span class="ok">${o.k}</span>`}</div>`;
+}
+function screenList() {
+  const P = byId('inference');
+  return `<div class="phone" data-anim><div class="map">${mapSVG(P, 'here')}</div>
+    <div class="map-top"><div class="pill">${backIcon}${P.system}<span class="level-chip">Planet</span></div></div>${tabbar()}
+    <div class="scrim"></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="sh-head"><div><h2>Your universe</h2><p>Every place, in order.</p></div><span class="sh-x">${ic('close', 2.6)}</span></div>
+      <div class="toggles"><div class="tog"><span class="tr">Lately<span class="sw"></span></span><small>Recent activity first</small></div>
+        <div class="tog"><span class="tr">Simple drawing<span class="sw"></span></span><small>Flat map for slow devices</small></div></div>
+      <div class="sh-label"><span>Places</span><span>3 systems</span></div>
+      <div class="outline">${OUTLINE.map(outlineRow).join('')}
+        <div class="sh-label" style="padding-top:14px"><span>Rooms</span></div>${outlineRow({ t: 'Model serving room', k: 'Room', d: 0, g: ['room'] })}</div>
+    </div>${statusbar}</div>`;
+}
+
+/* U03 · Low detail: the same map, flat. No clouds, no blur, no motion, no glass */
+function simpleMap(P, wd, ht) {
+  const B = BIO[P.type], th = T[P.type], w = mapWorld(P), LK = LOCK[P.type], pts = w.land.flat();
+  const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), y0 = Math.min(...pts.map(p => p[1])), y1 = Math.max(...pts.map(p => p[1]));
+  const s = Math.min((wd - 28) / (x1 - x0), (ht - 28) / (y1 - y0)), ox = (wd - (x1 + x0) * s) / 2, oy = (ht - (y1 + y0) * s) / 2, S = (x, y) => [x * s + ox, y * s + oy];
+  const ns = 'vector-effect="non-scaling-stroke"';
+  const sea = th.detail === 'bands' ? B.bands.map((c, i) => `<rect x="0" y="${f1(i * ht / B.bands.length)}" width="${wd}" height="${f1(ht / B.bands.length + 1)}" fill="${c}"/>`).join('') : `<rect width="${wd}" height="${ht}" fill="${B.globe[2]}"/>`;
+  let land = w.regions.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[i % 4]}" fill-rule="evenodd"/>`).join('');
+  land += w.regions.map(g => `<path d="${toD(g.loops)}" fill="none" stroke="${B.ink}" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 3" ${ns}/>`).join('');
+  land += w.locked.map(g => `<path d="${toD(g.loops)}" fill="${LK[0]}" fill-rule="evenodd"/>`).join('');
+  land += `<path d="${toD(w.land)}" fill="none" stroke="${B.ink}" stroke-opacity=".8" stroke-width="1.4" stroke-linejoin="round" ${ns}/>`;
+  const names = w.regions.map((g, i) => { const [x, y] = S(g.at[0], g.at[1]); return textLabel(clamp(x, 44, wd - 44), y + 4, P.regions[i], th, 11.5); }).join('');
+  const locks = w.locked.map(g => { const [x, y] = S(g.at[0], g.at[1]); return `<g transform="translate(${f1(x)} ${f1(y)})"><circle r="11" fill="${LK[2]}"/><path d="M-4 -1h8v6h-8zM-2.6 -1v-2.4a2.6 2.6 0 0 1 5.2 0V-1" fill="none" stroke="#fff3d6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></g>`; }).join('');
+  return { svg: `<svg width="${wd}" height="${ht}" viewBox="0 0 ${wd} ${ht}">${sea}<g transform="translate(${f1(ox)} ${f1(oy)}) scale(${s.toFixed(4)})">${land}</g>${locks}${names}</svg>`, locked: w.locked.length };
+}
+function screenLowDetail(P) {
+  const m = simpleMap(P, 358, 340), B = BIO[P.type], LK = LOCK[P.type];
+  return `<div class="phone flat">
+    <div class="map-top"><div class="pill">${backIcon}${P.system}</div><span class="tag-plain">Simple drawing</span></div>
+    <div class="ld-head"><span class="eyebrow">A planet in ${P.system}</span><h1>${P.name}</h1></div>
+    <div class="ld-map">${m.svg}</div>
+    <div class="ld-legend"><span><i style="background:${B.land[0]}"></i>Explored</span><span><i style="background:${LK[0]}"></i>Uncharted · ${m.locked} continents</span></div>
+    <div class="ld-regions">${P.regions.map((r, i) => `<span class="rbtn">${regionGlyph(P.type, i, 20)}${r}<svg class="ch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ICON.fwd}</svg></span>`).join('')}</div>
+    <div class="chips">${P.route ? `<span class="chip light">Route to ${P.route}${fwdIcon}</span>` : ''}<span class="chip dark">${listIcon}List view</span></div>
+    ${tabbar()}${statusbar}</div>`;
+}
+
+
+/* ===================== round 02: getting around by carousel ===================== */
+const SYSTEMS = [
+  { name: 'Machine learning', planets: ['attention', 'inference', 'hardware'], rooms: 1, here: 1 },
+  { name: 'Backend systems', planets: ['queues', 'storage'], rooms: 0 },
+  { name: 'Football', planets: ['tactics'], rooms: 0 },
+];
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const sysMeta = s => [plural(s.planets.length, 'planet'), s.rooms ? plural(s.rooms, 'room') : ''].filter(Boolean).join(' · ');
+const uniIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/></svg>';
+const lockIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const flatten = html => html.replace(/ filter="url\(#[^)]*\)"/g, '').replace(/ class="(current-a|current-b|cloud|port-ping|band-drift|bubble|storm)"/g, '');
+let gid = 0;
+
+/* the approved U03 globe at any size */
+function globeHTML(P, size) {
+  const th = T[P.type], g = BIO[P.type].globe, bg = `radial-gradient(circle at 38% 32%, ${g[0]} 0, ${g[1]} 35%, ${g[2]} 72%, ${g[3]} 100%)`;
+  return `<div class="mg" style="width:${size}px;height:${size}px;--atmo-line:${th.atmo}aa;--atmo-glow:${th.atmo}66;--rim:${th.rim};--globe-bg:${bg}"><div class="mg-in" style="transform:scale(${(size / 292).toFixed(4)})">
+    ${P.rings ? ringSVG(th, false) : ''}<div class="globe-wrap"><div class="atmosphere"></div><div class="globe">${surfaceBand(P, th)}<div class="shade"></div><div class="glint"></div></div></div>${P.rings ? ringSVG(th, true) : ''}</div></div>`;
+}
+
+/* a system as a portrait: its orange sun and its tiny planets, no orbit lines */
+function sysPortrait(s, w = 242, h = 66) {
+  const id = 'sp' + gid++, r = rng(s.name);
+  let defs = `<radialGradient id="${id}s"><stop offset="0" stop-color="#fff3c4"/><stop offset=".3" stop-color="#ffc061"/><stop offset=".62" stop-color="#ff6a2a"/><stop offset="1" stop-color="#ff6a2a" stop-opacity="0"/></radialGradient>`;
+  let g = `<circle cx="32" cy="${h / 2}" r="34" fill="url(#${id}s)" opacity=".45"/><circle cx="32" cy="${h / 2}" r="17" fill="url(#${id}s)"/>`;
+  s.planets.forEach((pid, i) => { const P = byId(pid), c = BIO[P.type].globe, x = 92 + (i + .5) * (w - 100) / Math.max(2, s.planets.length) + (r() - .5) * 16, y = h / 2 + (r() - .5) * 28, rr = 6 + r() * 3.5;
+    defs += `<radialGradient id="${id}p${i}" cx="35%" cy="30%"><stop offset="0" stop-color="${c[0]}"/><stop offset=".5" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[3]}"/></radialGradient>`;
+    if (P.rings) g += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rr * 1.9)}" ry="${f1(rr * .45)}" fill="none" stroke="${T[P.type].land[1]}" stroke-width="1.6" transform="rotate(-14 ${f1(x)} ${f1(y)})"/>`;
+    g += `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(rr)}" fill="url(#${id}p${i})"/>`; });
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs>${defs}</defs>${g}</svg>`;
+}
+
+/* continents: which regions sit on which explored continent, and how many are uncharted */
+function contOf(P) {
+  const w = mapWorld(P), n = P.regions.length, per = T[P.type].archipelago ? Array(4).fill(1) : [n - 1, 1]; let k = 0;
+  return { w, explored: per.map(c => { const a = Array.from({ length: c }, (_, j) => k + j); k += c; return a; }), locked: w.locked.length };
+}
+/* a little piece of the landed map: one region, one continent or one uncharted mass, fitted to a box */
+function thumb(P, sets, wd, ht, o = {}) {
+  const B = BIO[P.type], pts = sets.flatMap(s => s.loops.flat()), pad = o.pad ?? 8, ns = 'vector-effect="non-scaling-stroke"';
+  const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), y0 = Math.min(...pts.map(p => p[1])), y1 = Math.max(...pts.map(p => p[1]));
+  const s = Math.min((wd - pad * 2) / (x1 - x0), (ht - pad * 2) / (y1 - y0)), ox = (wd - (x1 + x0) * s) / 2, oy = (ht - (y1 + y0) * s) / 2;
+  const sea = P.type === 'gas' ? B.bands.map((c, i) => `<rect y="${f1(i * ht / 5)}" width="${wd}" height="${f1(ht / 5 + 1)}" fill="${c}"/>`).join('') : `<rect width="${wd}" height="${ht}" fill="${B.globe[2]}"/><rect width="${wd}" height="${ht}" fill="${B.globe[1]}" opacity=".35"/>`;
+  const all = toD(sets.flatMap(st => st.loops));
+  let body = `<path d="${all}" fill="none" stroke="${B.foam}" stroke-width="4" stroke-opacity=".8" stroke-linejoin="round" ${ns}/>`;
+  body += sets.map(st => `<path d="${toD(st.loops)}" fill="${st.fill}" fill-rule="evenodd"/>`).join('');
+  body += sets.length > 1 ? sets.map(st => `<path d="${toD(st.loops)}" fill="none" stroke="${B.ink}" stroke-opacity=".5" stroke-width="1" stroke-dasharray="3 3" ${ns}/>`).join('') : '';
+  body += `<path d="${all}" fill="none" stroke="${o.lock ? '#3a4a52' : B.ink}" stroke-opacity=".8" stroke-width="1.3" stroke-linejoin="round" ${ns}/>`;
+  const names = (o.names || []).map(n => textLabel(clamp(n.at[0] * s + ox, n.name.length * 3.4 + 4, wd - n.name.length * 3.4 - 4), n.at[1] * s + oy + 4, n.name, T[P.type], o.size || 11)).join('');
+  const lock = o.lock ? `<g transform="translate(${wd / 2} ${ht / 2})"><circle r="13" fill="rgba(12,40,56,.82)" stroke="rgba(255,255,255,.6)" stroke-width="1.2"/><path d="M-4.5 -1h9v7h-9zM-3 -1v-2.6a3 3 0 0 1 6 0V-1" fill="none" stroke="#ffe6a8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>` : '';
+  return `<svg class="thumb" width="${wd}" height="${ht}" viewBox="0 0 ${wd} ${ht}" aria-hidden="true">${sea}<g transform="translate(${f1(ox)} ${f1(oy)}) scale(${s.toFixed(4)})">${body}</g>${lock}${names}</svg>`;
+}
+const regionThumb = (P, i, s = 44) => { const w = mapWorld(P); return thumb(P, [{ loops: w.regions[i].loops, fill: BIO[P.type].land[i % 4] }], s, s, { pad: 5 }); };
+const contThumb = (P, idx, wd, ht, names) => { const w = mapWorld(P); return thumb(P, idx.map(i => ({ loops: w.regions[i].loops, fill: BIO[P.type].land[i % 4] })), wd, ht, { names: names ? idx.map(i => ({ at: w.regions[i].at, name: P.regions[i] })) : [] }); };
+const lockedThumb = (P, li, wd, ht) => thumb(P, [{ loops: mapWorld(P).locked[li].loops, fill: LOCK[P.type][0] }], wd, ht, { lock: true });
+const rchip = (P, i) => `<span class="rchip">${regionGlyph(P.type, i, 18)}${P.regions[i]}${i === P.sel && P.id === 'inference' ? '<span class="od" title="You were here"></span>' : ''}</span>`;
+const dots = (n, on, top) => `<div class="dots" style="top:${top}px">${Array.from({ length: n }, (_, i) => `<i${i === on ? ' class="on"' : ''}></i>`).join('')}</div>`;
+
+/* ---------- A · fly-through carousels: one level per screen, swipe sideways, tap to go deeper ---------- */
+function screenA1() {
+  const cw = 270, x0 = (390 - cw) / 2, order = [[2, -1], [0, 0], [1, 1]];
+  const cards = order.map(([si, o]) => { const s = SYSTEMS[si];
+    return `<div class="ccard glass syscard${o ? ' side' : ''}" style="left:${x0 + o * (cw + 14)}px">${sysPortrait(s)}<h3>${s.name}</h3><span class="meta">${sysMeta(s)}</span>
+      <div class="foot">${s.here ? '<span class="youhere">You’re here</span>' : '<span></span>'}<span class="enter">Enter<i>→</i></span></div></div>`; }).join('');
+  return `<div class="phone" data-scene="overview" data-anim><canvas></canvas><div class="labels"></div>
+    <div class="mapfade" style="background:linear-gradient(180deg,rgba(0,0,0,.6) 0,rgba(0,0,0,0) 20%,rgba(0,0,0,0) 46%,rgba(0,0,0,.85) 70%)"></div>
+    <div class="crumbs"><div class="pill">${uniIcon}Your universe<span class="level-chip">3 systems</span></div></div>
+    <div class="swipe" style="top:500px">Swipe to fly between systems</div>
+    <div class="car" style="top:524px">${cards}</div>${dots(3, 0, 724)}${tabbar()}${statusbar}</div>`;
+}
+function screenA2() {
+  const ps = SYSTEMS[0].planets.map(byId), P = ps[1], C = contOf(P), big = 228, sm = 124, cy = 296;
+  return `<div class="phone" data-anim>${stars('a2')}<div class="sunglow"></div>
+    <div class="crumbs"><div class="pill">${backIcon}Your universe</div><div class="here-chip">${sunGlyph(14)}Machine learning</div></div>
+    <div style="position:absolute;z-index:4;left:-44px;top:${cy - sm / 2}px;opacity:.55">${globeHTML(ps[0], sm)}</div>
+    <div style="position:absolute;z-index:4;left:${390 - sm + 44}px;top:${cy - sm / 2}px;opacity:.55">${globeHTML(ps[2], sm)}</div>
+    <div style="position:absolute;z-index:5;left:${195 - big / 2}px;top:${cy - big / 2}px">${globeHTML(P, big)}</div>
+    <span class="side-name" style="left:36px;top:${cy + sm / 2 + 16}px">‹ ${ps[0].name}</span><span class="side-name" style="left:354px;top:${cy + sm / 2 + 16}px">${ps[2].name} ›</span>
+    <div class="pcap" style="top:${cy + big / 2 + 36}px"><span class="eyebrow">Planet 2 of 3 · ${T[P.type].label}</span><h1>${P.name}</h1>
+      <div class="facts"><span class="fact">${plural(P.regions.length, 'region')}</span><span class="fact">${C.locked} uncharted</span><span class="fact or">You were here · ${P.regions[P.sel]}</span></div></div>
+    ${dots(3, 1, 596)}<div class="ctas" style="top:620px"><span class="enter big">Land on ${P.name}<i>→</i></span></div>${tabbar()}${statusbar}</div>`;
+}
+function screenA3() {
+  const P = byId('inference'), C = contOf(P), total = C.explored.length + C.locked, cw = 300, x0 = 45, top = 432;
+  const main = C.explored[0], other = C.explored[1];
+  const card = (o, inner) => `<div class="ccard glass contcard${o ? ' side' : ''}" style="left:${x0 + o * (cw + 14)}px">${inner}</div>`;
+  const cards = card(-1, `${lockedThumb(P, 0, 276, 128)}<div class="cc-head"><b>Uncharted</b><span>Continent 5 of ${total}</span></div><span class="locked-note">${lockIcon}Explore more to chart it</span>`)
+    + card(0, `${contThumb(P, main, 276, 128, true)}<div class="cc-head"><b>${plural(main.length, 'region')}</b><span>Continent 1 of ${total}</span></div><div class="rchips">${main.map(i => rchip(P, i)).join('')}</div>`)
+    + card(1, `${contThumb(P, other, 276, 128, true)}<div class="cc-head"><b>${plural(other.length, 'region')}</b><span>Continent 2 of ${total}</span></div><div class="rchips">${other.map(i => rchip(P, i)).join('')}</div>`);
+  return `<div class="phone" data-anim><div class="map">${mapSVG(P, 'here')}</div>
+    <div class="mapfade" style="background:linear-gradient(180deg,rgba(2,10,16,0) 34%,rgba(2,10,16,.7) 54%,rgba(2,10,16,.92) 70%)"></div>
+    <div class="crumbs"><div class="pill">${backIcon}Machine learning</div><div class="here-chip">${planetGlyph(P.type, 16)}${P.name}</div></div>
+    <div class="swipe" style="top:${top - 26}px">Swipe through continents · tap a region to land</div>
+    <div class="car" style="top:${top}px">${cards}</div>${dots(total, 0, 726)}${tabbar()}${statusbar}</div>`;
+}
+
+/* ---------- B · one sheet, three rails: every level visible at once ---------- */
+function screenB(si, pid) {
+  const s = SYSTEMS[si], P = byId(pid), C = contOf(P), total = C.explored.length + C.locked, first = C.explored[0];
+  const sys = SYSTEMS.map((x, i) => `<span class="spill${i === si ? ' on' : ''}">${sunGlyph(16)}${x.name}</span>`).join('');
+  const pl = s.planets.map(byId).map(p => `<span class="ptile${p.id === pid ? ' on' : ''}">${p.id === 'inference' ? '<i class="yh" title="You were here"></i>' : ''}${globeHTML(p, 70)}${p.name}</span>`).join('');
+  const ct = C.explored.map((idx, ci) => `<span class="ctile${ci === 0 ? ' on' : ''}">${contThumb(P, idx, 130, 78)}<span>${plural(idx.length, 'region')}<em>${ci + 1}/${total}</em></span></span>`).join('')
+    + Array.from({ length: C.locked }, (_, li) => `<span class="ctile">${lockedThumb(P, li, 130, 78)}<span>Uncharted<em>${C.explored.length + li + 1}/${total}</em></span></span>`).join('');
+  const target = first.includes(P.sel) ? P.regions[P.sel] : P.regions[first[0]];
+  return `<div class="phone" data-anim><div class="map">${mapSVG(byId('inference'), 'here')}</div>
+    <div class="map-top"><div class="pill">${backIcon}Machine learning<span class="level-chip">Planet</span></div></div>${tabbar()}<div class="scrim"></div>
+    <div class="rsheet glass"><div class="grab"></div>
+      <div class="rs-head"><h2>Find your way</h2><span class="rs-x">${ic('close', 2.6)}</span></div>
+      <div class="rl"><span>Systems</span><span>${SYSTEMS.length}</span></div><div class="rail">${sys}</div>
+      <div class="rl"><span>Planets in ${s.name}</span><span>${s.planets.length}</span></div><div class="rail">${pl}</div>
+      <div class="rl"><span>Continents on ${P.name}</span><span>${total}</span></div><div class="rail">${ct}</div>
+      <div class="rs-chips">${first.map(i => rchip(P, i)).join('')}</div>
+      <div class="rs-cta" style="margin-top:14px"><span class="enter big">Land on ${target}<i>→</i></span></div>
+    </div>${statusbar}</div>`;
+}
+
+/* ---------- C · the orbit dial: the sun at the bottom, planets turn around it ---------- */
+function screenC() {
+  const s = SYSTEMS[0], ps = s.planets.map(byId), P = ps[1], C = contOf(P), cx = 195, cy = 742, R = 168, big = 210, gy = 262;
+  const ang = [-128, -90, -52], sz = [46, 52, 46];
+  const dial = ps.map((p, i) => { const a = ang[i] * Math.PI / 180, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R, on = p === P;
+    return `<div class="dial-p${on ? ' on' : ''}" style="left:${f1(x)}px;top:${f1(y + 12)}px">${on ? `<span class="ringsel">${globeHTML(p, sz[i])}</span>` : globeHTML(p, sz[i])}${p.name}</div>`; }).join('');
+  return `<div class="phone" data-anim>${stars('c')}<div class="dial-sun"></div>
+    <div class="crumbs"><div class="pill">${uniIcon}Your universe</div></div>
+    <div class="sysrow">${SYSTEMS.map((x, i) => `<span class="spill${i === 0 ? ' on' : ''}">${sunGlyph(16)}${x.name}</span>`).join('')}</div>
+    <div style="position:absolute;z-index:5;left:${195 - big / 2}px;top:${gy - big / 2}px">${globeHTML(P, big)}</div>
+    <div class="pcap" style="top:${gy + big / 2 + 22}px"><span class="eyebrow">Planet 2 of 3 · ${T[P.type].label}</span><h1>${P.name}</h1>
+      <div class="facts"><span class="fact">${plural(P.regions.length, 'region')}</span><span class="fact">${C.locked} uncharted</span><span class="fact or">You were here</span></div></div>
+    ${dial}<div class="swipe" style="top:676px">Turn the dial · tap the big planet to land</div>${tabbar()}${statusbar}</div>`;
+}
+
+/* ---------- simple drawing, 1: the landed map, flat ---------- */
+function screenS1(P) {
+  return `<div class="phone flat"><div class="map">${flatten(mapSVG(P, 'here'))}</div>
+    <div class="map-top"><div class="pill">${backIcon}${P.system}</div><span class="tag-plain">Simple drawing</span><span class="listbtn">${listIcon}</span></div>
+    <div class="plate"><span class="eyebrow">A planet in ${P.system}</span><h1>${P.name}</h1></div>
+    <div class="rstrip"><div class="rl"><span>${plural(P.regions.length, 'region')} · tap to land</span></div><div class="rrow">${P.regions.map((r, i) => `<span class="rcard">${regionThumb(P, i, 46)}<span><b>${r}</b><small>${i === P.sel ? '<i></i>You were here' : 'Land ›'}</small></span></span>`).join('')}</div></div>
+    ${tabbar()}${statusbar}</div>`;
+}
+/* ---------- simple drawing, 2: a flat globe (no spin, clouds or blur) and region tiles ---------- */
+function flatDisc(P, D) {
+  const w = globeWorld(P), B = BIO[P.type], th = T[P.type], LK = LOCK[P.type], id = 'fd' + gid++, s = D / 360, x0 = w.regions[0].at[0] - 180;
+  let land = '';
+  if (P.type === 'gas') land += Array.from({ length: 9 }, (_, i) => { const y = i * 40; return `<path d="M-60 ${y} ${Array.from({ length: 11 }, (_, k) => `Q${-60 + k * 60 + 30} ${y + (k % 2 ? 9 : -9)} ${-60 + k * 60 + 60} ${y}`).join(' ')} V${y + 44} H-60Z" fill="${B.bands[i % 5]}"/>`; }).join('');
+  land += `<path d="${toD(w.land)}" fill="none" stroke="${B.foam}" stroke-width="3.4" stroke-linejoin="round" opacity=".85"/>`;
+  land += w.regions.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[i % 4]}" fill-rule="evenodd"/>`).join('');
+  land += w.locked.map(g => `<path d="${toD(g.loops)}" fill="${LK[0]}" fill-rule="evenodd"/>`).join('');
+  land += w.regions.map(g => `<path d="${toD(g.loops)}" fill="none" stroke="${B.ink}" stroke-opacity=".5" stroke-width="1" stroke-dasharray="3 3"/>`).join('');
+  land += `<path d="${toD(w.land)}" fill="none" stroke="${B.ink}" stroke-opacity=".75" stroke-width="1.3" stroke-linejoin="round"/>`;
+  const copies = [-480, 0, 480].map(dx => `<use href="#${id}l" x="${dx}"/>`).join('');
+  const names = w.regions.map((g, i) => { let x = ((g.at[0] - x0) % 480 + 480) % 480; x *= s; const y = g.at[1] * s; if (Math.hypot(x - D / 2, y - D / 2) > D / 2 - 18) return '';
+    return textLabel(x, y + 4, P.regions[i], th, 12); }).join('');
+  const sea = P.type === 'gas' ? '' : `<circle cx="${D / 2}" cy="${D / 2}" r="${D / 2}" fill="${B.globe[1]}"/><circle cx="${D * .42}" cy="${D * .38}" r="${D * .36}" fill="${B.globe[0]}" opacity=".25"/>`;
+  return `<svg width="${D}" height="${D}" viewBox="0 0 ${D} ${D}" aria-hidden="true"><defs><clipPath id="${id}c"><circle cx="${D / 2}" cy="${D / 2}" r="${D / 2}"/></clipPath>
+      <g id="${id}l">${land}</g><mask id="${id}m"><rect width="${D}" height="${D}" fill="#fff"/><circle cx="${D * .4}" cy="${D * .36}" r="${D * .62}" fill="#000"/></mask></defs>
+    <circle cx="${D / 2}" cy="${D / 2}" r="${D / 2 + 11}" fill="none" stroke="${th.atmo}" stroke-opacity=".45" stroke-width="1.5"/>
+    <g clip-path="url(#${id}c)">${sea}<g transform="translate(${f1(-x0 * s)} 0) scale(${s.toFixed(4)})">${copies}</g>
+      <rect width="${D}" height="${D}" fill="${th.shadow}" opacity=".5" mask="url(#${id}m)"/></g>
+    <circle cx="${D / 2}" cy="${D / 2}" r="${D / 2}" fill="none" stroke="${th.rim}" stroke-width="2"/></svg>`;
+}
+function screenS2(P) {
+  const B = BIO[P.type], LK = LOCK[P.type], C = contOf(P), D = 270, top = 190;
+  return `<div class="phone flat"><div class="flatsky">${stars('flat' + P.id).replace('<div class="starfield">', '').replace(/<\/div>$/, '')}</div>
+    <div class="map-top"><div class="pill">${backIcon}${P.system}</div><span class="tag-plain">Simple drawing</span><span class="listbtn">${listIcon}</span></div>
+    <div class="ld-head"><span class="eyebrow">A planet in ${P.system}</span><h1>${P.name}</h1></div>
+    <div class="disc" style="top:${top}px">${flatDisc(P, D)}</div>
+    <div class="ld-legend" style="top:${top + D + 22}px;justify-content:center"><span><i style="background:${B.land[0]}"></i>Explored</span><span><i style="background:${LK[0]}"></i>Uncharted · ${C.locked}</span></div>
+    <div class="rtiles" style="top:${top + D + 52}px">${P.regions.map((r, i) => `<span class="rtile">${regionThumb(P, i, 62)}<div><b>${r}</b><small>${i === P.sel ? '<i></i>You were here' : 'Land ›'}</small></div></span>`).join('')}</div>
+    ${tabbar()}${statusbar}</div>`;
+}
+
+
+/* ===================== round 03: the orbit dial, with a wheel of systems ===================== */
+ICON.filter = '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>';
+ICON.chevDown = '<path d="M6 9l6 6 6-6"/>';
+/* the whole universe: three systems we have planets for, and four more (example data) */
+const UNI = [
+  { name: 'Economics', types: ['ocean', 'barren'], planets: ['Cost of living', 'Markets'], rooms: 1 },
+  { name: 'Machine learning', ids: ['attention', 'inference', 'hardware'], rooms: 1, here: 1 },
+  { name: 'Astronomy', types: ['frozen', 'gas'], planets: ['Exoplanets', 'Black holes'] },
+  { name: 'Backend systems', ids: ['queues', 'storage'] },
+  { name: 'Football', ids: ['tactics'] },
+  { name: 'Climate', types: ['scorched', 'ocean'], planets: ['Energy', 'Oceans'] },
+  { name: 'Predictive history', types: ['barren'], planets: ['Empires'] },
+];
+const uniPlanets = s => s.ids ? s.ids.map(byId).map(P => ({ id: P.id, name: P.name, type: P.type, rings: !!P.rings, regions: P.regions.length }))
+  : s.planets.map((n, i) => ({ name: n, type: s.types[i], rings: s.types[i] === 'gas' }));
+const markIn = (t, q) => { if (!q) return t; const i = t.toLowerCase().indexOf(q); return i < 0 ? t : `${t.slice(0, i)}<mark>${t.slice(i, i + q.length)}</mark>${t.slice(i + q.length)}`; };
+
+/* a system as an orb: its sun with its tiny planets around it, no orbit lines */
+function orbSVG(s, S, o = {}) {
+  const id = 'ob' + gid++, ps = uniPlanets(s), r = rng(s.name + 'orb'), c = S / 2;
+  let defs = `<radialGradient id="${id}s"><stop offset="0" stop-color="#fff3c4"/><stop offset=".3" stop-color="#ffc061"/><stop offset=".62" stop-color="#ff6a2a"/><stop offset="1" stop-color="#ff6a2a" stop-opacity="0"/></radialGradient>`;
+  let g = `<circle cx="${c}" cy="${c}" r="${f1(S * .5)}" fill="url(#${id}s)" opacity=".28"/><circle cx="${c}" cy="${c}" r="${f1(S * .24)}" fill="url(#${id}s)"/>`;
+  const a0 = r() * TAU;
+  ps.forEach((p, i) => { const a = a0 + i * TAU / ps.length + (r() - .5) * .5, d = S * (.36 + r() * .07), x = c + Math.cos(a) * d, y = c + Math.sin(a) * d * .82, rr = Math.max(2.2, S * (.06 + r() * .025)), gl = BIO[p.type].globe;
+    defs += `<radialGradient id="${id}p${i}" cx="35%" cy="30%"><stop offset="0" stop-color="${gl[0]}"/><stop offset=".5" stop-color="${gl[1]}"/><stop offset="1" stop-color="${gl[3]}"/></radialGradient>`;
+    if (p.rings) g += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rr * 1.9)}" ry="${f1(rr * .45)}" fill="none" stroke="${T[p.type].land[1]}" stroke-width="${f1(Math.max(1, S * .012))}" transform="rotate(-14 ${f1(x)} ${f1(y)})"/>`;
+    g += `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(rr)}" fill="url(#${id}p${i})"/>`; });
+  if (o.ring) g += `<circle cx="${c}" cy="${c}" r="${f1(S / 2 + 4)}" fill="none" stroke="#FFE44D" stroke-width="2"/>`;
+  return `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" aria-hidden="true"><defs>${defs}</defs>${g}</svg>`;
+}
+const FAMILY = { 'Machine learning': 'teal', 'Backend systems': 'cobalt', Football: 'coral', Economics: 'amber', Astronomy: 'violet', Climate: 'teal', 'Predictive history': 'pink' };
+/* the wheel: systems sit on a big circle whose centre is above the screen; the one at the bottom of it is in focus */
+function wheel(list, focus, G) {
+  const n = list.length;
+  return list.map((s, i) => { let k = i - focus; if (G.wrap) k = ((k % n) + n + Math.floor(n / 2)) % n - Math.floor(n / 2); const ak = Math.abs(k); if (ak > G.steps.length - 1) return '';
+    const a = Math.sign(k) * G.steps[ak] * Math.PI / 180, x = G.cx + Math.sin(a) * G.R, y = G.cy + Math.cos(a) * G.R, S = G.sizes[ak];
+    const name = G.labels && ak === 1 ? `<span class="nm">${markIn(s.name, G.q)}</span>` : '';
+    return `<div class="orb${k === 0 ? ' on' : ''}" style="left:${f1(x)}px;top:${f1(y)}px;opacity:${G.fade ? G.fade[ak] : 1}"><div class="sysph" data-sys="${s.name}" data-s="${S}" data-x="${f1(x)}" data-y="${f1(y)}" data-fam="${FAMILY[s.name]}" data-planets='${JSON.stringify(uniPlanets(s).map((p, j) => ({ id: p.id || s.name.toLowerCase().replace(/\W+/g, '-') + '-' + j, type: p.type })))}'${k === 0 && G.ring ? ' data-pick="1"' : ''} style="width:${S}px;height:${f1(S * .46)}px"></div>${s.here && G.hereDot ? '<i class="here-dot"></i>' : ''}${name}</div>`; }).join('');
+}
+const sysFacts = s => { const ps = uniPlanets(s), regions = ps.reduce((n, p) => n + (p.regions || 0), 0);
+  return [plural(ps.length, 'planet'), s.rooms ? plural(s.rooms, 'room') : '', regions ? plural(regions, 'region') : ''].filter(Boolean).map(t => `<span class="fact">${t}</span>`).join('') + (s.here ? '<span class="fact or">You’re here</span>' : ''); };
+
+/* the planet dial: the sun at the bottom, the system's planets around it */
+function dialHTML(list, o = {}) {
+  const cx = 195, cy = 742, R = 168, n = list.length, spread = n === 1 ? [0] : n === 2 ? [-20, 20] : [-38, 0, 38];
+  return list.map((p, i) => { const a = (-90 + spread[i]) * Math.PI / 180, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R, on = o.on === p.id || (o.hit && o.hit.includes(p.id)), sz = o.on === p.id ? 52 : 46;
+    const cls = `dial-p${on ? ' on' : ''}${o.hit && !o.hit.includes(p.id) ? ' dim' : ''}`;
+    return `<div class="${cls}" style="left:${f1(x)}px;top:${f1(y + 12)}px">${on ? `<span class="ringsel">${globeHTML(p, sz)}</span>` : globeHTML(p, sz)}<span>${markIn(p.name, o.q)}</span></div>`; }).join('');
+}
+const space = seed => `${stars(seed)}<div class="dial-sun"></div>`;
+const searchBar = (q, ph) => `<div class="s-top"><div class="field">${ic('search', 2.2)}${q ? `<span>${q}</span><i class="caret"></i><span class="clr">${ic('close', 2.6)}</span>` : `<i class="caret lead"></i><span class="ph">${ph}</span>`}</div><span class="cancel">Cancel</span></div>`;
+
+/* 1 · turning the wheel: the systems grow, the planets wait */
+function screenO1() {
+  const f = 3, s = UNI[f], G = { wrap: 1, cx: 195, cy: -335, R: 520, steps: [0, 17, 28], sizes: [180, 100, 70], labels: true, hereDot: true, fade: [1, .85, .5] };
+  return `<div class="phone" data-anim data-wheel>${space('o1')}<div class="wheel-shade"></div>
+    <div class="crumbs"><div class="pill">${uniIcon}Your universe</div><span class="ib2 push">${ic('search', 2.2)}</span><span class="ib2">${ic('filter', 2.2)}</span></div>
+    ${wheel(UNI, f, G)}
+    <div class="pcap" style="top:290px"><span class="eyebrow">System ${f + 1} of ${UNI.length}</span><h1>${s.name}</h1><div class="facts">${sysFacts(s)}</div></div>
+    <div class="swipe" style="top:424px">Turning · let go to choose</div>
+    <span class="preview-tag" style="top:528px">Planets in ${s.name}</span>
+    <div class="dial-wrap preview">${dialHTML(s.ids.map(byId))}</div>${tabbar()}${statusbar}</div>`;
+}
+/* 2 · finding a system: search and filters narrow the wheel */
+function screenO2() {
+  const q = 'ma', hits = UNI.filter(s => s.name.toLowerCase().includes(q)), s = hits[0];
+  const G = { cx: 195, cy: -238, R: 520, steps: [0, 17], sizes: [172, 96], labels: true, q, fade: [1, .85] };
+  const chips = [['All', `<em>${UNI.length}</em>`, 1], ['Lately', '<span class="dot"></span>'], ['With rooms', '<em>2</em>'], ['A–Z', '']];
+  return `<div class="phone" data-anim data-wheel>${space('o2')}<div class="wheel-shade"></div>
+    ${searchBar(q)}<div class="fchips" style="top:116px">${chips.map(([l, x, on]) => `<span class="fchip${on ? ' on' : ''}">${l}${x}</span>`).join('')}</div>
+    ${wheel(hits, 0, G)}
+    <div class="pcap" style="top:364px"><span class="eyebrow">${hits.length} of ${UNI.length} systems match</span><h1>${markIn(s.name, q)}</h1><div class="facts">${sysFacts(s)}</div></div>
+    <div class="swipe" style="top:494px">Tap to choose · swipe for the next match</div>
+    <div class="dial-wrap preview">${dialHTML(s.ids.map(byId))}</div>${tabbar()}${statusbar}</div>`;
+}
+/* 3 · the orbit dial, settled: the wheel shrinks into a row of small suns at the top */
+function screenO3() {
+  const f = 1, s = UNI[f], ps = s.ids.map(byId), P = byId('inference'), C = contOf(P), big = 196, gy = 312;
+  const G = { wrap: 1, cx: 195, cy: -880, R: 1010, steps: [0, 5.6, 10.6], sizes: [86, 58, 48], ring: true, fade: [1, .7, .45] };
+  return `<div class="phone" data-anim data-wheel>${space('o3')}
+    <div class="crumbs"><div class="pill">${uniIcon}Your universe</div><span class="ib2 push">${ic('search', 2.2)}</span></div>
+    ${wheel(UNI, f, G)}<span class="sel-label" style="top:166px">${s.name}${ic('chevDown', 2.6)}</span>
+    <div style="position:absolute;z-index:5;left:${195 - big / 2}px;top:${gy - big / 2}px">${globeHTML(P, big)}</div>
+    <div class="pcap" style="top:${gy + big / 2 + 22}px"><span class="eyebrow">Planet 2 of 3 · ${T[P.type].label}</span><h1>${P.name}</h1>
+      <div class="facts"><span class="fact">${plural(P.regions.length, 'region')}</span><span class="fact">${C.locked} uncharted</span><span class="fact or">You were here</span></div></div>
+    ${dialHTML(ps, { on: P.id })}<div class="swipe" style="top:676px">Turn the dial · tap the big planet to land</div>${tabbar()}${statusbar}</div>`;
+}
+/* 4 · finding a planet: matches light up on the dial */
+function screenO4() {
+  const q = 'en', s = UNI[1], ps = s.ids.map(byId), hits = ps.filter(p => p.name.toLowerCase().includes(q));
+  const rows = hits.map((p, i) => `<div class="res${i === 1 ? ' top' : ''}"><span class="gw globe-gw">${globeHTML(p, 36)}</span>
+    <span class="tx"><span class="tt">${markIn(p.name, q)}</span><span class="pp">Planet · ${plural(p.regions.length, 'region')}${p.id === 'inference' ? ' · you were here' : ''}</span></span><span class="fly">${ic(i === 1 ? 'arrow' : 'fwd')}</span></div>`).join('');
+  return `<div class="phone" data-anim>${space('o4')}
+    ${searchBar(q)}<div class="fchips" style="top:116px"><span class="fchip on">${sunGlyph(14)}In ${s.name}<em>${hits.length}</em></span><span class="fchip">Everywhere<em>3</em></span></div>
+    <div class="presults glass" style="top:166px"><div class="res-head"><span>${plural(hits.length, 'planet')} in ${s.name}</span><span></span></div>${rows}
+      <div class="more-row">${planetGlyph('scorched', 18)}<span>Also elsewhere: ${markIn('Energy', q)} in Climate</span>${ic('fwd')}</div></div>
+    ${dialHTML(ps, { hit: hits.map(p => p.id), q })}<div class="swipe" style="top:676px">Matches light up on the dial</div>${tabbar()}${statusbar}</div>`;
+}
+
+/* ===================== page ===================== */
+const fig = (html, code, title, note) => `<figure>${html}<figcaption><b>${code}</b><span>${title}</span><small>${note}</small></figcaption></figure>`;
+document.getElementById('grid').innerHTML = `<section class="sec"><header><span class="tag">List view · orbit dial with a system wheel</span><h2>Choose a system, then a planet</h2>
+  <p>Systems sit on a wheel. At rest it is a row of small suns at the top of the dial. Each system is drawn with the same 3D code as U08 Far and U02 System: its sun, its colour haze and its painted planets going round. Touch the row and it grows, and the dial below shows the planets of whichever system is in focus. Let go and it shrinks back with the new system chosen.</p></header>
+  <div class="phones">
+  ${fig(screenO1(), 'O1 · System wheel, turning', 'Swipe through your systems', 'Touching the row opens the wheel. The systems grow, their planets going round; the one in focus is biggest, named below with what it holds. The dial underneath already shows its planets, faded, so you see what you would get before you let go. A yellow dot marks the system you are in.')}
+  ${fig(screenO2(), 'O2 · System wheel, search and filter', 'Find a system', 'Search sits where the header was, with filters under it: All, Lately, With rooms, A–Z. The wheel keeps only what matches, with the match picked out in yellow, and says how many matched.')}
+  ${fig(screenO3(), 'O3 · Orbit dial', 'The wheel at rest', 'Once chosen, the wheel shrinks back to a row of small systems along the top. The chosen one is biggest, with a soft yellow glow, and named under it. Below, the planet at the top of the dial is shown big. Search, top right, finds planets.')}
+  ${fig(screenO4(), 'O4 · Planet search', 'Find a planet', 'Same search, for planets. It looks in the current system first and lights the matching planets up on the dial, the rest fade. Everywhere widens it to every system, and a row says what else matched elsewhere.')}
+  </div></section>`;
+let paused = false;
+document.getElementById('pause').onclick = e => { paused = !paused; window.__paused = paused; e.target.textContent = paused ? 'Play motion' : 'Pause motion'; document.querySelectorAll('[data-anim]').forEach(p => p.classList.toggle('paused', paused)); };
+
+</script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+const W = 390, H = 844, PR = Math.min(1.5, window.devicePixelRatio || 1), TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { x = clamp((x - a) / (b - a)); return x * x * (3 - 2 * x); };
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+function rng(seed) { let h = 2166136261; for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hsl(h, s, l) { h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
+  const f = n => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+  return [f(0), f(8), f(4)]; }
+const v3 = c => new THREE.Vector3(c[0] / 255, c[1] / 255, c[2] / 255);
+const hexV = h => v3([parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+function ramp(stops, t) { t = clamp(t) * (stops.length - 1); const i = Math.min(stops.length - 2, t | 0); const k = t - i; return mix3(stops[i], stops[i + 1], k * k * (3 - 2 * k)); }
+
+/* ===================== smooth noise (low frequency only: painted, not photographic) ===================== */
+const perm = new Uint8Array(512);
+(() => { const p = [...Array(256).keys()], r = rng('knowscroll'); for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0; [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) perm[i] = p[i & 255]; })();
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+function grad(h, x, y, z) { h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14) ? x : z; return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+function noise(x, y, z) {
+  let X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); x -= X; y -= Y; z -= Z; X &= 255; Y &= 255; Z &= 255;
+  const u = fade(x), v = fade(y), w = fade(z), A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z, B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+  return lerp(lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u), lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+    lerp(lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u), lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+}
+function fbm(x, y, z, o = 3) { let a = .5, f = 1, s = 0; for (let i = 0; i < o; i++) { s += a * noise(x * f, y * f, z * f); f *= 2.03; a *= .5; } return s; }
+
+/* ===================== planet genomes: a type never repeats in a universe ===================== */
+const TYPES = ['lush', 'toxic', 'frozen', 'scorched', 'barren', 'exotic', 'gas', 'ocean'];
+const FAMILY_SHIFT = { teal: 0, cobalt: 18, coral: -18, amber: -10, pink: 25, violet: 30 };
+const used = new Set();
+function genome(id, family) {
+  const r = rng(id), order = [...TYPES]; for (let i = order.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [order[i], order[j]] = [order[j], order[i]]; }
+  const type = order.find(t => !used.has(t)) || order[0]; used.add(type);
+  return { id, type, d: FAMILY_SHIFT[family] + (r() - .5) * 30, size: .8 + r() * .5, tilt: (r() - .5) * .7, spin: .12 + r() * .12, rings: type === 'gas' || (type === 'frozen' && r() < .5), moon: r() < .45 };
+}
+const G = {
+  attention: genome('attention', 'teal'), inference: genome('inference', 'teal'), hardware: genome('hardware', 'teal'),
+  queues: genome('queues', 'cobalt'), storage: genome('storage', 'cobalt'), tactics: genome('tactics', 'coral'),
+};
+G.hardware.rings = true; // the system screen shows one ringed world
+
+
+/* ===================== painted textures ===================== */
+const STYLE = d => ({
+  lush:     { ramp: [hsl(200 + d, 70, 34), hsl(185 + d, 75, 48), hsl(120 + d, 55, 46), hsl(95 + d, 65, 56), hsl(70 + d, 70, 68)], sea: .5, atmo: hsl(190 + d, 95, 68), clouds: .8 },
+  toxic:    { ramp: [hsl(290 + d, 45, 32), hsl(80 + d, 70, 38), hsl(68 + d, 85, 52), hsl(55 + d, 95, 66)], atmo: hsl(80 + d, 95, 62), clouds: .4 },
+  frozen:   { ramp: [hsl(215 + d, 50, 52), hsl(205 + d, 55, 70), hsl(195 + d, 50, 84), hsl(190 + d, 40, 95)], atmo: hsl(195 + d, 95, 78), clouds: .5 },
+  scorched: { ramp: [hsl(345 + d, 55, 24), hsl(355 + d, 65, 36), hsl(10 + d, 75, 48), hsl(22 + d, 80, 58)], atmo: hsl(335 + d, 90, 68) },
+  barren:   { ramp: [hsl(275 + d, 25, 34), hsl(30 + d, 35, 46), hsl(28 + d, 40, 60), hsl(35 + d, 45, 74)], atmo: hsl(275 + d, 70, 72) },
+  exotic:   { ramp: [hsl(300 + d, 70, 38), hsl(320 + d, 85, 58), hsl(195 + d, 85, 56), hsl(175 + d, 90, 72)], atmo: hsl(185 + d, 100, 70), clouds: .35 },
+  gas:      { bands: [hsl(20 + d, 80, 62), hsl(345 + d, 70, 66), hsl(285 + d, 50, 56), hsl(38 + d, 85, 76), hsl(10 + d, 70, 52)], atmo: hsl(335 + d, 95, 72) },
+  ocean:    { ramp: [hsl(225 + d, 75, 26), hsl(210 + d, 80, 42), hsl(195 + d, 85, 56), hsl(160 + d, 70, 60)], sea: .8, atmo: hsl(205 + d, 100, 70), clouds: .9 },
+});
+const TEXC = new Map();
+function dataTex(data, w, h) { const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat); t.wrapS = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; }
+function planetTextures(g) {
+  if (TEXC.has(g.id)) return TEXC.get(g.id);
+  const S = STYLE(g.d)[g.type], TW = 192, TH = 96, map = new Uint8Array(TW * TH * 4), cl = S.clouds ? new Uint8Array(TW * TH * 4) : null;
+  const r = rng(g.id + 'tex'), ox = r() * 40, oy = r() * 40, oz = r() * 40;
+  for (let j = 0; j < TH; j++) {
+    const lat = -Math.PI / 2 + (j + .5) / TH * Math.PI, y = Math.sin(lat), c0 = Math.cos(lat);
+    for (let i = 0; i < TW; i++) {
+      const lon = (i + .5) / TW * TAU, x = c0 * Math.cos(lon), z = c0 * Math.sin(lon), k = (j * TW + i) * 4;
+      let c;
+      if (g.type === 'gas') { const w = fbm(x * 1.1 + ox, y * 1.1 + oy, z * 1.1 + oz, 2); const v = y * 2.4 + w * .45; c = ramp(S.bands, .5 + .5 * Math.sin(v * 4.2)); c = mix3(c, ramp(S.bands, .5 + .5 * Math.sin(v * 2.1 + 1.7)), .35);
+        let dl = lon - 1.4; dl = Math.atan2(Math.sin(dl), Math.cos(dl)); const e = Math.pow(dl * c0 / .34, 2) + Math.pow((lat + .3) / .15, 2); if (e < 1) c = mix3(c, hsl(15 + g.d, 90, 82), smooth(1, .4, e)); }
+      else {
+        const w = fbm(x * .9 + ox, y * .9 + oy, z * .9 + oz, 2), v = .5 + fbm(x * 1.3 + ox + w, y * 1.3 + oy + w, z * 1.3 + oz, 3) * 1.1;
+        if (S.sea) { const sea = S.sea * .5 + .2; c = v < sea ? ramp(S.ramp.slice(0, 2), v / sea) : ramp(S.ramp.slice(1), (v - sea) / (1 - sea) * .9 + .1); if (Math.abs(v - sea) < .03) c = mix3(c, S.ramp[1], .5); }
+        else c = ramp(S.ramp, v);
+        const cap = smooth(.82, .9, Math.abs(y) + w * .1); if (g.type !== 'scorched' && cap > 0) c = mix3(c, [244, 248, 255], cap * .9);
+      }
+      map[k] = c[0]; map[k + 1] = c[1]; map[k + 2] = c[2]; map[k + 3] = 255;
+      if (cl) { const cv = fbm(x * 1.6 + oz, y * 3 + ox, z * 1.6 + oy, 3); cl[k] = cl[k + 1] = cl[k + 2] = 255; cl[k + 3] = smooth(.04, .3, cv) * 230 * S.clouds; }
+    }
+  }
+  const out = { map: dataTex(map, TW, TH), cloud: cl ? dataTex(cl, TW, TH) : null, atmo: S.atmo };
+  if (g.rings) { const rw = 128, rd = new Uint8Array(rw * 4), c1 = hsl(30 + g.d, 70, 78), c2 = hsl(330 + g.d, 55, 70);
+    for (let i = 0; i < rw; i++) { const u = i / rw, c = mix3(c1, c2, .5 + .5 * Math.sin(u * 9)), a = (u > .55 && u < .6 ? .15 : 1) * smooth(0, .12, u) * smooth(1, .85, u) * (.55 + .3 * Math.sin(u * 23));
+      rd[i * 4] = c[0]; rd[i * 4 + 1] = c[1]; rd[i * 4 + 2] = c[2]; rd[i * 4 + 3] = a * 255; }
+    out.ring = dataTex(rd, rw, 1); }
+  TEXC.set(g.id, out); return out;
+}
+function glowTexture(stops) {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  stops.forEach(([o, a]) => gr.addColorStop(o, `rgba(255,255,255,${a})`)); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+}
+function puffTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), r = rng('puff');
+  for (let i = 0; i < 9; i++) { const x = 64 + (r() - .5) * 52, y = 64 + (r() - .5) * 30, rad = 18 + r() * 22, gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(.7, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill(); }
+  return new THREE.CanvasTexture(c);
+}
+const PUFF = puffTexture();
+const GLOW = glowTexture([[0, 1], [.2, .55], [.5, .14], [1, 0]]), BLOOM = glowTexture([[0, .9], [.08, .5], [.25, .14], [.6, .03], [1, 0]]);
+
+/* ===================== shaders ===================== */
+const WORLD_VS = `varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const HAZE = `uniform vec3 fogCol; uniform vec2 fogR; uniform float calm;
+vec3 haze(vec3 col, vec3 w){ float g = dot(col, vec3(.3,.59,.11)); col = mix(col, vec3(g) * .7, calm * .85); float f = smoothstep(fogR.x, fogR.y, length(cameraPosition - w)); return mix(col, fogCol, f * .6); }`;
+// No Man's Sky-like: soft day side, coloured night side, warm twilight band, broad atmosphere rim
+const PLANET_FS = `uniform sampler2D map; uniform vec3 sun; uniform vec3 atmo; uniform float cloudLayer;
+varying vec2 vUv; varying vec3 vN; varying vec3 vW; ${HAZE}
+void main(){
+  vec3 N = normalize(vN), L = normalize(sun - vW), V = normalize(cameraPosition - vW);
+  vec4 tx = texture2D(map, vUv); vec3 base = cloudLayer > .5 ? vec3(1.0) : tx.rgb;
+  float nd = dot(N, L), lit = smoothstep(-.14, .06, nd) * .58 + smoothstep(.34, .5, nd) * .42;
+  vec3 col = mix(base * vec3(.2, .18, .42), base * vec3(1.06, 1.0, .94), lit);
+  col += vec3(1.0, .45, .28) * exp(-pow((nd - .02) / .17, 2.0)) * .26;
+  float fr = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+  col = mix(col, atmo, fr * smoothstep(-.35, .45, nd) * .8);
+  col += atmo * fr * fr * .3 * (1.0 - lit);
+  col += vec3(1.0) * smoothstep(.962, .975, dot(N, normalize(L + V))) * (cloudLayer > .5 ? 0.0 : .32);
+  gl_FragColor = vec4(haze(col, vW), cloudLayer > .5 ? tx.a * (.3 + .7 * lit) : 1.0);
+}`;
+const ATMO_FS = `uniform vec3 color; uniform vec3 sun; uniform float strength; uniform float calm; uniform vec3 fogCol; uniform vec2 fogR; varying vec3 vN; varying vec3 vW;
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float x = 1.0 - max(dot(N, V), 0.0);
+  float g = smoothstep(.02, .32, x) * (1.0 - smoothstep(.32, 1.0, x)); float s = .3 + .7 * smoothstep(-.5, .6, dot(N, normalize(sun - vW)));
+  float f = 1.0 - smoothstep(fogR.x, fogR.y, length(cameraPosition - vW)) * .6;
+  gl_FragColor = vec4(color * g * s * strength * (1.0 - calm * .9) * f, 1.0); }`;
+const SUN_FS = `varying vec2 vUv; varying vec3 vN; varying vec3 vW; ${HAZE}
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float nv = max(dot(N, V), 0.0);
+  vec3 col = mix(vec3(1.0, .42, .08), vec3(1.0, .7, .3), smoothstep(0.0, .5, nv)); col = mix(col, vec3(1.0, .93, .78), smoothstep(.55, .95, nv));
+  gl_FragColor = vec4(haze(col * 1.08, vW), 1.0); }`;
+const HALO_FS = `uniform vec3 c1; uniform vec3 c2; uniform float strength; uniform float calm; uniform float time; varying vec2 vUv;
+void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if (r > 1.0) discard; float a = atan(p.y, p.x);
+  float arms = .5 + .5 * cos(2.0 * (a + log(r + .05) * 2.2) - time * .15);
+  float i = pow(1.0 - r, 2.2) * (.55 + .45 * arms * smoothstep(.1, .6, r));
+  vec3 col = mix(c1, c2, smoothstep(.1, .9, r)); float g = dot(col, vec3(.3,.59,.11)); col = mix(col, vec3(g) * .5, calm);
+  gl_FragColor = vec4(col * i * strength * (1.0 - calm * .7), 1.0); }`;
+const DASH_VS = `attribute float lineDistance; varying float vD; void main(){ vD = lineDistance; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const DASH_FS = `uniform vec3 color; uniform float time; uniform float speed; uniform float dash; uniform float gap; uniform float opacity; varying float vD;
+void main(){ if (mod(vD - time * speed, dash + gap) > dash) discard; gl_FragColor = vec4(color, opacity); }`;
+const RING_VS = `varying vec3 vW; varying vec2 vL; void main(){ vL = position.xy; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const RING_FS = `uniform sampler2D map; uniform vec3 sun; uniform vec3 pc; uniform float pr; uniform float rIn; uniform float rOut; varying vec3 vW; varying vec2 vL; ${HAZE}
+void main(){ float u = (length(vL) - rIn) / (rOut - rIn); if (u < 0.0 || u > 1.0) discard; vec4 t = texture2D(map, vec2(u, .5));
+  vec3 L = normalize(sun - vW), oc = vW - pc; float b = dot(oc, L), c = dot(oc, oc) - pr * pr; float sh = (b * b - c > 0.0 && b < 0.0) ? 1.0 : 0.0;
+  gl_FragColor = vec4(haze(t.rgb * mix(vec3(1.05, 1.0, .95), vec3(.2, .18, .42), sh * .85), vW), t.a); }`;
+const POINTS_VS = `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr; uniform float atten; uniform float wob;
+varying vec3 vC; varying float vA;
+void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(time * .11 + aPh * 7.0) * .6, sin(time * .09 + aPh * 5.0) * .4);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = aCol; vA = .72 + .28 * sin(time * (.4 + aPh * 1.4) + aPh * 6.2831);
+  float s = aSize * pr; if (atten > 0.0) s *= atten / -mv.z; gl_PointSize = s; gl_Position = projectionMatrix * mv; }`;
+const POINTS_FS = `uniform float opacity; varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = pow(smoothstep(.5, 0.0, d), 1.6); gl_FragColor = vec4(vC * a * vA * opacity * 1.35, 1.0); }`;
+const DUST_VS = `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; uniform float time; uniform float R; uniform float pr;
+uniform vec3 cIn; uniform vec3 cMid; uniform vec3 cOut; varying vec3 vC; varying float vA;
+void main(){ float rho = .06 + .94 * fract(aRho - time * .014); float a = aArm * 3.14159 + log(rho / .06) * 1.1 + time * .22 + aJit;
+  vec3 p = vec3(cos(a) * rho * R, aH * R * (.25 + rho * .5), sin(a) * rho * R);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = mix(cIn, cMid, smoothstep(.05, .4, rho)); vC = mix(vC, cOut, smoothstep(.45, 1.0, rho));
+  vA = smoothstep(1.0, .82, rho) * smoothstep(.06, .14, rho) * (.6 + .4 * sin(time * 2.0 + aJit * 20.0));
+  gl_PointSize = aSize * pr * (22.0 / -mv.z); gl_Position = projectionMatrix * mv; }`;
+// Cartoon nebula (U01 Emerging): crisp candy dots with a shine, spiralling inward along arms
+const TOON_DUST_VS = `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; attribute vec3 aCol;
+uniform float time; uniform float R; uniform float pr; uniform float arms; varying vec3 vC; varying float vA;
+void main(){ float rho = .05 + .95 * fract(aRho - time * .016); float a = aArm * 6.28318 / arms + log(rho / .05) * 1.25 + time * .2 + aJit;
+  vec3 p = vec3(cos(a) * rho * R, aH * R * (.2 + rho * .6), sin(a) * rho * R); vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vC = mix(vec3(1.0, .96, .86), aCol, smoothstep(.04, .32, rho)); vA = smoothstep(1.0, .86, rho) * smoothstep(.05, .1, rho);
+  gl_PointSize = aSize * pr * (24.0 / -mv.z) * (.85 + .15 * sin(time * 3.0 + aJit * 30.0)); gl_Position = projectionMatrix * mv; }`;
+const TOON_DUST_FS = `varying vec3 vC; varying float vA;
+void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard; float a = smoothstep(.5, .36, d);
+  vec3 c = mix(vC, vec3(1.0), smoothstep(.2, 0.0, length(gl_PointCoord - vec2(.38, .36))) * .55); gl_FragColor = vec4(c, a * vA); }`;
+const DUST_FS = `varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); gl_FragColor = vec4(vC * smoothstep(.5, 0.0, d) * vA, 1.0); }`;
+
+const FOG = new THREE.Vector3(.012, .016, .045);
+const add = { blending: THREE.AdditiveBlending, transparent: true, depthWrite: false };
+const hazeU = (fogR, calm = 0) => ({ fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...fogR) }, calm: { value: calm } });
+
+/* ===================== builders ===================== */
+function makeSun(radius, ctx) {
+  const g = new THREE.Group(), k = ctx.calm ? .22 : 1;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(radius, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: SUN_FS, uniforms: hazeU(ctx.fogR, ctx.calm) }));
+  const inner = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .72, .38), opacity: .95 * k, ...add }));
+  const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .12), opacity: .85 * k, ...add }));
+  g.add(bloom, inner, core);
+  g.userData.tick = t => { const p = 1 + .05 * Math.sin(t * 1.3); inner.scale.setScalar(radius * 4.2 * p); bloom.scale.setScalar(radius * 22 * (2 - p)); };
+  g.userData.tick(0); return g;
+}
+function makePlanet(gn, radius, sunPos, ctx) {
+  const tx = planetTextures(gn), g = new THREE.Group(), calm = ctx.calm, atmo = v3(tx.atmo);
+  const mat = (cloudLayer, map) => new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS, transparent: cloudLayer > 0, depthWrite: !cloudLayer,
+    uniforms: { map: { value: map }, sun: { value: sunPos }, atmo: { value: atmo }, cloudLayer: { value: cloudLayer }, ...hazeU(ctx.fogR, calm) } });
+  const spinner = new THREE.Group(); spinner.rotation.z = gn.tilt; g.add(spinner);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 24), mat(0, tx.map)); spinner.add(body);
+  let clouds = null; if (tx.cloud) { clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.03, 40, 20), mat(1, tx.cloud)); spinner.add(clouds); }
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(radius * 1.32, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: ATMO_FS, ...add,
+    uniforms: { color: { value: atmo }, sun: { value: sunPos }, strength: { value: 1.15 }, calm: { value: calm }, fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...ctx.fogR) } } })));
+  const worldPos = new THREE.Vector3();
+  if (tx.ring) { const rIn = radius * 1.4, rOut = radius * 2.4;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 96, 1), new THREE.ShaderMaterial({ vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { map: { value: tx.ring }, sun: { value: sunPos }, pc: { value: worldPos }, pr: { value: radius }, rIn: { value: rIn }, rOut: { value: rOut }, ...hazeU(ctx.fogR, calm) } }));
+    ring.rotation.x = -Math.PI / 2 - .3; ring.rotation.y = gn.tilt * .5; g.add(ring); }
+  let moon = null;
+  if (gn.moon) { const mg = { id: gn.id + '-moon', type: 'barren', d: gn.d, rings: false }; moon = new THREE.Mesh(new THREE.SphereGeometry(radius * .27, 24, 12), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS,
+    uniforms: { map: { value: planetTextures(mg).map }, sun: { value: sunPos }, atmo: { value: new THREE.Vector3(.5, .45, .6) }, cloudLayer: { value: 0 }, ...hazeU(ctx.fogR, calm) } })); g.add(moon); }
+  const ph = rng(gn.id)() * TAU;
+  g.userData.tick = t => { body.rotation.y = t * gn.spin; if (clouds) clouds.rotation.y = t * gn.spin * 1.5 + 1;
+    if (moon) { const a = t * .5 + ph; moon.position.set(Math.cos(a) * radius * 2.4, Math.sin(a) * radius * .4, Math.sin(a) * radius * 2.4); }
+    g.getWorldPosition(worldPos); };
+  return g;
+}
+function dashLine(points, color, ctx, o = {}) {
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.ShaderMaterial({ vertexShader: DASH_VS, fragmentShader: DASH_FS, transparent: true, depthWrite: false,
+    uniforms: { color: { value: color }, time: ctx.time, speed: { value: o.speed ?? .6 }, dash: { value: o.dash ?? .18 }, gap: { value: o.gap ?? .32 }, opacity: { value: o.opacity ?? .85 } } }));
+  line.computeLineDistances(); line.frustumCulled = false; return line;
+}
+const HALO = { teal: ['#3BFFD0', '#2B5BFF'], cobalt: ['#7AD8FF', '#6B3BFF'], coral: ['#FFB03B', '#E02B7F'], amber: ['#FFD84D', '#E0502B'], pink: ['#FF8AE2', '#6B2BFF'], violet: ['#C8A8FF', '#3B2BD0'] };
+function halo(radius, family, ctx, strength = .35) {
+  const [a, b] = HALO[family].map(hexV);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: HALO_FS, ...add, side: THREE.DoubleSide,
+    uniforms: { c1: { value: a }, c2: { value: b }, time: ctx.time, strength: { value: strength }, calm: { value: ctx.calm } } }));
+  m.rotation.x = -Math.PI / 2; m.position.y = -.05; return m;
+}
+// Planets revolve around their sun (inner ones faster); no orbit lines are drawn.
+function makeSystem(def, ctx) {
+  const g = new THREE.Group(); g.position.set(def.x, def.y || 0, def.z); const center = g.position.clone(), c = { ...ctx, calm: def.calm ? 1 : 0 };
+  const outer = Math.max(...def.planets.map(p => p.R));
+  g.add(halo(outer * 1.5, def.family, c, def.glow ?? .55));
+  const sun = makeSun(def.sunR, c); g.add(sun);
+  const planets = def.planets.map(p => { const pl = makePlanet(G[p.id], Math.min(def.planetR * G[p.id].size, def.sunR * .55), center, c), pivot = new THREE.Group();
+    pl.position.set(p.R, 0, 0); pivot.add(pl); g.add(pivot); pl.userData.pivot = pivot; pl.userData.w = def.speed * Math.pow(def.planets[0].R / p.R, def.kepler ?? 1.5); pl.userData.a0 = p.ang; return pl; });
+  g.userData.tick = t => { sun.userData.tick(t); planets.forEach(p => { p.userData.pivot.rotation.y = -(p.userData.a0 + t * p.userData.w); p.userData.tick(t); }); };
+  g.userData.planets = planets; g.userData.tick(0);
+  return g;
+}
+function makeSky(scene, seed, ctx, camPos) {
+  const r = rng(seed), mk = (n, fn, extra = {}) => { const pos = new Float32Array(n * 3), size = new Float32Array(n), col = new Float32Array(n * 3), ph = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const s = fn(i); pos.set(s.p, i * 3); size[i] = s.size; col.set(s.c, i * 3); ph[i] = r(); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aPh', new THREE.BufferAttribute(ph, 1));
+    const m = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: POINTS_VS, fragmentShader: POINTS_FS, ...add,
+      uniforms: { time: ctx.time, pr: { value: PR }, atten: { value: extra.atten || 0 }, wob: { value: extra.wob || 0 }, opacity: { value: extra.opacity ?? 1 } } }));
+    m.frustumCulled = false; scene.add(m); };
+  const dir = () => { const u = r() * 2 - 1, a = r() * TAU, s = Math.sqrt(1 - u * u); return [s * Math.cos(a), u, s * Math.sin(a)]; };
+  const tint = () => { const k = r(); return k < .15 ? [1, .86, .7] : k < .3 ? [.75, .85, 1] : [1, 1, 1]; };
+  [[1600, 900, 1.6, 2.6, 1], [520, 480, 2.1, 3.2, 1.2], [140, 240, 2.8, 4.4, 1.4]].forEach(([n, R, s0, s1, b]) =>
+    mk(n, () => { const d = dir(), br = (.35 + r() * .65) * b; return { p: d.map(v => v * R * (.9 + r() * .2)), size: s0 + Math.pow(r(), 3) * (s1 - s0), c: tint().map(v => v * br) }; }));
+  mk(46, () => ({ p: [camPos.x + (r() - .5) * 26, camPos.y + (r() - .5) * 18 - 2, camPos.z - 6 - r() * 22], size: 3 + r() * 6, c: [.55, .6, .8].map(v => v * (.25 + r() * .3)) }), { atten: 6, wob: .8, opacity: .8 });
+}
+const CANDY = ['#FF7AD9', '#C58BFF', '#EBAAFF'];
+function toonNebula(R, n, seed, ctx, o = {}) {
+  const r = rng(seed), arms = 5, geo = new THREE.BufferGeometry(), F = k => new Float32Array(n * k);
+  const rho = F(1), arm = F(1), jit = F(1), size = F(1), hh = F(1), col = F(3);
+  for (let i = 0; i < n; i++) { rho[i] = r(); arm[i] = (r() * arms) | 0; jit[i] = (r() - .5) * (r() < .88 ? .32 : 1.6); size[i] = .7 + Math.pow(r(), 3) * 3.2; hh[i] = (r() - .5) * .14;
+    col.set(hexV(CANDY[(r() * CANDY.length) | 0]).toArray(), i * 3); }
+  geo.setAttribute('position', new THREE.BufferAttribute(F(3), 3));
+  [['aRho', rho, 1], ['aArm', arm, 1], ['aJit', jit, 1], ['aSize', size, 1], ['aH', hh, 1], ['aCol', col, 3]].forEach(([k, a, w]) => geo.setAttribute(k, new THREE.BufferAttribute(a, w)));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: TOON_DUST_VS, fragmentShader: TOON_DUST_FS, transparent: true, depthWrite: false,
+    uniforms: { time: ctx.time, R: { value: R }, pr: { value: PR }, arms: { value: arms } } }));
+  pts.frustumCulled = false; const g = new THREE.Group(); g.add(halo(R * 1.15, 'pink', ctx, .35), pts);
+  const puffs = Array.from({ length: o.puffs ?? 22 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFF, color: new THREE.Color(CANDY[(r() * 2) | 0]), opacity: .34, ...add }));
+    sp.material.rotation = r() * TAU; g.add(sp); return { sp, rho: .22 + r() * .6, arm: (r() * arms) | 0, jit: (r() - .5) * .12, s: (.12 + r() * .12) * R }; });
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .92, .98), opacity: 1, ...add }));
+  const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .85), opacity: .8, ...add })); g.add(bloom, core);
+  g.userData.tick = t => {
+    const spin = t * .2;
+    for (const p of puffs) { const a = p.arm * TAU / arms + Math.log(p.rho / .05) * 1.25 + spin + p.jit; p.sp.position.set(Math.cos(a) * p.rho * R, 0, Math.sin(a) * p.rho * R); p.sp.scale.setScalar(p.s * (1 + .06 * Math.sin(t + p.rho * 9))); }
+    const b = 1 + .12 * Math.sin(t * 2.2); core.scale.setScalar(R * .24 * b); bloom.scale.setScalar(R * .9 * (2 - b));
+  };
+  g.userData.tick(0); return g;
+}
+function dustDisc(R, n, seed, ctx, pal) {
+  const r = rng(seed), A = () => new THREE.BufferAttribute(new Float32Array(n), 1), geo = new THREE.BufferGeometry();
+  const attrs = { aRho: A(), aArm: A(), aJit: A(), aSize: A(), aH: A() }; geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  for (let i = 0; i < n; i++) { attrs.aRho.array[i] = r(); attrs.aArm.array[i] = (r() * 2) | 0; attrs.aJit.array[i] = (r() - .5) * .9; attrs.aSize.array[i] = .8 + Math.pow(r(), 2) * 2.4; attrs.aH.array[i] = (r() - .5) * .12; }
+  Object.entries(attrs).forEach(([k, v]) => geo.setAttribute(k, v));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: DUST_VS, fragmentShader: DUST_FS, ...add,
+    uniforms: { time: ctx.time, R: { value: R }, pr: { value: PR }, cIn: { value: hexV(pal[0]) }, cMid: { value: hexV(pal[1]) }, cOut: { value: hexV(pal[2]) } } }));
+  pts.frustumCulled = false; const g = new THREE.Group(); g.add(pts, halo(R * 1.1, 'pink', ctx, .3));
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .7, .92), opacity: .95, ...add })); g.add(core);
+  g.userData.tick = t => core.scale.setScalar(R * .35 * (1 + .1 * Math.sin(t * 2))); g.userData.tick(0);
+  return g;
+}
+function solidMat(hex, ctx, calm = 0) { const c = hexV(hex).toArray().map(v => v * 255); return new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS,
+  uniforms: { map: { value: dataTex(new Uint8Array([...c, 255]), 1, 1) }, sun: { value: ctx.light }, atmo: { value: new THREE.Vector3(.4, .5, .8) }, cloudLayer: { value: 0 }, ...hazeU(ctx.fogR, calm) } }); }
+function makeStation(ctx, calm) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(.2, 20, 12), solidMat('#EDE6D6', ctx, calm)));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.32, .04, 8, 32), solidMat('#FFB347', ctx, calm)); ring.rotation.x = Math.PI / 2; g.add(ring);
+  for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(.46, .02, .2), solidMat('#3D8BEA', ctx, calm)); p.position.x = s * .58; g.add(p); }
+  const light = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .5, .7), opacity: 1, ...add })); light.position.y = .27; light.scale.setScalar(.26); g.add(light);
+  g.userData.tick = t => { g.rotation.y = t * .15; light.material.opacity = calm ? .1 : Math.sin(t * 2.6) > .4 ? 1 : .12; };
+  return g;
+}
+function makeShip(ctx, scale = 1) {
+  const g = new THREE.Group(), body = new THREE.Mesh(new THREE.ConeGeometry(.09 * scale, .32 * scale, 12), solidMat('#FAF8F0', ctx));
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .55, .15), opacity: .95, ...add }));
+  const dir = new THREE.Vector3(.5, .8, -.3).normalize(); body.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); flame.position.copy(dir.clone().multiplyScalar(-.2 * scale));
+  g.add(body, flame);
+  g.userData.tick = t => flame.scale.setScalar(.24 * scale * (1 + .18 * Math.sin(t * 19)));
+  return g;
+}
+
+/* ===================== scenes ===================== */
+const CAMS = {
+  empty: { pos: [0, 4, 30], target: [0, 0, 0], drift: 1.6, fogR: [60, 140] },
+  emerging: { pos: [0, 17, 19], target: [0, -.8, 0], drift: .7, fogR: [60, 140] },
+  overview: { pos: [0, 22, 46], target: [0, 0, 2], drift: .9, fogR: [46, 105] },
+  lately: { pos: [0, 22, 46], target: [0, 0, 2], drift: .9, fogR: [46, 105] },
+  far: { pos: [0, 34, 76], target: [0, 0, -4], drift: 1.2, fogR: [62, 150] },
+  system: { pos: [0, 34, 52], target: [0, -.6, 0], drift: .6, fogR: [70, 150] },
+};
+const OV = [
+  { name: 'Machine learning', x: -2.3, z: -10, family: 'teal', sunR: .78, planetR: .3, speed: .16, planets: [{ id: 'attention', R: 2.1, ang: Math.PI * 1.02 }, { id: 'inference', R: 3.3, ang: .3 }] },
+  { name: 'Backend systems', x: 2.9, z: 10, family: 'cobalt', sunR: .72, planetR: .28, speed: .16, quiet: true, planets: [{ id: 'queues', R: 1.9, ang: -.4 }, { id: 'storage', R: 3, ang: 2.55 }] },
+  { name: 'Football', x: -3.2, z: 15, family: 'coral', sunR: .7, planetR: .28, speed: .16, quiet: true, planets: [{ id: 'tactics', R: 2.1, ang: -.2 }] },
+];
+const FAR = [['Economics', -16, -22, 'amber', 4], ['Machine learning', 7, -30, 'teal', 4.8], ['Astronomy', -21, 0, 'violet', 3.6], ['Backend systems', 18, -8, 'cobalt', 4.4],
+  ['Football', -6, 10, 'coral', 4], ['Climate', 18, 16, 'teal', 3.6], ['Predictive history', -18, 22, 'pink', 3.6]];
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+class Scene3D {
+  constructor(canvas, labelsEl, key) {
+    this.key = key; this.labelsEl = labelsEl; this.labels = []; this.ticks = []; this.visible = true;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
+    this.renderer.setPixelRatio(PR); this.renderer.setSize(W, H, false); this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; this.renderer.setClearColor(0x020308);
+    const C = CAMS[key]; this.base = V(...C.pos); this.target = V(...C.target); this.drift = C.drift;
+    this.camera = new THREE.PerspectiveCamera(38, W / H, .1, 3000); this.scene = new THREE.Scene(); this.time = { value: 0 }; this.pointer = new THREE.Vector2(); this.pSmooth = new THREE.Vector2(); this.fly = null;
+    const ctx = { time: this.time, fogR: C.fogR, calm: 0, light: V(-30, 40, -20) };
+    makeSky(this.scene, 'sky' + key, ctx, this.base);
+    this.build(key, ctx);
+  }
+  label(text, pos, o = {}) { const el = document.createElement('div'); el.className = 'lbl' + (o.sm ? ' sm' : '') + (o.calm ? ' calm' : ''); el.textContent = text; this.labelsEl.appendChild(el); this.labels.push({ el, pos, dy: o.dy ?? 10 }); }
+  addSys(def, calm) { const s = makeSystem({ ...def, calm }, { time: this.time, fogR: CAMS[this.key].fogR }); this.scene.add(s); this.ticks.push(s.userData.tick); return s; }
+  build(key, ctx) {
+    const live = obj => () => obj.getWorldPosition(new THREE.Vector3());
+    if (key === 'emerging') { const d = toonNebula(4.6, 4200, 'dust', ctx); d.position.set(0, 0, 0); this.scene.add(d); this.ticks.push(d.userData.tick); }
+    if (key === 'overview' || key === 'lately') {
+      const lately = key === 'lately', systems = OV.map(d => this.addSys(d, lately && d.quiet));
+      const cue = toonNebula(2.6, 700, 'cue', ctx, { puffs: 6 }); cue.position.set(8.7, 1, -30); this.scene.add(cue); this.ticks.push(cue.userData.tick);
+      const st = makeStation({ ...ctx, light: V(-2.3, 0, -10) }, lately ? 1 : 0); st.position.set(2.4, .7, 0); this.scene.add(st); this.ticks.push(st.userData.tick);
+      if (!lately) { const att = systems[0].userData.planets[0], sh = makeShip({ ...ctx, light: systems[0].position }); sh.position.set(.45, .5, 0); att.add(sh); this.ticks.push(sh.userData.tick); }
+      systems.forEach((s, i) => this.label(OV[i].name, s.position.clone(), { calm: lately && OV[i].quiet, dy: 26 }));
+      this.label('Model serving room', st.position.clone().add(V(0, -.3, 0)), { sm: true, calm: lately, dy: 10 });
+      this.flyTo = systems[0].position.clone();
+    }
+    if (key === 'far') {
+      FAR.forEach(([name, x, z, family, R], i) => {
+        const g = new THREE.Group(); g.position.set(x * .42, 0, z); g.add(halo(R, family, ctx, .65)); const sun = makeSun(.55, ctx); g.add(sun); this.scene.add(g); this.ticks.push(sun.userData.tick);
+        if (i === 1) { const pick = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .9, .35), opacity: .55, ...add })); g.add(pick);
+          this.ticks.push(t => { const k = .5 + .5 * Math.sin(t * 2.2); pick.scale.setScalar(R * (1.1 + .25 * k)); pick.material.opacity = .3 + .3 * k; }); }
+        this.label(name, g.position.clone().add(V(0, 0, R * .45)), { dy: i === 1 ? 16 : 6, sm: i !== 1 });
+      });
+    }
+    if (key === 'system') {
+      const s = this.addSys({ name: 'Machine learning', x: 0, z: 0, family: 'teal', sunR: 1.7, planetR: .55, speed: .07, kepler: .5, glow: .4,
+        planets: [{ id: 'attention', R: 3.8, ang: Math.PI * .95 }, { id: 'inference', R: 6.3, ang: .35 }, { id: 'hardware', R: 8.8, ang: -1.75 }] }, false);
+      const [a, b, c] = s.userData.planets, route = dashLine([V(0, 0, 0), V(1, 0, 0)], V(1, .98, .92), ctx, { speed: .7, dash: .14, gap: .3, opacity: .7 }); this.scene.add(route);
+      this.ticks.push(() => { const pa = a.getWorldPosition(V()), pb = b.getWorldPosition(V()), mid = pa.clone().lerp(pb, .5).add(V(0, 1.8, 0));
+        route.geometry.setFromPoints(new THREE.QuadraticBezierCurve3(pa, mid, pb).getPoints(60)); route.computeLineDistances(); });
+      const st = makeStation({ ...ctx, light: V() }, 0); st.position.set(-3.6, -.5, 6.6); st.scale.setScalar(1.3); this.scene.add(st); this.ticks.push(st.userData.tick);
+      const sh = makeShip({ ...ctx, light: V() }, 1.3); sh.position.set(.75, .6, 0); b.add(sh); this.ticks.push(sh.userData.tick);
+      [['Attention', a, 24], ['Inference & serving', b, 24], ['Hardware', c, 34]].forEach(([n, p, dy]) => this.label(n, live(p), { dy }));
+      this.label('Model serving room', st.position.clone().add(V(0, -.45, 0)), { sm: true, dy: 10 });
+    }
+  }
+  startFly() { if (!this.flyTo || this.fly) return; this.fly = { t0: this.time.value }; }
+  render(t) {
+    this.time.value = t; this.ticks.forEach(f => f(t)); this.pSmooth.lerp(this.pointer, .06);
+    let pos = this.base.clone().add(V(Math.sin(t * .11) * .6 * this.drift + this.pSmooth.x * 1.6, Math.sin(t * .07) * .4 * this.drift - this.pSmooth.y * 1.1, Math.sin(t * .05) * .5 * this.drift));
+    let target = this.target.clone(), fov = 38;
+    if (this.fly) { const e = t - this.fly.t0, k = e < 2.4 ? e / 2.4 : e < 4.6 ? 1 : e < 6.8 ? 1 - (e - 4.6) / 2.2 : 0, s = k * k * (3 - 2 * k);
+      if (e > 6.8) this.fly = null;
+      pos = pos.lerp(this.flyTo.clone().add(V(0, 4.2, 8.5)), s); target = target.lerp(this.flyTo, s); fov = 38 + Math.sin(s * Math.PI) * 9; }
+    this.camera.position.copy(pos); this.camera.fov = fov; this.camera.updateProjectionMatrix(); this.camera.lookAt(target);
+    this.renderer.render(this.scene, this.camera);
+    for (const l of this.labels) { const v = (typeof l.pos === 'function' ? l.pos() : l.pos.clone()).project(this.camera); if (v.z > 1) { l.el.style.display = 'none'; continue; }
+      l.el.style.display = ''; l.el.style.transform = `translate(${(v.x * .5 + .5) * W}px, ${(-v.y * .5 + .5) * H + l.dy}px) translate(-50%, 0)`; }
+  }
+}
+
+
+/* ===================== mount the 3D scenes behind search ===================== */
+const scenes = [], reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+document.querySelectorAll('[data-scene]').forEach(ph => {
+  const sc = new Scene3D(ph.querySelector('canvas'), ph.querySelector('.labels'), ph.dataset.scene);
+  ph.addEventListener('pointermove', e => { const b = ph.getBoundingClientRect(); sc.pointer.set((e.clientX - b.left) / b.width * 2 - 1, (e.clientY - b.top) / b.height * 2 - 1); });
+  ph.addEventListener('pointerleave', () => sc.pointer.set(0, 0));
+  sc.render(4); scenes.push(sc);
+});
+let last = 0;
+function loop(now) { requestAnimationFrame(loop); if (window.__paused || reduce || now - last < 33) return; last = now; const t = 4 + now / 1000; scenes.forEach(sc => sc.render(t)); }
+requestAnimationFrame(loop);
+
+/* ===================== the system wheel, drawn with the same code as U08 Far and U02 System ===================== */
+/* Changes from Far, and only these: the sun's glow is about a fifth dimmer, and the colour haze is a little fuller and turns a little faster. */
+const HALO_FULL = `uniform vec3 c1; uniform vec3 c2; uniform float strength; uniform float calm; uniform float time; varying vec2 vUv;
+void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if (r > 1.0) discard; float a = atan(p.y, p.x);
+  float arms = .5 + .5 * cos(2.0 * (a + log(r + .05) * 2.2) - time * .3);
+  float i = pow(1.0 - r, 1.7) * (.62 + .38 * arms * smoothstep(.08, .55, r));
+  vec3 col = mix(c1, c2, smoothstep(.1, .9, r));
+  gl_FragColor = vec4(col * i * strength, 1.0); }`;
+const ELEV = 26 * Math.PI / 180, SUN_DIM = .8;
+function mountWheel(ph) {
+  const spots = [...ph.querySelectorAll('[data-sys]')]; if (!spots.length) return null;
+  const canvas = document.createElement('canvas'); canvas.className = 'wheel-gl'; ph.appendChild(canvas);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
+  renderer.setPixelRatio(PR); renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.setClearColor(0x000000, 1);
+  const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 1, 6000);
+  cam.position.set(0, Math.sin(ELEV) * 3000, Math.cos(ELEV) * 3000); cam.lookAt(0, 0, 0);
+  const time = { value: 0 }, ticks = [], ctx = { time, fogR: [1e5, 2e5] };
+  spots.forEach(el => {
+    const S = +el.dataset.s, sx = +el.dataset.x, sy = +el.dataset.y, fam = el.dataset.fam, list = JSON.parse(el.dataset.planets), outer = S / 3;
+    list.forEach(p => { if (!G[p.id]) { G[p.id] = genome(p.id, fam); G[p.id].type = p.type; G[p.id].rings = p.type === 'gas'; } });
+    const sys = makeSystem({ x: sx - W / 2, z: -(H / 2 - sy) / Math.sin(ELEV), family: fam, sunR: Math.max(2.4, S * .075), planetR: Math.max(1.8, S * .032), speed: .16, glow: 1.5,
+      planets: list.map((p, i) => ({ id: p.id, R: outer * (.5 + .5 * (i + 1) / list.length), ang: i * 2.2 + .6 })) }, ctx);
+    const haloMesh = sys.children[0]; haloMesh.material.fragmentShader = HALO_FULL; haloMesh.material.needsUpdate = true;
+    sys.traverse(o => { if (o.isSprite) o.material.opacity *= SUN_DIM; });
+    if (el.dataset.pick) { const R = outer * 1.5, pick = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .9, .35), opacity: .5, ...add })); sys.add(pick);
+      ticks.push(t => { const k = .5 + .5 * Math.sin(t * 2.2); pick.scale.setScalar(R * 2 * (.9 + .2 * k)); pick.material.opacity = .22 + .22 * k; }); }
+    scene.add(sys); ticks.push(sys.userData.tick);
+  });
+  return t => { time.value = t; ticks.forEach(f => f(t)); renderer.render(scene, cam); };
+}
+const wheels = [...document.querySelectorAll('[data-wheel]')].map(mountWheel).filter(Boolean);
+wheels.forEach(w => w(4));
+let last2 = 0;
+function wheelLoop(now) { requestAnimationFrame(wheelLoop); if (window.__paused || reduce || now - last2 < 33) return; last2 = now; const t = 4 + now / 1000; wheels.forEach(w => w(t)); }
+requestAnimationFrame(wheelLoop);
+</script>
+</body>
+</html>

@@ -74,11 +74,13 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: also `talk-frame.tsx` (the one `main` and, on tablets and desktops, the navigation rail with
   Talk current, around a conversation or a thread, which are not tabs) and `keyboard-map.tsx` (every key the app
   listens to, as a sheet from Account and from the desktop Explore footer; add a row there with any new key).
-- Talk by size (D03): below 1024 px a conversation or a thread is one column. From 1024 px a thread has its own pane
-  (episodes, the player, share) beside "Conversation" (messages, the asks, the message box); a direct conversation has
-  the inbox beside it, with its row current; the Talk tab itself shows the list beside a pane that says "Pick a
-  conversation". The rail is drawn from 768 px, also on a thread or a conversation. Presence ("Online") is not drawn: no
-  availability is read here.
+- Talk by size (D03, T3, D-140 to D-144): below 1024 px a conversation or a thread is one column. A thread there is a 72 px header
+  strip (Back, "A THREAD · n PARTS", the title, Series, options), the docked player (a 56 px bar) and the conversation,
+  which keeps over 60 % of a 390 x 844 screen. "Series" pulls the parts and the people down from the header as a sheet
+  that Back, Esc and Close close first. From 1024 px a thread has the conversation with a 400 px series panel on its
+  right (parts, the player, the people); a direct conversation has the inbox beside it, with its row current; the Talk
+  tab itself shows the list beside a pane that says "Pick a conversation". The rail is drawn from 768 px, also on a
+  thread or a conversation. Presence ("Online") is not drawn: no availability is read here.
 - Accessibility: `@axe-core/playwright` runs in the web smoke (`a11y-smoke.spec.ts`) over the main routes at 390, 834 and
   1440 px; serious and critical violations fail it, and every route has one `main`. `keyboard-smoke.spec.ts` tabs
   through screens and requires every stop to draw focus, and walks Explore, a sheet, the Universe, Talk and Privacy
@@ -514,11 +516,15 @@ Routes: `/threads/<id>` (C04, `?m=<membership>&r=<revision>` from Talk or the sh
 (the snippet viewer) and `/threads/<id>/read/<assetId>` (a Scroll read inside the thread). Talk (`/conversations`) lists
 direct conversations and threads together; a thread row shows its people, the last message and an invitation badge.
 
-- `features/threads/thread-screen.tsx` is C04: `thread-chrome.tsx` (header, people, options, invitation), the horizontal
-  `episode-navigator.tsx` (own states: visited, now, ready, updated, no longer available), `thread-encounter.tsx` (the
-  folded or open encounter area), `thread-messages.tsx` and the composer. The navigator owns its horizontal gesture and
-  keeps focus order. Which episode is selected, and whether the area is folded, are kept in the account scope's storage
-  on this device only; nothing about them is sent.
+- `features/threads/thread-screen.tsx` is C04 (T3, D-140 to D-144): `thread-chrome.tsx` (the 72 px `ThreadStrip`, people, options,
+  invitation; `ThreadHeader` stays for rooms), `series-sections.tsx` and `episode-list.tsx` (the parts as rows, in the
+  Series sheet on a phone and in the panel on a desktop; the arrow keys step between rows), `episode-navigator.tsx` (the
+  horizontal strip rooms still use, and the shared labels and keys), `thread-encounter.tsx` (the docked bar, or the open
+  encounter area), `thread-messages.tsx` (day capsules and a time under each run: another author, five minutes or a new
+  day starts one) and the composer. Which episode is selected, and whether the player is docked, are kept in the account
+  scope's storage on this device only; nothing about them is sent. A phone starts docked until the person unfolds the
+  player themselves; watching unfolds it for good, so a resize never docks a playing Reel. Not built here: painted worlds
+  and faces on the header (art, and a coarse place is T-D), the dark New Universe look, replies and reactions (T-B).
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
   activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
   moment ("Watch from here") and always has a Back to thread button that returns to the same message.
@@ -542,13 +548,23 @@ direct conversations and threads together; a thread row shows its people, the la
 
 ## Idea rooms (#245, D-051)
 
-Routes: `/rooms/<id>` (R01 preview before joining, R02 room list after) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
+Routes: `/rooms/<id>` (R01 preview before joining; for a member, the campfire: General under the room's band, v3 R-1) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
 Talk (`/conversations`) lists the person's rooms and invitations under the conversations (D-006 o); a room has no tab.
 
-- `features/rooms/room-screen.tsx`: the dark room header, then either `PreviewBody` (who is here to help, the labelled
-  AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join) or `MemberBody`
-  (the discussions, pinned first; "Share into room" in `share-into-room-sheet.tsx`; moderator Pause and Resume; Leave).
-  No member, activity or online count is drawn anywhere.
+- `features/rooms/room-screen.tsx`: for an outsider, the dark room header and `PreviewBody` (who is here to help, the labelled
+  AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join); no member, activity
+  or online count is drawn there. For a member on a phone it is `campfire.tsx` (v3 R-1, D-062, D-069, D-160, D-161): the dark
+  band (`CampfireHeader`: Back, the room's name that opens the room menu, "A room · 4 here" only from three people, the
+  faces of who has the room open in `here-strip.tsx`, and an honest "Quiet right now · last message 3 h ago" worked out on
+  the device), the AI notice (`ai-notice.tsx`) until the member taps "Got it", and General (`OpenDiscussion` of
+  `discussion-screen.tsx` with the band as its header). Everything else is behind the name in `room-menu.tsx`: About,
+  Guidelines, AI here (`ai-here.tsx`: Lively / Quieter / Off and "Keep my messages out of what AI reads"), Members with the
+  total, Pins, Topics, share into the room, polls and quizzes, a moderator's tools and Leave. `MemberBody` (topics list in
+  `topics-list.tsx`, with "Share into room" in `share-into-room-sheet.tsx`; moderator Pause and Resume in `room-parts.tsx`;
+  Leave) is D04's left rail, with General first, the member's AI settings and the member total. `useRoom` keeps the lease
+  (`setPresence` every 25 s while the room is open and visible, `away` when it closes) and listens for the room's hints
+  (`AccountScope.watchRoom`). The T3 paper, ink and glass tokens are not in `design-tokens` yet, so the band uses the
+  existing space tokens.
 - `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
   composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square

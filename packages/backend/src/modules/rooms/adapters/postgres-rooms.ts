@@ -1,4 +1,5 @@
 import { sql } from 'kysely';
+import { notifyRoomChanged } from '../../../infrastructure/notices/index.js';
 import {
   completeSharedReceipt,
   findSharedReceipt,
@@ -11,7 +12,8 @@ import {
   transactionOf,
 } from '../../../infrastructure/postgres/personal-scope.js';
 import type { MemberRow, RoomRow, RoomStore, Standing } from '../application/ports.js';
-import { endedByOf, inhabitantOf, joinRuleOf, roleOf, statusOf, topicKindOf } from './columns.js';
+import { aiLevelOf, endedByOf, inhabitantOf, joinRuleOf, roleOf, statusOf, topicKindOf } from './columns.js';
+import { uuidv7 } from '../../../infrastructure/ids/index.js';
 
 /** The root kind of a room in the lock hierarchy and in shared receipts. */
 export const ROOM_ROOT_KIND = 'rooms_room';
@@ -52,10 +54,24 @@ export const roomOf = (row: RoomColumns): RoomRow => ({
   inhabitants: row.inhabitants.map(inhabitantOf),
 });
 
-const memberOf = (row: { account_id: string; role: string; ended_by: string | null }): MemberRow => ({
+interface MemberColumns {
+  account_id: string;
+  role: string;
+  ended_by: string | null;
+  ai_level: string;
+  keep_out: boolean;
+  notice_seen_at: Date | string | null;
+}
+
+const MEMBER_COLUMNS = ['account_id', 'role', 'ended_by', 'ai_level', 'keep_out', 'notice_seen_at'] as const;
+
+const memberOf = (row: MemberColumns): MemberRow => ({
   accountId: row.account_id,
   role: roleOf(row.role),
   endedBy: row.ended_by === null ? null : endedByOf(row.ended_by),
+  aiLevel: aiLevelOf(row.ai_level),
+  keepOut: row.keep_out,
+  noticeSeenAt: row.notice_seen_at === null ? null : new Date(row.notice_seen_at),
 });
 
 /** Postgres room rows (migration 0062). The use cases decide who may read or write; this only runs queries. */
@@ -82,7 +98,7 @@ export const roomStore: RoomStore = {
       .executeTakeFirstOrThrow();
     const own = await trx
       .selectFrom('rooms.members')
-      .select(['account_id', 'role', 'ended_by'])
+      .select(MEMBER_COLUMNS)
       .where('room_id', '=', lock.roomId)
       .where('account_id', '=', accountId)
       .executeTakeFirst();
@@ -126,7 +142,7 @@ export const roomStore: RoomStore = {
   async memberOf(lock, accountId) {
     const row = await sharedTransactionOf(lock.shared)
       .selectFrom('rooms.members')
-      .select(['account_id', 'role', 'ended_by'])
+      .select(MEMBER_COLUMNS)
       .where('room_id', '=', lock.roomId)
       .where('account_id', '=', accountId)
       .executeTakeFirst();
@@ -189,12 +205,13 @@ export const roomStore: RoomStore = {
       .map((row) => ({ room: roomOf(row), standing: row.standing }));
   },
 
-  async join(lock, accountId, now) {
+  async join(lock, accountId, aiLevel, now) {
     const trx = sharedTransactionOf(lock.shared);
     const joined = await trx
       .insertInto('rooms.members')
-      .values({ room_id: lock.roomId, account_id: accountId, role: 'member', joined_at: now })
-      // A person who comes back is an ordinary member: a moderator's role is the operator's to give again.
+      .values({ room_id: lock.roomId, account_id: accountId, role: 'member', joined_at: now, ai_level: aiLevel })
+      // A person who comes back is an ordinary member (a moderator's role is the operator's to give again) and keeps
+      // the AI level, keep-out choice and notice mark they already made.
       .onConflict((conflict) =>
         conflict
           .columns(['room_id', 'account_id'])
@@ -218,6 +235,54 @@ export const roomStore: RoomStore = {
       .where('account_id', '=', accountId)
       .where('ended_at', 'is', null)
       .execute();
+  },
+
+  async memberTotal(lock) {
+    const row = await sharedTransactionOf(lock.shared)
+      .selectFrom('rooms.members')
+      .select((builder) => builder.fn.countAll<string>().as('total'))
+      .where('room_id', '=', lock.roomId)
+      .where('ended_at', 'is', null)
+      .executeTakeFirstOrThrow();
+    return Number(row.total);
+  },
+
+  async setPreferences(lock, accountId, patch, now) {
+    const trx = sharedTransactionOf(lock.shared);
+    const changes = {
+      ...(patch.aiLevel === undefined ? {} : { ai_level: patch.aiLevel }),
+      ...(patch.keepOut === undefined ? {} : { keep_out: patch.keepOut }),
+      // The first acknowledgement is the one that counts.
+      ...(patch.noticeSeen === true ? { notice_seen_at: sql<Date>`coalesce(notice_seen_at, ${now})` } : {}),
+    };
+    const row = await trx
+      .updateTable('rooms.members')
+      .set(changes)
+      .where('room_id', '=', lock.roomId)
+      .where('account_id', '=', accountId)
+      .returning(MEMBER_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return memberOf(row);
+  },
+
+  async keepOutAmong(lock, accountIds) {
+    if (accountIds.length === 0) return new Set();
+    const rows = await sharedTransactionOf(lock.shared)
+      .selectFrom('rooms.members')
+      .select('account_id')
+      .where('room_id', '=', lock.roomId)
+      .where('account_id', 'in', [...accountIds])
+      .where('keep_out', '=', true)
+      .execute();
+    return new Set(rows.map((row) => row.account_id));
+  },
+
+  async announce(lock, now) {
+    await notifyRoomChanged(sharedTransactionOf(lock.shared), {
+      roomId: lock.roomId,
+      revision: now.getTime(),
+      eventId: uuidv7(),
+    });
   },
 
   async invite(lock, input) {

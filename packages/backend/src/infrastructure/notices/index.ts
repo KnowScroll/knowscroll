@@ -4,6 +4,7 @@ export {
   SCOPE_NOTICE_CHANNEL,
   ScopeNoticeSchema,
   notifyInboxChanged,
+  notifyRoomChanged,
   notifyScopeChanged,
   type ScopeNotice,
 } from './scope-notices.js';

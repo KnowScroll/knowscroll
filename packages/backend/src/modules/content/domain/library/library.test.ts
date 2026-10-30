@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
 import { CONCEPTS, conceptMeaning } from '../concepts.js';
-import { INTERACTIVE_KINDS } from './plan.js';
+import { EARTH_SKY_KIT } from '@knowscroll/scroll-model';
+import { INTERACTIVE_KINDS, STAGE_KIT_IDS } from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, sceneFamilyOf } from './index.js';
 
 const recipes = RECIPE_KEYS.map((key) => ({ key, ...RECIPES[key] }));
@@ -147,5 +148,65 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
     expect(RECIPES['greenhouse-balance'].assetId).toBe('02a7bdec-4628-4360-8f59-de7b459b183d');
     expect(RECIPES['greenhouse-limits'].assetId).toBe('ff51d698-4d91-4ce9-b54a-4c88f0e9ef9d');
     expect(recipes.filter((recipe) => recipe.explanationUnitId.startsWith('legacy-cutroom-'))).toHaveLength(3);
+  });
+
+  it('adds "Seasons elsewhere" as a new recipe and facet, and keeps seasons-limits and its facet as they were', () => {
+    expect(RECIPES['seasons-elsewhere']).toMatchObject({
+      explanationUnitId: 'earth-seasons-elsewhere-v1',
+      topicId: 'earth.seasons',
+      facetId: 'earth.seasons.elsewhere',
+    });
+    expect(RECIPES['seasons-limits']).toMatchObject({
+      assetId: 'cde79338-06f9-4405-aa1c-1ccff9c51d4b',
+      explanationUnitId: 'earth-seasons-limits-v1',
+      facetId: 'earth.seasons.limits',
+    });
+    expect(conceptMeaning('earth.seasons', 'earth.seasons.limits')?.facetMeaning).toBe(
+      'Limits of simplified seasonal geometry, including the distance misconception.',
+    );
+    expect(conceptMeaning('earth.seasons', 'earth.seasons.elsewhere')).toBeDefined();
+  });
+});
+
+describe('the kit that draws a recipe (stageKit, D-125)', () => {
+  it('names only kits that exist, and keeps the plan’s list in step with the Earth & sky kit of scroll-model', () => {
+    expect([...STAGE_KIT_IDS]).toEqual([EARTH_SKY_KIT]);
+    for (const recipe of recipes)
+      if (recipe.stageKit !== undefined) expect(STAGE_KIT_IDS, recipe.key).toContain(recipe.stageKit);
+  });
+
+  it('gives a stage only to the recipes the Earth & sky kit draws: three Seasons parts, and nothing else yet', () => {
+    expect(
+      recipes
+        .filter((recipe) => recipe.stageKit !== undefined)
+        .map((recipe) => recipe.key)
+        .sort(),
+    ).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
+  });
+
+  it('leaves tides, stars, exoplanets, the greenhouse effect and other worlds plain: the kit draws no bulge, no star, no energy flow and no planet but Earth', () => {
+    for (const key of [
+      'tides',
+      'tides-spring-neap',
+      'tides-coasts',
+      'greenhouse',
+      'greenhouse-radiation',
+      'greenhouse-balance',
+      'greenhouse-limits',
+      'stars-fusion',
+      'exoplanet-habitable-zone',
+      'seasons-elsewhere',
+    ] as const)
+      expect(RECIPES[key].stageKit, key).toBeUndefined();
+  });
+
+  it('draws "Seasons elsewhere" from pages about Mars and Uranus, and keeps its brief to what they state', () => {
+    const { brief, pages } = RECIPES['seasons-elsewhere'];
+    expect(pages).toEqual(['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/']);
+    expect(brief).toContain('Mars');
+    expect(brief).toContain('Uranus');
+    // No passage of these pages is about a world without a tilt, so the brief does not ask for one.
+    expect(brief).not.toMatch(/no tilt|without a tilt|upright/iu);
+    expect(brief).not.toMatch(/picture|stage|pinned/iu);
   });
 });

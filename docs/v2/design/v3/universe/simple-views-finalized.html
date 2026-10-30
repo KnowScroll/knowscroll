@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Views Finalized</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  Simple views, FINALIZED (from round 04, approved 2026-10-28). Do not change.
+  Round 04: the row where you were is a plain yellow fill (no outline or ring) with a small red dot sending out single ripples.
+  Round 03: only places you can visit are listed; system names are headings.
+  Simple drawing on means plain lists, no drawings.
+  Two screens: 1) Your universe, systems with the planets inside them. 2) A planet, the countries (regions) inside it.
+  Chrome follows the U08 outline sheet: cream paper, ink text, mono labels, yellow for where you are.
+-->
+<style>
+:root{
+  --paper:#fffdf2; --paper2:#f4edd8; --ink:#15302a; --ink2:rgba(21,48,42,.62); --line:rgba(21,48,42,.1); --orange:#ff684c; --focus:#FFE44D;
+  --f-display:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;
+  --f-text:'Instrument Sans',system-ui,sans-serif;
+  --f-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --page:#0C0C0E; --page-ink:#F2EEE3; --page-ink2:#A29C8E;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--page);color:var(--page-ink);font-family:var(--f-text);padding:32px 16px 80px}
+.intro{max-width:1000px;margin:0 auto 32px}
+.intro .kicker{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.intro h1{font:800 36px/40px var(--f-display);letter-spacing:-.02em;margin-top:6px}
+.intro p{color:var(--page-ink2);font-size:15px;line-height:22px;margin-top:8px;max-width:760px}
+.phones{display:flex;flex-wrap:wrap;gap:40px 28px;justify-content:center}
+figure{display:flex;flex-direction:column;gap:10px;width:390px}
+figcaption b{font:500 11px/14px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;display:block;color:var(--page-ink2)}
+figcaption span{font:700 16px/21px var(--f-display);display:block;margin-top:2px}
+figcaption small{font-size:12.5px;line-height:18px;color:var(--page-ink2);display:block;margin-top:3px}
+
+/* ---------- phone ---------- */
+.phone{width:390px;height:844px;position:relative;overflow:hidden;border-radius:38px;background:var(--paper);color:var(--ink);
+  box-shadow:0 0 0 8px #050505,0 0 0 9px #26272b,0 30px 60px -24px rgba(0,0,0,.8)}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;justify-content:space-between;align-items:center;padding:0 30px 0 34px;font:600 15px/1 var(--f-text);z-index:40;background:var(--paper)}
+.statusbar i{width:26px;height:12px;border:1.5px solid currentColor;border-radius:4px;display:inline-block;position:relative}
+.statusbar i:after{content:"";position:absolute;inset:1.5px;right:5px;background:currentColor;border-radius:1.5px}
+.scroll{position:absolute;inset:47px 0 0;overflow:hidden;padding:10px 16px 120px}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px}
+.top h1{font:800 30px/34px var(--f-display);letter-spacing:-.02em}
+.ib{width:42px;height:42px;border-radius:50%;background:rgba(21,48,42,.08);display:grid;place-items:center;flex:none}
+.ib svg{width:19px;height:19px}
+.back{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px 0 8px;border-radius:14px;background:rgba(21,48,42,.08);font:800 14px/1 var(--f-text)}
+.back svg{width:17px;height:17px}
+.title{margin-top:14px}
+.title h1{font:800 30px/34px var(--f-display);letter-spacing:-.02em}
+.title p{font:500 14px/20px var(--f-text);color:var(--ink2);margin-top:4px}
+.sub{font:500 14px/20px var(--f-text);color:var(--ink2);margin-top:2px}
+
+/* simple toggle */
+.mode{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:10px 12px 10px 14px;border-radius:16px;background:var(--paper2)}
+.mode b{display:block;font:800 14px/18px var(--f-text)}
+.mode small{display:block;font:500 12px/16px var(--f-text);color:var(--ink2)}
+.sw{width:40px;height:24px;border-radius:12px;background:#14C79B;position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:19px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* a system: its name is the heading */
+.sys{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:26px 4px 10px}
+.sys h2{font:800 23px/27px var(--f-display);letter-spacing:-.015em;color:var(--ink)}
+.sys span{font:600 13px/1 var(--f-text);color:var(--ink2);white-space:nowrap}
+.sys.first{padding-top:20px}
+
+/* grouped list */
+.label{display:flex;justify-content:space-between;gap:10px;padding:22px 6px 8px;font:500 11px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(21,48,42,.58)}
+.group{border-radius:18px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 12px 8px 16px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .tx{flex:1;min-width:0}
+.row .t{display:block;font:700 16px/21px var(--f-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .m{display:flex;align-items:center;gap:6px;font:500 13px/17px var(--f-text);color:var(--ink2)}
+.row .m i{width:7px;height:7px;border-radius:50%;background:var(--orange);flex:none}
+.row .ch{width:18px;height:18px;color:rgba(21,48,42,.4);flex:none}
+.row.cur{background:#FFEC7A;border-top-color:transparent}
+.row.cur + .row{border-top-color:transparent}
+.row.cur .m{color:var(--ink)}
+.row.muted .t{color:var(--ink2)}
+.row .lk{width:18px;height:18px;color:var(--ink2);flex:none}
+/* where you were: a small red dot that sends out one ring at a time */
+.pulse{position:relative;width:8px;height:8px;margin-right:10px;flex:none}
+.pulse b,.pulse i{position:absolute;inset:0;border-radius:50%}
+.pulse b{background:#ff3b30;z-index:1}
+.pulse i{border:1.5px solid #ff3b30;animation:ripple 2.2s ease-out infinite}
+@keyframes ripple{0%{transform:scale(1);opacity:.9}65%{transform:scale(3.6);opacity:0}100%{transform:scale(3.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pulse i{animation:none;opacity:0}}
+.here{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;background:var(--ink);color:var(--focus);font:800 10px/1 var(--f-text);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+
+/* tab bar, solid */
+.worldnav{position:absolute;z-index:35;left:14px;right:14px;bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px;border-radius:24px;background:#141a22;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.nav-tab{display:grid;gap:5px;justify-items:center;padding:9px 4px 8px;color:rgba(255,255,255,.6);border-radius:17px;font:800 11px/1 var(--f-text)}
+.nav-tab svg{width:21px;height:21px}
+.nav-tab.is-active{color:#fff;background:rgba(255,255,255,.13)}
+.fade{position:absolute;left:0;right:0;bottom:0;height:130px;background:linear-gradient(rgba(255,253,242,0),var(--paper) 45%);z-index:30;pointer-events:none}
+#err{position:fixed;left:12px;bottom:12px;max-width:600px;background:#B23A0B;color:#fff;font:12px/16px var(--f-mono);padding:10px;border-radius:8px;display:none;white-space:pre-wrap;z-index:99}
+@media (max-width:440px){figure{width:100%}.phone{transform:scale(.86);transform-origin:top left;margin-bottom:-118px}}
+</style>
+</head>
+<body>
+<header class="intro">
+  <span class="kicker">KnowScroll · Universe · Simple views · finalized</span>
+  <h1>Simple view: just the lists</h1>
+  <p>With Simple drawing on, the Universe tab becomes two plain lists. No pictures, no motion. 1) Your universe: each system with the planets inside it. 2) A planet: the countries (regions) inside it. Tap a planet to open its countries; tap a country to land.</p>
+</header>
+<main class="phones" id="grid"></main>
+<div id="err"></div>
+<script>window.addEventListener('error', e => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent += (e.message || 'error') + '\n'; });</script>
+<script>
+const ICON = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', fwd: '<path d="M9 5l7 7-7 7"/>', back: '<path d="M15 5l-7 7 7 7"/>',
+};
+const ic = (n, cls = '', sw = 2.4) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
+const plural = (n, w) => `${n} ${n === 1 ? w : w.endsWith('y') ? w.slice(0, -1) + 'ies' : w + 's'}`;
+const statusbar = '<div class="statusbar"><span>9:41</span><i></i></div>';
+const tabbar = () => `<nav class="worldnav">${[
+  ['Explore', '<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 3l4 4 4-4"/>'],
+  ['Universe', '<circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/>', 1],
+  ['Talk', '<path d="M4 5h16v11H9l-5 4z"/>'], ['Keep', '<path d="M6 3h12v18l-6-4-6 4z"/>']].map(([l, d, on]) =>
+  `<div class="nav-tab${on ? ' is-active' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg><span>${l}</span></div>`).join('')}</nav>`;
+
+/* the same universe as every other round */
+const SYSTEMS = [
+  { name: 'Machine learning', planets: [
+    { name: 'Attention', regions: 4 },
+    { name: 'Inference & serving', regions: 4, here: 'Deployment' },
+    { name: 'Hardware', regions: 4 }] },
+  { name: 'Backend systems', planets: [{ name: 'Queues', regions: 4 }, { name: 'Storage', regions: 4 }] },
+  { name: 'Football', planets: [{ name: 'Tactics', regions: 4 }] },
+];
+const ROOMS = [{ name: 'Model serving room', where: 'Machine learning' }];
+const PLANET = { name: 'Inference & serving', system: 'Machine learning', regions: ['Batching', 'Deployment', 'Latency', 'Cost'], sel: 1 };
+
+const row = (t, m, o = {}) => `<div class="row${o.cur ? ' cur' : ''}${o.muted ? ' muted' : ''}"><span class="tx"><span class="t">${t}</span>${m ? `<span class="m">${m}</span>` : ''}</span>${o.tail ?? ic('fwd', 'ch')}</div>`;
+
+/* 1 · Your universe: systems, with their planets inside */
+function screenUniverse() {
+  const groups = SYSTEMS.map((s, i) => `<div class="sys${i ? '' : ' first'}"><h2>${s.name}</h2><span>${plural(s.planets.length, 'planet')}</span></div>
+    <div class="group">${s.planets.map(p => row(p.name, p.here ? `<i></i>You were here · ${p.here}` : plural(p.regions, 'country'))).join('')}</div>`).join('');
+  return `<div class="phone">${statusbar}<div class="scroll">
+    <div class="top"><h1>Your universe</h1><span class="ib">${ic('search')}</span></div>
+    <p class="sub">${plural(SYSTEMS.length, 'system')} · ${plural(SYSTEMS.reduce((a, s) => a + s.planets.length, 0), 'planet')}</p>
+    <div class="mode"><div><b>Simple view</b><small>Plain lists, for slow devices</small></div><span class="sw"></span></div>
+    ${groups}
+    <div class="label"><span>Rooms</span><span>${ROOMS.length}</span></div>
+    <div class="group">${ROOMS.map(r => row(r.name, `In ${r.where}`)).join('')}</div>
+  </div><div class="fade"></div>${tabbar()}</div>`;
+}
+
+/* 2 · A planet: the countries inside it */
+function screenPlanet() {
+  const P = PLANET;
+  const rows = P.regions.map((r, i) => i === P.sel ? row(r, 'Last place you visited', { cur: 1, tail: '<span class="pulse" title="You were here"><i></i><b></b></span>' }) : row(r)).join('');
+  return `<div class="phone">${statusbar}<div class="scroll">
+    <div class="top"><span class="back">${ic('back')}Your universe</span><span class="ib">${ic('search')}</span></div>
+    <div class="title"><h1>${P.name}</h1><p>A planet in ${P.system} · ${plural(P.regions.length, 'country')}</p></div>
+    <div class="label"><span>Countries</span><span>Tap to land</span></div>
+    <div class="group">${rows}</div>
+  </div><div class="fade"></div>${tabbar()}</div>`;
+}
+
+const fig = (html, code, title, note) => `<figure>${html}<figcaption><b>${code}</b><span>${title}</span><small>${note}</small></figcaption></figure>`;
+document.getElementById('grid').innerHTML =
+  fig(screenUniverse(), 'Simple view · 1', 'Your universe', 'Each system’s name is a heading, its planets are the rows under it, with how many countries each holds. The orange dot marks where you were. Rooms at the end. The switch turns Simple view off.') +
+  fig(screenPlanet(), 'Simple view · 2', 'Countries inside a planet', 'Opened by tapping Inference & serving. Every country in one list; the yellow row with the rippling red dot is where you were.');
+</script>
+</body>
+</html>

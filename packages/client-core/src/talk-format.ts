@@ -58,3 +58,28 @@ export function dayLabel(at: Date, now: Date, locale?: string): string {
 export function dayKey(at: Date): string {
   return `${String(at.getFullYear())}-${String(at.getMonth())}-${String(at.getDate())}`;
 }
+
+/** The clock time shown under a run of messages, in the reader's own time zone. */
+export function clockTime(at: Date, locale?: string): string {
+  return at.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+}
+
+/** A pause this long between two messages by one author starts a new run. */
+export const RUN_GAP_MS = 5 * 60_000;
+
+/** One message as the grouping into runs sees it. */
+export interface RunStep {
+  readonly authorId: string;
+  readonly at: Date;
+}
+
+/**
+ * Whether a message is the last of its run, the one that carries the time: the next message is by
+ * someone else, comes after a pause of five minutes or more, or falls on another day.
+ */
+export function endsRun(current: RunStep, next: RunStep | undefined): boolean {
+  if (next === undefined) return true;
+  if (next.authorId !== current.authorId) return true;
+  if (dayKey(next.at) !== dayKey(current.at)) return true;
+  return next.at.getTime() - current.at.getTime() >= RUN_GAP_MS;
+}

@@ -1460,6 +1460,7 @@ export interface RoomsAiRequests {
 export interface RoomsDiscussions {
   created_at: Timestamp;
   discussion_id: string;
+  kind: Generated<string>;
   last_activity_at: Timestamp;
   last_change_sequence: Generated<Int8>;
   last_sequence: Generated<Int8>;
@@ -1481,9 +1482,12 @@ export interface RoomsInvitations {
 
 export interface RoomsMembers {
   account_id: string;
+  ai_level: Generated<string>;
   ended_at: Timestamp | null;
   ended_by: string | null;
   joined_at: Timestamp;
+  keep_out: Generated<boolean>;
+  notice_seen_at: Timestamp | null;
   role: Generated<string>;
   room_id: string;
 }
@@ -1528,6 +1532,12 @@ export interface RoomsPollVotes {
   activity_id: string;
   option_id: string;
   voted_at: Timestamp;
+}
+
+export interface RoomsRoomPresence {
+  account_id: string;
+  last_seen_at: Timestamp;
+  room_id: string;
 }
 
 export interface RoomsRooms {
@@ -1993,6 +2003,7 @@ export interface DB {
   "rooms.message_snippets": RoomsMessageSnippets;
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
+  "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;

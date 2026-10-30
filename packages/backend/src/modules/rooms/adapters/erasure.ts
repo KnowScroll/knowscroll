@@ -20,7 +20,8 @@ import { contributeQueue } from '../events.js';
  * An AI contribution a deleted person asked for stays: it belongs to the room.
  */
 const LIFECYCLE = {
-  'rooms.members': 'the account membership is removed',
+  'rooms.members': 'the account membership is removed, with its AI level, keep-out choice and notice mark',
+  'rooms.room_presence': 'the lease is deleted with the membership; it also ends by itself after a minute',
   'rooms.invitations': 'invitations made to or by the account are removed',
   'rooms.discussions': 'the starter link is cleared; the discussion stays for the others',
   'rooms.messages': 'the account authored messages become tombstones',
@@ -77,6 +78,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'ai_requests', ownerColumn: 'requested_by_account_id' },
     { schema: 'rooms', table: 'activities', ownerColumn: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'room_presence', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -87,6 +89,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'ai_requests', column: 'requested_by_account_id' },
     { schema: 'rooms', table: 'activities', column: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', column: 'account_id' },
+    { schema: 'rooms', table: 'room_presence', column: 'account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -142,6 +145,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
         where requested_by_account_id = ${account}::uuid`.execute(trx),
     );
     removed += count(await sql`delete from rooms.poll_votes where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.room_presence where account_id = ${account}::uuid`.execute(trx));
     removed += count(
       await sql`update rooms.activities set created_by_account_id = null
         where created_by_account_id = ${account}::uuid`.execute(trx),
@@ -188,11 +192,20 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.activities',
       'rooms.poll_votes',
     ],
-    'An invitation is a notice between two members and holds no words of the person; the job queue is delivery bookkeeping.',
+    'An invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the job queue is delivery bookkeeping.',
     async (scope, person) => {
       const trx = transactionOf(scope);
-      const rooms = await sql<{ name: string; role: string; joined_at: Date; ended_at: Date | null }>`
-        select room.name, member.role, member.joined_at, member.ended_at
+      const rooms = await sql<{
+        name: string;
+        role: string;
+        joined_at: Date;
+        ended_at: Date | null;
+        ai_level: string;
+        keep_out: boolean;
+        notice_seen_at: Date | null;
+      }>`
+        select room.name, member.role, member.joined_at, member.ended_at, member.ai_level, member.keep_out,
+          member.notice_seen_at
         from rooms.members member join rooms.rooms room on room.room_id = member.room_id
         where member.account_id = ${person.accountId}::uuid
         order by member.joined_at desc limit 500`.execute(trx);
@@ -246,6 +259,9 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           role: row.role,
           joinedAt: row.joined_at.toISOString(),
           ...(row.ended_at === null ? {} : { leftAt: row.ended_at.toISOString() }),
+          aiLevel: row.ai_level,
+          keepMessagesOutOfAi: row.keep_out,
+          ...(row.notice_seen_at === null ? {} : { aiNoticeSeenAt: row.notice_seen_at.toISOString() }),
         })),
         discussionsStarted: started.rows.map((row) => ({
           title: row.title,

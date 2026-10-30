@@ -1,8 +1,23 @@
 # Status
 
-**Updated:** 2026-10-25 · **Tracker:** [#222](https://github.com/KnowScroll/knowscroll/issues/222) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover:** [`docs/v2/handover.md`](v2/handover.md)
+**Updated:** 2026-10-30 · **Tracker:** [#462](https://github.com/KnowScroll/knowscroll/issues/462) (v3 revamp; [#222](https://github.com/KnowScroll/knowscroll/issues/222) is the v2 history) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover (v2):** [`docs/v2/handover.md`](v2/handover.md)
 
-**Current phase:** F0–F4 are done and every slice runs on dev. F5 on dev is done: journeys with real services and a design-fidelity sweep. Stage and the `main` PR are out of scope for this run (owner, 25 Oct); stage still runs v1.
+**Current phase:** the v3 revamp (Universe, Scrolls, rooms, Talk), V0 intake. The designs and the change map are in `docs/v2/design/v3/` and `docs/v2/v3-revamp/`; the rulings are D-060 to D-093. Lanes U, S, T and R start after V0; the first slices are U-0 (#464, renderer gate), S-0 (#471, writer spike), T-A (#481) and R-1 (#487). v2 (F0–F5) is done on dev. Stage, live and `main` are out of scope (owner); stage still runs v1.
+
+**Decision numbers for the v3 lanes** are reserved in blocks so parallel slices do not collide: U from D-100, S from D-120, T from D-140, R from D-160.
+
+## v3 build session (not the owner's Mac)
+
+The v3 session runs on a friend's Windows PC with GitHub Write and VPS root SSH, and no provider keys (D-061). It translates the owner's paths in `AGENTS.md`:
+
+| Owner's path | This session |
+|---|---|
+| `/Volumes/Mrigesh SSD/knowscroll-product` (shared checkout) | `C:/Users/XZNON/Knowscroll-v2` |
+| `/Volumes/Mrigesh SSD/knowscroll-worktrees/<name>` | `C:/Users/XZNON/knowscroll-worktrees/<name>` |
+| `/Volumes/Mrigesh SSD/knowscroll-dev/v2/tmp/<agent>/` | `C:/Users/XZNON/knowscroll-dev/tmp/<agent>/` |
+| Commits as `Legend101Zz` | Commits as `XZNON` |
+
+The checkout uses `core.autocrlf=false` (CI expects LF). A few tests fail only on this machine (media tooling, Windows timeouts); CI is the gate. The v3 design PDFs are kept outside Git in `C:/Users/XZNON/knowscroll-dev/design-v3/`.
 
 ## Where things run
 

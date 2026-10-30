@@ -219,3 +219,22 @@ export const readActivity = async (world: RoomWorld, person: Friend, roomId: str
   unwrap(await world.rooms.readActivity(person.authority, { version, readId: randomUUID(), roomId, activityId }));
 
 export { befriend, libraryRoomSeeds };
+
+/** The caller's device says the room is open (or closed): the lease behind a face. */
+export const setPresence = (world: RoomWorld, person: Friend, roomId: string, state: 'here' | 'away' = 'here') =>
+  world.rooms.setPresence(person.authority, { version, roomId, state });
+
+/** A member's own AI level, keep-out choice or notice acknowledgement, under a fresh command ID. */
+export const setPreferences = (
+  world: RoomWorld,
+  person: Friend,
+  roomId: string,
+  patch: { aiLevel?: 'lively' | 'quieter' | 'off'; keepOut?: boolean; noticeSeen?: true },
+) => world.rooms.setPreferences(person.authority, { version, commandId: randomUUID(), roomId, ...patch });
+
+/** The room as this person reads it, which must be a member's view. */
+export async function memberView(world: RoomWorld, person: Friend, roomId: string) {
+  const view = unwrap(await world.rooms.read(person.authority, { version, readId: randomUUID(), roomId }));
+  if (view.status !== 'member') throw new Error(`expected a member view, got ${view.status}`);
+  return view;
+}

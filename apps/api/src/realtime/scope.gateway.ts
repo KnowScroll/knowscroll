@@ -23,6 +23,7 @@ import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { ScopeNotice, ScopeNoticeSink } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { READ_UNIVERSE_ACCESS, type ReadUniverseAccess } from '@knowscroll/backend/modules/identity';
+import { READ_ROOM_MEMBERSHIP, type ReadRoomMembership } from '@knowscroll/backend/modules/rooms';
 import {
   READ_INBOX_REVISION,
   RECORD_HEARTBEAT,
@@ -47,14 +48,15 @@ type Authorisation = 'ok' | 'scope_revoked' | 'session_invalid';
 /** A socket's heartbeats closer together than this are answered without a write (the client sends one every 20 s). */
 const HEARTBEAT_FLOOR_MS = 10_000;
 
-function cacheKey(caller: Caller, universeId: string): string {
-  return `${caller.accountId}:${caller.sessionId}:${universeId}:${caller.privacyEpoch}`;
+/** One cache entry per session, scope and epoch; a room's ID cannot collide with a universe's. */
+function cacheKey(caller: Caller, scope: ScopeRef): string {
+  return `${caller.accountId}:${caller.sessionId}:${scope.id}:${caller.privacyEpoch}`;
 }
 
 /**
  * Socket.IO gateway for live hints (blueprint §4, §7): authenticated connections, authorised
  * `subscribe_scope`/`unsubscribe_scope` (the caller's `universe` and `inbox` scopes, both named by
- * their own universe), and `scope_changed`/`scope_resync`/`scope_revoked` hints
+ * their own universe, and a `room` scope, named by a room the caller is a current member of), and `scope_changed`/`scope_resync`/`scope_revoked` hints
  * from the LISTEN relay. The one socket command is `presence_heartbeat`, which says an open, visible
  * app is around (D-047). Everything else durable is read and written over HTTP.
  *
@@ -65,7 +67,8 @@ function cacheKey(caller: Caller, universeId: string): string {
  * - every relayed hint is re-authorised per socket — session validity and scope access, cached at
  *   most `KS_SOCKET_AUTH_CACHE_MS` (≤ 30 s) per session, scope and epoch; a socket whose access no
  *   longer holds leaves the room and is told `scope_revoked`; one whose session is no longer valid
- *   is disconnected;
+ *   is disconnected (a `room` scope is never cached: membership is one indexed row, so a removed member
+ *   hears nothing more at once);
  * - an access-revocation notice (`revokeAccountSockets`, S1.3 sign-out / session revocation /
  *   epoch change) disconnects every socket of that account at once;
  * - when the relay reconnects, notices sent meanwhile (revocations included) are lost, so the
@@ -82,6 +85,7 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     @Inject(CALLERS) private readonly callers: AuthenticatedCallers,
     @Inject(READ_UNIVERSE_ACCESS) private readonly readAccess: ReadUniverseAccess,
     @Inject(READ_INBOX_REVISION) private readonly readInboxRevision: ReadInboxRevision,
+    @Inject(READ_ROOM_MEMBERSHIP) private readonly readRoomMembership: ReadRoomMembership,
     @Inject(RECORD_HEARTBEAT) private readonly recordHeartbeat: RecordHeartbeat,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     @Inject(LOG_EVENT) private readonly logEvent: LogEvent,
@@ -146,14 +150,24 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
         this.logEvent('realtime.subscription_refused', { reasonCode: 'SESSION_INVALID' });
         return { ok: false, code: 'UNAUTHENTICATED' };
       }
+      if (request.data.scope.kind === 'room') {
+        // A room's hints go to current members only. The ack carries no revision to catch up from: a room hint says
+        // that something changed, and the subscriber rereads.
+        if (!(await this.readRoomMembership(caller.accountId, request.data.scope.id))) {
+          await socket.leave(name);
+          this.logEvent('realtime.subscription_refused', { reasonCode: 'FORBIDDEN' });
+          return { ok: false, code: 'FORBIDDEN' };
+        }
+        return { ok: true, revision: 0 };
+      }
       const access = await this.readAccess(caller.accountId, request.data.scope.id);
       if (access === undefined || !access.active || access.privacyEpoch !== caller.privacyEpoch) {
         await socket.leave(name);
         this.logEvent('realtime.subscription_refused', { reasonCode: 'FORBIDDEN' });
         return { ok: false, code: 'FORBIDDEN' };
       }
-      this.remember(cacheKey(caller, request.data.scope.id), 'ok');
-      // Both scopes are named by the caller's own universe, so one access check covers either.
+      this.remember(cacheKey(caller, request.data.scope), 'ok');
+      // `universe` and `inbox` are both named by the caller's own universe, so one access check covers either.
       const revision =
         request.data.scope.kind === 'inbox' ? await this.readInboxRevision(caller.accountId) : access.revision;
       return { ok: true, revision };
@@ -180,7 +194,8 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     const now = Date.now();
     if (data.lastBeatAt !== undefined && now - data.lastBeatAt < HEARTBEAT_FLOOR_MS) return { ok: true };
     try {
-      if ((await this.authorise(caller, caller.universeId)) !== 'ok') return { ok: false, code: 'UNAUTHENTICATED' };
+      if ((await this.authorise(caller, { kind: 'universe', id: caller.universeId })) !== 'ok')
+        return { ok: false, code: 'UNAUTHENTICATED' };
       await this.recordHeartbeat(caller.accountId);
       data.lastBeatAt = now;
       return { ok: true };
@@ -256,7 +271,7 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     const hint: ScopeChangedHint = { scope: notice.scope, revision: notice.revision, eventId: notice.eventId };
     for (const socket of await this.server.in(name).fetchSockets()) {
       const caller = callerOf(socket);
-      const authorisation = caller === undefined ? 'session_invalid' : await this.authorise(caller, notice.scope.id);
+      const authorisation = caller === undefined ? 'session_invalid' : await this.authorise(caller, notice.scope);
       switch (authorisation) {
         case 'ok':
           socket.emit(socketEvents.scopeChanged, hint);
@@ -276,19 +291,26 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     }
   }
 
-  /** Session validity first, then scope access; cached per session, scope and epoch. */
-  private async authorise(caller: Caller, universeId: string): Promise<Authorisation> {
-    const key = cacheKey(caller, universeId);
-    const cached = this.authorisations.get(key);
+  /** Session validity first, then scope access (a universe's owner, a room's member); cached per session, scope and epoch. */
+  private async authorise(caller: Caller, scope: ScopeRef): Promise<Authorisation> {
+    // A room's membership is one indexed row and changes when a moderator removes someone, so it is read every time:
+    // a removed member gets no further hint. A universe's access is cached, as before.
+    const cacheable = scope.kind !== 'room';
+    const key = cacheKey(caller, scope);
+    const cached = cacheable ? this.authorisations.get(key) : undefined;
     if (cached !== undefined && Date.now() - cached.at < this.config.socketAuthorisationCacheMs) return cached.result;
     let result: Authorisation = 'session_invalid';
     if (await this.callers.sessionValid(caller)) {
-      const access = await this.readAccess(caller.accountId, universeId);
-      result =
-        access !== undefined && access.active && access.privacyEpoch === caller.privacyEpoch ? 'ok' : 'scope_revoked';
+      result = (await this.mayHear(caller, scope)) ? 'ok' : 'scope_revoked';
     }
-    this.remember(key, result);
+    if (cacheable) this.remember(key, result);
     return result;
+  }
+
+  private async mayHear(caller: Caller, scope: ScopeRef): Promise<boolean> {
+    if (scope.kind === 'room') return this.readRoomMembership(caller.accountId, scope.id);
+    const access = await this.readAccess(caller.accountId, scope.id);
+    return access !== undefined && access.active && access.privacyEpoch === caller.privacyEpoch;
   }
 
   private remember(key: string, result: Authorisation): void {

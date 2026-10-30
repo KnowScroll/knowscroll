@@ -54,7 +54,18 @@ export {
   type ThreadOptions,
   type ThreadState,
 } from './conversation-thread';
-export { dayKey, dayLabel, describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
+export {
+  clockTime,
+  dayKey,
+  dayLabel,
+  describeMessage,
+  endsRun,
+  inboxRowView,
+  listTime,
+  RUN_GAP_MS,
+  type InboxRowView,
+  type RunStep,
+} from './talk-format';
 export {
   createContentThread,
   type ContentThreadController,
@@ -119,9 +130,11 @@ export {
   type ModerateAction,
   type RoomController,
   type RoomOptions,
+  type RoomPreferencesChange,
   type RoomState,
   type StartDiscussion,
 } from './room';
+export { QUIET_AFTER_MS, agoWords, hereView, quietPill, type HereFaceView, type HereView } from './room-presence';
 export {
   createRoomActivities,
   createRoomActivity,

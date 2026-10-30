@@ -1,9 +1,12 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import type { ContentThreadState } from '@knowscroll/client-core';
 import type { ConversationContentProjection, ThreadParticipant } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { PersonAvatar } from '../conversations/person-avatar';
+
+/** The header strip's height on a thread (T3: 64 px on a conversation, 72 px on a thread). */
+const HEADER_HEIGHT = 72;
 
 /** The title a thread goes by: the name its starter gave it, else the title of what it is about. */
 export function threadTitle(state: Pick<ContentThreadState, 'name' | 'root'>): string {
@@ -20,7 +23,6 @@ export function ThreadHeader({
   people,
   onBack,
   onMap,
-  onPeople,
   onMenu,
 }: {
   readonly title: string;
@@ -29,7 +31,6 @@ export function ThreadHeader({
   readonly onBack: () => void;
   /** Offered only once the thread has several branches (X04); never for a first exploration. */
   readonly onMap?: (() => void) | undefined;
-  readonly onPeople: (() => void) | undefined;
   readonly onMenu: (() => void) | undefined;
 }) {
   return (
@@ -49,34 +50,100 @@ export function ThreadHeader({
       {onMap === undefined ? null : (
         <Button label="Map" size="sm" variant="ghost" onPress={onMap} testID="thread-map-button" />
       )}
-      {onPeople === undefined ? null : <IconButton icon="person" label="People in this thread" onPress={onPeople} />}
+      {onMenu === undefined ? null : <IconButton icon="more" label="Thread options" onPress={onMenu} />}
+    </View>
+  );
+}
+
+/**
+ * The small line above the title: what this is and how big, e.g. "A THREAD · 3 PARTS · 4 PEOPLE". A
+ * phone strip has no room for the people, who are listed under Series.
+ */
+export function threadEyebrow(
+  state: Pick<ContentThreadState, 'sequence' | 'episodes' | 'participants'>,
+  withPeople: boolean,
+): string {
+  const count = state.episodes.length;
+  const noun = state.sequence === 'series' ? 'PART' : 'ITEM';
+  const people = state.participants.length;
+  return [
+    'A THREAD',
+    count === 0 ? undefined : `${String(count)} ${noun}${count === 1 ? '' : 'S'}`,
+    !withPeople || people === 0 ? undefined : `${String(people)} ${people === 1 ? 'PERSON' : 'PEOPLE'}`,
+  ]
+    .filter((part): part is string => part !== undefined)
+    .join(' · ');
+}
+
+/**
+ * C04's header strip on a thread (T3): 72 px, so the conversation keeps the screen. Back, the title under a small
+ * line saying what this is, and the thread's options. On a phone "Series" pulls the parts down as a
+ * sheet; beside the conversation (desktop) the parts are always on show and the button is absent.
+ */
+export function ThreadStrip({
+  title,
+  eyebrow,
+  onBack,
+  series,
+  onMenu,
+  onLayout,
+}: {
+  readonly title: string;
+  readonly eyebrow: string | undefined;
+  readonly onBack: () => void;
+  /** Pulls the parts down from this header; absent where they are always shown. */
+  readonly series?: { readonly open: boolean; readonly onPress: () => void } | undefined;
+  readonly onMenu: (() => void) | undefined;
+  /** Reports the strip's height, so a sheet can hang from its bottom edge. */
+  readonly onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
+}) {
+  return (
+    <View style={styles.strip} onLayout={onLayout} testID="thread-header">
+      <IconButton icon="back" label="Back" onPress={onBack} />
+      <View style={styles.title}>
+        {eyebrow === undefined ? null : (
+          <Text variant="monoXs" color={content.ink2} numberOfLines={1}>
+            {eyebrow}
+          </Text>
+        )}
+        <Text variant="ui" heading={1} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
+      {series === undefined ? null : (
+        <Button
+          label="Series"
+          size="sm"
+          variant={series.open ? 'continue' : 'default'}
+          icon={series.open ? 'chevronUp' : 'chevronDown'}
+          iconPosition="trailing"
+          accessibilityHint="Pulls down the parts of this thread"
+          onPress={series.onPress}
+          testID="thread-series-button"
+        />
+      )}
       {onMenu === undefined ? null : <IconButton icon="more" label="Thread options" onPress={onMenu} />}
     </View>
   );
 }
 
 /** Who is in the thread: names only, the starter marked, invitations not yet answered said in words. */
-export function PeopleSheet({
-  visible,
-  participants,
-  onClose,
-}: {
-  readonly visible: boolean;
-  readonly participants: readonly ThreadParticipant[];
-  readonly onClose: () => void;
-}) {
+export function ThreadPeople({ participants }: { readonly participants: readonly ThreadParticipant[] }) {
   return (
-    <BottomSheet visible={visible} title="People in this thread" onClose={onClose}>
-      <View role="list" style={styles.people}>
+    <View style={styles.people}>
+      <Text variant="monoXs" color={content.ink2}>
+        PEOPLE
+      </Text>
+      <View role="list" accessibilityLabel="People in this thread" style={styles.people}>
         {participants.map((participant) => (
           <View key={participant.person.personId} role="listitem" style={styles.person}>
-            <PersonAvatar person={participant.person} size={40} />
+            <PersonAvatar person={participant.person} size={32} />
             <View style={styles.title}>
-              <Text variant="ui" numberOfLines={1}>
+              <Text variant="uiS" numberOfLines={1}>
                 {participant.person.displayName}
                 {participant.you ? ' (you)' : ''}
               </Text>
-              <Text variant="meta" color={content.ink2} numberOfLines={1}>
+              <Text variant="metaS" color={content.ink2} numberOfLines={1}>
                 @{participant.person.handle}
               </Text>
             </View>
@@ -88,7 +155,7 @@ export function PeopleSheet({
       <Text variant="meta" color={content.ink2}>
         Everyone keeps their own place in the episodes. Nobody sees where anyone else is.
       </Text>
-    </BottomSheet>
+    </View>
   );
 }
 
@@ -162,6 +229,16 @@ export function InvitationView({
 }
 
 const styles = StyleSheet.create({
+  strip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    paddingHorizontal: layout.gutter,
+    paddingVertical: spacing[2],
+    minHeight: HEADER_HEIGHT,
+    borderBottomWidth: borderWidth.regular,
+    borderBottomColor: content.ink,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -16,7 +16,8 @@ const WORDS = {
  * The only way an AI inhabitant speaks: a member asks. One button for each labelled inhabitant, with
  * the honest reason when it cannot be asked (a reply is being prepared, the daily bound is used, the
  * room is paused). The text says what an inhabitant is and is not: a suggestion, never a person, and
- * nothing is made unless someone chooses it.
+ * nothing is made unless someone chooses it. What asking sends is said once, when a member joins, and
+ * after that in the room menu under AI here, not on every visit.
  */
 export function InhabitantBar({
   inhabitants,
@@ -38,9 +39,6 @@ export function InhabitantBar({
     <View style={styles.bar} accessibilityLabel="AI inhabitants">
       <Text variant="metaS" color={content.ink2}>
         AI inhabitants speak when someone asks. They won’t fill the room on their own.
-      </Text>
-      <Text variant="metaS" color={content.ink2}>
-        Asking sends this discussion’s recent messages, without names, to an AI model.
       </Text>
       <View style={compact === true ? styles.compact : styles.list}>
         {inhabitants.map((entry) => {

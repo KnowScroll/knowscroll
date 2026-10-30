@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -145,6 +145,7 @@ function ReadyDiscussion({
   controller,
   state,
   onBack,
+  header,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
@@ -152,6 +153,8 @@ function ReadyDiscussion({
   readonly controller: RoomDiscussionController;
   readonly state: RoomDiscussionState;
   readonly onBack: () => void;
+  /** What stands above the messages instead of the thread header (the room's own band for General); `null` for nothing. */
+  readonly header: ReactNode | undefined;
 }) {
   const router = useRouter();
   const { breakpoint } = useDisplay();
@@ -181,7 +184,8 @@ function ReadyDiscussion({
     rootContent?.root.status === 'available' && rootContent.root.target.assetId === current?.assetId
       ? rootContent.root.metadata.summary
       : undefined;
-  const moderator = view.role === 'moderator';
+  // A moderator pins a topic; General is where everyone lands and is never pinned.
+  const moderator = view.role === 'moderator' && view.discussion.kind !== 'general';
 
   const ask = (inhabitant: InhabitantId) => {
     setLastAsk(undefined);
@@ -194,13 +198,16 @@ function ReadyDiscussion({
 
   return (
     <>
-      <ThreadHeader
-        title={view.discussion.title}
-        people={`in ${view.room.name}`}
-        onBack={onBack}
-        onPeople={undefined}
-        onMenu={moderator ? () => setModerating(true) : undefined}
-      />
+      {header !== undefined ? (
+        header
+      ) : (
+        <ThreadHeader
+          title={view.discussion.title}
+          people={`in ${view.room.name}`}
+          onBack={onBack}
+          onMenu={moderator ? () => setModerating(true) : undefined}
+        />
+      )}
       {state.offline ? (
         <View style={styles.banner}>
           <Banner kind="reconnecting" lead="Reconnecting…" message="Missing messages will appear in order." />
@@ -262,7 +269,7 @@ function ReadyDiscussion({
             compact={breakpoint === 'desktop'}
           />
           <Composer
-            name="this discussion"
+            name={view.discussion.kind === 'general' ? 'General' : 'this discussion'}
             value={draft}
             onChange={keepDraft}
             onSend={(text) => {
@@ -335,14 +342,20 @@ function ReadyDiscussion({
   );
 }
 
-function OpenDiscussion({
+/**
+ * A discussion read and kept fresh: the messages, the composer and the person's own place in it. `header` replaces
+ * the thread header when the room draws its own above it (General's campfire band).
+ */
+export function OpenDiscussion({
   scope,
   roomId,
   discussionId,
+  header,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
   readonly discussionId: string;
+  readonly header?: ReactNode;
 }) {
   const router = useRouter();
   const { controller, state } = useRoomDiscussion(scope, roomId, discussionId);
@@ -387,6 +400,7 @@ function OpenDiscussion({
       controller={controller}
       state={state}
       onBack={backToRoom}
+      header={header}
     />
   );
 }

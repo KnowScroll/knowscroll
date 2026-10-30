@@ -192,7 +192,8 @@ writer call that cites them, deterministic compilation, and at most one repair, 
 requests per recipe**; uncertain attempts are never resent. Publication closes the writer run and
 stores the immutable admitted revision in the same production-root transaction. Research and model
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
-job after a crash. See [production/README.md](production/README.md) and the
+job after a crash. The operator's `content writer-spike-v2` runs the v2 writer (`scroll-authoring.v2`) on library recipes and reports; it admits and publishes nothing
+(S-0, D-120 to D-122). See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
 

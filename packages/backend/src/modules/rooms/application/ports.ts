@@ -11,7 +11,7 @@ import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
-import type { EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
+import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
 export type Result<T> =
@@ -51,6 +51,20 @@ export interface MemberRow {
   readonly accountId: string;
   readonly role: RoomRole;
   readonly endedBy: 'left' | 'removed' | null;
+  /** How much the room's AI inhabitants may speak to this member. */
+  readonly aiLevel: AiLevel;
+  /** Their messages are replaced by a placeholder before any model reads the room. */
+  readonly keepOut: boolean;
+  /** When they acknowledged the AI notice; null until they do. */
+  readonly noticeSeenAt: Date | null;
+}
+
+/** A member's own settings in a room; each is changed on its own. */
+export interface MemberPreferences {
+  readonly aiLevel?: AiLevel;
+  readonly keepOut?: boolean;
+  /** Acknowledges the AI notice; the first acknowledgement is kept. */
+  readonly noticeSeen?: true;
 }
 
 /** A locked room root: the room row, held after the actor's personal root and own account gate. */
@@ -114,8 +128,17 @@ export interface RoomStore {
     accountId: string,
     topics: readonly { readonly kind: 'system' | 'planet'; readonly id: string }[],
   ): Promise<readonly RoomStationRow[]>;
-  join(lock: RoomLock, accountId: string, now: Date): Promise<RoomRole>;
+  /** Joins (or rejoins) as an ordinary member. A new member starts at `aiLevel`; a person who comes back keeps their own settings. */
+  join(lock: RoomLock, accountId: string, aiLevel: AiLevel, now: Date): Promise<RoomRole>;
   end(lock: RoomLock, accountId: string, by: 'left' | 'removed', now: Date): Promise<void>;
+  /** How many current members the room has. */
+  memberTotal(lock: RoomLock): Promise<number>;
+  /** Changes the member's own settings and returns the row as it stands. */
+  setPreferences(lock: RoomLock, accountId: string, patch: MemberPreferences, now: Date): Promise<MemberRow>;
+  /** Which of these accounts keep their messages out of what AI reads, whether or not they are still members. */
+  keepOutAmong(lock: RoomLock, accountIds: readonly string[]): Promise<ReadonlySet<string>>;
+  /** Queues a room hint in this transaction: something changed that members of the room should read again. Disposable. */
+  announce(lock: RoomLock, now: Date): Promise<void>;
   invite(lock: RoomLock, input: { inviteeAccountId: string; inviterAccountId: string; now: Date }): Promise<void>;
   setStatus(lock: RoomLock, status: RoomStatus): Promise<void>;
   findReceipt(lock: RoomLock, key: ReceiptKey): Promise<ReceiptLookup>;
@@ -132,6 +155,8 @@ export const earlierPlaceOf = (own: MemberRow | undefined): EarlierPlace =>
 export interface DiscussionRow {
   readonly discussionId: string;
   readonly roomId: string;
+  /** `general` is the room's own place to talk (one per room); `topic` is any other. */
+  readonly kind: 'general' | 'topic' | 'today';
   readonly title: string;
   readonly root: ContentRef | null;
   readonly originMessageId: string | null;
@@ -203,8 +228,12 @@ export interface Counters {
 export interface DiscussionStore {
   exists(lock: RoomLock, discussionId: string): Promise<boolean>;
   load(lock: RoomLock, discussionId: string): Promise<DiscussionRow | undefined>;
-  /** The room's discussions, pinned first and then newest activity. */
+  /** The room's discussions other than General, pinned first and then newest activity. */
   list(lock: RoomLock, limit: number): Promise<readonly DiscussionRow[]>;
+  /** The room's General discussion; every room has one. */
+  general(lock: RoomLock): Promise<DiscussionRow | undefined>;
+  /** When the newest message a member can see was sent, anywhere in the room; none while nobody has written. */
+  lastMessageAt(lock: RoomLock): Promise<Date | undefined>;
   /** The pinned discussion with the newest pin, if any. */
   pinnedTitle(lock: RoomLock): Promise<string | undefined>;
   create(lock: RoomLock, discussion: NewDiscussion): Promise<void>;
@@ -237,6 +266,21 @@ export interface DiscussionStore {
     discussionId: string,
     messageId: string,
   ): Promise<{ readonly target: ContentRef; readonly anchor: StoredSnippetAnchor } | undefined>;
+}
+
+// --- Presence -----------------------------------------------------------------------------
+
+/**
+ * Who has the room open: one lease row per member, renewed by their own device and read only while fresh.
+ * Written only by the member's own presence command, never derived from messages or from another module.
+ */
+export interface PresenceStore {
+  /** Renews the member's lease; `began` when they had none that was still fresh at `now`. */
+  renew(lock: RoomLock, accountId: string, now: Date, leaseMs: number): Promise<'began' | 'renewed'>;
+  /** Ends the member's lease; whether they had one. */
+  clear(lock: RoomLock, accountId: string): Promise<boolean>;
+  /** Members whose lease is newer than `since`, most recently renewed first, at most `limit`. */
+  fresh(lock: RoomLock, since: Date, limit: number): Promise<readonly string[]>;
 }
 
 // --- AI inhabitants -----------------------------------------------------------------------
@@ -409,6 +453,7 @@ export interface RoomPorts {
   readonly fenceOwn: FenceOwnAccount;
   readonly rooms: RoomStore;
   readonly discussions: DiscussionStore;
+  readonly presence: PresenceStore;
   readonly ai: AiStore;
   readonly activities: ActivityStore;
   readonly people: PersonLookup;

@@ -206,3 +206,6 @@ export { displayFraction, displayRange, displayScale } from './simulation/displa
 export { simulationNumbers, type SimulationNumber } from './simulation/numbers.js';
 export { canonicalJson, canonicalSha256, utf8ByteLength } from './canonical.js';
 export { sha256Hex } from './sha256.js';
+
+/** `scroll-document.v2`, beside v1 (D-120). */
+export * from './v2/index.js';
