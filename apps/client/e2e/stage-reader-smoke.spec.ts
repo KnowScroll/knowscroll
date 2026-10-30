@@ -316,6 +316,28 @@ test('a call is played on the device: pick, lock in, the answer and the Plot twi
   await expect(page.getByText('Plot twist!')).toHaveCount(1);
 });
 
+test('a key pressed before the scroll to a call is reported still plays that call', async ({ page }) => {
+  await open(page);
+  // Holds back the first scroll report for 400 ms: a slow device, or a scroll end that has not fired yet.
+  await page.getByTestId('stop-scroller').evaluate((node) => {
+    let held = true;
+    node.addEventListener(
+      'scroll',
+      (event) => {
+        if (!held) return;
+        held = false;
+        event.stopImmediatePropagation();
+        window.setTimeout(() => node.dispatchEvent(new Event('scroll')), 400);
+      },
+      true,
+    );
+  });
+  await page.getByRole('button', { name: 'Call it 1 of 3', exact: true }).click();
+  await reader(page).focus();
+  await page.keyboard.press('2');
+  await expect(page.getByRole('radio', { name: /Delhi’s half of Earth leans/ })).toBeChecked();
+});
+
 const reported = (observed: { kind: string; payload: Record<string, unknown> }[]): string[] =>
   observed.filter((event) => event.kind === 'scroll.block_interaction').map((event) => String(event.payload.kind));
 
