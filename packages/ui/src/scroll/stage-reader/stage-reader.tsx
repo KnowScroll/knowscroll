@@ -164,7 +164,7 @@ export function StageReader({
   });
   const move = useCallback((part: PartMove) => {
     const at = latestCommands.current;
-    run(part === 'next-part' ? at.nextPart : part === 'previous-part' ? at.previousPart : at.nextTopic);
+    run(part === 'next-part' ? at.wayOn : part === 'previous-part' ? at.previousPart : at.nextTopic);
   }, []);
   const onKey = (key: ReaderKey): boolean =>
     actOnKey(key, {

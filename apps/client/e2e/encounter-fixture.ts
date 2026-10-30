@@ -38,7 +38,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   let saved = true;
   const commands: { path: string; body: Record<string, unknown> }[] = [];
   /** Every observation event the page sent, in order. */
-  const observed: { kind: string; payload: Record<string, unknown> }[] = [];
+  const observed: { kind: string; exposureId: string; payload: Record<string, unknown> }[] = [];
   const served = options.scrollDocument ?? document;
   // Only a v2 document has stops; the v1 fixtures have no call to play.
   const callIts =
@@ -383,8 +383,14 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       return;
     }
     if (path === '/v1/observations/recording-batch') {
-      const events = body.events as { eventId: string; kind: string; payload: Record<string, unknown> }[];
-      for (const event of events) observed.push({ kind: event.kind, payload: event.payload });
+      const events = body.events as {
+        eventId: string;
+        exposureId: string;
+        kind: string;
+        payload: Record<string, unknown>;
+      }[];
+      for (const event of events)
+        observed.push({ kind: event.kind, exposureId: event.exposureId, payload: event.payload });
       await route.fulfill({
         json: {
           version: 'observation-batch.v2',

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
+import { ReaderDock } from './reader-chrome';
 import { StageReader, type ReaderCommands } from './stage-reader';
 import type { StageReadingObserver } from './use-stop-reading';
 
@@ -158,6 +159,22 @@ describe('the Stage + Spine reader', () => {
     );
     await fireEvent.press(screen.getByRole('button', { name: 'Another related explanation: Another angle' }));
     expect(onRelated).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the way on in the dock for where it goes, whether it is the next Part or another angle', async () => {
+    const view = await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReaderDock nextPart={{ label: 'Part 2', title: 'Fixture part two', onPress: jest.fn() }} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Part 2: Fixture part two' })).toBeOnTheScreen();
+    await view.unmount();
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ReaderDock nextPart={{ label: 'Related', title: 'Another angle', related: true, onPress: jest.fn() }} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Related: Another angle' })).toBeOnTheScreen();
   });
 
   it('shows the picture as words in the text version', async () => {

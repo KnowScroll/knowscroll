@@ -3,16 +3,19 @@ import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button } from '../../actions/button';
 import { IconButton } from '../../actions/icon-button';
+import { useDisplay } from '../../display/display';
 import { Text } from '../../text/text';
+import type { NextPartPeek } from './end-tray';
 import { SparkChip } from './play-chips';
 
 /**
  * The top bar of a v2 Scroll (D-133, D-185): Your Universe at the left, the Scroll's title with its
  * kicker and Part ("SEASONS · Part 1 of 3") beside it, the Reel and Scroll switch, and Next ↑ for a new
  * topic in the same format when a swipe does not work. Every move the gestures make has a control here
- * or in the dock. On a phone the switch and Next wrap to a second line rather than take the title's room:
- * a title is cut to two lines (its whole text stays in the page for a screen reader), never hidden, and no
- * control is clipped down to 320 px.
+ * or in the dock. On a phone Next is its arrow alone, which keeps the bar to one line at 390 px and leaves
+ * the text its height. Where the title would be left under 84 px (320 to 360 px) the switch and Next wrap to a
+ * second line. A title is cut to two lines (its whole text stays in the page for a screen reader), never hidden,
+ * and no control is clipped.
  */
 export function ReaderTopBar({
   title,
@@ -31,6 +34,9 @@ export function ReaderTopBar({
   readonly onUniverse: () => void;
   readonly onNextTopic?: (() => void) | undefined;
 }) {
+  // Below tablet width Next is its arrow alone, so the bar stays one line at 390 px (the reader keeps its height).
+  const { breakpoint } = useDisplay();
+  const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
   const where = [kicker, partLabel].filter((part) => part !== undefined && part !== '').join(' · ');
   return (
     <View style={styles.top} testID="reader-top-bar">
@@ -47,7 +53,7 @@ export function ReaderTopBar({
       </View>
       <View style={styles.controls}>
         {formatSwitch}
-        {onNextTopic === undefined ? null : (
+        {onNextTopic === undefined ? null : wide ? (
           <Button
             label="Next"
             icon="arrowUp"
@@ -56,6 +62,8 @@ export function ReaderTopBar({
             accessibilityLabel="Next topic"
             onPress={onNextTopic}
           />
+        ) : (
+          <IconButton icon="arrowUp" label="Next topic" variant="paper" size={44} onPress={onNextTopic} />
         )}
       </View>
     </View>
@@ -78,7 +86,7 @@ export function ReaderDock({
   /** Sparks earned on this Scroll; the chip is absent when play is not on this screen. */
   readonly sparks?: number | undefined;
   readonly onMore?: (() => void) | undefined;
-  readonly nextPart?: { readonly label: string; readonly onPress: () => void } | undefined;
+  readonly nextPart?: NextPartPeek | undefined;
 }) {
   return (
     <View style={styles.dock}>
@@ -89,9 +97,11 @@ export function ReaderDock({
       {nextPart === undefined ? null : (
         <Button
           label={nextPart.label}
+          accessibilityLabel={`${nextPart.label}: ${nextPart.title}`}
           icon="arrowRight"
           iconPosition="trailing"
-          variant="primary"
+          variant={nextPart.related === true ? 'default' : 'primary'}
+          dashed={nextPart.related === true}
           size="sm"
           onPress={nextPart.onPress}
         />
@@ -111,8 +121,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[2],
     backgroundColor: content.paper,
   },
-  /** Takes what the Universe button and the controls leave; below 120 px the controls wrap to their own line. */
-  where: { flex: 1, minWidth: 120 },
+  /** Takes what the Universe button and the controls leave; below 84 px the controls wrap to their own line. */
+  where: { flex: 1, minWidth: 84 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginLeft: 'auto', maxWidth: '100%' },
   dock: {
     flexDirection: 'row',

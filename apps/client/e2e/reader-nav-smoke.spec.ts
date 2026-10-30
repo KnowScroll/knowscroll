@@ -49,7 +49,8 @@ async function openFromExplore(page: Page, viewport = phone) {
 const title = (page: Page, part: number) =>
   page.getByRole('heading', { level: 1, name: `CI encounter fixture ${String(part)}` });
 const reader = (page: Page) => page.getByRole('group', { name: 'Scroll reader' });
-const dock = (page: Page) => page.getByRole('button', { name: /^(Part \d|Related)$/ });
+/** The dock's way on, named for where it goes ("Part 2: <title>", "Related: <title>"). */
+const dock = (page: Page) => page.getByRole('button', { name: /^(Part \d|Related): / });
 const opened = (served: { commands: { path: string; body: Record<string, unknown> }[] }) =>
   served.commands
     .filter((call) => call.path === '/v1/experience/open')
@@ -134,11 +135,20 @@ test.describe('a Scroll opened by its address (/scroll/<id>)', () => {
   }) => {
     const served = await openByAddress(page, { parts: 1, related: true });
     await expect(dock(page)).toHaveText('Related');
+    await expect(dock(page)).toHaveAccessibleName('Related: CI encounter fixture 6');
     await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
     await expect(
       page.getByRole('button', { name: /^Another related explanation: CI encounter fixture 6/ }),
     ).toBeVisible();
     await dock(page).click();
+    await expect(title(page, 6)).toBeVisible();
+    expect(opened(served)).toEqual([id(300), id(305)]);
+  });
+
+  test('a related move alone is also the right arrow key', async ({ page }) => {
+    const served = await openByAddress(page, { parts: 1, related: true });
+    await reader(page).focus();
+    await page.keyboard.press('ArrowRight');
     await expect(title(page, 6)).toBeVisible();
     expect(opened(served)).toEqual([id(300), id(305)]);
   });
@@ -153,6 +163,15 @@ test.describe('a Scroll opened by its address (/scroll/<id>)', () => {
 
   test.describe('by finger', () => {
     test.use({ hasTouch: true });
+
+    test('a swipe left on the text takes a related move when there is no next Part', async ({ page }) => {
+      const served = await openByAddress(page, { parts: 1, related: true });
+      const text = await page.getByTestId('stop-scroller').boundingBox();
+      if (text === null) throw new Error('the text is on the page');
+      await swipe(page, text, 0.85, 0.15);
+      await expect(title(page, 6)).toBeVisible();
+      expect(opened(served)).toEqual([id(300), id(305)]);
+    });
 
     test('a swipe left on the text goes to the next Part; a swipe right goes back', async ({ page }) => {
       const served = await openByAddress(page, { parts: 3 });
@@ -210,6 +229,12 @@ test.describe('the top bar', () => {
       expect(where?.height ?? 0).toBeGreaterThan(8);
       await expect(page.getByText('Part 1 of 3').first()).toBeVisible();
 
+      if (width === 390) {
+        // One line: a taller bar takes the text's room (a call's answer would not fit on screen).
+        const bar = await page.getByTestId('reader-top-bar').boundingBox();
+        expect(bar?.height ?? 0).toBeLessThan(70);
+      }
+
       const clipped = await page.evaluate(() => {
         const bar = document.querySelector('[data-testid="reader-top-bar"]');
         if (bar === null) return ['no top bar'];
@@ -234,7 +259,8 @@ test.describe('the top bar', () => {
         expect(await option.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
       }
       // The state stays in the name; the bar draws only the two formats.
-      await expect(page.getByRole('radio', { name: /^Reel/ })).toHaveText('Reel');
+      // Its name keeps the state; the bar draws only "Reel".
+      await expect(page.getByRole('radio', { name: 'Reel · unavailable' })).toHaveText('Reel');
       const next = await page.getByRole('button', { name: 'Next topic' }).boundingBox();
       expect((next?.x ?? 0) + (next?.width ?? 0)).toBeLessThanOrEqual(width);
 
@@ -260,18 +286,19 @@ test.describe('a tap on a call option after a swipe', () => {
    */
   async function tapAfterDrag(page: Page, drag: (page: Page) => Promise<void>) {
     await drag(page);
-    const neutral = await page.getByTestId('stage').boundingBox();
-    const option = await page.getByRole('radio', { name: /Earth is closer/ }).boundingBox();
-    if (neutral === null || option === null) throw new Error('the stage and the option are on the page');
+    const stage = await page.getByTestId('stage').boundingBox();
+    if (stage === null) throw new Error('the stage is on the page');
     const cdp = await page.context().newCDPSession(page);
-    for (const at of [
-      { x: neutral.x + 12, y: neutral.y + neutral.height / 2 },
-      { x: option.x + option.width / 2, y: option.y + option.height / 2 },
-    ]) {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+    const tapAt = async (x: number, y: number) => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      await page.waitForTimeout(200);
-    }
+      await page.waitForTimeout(400);
+    };
+    await tapAt(stage.x + 12, stage.y + stage.height / 2);
+    // Where the option is now, after the text has settled: a person taps what they see.
+    const option = await page.getByRole('radio', { name: /Earth is closer/ }).boundingBox();
+    if (option === null) throw new Error('the option is on the page');
+    await tapAt(option.x + option.width / 2, option.y + option.height / 2);
     await cdp.detach();
   }
 
@@ -303,3 +330,49 @@ async function swipeUp(page: Page) {
   const x = box.x + box.width / 2;
   await fingerDrag(page, { x, y: box.y + box.height * 0.8 }, { x, y: box.y + box.height * 0.8 - 40 });
 }
+
+test.describe('reading time on a Part that another screen covers', () => {
+  /** The latest moment (ms into the exposure) any reported active reading of this exposure reaches. */
+  const dwellEnd = (
+    observed: { kind: string; exposureId: string; payload: Record<string, unknown> }[],
+    exposureId: string,
+  ): number =>
+    Math.max(
+      0,
+      ...observed
+        .filter((event) => event.kind === 'scroll.active_dwell' && event.exposureId === exposureId)
+        .flatMap((event) => (event.payload.activeIntervalsMs as [number, number][]).map(([, to]) => to)),
+    );
+
+  test('stops when the next Part is opened over it, and picks up again on Back', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.clock.install();
+    const { observed } = await openByAddress(page, { parts: 2 });
+    await expect(title(page, 1)).toBeVisible();
+    await page.clock.fastForward(6_000);
+    await dock(page).click();
+    await expect(title(page, 2)).toBeVisible();
+    // Part 2 is read for 20 s; the recorder reports every 15 s.
+    for (let step = 0; step < 4; step += 1) {
+      await page.clock.fastForward(5_000);
+      await page.waitForTimeout(100);
+    }
+    await page.clock.fastForward(1_000);
+    await page.waitForTimeout(300);
+    const firstPartEnd = dwellEnd(observed, id(400));
+    expect(dwellEnd(observed, id(401)), 'Part 2 is being read').toBeGreaterThan(15_000);
+    // Part 1 was left at about 6 s: nothing it reports reaches past that moment.
+    expect(firstPartEnd, 'Part 1 was reported as read after it was left').toBeLessThan(8_000);
+
+    // Back: Part 1 is read again, and Part 2, now covered, stops.
+    await page.goBack();
+    await expect(title(page, 1)).toBeVisible();
+    await page.clock.fastForward(16_000);
+    await page.waitForTimeout(300);
+    const secondPartEnd = dwellEnd(observed, id(401));
+    await page.clock.fastForward(16_000);
+    await page.waitForTimeout(300);
+    expect(dwellEnd(observed, id(400)), 'Part 1 is read again after Back').toBeGreaterThan(firstPartEnd + 10_000);
+    expect(dwellEnd(observed, id(401)), 'Part 2 went on counting under Part 1').toBe(secondPartEnd);
+  });
+});

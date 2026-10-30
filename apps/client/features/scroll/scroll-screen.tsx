@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -145,6 +145,8 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       newId: newCommandId,
     }),
   );
+  // A Scroll that another screen covers (a Part, the Reel) is not being read: its time stops until it is back.
+  const focused = useIsFocused();
   const positionRef = useRef<ScrollPositionHandle>(null);
   const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
   const capture = useCallback(() => {
@@ -210,6 +212,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
         scroll={scroll}
         key={`${scroll.assetId}:${String(scroll.assetRevision)}:${anchorBlockId ?? ''}`}
         observer={observer}
+        paused={!focused}
         positionRef={positionRef}
         initialPosition={firstOf(params.anchor) === undefined && resume?.kind === 'scroll' ? resume.value : undefined}
         onPositionChange={(value) =>
@@ -256,6 +259,8 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       newId: newCommandId,
     }),
   );
+  // A Scroll that another screen covers (a Part, the Reel) is not being read: its time stops until it is back.
+  const focused = useIsFocused();
   const reader = useRef<StageReaderHandle>(null);
   const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
   const remember = useCallback(
@@ -288,6 +293,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       <StageReaderSurface
         scroll={scroll}
         observer={recorder.observer}
+        paused={!focused}
         initialStopId={initialStopId}
         handleRef={reader}
         onStopChange={(stopId) => {

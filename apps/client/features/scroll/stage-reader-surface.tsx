@@ -91,7 +91,7 @@ export function StageReaderSurface({
             universe: moves.universe,
             ask: moves.ask,
             format: moves.format,
-            nextPart: wayOn?.onPress,
+            wayOn: wayOn?.onPress,
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
           }}

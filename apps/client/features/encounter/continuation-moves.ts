@@ -22,6 +22,7 @@ export function readerContinuations(
   const peek = (state: ReadyContinuation): NextPartPeek => ({
     label: continuationLabel(state),
     title: state.metadata.title,
+    related: state.relation.kind === 'related_move',
     onPress: () => go(state, 'next'),
   });
   const { seriesNext, seriesPrevious, related } = continuations;

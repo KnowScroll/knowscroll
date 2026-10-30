@@ -11,6 +11,8 @@ export interface NextPartPeek {
   /** "Part 2", or "Related" for another angle. */
   readonly label: string;
   readonly title: string;
+  /** Another angle rather than the next Part: drawn dashed. */
+  readonly related?: boolean;
   readonly onPress: () => void;
 }
 
