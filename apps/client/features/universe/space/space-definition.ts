@@ -11,6 +11,12 @@ export interface SpacePlanetDefinition {
   readonly startAngle: number;
   readonly rings?: boolean;
   readonly moon?: boolean;
+  /** The server's hue turn for this planet, in degrees (D-103). Absent: the haze family's lean. */
+  readonly hueShift?: number;
+  /** The planets of its type before this one; a repeated type paints a different world. */
+  readonly variant?: number;
+  /** Quiet under the Lately lens: drawn grey and dim. */
+  readonly calm?: boolean;
 }
 
 /** A sun and the planets that revolve around it (no orbit lines are drawn). */
@@ -26,6 +32,25 @@ export interface SpaceSystemDefinition {
   /** How fast outer planets slow down: speed falls with (inner radius / radius) to this power. */
   readonly orbitFalloff: number;
   readonly planets: readonly SpacePlanetDefinition[];
+  /** Quiet under the Lately lens: no bloom, grey planets. */
+  readonly calm?: boolean;
+}
+
+/** A room's station, beside the system (or planet) of its topic. */
+export interface SpaceStationDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly systemId: string;
+  readonly position: { readonly x: number; readonly y: number; readonly z: number };
+  readonly calm?: boolean;
+}
+
+/** A cloud of dust: recent reading that has not formed a place. Never a place, never named. */
+export interface SpaceDustDefinition {
+  readonly id: string;
+  readonly position: { readonly x: number; readonly y: number; readonly z: number };
+  readonly radius: number;
+  readonly dots: number;
 }
 
 /** Where the camera stands and how far things fade into the sky. */
@@ -45,11 +70,15 @@ const SYSTEM_CAMERA: SpaceCameraDefinition = {
   fogRange: [70, 150],
 };
 
-/** What a space view shows: systems, and optionally one nebula of dust. */
+/** What a space view shows: systems, stations, a ship parked on a planet and clouds of dust. */
 export interface SpaceDefinition {
+  /** The pose the scene starts in, before the camera rig takes over. */
   readonly camera: SpaceCameraDefinition;
   readonly systems: readonly SpaceSystemDefinition[];
-  readonly nebula?: { readonly x: number; readonly y: number; readonly z: number; readonly radius: number };
+  readonly stations?: readonly SpaceStationDefinition[];
+  readonly dust?: readonly SpaceDustDefinition[];
+  /** The planet the ship is parked at (device-local, D-080). */
+  readonly shipPlanetId?: string;
 }
 
 /**
@@ -88,5 +117,5 @@ export const SAMPLE_SPACE: SpaceDefinition = {
       ],
     },
   ],
-  nebula: { x: -11, y: 0.5, z: -14, radius: 3.4 },
+  dust: [{ id: 'sample-dust', position: { x: -11, y: 0.5, z: -14 }, radius: 3.4, dots: 900 }],
 };

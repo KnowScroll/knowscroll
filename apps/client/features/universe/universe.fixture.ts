@@ -2,11 +2,12 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import {
   problemDetails,
+  supportsSceneLooks,
   type GeographyObject,
   type RoomStation,
   type SceneClientCapabilities,
 } from '@knowscroll/contracts';
-import { type SceneChunk, type SceneDescriptor } from '@knowscroll/scene-core';
+import { PLANET_TYPES, type SceneChunk, type SceneDescriptor, type SceneLook } from '@knowscroll/scene-core';
 export const fixtureId = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 export const fixtureAccount = {
   accountId: fixtureId(1),
@@ -56,6 +57,25 @@ export function sceneFixture(count = 5, dust = 0) {
     },
     target: { kind: o.kind, objectId: o.id },
   }));
+  /** Authored looks, served on the manifest to a client that asks for them (D-102): one type per planet. */
+  const looks: SceneLook[] = descriptors.flatMap((d, n): SceneLook[] => {
+    const base = { schemaVersion: 'scene-look.v1', generatorVersion: 'worldmap.v1', objectId: d.objectId } as const;
+    if (d.kind === 'system') return [{ ...base, kind: 'system', haze: 'teal' }];
+    if (d.kind === 'region') return [{ ...base, kind: 'region', site: 0 }];
+    if (d.kind === 'star') return [];
+    return [
+      {
+        ...base,
+        kind: 'planet',
+        type: PLANET_TYPES[n % PLANET_TYPES.length]!,
+        rings: n % 2 === 0,
+        moon: n % 3 === 0,
+        hueShift: 0,
+        variant: 0,
+        siteCount: 7,
+      },
+    ];
+  });
   const routes =
     count >= 4
       ? [
@@ -103,6 +123,7 @@ export function sceneFixture(count = 5, dust = 0) {
   const stationsOf = () => stations;
   return {
     descriptors,
+    looks,
     chunks,
     stations,
     reply(path: string, body: Record<string, unknown>) {
@@ -189,6 +210,7 @@ export function sceneFixture(count = 5, dust = 0) {
         return {
           version: 'scene-manifest-read.v1',
           ...fields,
+          ...(supportsSceneLooks(fields.capabilities) ? { looks } : {}),
           status: count ? 'ready' : 'empty',
           manifest: {
             schemaVersion: 'scene-manifest.v1',
@@ -217,6 +239,7 @@ export function sceneFixture(count = 5, dust = 0) {
 export function universeHarness(count = 5, dust = 0) {
   const world = sceneFixture(count, dust),
     calls: string[] = [],
+    requests: { path: string; body: Record<string, unknown> }[] = [],
     store = memoryStore();
   let gate: Promise<void> | undefined,
     network = false,
@@ -230,6 +253,7 @@ export function universeHarness(count = 5, dust = 0) {
       const path = new URL(request.url).pathname;
       calls.push(path);
       const body = (await request.json()) as Record<string, unknown>;
+      requests.push({ path, body });
       const reply = world.reply(path, body); // freeze before the deliberately abort-ignoring gate
       await gate;
       if (network) throw new TypeError('fixture_offline');
@@ -244,6 +268,7 @@ export function universeHarness(count = 5, dust = 0) {
   return {
     scope,
     calls,
+    requests,
     store,
     world,
     gate: (value: Promise<void> | undefined) => {

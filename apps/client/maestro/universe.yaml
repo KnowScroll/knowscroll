@@ -1,0 +1,24 @@
+# The Universe tab on a device (v3 U-2, D-106): signed out, the tab shows its Empty state over the quiet sky the
+# map is drawn on, made by the same three.js renderer on an expo-gl surface. The flow proves the screen opens,
+# stays up while the sky runs and still offers its one action. The populated map is drawn by the same code and
+# measured by space.yaml (`scene=universe`); a lane account has no places of its own.
+appId: com.knowscroll.client
+name: Universe tab over the 3D sky
+tags:
+  - universe
+---
+- runFlow: start-app.yaml
+- tapOn:
+    id: destination-universe
+- extendedWaitUntil:
+    visible: Your universe starts quiet.
+    timeout: 60000
+- assertVisible: Go to Explore
+- takeScreenshot: universe-01-sky
+# The sky keeps running for a few seconds and the screen still answers.
+- extendedWaitUntil:
+    visible: Go to Explore
+    timeout: 8000
+- takeScreenshot: universe-02-sky-later
+- tapOn: Go to Explore
+- assertVisible: Nothing is ready to play yet.

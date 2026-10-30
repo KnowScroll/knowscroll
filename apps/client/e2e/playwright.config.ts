@@ -31,6 +31,7 @@ export default defineConfig({
         'keep-smoke.spec.ts',
         'friends-smoke.spec.ts',
         'universe-smoke.spec.ts',
+        'universe-space-smoke.spec.ts',
         'a11y-smoke.spec.ts',
         'talk-smoke.spec.ts',
         'thread-phone-smoke.spec.ts',

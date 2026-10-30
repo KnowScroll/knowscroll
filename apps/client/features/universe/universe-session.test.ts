@@ -1,6 +1,7 @@
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
 import { waitFor } from '@testing-library/react-native';
+import { ZOOM_LIMITS } from './space/camera-rig';
 import { createUniverseViewSession } from './universe-session';
 import { saveUniverseMemory } from './universe-memory';
 import { universeSessionFor } from './use-universe-session';
@@ -495,4 +496,22 @@ describe('device memory and routes', () => {
     expect(s.travel(fixtureId(8000))).toBe(false);
     h.scope.end();
   });
+});
+
+it('stops the zoom of the 3D views where their camera stops, and leaves the planet drawing its own range', async () => {
+  const h = universeHarness(),
+    s = createUniverseViewSession(h.scope);
+  s.setForeground(true);
+  await ready(s);
+  s.camera({ x: 0, y: 0, scale: 16 });
+  expect(s.getState().frame.scale).toBe(ZOOM_LIMITS.universe.max);
+  s.camera({ x: 0, y: 0, scale: 0.1 });
+  expect(s.getState().frame.scale).toBe(ZOOM_LIMITS.universe.min);
+  s.focus(fixtureId(10));
+  s.camera({ x: 0, y: 0, scale: 16 });
+  expect(s.getState().frame.scale).toBe(ZOOM_LIMITS.system.max);
+  s.focus(fixtureId(12));
+  s.camera({ x: 0, y: 0, scale: 8 });
+  expect(s.getState().frame.scale).toBe(8);
+  h.scope.end();
 });

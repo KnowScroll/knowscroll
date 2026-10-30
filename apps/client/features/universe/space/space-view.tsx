@@ -8,7 +8,7 @@ import { createRenderLoop, type RenderLoop } from './render-loop';
 import { reuseUnchangedAnchors } from './reuse-anchors';
 import { SpaceCanvas } from './space-canvas';
 import type { SpaceDefinition } from './space-definition';
-import type { SpaceRenderer } from './space-renderer';
+import type { SpaceCameraSpec, SpaceRenderer } from './space-renderer';
 import type { SpaceAnchor, SpaceChoice, SpaceFailure, SpaceProbe, SpaceSurface } from './space-surface';
 import { useAppActive } from './use-app-active';
 
@@ -24,8 +24,24 @@ export interface SpaceFrameSample {
   readonly probe?: SpaceProbe;
 }
 
+/** What the overlay drawn over the canvas is told after every frame. */
+export interface SpaceOverlayInfo {
+  readonly anchors: readonly SpaceAnchor[];
+  /** The universe is far enough away to read as the Far level (U08). */
+  readonly far: boolean;
+}
+
 export interface SpaceViewProps {
   readonly definition: SpaceDefinition;
+  /** Where the camera looks and how the person has panned and zoomed. Absent: the definition's own pose. */
+  readonly camera?: SpaceCameraSpec;
+  /** The system glowing as picked on the Far level. */
+  readonly highlightId?: string | null;
+  /**
+   * Labels and tap targets over the canvas, placed from the projected anchors. Absent: a plain label
+   * per system and planet (the developer gallery).
+   */
+  readonly overlay?: (info: SpaceOverlayInfo) => ReactNode;
   /** Shown instead of the drawing when 3D is not available: the Simple lists. */
   readonly fallback: (reason: SpaceFailure) => ReactNode;
   /** A label or planet was chosen. */
@@ -57,13 +73,22 @@ const browserScheduler = {
  *
  * Reduced motion draws one frame and never starts a loop.
  */
-export function SpaceView({ definition, fallback, onChoose, diagnostics }: SpaceViewProps) {
+export function SpaceView({
+  definition,
+  camera,
+  highlightId = null,
+  overlay,
+  fallback,
+  onChoose,
+  diagnostics,
+}: SpaceViewProps) {
   const { reducedMotion } = useDisplay();
   const focused = useIsFocused();
   const appActive = useAppActive();
   const [onScreen, setOnScreen] = useState(true);
   const [failure, setFailure] = useState<SpaceFailure | null>(null);
   const [anchors, setAnchors] = useState<readonly SpaceAnchor[]>([]);
+  const [far, setFar] = useState(false);
   const loop = useRef<RenderLoop | null>(null);
   const renderer = useRef<SpaceRenderer | null>(null);
   /** Bumped for every new surface and on unmount, so a start that was overtaken never draws. */
@@ -71,9 +96,9 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
   const frames = useRef(0);
 
   const active = failure === null && focused && appActive && onScreen;
-  const live = useRef({ diagnostics, reducedMotion, definition, active, failed: false });
+  const live = useRef({ diagnostics, reducedMotion, definition, camera, highlightId, active, failed: false });
   useEffect(() => {
-    live.current = { ...live.current, diagnostics, reducedMotion, definition, active };
+    live.current = { ...live.current, diagnostics, reducedMotion, definition, camera, highlightId, active };
   });
 
   /** Stops the loop and releases the renderer, if there are any. */
@@ -114,6 +139,8 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
           live.current.definition,
         );
         renderer.current = created;
+        if (live.current.camera !== undefined) created.setCamera(live.current.camera, false);
+        created.setHighlight(live.current.highlightId);
         const drawing = createRenderLoop({
           reducedMotion: live.current.reducedMotion,
           scheduler: browserScheduler,
@@ -129,6 +156,7 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
             frames.current += 1;
             const probe = frames.current % PROBE_EVERY === 1 ? created.probe() : undefined;
             setAnchors((previous) => reuseUnchangedAnchors(previous, created.anchors()));
+            setFar(created.isFar());
             live.current.diagnostics?.onFrame({ t, atMs, drawMs, probe });
           },
         });
@@ -145,10 +173,32 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
     loop.current?.setActive(active);
   }, [active]);
 
+  // What is drawn, where the camera looks and what glows follow the screen's state. The renderer keeps
+  // its camera and highlight across a new definition; a still frame (reduced motion) is drawn again.
+  const drawnDefinition = useRef(definition);
+  useEffect(() => {
+    if (drawnDefinition.current === definition) return;
+    drawnDefinition.current = definition;
+    renderer.current?.setDefinition(definition);
+    loop.current?.redraw();
+  }, [definition]);
+  useEffect(() => {
+    if (camera === undefined) return;
+    renderer.current?.setCamera(camera, !reducedMotion);
+    loop.current?.redraw();
+  }, [camera, reducedMotion]);
+  useEffect(() => {
+    renderer.current?.setHighlight(highlightId);
+    loop.current?.redraw();
+  }, [highlightId]);
+
   // The device is short of memory: the lists are lighter than a GL scene.
   useEffect(() => {
-    const subscription = AppState.addEventListener('memoryWarning', () => fail('low-memory'));
-    return () => subscription.remove();
+    // react-native-web has no memory warning and hands back nothing to remove.
+    const subscription: { remove?: () => void } | undefined = AppState.addEventListener('memoryWarning', () =>
+      fail('low-memory'),
+    );
+    return () => subscription?.remove?.();
   }, [fail]);
 
   // Mount and unmount. A strict-mode mount runs this twice; the second run starts clean.
@@ -176,9 +226,13 @@ export function SpaceView({ definition, fallback, onChoose, diagnostics }: Space
         onOnScreen={setOnScreen}
         preserveDrawingBuffer={diagnostics !== undefined}
       />
-      {anchors.map((anchor) =>
-        anchor.visible ? <AnchorLabel key={anchor.id} anchor={anchor} onChoose={onChoose} /> : null,
-      )}
+      {overlay !== undefined
+        ? overlay({ anchors, far })
+        : anchors.map((anchor) =>
+            anchor.visible && (anchor.kind === 'system' || anchor.kind === 'planet') ? (
+              <AnchorLabel key={anchor.id} anchor={anchor} onChoose={onChoose} />
+            ) : null,
+          )}
     </View>
   );
 }

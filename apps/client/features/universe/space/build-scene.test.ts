@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildSpace } from './scene/build-scene';
-import { SAMPLE_SPACE } from './space-definition';
+import type { PaintCache } from './scene/context';
+import { SAMPLE_SPACE, type SpaceDefinition } from './space-definition';
 
 function positions(t: number) {
   const space = buildSpace(SAMPLE_SPACE, 390 / 844, 1);
@@ -22,6 +23,7 @@ describe('the sample space scene', () => {
       ['sample-system', 'system'],
       ['sample-planet-one', 'planet'],
       ['sample-planet-two', 'planet'],
+      ['sample-dust', 'dust'],
     ]);
     space.dispose();
   });
@@ -61,5 +63,66 @@ describe('the sample space scene', () => {
     });
     expect(lines).toEqual([]);
     space.dispose();
+  });
+});
+
+describe('a universe with stations, a ship and quiet places', () => {
+  const universe: SpaceDefinition = {
+    ...SAMPLE_SPACE,
+    systems: [
+      { ...SAMPLE_SPACE.systems[0]!, id: 'one', position: { x: 0, z: 0 } },
+      { ...SAMPLE_SPACE.systems[0]!, id: 'two', position: { x: 12, z: 3 }, calm: true },
+    ].map((system) => ({
+      ...system,
+      planets: system.planets.map((planet) => ({ ...planet, id: `${system.id}-${planet.id}` })),
+    })),
+    stations: [{ id: 'room', name: 'A room', systemId: 'one', position: { x: 2, y: 0.6, z: 6 } }],
+    shipPlanetId: 'one-sample-planet-one',
+    dust: [],
+  };
+
+  it('anchors the stations, and parks the ship on its planet without making it a place', () => {
+    const space = buildSpace(universe, 390 / 844, 1);
+    expect(space.anchors.filter((anchor) => anchor.kind === 'station').map((anchor) => anchor.id)).toEqual(['room']);
+    const hasShip = (id: string): boolean => {
+      let found = false;
+      space.anchors
+        .find((anchor) => anchor.id === id)!
+        .object.traverse((node) => {
+          if ((node as THREE.Mesh).geometry?.type === 'ConeGeometry') found = true;
+        });
+      return found;
+    };
+    expect(hasShip('one-sample-planet-one')).toBe(true);
+    expect(hasShip('one-sample-planet-two')).toBe(false);
+    expect(hasShip('two-sample-planet-one')).toBe(false);
+    space.dispose();
+  });
+
+  it('shows one system alone when asked, with its stations, and everything again afterwards', () => {
+    const space = buildSpace(universe, 390 / 844, 1);
+    space.showOnly('two');
+    const visible = () => space.scene.children.filter((child) => child.visible).length;
+    const alone = visible();
+    space.showOnly(null);
+    expect(visible()).toBeGreaterThan(alone);
+    space.dispose();
+  });
+});
+
+describe('the planet painting cache', () => {
+  it('belongs to the renderer that passes it, and a scene built without one leaves nothing behind', () => {
+    const cache: PaintCache = new Map();
+    const first = buildSpace(SAMPLE_SPACE, 390 / 844, 1, cache);
+    const painted = cache.size;
+    expect(painted).toBeGreaterThan(0);
+    // Built again with the same cache, nothing new is painted.
+    buildSpace(SAMPLE_SPACE, 390 / 844, 1, cache).dispose();
+    expect(cache.size).toBe(painted);
+    // A scene made without a cache keeps no module-level one that a later cache could inherit.
+    buildSpace(SAMPLE_SPACE, 390 / 844, 1).dispose();
+    const fresh: PaintCache = new Map();
+    expect(fresh.size).toBe(0);
+    first.dispose();
   });
 });

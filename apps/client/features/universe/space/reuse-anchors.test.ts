@@ -5,8 +5,10 @@ const anchor = (id: string, x: number, y: number, visible = true): SpaceAnchor =
   id,
   kind: 'planet',
   name: id,
+  systemId: null,
   x,
   y,
+  radiusPx: 10,
   visible,
 });
 
