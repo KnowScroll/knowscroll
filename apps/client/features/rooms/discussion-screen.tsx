@@ -7,10 +7,18 @@ import {
   type AccountScope,
   type AskOutcome,
   type FeedbackTarget,
+  type PointedAsk,
   type RoomDiscussionController,
   type RoomDiscussionState,
 } from '@knowscroll/client-core';
-import type { InhabitantId, ReelDocument, RoomMessage, SendRoomBody } from '@knowscroll/contracts';
+import type {
+  InhabitantId,
+  ReelDocument,
+  RoomDiscussionSummary,
+  RoomMessage,
+  RoomTopicTag,
+  SendRoomBody,
+} from '@knowscroll/contracts';
 import {
   BottomSheet,
   Banner,
@@ -21,7 +29,7 @@ import {
   useDisplay,
   type ReelPositionHandle,
 } from '@knowscroll/ui';
-import { content, layout, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
@@ -32,12 +40,15 @@ import { EpisodeNavigator } from '../threads/episode-navigator';
 import { ShareMomentSheet } from '../threads/share-moment-sheet';
 import { ThreadEncounter } from '../threads/thread-encounter';
 import { ThreadHeader } from '../threads/thread-chrome';
+import { AiLabel } from './ai-label';
+import { topicTitleFrom } from './ask-words';
 import { InhabitantBar } from './inhabitant-bar';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { MessageOptionsSheet } from './message-options-sheet';
 import { discussionHref, isRoomId, roomHref } from './room-links';
 import { RoomMessages } from './room-messages';
 import { RoomSnippetSheet } from './room-snippet-sheet';
+import { StartTopicSheet } from './start-topic-sheet';
 import { useRoomDiscussion } from './use-room';
 
 const draftKey = (discussionId: string) => `room.draft.${discussionId}`;
@@ -137,6 +148,37 @@ function ModeratorSheet({
   );
 }
 
+/**
+ * The message a topic began from, above its first reply (R3 B1): its author and words as this reader may see them. A
+ * message that was removed, or whose author the reader blocked, is a marker, as it is in the discussion it came from.
+ */
+function TopicOrigin({ origin }: { readonly origin: RoomMessage }) {
+  const words =
+    origin.status === 'available'
+      ? origin.body.kind === 'text'
+        ? origin.body.text
+        : 'A card'
+      : origin.status === 'blocked'
+        ? 'A message from someone you blocked'
+        : 'The message this topic began from was removed';
+  return (
+    <View style={styles.origin} testID="topic-origin" accessibilityLabel="The message this topic began from">
+      <Text variant="monoXs" color={content.ink2}>
+        It began with this message
+      </Text>
+      {origin.status === 'available' ? (
+        <View style={styles.originWho}>
+          <Text variant="ui">{origin.author.kind === 'ai' ? origin.author.name : origin.author.displayName}</Text>
+          {origin.author.kind === 'ai' ? <AiLabel label={origin.author.label} /> : null}
+        </View>
+      ) : null}
+      <Text variant="bodyS" color={origin.status === 'available' ? content.ink : content.ink2}>
+        {words}
+      </Text>
+    </View>
+  );
+}
+
 /** What the person sees once the discussion is read: the content (if any), messages, the inhabitants and the composer. */
 function ReadyDiscussion({
   scope,
@@ -146,6 +188,7 @@ function ReadyDiscussion({
   state,
   onBack,
   header,
+  topics,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
@@ -155,6 +198,8 @@ function ReadyDiscussion({
   readonly onBack: () => void;
   /** What stands above the messages instead of the thread header (the room's own band for General); `null` for nothing. */
   readonly header: ReactNode | undefined;
+  /** The room's own list of discussions, read with the room: what a topic card says about its topic. */
+  readonly topics: readonly RoomDiscussionSummary[] | undefined;
 }) {
   const router = useRouter();
   const { breakpoint } = useDisplay();
@@ -172,6 +217,7 @@ function ReadyDiscussion({
   const [reporting, setReporting] = useState<FeedbackTarget>();
   const [snippet, setSnippet] = useState<string>();
   const [lastAsk, setLastAsk] = useState<Exclude<AskOutcome, 'asked'>>();
+  const [starting, setStarting] = useState<RoomMessage>();
   const [roomController] = useState(() => createRoom({ scope, roomId, newId: newCommandId }));
   const positionRef = useRef<ReelPositionHandle>(null);
   const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length));
@@ -196,6 +242,30 @@ function ReadyDiscussion({
     setLastAsk(undefined);
     void controller.ask(inhabitant).then((outcome) => setLastAsk(outcome === 'asked' ? undefined : outcome));
   };
+  const askAbout = (kind: PointedAsk, messageId: string) => {
+    setLastAsk(undefined);
+    void controller.askAbout(kind, messageId).then((outcome) => setLastAsk(outcome === 'asked' ? undefined : outcome));
+  };
+  const startTopic = (title: string, tag: RoomTopicTag | undefined) => {
+    if (starting === undefined) return;
+    void roomController
+      .startDiscussion({
+        kind: 'message',
+        discussionId,
+        messageId: starting.messageId,
+        title,
+        ...(tag === undefined ? {} : { tag }),
+      })
+      .then((created) => {
+        if (created === undefined) return;
+        setStarting(undefined);
+        afterPendingBack(() => router.push(discussionHref(roomId, created)));
+      });
+  };
+  const startingWords =
+    starting?.status === 'available' && starting.body.kind === 'text' ? starting.body.text : undefined;
+  const topicMap = new Map((topics ?? []).map((topic) => [topic.discussionId, topic]));
+  const skeptic = view.inhabitants.find((entry) => entry.inhabitant === 'skeptic');
   const startThread = (messageId: string) =>
     void roomController.startDiscussion({ kind: 'message', discussionId, messageId }).then((created) => {
       if (created !== undefined) afterPendingBack(() => router.push(discussionHref(roomId, created)));
@@ -263,6 +333,11 @@ function ReadyDiscussion({
         onOpenSnippet={setSnippet}
         onStartThread={startThread}
         onActions={setOptions}
+        topics={topicMap}
+        onOpenTopic={(topicId) => router.push(discussionHref(roomId, topicId))}
+        canAsk={view.canPost && skeptic?.ask === 'available'}
+        onAskAbout={askAbout}
+        header={view.origin === undefined ? undefined : <TopicOrigin origin={view.origin} />}
       />
       {view.canPost ? (
         <>
@@ -314,8 +389,13 @@ function ReadyDiscussion({
         message={options}
         role={view.role}
         ownPersonId={view.you.personId}
+        inhabitants={view.inhabitants}
+        canPost={view.canPost}
         onClose={() => setOptions(undefined)}
         onStartThread={startThread}
+        onStartTopic={setStarting}
+        onAsk={askAbout}
+        onUseful={(messageId, useful) => void controller.markUseful(messageId, useful)}
         onHide={(messageId, hidden) => void controller.hide(messageId, hidden)}
         onRemoveAuthor={(personId) => void controller.removeMember(personId).then(() => controller.refresh())}
         onReport={(message) =>
@@ -336,6 +416,14 @@ function ReadyDiscussion({
         }
       />
       <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
+      <StartTopicSheet
+        visible={starting !== undefined}
+        {...(startingWords === undefined ? {} : { from: startingWords })}
+        suggestedTitle={topicTitleFrom(startingWords ?? '')}
+        working={false}
+        onClose={() => setStarting(undefined)}
+        onStart={startTopic}
+      />
       <RoomSnippetSheet
         scope={scope}
         roomId={roomId}
@@ -356,11 +444,14 @@ export function OpenDiscussion({
   roomId,
   discussionId,
   header,
+  topics,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
   readonly discussionId: string;
   readonly header?: ReactNode;
+  /** The room's own list of discussions, for the cards of topics begun from messages here. */
+  readonly topics?: readonly RoomDiscussionSummary[];
 }) {
   const router = useRouter();
   const { controller, state } = useRoomDiscussion(scope, roomId, discussionId);
@@ -406,6 +497,7 @@ export function OpenDiscussion({
       state={state}
       onBack={backToRoom}
       header={header}
+      topics={topics}
     />
   );
 }
@@ -462,6 +554,15 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
+  origin: {
+    gap: spacing[1],
+    padding: spacing[3],
+    borderWidth: borderWidth.regular,
+    borderColor: content.ink,
+    borderRadius: radius.card,
+    backgroundColor: content.paper,
+  },
+  originWho: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
   sheet: { gap: spacing[3] },
   /** The episodes and the encounter keep the reading measure, centred, on wide screens (the multi-pane layout is D04). */
   column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },

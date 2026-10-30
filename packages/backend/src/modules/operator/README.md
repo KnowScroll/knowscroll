@@ -42,7 +42,7 @@ private text in every table that holds some.
 | `ops.rejected_answers` | `reasoning.production_rejected_answers` | Refused writer answers: verdict, finding codes, size. Never the text. |
 | `ops.reel_orders`, `ops.reel_attempts` | `content.reel_orders`, `content.reel_attempts` | Reel orders and attempts: state, outcome, pool claim, cents. No script, request body, note or remote detail. |
 | `ops.geography_runs` | `geography.runs` | Cartographer runs: state, outcome code, times. No universe or proposal. |
-| `ops.room_turns` | `rooms.ai_turns` | AI turns of rooms, asked or unprompted: ids, trigger, state, the cap that decided it, time. No message text, no person, no prompt. The limits shown beside the counts are the rooms router's own, added by the API. |
+| `ops.room_turns` | `rooms.ai_turns` | AI turns of rooms, asked or unprompted: ids, trigger, for an ask its kind (`ask_kind`, v3 R-3), state, the cap that decided it, time. No message text, no person, no prompt. The limits shown beside the counts are the rooms router's own, added by the API. |
 | `ops.feedback_reports` | `feedback.reports` | Reports to the safety team: kind, reason, target kind (`deleted_account` once the person deleted theirs) and IDs, whether a note exists, time. No note, no sender, no person reported (D-055). |
 | `ops.privacy_operations` | `identity.clear_operations`, `identity.account_deletions`, `identity.data_exports` | Operation kind, state, failure code, attempts, times. No account. |
 | `ops.jobs`, `ops.queue_backlog`, `ops.recent_errors` | `pgboss.job` and the views above | Queue, state, retries, age, code-only failure record; backlog per queue; failures and unknown outcomes. Never a payload. |

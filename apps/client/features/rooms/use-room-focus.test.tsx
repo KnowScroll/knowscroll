@@ -58,12 +58,17 @@ function memberScope() {
               title: 'General',
               pinned: false,
               lastActivityAt: '2026-10-24T08:00:00.000Z',
+              replyCount: 0,
             },
             discussions: [],
             canPost: true,
             you: { aiLevel: 'lively', keepOut: false },
             here: { faces: [{ person: asha, you: true }] },
             memberTotal: 1,
+            limits: {
+              asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
+              unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
+            },
           }),
         presence: (input: { state: string }) => {
           presence.push(input.state);

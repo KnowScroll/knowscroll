@@ -1,8 +1,9 @@
 import { StyleSheet, View } from 'react-native';
-import type { AiContributionKind, RoomSpeechTrigger } from '@knowscroll/contracts';
+import type { AiContributionKind, RoomMessageAsk, RoomSpeechTrigger } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
+import { askedLine } from './ask-words';
 
 /** What an AI contribution is, in words: "A counterexample", never a score. */
 export const KIND_WORDS = {
@@ -23,19 +24,24 @@ export const WHY_WORDS = {
 } as const satisfies Record<RoomSpeechTrigger, string>;
 
 /**
- * The head of a resident's message: its name, the AI label that never comes off, what kind of contribution it is and,
- * when it spoke on its own, why. The name goes first, so a reader sees who is speaking and, beside it, that it is an AI.
+ * The head of a resident's message: its name, the AI label that never comes off, what kind of contribution it is and
+ * why it spoke: because a member asked ("Asked by Lena · The other side") or, when it spoke on its own, the reason the
+ * room's rules named. The name goes first, so a reader sees who is speaking and, beside it, that it is an AI.
  */
 export function ResidentHeader({
   name,
   label,
   suggestion,
   trigger,
+  ask,
+  ownPersonId,
 }: {
   readonly name: string;
   readonly label: string;
   readonly suggestion: AiContributionKind | undefined;
   readonly trigger: RoomSpeechTrigger | undefined;
+  readonly ask?: RoomMessageAsk | undefined;
+  readonly ownPersonId?: string | undefined;
 }) {
   return (
     <View style={styles.head} testID="resident-header">
@@ -51,6 +57,11 @@ export function ResidentHeader({
       {trigger === undefined ? null : (
         <Text variant="metaS" color={content.ink2} testID="resident-why">
           {WHY_WORDS[trigger]}
+        </Text>
+      )}
+      {ask === undefined ? null : (
+        <Text variant="metaS" color={content.ink2} testID="resident-asked">
+          {askedLine(ask, ownPersonId)}
         </Text>
       )}
     </View>

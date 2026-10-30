@@ -106,3 +106,34 @@ export const castPassQueue = defineQueue({
   },
   consumer: { localConcurrency: 2, pollingIntervalSeconds: 1 },
 });
+
+/**
+ * The model call that writes one window's "while you were away" (D-169). IDs only. The worker acts for the universe of
+ * the member whose return opened the window, only to take the room lock in order and to stop when that person is gone;
+ * the call itself is paid by the room scope. A redelivery finds the summary settled and does nothing.
+ */
+export const SummariseJobSchema = z.strictObject({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().positive(),
+  roomId: z.uuid(),
+  summaryId: z.uuid(),
+});
+export type SummariseJob = z.infer<typeof SummariseJobSchema>;
+
+export const summariseQueue = defineQueue({
+  name: 'rooms.summarise',
+  purpose: "Let a resident write one window's 'while you were away' for a room, under the room reasoning scope.",
+  payload: SummariseJobSchema,
+  policy: {
+    // As rooms.cast-pass: two attempts at the largest provider deadline plus quota and lock waits.
+    expireInSeconds: 700,
+    retryLimit: 2,
+    retryDelaySeconds: 15,
+    retryBackoff: true,
+    retentionSeconds: 3 * 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
+});

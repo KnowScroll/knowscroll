@@ -3,7 +3,7 @@ import { sharedTransactionOf, transactionOf } from '../../../infrastructure/post
 import { QUEUED_ASK_LAPSES_MS } from '../domain/contribution.js';
 import type { CapCounts } from '../domain/router.js';
 import type { AiStore, AiTurnRow } from '../application/ports.js';
-import { contributionKindOf, inhabitantOf, turnStateOf, turnTriggerOf } from './columns.js';
+import { askKindOf, contributionKindOf, inhabitantOf, turnStateOf, turnTriggerOf } from './columns.js';
 
 interface TurnColumns {
   turn_id: string;
@@ -14,6 +14,7 @@ interface TurnColumns {
   state: string;
   created_at: Date | string;
   trigger: string;
+  ask_kind: string | null;
   cause_message_id: string | null;
   attempt_id: string | null;
   held_kind: string | null;
@@ -30,6 +31,7 @@ const TURN_COLUMNS = [
   'state',
   'created_at',
   'trigger',
+  'ask_kind',
   'cause_message_id',
   'attempt_id',
   'held_kind',
@@ -45,6 +47,7 @@ const turnOf = (row: TurnColumns): AiTurnRow => ({
   state: turnStateOf(row.state),
   createdAt: new Date(row.created_at),
   trigger: turnTriggerOf(row.trigger),
+  askKind: row.ask_kind === null ? null : askKindOf(row.ask_kind),
   causeMessageId: row.cause_message_id,
   held:
     row.held_kind === null || row.held_text === null || row.attempt_id === null
@@ -121,10 +124,39 @@ export const aiStore: AiStore = {
         inhabitant: ask.inhabitant,
         requested_by_account_id: ask.requestedByAccountId,
         command_id: ask.commandId,
+        ask_kind: ask.askKind,
+        cause_message_id: ask.causeMessageId,
         state: 'queued',
         created_at: ask.createdAt,
       })
       .execute();
+  },
+
+  async askedFor(lock, messageIds) {
+    if (messageIds.length === 0) return new Map();
+    const rows = await sharedTransactionOf(lock.shared)
+      .selectFrom('rooms.ai_turns')
+      .select(['message_id', 'ask_kind', 'requested_by_account_id', 'cause_message_id'])
+      .where('room_id', '=', lock.roomId)
+      .where('trigger', '=', 'asked')
+      .where('message_id', 'in', [...messageIds])
+      .execute();
+    return new Map(
+      rows.flatMap((row) =>
+        row.message_id === null || row.ask_kind === null
+          ? []
+          : [
+              [
+                row.message_id,
+                {
+                  kind: askKindOf(row.ask_kind),
+                  byAccountId: row.requested_by_account_id,
+                  aboutMessageId: row.cause_message_id,
+                },
+              ] as const,
+            ],
+      ),
+    );
   },
 
   async read(lock, turnId) {
@@ -195,6 +227,7 @@ export const aiStore: AiStore = {
         'turn.state',
         'turn.created_at',
         'turn.trigger',
+        'turn.ask_kind',
         'turn.cause_message_id',
         'turn.attempt_id',
         'turn.held_kind',
@@ -254,6 +287,7 @@ export const aiStore: AiStore = {
             join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
             where discussion.room_id = ${lock.roomId}::uuid and message.author_kind = 'person'
               and message.author_account_id is not null and message.hidden_at is null
+              and message.topic_discussion_id is null
               and message.recorded_at > ${lastAt}`.execute(trx);
     return {
       ...(humans === undefined ? {} : { humanSinceLastTurn: Number(humans.rows[0]?.humans ?? 0) }),

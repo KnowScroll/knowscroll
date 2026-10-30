@@ -5,10 +5,14 @@ import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructu
 import { JOB_SCHEMA, deadLetterQueueName } from '../../../infrastructure/jobs/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
-import { castDueQueue, castPassQueue, contributeQueue } from '../events.js';
+import { NEUTRAL_TOPIC_TITLE } from '../domain/titles.js';
+import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
 
-/** The queues whose payloads name a universe: the ask, the check whether a resident answers, and the call it may lead to. */
-const QUEUES = [contributeQueue.name, castDueQueue.name, castPassQueue.name];
+/**
+ * The queues whose payloads name a universe: the ask, the check whether a resident answers, the call it may lead to and the
+ * call that writes a window's "while you were away".
+ */
+const QUEUES = [contributeQueue.name, castDueQueue.name, castPassQueue.name, summariseQueue.name];
 
 /**
  * Every Rooms store is keyed by account, not universe: a room, its members and its discussions are
@@ -23,7 +27,10 @@ const QUEUES = [contributeQueue.name, castDueQueue.name, castPassQueue.name];
  * of AI requests. The room goes on for the others, and "Deleted account" stands where the person was.
  * An AI contribution a deleted person asked for stays: it belongs to the room. An unprompted turn never had an asker,
  * and its message belongs to the room. `room_cast` (a room's residents) and `typing_holds` (a discussion and a few
- * seconds) hold no account, so they have no owner to erase for.
+ * seconds) hold no account, so they have no owner to erase for. Account deletion also deletes the person's marks of
+ * Useful and the marks on the messages that become tombstones, deletes the place where they left off, and erases the
+ * words of every "while you were away" that covered a message they wrote (D-167, D-169). `summaries` hold a window's
+ * words and no account; a queued one whose job is erased with a universe ends as failed, like a queued turn.
  */
 const LIFECYCLE = {
   'rooms.members': 'the account membership is removed, with its AI level, keep-out choice and notice mark',
@@ -35,6 +42,9 @@ const LIFECYCLE = {
   'rooms.ai_turns': 'the asker link is cleared; a turn and its contribution stay with the room',
   'rooms.activities': 'the creator link is cleared; the poll or quiz stays with the room',
   'rooms.poll_votes': 'the account votes are deleted',
+  'rooms.message_useful': 'the account marks are deleted, and so are the marks on messages that become tombstones',
+  'rooms.read_positions':
+    'the place where the account left off is deleted; it also goes when they leave or are removed',
 } as const;
 
 /**
@@ -56,7 +66,15 @@ async function failQueuedTurns(trx: ReturnType<typeof transactionOf>, universeId
     where state = 'queued' and trigger <> 'asked' and turn_id in (
       select (job.data ->> 'turnId')::uuid from ${sql.table(`${JOB_SCHEMA}.job`)} as job
       where job.name = any(${names}::text[]) and job.data ->> 'universeId' = ${universeId})`.execute(trx);
-  return Number(asks.numAffectedRows ?? 0) + Number(residents.numAffectedRows ?? 0);
+  const summaryNames = [summariseQueue.name, deadLetterQueueName(summariseQueue.name)];
+  const summaries = await sql`
+    update rooms.summaries set state = 'failed', settled_at = now(), dispatched = true
+    where state = 'queued' and summary_id in (
+      select (job.data ->> 'summaryId')::uuid from ${sql.table(`${JOB_SCHEMA}.job`)} as job
+      where job.name = any(${summaryNames}::text[]) and job.data ->> 'universeId' = ${universeId})`.execute(trx);
+  return (
+    Number(asks.numAffectedRows ?? 0) + Number(residents.numAffectedRows ?? 0) + Number(summaries.numAffectedRows ?? 0)
+  );
 }
 
 /**
@@ -90,6 +108,10 @@ export const roomsErasure: ModuleErasure = declareErasure({
       name: `pgboss/${castPassQueue.name}`,
       description: 'Queued, active, retained and dead-lettered model calls of residents speaking on their own (IDs).',
     },
+    {
+      name: `pgboss/${summariseQueue.name}`,
+      description: "Queued, active, retained and dead-lettered model calls that write a window's summary (IDs).",
+    },
   ],
   accountTables: [
     { schema: 'rooms', table: 'members', ownerColumn: 'account_id' },
@@ -101,6 +123,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'activities', ownerColumn: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'room_presence', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'message_useful', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'read_positions', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -112,6 +136,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'activities', column: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', column: 'account_id' },
     { schema: 'rooms', table: 'room_presence', column: 'account_id' },
+    { schema: 'rooms', table: 'message_useful', column: 'account_id' },
+    { schema: 'rooms', table: 'read_positions', column: 'account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -133,6 +159,33 @@ export const roomsErasure: ModuleErasure = declareErasure({
     await lockDiscussionsOf(trx, account);
     let removed = 0;
     const count = (result: { numAffectedRows?: bigint | undefined }) => Number(result.numAffectedRows ?? 0);
+    // A summary that read what the person wrote must not outlive it: erase its words before the messages become tombstones.
+    removed += count(
+      await sql`
+        update rooms.summaries summary set state = 'stale', body = null, settled_at = coalesce(settled_at, now())
+        where summary.state in ('queued', 'ready') and exists (
+          select 1 from rooms.messages message
+          join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+          where discussion.room_id = summary.room_id and message.author_account_id = ${account}::uuid
+            and message.recorded_at > summary.covers_from and message.recorded_at <= summary.covers_through)`.execute(
+        trx,
+      ),
+    );
+    removed += count(
+      await sql`delete from rooms.message_useful where account_id = ${account}::uuid
+        or message_id in (select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(
+        trx,
+      ),
+    );
+    removed += count(await sql`delete from rooms.read_positions where account_id = ${account}::uuid`.execute(trx));
+    // A topic named from this person's message is called what it says, so the name is theirs too: before the message is a
+    // tombstone, it becomes the neutral title for everyone (D-168).
+    removed += count(
+      await sql`
+        update rooms.discussions set title = ${NEUTRAL_TOPIC_TITLE}
+        where title_derived and origin_message_id in (
+          select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(trx),
+    );
     removed += count(
       await sql`delete from rooms.message_snippets where message_id in (
         select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(trx),
@@ -151,7 +204,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
           returning d.discussion_id, d.last_change_sequence as top, t.total
         )
         update rooms.messages m set author_account_id = null, command_id = null, body_text = null,
-          asset_id = null, asset_revision = null, note = null,
+          asset_id = null, asset_revision = null, note = null, topic_discussion_id = null,
           change_sequence = bumped.top - bumped.total + mine.position
         from mine join bumped on bumped.discussion_id = mine.discussion_id
         where m.discussion_id = mine.discussion_id and m.sequence = mine.sequence`.execute(trx),
@@ -213,8 +266,9 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.ai_turns',
       'rooms.activities',
       'rooms.poll_votes',
+      'rooms.message_useful',
     ],
-    'An invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the job queue is delivery bookkeeping.',
+    'An invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
     async (scope, person) => {
       const trx = transactionOf(scope);
       const rooms = await sql<{
@@ -231,16 +285,30 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         from rooms.members member join rooms.rooms room on room.room_id = member.room_id
         where member.account_id = ${person.accountId}::uuid
         order by member.joined_at desc limit 500`.execute(trx);
+      // A title made from someone else's message is their words, not this person's: the file says so neutrally.
       const started = await sql<{ title: string; room: string; created_at: Date }>`
-        select discussion.title, room.name as room, discussion.created_at
+        select case when discussion.title_derived and origin.author_account_id is distinct from ${person.accountId}::uuid
+            then ${NEUTRAL_TOPIC_TITLE} else discussion.title end as title,
+          room.name as room, discussion.created_at
         from rooms.discussions discussion join rooms.rooms room on room.room_id = discussion.room_id
+        left join rooms.messages origin on origin.message_id = discussion.origin_message_id
         where discussion.started_by_account_id = ${person.accountId}::uuid
         order by discussion.created_at desc limit 500`.execute(trx);
-      const messages = await sql<{ recorded_at: Date; body_text: string | null; note: string | null; room: string }>`
-        select message.recorded_at, message.body_text, message.note, room.name as room
+      const messages = await sql<{
+        recorded_at: Date;
+        body_text: string | null;
+        note: string | null;
+        room: string;
+        topic_title: string | null;
+      }>`
+        select message.recorded_at, message.body_text, message.note, room.name as room,
+          case when topic.title_derived and topic_origin.author_account_id is distinct from ${person.accountId}::uuid
+            then ${NEUTRAL_TOPIC_TITLE} else topic.title end as topic_title
         from rooms.messages message
         join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
         join rooms.rooms room on room.room_id = discussion.room_id
+        left join rooms.discussions topic on topic.discussion_id = message.topic_discussion_id
+        left join rooms.messages topic_origin on topic_origin.message_id = topic.origin_message_id
         where message.author_account_id = ${person.accountId}::uuid
         order by message.recorded_at desc, message.sequence desc limit ${EXPORT_MESSAGE_LIMIT}`.execute(trx);
       const written = await sql<{ n: string }>`
@@ -262,6 +330,14 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         from rooms.activities activity join rooms.rooms room on room.room_id = activity.room_id
         where activity.created_by_account_id = ${person.accountId}::uuid
         order by activity.created_at desc limit 500`.execute(trx);
+      const marks = await sql<{ room: string; marked_at: Date }>`
+        select room.name as room, mark.marked_at
+        from rooms.message_useful mark
+        join rooms.messages message on message.message_id = mark.message_id
+        join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+        join rooms.rooms room on room.room_id = discussion.room_id
+        where mark.account_id = ${person.accountId}::uuid
+        order by mark.marked_at desc limit 500`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);
       const askCount = Number(asks.rows[0]?.n ?? 0);
       // A person who never took part in a room has no section: the file does not name the module.
@@ -271,6 +347,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         messageCount === 0 &&
         askCount === 0 &&
         votes.rows.length === 0 &&
+        marks.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
         return {};
@@ -292,14 +369,16 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         messagesWritten: messageCount,
         truncated: messageCount > messages.rows.length,
         yourMessages: messages.rows.map((row) =>
-          row.body_text === null
-            ? {
-                room: row.room,
-                sentAt: row.recorded_at.toISOString(),
-                shared: SHARED_WORDS,
-                ...(row.note === null ? {} : { note: row.note }),
-              }
-            : { room: row.room, sentAt: row.recorded_at.toISOString(), text: row.body_text },
+          row.body_text !== null
+            ? { room: row.room, sentAt: row.recorded_at.toISOString(), text: row.body_text }
+            : row.topic_title !== null
+              ? { room: row.room, sentAt: row.recorded_at.toISOString(), startedTopic: row.topic_title }
+              : {
+                  room: row.room,
+                  sentAt: row.recorded_at.toISOString(),
+                  shared: SHARED_WORDS,
+                  ...(row.note === null ? {} : { note: row.note }),
+                },
         ),
         inhabitantAsks: askCount,
         pollVotes: votes.rows.map((row) => ({
@@ -308,6 +387,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           ...(row.choice === null ? {} : { choice: row.choice }),
           votedAt: row.voted_at.toISOString(),
         })),
+        // Which room and when, never whose message or what it said: the message belongs to its author.
+        usefulMarks: marks.rows.map((row) => ({ room: row.room, markedAt: row.marked_at.toISOString() })),
         activitiesStarted: startedActivities.rows.map((row) => ({
           room: row.room,
           title: row.title,

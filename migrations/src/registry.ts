@@ -111,4 +111,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
     name: '0075_message_replies_reactions',
     sha256: 'a182f6133026a0be875cf202f5479e6dc483eb858fb870d6d1c0a2bd6455afc5',
   },
+  { name: '0076_room_asks', sha256: 'd3cc3ead4acef71539b760493378998982b11ae5e28b6f6d41e475679f2e5049' },
 ];

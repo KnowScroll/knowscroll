@@ -71,12 +71,17 @@ const member = (patch: Partial<Member> = {}): Member => ({
     title: 'General',
     pinned: false,
     lastActivityAt: '2026-10-24T08:00:00.000Z',
+    replyCount: 0,
   },
   discussions: [],
   canPost: true,
   you: { aiLevel: 'lively', keepOut: false },
   here: { faces: [face(10, 'Ravi', true)] },
   memberTotal: 24,
+  limits: {
+    asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
+    unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
+  },
   lastMessageAt: new Date().toISOString(),
   ...patch,
 });
@@ -220,6 +225,7 @@ describe('the room menu', () => {
     title: 'Pinned question',
     pinned: true,
     lastActivityAt: '2026-10-24T07:00:00.000Z',
+    replyCount: 0,
   };
   const open = (view: Member, c = controller()) =>
     wrap(

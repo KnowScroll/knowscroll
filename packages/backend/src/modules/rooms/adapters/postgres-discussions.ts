@@ -3,14 +3,24 @@ import { BlockStateSnapshot } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { StoredSnippetAnchor } from '../../content/public.js';
-import type { Counters, DiscussionRow, DiscussionStore, MessageRow, RoomLock } from '../application/ports.js';
-import { contributionKindOf, discussionKindOf, inhabitantOf, speechTriggerOf } from './columns.js';
+import type {
+  Counters,
+  DiscussionFigures,
+  DiscussionRow,
+  DiscussionStore,
+  MessageRow,
+  RoomLock,
+  WindowMessage,
+} from '../application/ports.js';
+import { contributionKindOf, discussionKindOf, inhabitantOf, speechTriggerOf, topicTagOf } from './columns.js';
 
 interface DiscussionColumns {
   discussion_id: string;
   room_id: string;
   kind: string;
   title: string;
+  title_derived: boolean;
+  tag: string | null;
   root_asset_id: string | null;
   root_asset_revision: number | null;
   origin_message_id: string | null;
@@ -19,6 +29,7 @@ interface DiscussionColumns {
   last_sequence: string;
   last_change_sequence: string;
   last_activity_at: Date | string;
+  created_at: Date | string;
 }
 
 const DISCUSSION_COLUMNS = [
@@ -26,6 +37,8 @@ const DISCUSSION_COLUMNS = [
   'room_id',
   'kind',
   'title',
+  'title_derived',
+  'tag',
   'root_asset_id',
   'root_asset_revision',
   'origin_message_id',
@@ -34,6 +47,7 @@ const DISCUSSION_COLUMNS = [
   'last_sequence',
   'last_change_sequence',
   'last_activity_at',
+  'created_at',
 ] as const;
 
 const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
@@ -41,6 +55,8 @@ const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
   roomId: row.room_id,
   kind: discussionKindOf(row.kind),
   title: row.title,
+  titleDerived: row.title_derived,
+  tag: row.tag === null ? null : topicTagOf(row.tag),
   root:
     row.root_asset_id === null || row.root_asset_revision === null
       ? null
@@ -51,6 +67,7 @@ const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
   lastSequence: Number(row.last_sequence),
   lastChangeSequence: Number(row.last_change_sequence),
   lastActivityAt: new Date(row.last_activity_at),
+  createdAt: new Date(row.created_at),
 });
 
 interface MessageColumns {
@@ -68,6 +85,7 @@ interface MessageColumns {
   asset_revision: number | null;
   note: string | null;
   trigger: string | null;
+  topic_discussion_id: string | null;
 }
 
 const MESSAGE_COLUMNS = [
@@ -85,6 +103,7 @@ const MESSAGE_COLUMNS = [
   'asset_revision',
   'note',
   'trigger',
+  'topic_discussion_id',
 ] as const;
 
 const messageOf = (row: MessageColumns): MessageRow => ({
@@ -104,6 +123,7 @@ const messageOf = (row: MessageColumns): MessageRow => ({
       : { assetId: row.asset_id, assetRevision: row.asset_revision },
   note: row.note,
   trigger: row.trigger === null ? null : speechTriggerOf(row.trigger),
+  topicDiscussionId: row.topic_discussion_id,
 });
 
 const trxOf = (lock: RoomLock): Transaction<Database> => sharedTransactionOf(lock.shared);
@@ -195,6 +215,155 @@ export const discussionStore: DiscussionStore = {
     return rows.map(discussionOf);
   },
 
+  async listTopics(lock, query) {
+    const base = trxOf(lock)
+      .selectFrom('rooms.discussions')
+      .select(DISCUSSION_COLUMNS)
+      .where('room_id', '=', lock.roomId)
+      .where('kind', '=', 'topic');
+    const rows = await (query.tag === undefined ? base : base.where('tag', '=', query.tag))
+      .orderBy(sql`pinned_at desc nulls last`)
+      .orderBy('last_activity_at', 'desc')
+      .orderBy('discussion_id')
+      .limit(query.limit)
+      .execute();
+    return rows.map(discussionOf);
+  },
+
+  async figures(lock, discussionIds) {
+    if (discussionIds.length === 0) return new Map();
+    const result = await sql<{
+      discussion_id: string;
+      reply_count: string;
+      useful_count: string;
+      answered: boolean;
+      last_account: string | null;
+      last_inhabitant: string | null;
+    }>`
+      select discussion.discussion_id,
+        -- The counter is every message ever appended; the removed ones and the cards are few and indexed, so this is not a
+        -- count over the whole discussion (General can hold thousands of messages and is read with every room view).
+        (discussion.last_sequence
+          - (select count(*) from rooms.messages removed
+              where removed.discussion_id = discussion.discussion_id and removed.hidden_at is not null)
+          - (select count(*) from rooms.messages card
+              where card.discussion_id = discussion.discussion_id and card.hidden_at is null
+                and card.topic_discussion_id is not null)) as reply_count,
+        (select count(*) from rooms.message_useful useful
+          join rooms.messages message on message.message_id = useful.message_id
+          where message.discussion_id = discussion.discussion_id and message.hidden_at is null) as useful_count,
+        exists (select 1 from rooms.messages message
+          where message.discussion_id = discussion.discussion_id and message.hidden_at is null
+            and message.author_account_id is not null
+            and message.author_account_id is distinct from discussion.started_by_account_id) as answered,
+        newest.author_account_id as last_account, newest.inhabitant as last_inhabitant
+      from rooms.discussions discussion
+      left join lateral (
+        select message.author_account_id, message.inhabitant from rooms.messages message
+        where message.discussion_id = discussion.discussion_id and message.hidden_at is null
+          and message.topic_discussion_id is null
+          and (message.author_account_id is not null or message.author_kind = 'ai')
+        order by message.sequence desc limit 1
+      ) newest on true
+      where discussion.room_id = ${lock.roomId}::uuid and discussion.discussion_id = any(${[...discussionIds]}::uuid[])`.execute(
+      trxOf(lock),
+    );
+    return new Map(
+      result.rows.map((row): [string, DiscussionFigures] => [
+        row.discussion_id,
+        {
+          replyCount: Number(row.reply_count),
+          usefulCount: Number(row.useful_count),
+          answered: row.answered,
+          lastReplyBy:
+            row.last_account !== null
+              ? { accountId: row.last_account }
+              : row.last_inhabitant !== null
+                ? { inhabitant: inhabitantOf(row.last_inhabitant) }
+                : undefined,
+        },
+      ]),
+    );
+  },
+
+  async windowMessages(lock, query): Promise<readonly WindowMessage[]> {
+    const rows = await trxOf(lock)
+      .selectFrom('rooms.messages as message')
+      .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
+      .select([
+        'discussion.kind as discussion_kind',
+        'message.sequence',
+        'message.change_sequence',
+        'message.message_id',
+        'message.command_id',
+        'message.recorded_at',
+        'message.hidden_at',
+        'message.author_account_id',
+        'message.inhabitant',
+        'message.ai_kind',
+        'message.body_text',
+        'message.asset_id',
+        'message.asset_revision',
+        'message.note',
+        'message.trigger',
+        'message.topic_discussion_id',
+      ])
+      .where('discussion.room_id', '=', lock.roomId)
+      .where('message.hidden_at', 'is', null)
+      .where('message.recorded_at', '>', query.after)
+      .where('message.recorded_at', '<=', query.through)
+      .where((eb) => eb.or([eb('message.body_text', 'is not', null), eb('message.asset_id', 'is not', null)]))
+      .orderBy('message.recorded_at', 'desc')
+      .orderBy('message.sequence', 'desc')
+      .limit(query.limit)
+      .execute();
+    return rows.reverse().map((row) => ({
+      message: messageOf(row),
+      discussionKind: discussionKindOf(row.discussion_kind),
+    }));
+  },
+
+  async newMessagesFor(lock, accountId, since, limit) {
+    const result = await sql<{ n: string }>`
+      select count(*) as n from (
+        select 1 from rooms.messages message
+        join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
+        where discussion.room_id = ${lock.roomId}::uuid and message.hidden_at is null
+          and message.recorded_at > ${since}
+          and (message.body_text is not null or message.asset_id is not null)
+          and message.author_account_id is distinct from ${accountId}::uuid
+        limit ${limit}
+      ) shown`.execute(trxOf(lock));
+    return Number(result.rows[0]?.n ?? 0);
+  },
+
+  async setUseful(lock, messageId, accountId, marked, now) {
+    const trx = trxOf(lock);
+    if (marked)
+      await trx
+        .insertInto('rooms.message_useful')
+        .values({ message_id: messageId, account_id: accountId, marked_at: now })
+        .onConflict((conflict) => conflict.columns(['message_id', 'account_id']).doNothing())
+        .execute();
+    else
+      await trx
+        .deleteFrom('rooms.message_useful')
+        .where('message_id', '=', messageId)
+        .where('account_id', '=', accountId)
+        .execute();
+  },
+
+  async usefulAmong(lock, accountId, messageIds) {
+    if (messageIds.length === 0) return new Set();
+    const rows = await trxOf(lock)
+      .selectFrom('rooms.message_useful')
+      .select('message_id')
+      .where('account_id', '=', accountId)
+      .where('message_id', 'in', [...messageIds])
+      .execute();
+    return new Set(rows.map((row) => row.message_id));
+  },
+
   async general(lock) {
     const row = await trxOf(lock)
       .selectFrom('rooms.discussions')
@@ -220,16 +389,36 @@ export const discussionStore: DiscussionStore = {
     return latest === undefined || latest === null ? undefined : new Date(latest);
   },
 
-  async pinnedTitle(lock) {
+  async pinned(lock) {
     const row = await trxOf(lock)
       .selectFrom('rooms.discussions')
-      .select('title')
+      .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
       .where('pinned_at', 'is not', null)
       .orderBy('pinned_at', 'desc')
       .limit(1)
       .executeTakeFirst();
-    return row?.title;
+    return row === undefined ? undefined : discussionOf(row);
+  },
+
+  async originsOf(lock, discussionIds) {
+    if (discussionIds.length === 0) return new Map();
+    const rows = await trxOf(lock)
+      .selectFrom('rooms.discussions as discussion')
+      .innerJoin('rooms.messages as origin', 'origin.message_id', 'discussion.origin_message_id')
+      .select(['discussion.discussion_id', 'origin.author_account_id', 'origin.hidden_at', 'origin.body_text'])
+      .where('discussion.room_id', '=', lock.roomId)
+      .where('discussion.discussion_id', 'in', [...discussionIds])
+      .execute();
+    return new Map(
+      rows.map((row) => [
+        row.discussion_id,
+        {
+          shown: row.hidden_at === null && row.body_text !== null && row.author_account_id !== null,
+          authorAccountId: row.author_account_id,
+        },
+      ]),
+    );
   },
 
   async create(lock, discussion) {
@@ -239,6 +428,8 @@ export const discussionStore: DiscussionStore = {
         discussion_id: discussion.discussionId,
         room_id: lock.roomId,
         title: discussion.title,
+        title_derived: discussion.titleDerived,
+        tag: discussion.tag ?? null,
         root_asset_id: discussion.root?.assetId ?? null,
         root_asset_revision: discussion.root?.assetRevision ?? null,
         origin_message_id: discussion.originMessageId ?? null,
@@ -297,13 +488,15 @@ export const discussionStore: DiscussionStore = {
               author_kind: 'person',
               author_account_id: message.authorAccountId,
               command_id: message.commandId,
-              ...(message.text === undefined
-                ? {
-                    asset_id: message.content?.assetId ?? null,
-                    asset_revision: message.content?.assetRevision ?? null,
-                    note: message.note ?? null,
-                  }
-                : { body_text: message.text }),
+              ...(message.topicDiscussionId !== undefined
+                ? { topic_discussion_id: message.topicDiscussionId }
+                : message.text === undefined
+                  ? {
+                      asset_id: message.content?.assetId ?? null,
+                      asset_revision: message.content?.assetRevision ?? null,
+                      note: message.note ?? null,
+                    }
+                  : { body_text: message.text }),
             },
       )
       .execute();
@@ -343,14 +536,25 @@ export const discussionStore: DiscussionStore = {
     const rows = await trxOf(lock)
       .selectFrom('rooms.messages as message')
       .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
-      .select(['message.message_id', 'message.sequence', 'discussion.discussion_id', 'discussion.title'])
+      .select([
+        'message.message_id',
+        'message.sequence',
+        'discussion.discussion_id',
+        'discussion.title',
+        'discussion.title_derived',
+      ])
       .where('discussion.room_id', '=', lock.roomId)
       .where('message.message_id', 'in', [...messageIds])
       .execute();
     return new Map(
       rows.map((row) => [
         row.message_id,
-        { discussionId: row.discussion_id, discussionTitle: row.title, sequence: Number(row.sequence) },
+        {
+          discussionId: row.discussion_id,
+          discussionTitle: row.title,
+          titleDerived: row.title_derived,
+          sequence: Number(row.sequence),
+        },
       ]),
     );
   },
@@ -375,6 +579,7 @@ export const discussionStore: DiscussionStore = {
         'message.asset_revision',
         'message.note',
         'message.trigger',
+        'message.topic_discussion_id',
       ])
       .where('discussion.room_id', '=', lock.roomId)
       .where('message.message_id', '=', messageId)
