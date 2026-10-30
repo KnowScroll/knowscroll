@@ -27,12 +27,14 @@ function canvasStandIn(gl: ExpoWebGLRenderingContext) {
 }
 
 /**
- * three.js reads `getContextAttributes()` while it starts. A native context that does not answer
- * it gets a view that does, with the attributes a GLView is made with; every other call goes to
- * the real context.
+ * Two things in three.js do not fit a native `expo-gl` context, and the first emulator runs showed
+ * both. three.js refuses any context that is `instanceof WebGLRenderingContext` ("WebGL 1 is not
+ * supported"), and expo-gl's WebGL 2 context inherits from that class. It also reads
+ * `getContextAttributes()` while it starts. The view returned here hides the inheritance, answers
+ * the attributes a GLView is made with when the context does not, ignores colour-space hints the
+ * context refuses, and passes every other call through to the real context.
  */
-function withContextAttributes(gl: ExpoWebGLRenderingContext): ExpoWebGLRenderingContext {
-  if (typeof gl.getContextAttributes === 'function' && gl.getContextAttributes()) return gl;
+function asWebGL2Context(gl: ExpoWebGLRenderingContext): ExpoWebGLRenderingContext {
   const attributes = {
     alpha: false,
     depth: true,
@@ -44,9 +46,19 @@ function withContextAttributes(gl: ExpoWebGLRenderingContext): ExpoWebGLRenderin
     failIfMajorPerformanceCaveat: false,
     desynchronized: false,
   };
+  const ownAttributes = typeof gl.getContextAttributes === 'function' ? gl.getContextAttributes() : undefined;
   return new Proxy(gl, {
+    getPrototypeOf: () => Object.prototype,
+    set(target, key, value) {
+      // three.js sets colour-space hints a native context may not know; they are only hints.
+      try {
+        return Reflect.set(target, key, value);
+      } catch {
+        return true;
+      }
+    },
     get(target, key) {
-      if (key === 'getContextAttributes') return () => attributes;
+      if (key === 'getContextAttributes' && !ownAttributes) return () => attributes;
       const value: unknown = Reflect.get(target, key);
       return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
     },
@@ -84,7 +96,7 @@ function SpaceCanvasNative({ onSurface, onResize, onFailure }: SpaceCanvasProps)
       }
       onSurface({
         canvas: canvasStandIn(gl),
-        context: withContextAttributes(gl),
+        context: asWebGL2Context(gl),
         width: gl.drawingBufferWidth / pixelRatio,
         height: gl.drawingBufferHeight / pixelRatio,
         pixelRatio,
