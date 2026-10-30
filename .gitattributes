@@ -1,0 +1,3 @@
+# The v3 design files are byte-identical copies of the owner's export (the Universe HTML files use CRLF).
+# Git must never convert their line endings, or SHA256SUMS stops matching on a Windows checkout.
+docs/v2/design/v3/** -text

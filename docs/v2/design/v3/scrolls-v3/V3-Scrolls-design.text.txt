@@ -1,0 +1,3343 @@
+V3 · SCROLLS
+
+EXPLORATION · NOT DECISIONS
+
+My take: let the picture do the
+explaining, and let the reader bet on
+what happens next
+The Seasons Scrolls don’t fail because they’re long or because the end card is
+MY RECOMMENDATION, ONE LINE EACH
+
+cluttered. Those are symptoms. They fail because they explain a picture with
+
+A · Moving: Stage + Spine. A pinned picture, short text stops
+that scroll and snap, and dots down the right edge you can
+
+words. Seasons is light hitting a tilted ball, and the reader has to build that 3D
+picture in their head from 17px paragraphs while their thumb does the walking.
+
+tap to jump. Swipe ← continues the same topic; pull up past
+the end (or the top “Next ↑”) gives the next topic; the
+
+Fix that and most of your list fixes itself. A picture replaces whole paragraphs, so
+
+Universe sits top-left.
+
+there’s less thumb travel. The fake stepper becomes the picture actually
+
+B · Form: a smaller block language built around stage, call it,
+
+changing. The deflating ending becomes the finished picture, the thing you built.
+
+scale, aside and recap. Cut the stepper.
+
+So here’s how I’d frame a Scroll: one picture that gets built in front of you, a few
+
+C · Game: predictions with real juice, a Final call and a
+
+bets you place on what happens next, and a payoff where you see the whole
+
+landmark per Scroll, weekly Orbits and a collection in the
+Universe.
+
+thing. Wait But Why works for the same reason. The drawings and the voice do
+
+D · Ask: questions drawn from what you just read, and select
+a sentence to ask about it. Infer the rest.
+
+the heavy lifting; the length is incidental. We can have their pull in 3 minutes.
+
+E · Ending: a payoff, not a menu. The finished picture, your
+score, a landmark, and Part 2 peeking from the right.
+
+Where I agree
+Textbook voice with no pictures is the core failure, not a detail. Every Scroll about a mechanism needs one picture that carries it.
+The 4-step sequence is pagination. Pressing Next to reveal a paragraph isn’t interaction. I’d cut the block entirely.
+Ending on Limits deflates. Keep the honesty, but put it next to the claim it limits.
+The end card should be thrown away, not tidied up. Three boxes, two arrow directions and a placeholder-looking pill can’t be rescued.
+Ask demands decisions before curiosity. Format and scope should be inferred, and “encounter” should never reach the screen.
+Yes to the game. Predictions are the single best tool for this content. Being wrong about seasons is the most memorable moment the topic has.
+
+Where I’d push back
+YOUR IDEA
+
+WHAT’S RIGHT IN IT
+
+ITS WEAKNESS
+
+MY ALTERNATIVE
+
+Scroll as pages
+(Stories-style)
+
+Chunking, and much less thumb travel.
+
+Pages kill skimming, re-reading and text
+selection, and long pages overflow. A Scroll
+becomes a Reel with text.
+
+Stage + Spine. Vertical reading stays, the picture is
+pinned, stops snap softly, and the spine of dots lets
+you jump. Pages stay a variant (A2).
+
+Pull past the end
+to continue the
+thread
+
+The end should be a gesture, not a box of
+buttons.
+
+In Reels, vertical means “something new”.
+Using it for “continue” breaks the one
+grammar we already have.
+
+Left continues, up is new, in both formats. Part 2
+peeks from the right edge; a deliberate pull up past
+the line takes you somewhere new.
+
+Streaks
+
+A reason to come back matters.
+
+Daily streaks work by threatening to take
+something away. That’s the manipulative
+part, and it breaks our “worlds never die”
+promise.
+
+Weekly Orbits that never reset what you own. The
+Universe collection is the reason to return.
+
+Mastery tied to
+the Universe
+
+The Universe should be the trophy room.
+
+If scores form planets, the Universe
+becomes a report card and a wrong guess
+shrinks your world.
+
+Two layers. Planets still form from what you explore;
+play adds landmarks and clear skies on top.
+
+“What most
+people guess”
+
+It’s the best reveal there is.
+
+We have no aggregate data yet, and
+invented percentages would be lies.
+
+Authored, sourced misconceptions now (e.g. the
+1987 film A Private Universe). Real numbers later,
+from our own readers’ calls.
+
+Long-press for
+“say that
+simpler”
+
+Questions about a specific sentence are
+gold.
+
+Long-press fights native text selection on
+both web and phones.
+
+Add Simpler and Ask to the selection menu, and
+label the results “Quick answer” because they aren’t
+checked Scrolls.
+
+Ideas you didn’t ask for
+
+WHAT I’D TEST FIRST, ON REAL PHONES
+
+Misconception-first writing. Every Scroll is built around one named wrong intuition,
+with a source. It makes the predictions land, and it’s a field the writer must fill (with
+“none” allowed for editorial pieces).
+
+Does the scroll-driven stage feel effortless? This depends on
+snap strength, and on how tall the stage can be on a 320–
+
+The picture you build is the thing you collect. The stage’s final state becomes the
+recap and the landmark in your Universe. One asset doing three jobs.
+
+Does “Plot twist!” feel fun or shaming after a wrong call?
+
+Challenge a friend. Send your Final call into a content thread; their answer stays
+hidden until they make their own call. Sharing and the game feed each other.
+
+Can the writer reliably fill the stage states and calls within the
+
+Restructure the Seasons thread. Once Part 1 owns the distance myth, Part 3 (“tilt, not
+distance”) repeats it. Make Part 3 “Seasons elsewhere: Mars, Uranus and a world with
+no tilt”.
+A guide character per topic family, drawn from the kit (Ray the sunbeam for light and
+astronomy). These are Wait But Why’s recurring characters, made parametric so an
+LLM can use them.
+
+360px phone.
+
+Do people find “left = continue” at the end without the button?
+
+kit’s parameters? Run 20 topics through it before building
+engines.
+WHERE TO LOOK ON THIS PAGE
+
+Prototype (Play) → Flagship → A gestures → B blocks and table →
+C game → D Ask → E endings → Questions.
+
+V3 · QUESTIONS
+
+LEANINGS TO DISCUSS · NOT LOCKED
+
+Questions for you to react to
+1
+2
+3
+
+4
+
+Is Stage + Spine the default for every Scroll, or only for mechanism
+topics?
+
+LEANING Default, plus an “editorial” variant (no pinned stage) for essays like
+
+On small phones (320–360px wide), how big may the pinned stage be?
+
+LEANING It shrinks to about 220px and expands on tap. Test this first.
+
+Swipe ← (finger right to left, Part 2 waits to the right) continues the same
+topic at any point, and pull up past the end, or the top “Next ↑”, gives the
+next topic. Is that the direction you meant by “swipe right”?
+
+LEANING Yes. A left-to-right swipe from the edge is the phone’s back gesture,
+
+Should a wrong call cost anything?
+
+LEANING No. The only stake is a gold vs plain landmark on the Final call. Plot
+
+the Polynesian navigation piece.
+
+and Reels already use ←. Mid-read, swipe up has to stay reading.
+
+twists are the fun part.
+
+5
+
+Do sparks spend on anything, or are they just a score?
+
+LEANING Just a score. No currency. Landmarks are the collection.
+
+6
+
+Weekly Orbit: is 3 days a week the right bar, and never daily?
+
+LEANING 3 days, never daily, and nothing is ever taken away.
+
+7
+
+Should play results influence how planets form at all?
+
+LEANING No. Keep a separate play layer (landmarks, clear skies) on top of
+
+evidence-based formation.
+
+8
+
+Read-time “Quick answers” (Simpler, Ask about a sentence): may
+unchecked model text appear, labelled as such?
+
+LEANING Yes, labelled “Quick answer” with report. “Make it a full Scroll” gives
+
+“Common guess”: only authored, sourced misconceptions until we have
+real data, then real percentages from our readers’ calls?
+
+LEANING Yes to both. Never invented numbers.
+
+10
+
+Sound: off by default with a toggle, or none?
+
+LEANING Off by default. Haptics on.
+
+11
+
+Challenge a friend: inside content threads only, or also via external links?
+
+LEANING Threads first. Links later, once share landings handle calls.
+
+Restructure the Seasons thread, so Part 3 becomes “Seasons elsewhere:
+Mars, Uranus and a world with no tilt”?
+
+LEANING Yes.
+
+Should Reels get Call it moments too (a pause for a prediction midReel)?
+
+LEANING Later, as an experiment. It would keep one game vocabulary across
+
+Should the writer be required to name a misconception, with a source, for
+every Scroll?
+
+LEANING Yes, with “none” allowed for narrative and editorial pieces.
+
+Show “3 min · 3 calls” before someone opens a Scroll?
+
+LEANING Yes. Counts are allowed now, and this one sets expectations
+
+9
+
+12
+13
+14
+15
+
+the checked version.
+
+formats.
+
+honestly.
+
+16
+
+Should Reels get the top-bar Universe and Next ↑ fallback too?
+
+LEANING Yes. Same two buttons in the same place in both formats; nothing
+
+else in Reels changes.
+
+V3.1 PROTOTYPE · DESIGN DATA
+PART 1 · 1 OF 10
+
+Stage + Spine
+
+The hook
+
+Seasons, Part 1. Scroll the text and the picture
+follows; the dots on the right move down with you.
+Swipe left for Part 2 at any point. At the end, keep
+pulling up for the next topic.
+
+It leans ▾
+SEASONS · 1 OF 3
+
+Reel
+
+Next
+
+Scroll
+
+INTENT · GESTURE · BUTTON · KEY
+READ ON
+
+scroll ↕ · tap a dot · ↓ ↑
+Space
+
+SAME TOPIC
+
+swipe ← (any time) · “Part 2
+→” · →
+
+BACK A PART
+
+swipe → · title menu · ←
+
+NEXT TOPIC
+
+pull up past the end · “Next
+↑” (top, always) · N
+
+SYDNEY · COOL
+
+HAPTIC
+
+—
+
+EMITS
+
+OBS SCROLL.STOP_VISIBLE{1}
+
+GAME
+
+0 sparks · combo 0 · Final call NOT YET
+
+The Sun on the left. Earth on the right, its axis leaning toward the Sun. Delhi,
+in the north, is marked hot; Sydney, in the south, is marked cool. Date: 21
+June.
+
+ASK
+
+select text, or the Ask pill ·
+A
+
+21 JUNE · SAME SUN, SAME DAY
+
+••• → save, share,
+challenge, text, small print
+
+THE HOOK
+
+REEL ⇄ SCROLL
+
+tap only, unchanged · F
+
+Same Sun. Same day.
+
+TEXT VERSION
+
+“Text” on the picture · T
+
+TEXT
+
+WHY THIS SHAPE
+
+One concrete contrast (Delhi vs Sydney, same day) instead of a definition of
+solstices.
+
+On the same June day, Delhi bakes near
+40 °C while people in Sydney reach for
+jackets.
+So what’s going on? Scroll, and watch
+
+Text version of the picture
+
+SCROLL · ↓ / SPACE · TAP A DOT
+
+TEXT VERSION OF THE PICTURE (ALSO READ BY SCREEN READERS)
+
+planet button, top left · U
+
+Reduced motion
+
+GESTURE · KEY
+
+DELHI · HOT
+
+UNIVERSE
+
+MORE
+
+Read the hook. Scroll the text and the picture follows; the blue dot on the
+right moves down with you.
+
+the picture.
+
+Start over
+Swipe with a mouse by dragging the text sideways, or use
+a trackpad. Pull up at the end with the wheel or by
+dragging the tray handle.
+CALL IT · 1 OF 3
+
+Ask about this
+
+0
+
+Why is June hot in Delhi?
+1
+
+Earth is closer to the Sun in June
+
+2
+
+Delhi’s half of Earth leans toward the
+Sun
+
+Part 2
+
+Moving through a Scroll — three gesture models
+V3·A
+
+Each phone is a one-screen map drawn over a faded Seasons Scroll. Every gesture has a visible button and a key (black
+callouts). Red callouts are weaknesses.
+
+A1 · STAGE + SPINE My pick. A pinned picture; dots move
+
+A2 · STORIES PAGES Stories-style taps, Reel grammar
+
+down as you read
+
+It leans
+
+Reel
+
+SEASONS · PART 1/3
+
+Universe
+Your Universe; your place
+here is kept
+
+A3 · LONG COLUMN + MAP Today's column, with shortcuts
+
+everywhere
+
+Why Earth has seasonsMap
+because its axis leans
+
+Next
+
+Scroll
+
+Next ↑ = next topic
+For when a swipe doesn't
+work. Reel or Scroll, per
+the toggle
+
+U
+
+PROTOTYPE · DESIGN DATA
+
+N · format F
+
+Kills skimming
+Can't glance back two pages
+or re-read in place
+
+Text selection fights taps
+Every tap is "next"
+
+M
+
+By astronomical convention, the seasons are
+anchored to two solstices and two equinoxes.
+Earth's axis is tilted about 23.4 degrees relative
+
+Pinned stage
+Changes at each stop
+
+Pinch out
+Outline of the
+whole Scroll
+
+to its orbit…
+
+Text chip · T
+
+That persistent tilt changes the angle
+atbutton
+which· M
+"Map"
+sunlight arrives and changes day length. When
+a hemisphere leans sunward, it receives more
+
+Drag inside the stage
+The picture owns this gesture
+
+Select text → "Simpler" · "Ask"
+Added to the native menu. No longpress
+gesture.
+On the same
+June
+day, Delhi bakes near
+Scroll ↕ = read
+Spine
+40
+°C while people in Sydney
+reach for
+Soft snap, one stop per
+Tap a dot = jump · drag
+screen
+scrub.So
+◆ Call
+it · ★
+jackets.
+Same Sun. Same =day.
+what's
+Final call
+↓ / Space · ↑
+
+going on?
+
+MAP OF THIS SCROLL
+
+direct rays and longer days…
+1 · The lean
+
+Tap left
+Previous page
+
+Tap right
+Next page
+
+Shift+Space
+
+Space
+
+2 · Four moments in the year ●
+A solstice
+marks the strongest tilt toward the
+3 · What tilt doesn't explain
+
+Sun, not necessarily the moment of the year's
+4 · End
+
+highest temperature…
+
+Earth is closest to the Sun in
+early January — the middle of
+northern winter.
+
+↓ ↑ · Tab to a dot
+
+Call it inline
+Pick, then Lock it in
+
+Still a long column
+Shortcuts reduce thumb
+travel, not reading effort
+
+1–4 · Enter
+
+Swipe
+1 · Earth is closer to the Sun in
+June← any time
+Dock
+Continue the thread.
+Ask · sparks · ••• (save, share,
+Part 1 keeps your place
+text) · Part 2 →
+
+2 · Delhi's half leans toward the
+→ ·Sun
+← back a part
+A·S·T·→
+
+Swipe up
+Something new — exactly
+as in Reels
+↑·N
+
+Swipe left
+Continue the thread (Part 2)
+→
+
+Pinch is invisible
+Few people try it; the
+button does the work
+
+AT THE END · WHERE NEXT
+
+Swipe ← or Part 2 → = continue
+
+→
+
+Pull up past the end or Next ↑ = next topic
+
+N
+
+Universe button = your Universe
+
+U
+
+Ask about this
+
+0
+
+•••
+
+Part 2
+
+Thumb scrubber
+Drag to jump through the
+column
+PgDn / PgUp
+
+Long pages overflow
+Larger text breaks the page;
+screen readers lose the flow
+
+◀
+
+Pull past the end
+Continue or something new
+→·N
+
+▶
+
+A1 · EFFECT ON E05 / E06
+
+A2 · EFFECT ON E05 / E06
+
+A3 · EFFECT ON E05 / E06
+
+E05 (horizontal = thread): kept and widened — swipe ← on
+the text continues the thread at any point (Part 1 keeps your
+place); swipe → goes back a part. Drags inside the stage
+belong to the picture, so they never trigger it. E06 (format
+switch tap-only): kept, in the top bar. Up means next topic
+only past the end — mid-read, vertical is reading — and the
+top-bar Next ↑ is the fallback when a swipe doesn't work.
+
+E05: kept everywhere — swipe left continues the thread on
+any page. Vertical swipe means "something new", exactly as in
+Reels: the cleanest shared grammar. E06: kept tap-only. Cost:
+reading becomes paging, and taps can't also select text.
+
+E05: kept at the end only (pull past the end offers Continue /
+Something new). E06: kept. Lowest build risk, but it only
+shortens the trip — it doesn't make the trip worth taking.
+Pinch needs the visible Map button to exist at all.
+
+REDUCED MOTION & TEXT VERSION
+
+KEYS (ALL THREE)
+
+MY PICK
+
+Reduced motion: the stage cross-fades between states
+instead of animating; spine, buttons and keys still work; no
+parallax. Text version (key T): the whole Scroll as plain text,
+each stage state written as one descriptive sentence, Call its
+as ordinary questions with answers below.
+
+↓ / Space next · ↑ previous · → continue · ← previous part · N
+next topic · U Universe · A ask · T text version · F format · 1–4 pick
+· Enter lock in (M map in A3 only). Every key has an on-screen
+button; no gesture is the only way to do anything.
+
+A1, now Stage + Spine. Same grammar as Reels: swipe ← =
+continue the thread, up = next topic (once you're past the
+end). Every exit also has a button: Part 2 → in the dock, Next ↑
+and Universe in the top bar. I still reject "pull up to continue":
+vertical means next topic in Reels. A2 is the cleanest grammar
+but turns reading into paging.
+
+Moving on: same topic, next topic, Universe
+V3 · G
+
+It leans
+
+Stage + Spine replaces the bottom “previous · map · next” bar: dots down the right edge show where you are, the dock carries Ask and Part 2 →, and the top bar always has Universe and Next ↑ for when a swipe doesn’t work.
+
+G1 · READING Mid-Scroll, 4 of 10. Every exit has a button and a
+
+G2 · SWIPE ← MID-READ Part 2 enters from the right; the
+
+key
+
+G3 · THE END Where next tray, pull-up in progress
+
+SEASONS · PART 1/3
+
+Reel
+
+Next
+
+Scroll
+
+G4YOU
+· NEXT
+↑ TAPPED
+ARE HERE
+· DRAWNThe
+TO fallback
+SCALE when a swipe doesn’t work
+
+V3.1 · DESIGN DATA
+
+G5 · ••• MORE Actions that aren’t moving on
+
+stage carries over
+
+It leans
+
+Reel
+
+SEASONS · PART 1/3
+
+Taking turns
+
+Next
+
+Scroll
+
+Reel
+
+SEASONS · PART 2/3
+
+Universe
+YOU ARE HERE · DRAWN TO SCALE
+Your planets. Your
+place here is kept.
+
+Next ↑ = next topic
+Always there, for when a
+swipe doesn’t work.
+
+U · end tray
+
+N
+
+It leans
+
+Next
+
+Scroll
+
+Reel
+
+SEASONS · PART 1/3
+
+The stage
+carries
+overSIDE OF THE ORBIT
+SAME
+LEAN
+· OTHER
+
+Pull upPICTURE
+past the end
+YOUR
+· FINISHED
+
+Nothing reloads. The camera slides
+along the orbit to December.
+
+Scroll
+
+It leans
+
+Next
+
+Next
+
+SEASONS · PART 1/3
+
+The meter fills; let go when it’s
+full = next topic.
+
+Universe
+Your gold landmark
+lands there.
+
+Next ↑ tapped
+One tap, no swipe needed. Works
+anywhere in the Scroll.
+
+N · Next topic ↑
+
+U
+
+N
+
+Reel
+
+Scroll
+
+Next
+
+YOU
+ARE
+· DRAWN
+••• in
+theHERE
+dock opens
+this TO SCALE
+
+Everything that isn’t moving on. Every
+row has a key.
+Esc closes
+
+147 JAN
+
+Title → thread list
+Part 1 ✓ · Part 2 · Part 3
+
+Reel │ Scroll
+Format of this topic. Tap
+only (E06).
+
+← previous Part
+
+152 JUL
+
+F
+
+Swipe ← on the text
+Part 2 enters from the
+right, where it was waiting.
+
+NEXT TOPIC · AS A SCROLL
+
+→ · dock Part 2 →JUN
+
+DEC
+
+Swipe ← or tap the
+peek
+Part 2, same picture.
+
+147 JAN
+
+Why the high press works
+PART 2
+
+147 JAN
+
+Football · 4 min · 2 calls
+
+→
+
+152 JUL
+TEXT · T
+
+152 JUL
+
+TEXT · T
+
+Switch to Reel
+4 · YOU ARE HERE
+
+Spine
+The current dot moves down
+Closest: 147 million km.
+Farthest:
+152 ◆ =
+as you
+read. Tap = jump.
+Call it · ★ = Final call
+million km.
+↓ / Space · ↑
+
+4 · YOU ARE HERE
+
+from a circle.
+
+Drawn to scale, you can’t tell the orbit
+from↕ a
+circle.
+Scroll
+= read
+Soft snap, one stop per
+A 3% wobble can’t turn Delhi into an
+screen
+
+Six months
+later, it’s
+Sydney’s
+turn.
+Same lean, other side
+of the orbit.
+
+oven and Sydney into a fridge on the
+
+4 · YOU ARE HERE
+
+It leans. The lean stays fixed.
+3 SPARKS
+
+from
+circle.
+Keep
+thisaScroll
+in Saved
+Format follows your toggle
+Switch here before it opens,
+or Undo.
+
+Why the halves take turns
+
+Challenge a friend
+
+Why the high press
+works
+
+Next topic
+as a Scroll · Reel
+
+Small print
+
+Save
+
+The new topic slides up from below: the same “up =
+new” as Reels.
+
+This stop, with its picture
+
+Challenge a friend
+Text version
+The picture as words
+
+Simpler (this screen)
+Quick answer · not a checked Scroll
+
+Small print
+Where this stops working
+
+Report
+
+A · S save · T text · →
+
+Ask about this
+
+Share a moment
+
+Send your Final call to a thread
+
+CONTINUE · PART 2
+
+FOOTBALL · PART 1 OF 2
+
+← · title → thread list
+
+Something wrong here
+
+1
+
+Part 2
+
+Ask about this
+
+Esc
+
+Drawn to scale, you can’t tell the orbit
+
+F · Esc
+
+Your landmark is
+waiting
+
+Close
+
+Save
+
+KEEP PULLING · NEXT TOPIC
+
+Swipe → (not from the edge)
+Back to Part 1, at the same stop (4 of
+10).
+
+Dock
+Ask · sparks · ••• more · Part 2 →
+
+More
+
+FINAL CALL · GOLD
+
+Universe
+
+→
+
+Esc
+
+Seasons Part 1 is kept at 4 of 10.
+
+same day.
+Swipe ← = Part 2
+Any time. Part 1
+keeps your place.
+
+Undo
+
+YOU BUILT THIS
+
+2·1
+Part 2 · your place in PartPART
+1 is kept
+
+Drawn to scale, you can’t tell the orbit
+
+F
+
+S
+
+H
+
+C
+
+T
+
+⇧S
+
+P
+
+R
+
+Part 3
+
+1
+
+The grammar, Scrolls and Reels
+
+UP = NEW TOPIC · ← = SAME TOPIC
+
+INTENT
+
+GESTURE
+
+BUTTON (ALWAYS VISIBLE)
+
+KEY
+
+WHERE IT LIVES
+
+EMITS
+
+REELS
+
+Read on / back
+
+Scroll ↕ the text; soft snap, one stop per screen
+
+Tap a spine dot
+
+↓ Space · ↑
+
+Text + spine
+
+OBS scroll.stop_visible{n}
+
+n/a (video)
+
+Continue: same
+topic
+
+Swipe ← on the text, at any point. Part 1 keeps
+your place
+
+Dock “Part 2 →” · end tray · right-edge peek
+
+→
+
+Dock, end tray
+
+CMD thread.continue{part}
+
+Same: swipe ← (E05)
+
+Previous Part
+
+Swipe → on the text (not from the screen edge)
+
+Title → thread list
+
+←
+
+Top bar
+
+NAV thread.part{n}
+
+Same
+
+Next topic
+
+Pull up past the end (meter). Mid-read, swipe
+up = reading
+
+Top “Next ↑” (always) · end tray “Next topic
+↑”
+
+N
+
+Top bar, end tray
+
+CMD subject.next{format}
+
+Swipe up (unchanged)
+
+Universe
+
+None. Edge-swipe back returns to where you
+came from
+
+Top-left planet · end tray
+
+U
+
+Top bar, end tray
+
+NAV universe.open{resume}
+
+Top-left planet? (Q16)
+
+Ask about this
+
+Select text → Simpler / Ask in the native menu
+
+Dock “Ask about this”
+
+A
+
+Dock
+
+CMD ask.open{context: stop}
+
+Existing Ask
+
+Reel ⇄ Scroll
+
+Tap only
+
+Reel │ Scroll toggle
+
+F
+
+Top bar
+
+CMD format.switch
+
+Unchanged (E06)
+
+More actions
+
+None
+
+Dock ••• → Save, Share, Challenge, Text,
+Simpler, Small print, Report
+
+S · T · Esc
+
+Dock → sheet
+
+CMD save · share · challenge
+
+Unchanged
+
+WHY SWIPE ← AND NOT → FOR CONTINUE
+
+WHY SWIPE UP ISN’T NEXT TOPIC MID-READ
+
+You said “swipe right”. I read it as “Part 2 sits to the right”, so the finger
+moves right to left, like turning a page. A left-to-right swipe from the
+edge is the phone’s back gesture, and Reels already continue with ←
+(E05). If you meant the finger moving right, that’s question 1.
+
+In a Scroll, swiping up is how you read. It can only mean “next topic” once
+you’re past the end, where the pull-up meter makes it deliberate, the
+same as reaching the end of a Reel. The top Next ↑ is the always-there
+fallback, and N on a keyboard.
+
+REDUCED MOTION & TEXT VERSION
+
+OPEN QUESTIONS
+
+Reduced motion: the stage cross-fades, swipe to Part 2 is a cut with a
+short fade, the tray doesn’t spring; the pull-up meter still fills because it’s
+feedback. Text version: T, the stage “Text” chip, or ••• → Text version.
+Screen readers get top bar, stage, text, spine, dock, in that order; every
+dot is a labelled button (“4 of 10: You are here”).
+
+Swipe direction: is ← (Part 2 waits to the right) what you meant?
+Reels get the top Universe and Next ↑ too? Leaning yes.
+Next topic remembers the format you’re in (Scroll stays Scroll)?
+Leaning yes.
+Swipe ← mid-read skips the rest of Part 1. Keep it? Leaning yes: your
+place is kept.
+
+Seasons, rebuilt end to end
+V3·FLAGSHIP
+
+Part 1 “It leans” in Stage + Spine: every stop, the ending, the step into Part 2, and the Universe afterwards. One reader’s run: wrong on the first call, right on the next
+two.
+
+1 · HOOK No call · 0:00–0:15
+
+2 · CALL IT #1 Prediction · A picked, about to lock · 0:15–0:35
+
+3 · PLOT TWIST The wrong path is the best moment · 0:35–
+
+PROTOTYPE · DESIGN DATA
+
+4 · YOU ARE HERE Scale · drawn to scale · 0:55–1:10
+
+5 · THE LEAN Call it #2 (tap) · called it, +1 spark · 1:10–1:35
+
+6 · MEET RAY Simulation · Sun at 30° → 2× the ground · 1:35–
+
+0:55
+
+It leans
+
+Reel
+
+SEASONS · PART 1/3
+
+It leans
+
+Next
+
+Scroll
+
+Reel
+
+SEASONS · PART 1/3
+
+It leans
+
+Next
+
+Scroll
+
+2:05
+
+Reel
+
+SEASONS · PART 1/3
+
+TEXT
+
+It leans
+
+Next
+
+Scroll
+
+TEXT
+
+Reel
+
+SEASONS · PART 1/3
+
+It leans
+
+Next
+
+Scroll
+
+It leans
+
+Next
+
+Scroll
+
+Reel
+
+SEASONS · PART 1/3
+
+ALL AXES → NORTH STAR
+
+TEXT
+
+TEXT
+
+Reel
+
+SEASONS · PART 1/3
+
+Next
+
+Scroll
+
+TEXT
+
+TEXT
+
+YOU ARE HERE · LATE OCT
+
+WHOOSH → JANUARY
+
+SUN OVERHEAD
+
+SEP
+DELHI
+≈40 °C
+
+30° UP
+
+DELHI
+HOT. WHY?
+
+NORTH: WINTER
+
+Same me. Twice the ground.
+
+?
+
+JAN · 147 M km
+
+JUL · 152 M km
+
+SUN NOT TO SCALE
+
+YOUR GUESS
+
+JAN · CLOSEST
+
+DEC
+
+SYDNEY
+JACKETS
+
+JUN
+
+≈ 3%
+
+MAR
+
+NEAR-FAR GAP
+
+ONE DAY IN JUNE
+
+On the same June day, Delhi bakes
+
+CALL IT
+
+near 40 °C while people in Sydney
+
+Plot twist!
+
+Why is June hot in Delhi?
+
+Earth is closest to the Sun
+in early January.
+
+reach for jackets.
+1
+
+Same Sun.
+Same day.
+
+Earth is closer to the Sun in June
+
+2
+
+Delhi’s half of Earth leans toward the
+Sun
+
+Part 2
+
+7 · LONGER DAYS Second effect · 2:05–2:20
+
+Reel
+
+SEASONS · PART 1/3
+
+Skip
+
+Ask about this
+
+0
+
+Part 2
+
+•••
+
+8 · WHERE THIS STOPS Limits as an aside · optional · 2:20–
+
+pointing the same way all year —
+
+fixed amount of energy. Drag the Sun
+
+toward the North Star.
+
+lower.
+
+CALL IT
+
+Tap the Earth where it’s June in
+
+Sun height
+
+Ask about this
+
+It leans
+
+Next
+
+Scroll
+
+0
+
+Called it!
+
+20° LOW
+
++1 SPARK
+
+Ask about this
+
+9 · FINAL CALL Boss · tilt slider at 0° · combo ×2 doubles it ·
+
+Reel
+
+TEXT
+
+Part 2
+
+•••
+
+Ask about this
+
+ENDING · PAYOFF Dock grows into Where next · swipe ← =
+
+Reel
+
+SEASONS · PART 1/3
+
+It leans
+
+Next
+
+Scroll
+
+TEXT
+
+Reel
+
+SEASONS · PART 1/3
+
+TEXT
+
+Part 2
+
+Ask about this
+
+1
+
+UNIVERSE · AFTERWARDS Landmark lands · clouds thin · orbit 2
+
+Why the hemispheres take
+Reel turns
+Scroll
+
+Next
+
+SEASONS · PART 2/3
+
+TEXT
+
+Universe
+
+SEASONS · NEWLY LIT
+
+Resume Seasons · Part 2
+
+Astronomy
+
+SIX MONTHS LATER
+DELHI · ~14 h
+OF DAY IN JUNE
+
+Part 2
+
+•••
+
+of 3 · resume chip
+
+TEXT
+
+THE PICTURE YOU BUILT
+
+NIGHT
+
+•••
+
+moves on
+
+Next
+
+Scroll
+
+1
+
+PART 2 · 1 Swiped ← (or Part 2 →) · stage carries over, camera
+
+Part 2 · pull up = next topic · 3:05–3:20
+
+It leans
+
+Next
+
+Scroll
+
+0
+
+90° OVERHEAD
+
+Same Ray, twice the ground at 30° — half
+the heat per square metre.
+
+Right-hand Earth: its north end leans
+toward the Sun. Six months later, the same
+lean points away.
+
+Part 2
+
+•••
+
+30°
+
+Delhi.
+
+It’s practically a circle.
+Distance barely changes.
+
+2:35–3:05
+
+SEASONS · PART 1/3
+
+DAY
+
+million km.
+
+Distance is the classic guess. In the 1987 film
+A Private Universe, most Harvard graduates
+asked at their own graduation got this wrong
+— many blamed distance.
+
+2:35
+
+It leans
+
+This is Ray, a beam of sunlight with a
+
+from a circle.
+
+distance can’t be it.
+
+The Sun burns hotter in June
+
+Lock it in
+
+•••
+
+Earth’s axis leans 23.4°, and it keeps
+
+YOU’RE IN GOOD COMPANY
+3
+
+0
+
+Closest: 147 million km. Farthest: 152
+
+Drawn to scale, you can’t tell this orbit
+
+The middle of northern winter. So
+
+So what’s going on?
+
+Ask about this
+
+YOU CALLED: CLOSER IN JUNE
+
+1×
+
+2× THE GROUND
+
+ONE DAY IN JUNE
+
+TODAY 23.4°
+
+DELHI · A YEAR’S MIDDLE
+
+2
+
+LONGEST DAY
+21 JUN
+
+HOTTEST WEEKS
+
+1
+
+PART 1
+ORBIT 2 OF 3 THIS WEEK
+
+MONSOON
+
+3
+MAY
+
+JUN
+
+PART 2
+
+JUL
+
+DEC
+SYDNEY’S TURN
+
+Taking
+turns
+TILT 0°
+DEC · ~10 h
+
+Leaning in does a second
+thing: longer days.
+Delhi gets about 14 hours of daylight in
+June and about 10 in December.
+Steeper light, for longer. That’s summer.
+
+SEASONS
+FINAL CALL · COMBO READY
+
+Hide
+
+WHERE THIS STOPS
+
+Light sets the season; weather
+decides how it feels. In Delhi the
+hottest weeks usually come in May and
+early June, before the longest day —
+the monsoon arrives in late June and
+cools things. Oceans, winds and
+altitude reshape seasons everywhere.
+Also kept as “Small print” on the ending — never
+the last thing you read.
+
+Turn Earth’s tilt to 0°. What happens to
+the seasons?
+
+1
+
+It leans.
+
+2
+
+The lean stays fixed.
+
+3
+
+Leaning in = steeper light + longer days.
+
+In June, Sydney gets about 10 hours of
+
+The Leaning Axis · gold
+3 SPARKS · FINAL CALL: CALLED IT
+
+0°
+
+23.4° TODAY
+
+Same lean, other side of
+the orbit.
+
+90°
+
+daylight. Six months later, it’s Sydney’s
+Earth & sky
+
+turn.
+1
+
+Every day is like an equinox — seasons
+almost vanish
+
+A PLANET
+
+PULL UP FOR THE NEXT TOPIC
+
+CALL IT NEXT · HOW LONG IS SYDNEY’S
+DECEMBER DAY?
+
+CONTINUE · PART 2 · 3 MIN
+
+2
+
+NEW LANDMARK
+
+Why the hemispheres take turns
+
+Permanent summer in the north
+
+The Leaning Axis
+
+See it
+
+from Seasons, Part 1 · gold finish
+3
+
+Universe
+
+Seasons get stronger
+
+Next topic
+
+Your landmark is
+waiting
+
+as a Scroll · Reel
+
+Lock it in
+Challenge a friend
+
+Ask about this
+
+1
+
+•••
+
+Part 2
+
+Ask about this
+
+1
+
+•••
+
+Part 2
+
+Ask about this
+
+1
+
+•••
+
+Small print
+
+Save
+
+Part 2
+
+Ask about this
+
+3
+
+•••
+
+Part 3
+
+Explore
+
+Universe
+
+Talk
+
+Keep
+
+MOVING ON (V3.1)
+
+WHAT CHANGED VS LIVE
+
+THREAD RESTRUCTURE (PROPOSAL)
+
+SOURCES PER VISUAL
+
+ACCESSIBILITY · MOTION · KEYS
+
+Top bar: Universe on the left (U), Next ↑ on the right (N) — always there, for
+when a swipe doesn’t work. Spine: the dots on the right; the blue one moves
+down as you read, Call its are diamonds, the Final call is a star; tap any dot to
+jump. Dock: Ask about this (A) · sparks · ••• (save, share, challenge, text
+version, small print) · Part 2 → (→). Swipe ← on the text continues the thread
+at any point and Part 1 keeps your place; swipe → goes back. Pull up past the
+end = next topic; mid-read, swiping up is just reading. At the end the dock
+grows into Where next: Continue, Universe, Next topic.
+
+Pictures for a spatial idea: one stage that grows from Sun-and-Earth to the
+full tilted orbit. Misconception-first: the distance myth is the first call, so
+being wrong is the hook. Limits moved to stop 8 as an aside and to “Small
+print” on the ending. Predictions, a simulation and a boss replace the 4step pager. The ending is a payoff: the picture you built, your sparks, a gold
+landmark, and Where next with Part 2 peeking in.
+
+Live P3 “Why tilt, not distance, makes the seasons” repeats what P1 now does
+in its first two minutes. Proposal: P1 owns the distance myth (“It leans”), P2
+keeps “Why the hemispheres take turns” (day length, the tropics, the poles),
+and P3 becomes “Seasons elsewhere: Mars, Uranus and a world with no
+tilt” — the Final call’s 0° and Uranus’s ~98° become the hook of the next
+Scroll.
+
+Drawing kit: Sun, Earth (axis 23.4°, pins), orbit, Ray, thermometers, calendar
+strip, landmark. Simulation engine: Ray’s footprint = 1/sin(elevation) (90° 1×,
+30° 2×, 20° ≈2.9×) and the tilt slider driving the stage (needs a sine/lookup
+formula). Stage engine (new): keyframes of one kit scene per stop.
+Generated image: only the Universe backdrop texture — never geometry or
+data.
+
+Text version per stage (the stage’s Text chip, ••• or T), e.g. stop 1: “Stage: Sun
+on the left. Earth on the right, its axis leaning toward the Sun. Delhi, in the
+north, marked hot; Sydney, in the south, marked cool.” Reduced motion:
+stage states cross-fade; the swipe to Part 2 is a cut with a short fade; the pullup meter still fills. Keys: ↓/Space next · ↑ previous · → continue · ← previous
+part · N next topic · U Universe · A ask · T text version · F format · 1–3 pick · Enter
+lock in. Spine dots are real buttons, read in order after the text.
+
+What a Scroll is made of — new blocks in use
+Every block below sits inside the rebuilt Seasons Scroll. Pictures come from the drawing kit (Ray the sunbeam, Earth with its 23.4° lean, the Sun) or an engine. Nothing is model-written HTML. Full schema on
+the block-language table.
+
+V3·B
+
+1 · STAGE One growing picture, pinned; each stop changes it
+
+2 · CALL IT Choose → Lock it in → reveal (inset)
+
+3 · SCALE “You are here”, drawn to scale, with zoom stops
+
+PROTOTYPE · DESIGN DATA
+
+4 · SCENE Illustration + numbered hotspots
+
+5 · ASIDE · LINE · GUIDE Tangents tucked away; voice up
+
+6 · SORT · FORK Rebuild the chain; choose where next
+
+front
+
+Reel
+
+SEASONS · PART 1
+
+5 OF 9
+
+Scroll
+
+SEASONS · PART 1
+
+0 SPARKS
+
++3 EARTHS
+
+SEASONS · PART 1
+
+1 SPARK
+
+SEASONS · PART 1
+
+JUNE · NOON
+
+TO SCALE
+
+SEP
+
+JAN
+
+Ray: I bring the same sunshine all
+year. What changes is how much
+ground I have to cover.
+
+152M KM
+
+SEASONS · PART 1
+
+3 SPARKS · COMBO ×2
+
+SORT IT
+
+Put the chain in order
+The lean
+
+Steeper light
+
+JUN
+
+TANGENT
+
+2
+MAR
+
+So why is Earth closest in
+January?
+
+CALL IT · 1 OF 3
+
+Why is June hot in Delhi?
+THE LEAN
+
+1
+
+Earth’s axis leans 23.4°. And here’s the
+trick: it keeps pointing the same way
+all year — toward the North Star.
+CALL IT
+
+2 SPARKS
+
+Distance isn’t it.
+
+JUL
+
+147M KM
+DEC
+
+DECEMBER · NOON
+
+SEASONS · PART 1
+
+1
+
+YOU ARE HERE
+TO THE NORTH STAR
+
+?
+
+2 SPARKS
+
+2
+
+3
+
+Tap the Earth where it’s June in
+Delhi.
+
+Earth is closer to the Sun in June
+
+Delhi’s half of Earth leans toward the Sun
+
+The Sun burns hotter in June
+
+3
+
+WHERE THIS STOPS
+
+YOU ARE HERE
+
+Closest: 147 million km. Farthest: 152
+million km. Drawn to scale, you can’t
+tell this orbit from a circle.
+Zoom out
+
+Earth
+
+Sun
+
+Warmer or cooler
+
+Light sets the season. Weather decides
+how it feels.
+2 · SHADOW AT NOON
+
+About 15 cm in June, more than 2 m in
+December. Same person, same street — the
+Sun is that much lower.
+Sun height at noon: about 85° in June, about 38° in
+December.
+
+Neptune’s orbit
+
+Spread thinner (or less)
+
+Check order
+
+In Delhi the hottest weeks usually come in May
+and early June — before the longest day —
+because the monsoon arrives in late June and
+cools things. Oceans, winds and altitude
+reshape seasons everywhere.
+
+Lock it in
+
+FORK · WHERE NEXT?
+2 STOPS
+
+2 STOPS
+
+Why the tropics
+barely notice
+
+What Mars does
+differently
+
+Tap the numbers. Each one is a clue for the next call.
+Both paths rejoin at the Final call.
+AFTER LOCK IT IN · IF YOU CHOSE 1
+PLOT TWIST!
+
+Earth is closest in early January.
+
+Distance is the classic guess. In the 1987 film A Private
+Universe, most Harvard graduates asked at their own
+graduation got seasons wrong.
+
+Map
+
+Ask
+
+Pinch also zooms
+
+Text version
+
+Asides never block the next stop
+
+Drag, or use ↑ ↓ on each card
+
+WHERE EACH PICTURE COMES FROM
+
+GESTURE CAPTURE
+
+TEXT VERSIONS
+
+Kit (parametric, never hand-drawn by the writer): Ray, Sun, Earth with lean, orbits, the street scene parts, stick figures, thermometers.
+Engines: stage (keyframed kit scene), scale/zoom, simulation (Ray’s angle, tilt), game runtime (calls, sort). Generated images:
+optional mood backdrops only — never geometry, data or the orbit.
+
+Stage: none (scrolling the text drives it). Call it, sort, hotspots, fork: taps only. Sort drag captures until release; ↑↓ buttons do the
+same. Scale zoom captures pinch inside the stage only. Sliders own horizontal drag. Vertical page reading is never blocked.
+
+Every visual carries alt text written by the writer; T (or Text version) swaps a block for its prose equivalent: stage → list of what’s drawn
+per stop; scale → the numbers; scene → the three hotspot texts in order; sort → the correct chain as a numbered list after you try.
+
+REDUCED MOTION
+
+GAME HOOKS
+
+VOICE
+
+Stage changes crossfade instead of moving; Earth “jumps” to its new position. Reveal effects become a static highlight + text. Zoom
+cuts between stops. Haptics still fire unless turned off separately.
+
+Call it and Final call score sparks; consecutive correct calls build a combo. Scene hotspots feed the next call (clues). Sort is a mini Final
+call alternative. Fork lets the reader steer without breaking the 3–6 minute budget (each branch ≤ 2 stops, then rejoins).
+
+Lines like “Distance isn’t it.” stand alone in display type. Ray speaks rarely — once every few stops — and only to make the mechanism
+literal. Tangents collapse by default; the “Where this stops” aside opens next to the claim it limits, never as the last stop.
+
+Block language — scroll-document.v2 proposal
+V3·B
+
+A
+
+What an LLM writer fills in. Renderers (React Native + web) own every pixel; the writer only arranges kit parts, engine parameters and
+words. 16 blocks today → 23 here, but several old ones are cut or merged and the per-Scroll budget gets tighter.
+
+PROPOSAL · FOR
+DISCUSSION
+
+The blocks NEW = proposed · KEEP = unchanged · CHANGED = kept with new rules
+FIELDS THE WRITER
+FILLS
+
+NAME
+
+PURPOSE
+
+stop
+
+The unit of a Scroll: one
+screen-sized idea that
+also sets the stage.
+
+id, text (≤60 words),
+
+A short punchy line
+standing alone for
+rhythm.
+
+NEW
+
+line
+NEW
+
+paragraph
+KEEP
+
+heading
+CHANGED
+
+aside
+NEW
+
+WHAT THE READER DOES
+
+CAPTURES GESTURES?
+
+TEXT VERSION
+
+GAME HOOK
+
+VISUAL SOURCE
+
+Reads; scrolls on (soft
+snap).
+
+No
+
+Is text.
+
+Holds calls; spine shows
+progress.
+
+—
+
+text (≤12 words)
+
+Reads.
+
+No
+
+Is text.
+
+Often the reveal line after
+a call.
+
+—
+
+Prose inside a stop when
+one line isn’t enough.
+
+text
+
+Reads.
+
+No
+
+Is text.
+
+—
+
+—
+
+Rare section label; stops
+replace most headings.
+
+text, level (1–2)
+
+Reads; appears in the
+Map.
+
+No
+
+Is text.
+
+Chapter marks on the
+spine.
+
+—
+
+Side box for tangents,
+limits and definitions.
+Merges callout +
+disclosure.
+
+kind: tangent |
+
+Opens / closes it; never
+required.
+
+No
+
+Inline text.
+
+“Small print” chip on the
+recap links back.
+
+—
+
+stage_state?,
+emphasis?
+
+limits | definition,
+title, text,
+anchor_stop,
+collapsed
+
+quote
+KEEP
+
+list
+CHANGED
+
+stage
+NEW
+
+A real quotation with
+attribution.
+
+text, who, source
+
+Reads.
+
+No
+
+Is text.
+
+—
+
+—
+
+Short enumerations;
+discouraged in favour of
+stops.
+
+items[] (≤5), ordered
+
+Reads.
+
+No
+
+Is text.
+
+—
+
+—
+
+The one growing figure,
+pinned while stops
+change it.
+
+scene (kit ids +
+
+Watches it change as
+they scroll; may tap parts
+when a call asks.
+
+No (taps only when a call
+binds it)
+
+What’s drawn, per stop,
+as a list.
+
+Calls can bind to stage
+parts (“tap June”).
+
+Kit + stage engine
+
+Chooses, locks in, sees
+the reveal.
+
+Slider only, until release
+
+Question + options;
+answer after locking.
+
+Spark, combo, haptics,
+“Plot twist!” on wrong.
+
+Game runtime
+
+Plays with the control,
+then calls it.
+
+Its control only
+
+Question, the control’s
+values as a list, answer.
+
+Unlocks the landmark;
+gold on first try.
+
+Game runtime +
+simulation
+
+Looks; taps zoom stops;
+pinches.
+
+Pinch inside the stage
+
+The points and values in
+order.
+
+Can host a slider call
+(“where is Neptune?”).
+
+Scale engine + kit
+
+Taps numbered hotspots.
+
+No (taps)
+
+Hotspot texts in number
+order.
+
+Hotspots are clues for the
+next call.
+
+Kit or generated image
+
+Drags or uses ↑↓;
+checks.
+
+Drag until release
+
+Numbered list; correct
+order after trying.
+
+Spark; can be the Final
+call.
+
+Game runtime
+
+Picks a path.
+
+No
+
+Both branches, labelled.
+
+The other path stays to
+collect later.
+
+—
+
+Reads.
+
+No
+
+“Ray: …”
+
+Character reacts to right
+/ wrong calls.
+
+Kit
+
+Looks; collects;
+continues.
+
+No
+
+The three captions.
+
+Shows sparks, combo,
+landmark unlock.
+
+Kit + stage engine
+
+Drag-to-target only
+
+Edges as sentences.
+
+Drag-to-target can be a
+call.
+
+Diagram engine
+
+params), states[{
+stop, changes }],
+alt_per_state[]
+
+call_it
+NEW
+
+Predict-then-reveal. Built
+on the misconception.
+
+prompt, options[] |
+slider{ min, max,
+unit }, answer,
+reveal_stop, explain,
+common_guess{ text,
+source }
+
+final_call
+NEW
+
+The boss question at the
+end, using the stage or a
+simulation.
+
+call_it fields +
+binding{
+simulation_id, param
+}, bonus, landmark_id
+
+“You are here” on a linear
+or log scale, with zoom
+from small to huge.
+Merges timeline.
+
+scale
+NEW
+
+axis: linear | log,
+unit, points[{ label,
+value }],
+you_are_here,
+zoom_stops[]
+
+scene
+NEW
+
+An illustration with
+tappable hotspots.
+
+illustration (kit
+scene | image_id),
+hotspots[{ x, y,
+label, text }]
+
+Order or categorise minigame (rebuild the chain).
+
+sort
+NEW
+
+items[],
+correct_order |
+buckets{}, explain
+
+Choose-your-path; short
+branches that rejoin.
+
+fork
+NEW
+
+prompt, options[{
+label, stops[≤2] }],
+rejoin_stop
+
+guide
+NEW
+
+recap
+NEW
+
+diagram
+CHANGED
+
+chart
+CHANGED
+
+simulation
+CHANGED
+
+table
+KEEP
+
+code
+
+A line from the recurring
+character that makes the
+mechanism literal.
+
+character (kit id),
+
+The payoff: the stage’s
+final state plus three
+captions.
+
+stage_state: final,
+
+Node-link diagrams only
+(cause chains, systems).
+
+nodes[], edges[],
+layout
+
+Looks; toggles; drags to
+target.
+
+Data charts; may grow
+across stops.
+
+type, series,
+
+Watches it grow; scrubs.
+
+Scrub until release
+
+Data table.
+
+“Guess the next point”
+call.
+
+Chart engine
+
+Sliders feeding a closed
+set of formulas. Adds sin,
+cos, clamp.
+
+inputs[], formula,
+
+Moves controls.
+
+Its controls until release
+
+Value table at key
+settings.
+
+Powers the Final call.
+
+Simulation engine
+
+Reference data,
+comparisons.
+
+columns[], rows[]
+
+Reads.
+
+Horizontal scroll if wide
+
+Is text.
+
+—
+
+—
+
+Code samples.
+
+lang, text
+
+Reads; copies.
+
+Horizontal scroll
+
+Is text.
+
+—
+
+—
+
+A static picture.
+
+source: kit | image,
+
+Looks.
+
+No
+
+Alt + caption.
+
+—
+
+Kit or generated image
+
+Plays the clip.
+
+Player controls
+
+Transcript of the range.
+
+—
+
+Reel video
+
+line (≤25 words),
+pose
+
+captions[≤3],
+small_print_ref
+
+grows_with: stops[]
+
+outputs[],
+bind_stage?
+
+KEEP
+
+figure
+
+alt, caption
+
+CHANGED
+
+media
+KEEP
+
+B
+
+An excerpt of a Reel
+inside a Scroll.
+
+reel_id, start, end,
+caption
+
+Cut or merged — and why
+
+D
+
+sequence (the 4-step stepper) → cut. A paragraph per step with a Next button is
+pagination, not interaction. Its job moves to stage + spine: the picture changes as you
+read.
+comparison → table when it’s data, or a stage toggle (“tilt 23.4° / tilt 0°”) when it’s a
+contrast you should see.
+
+Writer contract changes
+misconception is required: the wrong intuition the Scroll is built around, with a source. It
+powers the first Call it and the “Plot twist!” reveal.
+voice: talk to the reader in second person; short lines; roughly one joke or aside every two
+stops; let the guide character make the mechanism literal.
+
+callout + disclosure → one aside with a kind (tangent, limits, definition). Collapsed by
+default, never blocks the next stop.
+
+Validation (rejects the document): stop ≤ 60 words; every visual has alt text and a text
+version; every call has an answer, a reveal and an explanation; a limits aside exists and isn’t
+last; the budget above holds; reading time 3–6 minutes at 230 wpm plus 10 s per call.
+
+timeline → scale with a time axis. Same engine for “you are here in history” and “you are
+here in the Solar System”.
+
+No fabricated numbers: common_guess needs a source (study, survey, or our own
+aggregate once it exists). Facts with numbers carry a reference id.
+
+subheading → heading, used rarely. Stops replace most headings.
+The “Text version of diagrams” toggle at the top of the Scroll → cut. Every visual block
+carries its own text version; one reader setting and the T key swap all of them.
+Limits as the last block → aside kind=limits, placed next to the claim it limits, plus a
+“Small print” chip on the recap. Still required; never the final stop.
+Max 8 interactive blocks → a budget instead: per 3–6 minute Scroll, ≤ 1 stage, ≤ 4 calls
+(including the Final call), ≤ 2 other interactives (scene, sort, fork, scale, simulation, chart).
+
+C
+
+{ "schema": "scroll-document.v2",
+"misconception": { "claim": "Summer happens because Earth is closer to the
+Sun",
+"source": "A Private Universe (1987)" },
+"stage": { "scene": "orbit_four_earths", "params": { "tilt": 23.4 } },
+"stops": [ { "id": "s2", "type": "call_it", "prompt": "Why is June hot in
+Delhi?",
+"options": ["Closer to the Sun", "Its half leans toward the Sun",
+"The Sun burns hotter"],
+"answer": 1, "reveal_stop": "s3" } ] }
+
+Where every visual comes from
+Drawing kit
+
+Engines
+
+Generated images
+
+Parametric parts the writer arranges by id + params. Never
+drawn by the model.
+
+Existing: diagram, chart, simulation. New ones marked.
+
+We already generate images for Reels.
+
+Characters: Ray the sunbeam (one guide per topic
+family), stick-figure reader.
+
+NEW stage engine: a kit scene graph with keyframed
+states per stop and interpolation (Skia on native, SVG
+on web). The biggest build.
+
+Use for: mood backdrops, scene illustrations where
+exactness doesn’t matter (a Delhi street, a winter sky),
+figure blocks, Part 2 teaser art.
+
+Bodies: Earth (tilt, continents, pins), Sun, Moon,
+planets, orbits.
+
+NEW scale/zoom engine: linear and log axes, “you are
+here”, zoom stops.
+
+Never for: geometry, orbits, angles, data, diagrams or
+anything a call depends on.
+
+Things: arrows, thermometers, rulers, scales,
+calendars, buildings, people, simple maps.
+
+NEW game runtime: call_it / final_call / sort scoring,
+combos, sparks, haptics, landmark awards.
+
+Always labelled as illustration in the text version.
+
+Use for: stage, scene, recap, guide, landmarks in the
+
+Simulation: add sin, cos and clamp (Ray’s spreading is 1
+
+Game loops at three scales
+V3·C
+
+Moment: call it, lock it, feel the reveal. Per Scroll: sparks, a combo and a Final call worth a gold landmark. Across sessions: your Universe is the collection, and a
+missed week takes nothing away.
+
+MOMENT · CHOOSE & LOCK Call it #1, option B picked
+
+MOMENT · REVEAL Called it! — and the Plot twist! version
+
+PER SCROLL · FINAL CALL Stakes: gold landmark on first try
+
+PROTOTYPE · DESIGN DATA
+
+PER SCROLL · UNLOCK Deterministic — you saw it coming
+
+ACROSS SESSIONS · COLLECTION Universe holds what you
+
+earned
+
+1
+
+2 / 9
+
+2 / 9
+
+2
+
+COMBO ×2
+
+2
+
+9 / 9
+
+3
+
+SEASONS · PART 1 · COMPLETE
+
+Your universe
+
+CLEAR SKIES · THINNING
+
+ORBIT · 2 OF 3 DAYS
+
+this week
+
++1
+
+?
+
+DELHI
+
+SYDNEY
+SEASONS
+
+Called it!
+
+The Leaning Axis
+
+TILT 0° · SUN OVER THE EQUATOR ALL YEAR
+
+GOLD · FIRST TRY
+FINAL CALL
+
+CALL IT · 1 OF 3
+
+Why is June hot in Delhi?
+A
+
+Delhi’s half leans toward the Sun in June:
+steeper sunlight and longer days. Two calls in
+a row.
+
+Get it first try for the gold landmark
+
+Turn Earth’s tilt to 0°. What happens
+to the seasons?
+
+3 SPARKS
+
+COMBO ×2
+
+FINAL CALL ✓
+
+Earth’s tilt · 0°
+
+Earth is closer to the Sun in June
+
+Earth & sky
+
+IF YOU’D PICKED A
+
+B
+
+C
+
+Delhi’s half of Earth leans toward the
+Sun
+
+The Sun burns hotter in June
+
+Lock it in ENTER
+
+Plot twist!
+You’re in good company. Distance is the classic
+guess. In the 1987 film A Private Universe, most
+Harvard graduates asked at their own graduation
+got this wrong — many blamed distance.
+
+A
+
+Every day is like an equinox — seasons
+almost vanish
+
+0.0S · SHAKE
+
+0.4S · FLIP
+
+0.8S · GOLD
+
+Send it to your Universe
+B
+
+Permanent summer in the north
+
+Challenge a friend
+Next ↓
+
+C
+
+Landmarks on Earth & sky
+
+2 OF 3 SEEN
+
+GOLD
+
+PLAIN
+
+NEXT
+
+The Leaning
+Axis
+
+The Falling
+Moon
+
+Part 2 · Turns
+
+Seasons get stronger
+Wrong on the Final call? You still get the landmark, in plain
+finish.
+
+Missed a week? Nothing here goes away. Orbits just start
+fresh on Monday.
+
+Lock it in
+Explore
+
+HAPTIC · LIGHT TICK ON SELECT
+
+HAPTIC · SUCCESS PATTERN
+
+HAPTIC · MEDIUM ON LOCK
+
+REDUCED MOTION: STILL STARS
+
+KEYS 1–3 · ENTER
+
+PLOT TWIST · ONE SOFT TAP
+
+DEV: SLIDER KEEPS ITS DRAG
+
+HAPTIC · RISING TRIPLE TAP
+
+KEYS ←/→ TILT · 1–3 · ENTER
+
+REDUCED MOTION: CARD SHOWN, NO FLIP
+
+Universe
+
+PLAY LAYER ≠ FORMATION
+
+Talk
+
+Keep
+
+LIST VIEW LISTS LANDMARKS
+
+MANIPULATIVE
+
+FUN VERSION WE USE INSTEAD
+
+MOMENT
+
+Loss-based daily streak
+
+Weekly Orbit: 3 days closes it; nothing you own ever resets
+
+Choose → lock → reveal on the stage. Haptics: light tick, medium lock, success pattern, one soft tap for Plot twist. Sound off by
+default. Every option has a key (1–3, Enter) and a text version.
+
+Random loot, variable rewards
+
+Deterministic landmarks you can see coming (“Next: Part 2 · Turns”)
+
+“You’ll lose your streak” push
+
+No loss pushes. Only “your Scroll is ready” or a friend’s challenge
+
+PER SCROLL
+
+Global leaderboards
+
+Challenge a friend in a thread; their answer stays hidden until they call it
+
+3 calls + a Final call. Sparks and combo are visible counts. The landmark is announced before you play, so the reward is earned, not
+gambled. CMD call.lock{stopId, option}
+
+Wrong answer scored as failure
+
+Plot twist! is the best moment; finishing still earns the landmark
+
+Score feeding Universe formation
+
+Play layer (landmarks, clear skies) kept separate from evidence-based formation
+
+ACROSS SESSIONS
+
+Endless “one more” autoplay
+
+Natural stop after the Final call, with a clear “Done for today”
+
+Orbits ring the star; landmarks stand on planets; clear skies thin as you finish Scrolls. Reduced motion shows final states without
+flights.
+
+Ask, rethought
+Start from what you just read, infer format and scope instead of asking up front, say plainly what happens next, and make the wait honest — and a little
+fun. Three directions.
+
+V3·D
+
+D1 · ASK FROM HERE Questions from what you just read
+
+D1 · AFTER SEND Honest wait + a 20-second puzzle
+
+D2 · SELECT TO ASK Native selection menu, two new items
+
+PROTOTYPE · DESIGN DATA
+
+D2 · QUICK ANSWER INLINE Plus "Simpler" in place, with
+
+D3 · ASK AS A WAGER Guess first; the wait becomes a game
+
+Undo
+
+It leans
+
+IT LEANS · 5 OF 10
+
+Making it now
+
+Leaning in = steeper light + longer days.
+
+Ask
+
+“Why don't we feel the change in distance at
+all?” — a short Scroll. We'll put it in your
+Seasons thread when it's ready, usually [typical
+time].
+
+Earth's
+axis leans
+23.4°, Ask
+and it keeps
+pointing
+Copy
+Simpler
+Share
+the same way all year — toward the North
+
+Keep reading
+
+Cancel
+
+When Delhi's half leans toward the Sun,
+
+Why is Earth closest to the Sun in
+January?
+
+sunlight arrives steeper and the days run
+longer.
+
+MEANWHILE · 20-SECOND PUZZLE
+
+On 21 June, which city has the
+longer day?
+
+What if Earth's tilt were 90°?
+
+Why do places near the equator barely
+have seasons?
+
+1
+
+the same way all year — toward the North
+Star.
+
+YOU ASKED
+
+Star. That's why June and December look so
+different.
+
+FROM WHAT YOU JUST READ
+
+Earth's axis leans 23.4°, and it keeps pointing
+
+QUICK ANSWER · NOT A CHECKED SCROLL
+
+Why does it keep pointing the same way?
+A spinning Earth behaves like a spinning top:
+nothing turns its axis around during a year, so
+it keeps its direction as Earth goes round the
+Sun. Over about 26,000 years it slowly
+wobbles.
+Make it a full Scroll
+
+If Earth is closest to the Sun in January, why
+aren't southern summers much hotter?
+
+Before we make it: what do you
+think?
+1
+
+They are a lot hotter — we just don't
+notice
+
+2
+
+Something soaks up the extra sunlight
+
+3
+
+Distance has no effect at all
+
+Ask a follow-up
+
+Oslo
+"SIMPLER" APPLIED TO THE NEXT PARAGRAPH
+
+OR ASK ANYTHING
+2
+
+Why don't we feel the change in distance at
+all?
+
+A short Scroll · about Seasons
+
+Change
+
+Singapore
+
+When your half of Earth tips toward the
+Sun, the light hits you more head-on and
+
+CALLED IT! · +1 SPARK
+
+the days get longer. That's summer.
+Oslo gets about 19 hours of daylight; Singapore,
+near the equator, gets about 12 all year. The lean
+matters more the farther you are from the equator.
+
+SIMPLER VERSION
+
+Lock in my guess · Send
+
+Undo
+
+Just send it
+
+Send
+
+Your guess is revealed against the answer when the Scroll
+arrives. Called it = a spark.
+
+We'll make it and put it in your Seasons thread.
+
+WHY THE NATIVE MENU
+
+When it's ready: a note in your Seasons thread (and
+a notification if you allow them).
+
+Long-press already means "select" on both phones
+and the web. We add Simpler and Ask to that menu
+instead of inventing a gesture that fights it.
+
+WHAT WAS WRONG WITH TODAY'S SHEET
+
+HOW FORMAT AND SCOPE ARE INFERRED
+
+WHAT HAPPENS NEXT (SAID IN THE UI)
+
+It suggested the topic you were already reading, pre-selected "Something new", asked for format and scope
+before you'd typed, said "encounter", ended on a footer that didn't say what happens, and looked like a support
+form (disabled Send, 0/500 counter).
+
+Scope defaults to the thing you're reading unless the text clearly starts a new subject. Format follows the
+person's habit for this topic family (they read Scrolls here), shown as one editable line: "A short Scroll · about
+Seasons · Change". Nothing to pick before typing. The counter appears only near the limit.
+
+"Making it now. We'll put it in your Seasons thread." Then a status card you can leave, a note in the thread when
+it's ready, and a notification only if allowed. Waiting times are shown as a real typical time once we measure it
+— [typical time] until then, never invented.
+
+QUICK ANSWERS ARE NEW CAPABILITY
+
+KEYS & ACCESS
+
+MY PICK
+
+D2's inline answers and "Simpler" rewrite are generated at read time. That's new: cost per tap, latency, and no
+editorial check. Label them "Quick answer · not a checked Scroll", keep them short, never feed them into the
+universe, and offer "Make it a full Scroll" for the checked version.
+
+? opens Ask · 1–3 pick a suggested question · Enter sends · Esc closes. Selection menu items are standard
+platform menu items, so screen readers and keyboard selection reach them. D3's guess is optional — "Just
+send it" is always there.
+
+D1 as the default sheet + D2 for in-text questions. D1 fixes every complaint with no new back-end; D2 is the
+most natural "I don't get this sentence" moment but needs the quick-answer capability. D3 as an optional twist
+once Call it exists — it turns waiting into a reason to come back.
+
+Endings — the payoff
+Replaces the E02 end card, the E05 continue box and E08 where it touches Scrolls. Three directions, two phones each. Limits is never the last stop: it moves mid-Scroll and stays reachable as
+“Small print”.
+
+V3·E
+
+PAYOFF Recap picture, score, landmark, Part
+
+E1 · MY
+PICK
+
+E1
+
+DRAGGING INTO PART 2 Fresh drag past the notch;
+
+2 peek
+
+E2
+
+CLIFFHANGER The end is Part 2’s first question
+
+E2
+
+DONE FOR TODAY A satisfying close, no guilt
+
+PROTOTYPE · DESIGN DATA
+
+E3
+
+UNIVERSE REVEAL Camera flies; the landmark lands
+
+E3
+
+ON THE PLANET Part 2 is a route you can see
+
+momentum never counts
+
+PAST THE NOTCH · LET GO TO CONTINUE
+
+PART 1 · KEPT
+
+3
+
+SEASONS · PART 1 · DONE
+
+LANDING ON EARTH & SKY
+
+PART 2 · NEXT UP
+
+PART 2 · WHY THE HEMISPHERES TAKE TURNS
+
+It leans
+
+Skip
+
+Esc
+
+‹ Astronomy
+
+3 sparks · gold axis
+
+It leans.
+2
+
+1
+
+A good place to
+stop.
+
+The lean stays fixed.
+SEP
+
+?
+
+SEASONS
+
+DEC
+
+The Leaning Axis is yours
+
+JUN
+
+SYDNEY · ~10 H
+
+Standing on Earth & sky, gold finish
+
+The Leaning Axis lands
+in Seasons.
+
+MAR
+
+3
+
+Today: 3 sparks · Part 1 of Seasons.
+
+Leaning in = steeper light + longer days.
+
+3 SPARKS
+
+COMBO ×2
+
+FINAL CALL ✓
+
+Same lean, other side
+of the orbit.
+
+PART 2 →
+GOLD LANDMARK
+
+flying to your Universe
+
+Next time you’ll start at Part 2, right where the
+cliffhanger left off.
+HEMISPHERES · PART 2
+
+See it in your Universe
+ORBITS
+
+In June, Sydney gets
+about 10 hours of
+daylight…
+
+The Leaning Axis
+
+In June, Sydney gets about 10 hours
+of daylight. Why do the halves take
+turns?
+A · The Sun moves south
+
+Close
+
+B · The lean keeps pointing the same way
+Continue to call it
+
+Small print
+Challenge a friend
+
+Continue Part 2 →
+
+Ask
+
+Done for today
+
+Continue Part 2 →
+
+Earth & sky · Seasons
+
+→
+
+Something new ↑
+
+The Leaning Axis stands here now. A route leads on to
+Hemispheres.
+
+N
+
+→
+
+Part 2 →
+
+Small print
+
+Another region
+Something new ↑
+
+N
+
+Cancel
+
+Esc
+
+Continue
+
+→
+
+Done
+
+→
+
+E1 · PAYOFF
+
+E2 · CLIFFHANGER
+
+E3 · UNIVERSE REVEAL
+
+The recap is the picture you built, not a list. Score row, gold landmark flying out, and Part 2 peeking from the right edge as a cliffhanger
+line. One primary action. Left = continue (E05 kept), Up/N = something new (Reel grammar kept).
+
+Strongest pull forward: you can see Part 2’s question but can’t call it yet. Risk: feels like a hook even when someone wants to stop, so
+“Done for today” is equal weight and closes warmly.
+
+Makes the Universe the reward screen, and Part 2 a visible route. Most emotional, slowest: a flight on every Scroll end would wear thin.
+Skip (Esc) and reduced motion show the landed state directly.
+
+WHERE LIMITS WENT
+
+GESTURES & KEYS
+
+MY PICK
+
+Limits moves mid-Scroll as the “Where this stops” aside next to the claim it qualifies (Seasons stop 8: monsoon heat before the
+solstice). The ending keeps it one tap away as “Small print” — honest, never the last word.
+
+Every gesture has a button: Continue Part 2 (→), Something new (N, pull past the notch), Skip (Esc), Cancel drag (Esc). Momentum
+from reading never crosses the notch. Text version: recap captions are real text; landmark flight has a static state.
+
+E1, with E3’s landing animation used as the transition when you finish a whole thread. E2’s locked teaser question can live inside
+E1’s Part 2 peek.
+
+
