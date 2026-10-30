@@ -29,6 +29,8 @@ export {
   type ReelOrderRow,
   type ReportRow,
   type ReportsSummary,
+  type RoomCallsRow,
+  type RoomCallsSummary,
   type Unavailable,
   type UsageSummary,
 } from './domain/panels.js';

@@ -1052,6 +1052,18 @@ export interface OpsRejectedAnswers {
   truncated: boolean | null;
 }
 
+export interface OpsRoomTurns {
+  created_at: Timestamp | null;
+  decided_by: string | null;
+  discussion_id: string | null;
+  dispatched: boolean | null;
+  inhabitant: string | null;
+  room_id: string | null;
+  state: string | null;
+  trigger: string | null;
+  turn_id: string | null;
+}
+
 export interface PersonalContextContributions {
   explanation_unit_id: string;
   exposure_id: string;
@@ -1386,6 +1398,7 @@ export interface ReasoningProtectedRequests {
 }
 
 export interface ReasoningUsageReceipts {
+  ambient: Generated<boolean>;
   attempt_id: string;
   background: Generated<boolean>;
   budget_window: Timestamp;
@@ -1440,22 +1453,28 @@ export interface RoomsActivities {
   title: string;
 }
 
-export interface RoomsAiRequests {
+export interface RoomsAiTurns {
   attempt_id: string | null;
-  command_id: string;
+  caps: Generated<Json>;
+  cause_message_id: string | null;
+  command_id: string | null;
   created_at: Timestamp;
+  decided_by: Generated<string>;
   discussion_id: string;
   dispatched: Generated<boolean>;
+  held_kind: string | null;
+  held_text: string | null;
   inhabitant: string;
   message_id: string | null;
   model: string | null;
   prompt_version: string | null;
-  request_id: string;
   requested_by_account_id: string | null;
   role_version: string | null;
   room_id: string;
   settled_at: Timestamp | null;
   state: string;
+  trigger: Generated<string>;
+  turn_id: string;
 }
 
 export interface RoomsDiscussions {
@@ -1509,6 +1528,7 @@ export interface RoomsMessages {
   note: string | null;
   recorded_at: Timestamp;
   sequence: Int8;
+  trigger: string | null;
 }
 
 export interface RoomsMessageSnippets {
@@ -1535,6 +1555,13 @@ export interface RoomsPollVotes {
   voted_at: Timestamp;
 }
 
+export interface RoomsRoomCast {
+  inhabitant: string;
+  name: string;
+  position: number;
+  room_id: string;
+}
+
 export interface RoomsRoomPresence {
   account_id: string;
   last_seen_at: Timestamp;
@@ -1553,6 +1580,11 @@ export interface RoomsRooms {
   status: Generated<string>;
   topic_id: string;
   topic_kind: string;
+}
+
+export interface RoomsTypingHolds {
+  discussion_id: string;
+  held_until: Timestamp;
 }
 
 export interface ScenariosDrafts {
@@ -1979,6 +2011,7 @@ export interface DB {
   "ops.reel_attempts": OpsReelAttempts;
   "ops.reel_orders": OpsReelOrders;
   "ops.rejected_answers": OpsRejectedAnswers;
+  "ops.room_turns": OpsRoomTurns;
   "personal_context.contributions": PersonalContextContributions;
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
   "personal_context.coverage_references": PersonalContextCoverageReferences;
@@ -2005,15 +2038,17 @@ export interface DB {
   "receipts.personal_commands": ReceiptsPersonalCommands;
   "receipts.shared_commands": ReceiptsSharedCommands;
   "rooms.activities": RoomsActivities;
-  "rooms.ai_requests": RoomsAiRequests;
+  "rooms.ai_turns": RoomsAiTurns;
   "rooms.discussions": RoomsDiscussions;
   "rooms.invitations": RoomsInvitations;
   "rooms.members": RoomsMembers;
   "rooms.message_snippets": RoomsMessageSnippets;
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
+  "rooms.room_cast": RoomsRoomCast;
   "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
+  "rooms.typing_holds": RoomsTypingHolds;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;
   "scenes.chunks": ScenesChunks;

@@ -141,7 +141,9 @@ moves, no provider is called, and running it again assigns nothing. It needs onl
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,
 no provider call. The `rooms.contribute` consumer answers a member's ask of an AI inhabitant with the personal
-harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`).
+harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`). The `rooms.cast-due` and `rooms.cast-pass` consumers
+(v3 R-2, D-162) are registered only while `KS_REASONING_ROOM_ENABLED=1`: the first decides, with no model call, whether a resident
+answers a message; the second makes the model call of an allowed turn under the nonpersonal `rooms` reasoning scope.
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and

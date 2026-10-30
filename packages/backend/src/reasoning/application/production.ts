@@ -2,9 +2,15 @@ import type { ProposeInput, ProposeOutcome, ReasoningRun } from './propose.js';
 import type { AttemptState } from '../domain/attempts.js';
 import type { ReportedUsage } from '../domain/budgets.js';
 
-/** One world-local, nonpersonal supply root. Never a personal universe or account. */
+/**
+ * The world-local nonpersonal roots: Scroll supply, and the rooms scope (D-162) that pays for the residents
+ * speaking on their own. Each is one row of `reasoning.production_scopes`.
+ */
+export type ProductionScopeId = 'scroll-supply' | 'rooms';
+
+/** One world-local, nonpersonal root. Never a personal universe or account. */
 export interface ProductionAuthority {
-  readonly scopeId: 'scroll-supply';
+  readonly scopeId: ProductionScopeId;
   readonly generation: number;
 }
 

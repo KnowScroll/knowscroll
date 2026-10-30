@@ -32,6 +32,7 @@ export const fixtureSettings: HarnessSettings = {
   },
   // Nothing is kept back by default; tests of the split set their own share.
   backgroundSharePercent: 100,
+  ambientSharePercent: 100,
   maxRequestBytes: 262_144,
   requestRetentionSeconds: 3_600,
   purgeIntervalMs: 60_000,

@@ -49,8 +49,8 @@ const room = {
   status: 'open' as const,
 };
 const inhabitants = [
-  { inhabitant: 'explainer' as const, label: 'AI · Explainer', blurb: 'Answers when asked' },
-  { inhabitant: 'skeptic' as const, label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
+  { inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
+  { inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
 ];
 type Preview = Extract<RoomView, { status: 'preview' }>;
 type Member = Extract<RoomView, { status: 'member' }>;
