@@ -1,8 +1,8 @@
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../modules/identity/public.js';
 import {
-  backgroundShareOf,
   reservedTokensFor,
+  shareOf,
   type BudgetCap,
   type BudgetCaps,
   type BudgetClass,
@@ -94,7 +94,9 @@ export interface ReasoningRole<T> {
    * `background` for a role that runs because the person read or swiped, not because they asked
    * for something. It then stops at its share of the global and the personal daily caps
    * (`HarnessSettings.backgroundSharePercent`), so a person who only reads keeps the rest for
-   * what they ask for. Omitted means `interactive`: a role is never squeezed by default.
+   * what they ask for. `ambient` for a room's resident that speaks on its own: it stops at its share
+   * of the global cap (`HarnessSettings.ambientSharePercent`) and at its scope's own cap. Omitted
+   * means `interactive`: a role is never squeezed by default.
    */
   readonly budgetClass?: BudgetClass;
 }
@@ -564,7 +566,7 @@ function admittedProposal<T, A, S>(
   model: ModelPort,
 ): Proposal<T, A> {
   const { role } = input;
-  const { caps, backgroundSharePercent } = ports.settings;
+  const { caps, backgroundSharePercent, ambientSharePercent } = ports.settings;
   const budgetClass = role.budgetClass ?? 'interactive';
   return {
     input,
@@ -577,11 +579,12 @@ function admittedProposal<T, A, S>(
       ...(budgetClass === 'background'
         ? {
             background: {
-              global: backgroundShareOf(caps.global, backgroundSharePercent),
-              scope: backgroundShareOf(caps.scope, backgroundSharePercent),
+              global: shareOf(caps.global, backgroundSharePercent),
+              scope: shareOf(caps.scope, backgroundSharePercent),
             },
           }
         : {}),
+      ...(budgetClass === 'ambient' ? { ambient: { global: shareOf(caps.global, ambientSharePercent) } } : {}),
     },
     budgetClass,
     judge: judgeWith(ports.redactRecorded, role.outputSchema, role.safeCustomIssues),

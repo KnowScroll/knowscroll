@@ -463,13 +463,17 @@ describe('process configuration', () => {
     expect(config.reasoning).toEqual({
       provider: 'none',
       productionEnabled: false,
+      roomEnabled: false,
+      roomGeneration: 1,
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
         productionScope: { requestsPerDay: 200, tokensPerDay: 3_000_000 },
+        roomScope: { requestsPerDay: 100, tokensPerDay: 1_000_000 },
         roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
       },
       backgroundSharePercent: 50,
+      ambientSharePercent: 30,
       maxRequestBytes: 262_144,
       requestRetentionSeconds: 48 * 3600,
     });

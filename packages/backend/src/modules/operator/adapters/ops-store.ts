@@ -13,9 +13,45 @@ import type {
   ReelOrderRow,
   ReportRow,
   ReportsSummary,
+  RoomCallsRow,
+  RoomCallsSummary,
   UsageSummary,
 } from '../domain/panels.js';
 import type { JourneyStore, PanelStore } from '../application/ports.js';
+
+/** One room's AI calls while the groups of the ledger are folded; `row` is its answer. */
+interface RoomTally {
+  readonly roomId: string;
+  asked: number;
+  unprompted: number;
+  unpromptedLastHour: number;
+  readonly refusals: Map<string, number>;
+  lastAt: Date;
+  /** How many calls and refusals the room had, for ordering the busiest first. */
+  calls(): number;
+  row(): RoomCallsRow;
+}
+
+function newTally(roomId: string, lastAt: Date): RoomTally {
+  const tally: RoomTally = {
+    roomId,
+    asked: 0,
+    unprompted: 0,
+    unpromptedLastHour: 0,
+    refusals: new Map(),
+    lastAt,
+    calls: () => tally.asked + tally.unprompted + [...tally.refusals.values()].reduce((sum, n) => sum + n, 0),
+    row: () => ({
+      roomId,
+      asked: tally.asked,
+      unprompted: tally.unprompted,
+      unpromptedLastHour: tally.unpromptedLastHour,
+      refused: [...tally.refusals].map(([cap, total]) => ({ cap, count: total })).sort((a, b) => b.count - a.count),
+      lastAt: tally.lastAt,
+    }),
+  };
+  return tally;
+}
 
 /** Column of `ops.journey_events` for each join key. */
 const KEY_COLUMNS = {
@@ -341,6 +377,45 @@ export function makePanelStore(db: Kysely<Database>): PanelStore {
             createdAt: row.created_at as Date,
           })),
         };
+      }),
+
+    roomCalls: (limit) =>
+      pieceOf(async (): Promise<RoomCallsSummary> => {
+        // One group per room, trigger, state and cap: folded below into one row per room.
+        const groups = await db
+          .selectFrom('ops.room_turns')
+          .select([
+            'room_id',
+            'trigger',
+            'state',
+            'decided_by',
+            (eb) => eb.fn.countAll().as('total'),
+            sql<number>`count(*) filter (where created_at > now() - interval '1 hour')`.as('last_hour'),
+            (eb) => eb.fn.max('created_at').as('latest'),
+          ])
+          .where('created_at', '>', sql<Date>`now() - interval '24 hours'`)
+          .groupBy(['room_id', 'trigger', 'state', 'decided_by'])
+          .execute();
+        const tallies = new Map<string, RoomTally>();
+        for (const group of groups) {
+          const roomId = text(group.room_id);
+          const tally = tallies.get(roomId) ?? newTally(roomId, group.latest as Date);
+          const total = count(group.total);
+          if (group.trigger === 'asked') tally.asked += total;
+          else if (group.state === 'refused') {
+            const cap = text(group.decided_by);
+            tally.refusals.set(cap, (tally.refusals.get(cap) ?? 0) + total);
+          } else {
+            tally.unprompted += total;
+            tally.unpromptedLastHour += count(group.last_hour);
+          }
+          if ((group.latest as Date) > tally.lastAt) tally.lastAt = group.latest as Date;
+          tallies.set(roomId, tally);
+        }
+        const busiest = [...tallies.values()]
+          .sort((a, b) => b.calls() - a.calls() || a.roomId.localeCompare(b.roomId))
+          .slice(0, limit);
+        return { rooms: busiest.map((tally): RoomCallsRow => tally.row()) };
       }),
 
     privacy: (limit) =>

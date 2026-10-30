@@ -23,8 +23,9 @@ import { ResolvedSnippetAnchorSchema, SnippetAnchorSchema, SnippetCardSchema, Th
  * inhabitant), `here.count` (only from three people here), `memberTotal` and `lastMessageAt`. A list, a
  * preview and a station carry none of them, and no field says "online" with a number below three.
  *
- * AI inhabitants are labelled authors of their own kind (`kind: 'ai'`), never a person, and they
- * speak only when a member asks. A moderator's hidden message keeps its place and number.
+ * AI inhabitants are labelled authors of their own kind (`kind: 'ai'`), never a person. They answer when a member
+ * asks and, under the room's caps, speak on their own (D-068); a message they wrote on their own carries why. Each
+ * has a name from a fixed catalogue, shown beside its label. A moderator's hidden message keeps its place and number.
  */
 const Version = z.literal('rooms.v1');
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -69,18 +70,26 @@ export const AI_INHABITANT_LABELS = { explainer: 'AI · Explainer', skeptic: 'AI
 /** What each inhabitant is for, in the words the room preview shows. */
 export const AI_INHABITANT_BLURBS = { explainer: 'Answers when asked', skeptic: 'Pushes back on claims' } as const;
 
+/** A resident's own name, from a fixed catalogue (D-163). Never a person's: it always comes with the AI label. */
+const ResidentName = z.string().min(1).max(24).refine(isPublicLabel);
+
+/** Why a resident spoke on its own. The one-line "why" a screen shows is built from this, never from model text. */
+export const RoomSpeechTriggerSchema = z.enum(['unanswered_question', 'overstated_claim', 'answer_overstated']);
+export type RoomSpeechTrigger = z.infer<typeof RoomSpeechTriggerSchema>;
+
 export const RoomInhabitantSchema = z
   .strictObject({
     inhabitant: InhabitantIdSchema,
+    name: ResidentName,
     label: z.string(),
     blurb: z.string().min(1).max(80),
   })
   .refine((entry) => entry.label === AI_INHABITANT_LABELS[entry.inhabitant]);
 export type RoomInhabitant = z.infer<typeof RoomInhabitantSchema>;
 
-/** An AI author. Explicitly not a person: it has no person ID, handle or profile. */
+/** An AI author. Explicitly not a person: it has no person ID, handle or profile, and always carries its label. */
 export const AiAuthorSchema = z
-  .strictObject({ kind: z.literal('ai'), inhabitant: InhabitantIdSchema, label: z.string() })
+  .strictObject({ kind: z.literal('ai'), inhabitant: InhabitantIdSchema, name: ResidentName, label: z.string() })
   .refine((author) => author.label === AI_INHABITANT_LABELS[author.inhabitant]);
 export type AiAuthor = z.infer<typeof AiAuthorSchema>;
 
@@ -216,7 +225,7 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     room: RoomSummarySchema,
     guidelines: z.string().min(1).max(600).optional(),
     hasModerator: z.boolean(),
-    inhabitants: z.array(RoomInhabitantSchema).max(2),
+    inhabitants: z.array(RoomInhabitantSchema).max(4),
     /** The pinned discussion's title, when a moderator pinned one. */
     pinned: DiscussionTitle.optional(),
     invited: z.boolean(),
@@ -232,7 +241,7 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     role: RoomRoleSchema,
     guidelines: z.string().min(1).max(600).optional(),
     hasModerator: z.boolean(),
-    inhabitants: z.array(RoomInhabitantSchema).max(2),
+    inhabitants: z.array(RoomInhabitantSchema).max(4),
     /** The room's General: where a member lands. It is not in `discussions`. */
     general: RoomDiscussionSummarySchema,
     /** The other discussions: pinned first, then newest activity. A paused room can still be read. */
@@ -361,6 +370,13 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
     /** Present exactly when the author is an AI inhabitant. */
     suggestion: AiContributionKindSchema.optional(),
     /**
+     * Present when a resident spoke on its own, and says why. A resident that answered an ask has none. A
+     * reader whose AI level is Off receives `muted` instead.
+     */
+    trigger: RoomSpeechTriggerSchema.optional(),
+    /** The reader's AI level is Quieter and this is a resident speaking on its own: show one line, the words on request. */
+    folded: z.literal(true).optional(),
+    /**
      * The reader is a moderator who has blocked the author. A block collapses the author's words for the
      * reader (`blocked`), but a moderator must still be able to moderate them, so the words are sent and
      * the client keeps them collapsed until the moderator chooses to show them.
@@ -371,6 +387,11 @@ export const RoomMessageSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...MessageIdentity, status: z.literal('removed') }),
   /** Written by someone the reader has blocked: collapsed for the reader, shown as usual to everyone else (D-051). */
   z.strictObject({ ...MessageIdentity, status: z.literal('blocked') }),
+  /**
+   * A resident spoke on its own and the reader's AI level is Off: the words are not sent. It keeps its place and
+   * number, and a screen draws nothing for it.
+   */
+  z.strictObject({ ...MessageIdentity, status: z.literal('muted') }),
   /** The author's account was deleted. */
   z.strictObject({ ...MessageIdentity, status: z.literal('unavailable') }),
 ]);
@@ -443,6 +464,7 @@ export const ReadDiscussionSchema = z.strictObject({
 /** What the person can ask of an inhabitant right now. `resting` is the room's or the person's daily bound. */
 export const RoomInhabitantStatusSchema = z.strictObject({
   inhabitant: InhabitantIdSchema,
+  name: ResidentName,
   label: z.string(),
   blurb: z.string().min(1).max(80),
   ask: z.enum(['available', 'preparing', 'resting', 'paused']),
@@ -479,7 +501,7 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
         })
         .optional(),
       canPost: z.boolean(),
-      inhabitants: z.array(RoomInhabitantStatusSchema).max(2),
+      inhabitants: z.array(RoomInhabitantStatusSchema).max(4),
       /** The caller's own last ask that ended without a contribution, so the screen can say so. */
       yourAsk: z
         .strictObject({ inhabitant: InhabitantIdSchema, outcome: z.enum(['nothing_to_add', 'could_not_answer']) })

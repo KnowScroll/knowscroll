@@ -15,6 +15,7 @@ import type { SnippetAnchorInput, StoredSnippetAnchor } from '../../content/publ
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { titleFrom } from '../domain/titles.js';
+import { scheduleCastCheck } from './cast-schedule.js';
 import { receiptBase, runCommand } from './command.js';
 import {
   ok,
@@ -162,7 +163,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
     /**
      * Sends a text message, a card for current content, or a snippet. A snippet is checked against
      * the exact current revision and the discussion's own content; the message and its anchor commit
-     * together. Sending is not consumption evidence for anyone.
+     * together. A text message that reads as a question or a strong claim also queues the check of whether a
+     * resident answers it, in the same transaction (D-164). Sending is not consumption evidence for anyone.
      */
     send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomMessageAcceptanceSchema>>> {
       const parsed = SendRoomMessageSchema.safeParse(input);
@@ -203,6 +205,15 @@ export function makeDiscussionCommands(p: RoomPorts) {
                 : { content: body.target, ...(body.note === undefined ? {} : { note: body.note }) }),
             });
             if (snippet !== undefined) await p.discussions.saveSnippet(lock, messageId, snippet);
+            if (body.kind === 'text')
+              await scheduleCastCheck(p, scope, lock, {
+                room: standing.room,
+                discussionId: command.discussionId,
+                messageId,
+                authorAccountId: owner.accountId,
+                text: body.text,
+                now,
+              });
             await p.rooms.announce(lock, now);
             return RoomMessageAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),

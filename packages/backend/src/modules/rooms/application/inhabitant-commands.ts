@@ -1,17 +1,17 @@
 import { AskInhabitantSchema, InhabitantAskAcceptanceSchema } from '@knowscroll/contracts';
 import type { z } from 'zod';
 import type { PersonalAuthority } from '../../identity/public.js';
-import { askDecision, utcDayStart } from '../domain/contribution.js';
+import { askDecision, hourBefore, utcDayStart } from '../domain/contribution.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { receiptBase, runCommand } from './command.js';
-import { ok, refuse, type Result, type RoomPorts } from './ports.js';
+import { hasResident, ok, refuse, type Result, type RoomPorts } from './ports.js';
 
 /**
- * Asks a labelled AI inhabitant to contribute. The inhabitant never speaks on its own: this command
- * is the only way a contribution begins, so the room is never filled and no human activity is
- * invented. The room is locked FOR UPDATE so the daily bounds (per room and per person) are exact,
- * and the request and its queued job commit together; the answer arrives later as an ordinary
- * message. The command starts no production and is no evidence for anyone.
+ * Asks a labelled AI inhabitant to contribute. An ask is one of the two ways a turn begins (the other is a
+ * resident speaking on its own, `cast-due.ts`); it has its own bounds, apart from the unprompted caps, so a
+ * member is always answered while the room is not full. The room is locked FOR UPDATE so the bounds (per room and
+ * day, per person and hour) are exact, and the turn row and its queued job commit together; the answer arrives
+ * later as an ordinary message. The command starts no production and is no evidence for anyone.
  */
 export function makeInhabitantCommands(p: RoomPorts) {
   return {
@@ -29,25 +29,31 @@ export function makeInhabitantCommands(p: RoomPorts) {
         mode: 'write',
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
-          if (!roomAcceptsPosts(standing.room.status) || !standing.room.inhabitants.includes(command.inhabitant))
+          if (!roomAcceptsPosts(standing.room.status) || !hasResident(standing.room, command.inhabitant))
             return refuse('unavailable');
           if ((await p.discussions.load(lock, command.discussionId)) === undefined) return refuse('unavailable');
           const [counts, open] = await Promise.all([
-            p.ai.countAsks(lock, { accountId: owner.accountId, since: utcDayStart(now) }),
-            p.ai.openAsks(lock, command.discussionId, now),
+            p.ai.countAsks(lock, {
+              accountId: owner.accountId,
+              dayStart: utcDayStart(now),
+              hourStart: hourBefore(now),
+            }),
+            p.ai.openTurns(lock, command.discussionId, now),
           ]);
           const decision = askDecision({
             roomAsksToday: counts.room,
-            personAsksToday: counts.person,
-            personRequestsToday: counts.personRequests,
+            personAsksLastHour: counts.person,
+            personRequestsLastHour: counts.personRequests,
             openAsk: open.length > 0,
           });
           if (decision === 'preparing') return refuse('unavailable');
           if (decision !== 'allowed') return refuse('rate_limited');
           return ok(async () => {
-            const requestId = p.newId();
-            await p.ai.insert(lock, {
-              requestId,
+            const turnId = p.newId();
+            await p.ai.insertAsk(lock, {
+              turnId,
+              trigger: 'asked',
+              causeMessageId: null,
               roomId: command.roomId,
               discussionId: command.discussionId,
               inhabitant: command.inhabitant,
@@ -56,7 +62,7 @@ export function makeInhabitantCommands(p: RoomPorts) {
               state: 'queued',
               createdAt: now,
             });
-            await p.enqueueContribution(scope, requestId);
+            await p.enqueueContribution(scope, turnId);
             return InhabitantAskAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'inhabitant.ask',

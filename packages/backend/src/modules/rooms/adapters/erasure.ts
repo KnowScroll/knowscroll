@@ -4,7 +4,10 @@ import { exportReading, type ModuleErasure, type ModuleExport } from '../../../i
 import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
-import { contributeQueue } from '../events.js';
+import { castDueQueue, castPassQueue, contributeQueue } from '../events.js';
+
+/** The queues whose payloads name a universe: the ask, the check whether a resident answers, and the call it may lead to. */
+const QUEUES = [contributeQueue.name, castDueQueue.name, castPassQueue.name];
 
 /**
  * Every Rooms store is keyed by account, not universe: a room, its members and its discussions are
@@ -17,7 +20,9 @@ import { contributeQueue } from '../events.js';
  * into tombstones with fresh change numbers (no author, body, card or note; same place and number),
  * deletes their snippet rows, and clears the starter link of discussions they began and the asker
  * of AI requests. The room goes on for the others, and "Deleted account" stands where the person was.
- * An AI contribution a deleted person asked for stays: it belongs to the room.
+ * An AI contribution a deleted person asked for stays: it belongs to the room. An unprompted turn never had an asker,
+ * and its message belongs to the room. `room_cast` (a room's residents) and `typing_holds` (a discussion and a few
+ * seconds) hold no account, so they have no owner to erase for.
  */
 const LIFECYCLE = {
   'rooms.members': 'the account membership is removed, with its AI level, keep-out choice and notice mark',
@@ -26,7 +31,7 @@ const LIFECYCLE = {
   'rooms.discussions': 'the starter link is cleared; the discussion stays for the others',
   'rooms.messages': 'the account authored messages become tombstones',
   'rooms.message_snippets': 'deleted with the author tombstoned message',
-  'rooms.ai_requests': 'the asker link is cleared; a contribution stays with the room',
+  'rooms.ai_turns': 'the asker link is cleared; a turn and its contribution stay with the room',
   'rooms.activities': 'the creator link is cleared; the poll or quiz stays with the room',
   'rooms.poll_votes': 'the account votes are deleted',
 } as const;
@@ -38,7 +43,7 @@ const LIFECYCLE = {
  */
 async function failQueuedAsks(trx: ReturnType<typeof transactionOf>, universeId: string): Promise<number> {
   const failed = await sql`
-    update rooms.ai_requests set state = 'failed', settled_at = now(), dispatched = true
+    update rooms.ai_turns set state = 'failed', settled_at = now(), dispatched = true
     where state = 'queued' and requested_by_account_id = (select account_id from identity.universes where id = ${universeId}::uuid)`.execute(
     trx,
   );
@@ -68,6 +73,14 @@ export const roomsErasure: ModuleErasure = declareErasure({
       name: `pgboss/${contributeQueue.name}`,
       description: 'Queued, active, retained and dead-lettered ask IDs.',
     },
+    {
+      name: `pgboss/${castDueQueue.name}`,
+      description: 'Queued, active, retained and dead-lettered checks of whether a resident answers a message (IDs).',
+    },
+    {
+      name: `pgboss/${castPassQueue.name}`,
+      description: 'Queued, active, retained and dead-lettered model calls of residents speaking on their own (IDs).',
+    },
   ],
   accountTables: [
     { schema: 'rooms', table: 'members', ownerColumn: 'account_id' },
@@ -75,7 +88,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'discussions', ownerColumn: 'started_by_account_id' },
     { schema: 'rooms', table: 'messages', ownerColumn: 'author_account_id' },
     { schema: 'rooms', table: 'message_snippets', ownerColumn: 'message_id' },
-    { schema: 'rooms', table: 'ai_requests', ownerColumn: 'requested_by_account_id' },
+    { schema: 'rooms', table: 'ai_turns', ownerColumn: 'requested_by_account_id' },
     { schema: 'rooms', table: 'activities', ownerColumn: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'room_presence', ownerColumn: 'account_id' },
@@ -86,7 +99,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'invitations', column: 'inviter_account_id' },
     { schema: 'rooms', table: 'discussions', column: 'started_by_account_id' },
     { schema: 'rooms', table: 'messages', column: 'author_account_id' },
-    { schema: 'rooms', table: 'ai_requests', column: 'requested_by_account_id' },
+    { schema: 'rooms', table: 'ai_turns', column: 'requested_by_account_id' },
     { schema: 'rooms', table: 'activities', column: 'created_by_account_id' },
     { schema: 'rooms', table: 'poll_votes', column: 'account_id' },
     { schema: 'rooms', table: 'room_presence', column: 'account_id' },
@@ -96,7 +109,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
   async erase(scope) {
     const trx = transactionOf(scope);
     const asks = await failQueuedAsks(trx, scope.authority.universeId);
-    const jobs = await deleteJobPayloads(scope, [contributeQueue.name]);
+    const jobs = await deleteJobPayloads(scope, QUEUES);
     return { module: 'rooms', status: 'completed', removed: asks + jobs };
   },
 
@@ -139,7 +152,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
         where started_by_account_id = ${account}::uuid`.execute(trx),
     );
     removed += count(
-      await sql`update rooms.ai_requests set requested_by_account_id = null,
+      await sql`update rooms.ai_turns set requested_by_account_id = null,
           state = case when state = 'queued' then 'failed' else state end,
           settled_at = case when state = 'queued' then now() else settled_at end
         where requested_by_account_id = ${account}::uuid`.execute(trx),
@@ -161,11 +174,11 @@ export const roomsErasure: ModuleErasure = declareErasure({
   clear: {
     dispositions: {
       ...Object.fromEntries(Object.keys(LIFECYCLE).map((store) => [store, 'preserve' as const])),
-      [`store:pgboss/${contributeQueue.name}`]: 'erase' as const,
+      ...Object.fromEntries(QUEUES.map((name) => [`store:pgboss/${name}`, 'erase' as const])),
     },
     async erase(scope) {
       const asks = await failQueuedAsks(clearCoreTransactionOf(scope), scope.binding.universeId);
-      const jobs = await deleteClearJobPayloads(scope, [contributeQueue.name]);
+      const jobs = await deleteClearJobPayloads(scope, QUEUES);
       return { module: 'rooms', status: 'completed', removed: asks + jobs };
     },
   },
@@ -188,7 +201,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.discussions',
       'rooms.messages',
       'rooms.message_snippets',
-      'rooms.ai_requests',
+      'rooms.ai_turns',
       'rooms.activities',
       'rooms.poll_votes',
     ],
@@ -224,9 +237,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       const written = await sql<{ n: string }>`
         select count(*) as n from rooms.messages where author_account_id = ${person.accountId}::uuid`.execute(trx);
       const asks = await sql<{ n: string }>`
-        select count(*) as n from rooms.ai_requests where requested_by_account_id = ${person.accountId}::uuid`.execute(
-        trx,
-      );
+        select count(*) as n from rooms.ai_turns
+        where requested_by_account_id = ${person.accountId}::uuid and trigger = 'asked'`.execute(trx);
       const votes = await sql<{ room: string; question: string; choice: string | null; voted_at: Date }>`
         select room.name as room, activity.title as question, vote.voted_at,
           (select option ->> 'text' from jsonb_array_elements(activity.definition -> 'options') option

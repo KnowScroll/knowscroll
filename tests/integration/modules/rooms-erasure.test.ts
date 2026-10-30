@@ -151,7 +151,7 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
       ['rooms.members', 'account_id'],
       ['rooms.messages', 'author_account_id'],
       ['rooms.discussions', 'started_by_account_id'],
-      ['rooms.ai_requests', 'requested_by_account_id'],
+      ['rooms.ai_turns', 'requested_by_account_id'],
     ] as const)
       expect(await countOf(table, column, erased.accountId), table).toBe(0);
     expect(
@@ -292,8 +292,8 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     unwrap(await say(world, person, roomId, discussionId, 'still here after a clear'));
     unwrap(await ask(world, person, roomId, discussionId));
     const asking = await world.db
-      .selectFrom('rooms.ai_requests')
-      .select(['request_id', 'state'])
+      .selectFrom('rooms.ai_turns')
+      .select(['turn_id', 'state'])
       .where('requested_by_account_id', '=', person.accountId)
       .executeTakeFirstOrThrow();
     expect(asking.state).toBe('queued');
@@ -306,9 +306,9 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     // The ask is ended but not handed back: its call may already have been running, so it stays counted.
     expect(
       await world.db
-        .selectFrom('rooms.ai_requests')
+        .selectFrom('rooms.ai_turns')
         .select(['state', 'dispatched'])
-        .where('request_id', '=', asking.request_id)
+        .where('turn_id', '=', asking.turn_id)
         .executeTakeFirstOrThrow(),
     ).toEqual({ state: 'failed', dispatched: true });
     const cleared = { ...person, authority: { ...person.authority, privacyEpoch: 2 } };

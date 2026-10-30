@@ -175,6 +175,16 @@
       # background roles (Jev, Cartographer, Planner) may use; the rest is kept for what a person asks for
       # (#231, D-058).
       KS_REASONING_BACKGROUND_SHARE_PERCENT={{ ks_v2_reasoning_background_share_percent[item.name] | default(50) }}
+      # API and worker: residents may speak unprompted in rooms (v3 R-2, D-162). Off unless the world is listed.
+      # The database root reasoning.production_scopes 'rooms' is enabled by migration 0070.
+      KS_REASONING_ROOM_ENABLED={{ '1' if item.name in ks_v2_room_residents_worlds else '0' }}
+      # Worker only: the rooms scope's own daily caps and the ambient share of the global cap (D-162).
+      KS_REASONING_ROOM_REQUESTS_PER_DAY={{ ks_v2_reasoning_room_requests_per_day[item.name] | default(100) }}
+      KS_REASONING_ROOM_TOKENS_PER_DAY={{ ks_v2_reasoning_room_tokens_per_day[item.name] | default(1000000) }}
+      KS_REASONING_AMBIENT_SHARE_PERCENT={{ ks_v2_reasoning_ambient_share_percent[item.name] | default(30) }}
+      # Worker only: the whole world's daily model caps. Residents and the cast need more than the defaults (D-068).
+      KS_REASONING_GLOBAL_REQUESTS_PER_DAY={{ ks_v2_reasoning_global_requests_per_day[item.name] | default(300) }}
+      KS_REASONING_GLOBAL_TOKENS_PER_DAY={{ ks_v2_reasoning_global_tokens_per_day[item.name] | default(3000000) }}
       # Worker and production operator only: Scroll production may run (#232, #239). The database
       # root reasoning.production_scopes must be enabled too.
       KS_REASONING_PRODUCTION_ENABLED={{ '1' if item.name in ks_v2_production_enabled_worlds else '0' }}

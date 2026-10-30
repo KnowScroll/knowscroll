@@ -13,7 +13,8 @@ import {
 export const INHABITANT_ROLE_VERSION = 'inhabitant.1';
 export const INHABITANT_POLICY_VERSION = 'rooms-inhabitant.v1';
 
-const SAFE_HINTS = {
+/** The fixed hints the one repair may carry. Shared with the residents' roles, which write under the same rules. */
+export const SAFE_HINTS = {
   empty:
     'Put the contribution in "text", or answer {"kind":"nothing_to_add","text":""} when you have nothing useful to add.',
   too_long: `Keep "text" under ${String(CONTRIBUTION_MAX_CHARS)} characters: a few short sentences.`,
@@ -33,7 +34,7 @@ export interface InhabitantAnswer {
  * Explainer cannot challenge and a Skeptic cannot explain, and the text rules (length, no links, no
  * claim to be a person) refuse with a fixed hint for the one repair instead of reaching a room.
  */
-function answerSchema(inhabitant: InhabitantId): z.ZodType<InhabitantAnswer> {
+export function answerSchema(inhabitant: InhabitantId): z.ZodType<InhabitantAnswer> {
   const kinds = ['nothing_to_add', ...KINDS_OF[inhabitant]] as const satisfies readonly string[];
   return z.strictObject({ kind: z.enum(kinds), text: z.string().max(4000) }).superRefine((answer, context) => {
     if (answer.kind === 'nothing_to_add') return;
@@ -86,7 +87,9 @@ export interface ContextMessage {
 
 /** What the model may read: the room, the discussion and its newest messages. Nothing else. */
 export interface ContributionMaterial {
-  readonly requestId: string;
+  readonly turnId: string;
+  /** The number of the message an unprompted turn answers, among `messages` (counted from 1). */
+  readonly focus?: number;
   readonly roomName: string;
   readonly topicMeaning: string | undefined;
   readonly guidelines: string | undefined;
@@ -101,7 +104,7 @@ const clip = (text: string): string => [...text].slice(0, CONTEXT_MESSAGE_CHARS)
 /** The bounded context: prepared words only, with no names, handles, IDs, positions or private conversation. */
 export function contributionContext(material: ContributionMaterial): ReasoningContext {
   return {
-    bundleRef: `rooms-ask:${material.requestId}`,
+    bundleRef: `rooms-ask:${material.turnId}`,
     items: [
       {
         ref: 'room',
@@ -115,6 +118,9 @@ export function contributionContext(material: ContributionMaterial): ReasoningCo
           .join('\n'),
       },
       { ref: 'discussion', kind: 'discussion', text: material.discussionTitle },
+      ...(material.focus === undefined
+        ? []
+        : [{ ref: 'focus', kind: 'focus', text: `Respond to message:${String(material.focus)}.` }]),
       ...(material.content === undefined
         ? []
         : [

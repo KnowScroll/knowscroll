@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UniverseIdSchema } from './ids.js';
+import { UniverseIdSchema, UuidSchema } from './ids.js';
 
 /**
  * Socket.IO live hints (blueprint §4, §7). Sockets carry subscriptions and disposable revision
@@ -38,11 +38,22 @@ export const socketEvents = {
   scopeResync: 'scope_resync',
   scopeRevoked: 'scope_revoked',
   presenceHeartbeat: 'presence_heartbeat',
+  roomTyping: 'room_typing',
 } as const;
 
 /** How often an open, visible app sends `presence_heartbeat`. The server lets an availability lapse
  * after three missed heartbeats, so a closed tab or a lost connection cannot stay "Online". */
 export const PRESENCE_HEARTBEAT_MS = 20_000;
+
+/**
+ * The second thing a client says over the socket: `room_typing`, while a member of a room types in a discussion
+ * (D-067, D-165). The only use is to hold back an AI turn. The server writes no person and no text, relays it to no
+ * one, shows it to no one, and answers `{ ok: true }` whether or not it was understood or the sender is a member.
+ * A device sends at most one every `ROOM_TYPING_HINT_MS`.
+ */
+export const RoomTypingSchema = z.strictObject({ roomId: UuidSchema, discussionId: UuidSchema });
+export type RoomTyping = z.infer<typeof RoomTypingSchema>;
+export const ROOM_TYPING_HINT_MS = 4_000;
 
 /** Acknowledgement of `presence_heartbeat`. Identical whether or not availability is shared. */
 export const PresenceHeartbeatAckSchema = z.discriminatedUnion('ok', [

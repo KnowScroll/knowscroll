@@ -30,8 +30,14 @@ import { socialPeopleProviders, visitRefreshProviders } from '@knowscroll/backen
 import { roomsWorkerProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
   CONTRIBUTE_AS_INHABITANT,
+  DECIDE_CAST,
+  RUN_CAST_PASS,
+  castDueQueue,
+  castPassQueue,
   contributeQueue,
   type ContributeAsInhabitant,
+  type DecideCast,
+  type RunCastPass,
 } from '@knowscroll/backend/modules/rooms';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
@@ -155,7 +161,11 @@ export const jobWiring: Provider[] = [
   ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   // An AI inhabitant answers a member's ask through the personal harness; it reads people and content only.
   ...socialPeopleProviders(),
-  ...roomsWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
+  ...roomsWorkerProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    workerConfig: WORKER_CONFIG,
+    enqueueJob: ENQUEUE_JOB,
+  }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   {
     provide: PERSONAL_MATERIAL_CHANGE,
@@ -224,6 +234,8 @@ export const jobWiring: Provider[] = [
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
       CONTRIBUTE_AS_INHABITANT,
+      DECIDE_CAST,
+      RUN_CAST_PASS,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
       PROJECT_ENCOUNTER_ACTIVITY,
@@ -251,6 +263,8 @@ export const jobWiring: Provider[] = [
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
       contributeAsInhabitant: ContributeAsInhabitant,
+      decideCast: DecideCast,
+      runCastPass: RunCastPass,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
       projectActivity: ProjectEncounterActivity,
@@ -337,6 +351,18 @@ export const jobWiring: Provider[] = [
       jobConsumer(contributeQueue, async (payload, delivery) => {
         await contributeAsInhabitant(payload, delivery.signal);
       }),
+      // Residents speaking on their own are registered only when this worker holds the rooms grant
+      // (KS_REASONING_ROOM_ENABLED), so a world that leaves them off keeps the jobs for one that has it (D-162).
+      ...(config.reasoning.roomEnabled
+        ? [
+            jobConsumer(castDueQueue, async (payload) => {
+              await decideCast(payload);
+            }),
+            jobConsumer(castPassQueue, async (payload, delivery) => {
+              await runCastPass(payload, delivery.signal);
+            }),
+          ]
+        : []),
       jobConsumer(applyActionEvidenceQueue, async (payload) => {
         const result = await applyActionEvidence(payload);
         if (result.kind === 'skipped')

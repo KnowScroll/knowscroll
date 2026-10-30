@@ -31,7 +31,7 @@ const skeptic: RoomMessage = {
   messageId: id(200),
   sequence: 3,
   status: 'available',
-  author: { kind: 'ai', inhabitant: 'skeptic', label: 'AI · Skeptic' },
+  author: { kind: 'ai', inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic' },
   recordedAt: at,
   body: { kind: 'text', text: 'Does that assume requests arrive in bursts?' },
   suggestion: 'assumption',
@@ -99,6 +99,41 @@ describe('room messages', () => {
     expect(screen.getByText('A suggestion. Nothing is made unless someone chooses it.')).toBeOnTheScreen();
     // A person's message carries no AI label, and the caller's own is not named.
     expect(screen.queryByText('Asha')).not.toBeOnTheScreen();
+  });
+
+  it('names a resident beside its label and says why it spoke when it was not asked', async () => {
+    const unprompted: RoomMessage = { ...skeptic, trigger: 'overstated_claim' } as RoomMessage;
+    await show([text(1, asha, 'so we have proven it'), unprompted]);
+    expect(screen.getByText('Halley')).toBeOnTheScreen();
+    expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
+    expect(screen.getByTestId('resident-why')).toHaveTextContent('Asking about something said very strongly');
+    // A resident that answered an ask gives no reason: it was asked.
+    await show([skeptic]);
+    expect(screen.getAllByTestId('resident-header').length).toBeGreaterThan(0);
+  });
+
+  it('folds a resident’s unprompted message into one line for a Quieter reader, with the words one tap away', async () => {
+    const folded: RoomMessage = { ...skeptic, trigger: 'unanswered_question', folded: true } as RoomMessage;
+    await show([text(1, asha, 'Why do we have seasons?'), folded]);
+    expect(screen.getByText('Halley added something.')).toBeOnTheScreen();
+    expect(screen.queryByText('Does that assume requests arrive in bursts?')).not.toBeOnTheScreen();
+    expect(screen.queryByRole('text', { name: 'AI, Skeptic' })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('resident-show'));
+    expect(screen.getByText('Does that assume requests arrive in bursts?')).toBeOnTheScreen();
+    expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
+  });
+
+  it('draws nothing at all for what a resident said on its own to a reader whose AI is Off', async () => {
+    await show([
+      text(1, asha, 'Why do we have seasons?'),
+      { messageId: id(110), sequence: 2, status: 'muted' },
+      text(3, ravi, 'good question'),
+    ]);
+    expect(screen.getByText('Why do we have seasons?')).toBeOnTheScreen();
+    expect(screen.getByText('good question')).toBeOnTheScreen();
+    expect(screen.queryByTestId('message-2')).not.toBeOnTheScreen();
+    expect(screen.queryByText(/added something/)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/AI/)).not.toBeOnTheScreen();
   });
 
   it('names other people above their words and shows removed and deleted messages as markers that keep their place', async () => {

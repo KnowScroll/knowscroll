@@ -142,11 +142,14 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
           select id from reasoning.production_attempts
           where scope_id = ${scope.authority.scopeId} and budget_window = ${today}
         )`.execute(trx);
+      const ambientGlobal = await sql<{ requests: string; tokens: string }>`
+        select ${receiptSpend} from reasoning.usage_receipts where budget_window = ${today} and ambient`.execute(trx);
       return {
         global: spendOf(global.rows[0]),
         role: spendOf(role.rows[0]),
         scope: spendOf(production.rows[0]),
         background: { global: spendOf(backgroundGlobal.rows[0]), scope: spendOf(backgroundProduction.rows[0]) },
+        ambient: { global: spendOf(ambientGlobal.rows[0]) },
       };
     },
 
@@ -198,6 +201,7 @@ export function makeProductionAttemptLedger(db: Kysely<Database>): AttemptLedger
           budget_window: today,
           reserved_tokens: reservation.reservedTokens,
           background: reservation.budgetClass === 'background',
+          ambient: reservation.budgetClass === 'ambient',
         })
         .execute();
     },
