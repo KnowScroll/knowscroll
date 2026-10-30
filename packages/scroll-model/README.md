@@ -530,6 +530,21 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 
 What counts as a word, and what does not (`simple` texts), is in D-121. `validateDocumentV2` returns `valid {document, notices}` or `invalid {issues}`. A notice (`misconception_source_unreviewed`) does not refuse the document.
 
+### Delivery and reading (D-128, D-129)
+
+Status: **implemented**, unit-tested.
+
+- `parseDocumentV2(input, {verify?})` is the client path: the size, the schema, the budget and the structure
+  rules, with the measures, the reading time and the hash checked only with `verify: true` (as v1's
+  `parseDocument`). `validateDocumentV2` always verifies.
+- `negotiateV2(document, capabilities)` offers the document whole to a client that declares
+  `scroll-document.v2`, and reports `unsupported-document` to any other. A v2 document has no blocks to
+  substitute.
+- `INTERACTION_KINDS_V2`: a call reports `locked` or `revealed`, nothing else. No kind carries the option
+  picked or whether it was right (D-063).
+- `./internal` has `ScrollProvenanceV2` (`scroll-provenance.v2`): the claims, sources, production record
+  and, per stop, aside and recap, the claims it cites.
+
 ### The kit
 
 `EARTH_SKY_KIT` (`earth-sky.v1`) is the closed set of words a writer may use for a stage: `view`, `earthAt` (a month), `axis`, `ray`, `orbit`, `northPin`, `southPin`, `moonAt` and `focus`. `describeStageState` writes the text version of any state; a property test checks that it is plain and bounded for every state.

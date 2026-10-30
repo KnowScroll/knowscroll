@@ -9,6 +9,27 @@ Status: the pipeline below is **implemented** and has been **runtime-verified** 
 `MiniMax-M3.1-Flash` calls against a local database (summaries in the pull requests for #232 and
 #239). It runs as worker jobs (next section). Not yet running on dev.
 
+## Producing a v2 Scroll (D-129)
+
+Status: **implemented**, runtime-verified with the labelled CI fixture model on real PostgreSQL; real
+provider generation of Seasons is the next step (no recipe is marked yet).
+
+A recipe the library plan marks `scrollV2` (`{variant, misconception}`) is produced by the same job, take
+and attempt ledger, with the v2 writer (`writer-v2.ts`) in place of the v1 writer. `writer-plan.ts` is the one
+place the two differ: the role the model is asked, and how an accepted answer is compiled into what
+admission stores (`stored-v2.ts`: document, `scroll-provenance.v2`, reading facts v3). Still one writer
+request and at most one repair, none inside a transaction.
+
+- **Versions.** A v2 recipe's jobs are `scroll-production.v15`, every other recipe's and every order's
+  `.v14` (`productionVersionOf`). A v2 recipe counts as published only when its current revision is a v2
+  document, so a v1 Scroll published earlier is regenerated as the next revision of the same asset.
+  A queued job whose version does not match the plan is dropped.
+- **Library refusal.** A misconception whose source label is not `reviewed` ends the job as rejected
+  (`misconception_source_unreviewed`) after the one request; no repair can fix a recipe.
+- **Same publication.** Revision, provenance, topic attribution and coverage (`scroll-recipe-coverage.v2`)
+  commit in one transaction. `content produce-scroll`, `produce-library` and `production-status` work for v2
+  recipes unchanged.
+
 ## Jobs, takes and who sends them
 
 Production is the `content.produce-scroll` job (`events.ts`), one per **recipe, recipe version and

@@ -70,6 +70,15 @@ recorder at elapsed zero for a previously activated exposure. A fresh revisit mu
 exposure through the authorized encounter flow. Durable outbox batches already formed keep their
 original event IDs and retry behavior across parking; suspension does not dispose the scope outbox.
 
+## Parsing a document (D-129)
+
+Status: **implemented**, unit-tested. `parseScrollDocument(input, {verify?})` is the device's one way into an
+exposure's document, for either schema: the schema the server named picks `parseDocument` or
+`parseDocumentV2` (also exported), each checking structure and bounds and leaving the measures and hash to
+`verify`. The result is `valid` with its schema, `unsupported`, or `invalid` with codes and paths. The
+reader (S-1c) uses it; the current Scroll screen still parses v1 only, and a client that does not declare
+`scroll-document.v2` is never sent a v2 document.
+
 ## Readonly Universe session
 
 Related: #238.

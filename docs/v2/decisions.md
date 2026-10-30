@@ -1142,3 +1142,52 @@ Confirmed by: `thread-phone-smoke.spec.ts` (panel), `talk-smoke.spec.ts`.
 - **Threads only.** The direct conversation list gets its times in T-B.
 
 Confirmed by: `talk-format.test.ts`, `thread-phone-smoke.spec.ts`.
+
+## D-127 · 2026-10-30 · Coverage v2: a v2 Scroll binds its facets to read stops (S-1b, #472)
+
+A planet forms from facet coverage (D-033). Coverage v1 binds a facet to top-level paragraphs, quotes and callouts, and a v2 document has none of those, so no planet could form from a v2 Scroll. This adds `scroll-recipe-coverage.v2`. Coverage v1 is unchanged and still decides every v1 Scroll.
+
+**Amends** D-033 for documents whose reading facts are v3 (D-128).
+
+- **Same shape, new units.** The eligible units are the read stops that cite at least one documented claim. The primary facet needs the first, middle and last of them; a supporting facet needs the last two. Fewer than three eligible stops claim no coverage, the same bar as v1.
+- **Calls bind nothing.** A call is play, not explanation, and D-063 keeps play out of formation. A binding that names a call is refused at admission (`CONTENT_COVERAGE_LOCATOR_INVALID`). Calls still weigh in how well the Scroll was read (D-128).
+- **Same mapping, one more version number.** The stored mapping keeps `scroll-static-coverage.v1` as its policy, so the region bindings and every reader of a mapping keep working. Its `readingFactsVersion` is 3 and the review reference says `scroll-recipe-coverage.v2`.
+- **Decided by code, at publication.** The rule runs in the publication transaction like v1. `content readmit-coverage` applies the rule that matches each stored revision.
+- **Verified.** Unit tests of the rule, and an integration test on real PostgreSQL that publishes a labelled v2 fixture over a v1 revision and reads back both heads. Shown failing when the eligible unit is changed.
+
+## D-128 · 2026-10-30 · Reading facts v3: what counts as reading a v2 stop (S-1b, #472)
+
+The Reader qualifies a reading by `q = 0.5 · coverage + 0.5 · dwell` (blueprint §8). A v2 Scroll is read stop by stop, and a reader can jump to any stop from the spine, so a stop must count as read by more than being on screen for half a second.
+
+**Amends** the qualification input for v2 documents. The policy (`scroll-qualification.v0`), its weights and its thresholds (q at least 0.6, coverage at least 0.5) do not change.
+
+- **Facts v3.** Content stores, with each v2 revision, one unit per stop and call: its weight (the document's own measures, an aside weighing with the stop it opens beside), a rule for when it counts, and the reading estimate (the measures' reading time, calls included). The recap is the payoff screen and is not a unit.
+- **A read stop** counts after it was visible, while the article was active, for 40 % of the time its own words take at 230 words a minute, and never less than the policy's half second. A reader up to two and a half times faster than the pace still reads it.
+- **A call** counts when it was reported as locked in or revealed. Being on screen does not count it. The option picked is not a reportable interaction at all, so nothing about it reaches evidence (D-063). The new value-free kinds are `locked` and `revealed`, declared for `call_it` and `final_call`.
+- **Tapping through the spine does not qualify.** Without time on each stop the read stops are not seen, so coverage stays low; the 40 % rule closes the gap v1's half second would leave for a skimming tapper (coverage 1 with a fifth of the dwell would reach 0.6).
+- **Evidence carries the rule, not content.** A unit without a rule counts as v1 always has, so v1 facts and Reels are untouched. The two hash the same way in coverage certificates; a mapping names the facts version it was decided for.
+- **Verified.** A pure test with 500 generated tapping traces and the hardest tap (every dot, each just under 40 %, every call locked), none qualifying. Shown failing when the share is 0 and when stops count after half a second, and shown to qualify a walk at the full pace and a fast reader.
+
+## D-129 · 2026-10-30 · v2 Scrolls are admitted by the production job and served by schema (S-1b, #472)
+
+The production job published only v1 Scrolls. A v2 Scroll is now produced, admitted and served through the same job, the same attempt ledger and the same coverage rule, and a client that cannot render it is not given it.
+
+**Amends** D-037 and D-120 (the writer ran only in the spike).
+
+- **The plan marks a recipe v2.** `LibraryRecipe.scrollV2` carries the variant and the misconception. Every recipe stays v1 until the plan marks it. This entry marks none; marking the Seasons recipes is the next step.
+- **A job per version.** A v2 recipe's jobs use `scroll-production.v15`, a v1 recipe's `.v14`. A recipe already published as v1 is therefore a new job and its Scroll a new revision of the same asset (the identity never changes, D-033). A v2 recipe counts as published only when its current revision is a v2 document, so `produce-library` and `production-status` treat a v1 Scroll as not yet regenerated. A queued job whose version does not match the plan is dropped.
+- **Same bounds.** One writer request and at most one repair, in a worker, through the attempt ledger. No model call or network wait is inside a transaction or on HTTP. The writer role and its prompt are the spike's (`scroll-writer.v14`); the stage rules belong to S-1a.
+- **Refused for the library.** A misconception whose source label no person has reviewed is a notice in the document validator and a refusal here (`misconception_source_unreviewed`). It is a recipe problem, so there is no repair: the job ends after the one request.
+- **Provenance for citations.** `scroll-provenance.v2` records the claims a v2 Scroll cites (the exact source passages), their sources, the production record, and for each stop, aside and the recap the claims it cites. It is stored beside the revision and never served.
+- **Served by schema.** The document endpoint serves a v2 document whole to a client that declares `scroll-document.v2`, and answers `cannot_render` to any other. A v2 document has no blocks to substitute. `parseDocumentV2` is the client path (it skips measures and hash unless asked, like v1). `renderableFormats`, `canRender`, region candidates and the Planner's capabilities accept either schema.
+- **A v1 revision stands in, or nothing does.** Discovery offers a client that cannot render a v2 current revision the latest earlier v1 revision of the same asset, if one exists; otherwise the asset is not offered to it. An exact revision pinned by an offer or a link is never swapped.
+- **Not in this entry.** Snippet anchors for v2 passages, the reader (S-1c), play (S-2).
+- **Verified.** Integration tests on real PostgreSQL: regeneration over a v1 revision, the rejected source, the status, the served schemas, the fallback; unit tests of the versions and the stored compile.
+
+## D-130 · 2026-10-30 · The context carries a series total counted from admitted units (S-1b, #472)
+
+**Amends** D-059: "Series total is not invented. The context response carries a part number and no total." D-072 allows counts for Scrolls, and a count must be real.
+
+- `series.total` in the exposure context is the number of `content.series_units` of the series revision the Scroll is in. It is never declared, estimated or taken from the library plan.
+- A series with no counted units has no `series` at all. Reels and all other fields are unchanged.
+- The Composer's snapshot does not carry it: ranking never reads the total.

@@ -1,7 +1,7 @@
 import { sql, type Transaction } from 'kysely';
 import { z } from 'zod';
 import { parseDocument, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
-import { ScrollProvenance, ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
+import { ScrollProvenance, ScrollProvenanceV2, type ProductionRecord } from '@knowscroll/scroll-model/internal';
 import { MINIMAX_MODELS } from '../../../infrastructure/config/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
@@ -107,6 +107,39 @@ async function readPublishedRevision(
     .executeTakeFirst();
 }
 
+/** What a stored document and its provenance state about themselves, whichever schema the revision has. */
+interface StoredLineage {
+  readonly document: {
+    readonly schemaVersion: string;
+    readonly assetId: string;
+    readonly revision: number;
+    readonly explanationUnitId: string;
+    readonly integrity: { readonly sha256: string };
+  };
+  readonly provenance: {
+    readonly schemaVersion: string;
+    readonly assetId: string;
+    readonly revision: number;
+    readonly documentSha256: string;
+    readonly production: ProductionRecord;
+  };
+  /** The writer instructions a Scroll of this schema must name. */
+  readonly writerPromptVersion: string;
+}
+
+function storedLineage(row: PublishedRevisionRow): StoredLineage | undefined {
+  if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
+    const document = parseDocumentV2(row.document);
+    const provenance = ScrollProvenanceV2.safeParse(row.provenance);
+    if (document.kind !== 'valid' || !provenance.success) return undefined;
+    return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_V2_PROMPT_VERSION };
+  }
+  const document = parseDocument(row.document);
+  const provenance = ScrollProvenance.safeParse(row.provenance);
+  if (document.kind !== 'valid' || !provenance.success) return undefined;
+  return { document: document.document, provenance: provenance.data, writerPromptVersion: WRITER_PROMPT_VERSION };
+}
+
 /** The stored document and provenance are the recipe's, at the revision the job targeted. */
 function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
   const topic = parseScrollTopic(row.topic);
@@ -114,75 +147,30 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
     topic === undefined ||
     row.asset_id !== TOPICS[topic].assetId ||
     row.revision !== row.target_revision ||
-    row.explanation_unit_id !== explanationUnitFor(topic)
+    row.explanation_unit_id !== explanationUnitFor(topic) ||
+    row.policy_version !== productionVersionOf(topic)
   )
     return undefined;
   const stored = storedLineage(row);
   if (stored === undefined) return undefined;
-  const { production } = stored;
+  const { document, provenance } = stored;
+  const production = provenance.production;
   if (
-    row.policy_version !== productionVersionOf(topic) ||
-    stored.schemaVersion !== row.document_version ||
-    stored.provenanceVersion !== row.provenance_version ||
-    stored.assetId !== row.asset_id ||
-    stored.revision !== row.revision ||
-    stored.explanationUnitId !== row.explanation_unit_id ||
-    stored.documentSha256 !== row.document_sha256 ||
-    stored.provenanceAssetId !== row.asset_id ||
-    stored.provenanceRevision !== row.revision ||
-    stored.provenanceDocumentSha256 !== row.document_sha256 ||
+    document.schemaVersion !== row.document_version ||
+    provenance.schemaVersion !== row.provenance_version ||
+    document.assetId !== row.asset_id ||
+    document.revision !== row.revision ||
+    document.explanationUnitId !== row.explanation_unit_id ||
+    document.integrity.sha256 !== row.document_sha256 ||
+    provenance.assetId !== row.asset_id ||
+    provenance.revision !== row.revision ||
+    provenance.documentSha256 !== row.document_sha256 ||
     production.kind !== 'model' ||
     production.runId !== writerRunId ||
-    production.promptVersion !== (stored.v2 ? WRITER_V2_PROMPT_VERSION : WRITER_PROMPT_VERSION)
+    production.promptVersion !== stored.writerPromptVersion
   )
     return undefined;
   return { topic, production };
-}
-
-/** The identity a stored document and its provenance state, whichever schema the revision has. */
-function storedLineage(row: PublishedRevisionRow) {
-  if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
-    const document = parseDocumentV2(row.document);
-    const provenance = ScrollProvenanceV2.safeParse(row.provenance);
-    if (document.kind !== 'valid' || !provenance.success) return undefined;
-    return lineageOf(document.document, provenance.data, true);
-  }
-  const document = parseDocument(row.document);
-  const provenance = ScrollProvenance.safeParse(row.provenance);
-  if (document.kind !== 'valid' || !provenance.success) return undefined;
-  return lineageOf(document.document, provenance.data, false);
-}
-
-function lineageOf(
-  document: {
-    schemaVersion: string;
-    assetId: string;
-    revision: number;
-    explanationUnitId: string;
-    integrity: { sha256: string };
-  },
-  provenance: {
-    schemaVersion: string;
-    assetId: string;
-    revision: number;
-    documentSha256: string;
-    production: z.infer<typeof ScrollProvenance>['production'];
-  },
-  v2: boolean,
-) {
-  return {
-    v2,
-    schemaVersion: document.schemaVersion,
-    assetId: document.assetId,
-    revision: document.revision,
-    explanationUnitId: document.explanationUnitId,
-    documentSha256: document.integrity.sha256,
-    provenanceVersion: provenance.schemaVersion,
-    provenanceAssetId: provenance.assetId,
-    provenanceRevision: provenance.revision,
-    provenanceDocumentSha256: provenance.documentSha256,
-    production: provenance.production,
-  };
 }
 
 /** The job's single writer receipt names exactly the sent attempts the harness accounted. */

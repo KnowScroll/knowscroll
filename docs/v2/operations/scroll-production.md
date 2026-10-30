@@ -227,6 +227,23 @@ To read a refused answer: `node dist/operator.js reasoning rejected --attempt <a
 
 Each run starts fresh and remembers nothing. Before running again, reconcile every attempt the last run left `unknown` with `reasoning unknown` (or write it off): re-running that topic before then would send a second paid request while the first is unsettled. Then re-run only the topics in `notStarted` plus `stoppedBy.key`, which is not in `notStarted`. Re-running all twenty repeats the finished ones and pays for them again.
 
+## Producing a v2 Scroll (S-1b, D-127 to D-130)
+
+A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. A v2 recipe is a job of its own version (`scroll-production.v15`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset.
+
+```sh
+# the same commands as for v1; the plan decides which writer runs
+node dist/operator.js content produce-library --dry-run --only <recipe key,…>   # a v1-published v2 recipe is listed as not started
+node dist/operator.js content produce-library --only <recipe key,…>
+node dist/operator.js content production-status --only <recipe key,…>          # published only once the current revision is a v2 document
+node dist/operator.js content readmit-coverage                                 # after a plan change; picks the rule that matches each revision
+node dist/operator.js content admit-continuity                                 # the series now points at the v2 revisions
+```
+
+What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a job rejected with `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`), not a model problem, and used one request. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim.
+
+Until the reader (S-1c) ships, a client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Run `admit-continuity` only when you want the series to point at the v2 revisions.
+
 ## Facts about the model
 
 `MiniMax-M3.1-Flash` thinks before it answers and refuses `thinking: disabled`; thinking tokens

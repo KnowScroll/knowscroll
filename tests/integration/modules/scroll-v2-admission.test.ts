@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
@@ -21,7 +22,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
-import { textCapabilities } from '../support/scroll.js';
+import { scrollUseCases, textCapabilities } from '../support/scroll.js';
 import { markScrollV2, ORRIN_PLAN, v2Capabilities } from '../support/scroll-v2.js';
 
 /**
@@ -183,6 +184,40 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
     };
     expect((await offered(v2Capabilities)).map((encounter) => encounter.assetRevision)).toEqual([2]);
     expect((await offered(textCapabilities)).map((encounter) => encounter.assetRevision)).toEqual([1]);
+  });
+
+  it('opens the v2 revision and reads its document through the experience use cases', async () => {
+    const useCases = await scrollUseCases(database);
+    try {
+      const person = await seedPerson(database.db);
+      const open = (capabilities: typeof textCapabilities) =>
+        useCases.openExposure(person.authority, {
+          commandId: randomUUID(),
+          target: { kind: 'scroll', assetId: TOPICS.seasons.assetId },
+          origin: { kind: 'direct' },
+          capabilities,
+        });
+      const opened = await open(v2Capabilities);
+      if (opened.kind !== 'opened') throw new Error('CI open refused');
+      expect(opened.outcome.assetRevision).toBe(2);
+      const read = await useCases.readExposureDocument(person.authority, opened.outcome.exposureId);
+      if (read.kind !== 'document') throw new Error('CI expected the document');
+      expect(read.document.schemaVersion).toBe(SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
+      expect(read.degradedEssential).toEqual([]);
+      for (const internal of ['claim', 'scroll-provenance', '"production"', 'snapshotSha256'])
+        expect(JSON.stringify(read.document)).not.toContain(internal);
+
+      // A client that did not declare the schema is told it cannot render this revision.
+      const old = await open(textCapabilities);
+      if (old.kind !== 'opened') throw new Error('CI open refused');
+      expect(await useCases.readExposureDocument(person.authority, old.outcome.exposureId)).toMatchObject({
+        kind: 'refused',
+        reason: 'cannot_render',
+        cannotRender: 'unsupported_document',
+      });
+    } finally {
+      await useCases.close();
+    }
   });
 
   it('rejects a v2 Scroll whose misconception source no person has reviewed, after one paid request', async () => {

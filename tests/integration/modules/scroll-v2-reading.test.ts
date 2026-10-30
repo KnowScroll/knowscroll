@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
 import { stopWords, WORDS_PER_MINUTE_V2 } from '@knowscroll/scroll-model';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
+import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { readingFactsOfV2 } from '../../../packages/backend/src/modules/content/adapters/reading-facts-v2.js';
 import { evidencePassages } from '../../../packages/backend/src/modules/content/production/evidence.js';
 import {
@@ -229,7 +230,7 @@ describe('The Seasons planet forms from a v2 Part 1 and two v1 parts (real Postg
       .where('asset_id', '=', scroll.assetId)
       .where('revision', '=', scroll.revision)
       .executeTakeFirstOrThrow();
-    const stored = row.reading_facts as ReadingFacts;
+    const stored = ReadingFactsSchema.parse(row.reading_facts);
     const reading = walkthrough(stored, quick ? 0.5 : 2.5, !quick);
     const opened = await openActive(world.c, person, scroll);
     await activatedAgo(world.database.db, opened.exposureId, 30);
@@ -285,7 +286,7 @@ describe('The Seasons planet forms from a v2 Part 1 and two v1 parts (real Postg
         .select('reading_facts')
         .where('asset_id', '=', recipe.assetId)
         .executeTakeFirstOrThrow();
-      expect((row.reading_facts as ReadingFacts).v).toBe(2);
+      expect(ReadingFactsSchema.parse(row.reading_facts).v).toBe(2);
       scrolls.push({ assetId: recipe.assetId, revision: 1 });
     }
 
@@ -323,6 +324,6 @@ describe('The Seasons planet forms from a v2 Part 1 and two v1 parts (real Postg
       .select('reading_facts')
       .where('asset_id', '=', assetId)
       .executeTakeFirstOrThrow();
-    return (row.reading_facts as ReadingFacts).blocks.map((block) => block.id);
+    return ReadingFactsSchema.parse(row.reading_facts).blocks.map((block) => block.id);
   }
 });
