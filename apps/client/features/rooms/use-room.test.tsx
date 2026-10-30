@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { announceBlocksChanged, type AccountScope } from '@knowscroll/client-core';
 import { useRoom, useRoomDiscussion } from './use-room';
 
+jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 jest.mock('../../platform/command-id', () => {
   let next = 40000;
   return { newCommandId: () => `0199c000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };

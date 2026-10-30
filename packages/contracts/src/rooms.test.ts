@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import {
+  ROOM_COUNT_AND_ACTIVITY_FIELDS,
   ROOM_HERE_COUNT_FROM,
   RoomHereSchema,
   RoomViewSchema,
@@ -91,5 +93,102 @@ describe('a member’s own settings and presence', () => {
 
   it('serves the new routes beside the old ones', () => {
     expect(Object.keys(roomsContract)).toEqual(expect.arrayContaining(['preferences', 'presence', 'read', 'send']));
+  });
+});
+
+/** The node kinds of a zod v4 schema the walk below looks into; any other composite kind fails the test loudly. */
+interface Def {
+  readonly type: string;
+  readonly shape?: Record<string, z.ZodType>;
+  readonly options?: readonly z.ZodType[];
+  readonly element?: z.ZodType;
+  readonly innerType?: z.ZodType;
+  readonly in?: z.ZodType;
+  readonly out?: z.ZodType;
+  readonly left?: z.ZodType;
+  readonly right?: z.ZodType;
+  readonly valueType?: z.ZodType;
+  readonly items?: readonly z.ZodType[];
+  readonly entries?: unknown;
+}
+const LEAVES = new Set(['string', 'number', 'int', 'boolean', 'literal', 'enum', 'null', 'undefined', 'date', 'any']);
+/** A key speaks of a count or of activity when one of its camelCase words does, or it starts with lastMessage or lastActivity. */
+const SPEAKS_OF_PEOPLE_OR_ACTIVITY = (key: string): boolean =>
+  /^last(Message|Activity)/.test(key) ||
+  (key.match(/[A-Z]?[a-z]+/g) ?? []).some((word) =>
+    /^(count|total|online|here|active|unread|seen)$/.test(word.toLowerCase()),
+  );
+
+/** Every key path of a schema whose name matches, with the `status` branch it sits on. */
+function matchingKeys(schema: z.ZodType, path: string, view: string | undefined, found: string[]): void {
+  const def = (schema as unknown as { _zod: { def: Def } })._zod.def;
+  if (LEAVES.has(def.type)) return;
+  if (def.type === 'object') {
+    const shape = def.shape ?? {};
+    const status =
+      shape['status'] === undefined
+        ? undefined
+        : (shape['status'] as unknown as { _zod: { def: { values?: string[] } } })._zod.def.values?.[0];
+    const here = status ?? view;
+    for (const [key, child] of Object.entries(shape)) {
+      const next = path === '' ? key : `${path}.${key}`;
+      if (SPEAKS_OF_PEOPLE_OR_ACTIVITY(key)) found.push(`${here ?? ''}|${next}`);
+      matchingKeys(child, next, here, found);
+    }
+    return;
+  }
+  const inner = [
+    def.element,
+    def.innerType,
+    def.in,
+    def.left,
+    def.right,
+    def.valueType,
+    ...(def.options ?? []),
+    ...(def.items ?? []),
+  ];
+  const composite = [
+    'union',
+    'array',
+    'optional',
+    'nullable',
+    'readonly',
+    'default',
+    'pipe',
+    'intersection',
+    'record',
+    'tuple',
+  ];
+  if (!composite.includes(def.type)) throw new Error(`The walk does not know zod kind "${def.type}" at ${path}`);
+  for (const child of inner) if (child !== undefined) matchingKeys(child, path, view, found);
+}
+
+describe('the allow-list of counts and activity (D-069)', () => {
+  const found = (): string[] => {
+    const all: string[] = [];
+    for (const [route, procedure] of Object.entries(roomsContract)) {
+      const keys: string[] = [];
+      matchingKeys((procedure as { '~orpc': { outputSchema: z.ZodType } })['~orpc'].outputSchema, '', undefined, keys);
+      all.push(...keys.map((key) => `${route}|${key}`));
+    }
+    return [...new Set(all)].sort();
+  };
+
+  it('names every answer key that speaks of a count, a total, presence or activity, and no other', () => {
+    const allowed = ROOM_COUNT_AND_ACTIVITY_FIELDS.map(
+      (field) => `${field.route}|${field.view ?? ''}|${field.path}`,
+    ).sort();
+    expect(found()).toEqual(allowed);
+  });
+
+  it("puts the room's own counts only on the member view, never on a list, a preview or a station", () => {
+    const onRead = found().filter((entry) => entry.startsWith('read|'));
+    expect(onRead.length).toBeGreaterThan(0);
+    expect(onRead.every((entry) => entry.startsWith('read|member|'))).toBe(true);
+    for (const route of ['list', 'stations', 'join', 'leave', 'invite', 'moderate', 'activities', 'readActivity'])
+      expect(
+        found().filter((entry) => entry.startsWith(`${route}|`)),
+        route,
+      ).toEqual([]);
   });
 });

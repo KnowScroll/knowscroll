@@ -197,12 +197,13 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
       });
       return socket;
     };
-    const nextHint = (socket: Socket) =>
-      new Promise<ScopeChangedHint>((resolve, reject) => {
+    /** The hint exactly as it came off the wire, before any schema can strip a key from it. */
+    const nextRawHint = (socket: Socket) =>
+      new Promise<unknown>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('no room hint within 5s')), 5000);
         socket.once(socketEvents.scopeChanged, (raw: unknown) => {
           clearTimeout(timer);
-          resolve(ScopeChangedHintSchema.parse(raw));
+          resolve(raw);
         });
       });
 
@@ -243,12 +244,16 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
         ok: boolean;
       };
       expect(ack.ok).toBe(true);
-      const heard = nextHint(listener);
+      const heard = nextRawHint(listener);
       await clientOf(a).rooms.presence({ version, roomId, state: 'here' });
-      const hint = await heard;
+      const raw = (await heard) as { scope: Record<string, unknown> };
+      // A hint names the room and nothing else: these keys and no others, so no person and no content can ride on it.
+      expect(Object.keys(raw).sort()).toEqual(['eventId', 'revision', 'scope']);
+      expect(Object.keys(raw.scope).sort()).toEqual(['id', 'kind']);
+      const hint: ScopeChangedHint = ScopeChangedHintSchema.parse(raw);
       expect(hint.scope).toEqual({ kind: 'room', id: roomId });
-      // A hint names the room and nothing else: no person, no content.
-      expect(JSON.stringify(hint)).not.toMatch(/${a.person.handle}|${b.person.handle}|displayName/);
+      expect(JSON.stringify(raw)).not.toContain(a.person.handle);
+      expect(JSON.stringify(raw)).not.toContain(b.person.handle);
 
       const stranger = (await seedFriends(db.db, talkCases(db.db).friends)).a;
       const strangerPerson: Person = { ...stranger, tokens: await seedKeepSessions(db.db, stranger) };

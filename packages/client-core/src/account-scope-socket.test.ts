@@ -127,7 +127,7 @@ describe('the scope socket and a room’s hints', () => {
     expect(roomSubscriptions()).toHaveLength(3);
   });
 
-  it('marks the room’s queries and the open discussions stale on a hint above what it has seen, and nothing else', () => {
+  it('marks the room’s queries and the open discussions stale on a hint, coalesces a burst, and ignores a room nobody watches', () => {
     const { server, connection } = connect();
     const invalidate = vi.spyOn(server.scope.queryClient, 'invalidateQueries');
     connection.watchRooms?.([roomOne]);
@@ -137,14 +137,21 @@ describe('the scope socket and a room’s hints', () => {
       server.scope.queryKey('talk', 'room', roomOne),
       server.scope.queryKey('talk', 'room-discussion'),
     ]);
-    // The same revision again, an older one, and a room nobody is watching change nothing.
+    // A burst inside the quiet window is answered by exactly one more refresh when it ends: a revision means
+    // nothing to catch up from, so even a repeated or older one must not be skipped (a message right after another).
     invalidate.mockClear();
     hint(roomOne, 1000);
     hint(roomOne, 900);
+    hint(roomOne, 1000);
     hint(roomTwo, 5000);
     expect(invalidate).not.toHaveBeenCalled();
-    hint(roomOne, 1001);
+    vi.advanceTimersByTime(300);
     expect(invalidate).toHaveBeenCalledTimes(2);
+    // Nothing more is owed once the window has passed, and a later hint refreshes at once again.
+    vi.advanceTimersByTime(600);
+    expect(invalidate).toHaveBeenCalledTimes(2);
+    hint(roomOne, 1001);
+    expect(invalidate).toHaveBeenCalledTimes(4);
     connection.close();
   });
 });

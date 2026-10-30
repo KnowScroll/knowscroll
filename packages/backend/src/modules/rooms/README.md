@@ -27,10 +27,10 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | The desktop room (D04): the room, the open discussion and the room extras in three panes | Implemented (client); runtime-verified |
 | Land in the room's General (one per room, backfilled for rooms that existed); topics and pins stay in the room menu (v3 R-1) | Implemented (CI-verified) |
 | See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last message 3 h ago" (v3 R-1, D-069) | Implemented (CI-verified) |
-| Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified) |
+| Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified). Keep-out already changes what AI reads; the level is stored and read by nothing until inhabitants speak on their own (R-2) |
 | The room menu: About, Guidelines, AI here, Members with the total, Pins, Topics (v3 R-1) | Implemented (CI-verified) |
 | Room hints on the socket: a message or a face appearing is read within seconds (v3 R-1) | Implemented (CI-verified) |
-| Inhabitants that speak unprompted, honour the AI level, and a "while you were away" summary that excludes kept-out messages (v3 R-2, R-3) | Planned (not built); the level and keep-out are stored and the substitution already holds for asked turns |
+| Inhabitants that speak unprompted, honour the AI level, and a "while you were away" summary that excludes kept-out messages (v3 R-2, R-3) | Planned (not built); the level and keep-out are stored and the substitution already holds for asked turns. Until R-2 the level changes nothing a member sees, and the screen says so: inhabitants only answer when asked |
 | What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -74,7 +74,8 @@ conversations or threads.
   count, and nobody else's. The quiet pill is worked out on the device from `lastMessageAt`.
 - **Keeping messages out (D-161).** A member's `keep_out` makes the asked-turn context builder replace each of
   their messages with `[a member's message]` before any item is built, so neither the model nor the stored request
-  bytes carry their words, the title of what they shared or their note. A test reads the stored request. No summary
+  bytes carry their words, the title of what they shared, their note or the title of a discussion they started (it becomes
+  `[a member's topic]`). Nothing else a member types reaches a context item. A test reads the stored request. No summary
   exists yet; one built later must use the same builder.
 - **The AI notice.** Shown once (`notice_seen_at`, first acknowledgement kept), then only in the room menu. Its words
   describe what is true now.
@@ -199,7 +200,7 @@ person who never took part in a room has no section.
 - A lost response: retry with the same command ID; the receipt replays it.
 - A lost update: the client reads `changes` from its cursor on focus, on reconnect and every 20 seconds, and
   reads the discussion afresh while an inhabitant is preparing a reply. A room hint on the socket (a message sent, a
-  lease starting or ending, someone leaving) makes a member's client read within seconds; it is disposable and
+  lease starting or ending, someone leaving, an AI reply the worker stored) makes a member's client read within seconds; it is disposable and
   names only the room. A lease that lapses without a hint is noticed on the next poll.
 - A lost job: an ask still queued after 15 minutes no longer holds its discussion; a new ask is allowed.
 - A moderator's hide or restore gives the message a fresh change number, so catch-up replaces the bubble.

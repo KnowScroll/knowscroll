@@ -73,3 +73,6 @@ export const defaultAiLevel = (rule: JoinRule): AiLevel => (rule === 'open' ? 'l
 
 /** The words that stand in for a member's message when they keep their messages out of what AI reads. */
 export const KEPT_OUT_MESSAGE = "[a member's message]";
+
+/** The same for a discussion's title when the member who started it keeps their messages out: a title is their typing. */
+export const KEPT_OUT_TOPIC = "[a member's topic]";

@@ -67,7 +67,8 @@ function cacheKey(caller: Caller, scope: ScopeRef): string {
  * - every relayed hint is re-authorised per socket — session validity and scope access, cached at
  *   most `KS_SOCKET_AUTH_CACHE_MS` (≤ 30 s) per session, scope and epoch; a socket whose access no
  *   longer holds leaves the room and is told `scope_revoked`; one whose session is no longer valid
- *   is disconnected;
+ *   is disconnected (a `room` scope is never cached: membership is one indexed row, so a removed member
+ *   hears nothing more at once);
  * - an access-revocation notice (`revokeAccountSockets`, S1.3 sign-out / session revocation /
  *   epoch change) disconnects every socket of that account at once;
  * - when the relay reconnects, notices sent meanwhile (revocations included) are lost, so the
@@ -157,7 +158,6 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
           this.logEvent('realtime.subscription_refused', { reasonCode: 'FORBIDDEN' });
           return { ok: false, code: 'FORBIDDEN' };
         }
-        this.remember(cacheKey(caller, request.data.scope), 'ok');
         return { ok: true, revision: 0 };
       }
       const access = await this.readAccess(caller.accountId, request.data.scope.id);
@@ -293,14 +293,17 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
 
   /** Session validity first, then scope access (a universe's owner, a room's member); cached per session, scope and epoch. */
   private async authorise(caller: Caller, scope: ScopeRef): Promise<Authorisation> {
+    // A room's membership is one indexed row and changes when a moderator removes someone, so it is read every time:
+    // a removed member gets no further hint. A universe's access is cached, as before.
+    const cacheable = scope.kind !== 'room';
     const key = cacheKey(caller, scope);
-    const cached = this.authorisations.get(key);
+    const cached = cacheable ? this.authorisations.get(key) : undefined;
     if (cached !== undefined && Date.now() - cached.at < this.config.socketAuthorisationCacheMs) return cached.result;
     let result: Authorisation = 'session_invalid';
     if (await this.callers.sessionValid(caller)) {
       result = (await this.mayHear(caller, scope)) ? 'ok' : 'scope_revoked';
     }
-    this.remember(key, result);
+    if (cacheable) this.remember(key, result);
     return result;
   }
 

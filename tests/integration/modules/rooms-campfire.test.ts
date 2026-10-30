@@ -114,6 +114,40 @@ describe('the room as a place (real PostgreSQL)', () => {
       expect(refusal(pinned)).toBe('unavailable');
     });
 
+    it('says when the newest message a member can see was sent, across all discussions, and never counts a removed one', async () => {
+      at(start);
+      const { roomId, slug } = await seedRoom(world);
+      const moderator = await seedFriend(world.db, world.friends);
+      await makeModerator(world, slug, moderator);
+      const [asha] = await joined(world, roomId, 1);
+      expect((await memberView(world, asha!, roomId)).lastMessageAt).toBeUndefined();
+      const general = (await memberView(world, asha!, roomId)).general.discussionId;
+      const topic = await startTopic(world, asha!, roomId, 'A topic');
+      unwrap(await say(world, asha!, roomId, general, 'in General'));
+      at('2026-10-24T09:00:00Z');
+      unwrap(await say(world, asha!, roomId, topic, 'in the topic, later'));
+      expect((await memberView(world, asha!, roomId)).lastMessageAt).toBe('2026-10-24T09:00:00.000Z');
+
+      // A moderator removes the newest: the room has not heard it, so it is not when the room last spoke.
+      const newest = await world.db
+        .selectFrom('rooms.messages')
+        .select('message_id')
+        .where('discussion_id', '=', topic)
+        .executeTakeFirstOrThrow();
+      unwrap(
+        await world.rooms.hideMessage(moderator.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          discussionId: topic,
+          messageId: newest.message_id,
+          hidden: true,
+        }),
+      );
+      expect((await memberView(world, asha!, roomId)).lastMessageAt).toBe('2026-10-24T08:00:00.000Z');
+      at(start);
+    });
+
     it('takes a person’s messages like any discussion', async () => {
       const { roomId } = await seedRoom(world);
       const [asha] = await joined(world, roomId, 1);
@@ -270,10 +304,14 @@ describe('the room as a place (real PostgreSQL)', () => {
       const listener = new pg.Client({ connectionString: database.settings.url });
       await listener.connect();
       const heard: { scope: { kind: string; id: string }; revision: number }[] = [];
+      const raw: Record<string, unknown>[] = [];
       listener.on('notification', (notice) => {
         if (notice.channel === 'ks_scope_changed' && notice.payload !== undefined) {
           const parsed = JSON.parse(notice.payload) as (typeof heard)[number];
-          if (parsed.scope.kind === 'room') heard.push(parsed);
+          if (parsed.scope.kind === 'room') {
+            heard.push(parsed);
+            raw.push(JSON.parse(notice.payload) as Record<string, unknown>);
+          }
         }
       });
       try {
@@ -299,7 +337,57 @@ describe('the room as a place (real PostgreSQL)', () => {
         unwrap(await setPresence(world, asha!, roomId, 'away'));
         await settle(3);
         expect(heard.every((hint) => hint.scope.id === roomId && Number.isInteger(hint.revision))).toBe(true);
-        expect(JSON.stringify(heard)).not.toContain('Something is said');
+        // The payloads are exactly these keys, read before anything parses them: nothing else can ride on a hint.
+        for (const payload of raw) {
+          expect(Object.keys(payload).sort()).toEqual(['eventId', 'revision', 'scope', 'v']);
+          expect(Object.keys(payload.scope as object).sort()).toEqual(['id', 'kind']);
+        }
+        expect(JSON.stringify(raw)).not.toContain('Something is said');
+        expect(JSON.stringify(raw)).not.toContain(asha!.person.handle);
+      } finally {
+        await listener.end();
+      }
+    });
+  });
+
+  describe('an AI reply the worker stores', () => {
+    it('sends a room hint, so the room reads it within seconds, and the ask that queued it sends none', async () => {
+      at(start);
+      const { roomId } = await seedRoom(world);
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const discussionId = await startTopic(world, asha, roomId, 'Does batching help?');
+      unwrap(await say(world, asha, roomId, discussionId, 'A question about batching'));
+      const model = fixtureModel(
+        () => ({
+          kind: 'success',
+          text: JSON.stringify({ kind: 'explanation', text: 'Batching keeps hardware busy.' }),
+        }),
+        { label: 'rooms-hint' },
+      );
+      const { harness } = fixtureHarness(database.db, { model });
+
+      const listener = new pg.Client({ connectionString: database.settings.url });
+      await listener.connect();
+      const heard: string[] = [];
+      listener.on('notification', (notice) => {
+        if (notice.channel !== 'ks_scope_changed' || notice.payload === undefined) return;
+        const parsed = JSON.parse(notice.payload) as { scope: { kind: string; id: string } };
+        if (parsed.scope.kind === 'room' && parsed.scope.id === roomId) heard.push(notice.payload);
+      });
+      try {
+        await listener.query('listen ks_scope_changed');
+        const settle = async (count: number) => {
+          for (let attempt = 0; attempt < 50 && heard.length < count; attempt++)
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          await new Promise((resolve) => setTimeout(resolve, 60));
+          expect(heard).toHaveLength(count);
+        };
+        const before = world.queued.length;
+        unwrap(await ask(world, ravi, roomId, discussionId, 'explainer'));
+        await settle(0);
+        await world.contribute(harness)(world.queued[before]!);
+        await settle(1);
+        expect(Object.keys(JSON.parse(heard[0]!) as object).sort()).toEqual(['eventId', 'revision', 'scope', 'v']);
       } finally {
         await listener.end();
       }
@@ -426,6 +514,58 @@ describe('the room as a place (real PostgreSQL)', () => {
       unwrap(await setPreferences(world, asha, roomId, { keepOut: false }));
       const shown = await askAndRun(ravi, roomId, discussionId);
       expect(shown.calls[0]!.request.user).toContain('ASHA-OWN-WORDS');
+    });
+
+    it('hides the title of a discussion a keep-out member started, in the request and in the stored bytes, and keeps another member’s title', async () => {
+      const { roomId } = await seedRoom(world);
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const theirs = await startTopic(world, ravi, roomId, 'RAVI-TITLE-SECRET');
+      const ours = await startTopic(world, asha, roomId, 'ASHA-TITLE-VISIBLE');
+      unwrap(await say(world, asha, roomId, theirs, 'a plain question from Asha'));
+      unwrap(await say(world, asha, roomId, ours, 'another plain question from Asha'));
+      unwrap(await setPreferences(world, ravi, roomId, { keepOut: true }));
+
+      const hidden = await askAndRun(asha, roomId, theirs);
+      expect(hidden.calls[0]!.request.user).not.toContain('RAVI-TITLE-SECRET');
+      expect(hidden.calls[0]!.request.user).toContain("[a member's topic]");
+      expect(hidden.calls[0]!.request.user).toContain('a plain question from Asha');
+      const stored = (await protectedRequestsOf(world.db, asha.universeId)).map((row) =>
+        Buffer.from(row.body).toString(),
+      );
+      expect(stored.length).toBeGreaterThan(0);
+      for (const body of stored) expect(body).not.toContain('RAVI-TITLE-SECRET');
+
+      // A discussion started by someone who does not keep out keeps its title.
+      const shown = await askAndRun(asha, roomId, ours);
+      expect(shown.calls[0]!.request.user).toContain('ASHA-TITLE-VISIBLE');
+      expect(shown.calls[0]!.request.user).not.toContain("[a member's topic]");
+    });
+
+    it('hides the title a keep-out member gave a thread about a card, and the room’s own words stay', async () => {
+      const { roomId } = await seedRoom(world, { guidelines: 'ROOM-GUIDELINES-STAY' });
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const reel = await seedReel(world.db, { title: 'Library Reel Title' });
+      const started = unwrap(
+        await world.rooms.create(ravi.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          start: {
+            kind: 'content',
+            root: { assetId: reel.assetId, assetRevision: 1 },
+            title: 'RAVI-THREAD-TITLE-SECRET',
+          },
+        }),
+      );
+      unwrap(await say(world, asha, roomId, started.discussionId, 'Asha on the reel'));
+      unwrap(await setPreferences(world, ravi, roomId, { keepOut: true }));
+      const model = await askAndRun(asha, roomId, started.discussionId);
+      const sent = model.calls[0]!.request.user;
+      expect(sent).not.toContain('RAVI-THREAD-TITLE-SECRET');
+      expect(sent).toContain("[a member's topic]");
+      // What is not a member's typing still reaches the model: the library's title and the room's guidelines.
+      expect(sent).toContain('Library Reel Title');
+      expect(sent).toContain('ROOM-GUIDELINES-STAY');
     });
 
     it('hides what a keep-out member shared too: the card’s title and their note are not read', async () => {

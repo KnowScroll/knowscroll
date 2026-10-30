@@ -203,14 +203,18 @@ export const discussionStore: DiscussionStore = {
   },
 
   async lastMessageAt(lock) {
-    const row = await trxOf(lock)
-      .selectFrom('rooms.messages as message')
-      .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
-      .select((builder) => builder.fn.max('message.recorded_at').as('latest'))
-      .where('discussion.room_id', '=', lock.roomId)
-      .where('message.hidden_at', 'is', null)
-      .executeTakeFirst();
-    return row?.latest === undefined || row.latest === null ? undefined : new Date(row.latest);
+    // One probe of `messages_latest_visible` per discussion, newest first, so a read never scans a room's messages.
+    const result = await sql<{ latest: Date | string | null }>`
+      select max(newest.recorded_at) as latest
+      from rooms.discussions discussion
+      cross join lateral (
+        select message.recorded_at from rooms.messages message
+        where message.discussion_id = discussion.discussion_id and message.hidden_at is null
+        order by message.recorded_at desc limit 1
+      ) newest
+      where discussion.room_id = ${lock.roomId}::uuid`.execute(trxOf(lock));
+    const latest = result.rows[0]?.latest;
+    return latest === undefined || latest === null ? undefined : new Date(latest);
   },
 
   async pinnedTitle(lock) {

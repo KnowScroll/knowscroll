@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useIsFocused } from 'expo-router';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { ROOM_PRESENCE_BEAT_MS } from '@knowscroll/contracts';
@@ -29,13 +30,14 @@ const POLL_MS = 20_000;
 const LIST_POLL_MS = 30_000;
 
 /**
- * While a member has the room open and visible: renew the lease that shows their face every
+ * While a member has the room open and on screen: renew the lease that shows their face every
  * `ROOM_PRESENCE_BEAT_MS`, and listen for the room's hints so a message or a face appearing is read within seconds.
- * Leaving the screen, hiding the app or closing the tab says `away`; a beat that is missed lets the lease lapse by itself.
+ * Another screen covering this one (a Reel or Scroll opened from the room), leaving, hiding the app or closing the tab
+ * says `away`; a beat that is missed lets the lease lapse by itself.
  */
-function useRoomLive(scope: AccountScope, roomId: string, controller: RoomController, member: boolean): void {
+function useRoomLive(scope: AccountScope, roomId: string, controller: RoomController, open: boolean): void {
   useEffect(() => {
-    if (!member) return undefined;
+    if (!open) return undefined;
     const unwatch = scope.watchRoom(roomId);
     let beat: ReturnType<typeof setInterval> | undefined;
     const stop = () => {
@@ -62,14 +64,16 @@ function useRoomLive(scope: AccountScope, roomId: string, controller: RoomContro
       void controller.setPresence('away');
       unwatch();
     };
-  }, [scope, roomId, controller, member]);
+  }, [scope, roomId, controller, open]);
 }
 
 /** One open room: read on mount, again on focus, on its hints and by the slow poll; a member's lease is kept while it is open. */
 export function useRoom(scope: AccountScope, roomId: string): { controller: RoomController; state: RoomState } {
   const [controller] = useState(() => createRoom({ scope, roomId, newId: newCommandId }));
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
-  useRoomLive(scope, roomId, controller, state.phase === 'member');
+  // The route stays mounted under a screen pushed on top of it, so focus is what says the room is on screen.
+  const focused = useIsFocused();
+  useRoomLive(scope, roomId, controller, state.phase === 'member' && focused);
   useQuery({
     queryKey: scope.queryKey(TALK_QUERY_KEY, 'room', roomId),
     queryFn: async () => {

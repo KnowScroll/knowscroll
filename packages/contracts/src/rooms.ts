@@ -901,3 +901,55 @@ export const roomsContract: typeof roomsRoomContract & typeof roomsDiscussionCon
   ...roomsDiscussionContract,
   ...roomsActivityContract,
 };
+
+/**
+ * D-069's allow-list as data: every key of every `roomsContract` answer whose name speaks of a count, a total,
+ * presence or activity (a camelCase word of count, total, online, here, active, unread or seen, or a name that starts
+ * with lastMessage or lastActivity), and the one view it may appear on. A member's own view of a room carries the
+ * `read` entries (`view: 'member'`); the rest are not about people in the room and are named so no one mistakes them
+ * for presence. A new key of that kind in any answer
+ * fails the contract test until it is added here on purpose, with a reason.
+ */
+export const ROOM_COUNT_AND_ACTIVITY_FIELDS: readonly {
+  readonly route: keyof typeof roomsContract;
+  /** The branch of the answer's `status` it sits on, when the answer has one. */
+  readonly view: string | undefined;
+  readonly path: string;
+  readonly why: string;
+}[] = [
+  { route: 'read', view: 'member', path: 'here', why: 'who has the room open: faces, never an AI' },
+  { route: 'read', view: 'member', path: 'here.count', why: 'people here, only from three (D-069)' },
+  { route: 'read', view: 'member', path: 'lastMessageAt', why: 'when the newest visible message was sent' },
+  { route: 'read', view: 'member', path: 'memberTotal', why: 'current members, for the room menu' },
+  { route: 'read', view: 'member', path: 'you.noticeSeenAt', why: 'when the caller read the AI notice: their own' },
+  {
+    route: 'read',
+    view: 'member',
+    path: 'general.lastActivityAt',
+    why: 'when the discussion last had a message: orders the list',
+  },
+  {
+    route: 'read',
+    view: 'member',
+    path: 'discussions.lastActivityAt',
+    why: 'when the discussion last had a message: orders the list',
+  },
+  {
+    route: 'preferences',
+    view: undefined,
+    path: 'you.noticeSeenAt',
+    why: 'the same own mark, in the answer to setting it',
+  },
+  {
+    route: 'readDiscussion',
+    view: 'ready',
+    path: 'content.sequence.total',
+    why: "how many Parts the discussion's series has: a fact about content, not people",
+  },
+  {
+    route: 'reports',
+    view: undefined,
+    path: 'reports.count',
+    why: 'how many different people reported a message, for its moderators only (D-055)',
+  },
+];

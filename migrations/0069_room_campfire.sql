@@ -4,7 +4,7 @@
 -- Owner: rooms. Authoritative; nothing derived except room_presence, which is a short lease.
 -- Query shapes: a room's General discussion (one per room); a member's own settings (members row); the faces
 -- of a room (presence rows newer than the lease, joined to profiles); the newest visible message of a room;
--- the members who keep their messages out, among the authors of a discussion's newest messages.
+-- the members who keep their messages out, among the authors of a discussion's newest messages and the starter.
 -- Locking: unchanged from 0062. A presence heartbeat and a member's own settings take the room root FOR SHARE,
 -- like a send; joining, leaving and removing take it FOR UPDATE and delete the person's presence row.
 -- Access: members only. A presence row exists only for a current member and only while their device says the
@@ -42,6 +42,12 @@ alter table rooms.members
 update rooms.members member set ai_level = 'quieter'
 from rooms.rooms room
 where room.room_id = member.room_id and room.join_rule <> 'open';
+
+-- The newest visible message of a room is read with every room read: one probe of this index for each of the room's
+-- discussions, newest first, skipping messages a moderator removed.
+-- Existing message inventory is bounded at rollout; the transactional migrator cannot run CONCURRENTLY.
+-- squawk-ignore require-concurrent-index-creation
+create index messages_latest_visible on rooms.messages(discussion_id, recorded_at desc) where hidden_at is null;
 
 -- One row per member who has the room open. last_seen_at is renewed by the member's own device while the room
 -- is open and visible; a reader counts a row only while it is newer than the lease.

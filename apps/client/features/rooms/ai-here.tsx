@@ -6,16 +6,29 @@ import { SwitchRow, Text } from '@knowscroll/ui';
 import { AI_NOTICE } from './ai-notice';
 
 const LEVELS: readonly { readonly level: RoomAiLevel; readonly label: string; readonly hint: string }[] = [
-  { level: 'lively', label: 'Lively', hint: 'AI joins in when it has something to add.' },
-  { level: 'quieter', label: 'Quieter', hint: 'AI speaks less and folds its replies.' },
-  { level: 'off', label: 'Off', hint: 'AI stays out of what you see, unless you ask it.' },
+  {
+    level: 'lively',
+    label: 'Lively',
+    hint: 'AI answers when someone asks. When it starts joining in, you will see it.',
+  },
+  {
+    level: 'quieter',
+    label: 'Quieter',
+    hint: 'AI answers when someone asks. When it starts joining in, you will see less of it.',
+  },
+  {
+    level: 'off',
+    label: 'Off',
+    hint: 'AI answers when someone asks. When it starts joining in, you will not see what you did not ask for.',
+  },
 ];
 
 /**
  * "AI here" (R3 C5): how much the room's AI inhabitants may speak to this member, whether this member's
  * messages are kept out of what AI reads, and the notice they were given on joining. Both settings are the
- * member's own and are saved as soon as they are changed. Today an inhabitant only answers when someone asks, so
- * the level starts to matter when inhabitants speak on their own.
+ * member's own and are saved as soon as they are changed. The words under the level say only what is true today:
+ * an inhabitant answers when someone asks, and the level will decide what a member sees once inhabitants join in on
+ * their own (v3 R-2). The level is stored now and nothing reads it yet.
  */
 export function AiHere({
   you,

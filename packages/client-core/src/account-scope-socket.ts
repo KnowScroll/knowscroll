@@ -24,6 +24,9 @@ export interface SocketContext {
   readonly visible?: () => boolean;
 }
 
+/** How long after a room refresh further hints for it are held and then answered by one more refresh. */
+const ROOM_HINT_QUIET_MS = 300;
+
 /** The query-key prefix under which Talk's queries live; an inbox hint refreshes only these. */
 export const TALK_QUERY_KEY = 'talk';
 
@@ -55,7 +58,8 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
     auth: token === undefined ? { scope: scope.id } : { scope: scope.id, token },
   });
   const highest: Record<Exclude<ScopeRef['kind'], 'room'>, number> = { universe: -1, inbox: -1 };
-  const highestRoom = new Map<string, number>();
+  /** Rooms whose last refresh is still inside the quiet window: a hint meanwhile asks for one more refresh after it. */
+  const cooling = new Map<string, { again: boolean; timer: ReturnType<typeof setTimeout> }>();
   const desiredRooms = new Set<string>();
   const subscribedRooms = new Set<string>();
   const refreshRoom = (roomId: string) => {
@@ -63,13 +67,39 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
     void scope.queryClient.invalidateQueries({ queryKey: scope.queryKey(TALK_QUERY_KEY, 'room', roomId) });
     void scope.queryClient.invalidateQueries({ queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-discussion') });
   };
+  /**
+   * A room hint carries nothing to catch up from (its revision is a time, not a position), so a burst of them is
+   * coalesced rather than deduplicated: the first refreshes at once, any others inside `ROOM_HINT_QUIET_MS` ask for
+   * exactly one more when it ends. A message sent right after another is therefore never skipped.
+   */
+  const onRoomHint = (roomId: string) => {
+    const waiting = cooling.get(roomId);
+    if (waiting !== undefined) {
+      waiting.again = true;
+      return;
+    }
+    refreshRoom(roomId);
+    const entry = {
+      again: false,
+      timer: setTimeout(() => {
+        cooling.delete(roomId);
+        if (entry.again) onRoomHint(roomId);
+      }, ROOM_HINT_QUIET_MS),
+    };
+    cooling.set(roomId, entry);
+  };
+  const forgetCooling = (roomId: string) => {
+    const entry = cooling.get(roomId);
+    if (entry !== undefined) clearTimeout(entry.timer);
+    cooling.delete(roomId);
+  };
   /** Brings the server's subscriptions in line with the rooms screens are watching. */
   const syncRooms = () => {
     if (!socket.connected) return;
     for (const roomId of subscribedRooms)
       if (!desiredRooms.has(roomId)) {
         subscribedRooms.delete(roomId);
-        highestRoom.delete(roomId);
+        forgetCooling(roomId);
         socket.emit(socketEvents.unsubscribeScope, { scope: { kind: 'room', id: roomId } });
       }
     for (const roomId of desiredRooms)
@@ -120,9 +150,7 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
     if (!hint.success) return;
     const named = hint.data.scope;
     if (named.kind === 'room') {
-      if (!desiredRooms.has(named.id) || hint.data.revision <= (highestRoom.get(named.id) ?? -1)) return;
-      highestRoom.set(named.id, hint.data.revision);
-      refreshRoom(named.id);
+      if (desiredRooms.has(named.id)) onRoomHint(named.id);
       return;
     }
     if (named.id !== scope.account.universeId) return;
@@ -148,6 +176,7 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
       syncRooms();
     },
     close() {
+      for (const roomId of [...cooling.keys()]) forgetCooling(roomId);
       stopHeartbeat();
       socket.removeAllListeners();
       socket.close();

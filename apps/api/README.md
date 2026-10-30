@@ -353,7 +353,7 @@ available" page with status 200, naming nobody. A read failure renders a "try ag
 
 `scope.gateway.ts` subscribes the new `inbox` scope (named by the caller's universe ID) and acks it with
 the member's `inbox_heads` revision. A `room` scope (v3 R-1, named by a room's ID) is subscribed only by a current member of
-that room (`READ_ROOM_MEMBERSHIP`, re-checked on every relayed hint within the authorisation cache) and acks revision 0; its
+that room (`READ_ROOM_MEMBERSHIP`, read again on every relayed hint: a room scope skips the authorisation cache, so a removed member hears nothing more at once) and acks revision 0; its
 hints (a message sent, a presence lease starting or ending, someone leaving) carry the commit time in milliseconds.
 `RoomsController` also serves `POST /v1/rooms/preferences` (a member's own AI level, keep-out choice and notice mark; a
 command) and `POST /v1/rooms/presence` (`here` or `away`; not a command). Tests: `tests/integration/release/conversations-http.test.ts` runs the
