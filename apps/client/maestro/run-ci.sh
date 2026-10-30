@@ -115,9 +115,10 @@ run_flow tabs-and-back "$here/tabs-and-back.yaml"
 if [ "$gallery" = "true" ]; then
   run_flow gallery "$here/gallery.yaml"
   run_flow scroll-blocks "$here/scroll-blocks.yaml"
+  run_flow space "$here/space.yaml"
 else
   echo "KS-LANE-SKIP gallery.yaml and scroll-blocks.yaml: this APK was built without EXPO_PUBLIC_KS_GALLERY=1"
-  results+=("| gallery | skipped (APK built without the gallery) | - |" "| scroll-blocks | skipped (APK built without the gallery) | - |")
+  results+=("| gallery | skipped (APK built without the gallery) | - |" "| scroll-blocks | skipped (APK built without the gallery) | - |" "| space | skipped (APK built without the gallery) | - |")
   run_flow no-gallery "$here/no-gallery.yaml"
 fi
 
@@ -171,6 +172,8 @@ find "$KS_OUT/maestro" -type f -name '*.png' -path '*takeScreenshot*' -print0 |
   while IFS= read -r -d '' png; do cp "$png" "$KS_OUT/screenshots/$(basename "$png")"; done
 
 kill "$logcat_pid" 2>/dev/null || true
+# The space page logs its frame numbers once a second (features/gallery/space-gallery-screen.tsx); the last line is the summary.
+space_gate=$(grep -a "KS-SPACE-GATE" "$KS_OUT/logcat.txt" | tail -n 1 | sed -E 's/.*KS-SPACE-GATE //')
 crash=0
 if grep -E "FATAL EXCEPTION" -A 3 "$KS_OUT/logcat.txt" | grep -q "Process: $app_id"; then crash=1; fi
 if grep -qE "ANR in $app_id" "$KS_OUT/logcat.txt"; then crash=1; fi
@@ -187,6 +190,7 @@ if grep -qE ">>> $app_id <<<" "$KS_OUT/logcat.txt"; then crash=1; fi
   echo
   echo "- screenshots: $(find "$KS_OUT/screenshots" -type f -name '*.png' | wc -l | tr -d ' ')"
   echo "- app crash or ANR in logcat: $([ "$crash" -eq 1 ] && echo YES || echo none)"
+  echo "- space renderer (last frame numbers the page logged): ${space_gate:-none logged}"
 } | tee -a "$summary"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
 

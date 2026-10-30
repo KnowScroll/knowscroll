@@ -1,0 +1,31 @@
+# The space renderer gate (v3 U-0, D-100), only in a build made with EXPO_PUBLIC_KS_GALLERY=1: the sample sun,
+# planets and nebula drawn by three.js on an expo-gl surface in the emulator. The page's readout says which
+# backend drew and how many frames; "Simple lists shown" would mean WebGL failed, and fails the flow. The
+# screenshots are the evidence that pixels reached the screen (the emulator renders with swiftshader, so
+# the frame timing is a software-GL figure, not a device figure).
+appId: com.knowscroll.client
+name: Space renderer on expo-gl
+tags:
+  - gallery
+  - space
+---
+- runFlow: start-app.yaml
+- openLink: knowscroll://gallery-space
+- extendedWaitUntil:
+    visible:
+      id: ks-space-gallery
+    timeout: 60000
+- extendedWaitUntil:
+    visible: Drawing with expo-gl.*
+    timeout: 120000
+- takeScreenshot: space-01-first-frames
+# Keep drawing: at least ten frames have gone by.
+- extendedWaitUntil:
+    visible: Drawing with expo-gl · [0-9]{2,} frames.*
+    timeout: 120000
+- assertNotVisible: Simple lists shown.*
+- takeScreenshot: space-02-drawing
+# Labels over the scene are ordinary views at projected points: a tap on one is a tap on a view.
+- tapOn: Sample system, a system
+- assertVisible: Sample system \(system\)
+- takeScreenshot: space-03-label-tapped

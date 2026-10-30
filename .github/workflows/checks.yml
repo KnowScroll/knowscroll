@@ -252,10 +252,11 @@ jobs:
           pnpm --filter @knowscroll/client build:gallery
           grep -rlq 'ks-component-gallery' apps/client/dist-gallery
           grep -rlq 'ks-scroll-gallery' apps/client/dist-gallery
+          grep -rlq 'ks-space-gallery' apps/client/dist-gallery
           grep -rlq 'ks-dev-evidence' apps/client/dist-gallery
       - name: The production export carries no developer gallery
         run: |
-          if grep -rlE 'ks-component-gallery|ks-scroll-gallery|A bridge has one job' apps/client/dist; then
+          if grep -rlE 'ks-component-gallery|ks-scroll-gallery|ks-space-gallery|A bridge has one job' apps/client/dist; then
             echo 'the component gallery is in a production export'; exit 1
           fi
           if grep -rlE 'ks-dev-evidence|Developer diagnostics: evidence' apps/client/dist; then

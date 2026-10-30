@@ -327,6 +327,31 @@ Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on
 arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
 token; reduced motion stops drift and plays the formation as one still.
 
+### Space renderer (v3 U-0, D-100)
+
+`features/universe/space/` draws the space views with three.js. It is the gate for lane U and the base of the
+3D Universe: nothing in the Universe tab uses it yet. It is reached only through the developer gallery page
+`/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; not in a production export).
+
+| Capability | Status |
+| --- | --- |
+| One three.js scene (orange sun with haze, two painted planets that revolve, no orbit lines, nebula dust, stars) | runtime-verified (web, browser) |
+| Web canvas host: a DOM canvas, WebGL 2 context made by three.js | runtime-verified (web, browser) |
+| Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | see the PR for the emulator run |
+| 30 fps cap (a frame at most every 33 ms), time step clamped to 0.1 s, pixel ratio capped at 1.5 | runtime-verified (web); native: implemented |
+| Loop stops when the route is unfocused, the app is not active, the tab is hidden or the canvas is off screen | runtime-verified (web); native: implemented |
+| Reduced motion: one frame, no loop | runtime-verified (web) |
+| No WebGL, context creation failure, context loss or a failed frame: the plain lists (`SpaceSimpleLists`) | runtime-verified (web) |
+| Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web) |
+| Real Universe data, Overview/Lately/Far/System levels, fly-ins | planned (U-2 onward) |
+
+How it fits together. A platform canvas host (`space-canvas.web.tsx`, `space-canvas.tsx`) hands `SpaceView` a
+`SpaceSurface`. `SpaceView` loads `space-renderer.ts` (three.js) on first use, builds the scene from a
+`SpaceDefinition` and runs one loop (`render-loop.ts` over the pure clock in `frame-clock.ts`). A scene is a pure
+function of the time `t`, so one frame is a valid picture. Textures are plain pixel arrays (`texture-data.ts`),
+because Hermes has no canvas. The web smoke is `e2e/space-gallery.spec.ts`; the emulator flow is
+`maestro/space.yaml`.
+
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
 (pure placement), `overview-scene.tsx`, `system-scene.tsx`, `planet-scene.tsx` (drawing and targets),
 `universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
