@@ -147,9 +147,10 @@ test('holds the 30 fps cap on the real tab, and stops drawing when the tab is hi
   expect(drawn.length).toBeGreaterThan(10);
   const gaps = drawn.slice(1).map((at, index) => at - drawn[index]!);
   const mean = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
-  // The cap: at least ~33 ms between frames (one vsync of slack), so never more than ~30 per second.
+  // The cap: ~33 ms between frames on average. Single gaps are read at draw time, not at the frame stamp,
+  // so they jitter a few ms either way; one under 25 ms would mean the loop runs above 40 per second.
   expect(mean).toBeGreaterThanOrEqual(30);
-  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(31);
+  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(25);
   const line = `universe tab (web, 390x844): ${drawn.length} frames in 4 s, mean interval ${mean.toFixed(1)} ms, min ${Math.min(...gaps).toFixed(1)} ms`;
   // eslint-disable-next-line no-console -- the numbers go in the PR description
   console.log(line);

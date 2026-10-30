@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import { BodyTarget, LABEL_HEIGHT, labelWidth, MapLabel, SceneLayer } from '../scene-parts';
 import { isQuiet, placeLabels, type LabelRequest, type Size, type UniverseIndex } from '../universe-layout';
+import { CROWDED_TARGET, separateTargets } from './separate-targets';
 import type { SpaceOverlayInfo } from './space-view';
 import type { SpaceAnchor } from './space-surface';
 
@@ -23,6 +24,13 @@ export interface SpaceOverlayProps extends SpaceOverlayInfo {
 
 /** The size of the tap target of a body: the body's own size on screen, never smaller than a finger. */
 const targetSize = (anchor: SpaceAnchor, extra = 0): number => Math.min(160, Math.max(48, anchor.radiusPx * 2 + extra));
+
+/** The side a target would like, before crowding: a finger for most bodies, the body's own size for a big one. */
+function sizeOf(anchor: SpaceAnchor): number {
+  if (anchor.kind === 'station') return 48;
+  if (anchor.kind === 'dust') return targetSize(anchor, 24);
+  return anchor.kind === 'system' ? Math.max(56, targetSize(anchor, 16)) : targetSize(anchor, 8);
+}
 
 /** Whether an anchor is something this view lets a person reach. */
 function reachable(anchor: SpaceAnchor, systemId: string | undefined, far: boolean): boolean {
@@ -59,6 +67,16 @@ export const SpaceOverlay = memo(function SpaceOverlay(props: SpaceOverlayProps)
     return placeLabels(requests, size);
   }, [shown, far, size, selectedId, lastPlaceId]);
   const placed = new Map(labels.map((label) => [label.id, label]));
+  // Bodies pass close by each other: keep their tap targets from covering one another.
+  const boxes = useMemo(
+    () =>
+      new Map(
+        separateTargets(shown.map((anchor) => ({ id: anchor.id, x: anchor.x, y: anchor.y, size: sizeOf(anchor) }))).map(
+          (box) => [box.id, box],
+        ),
+      ),
+    [shown],
+  );
 
   return (
     <SceneLayer>
@@ -71,14 +89,15 @@ export const SpaceOverlay = memo(function SpaceOverlay(props: SpaceOverlayProps)
         );
       })}
       {shown.map((anchor) => {
+        const box = boxes.get(anchor.id);
+        if (box === undefined) return null;
+        const at = { x: box.x, y: box.y, size: box.size, floor: CROWDED_TARGET };
         if (anchor.kind === 'dust')
           return (
             <BodyTarget
               key={anchor.id}
               testID="universe-dust"
-              x={anchor.x}
-              y={anchor.y}
-              size={targetSize(anchor, 24)}
+              {...at}
               label="Recent reading is gathering here"
               onPress={props.onDust}
             />
@@ -88,9 +107,7 @@ export const SpaceOverlay = memo(function SpaceOverlay(props: SpaceOverlayProps)
             <BodyTarget
               key={anchor.id}
               testID={`universe-station-${anchor.id}`}
-              x={anchor.x}
-              y={anchor.y}
-              size={48}
+              {...at}
               label={`${anchor.name}, a room station`}
               onPress={() => props.onStation(anchor.id)}
             />
@@ -101,9 +118,7 @@ export const SpaceOverlay = memo(function SpaceOverlay(props: SpaceOverlayProps)
           <BodyTarget
             key={anchor.id}
             testID={`universe-focus-${anchor.id}`}
-            x={anchor.x}
-            y={anchor.y}
-            size={anchor.kind === 'system' ? Math.max(56, targetSize(anchor, 16)) : targetSize(anchor, 8)}
+            {...at}
             label={anchor.name}
             kind={anchor.kind}
             hypothetical={descriptor.truthStatus === 'hypothetical'}
