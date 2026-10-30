@@ -72,6 +72,14 @@ export const earthRecipes = {
     brief:
       'Why Earth has seasons: axial tilt changes daylight and sunlight angle; distance is not the cause. Include a useful interactive diagram with frames for opposite hemispheres. Explain the limits of the simplified picture.',
     pages: ['https://spaceplace.nasa.gov/seasons/en/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: {
+        kind: 'myth',
+        claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
+        source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
+      },
+    },
   },
   'seasons-hemispheres': {
     explanationUnitId: 'earth-seasons-hemispheres-v1',
@@ -85,6 +93,7 @@ export const earthRecipes = {
     brief:
       'Why the two hemispheres always have opposite seasons: through the year each hemisphere in turn tips toward the Sun and then away from it. Step through the two solstices and the two equinoxes and say what each means for daylight in each hemisphere. Do not suggest that distance from the Sun sets the seasons, and give no invented dates or temperatures.',
     pages: ['https://en.wikipedia.org/wiki/Season'],
+    scrollV2: { variant: 'stage', misconception: { kind: 'none' } },
   },
   'seasons-limits': {
     explanationUnitId: 'earth-seasons-limits-v1',
@@ -98,6 +107,7 @@ export const earthRecipes = {
     brief:
       'Why the tilt explanation needs care. Earth is nearest the Sun in early January and farthest in early July, yet the Northern Hemisphere is coldest when Earth is nearest, which is why tilt and not distance explains the seasons. Explain that the four seasons are marked by the solstices and equinoxes and say what the simple picture leaves out. Give no invented temperatures or dates beyond those in the supplied passages.',
     pages: ['https://en.wikipedia.org/wiki/Earth%27s_orbit'],
+    scrollV2: { variant: 'stage', misconception: { kind: 'none' } },
   },
   'seasons-elsewhere': {
     explanationUnitId: 'earth-seasons-elsewhere-v1',
@@ -110,6 +120,7 @@ export const earthRecipes = {
     brief:
       'Seasons on other planets, and why Earth is not the template. Say what the supplied passages state about seasons on Mars and on Uranus: Mars’s axis is tilted much as Earth’s is, so it has distinct seasons, but they last longer, while Uranus’s axis lies nearly at a right angle to its orbit, which gives it the most extreme seasons in the Solar System. Compare each with Earth’s seasons and say what the tilt does in each case. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
     pages: ['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/'],
+    scrollV2: { variant: 'plain', misconception: { kind: 'none' } },
   },
   tides: {
     explanationUnitId: 'legacy-cutroom-tides-v4',

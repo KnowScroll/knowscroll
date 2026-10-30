@@ -21,9 +21,12 @@ export type LockedAsset =
   | {
       readonly kind: 'present';
       readonly assetKind: AssetKind;
-      readonly status: 'admitted' | 'withdrawn';
-      /** The asset's current revision (>= 1). */
+      /** `held`: no revision of the asset has been served yet, because its first revision is held by the review gate (D-138). */
+      readonly status: 'admitted' | 'held' | 'withdrawn';
+      /** The asset's current revision (>= 1): the one served. A held revision is never it. */
       readonly revision: number;
+      /** The highest stored revision, held or rejected ones included; the next revision is this plus one. */
+      readonly latestRevision: number;
       /** `integrity.sha256` of the current revision's document, when it has a stored revision. */
       readonly documentSha256: string | undefined;
     };
@@ -66,6 +69,12 @@ export interface AdmittedRevision {
   readonly compiled: Extract<CompileOutcome, { kind: 'compiled' }>;
   /** True when the asset row does not exist yet (the first revision creates it). */
   readonly createsAsset: boolean;
+  /**
+   * True when the review gate holds the revision (D-138): it is stored with its provenance, but the
+   * asset's current revision is not advanced to it, and a new asset stays `held`, until an operator
+   * releases it.
+   */
+  readonly held?: boolean;
 }
 
 /** Capabilities of `importEditorialScroll`. Adapters implement them; the composition root wires them. */

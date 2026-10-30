@@ -90,12 +90,13 @@ describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', ()
     expect(universe.page.objects.find((place) => place.kind === 'planet')?.label).toBe('Seasons');
   });
 
-  it('forms the Seasons planet from three Scrolls published by the production path', async () => {
+  it('forms the Tides planet from three Scrolls published by the production path', async () => {
     const { database, observe } = world;
     const { cartograph, placeKinds, dust } = steps;
     await enableProductionScope(database.db);
     const scrolls = [];
-    for (const key of ['seasons', 'seasons-hemispheres', 'seasons-limits'] as const) {
+    // Three v1 recipes of one planet (the Seasons recipes are v2 and wait at the review gate, D-138).
+    for (const key of ['tides', 'tides-spring-neap', 'tides-coasts'] as const) {
       const recipe = TOPICS[key];
       const production = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
       expect(await production.produce(key, false, signal(), false)).toMatchObject({

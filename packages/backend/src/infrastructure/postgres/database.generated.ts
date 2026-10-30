@@ -224,6 +224,16 @@ export interface ContentRegionBindings {
   topic_id: string;
 }
 
+export interface ContentRevisionReviews {
+  asset_id: string;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
+  held_at: Generated<Timestamp>;
+  reason: string | null;
+  revision: number;
+  state: string;
+}
+
 export interface ContentScrollProductionRuns {
   asset_id: string | null;
   asset_revision: number | null;
@@ -1948,6 +1958,7 @@ export interface DB {
   "content.reel_imports": ContentReelImports;
   "content.reel_orders": ContentReelOrders;
   "content.region_bindings": ContentRegionBindings;
+  "content.revision_reviews": ContentRevisionReviews;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;

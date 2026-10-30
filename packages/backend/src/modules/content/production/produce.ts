@@ -20,6 +20,7 @@ import { completeWriterPublication, isSentAttempt } from './publication-topic.js
 import { subjectOf, type ProductionKey, type ProductionSubject } from './subject.js';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
+import { HELD_FOR_REVIEW_CODE, isHeldForReview } from './review-hold.js';
 import { planRefusalOf, productionVersionOf, REQUEST_BOUND_PER_TOPIC } from './topics.js';
 import { writerPlanFor, type WriterPlan } from './writer-plan.js';
 
@@ -194,12 +195,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       if (current.state !== 'writer') return false;
       return inAdmissionTransaction(tx, async (admissionTx) => {
         const asset = await admission.lockAsset(admissionTx, subject.identity.assetId);
+        const held = isHeldForReview(subject);
         const revisionConflict =
           (asset.kind === 'absent' && row.target_revision !== 1) ||
           (asset.kind === 'present' &&
             (asset.assetKind !== 'scroll' ||
-              asset.status !== 'admitted' ||
-              asset.revision !== row.target_revision - 1));
+              asset.status === 'withdrawn' ||
+              (asset.status === 'held' && !held) ||
+              asset.latestRevision !== row.target_revision - 1));
         if (revisionConflict) {
           await deps.harness.closeProductionRun(scope, { runId: row.writer_run_id, state: 'failed' });
           await store.finish(tx, row.id, 'writer', 'rejected', [
@@ -221,13 +224,14 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
               provenanceKind: 'generated',
               compiled,
               createsAsset: asset.kind === 'absent',
+              ...(held ? { held } : {}),
             });
             await store.finish(
               tx,
               row.id,
               'writer',
               'published',
-              receipts,
+              held ? [...receipts, { role: 'checks', kind: 'published', code: HELD_FOR_REVIEW_CODE }] : receipts,
               { assetId: subject.identity.assetId, revision: row.target_revision },
               { authored, claims: compiled.provenance['claims'] },
             );
@@ -237,9 +241,8 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     });
     if (applied.kind !== 'entered') return scopeRefused(row.id);
     const final = await store.read(subject.key);
-    return final === undefined
-      ? { outcome: 'in_progress', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id }
-      : summary(final);
+    if (final === undefined) return { outcome: 'in_progress', requestBound: REQUEST_BOUND_PER_TOPIC, runId: row.id };
+    return applied.value && isHeldForReview(subject) ? { ...summary(final), held: true } : summary(final);
   }
 
   /**

@@ -222,3 +222,41 @@ describe('the kit that draws a recipe (stageKit, D-125)', () => {
     expect(brief).not.toMatch(/picture|stage|pinned/iu);
   });
 });
+
+describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => {
+  const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
+
+  it('marks the four Seasons recipes and nothing else, so adding one is a deliberate edit', () => {
+    expect(v2.map((recipe) => recipe.key).sort()).toEqual([
+      'seasons',
+      'seasons-elsewhere',
+      'seasons-hemispheres',
+      'seasons-limits',
+    ]);
+  });
+
+  it('gives a picture exactly where a kit draws the subject: the variant follows stageKit', () => {
+    for (const recipe of v2)
+      expect(recipe.scrollV2?.variant === 'stage', recipe.key).toBe(recipe.stageKit !== undefined);
+  });
+
+  it('ships only misconception sources a person has reviewed, because the library refuses the rest at dispatch', () => {
+    for (const recipe of v2) {
+      const { misconception } = recipe.scrollV2!;
+      if (misconception.kind === 'myth') expect(misconception.source.reviewed, recipe.key).toBe(true);
+    }
+  });
+
+  it('keeps the one myth the V3 design documents, with its reviewed source, and gives the other three none', () => {
+    expect(RECIPES.seasons.scrollV2).toEqual({
+      variant: 'stage',
+      misconception: {
+        kind: 'myth',
+        claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
+        source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
+      },
+    });
+    for (const key of ['seasons-hemispheres', 'seasons-limits', 'seasons-elsewhere'] as const)
+      expect(RECIPES[key].scrollV2?.misconception, key).toEqual({ kind: 'none' });
+  });
+});

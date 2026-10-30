@@ -142,6 +142,11 @@ database and pg-boss; no provider is called. `content admit-continuity [--dry-ru
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
 
+`node dist/operator.js content review-list [--all]`, `review-show --asset <id> [--revision <n>] [--sources]`, `release --asset <id> --revision <n>`
+and `reject --asset <id> --revision <n> --reason <text>` (`src/review-operator.ts`, D-138) are the review gate for v2 library Scrolls:
+what is held, the text to read, and the two decisions, each recorded with who and when. They use the shared database only, refuse worlds
+outside dev/stage/ci/local, and call no provider. `review-show` prints the Scroll to the terminal and never to the log.
+
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
 `MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
