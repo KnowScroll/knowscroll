@@ -1,8 +1,25 @@
 import { useRef, type ReactNode } from 'react';
+import { scrolledToEnd } from './current-stop';
 import { partMoveOf, type PartMove } from './part-gesture';
 
 /** A control that takes its own drag: a swipe that starts on one is the control's. */
 const OWN_DRAG = 'input,select,textarea,[role="slider"],[contenteditable="true"]';
+
+/**
+ * Whether the text under the finger is scrolled to its end, read from the page at the moment of the
+ * touch. The reader's own record of the scroll position can trail the real one (a scroll report is
+ * throttled and the last one comes when scrolling ends), and a pull that starts at the end must not
+ * depend on it.
+ */
+function textUnderFingerAtEnd(touched: EventTarget | null, within: Element): boolean {
+  for (let node = touched instanceof Element ? touched : null; node !== null; node = node.parentElement) {
+    const scrolls = node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY);
+    if (scrolls)
+      return scrolledToEnd({ scrollTop: node.scrollTop, viewport: node.clientHeight, content: node.scrollHeight });
+    if (node === within) break;
+  }
+  return false;
+}
 
 interface Press {
   readonly x: number;
@@ -21,17 +38,16 @@ interface Press {
 export function PartSwipe({
   children,
   onMove,
-  atEnd = () => false,
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: PartMove) => void;
-  /** Whether the text is scrolled to its end right now. */
-  readonly atEnd?: () => boolean;
 }) {
   const press = useRef<Press | undefined>(undefined);
-  const begin = (x: number, y: number, target: EventTarget | null) => {
+  const begin = (x: number, y: number, target: EventTarget | null, surface: Element) => {
     press.current =
-      target instanceof Element && target.closest(OWN_DRAG) !== null ? undefined : { x, y, atEnd: atEnd() };
+      target instanceof Element && target.closest(OWN_DRAG) !== null
+        ? undefined
+        : { x, y, atEnd: textUnderFingerAtEnd(target, surface) };
   };
   const finish = (x: number, y: number) => {
     const from = press.current;
@@ -46,7 +62,8 @@ export function PartSwipe({
       style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, flexDirection: 'column', touchAction: 'pan-y' }}
       onTouchStart={(event) => {
         const touch = event.touches[0];
-        if (touch !== undefined && event.touches.length === 1) begin(touch.clientX, touch.clientY, event.target);
+        if (touch !== undefined && event.touches.length === 1)
+          begin(touch.clientX, touch.clientY, event.target, event.currentTarget);
         else press.current = undefined;
       }}
       onTouchEnd={(event) => {

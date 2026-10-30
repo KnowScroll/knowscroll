@@ -4,13 +4,13 @@ import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
 import { EXPORT_LIST_LIMIT, boundedSection, exportReading } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
-import { cartographyQueue, publishDeltaQueue } from '../events.js';
+import { cartographyQueue, publishDeltaQueue, settleQuietQueue } from '../events.js';
 const tables = ['deltas', 'relations', 'objects', 'state', 'runs'] as const;
 export const geographyErasure = declareErasure({
   module: 'geography',
   tables: tables.map((table) => ({ schema: 'geography', table, ownerColumn: 'universe_id' })),
   accountColumns: [{ schema: 'geography', table: 'runs', column: 'recording_account_id' }],
-  nonRowStores: [cartographyQueue, publishDeltaQueue].map((q) => ({
+  nonRowStores: [cartographyQueue, publishDeltaQueue, settleQuietQueue].map((q) => ({
     name: `pgboss/${q.name}`,
     description: 'All queued, active, settled and dead-lettered private geography IDs.',
   })),
@@ -23,7 +23,7 @@ export const geographyErasure = declareErasure({
         );
       removed += Number(r.numAffectedRows ?? 0);
     }
-    removed += await deleteJobPayloads(scope, [cartographyQueue.name, publishDeltaQueue.name]);
+    removed += await deleteJobPayloads(scope, [cartographyQueue.name, publishDeltaQueue.name, settleQuietQueue.name]);
     return { module: 'geography', status: 'completed', removed };
   },
   clear: {
@@ -37,7 +37,11 @@ export const geographyErasure = declareErasure({
           );
         removed += Number(r.numAffectedRows ?? 0);
       }
-      removed += await deleteClearJobPayloads(scope, [cartographyQueue.name, publishDeltaQueue.name]);
+      removed += await deleteClearJobPayloads(scope, [
+        cartographyQueue.name,
+        publishDeltaQueue.name,
+        settleQuietQueue.name,
+      ]);
       return { module: 'geography', status: 'completed', removed };
     },
   },

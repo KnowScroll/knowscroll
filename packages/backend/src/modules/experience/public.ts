@@ -138,6 +138,14 @@ export const READ_ACTIVITY_RECONCILE_PAGE = Symbol('experience.readActivityRecon
 export type ReadVisitedAssets = (scope: PersonalScopeTx, assetIds: readonly string[]) => Promise<ReadonlySet<string>>;
 export const READ_VISITED_ASSETS = Symbol('experience.readVisitedAssets');
 
+/**
+ * Port: whether the caller has opened and activated this exact Scroll revision at their current epoch. It
+ * is the authority behind anything done *in* an encounter that is not reading (play, #473): a person can only
+ * act on what they actually met. The caller's own history only; it says nothing about how much was seen.
+ */
+export type HasActivatedExposure = (scope: PersonalScopeTx, assetId: string, assetRevision: number) => Promise<boolean>;
+export const HAS_ACTIVATED_EXPOSURE = Symbol('experience.hasActivatedExposure');
+
 export type { ApplyEncounterAction } from './application/encounter-action.js';
 
 /** Own activated exact source; optional session must own this exposure and name its latest intent.

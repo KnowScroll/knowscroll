@@ -88,6 +88,28 @@ export type ReadScrollReadingFacts = (
 
 export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts');
 
+/** One call of a `scroll-document.v2`, as the server judges a locked pick: the stop, how many options it has, which one is right. */
+export interface ScrollCallFacts {
+  readonly stopId: string;
+  readonly kind: 'call_it' | 'final_call';
+  readonly optionCount: number;
+  /** Zero-based index of the right option. Never sent to another module's ranking or planning (D-063). */
+  readonly answer: number;
+}
+
+/**
+ * Port: the calls of one stored Scroll revision, read from its immutable document inside the
+ * caller's personal transaction. `undefined` when the revision does not exist or is not a
+ * `scroll-document.v2`; an empty list when it has no call.
+ */
+export type ReadScrollCalls = (
+  scope: PersonalScopeTx,
+  assetId: string,
+  revision: number,
+) => Promise<readonly ScrollCallFacts[] | undefined>;
+
+export const READ_SCROLL_CALLS = Symbol('content.readScrollCalls');
+
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
 /** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */

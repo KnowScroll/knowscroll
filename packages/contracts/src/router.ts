@@ -9,6 +9,7 @@ import { scenariosContract } from './scenarios.js';
 import { contentSharesContract } from './content-shares.js';
 import { friendPagesContract } from './friend-pages.js';
 import { formationPresentationContract } from './formation-presentation.js';
+import { playContract } from './play.js';
 import { privacyContract } from './privacy.js';
 import { recordingContract } from './recording.js';
 import { keepContract } from './keep.js';
@@ -52,6 +53,7 @@ export const apiContract: {
   account: typeof accountContract;
   operator: typeof operatorContract;
   feedback: typeof feedbackContract;
+  play: typeof playContract;
   privacy: typeof privacyContract;
   recording: typeof recordingContract;
   keep: typeof keepContract & { remove: typeof removeKeepEntryContract };
@@ -106,6 +108,7 @@ export const apiContract: {
   account: accountContract,
   operator: operatorContract,
   feedback: feedbackContract,
+  play: playContract,
   privacy: privacyContract,
   recording: recordingContract,
   keep: { ...keepContract, remove: removeKeepEntryContract },

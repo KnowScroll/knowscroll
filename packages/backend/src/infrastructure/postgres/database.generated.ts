@@ -648,7 +648,7 @@ export interface GeographyDeltas {
   policy_version: string;
   privacy_epoch: number;
   revision: number;
-  run_id: string;
+  run_id: string | null;
   transition_id: string;
   universe_id: string;
 }
@@ -706,6 +706,7 @@ export interface GeographyState {
   desired_recording_generation: number | null;
   desired_revision: Generated<number>;
   material_revision: Generated<number>;
+  next_quiet_at: Timestamp | null;
   next_run_not_before: Timestamp | null;
   privacy_epoch: number;
   published_revision: Generated<number>;
@@ -1247,6 +1248,30 @@ export interface PlannerState {
   next_run_not_before: Timestamp | null;
   privacy_epoch: number;
   universe_id: string;
+}
+
+export interface PlayCalls {
+  asset_id: string;
+  command_id: string;
+  correct: boolean;
+  lock_seq: Generated<Int8>;
+  locked_at: Generated<Timestamp>;
+  option: number;
+  privacy_epoch: number;
+  revision: number;
+  stop_id: string;
+  universe_id: string;
+}
+
+export interface PlayScrollResults {
+  asset_id: string;
+  calls_locked: number;
+  combo: number;
+  privacy_epoch: number;
+  revision: number;
+  sparks: number;
+  universe_id: string;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface ReasoningBusinessRuns {
@@ -2036,6 +2061,8 @@ export interface DB {
   "planner.revisions": PlannerRevisions;
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
+  "play.calls": PlayCalls;
+  "play.scroll_results": PlayScrollResults;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;

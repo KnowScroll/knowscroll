@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
-import type { EncounterOffer, ExposureContextResponse } from '@knowscroll/contracts';
+import type { EncounterOffer, ExposureContextResponse, ScrollResults } from '@knowscroll/contracts';
+import { callsOf, tallyOf, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 
 export const id = (n: number) => `0199a000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
@@ -10,6 +11,11 @@ export interface EncounterFixtureOptions {
   readonly series?: boolean;
   /** A different Scroll document to serve for every Scroll offer (the labelled v2 fixture); the default is the v1 fixture. */
   readonly scrollDocument?: Record<string, unknown>;
+  /** Play on the served v2 Scroll: what the play routes already hold (a reload), and whether recording is paused (D-083). */
+  readonly play?: {
+    readonly kept?: readonly { readonly stopId: string; readonly option: number }[];
+    readonly recordingPaused?: boolean;
+  };
 }
 
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
@@ -28,6 +34,21 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   /** Every observation event the page sent, in order. */
   const observed: { kind: string; payload: Record<string, unknown> }[] = [];
   const served = options.scrollDocument ?? document;
+  // Only a v2 document has stops; the v1 fixtures have no call to play.
+  const callIts =
+    'stops' in served ? callsOf(served as unknown as ScrollDocumentV2).filter((call) => call.kind === 'call_it') : [];
+  /** The calls the play routes hold, judged from the served document as the server judges a revision. */
+  const kept = (options.play?.kept ?? []).map((lock) => ({
+    ...lock,
+    correct: callIts.find((call) => call.id === lock.stopId)?.answer === lock.option,
+  }));
+  const resultsFor = (assetId: unknown, revision: unknown): ScrollResults => ({
+    assetId: String(assetId),
+    revision: Number(revision),
+    calls: kept.map((lock) => ({ ...lock })),
+    ...tallyOf(kept),
+  });
+  const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
   const offer = (n: number): EncounterOffer => ({
     offerId: id(100 + n),
     decisionId: id(200 + n),
@@ -63,7 +84,41 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
           ...body,
           scope: { accountId: id(1), privacyEpoch: 1 },
           revision: 0,
-          policy: { on: true, generation: 1 },
+          policy: recording,
+        },
+      });
+      return;
+    }
+    if (path === '/v1/play/results/read') {
+      commands.push({ path, body });
+      await route.fulfill({ json: resultsFor(body.assetId, body.revision) });
+      return;
+    }
+    if (path === '/v1/play/calls/lock') {
+      commands.push({ path, body });
+      const call = callIts.find((candidate) => candidate.id === body.stopId);
+      if (call === undefined || recording.on === false) {
+        await route.fulfill({ status: 404, json: {} });
+        return;
+      }
+      let standing = kept.find((lock) => lock.stopId === body.stopId);
+      const newlyLocked = standing === undefined;
+      if (standing === undefined) {
+        standing = { stopId: call.id, option: Number(body.option), correct: Number(body.option) === call.answer };
+        kept.push(standing);
+      }
+      await route.fulfill({
+        json: {
+          recorded: true,
+          commandId: body.commandId,
+          assetId: body.assetId,
+          revision: body.revision,
+          stopId: standing.stopId,
+          option: standing.option,
+          correct: standing.correct,
+          newlyLocked,
+          results: resultsFor(body.assetId, body.revision),
+          replayed: false,
         },
       });
       return;

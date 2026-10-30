@@ -1428,6 +1428,37 @@ After D-131 the Seasons thread still led to "Seasons limits": it shares the plan
 - **Unchanged.** The Related tab and the `related` move still open the target.
 - **Verified.** Pure and property tests, a unit test of the reads, and an integration test on real PostgreSQL from Seasons Part 1 and Part 3, with the fall back and the Related tab. Each fails when the rule or the read of the other parts is removed.
 
+## D-104 · 2026-10-30 · A scheduled sweep settles quiet places by rules, with no model (v3 U-3, #467)
+
+D-079 decided the sweep. This records how it works, so that a place goes quiet 30 days after the last reading whether or not the person comes back.
+
+**Amends** D-038 and D-052 ("activity changes alone apply by the rules" only inside a reading-triggered run).
+
+- **Stored time.** `geography.state.next_quiet_at` is the earliest the sweep needs to look at a universe: when the newest support under an active place turns 30 days old, or now when a change is already due. It is scheduling state, never evidence, and a lower bound for later reading, which only moves the true time forward. Every Cartographer apply rewrites it from the places as they are after the delta. A sweep pass that finds nothing due stores the corrected time. Support that is withdrawn, corrected or retracted can move the true time earlier; the place then goes quiet at the stored time or at the next apply, whichever comes first. Null means no place can go quiet.
+- **The rule is shared.** `activityChanges` (`domain/quiet.ts`) is the Cartographer's own rule, moved out of `requiredChanges`. A place is quiet when its newest support is more than 30 days old (`quietAfterDays` is unchanged), active otherwise, and keeps its state with no support. The sweep and a reading-triggered run call the same function, so they cannot disagree.
+- **Two jobs.** `geography.sweep-quiet` runs every 15 minutes (pg-boss cron, worker). It makes one indexed query for the oldest 100 states whose time has passed, and enqueues one `geography.settle-quiet` for each that can be settled, in the same transaction. It reads no support. A pass reads at most 100 rows however many universes are refused (D-105). The settle enters the personal scope as a system actor, rechecks the account, epoch and recording generation, reads current support, and applies only the activity changes. No model call, no ledger run, no network wait.
+- **No repeat work.** Handing a universe over pushes its `next_quiet_at` 30 minutes ahead (a lease), so the next pass does not queue it again while its settle waits. The settle rewrites the time. If the job is lost, the sweep finds the universe when the lease ends. A second delivery of a settle finds nothing to change.
+- **At most one delta of 32.** A person with more than 32 places going quiet at once settles over the following passes; the settle leaves the time at now while any change is still due.
+- **A delta without a run.** `geography.deltas.run_id` is now nullable. A quiet settle writes the same immutable delta, revision stamps, scene projection job and publish job as any apply, with no Cartographer run behind it. Only `activityRevision` moves, so Scenes redraw activity and nothing else, and a settle with nothing due moves no revision and no personal revision.
+- **Existence never changes.** The ids, labels and origin transitions of the places are untouched (AGENTS: inactivity changes activity, never existence). A new encounter after quiet behaves as it did: the next Cartographer run sets the places it supports active again.
+- **Unchanged.** "Everything is where you left it" stays on the device (`seenAt`, D-079).
+- **Existing worlds.** The migration sets `next_quiet_at` to now for every state that has places, so the first passes read each one's support and store its true time.
+- **Verified.** Pure tests of the rule and the time. An integration test on real PostgreSQL ages a world 31 days with no reading and sees every place quiet, with the same ids, labels and origins, one delta, only the activity stamps moved, a projection job, and nothing added to the reasoning ledger. It fails when the sweep hands nothing over.
+
+## D-105 · 2026-10-30 · When the quiet sweep stands aside (v3 U-3, #467)
+
+D-104 says what the sweep does. This says when it does nothing, so that it cannot change what a person has not allowed, and cannot void a Cartographer run.
+
+- **Recording paused.** A universe with recording off is not handed over, and a settle that was already queued writes nothing (`fenceRecording` against the generation the sweep saw). Pause means geography does not change, as it does for Cartographer runs. The sweep touches only its own `next_quiet_at` (see Parked). The places settle within a day of recording being on again, under the new generation.
+- **Paused time counts.** The 30 days run on the calendar. While recording is paused the server keeps no record of reading (D-057, D-083), so a person who reads on the device during a pause has no new support, and a place whose last recorded support is over 30 days old is quiet once recording is on again. Pausing neither stops nor extends the window.
+- **Parked.** A due universe the sweep cannot settle now (paused, a run holds it, a Clear in progress, account not active) moves its `next_quiet_at` a day ahead, in the same pass that looked at it. Without that, refused universes would stay at the head of the index and each pass would walk them all before it found one it could settle. Every row a pass looks at leaves the head, so a pass costs at most 100 rows, and a refused universe is looked at again a day later. A run's apply rewrites the time sooner.
+- **Clear and deletion.** Clear and account deletion remove the state row, so there is nothing due. A queued settle is erased with the universe's other geography jobs, and a payload from an earlier epoch is refused by the scope.
+- **A run holds the universe.** A Cartographer run freezes its context at the current revision, and a delta committed under it would void its answer. The sweep parks a universe with an active run and a settle stands aside (`run_active`). The run applies the same activity rule itself, and its apply rewrites the time.
+- **The role is off.** Both jobs follow `KS_CARTOGRAPHER_ENABLED`, the one switch for geography. With it off, nothing is handed over and a settle does nothing, as a run does. No new setting.
+- **Support unreadable.** If current support cannot be read, no place changes. The settle stores `next_quiet_at` a day ahead, so one universe does not occupy every pass.
+- **Lock order.** The sweep takes no personal root. The settle takes the root first, then the owned rows, as a Cartographer run does, so the two serialise on the root and never wait on each other in the other order.
+- **Verified.** Integration tests on real PostgreSQL: a paused universe is left exactly as it was and settles after resume, the old generation's payload is refused, a universe with a pending run is parked and the run still applies, refused universes at the head of the index are parked so the next pass reaches one that can be settled, a lease keeps a universe from being handed over twice, a settle waits for a held root and then applies once, nothing happens with the role off, and queued settles are erased with the universe.
+
 ## D-162 · 2026-10-30 · Residents are paid by a room scope and an `ambient` budget class (R-2, #488)
 
 **Amends** D-051, "every inhabitant call runs as the person who asked", and the reasoning README, "the nonpersonal scope is Scroll supply". **Builds on** D-058 and D-068.
@@ -1479,3 +1510,49 @@ Confirmed by: `router.test.ts`, `triggers.test.ts`, `rooms-residents.test.ts` (i
 - **What stays.** D-042: no one is ever shown that someone is typing.
 
 Confirmed by: `rooms-residents.test.ts` ("holds back a turn while someone types", "stores a discussion and a time, never a person", "an answer that was paid for"), `rooms-erasure.test.ts` (Clear and account deletion end a queued resident turn), `account-scope-socket.test.ts`.
+
+## D-183 · 2026-10-31 · On the web, a pull to a new topic is judged from the page at the touch (S-1c follow-up, #472)
+
+**Amends** D-134 ("Vertical reading never navigates": a pull counts when it starts at the end).
+
+- **The race.** The reader keeps its own record of the scroll position from scroll reports. On the web a report is throttled and the last one comes only when scrolling stops, so for a moment after the text reaches its end the record still says it is not there. A pull that began in that moment was read as ordinary reading and asked for nothing.
+- **The rule.** When a finger lands on the text, the web asks the scrolling element under it where it is now (at its end within 4 px, and only if the text scrolls at all). The same rule, `scrolledToEnd`, serves the reader's own record. A pull that begins in the middle of the text is still reading.
+- **Native** is unchanged: the pull is the scroll view's own `onScrollEndDrag`, which carries live values.
+
+Confirmed by: `current-stop.test.ts` ("whether the text is scrolled to its end"), `stage-reader-smoke.spec.ts` ("a pull that starts at the end is a new topic even when the scroll report is late"; "a pull up past the end is a new topic; the same pull in the middle of the text is reading"). Shown failing with the touch reading the reader's record: the late-report test failed 10 of 10.
+
+## D-180 · 2026-10-30 · Play is its own module, behind a wall in both directions (S-2, #473)
+
+**Builds on** D-063, D-064 and D-082.
+
+- **The module.** `modules/play` owns the calls a person locks and what they earned: `play.calls` (one row per person, Scroll revision and call stop) and `play.scroll_results` (calls locked, sparks, combo). It is in the erasure registry and the export. Sparks and combo belong to one Scroll revision; no schema sums them across Scrolls or ranks people (D-064).
+- **The wall is two allow-lists, not a list of the modules to fear.** `play-wall-only-roots-import-play`: only `play` itself, the apps' composition roots, tests and the erasure registry may import `modules/play/`. `play-wall-play-imports-three-public-surfaces`: `play` may import only the `public.ts` of `identity`, `content` and `experience`, plus infrastructure and contracts. A deny-list of `composer` (with Jev), `planner`, `evidence`, `personal-context`, `geography`, `scenes` and the reasoning engine would miss every other module and every later one, and a path through one that is not named: `planner` imports `supply`, so `planner` to `supply` to `play` would pass. The allow-lists close all of those. A third check, `play/wall.test.ts`, stops any production file outside `modules/play/` naming `play.calls` or `play.scroll_results`, so no module can read a pick straight from the tables either.
+- **What still counts as engagement.** Only that a call was played. Evidence takes the value-free interaction kind it already accepts; no kind, field or table carries the option picked, correctness, sparks or combo.
+- **AGENTS.** The "scores" wording D-064 asked for is already in AGENTS.md (internal ranking, model or evidence scores; game points are play features), so sparks in the dock break no rule.
+- **Not built.** The Final call, landmarks, the Orbit and the Universe overlay are S-3 and S-4. The Final call stays on the device without a spark.
+
+Confirmed by: `tests/integration/modules/play.test.ts` (two people read the same Scroll, one calling right and one wrong: the same qualification, activity, Personal Context contribution and the same places formed; a different reading is not equal, so the comparison can fail), `pnpm boundaries:probe`, which writes one forbidden import from each of the seven walled modules (composer, jev, planner, evidence, personal-context, geography, scenes), the reasoning engine, `supply`, `social` and `rooms` into play, and one from play into each of the same eleven public surfaces (22 probes), then runs the same files again with the wall's rules loosened, and again loosened for `supply` alone: a probe that a loosened rule still rejects fails the run, and loosening one module frees only that module's probe. Shown failing by loosening each side: the run named the freed `supply` importer and the freed `geography` surface. Also `play/wall.test.ts` (the SQL scan finds play's own queries and a planted mention), `erasure.test.ts`.
+
+## D-181 · 2026-10-30 · A lock is judged on the server, once, from the stored revision (S-2, #473)
+
+- **The command.** `call.lock` carries the asset, the revision, the stop, the option and the recording generation. It never carries correctness. The server reads the call from the immutable revision (`content` `READ_SCROLL_CALLS`) and decides.
+- **Who may lock.** Only a person with an activated exposure of that exact revision (`experience` `HAS_ACTIVATED_EXPOSURE`), and only a Call it of it. A revision, call or exposure the person does not have is one `NOT_FOUND`; an option the call does not have is `UNPROCESSABLE_REQUEST`. Nothing is stored for a refusal.
+- **Idempotent, and the first lock stands.** An identical retry answers the stored lock with today's results. Another command locking the same call changes nothing and answers the first lock with `newlyLocked: false`. A row is never updated.
+- **Sparks and combo.** One spark for each right call. The combo is the run of right calls in the order locked; a wrong call ends it and costs nothing. The device works the same rule out at once (`scroll-model` `tallyOf`), the server's answer wins, and a test checks the two agree.
+- **Reading evidence is unchanged.** The reader still reports `revealed` once per call, by kind. The lock and the reveal are one tap and either counts as reading (D-128), so evidence has nothing new to learn.
+- **The reveal.** A right pick shows "Called it!" and "+1 spark" (and "Combo ×n" from two in a row). A wrong pick shows "Plot twist!", what was called, the warm second look and, when it is the common guess, its reviewed source. Once the answer is shown only the option called and the right one stay, and the reader scrolls the reveal into view.
+
+Confirmed by: `play.test.ts` (right and wrong pick, retry, a second lock, forged option, call and exposure refusals, Final call refused), `lock-call.test.ts`, `play.test.tsx`, `play-smoke.spec.ts`.
+
+## D-182 · 2026-10-30 · Paused recording, Clear and export for play (S-2, #473)
+
+**Builds on** D-057, D-082 and D-083.
+
+- **Paused.** The server stores nothing while recording is paused or the client's generation is stale: no row, no receipt, and an answer (`recorded: false`, a reason and the current generation) that says nothing about the call. A client whose policy says paused sends nothing at all. The screen says "Not saved while recording is paused." before the lock and in the reveal. Reading what was saved before the pause still works.
+- **After resuming.** While paused the dock counts what the device just judged. When recording is on again the dock shows the server's numbers: a lock made while paused was never stored and, as D-083 says, does not appear later, so it is left out of the sparks and the combo (a combo of two is never shown over a lock the server did not hold). Its own reveal still says it was not saved.
+- **On the device.** Play lives in memory for the account scope: it survives moving between Parts, not a reload, and sign-out, an account switch, a privacy reset and Clear end it. It is never written to the scope's storage, so a reload while paused starts clean, as "saves nothing" says.
+- **Not reached.** A lock that the network did not carry keeps its command ID and is sent again after 1, 5 and 30 seconds, in the order made, while the app is open. The reveal says "Will save when you're back online." A lock the server refuses says "Couldn't save this one." and is not sent again.
+- **Clear and deletion.** Both tables are universe-keyed and are erased. Play is third in the erasure order (after rooms and feedback), because nothing refers to its rows.
+- **Export.** `play.scrolls`: per Scroll its title (if still reachable), sparks, combo and, for each call, the question, the option picked in words, whether it was right and when. No identifier and not the right answer.
+
+Confirmed by: `play.test.ts` (paused stores nothing and writes no receipt, a stale generation is told to read the policy again, Clear erases, export in words with no identifier), `play-session.test.ts`, `erasure.test.ts`, `privacy-clear.test.ts`, `data-export.test.ts`, and the paused case of `play-smoke.spec.ts`.

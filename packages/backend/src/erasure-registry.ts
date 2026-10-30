@@ -17,6 +17,7 @@ import { experienceErasure } from './modules/experience/adapters/erasure.js';
 import { feedbackErasure } from './modules/feedback/adapters/erasure.js';
 import { geographyErasure } from './modules/geography/adapters/erasure.js';
 import { identityErasure } from './modules/identity/adapters/erasure.js';
+import { playErasure } from './modules/play/adapters/erasure.js';
 import { personalContextErasure } from './modules/personal-context/adapters/erasure.js';
 import { scenariosErasure } from './modules/scenarios/adapters/erasure.js';
 import { plannerErasure } from './modules/planner/adapters/erasure.js';
@@ -45,6 +46,8 @@ import { receiptsErasure } from './infrastructure/receipts/erasure.js';
 const moduleErasures = [
   roomsErasure,
   feedbackErasure,
+  // Play is the person's own game record and nothing else reads it (D-063), so it has no dependants.
+  playErasure,
   // Scenarios refer to threads and messages, so they come before Social.
   scenariosErasure,
   socialErasure,

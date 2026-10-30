@@ -98,6 +98,8 @@ describe('the renderer on the device', () => {
       'callsOf',
       'stageParts',
       'stagePhysics',
+      // The tally of a Scroll's calls (sparks and combo): arithmetic over locks, no admission.
+      'talliesAfterEach',
     ]);
     const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
     const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>
