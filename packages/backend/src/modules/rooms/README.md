@@ -123,7 +123,8 @@ conversations or threads.
   return claims the window (a 12-hour UTC block) with one insert on a unique key, queues the one summary job in the same transaction
   and records the member's own mark; everyone who returns in the window reads the same words. The summary reads the window through
   the same builder as every context path and leaves kept-out members and removed messages out altogether. Removing a message it
-  read, turning keep-out on after writing in it, or deleting the account erases it (`stale`) and the window is not rewritten.
+  read, turning keep-out on after writing in it, or deleting the account erases it (`stale`) and the window is not rewritten. A
+  member's card is read only for a day after the summary was written.
 - **The router is pure and runs under the room lock (D-081, D-164).** `domain/router.ts` takes facts read under the lock
   and answers: let go, look again later, refuse (a cap), or speak. Its caps are code, not configuration. A message that
   reads as a question (or, for the Skeptic, as a claim stated very strongly) queues `rooms.cast-due` for after the wait

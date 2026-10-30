@@ -21,7 +21,7 @@ import {
 import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { CONCEPTS } from '../../content/public.js';
-import { welcomeText } from '../domain/away.js';
+import { CARD_LIFE_MS, welcomeText } from '../domain/away.js';
 import { nameOf } from '../domain/cast.js';
 import { isModerator, joinDecision, roomAcceptsPosts } from '../domain/membership.js';
 import { COUNT_FROM, hereOf } from '../domain/presence.js';
@@ -170,6 +170,7 @@ async function awayOf(p: RoomPorts, entered: EnteredRoom, member: MemberRow): Pr
   if (position?.awaySince === undefined || position.awayWindow === undefined) return undefined;
   const summary = await p.summaries.forWindow(lock, position.awayWindow);
   if (summary === undefined || (summary.state !== 'queued' && summary.state !== 'ready')) return undefined;
+  if (p.now().getTime() - summary.createdAt.getTime() > CARD_LIFE_MS) return undefined;
   const resident = residentAuthor(standing.room, 'skeptic');
   const since = position.awaySince.toISOString();
   return summary.state === 'queued' || summary.body === null

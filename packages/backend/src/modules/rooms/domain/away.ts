@@ -16,6 +16,8 @@ export const WINDOW_MS = 12 * HOUR_MS;
 export const COVERS_AT_MOST_MS = 24 * HOUR_MS;
 /** The newest messages a summary reads, and the most characters of each (the context stays small and fixed). */
 export const SUMMARY_MESSAGES = 60;
+/** A member's card is shown for this long after the summary was written: a catch-up is for the return, not for next week. */
+export const CARD_LIFE_MS = 24 * HOUR_MS;
 
 /** The 12-hour UTC block containing `at`, numbered from the epoch. It is the key of "one call per window per room". */
 export const windowOf = (at: Date): number => Math.floor(at.getTime() / WINDOW_MS);

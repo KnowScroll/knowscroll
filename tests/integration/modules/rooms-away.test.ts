@@ -242,6 +242,18 @@ describe('while you were away (real PostgreSQL, CI fixture model)', () => {
       expect(await awayOf(r.ravi, r.roomId)).toBeUndefined();
     });
 
+    it('is shown for a day after it was written, and not after', async () => {
+      const r = await room();
+      await talk(r, 16, 13);
+      at(14);
+      unwrap(await setPresence(world, r.asha, r.roomId));
+      await runner(() => summary(TEXT)).run();
+      at(37, 59);
+      expect(await awayOf(r.asha, r.roomId)).toMatchObject({ state: 'ready' });
+      at(38, 1);
+      expect(await awayOf(r.asha, r.roomId)).toBeUndefined();
+    });
+
     it('is cleared by the member’s "Got it", and the same command again is harmless', async () => {
       const r = await room();
       await talk(r, 16, 13);
