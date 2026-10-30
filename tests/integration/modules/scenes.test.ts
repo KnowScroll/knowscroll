@@ -76,6 +76,8 @@ const capabilities: SceneClientCapabilities = {
   reducedMotion: false,
 };
 const query = { selection: { kind: 'universe' as const }, capabilities };
+/** Spare sites a planet is drawn with beyond its facets (RESERVED_SITES in the look rule, D-103). A change is deliberate. */
+const SPARE_SITES = 4;
 /** A client that can draw looks (D-102): it declares the look version and the generator they pin. */
 const lookCapabilities: SceneClientCapabilities = {
   ...capabilities,
@@ -94,6 +96,9 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     chunk: ReadOwnSceneChunk,
     input: ReadGeographySceneInput;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
+  /** Diagnostic events the projector and the backfill sent, in order. */
+  const events: { event: string; fields: unknown }[] = [];
+  const lookRefusals = () => events.filter((entry) => entry.event === 'scenes.look_refused');
   async function recording(scope: PersonalScopeTx) {
     const own = await accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount(scope);
     if (own.kind !== 'active') throw new Error('CI Scene owning account unavailable');
@@ -105,14 +110,16 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     database = await createTestDatabase<Database>('scenes');
     c = await scrollUseCases(database);
     const SCOPE = Symbol('scope'),
-      ENQUEUE = Symbol('enqueue');
+      ENQUEUE = Symbol('enqueue'),
+      LOG = Symbol('log');
     const providers = [
       ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
       ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-      ...sceneProviders({ withPersonalScope: SCOPE }),
+      ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
     ];
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
+      [LOG, (event: string, fields?: unknown) => void events.push({ event, fields })],
       [ENQUEUE, makeEnqueueJob(c.boss)],
       [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
@@ -356,6 +363,91 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     });
     return id;
   }
+  /** A later region of the fixture's planet: the facet is named by the plan, so its site is fixed by it. */
+  async function formRegion(p: Awaited<ReturnType<typeof fixture>>, facetId: string, label: string) {
+    const region = p.places.find((o) => o.id === p.region)!;
+    const id = randomUUID();
+    await withScope()(p.authority, async (s) => {
+      const cap = await recording(s);
+      const old = await geographyStore.state(s);
+      await geographyStore.saveObject(
+        s,
+        {
+          ...region,
+          id,
+          key: `region:${facetId}:factual`,
+          conceptId: facetId,
+          label,
+          originTransitionId: randomUUID(),
+          objectRevision: 1,
+        },
+        [],
+      );
+      const revision = old.revision + 1,
+        structureRevision = old.structureRevision + 1;
+      await geographyStore.writeState(s, { ...old, revision, structureRevision });
+      await geo.applied(cap, {
+        recordingGeneration: 1,
+        transitionId: randomUUID(),
+        geography: { revision, structureRevision, activityRevision: old.activityRevision },
+        personalRevision: await advanceScopeRevision(s),
+      });
+    });
+    return id;
+  }
+  /** Rewrites a planet's look as the previous plan would have drawn it: the sites it had when it formed. */
+  async function redrawPlanetWithSites(p: Awaited<ReturnType<typeof fixture>>, siteCount: number) {
+    const stored = (await looksOf(p)).find((look) => look.objectId === p.planet) as PlanetLook;
+    // The database refuses an update, so the CI history is built by replacing the row, like a world
+    // that was drawn before the plan grew.
+    await database.pool.query('delete from scenes.looks where universe_id=$1 and object_id=$2', [
+      p.universeId,
+      p.planet,
+    ]);
+    await database.pool.query(
+      'insert into scenes.looks(universe_id,privacy_epoch,object_id,kind,payload) values($1,1,$2,$3,$4)',
+      [p.universeId, p.planet, 'planet', JSON.stringify({ ...stored, siteCount })],
+    );
+  }
+  it('keeps the scene current when the plan appends a facet to a drawn planet, and the new region gets its own site', async () => {
+    events.length = 0;
+    const p = await fixture();
+    await project((await jobs(p))[0]!.data);
+    const ordinalOf = (facetId: string) => facetOrdinal('earth.seasons', facetId);
+    const planetSites = ((await looksOf(p)).find((look) => look.objectId === p.planet) as PlanetLook).siteCount;
+    // Drawn when the plan had one facet fewer than it has now (the fourth, "elsewhere", came later).
+    await redrawPlanetWithSites(p, planetSites - 1);
+    const before = await looksOf(p);
+    const added = await formRegion(p, 'earth.seasons.elsewhere', 'Seasons elsewhere');
+    await project((await jobs(p))[0]!.data);
+    expect(await lookSnapshot(p)).toMatchObject({ status: 'ready' });
+    const after = await looksOf(p);
+    for (const look of before) expect(after.find((other) => other.objectId === look.objectId)).toEqual(look);
+    expect(after.find((look) => look.objectId === added)).toMatchObject({
+      kind: 'region',
+      site: ordinalOf('earth.seasons.elsewhere'),
+    });
+    expect(lookRefusals()).toEqual([]);
+  });
+  it("leaves only a region past its planet's sites without a look, keeps the scene current and says so", async () => {
+    const p = await fixture();
+    await project((await jobs(p))[0]!.data);
+    // A planet drawn with room for three sites only: the plan's fourth facet has nowhere to go.
+    await redrawPlanetWithSites(p, 3);
+    const before = await looksOf(p);
+    events.length = 0;
+    const beyond = await formRegion(p, 'earth.seasons.elsewhere', 'Seasons elsewhere');
+    await project((await jobs(p))[0]!.data);
+    const scene = await lookSnapshot(p);
+    expect(scene).toMatchObject({ status: 'ready' });
+    const after = await looksOf(p);
+    expect(after).toEqual(before);
+    expect(after.some((look) => look.objectId === beyond)).toBe(false);
+    // The object itself is in the scene and in the manifest; only its look is missing.
+    expect('manifest' in scene && scene.manifest.chunks.flatMap((chunk) => chunk.objectIds)).toContain(beyond);
+    expect('looks' in scene && scene.looks?.some((look) => look.objectId === beyond)).toBe(false);
+    expect(lookRefusals()).toEqual([{ event: 'scenes.look_refused', fields: { reasonCode: 'site_beyond_capacity' } }]);
+  });
   it('gives each place its look in the projection transaction and serves it only to a client that declared looks', async () => {
     const p = await fixture();
     await project((await jobs(p))[0]!.data);
@@ -366,7 +458,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     expect(stored.find((look) => look.objectId === p.planet)).toMatchObject({
       kind: 'planet',
       variant: 0,
-      siteCount: CONCEPTS.find((concept) => concept.id === 'earth.seasons')!.facets.length,
+      siteCount: CONCEPTS.find((concept) => concept.id === 'earth.seasons')!.facets.length + SPARE_SITES,
     });
     expect(stored.find((look) => look.objectId === p.region)).toMatchObject({
       kind: 'region',
@@ -416,7 +508,7 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     const added = second.find((look) => look.objectId === tides) as PlanetLook;
     expect(added).toMatchObject({ kind: 'planet', variant: 0 });
     expect(added.type).not.toBe(seasons.type);
-    expect(added.siteCount).toBe(CONCEPTS.find((concept) => concept.id === 'earth.tides')!.facets.length);
+    expect(added.siteCount).toBe(CONCEPTS.find((concept) => concept.id === 'earth.tides')!.facets.length + SPARE_SITES);
     // Projecting again, with nothing new, reads and writes no look.
     const afterSecond = await rows();
     await makeProjectScene(ports)(job);
@@ -489,7 +581,10 @@ describe('persisted Scene projection (real PostgreSQL CI fixtures)', () => {
     // Idempotent: a second delivery assigns nothing and advances nothing, and the world is no longer found.
     expect(await backfill(job!.data)).toEqual({ assigned: 0 });
     expect(await root(p)).toBe(rootBefore + 1);
-    expect(await sendBackfillLooks(database.db, c.boss, { dryRun: true, limit: 50 })).toMatchObject({ found: 0 });
+    // This world is no longer found. (A world with a region past its planet's sites stays found; its job assigns nothing.)
+    expect(await sendBackfillLooks(database.db, c.boss, { dryRun: true, limit: 50 })).toMatchObject({
+      found: dry.found - 1,
+    });
   });
   it('does not backfill for a suspended owner, a stale epoch or a universe with no scene', async () => {
     const p = await fixture();

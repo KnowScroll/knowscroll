@@ -77,8 +77,9 @@ export interface SystemLook extends SceneLookBase {
 }
 /**
  * How a planet is painted and how many sites its world has. `variant` counts the planets of the same
- * type that were assigned before it, so a repeated type changes hue and layout. `siteCount` is one
- * site per facet of the planet; the world generator lays all of them out from the planet's seed.
+ * type that were assigned before it, so a repeated type changes hue and layout. `siteCount` is a
+ * site for each facet of the planet plus a few spare ones for facets the plan appends later; the world
+ * generator lays all of them out from the planet's seed, and the unused ones draw as decorative grey.
  */
 export interface PlanetLook extends SceneLookBase {
   kind: 'planet';

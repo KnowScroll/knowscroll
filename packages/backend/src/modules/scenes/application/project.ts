@@ -7,6 +7,8 @@ import type { ProjectScene, ScenePorts, StoredChunk } from './ports.js';
 export function makeProjectScene(p: ScenePorts): ProjectScene {
   return async (payload) => {
     const job = ProjectSceneJobSchema.parse(payload);
+    // Sent once the transaction has committed, so an attempt that rolls back reports nothing.
+    const lookRefusals: string[] = [];
     await p.withScope(
       {
         universeId: job.universeId,
@@ -48,7 +50,7 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
           );
           // Looks are given in the same transaction as the places they describe, never from what is in
           // use now: an object that already has one keeps it (D-102).
-          const looks = missingLooks(projection.objects, input, priorLooks);
+          const { created, skipped } = missingLooks(projection.objects, input, priorLooks);
           await p.store.save(
             scope,
             {
@@ -60,7 +62,9 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             projection.objects,
             projection.changed,
           );
-          await p.store.saveLooks(scope, looks);
+          await p.store.saveLooks(scope, created);
+          // A region past its planet's sites stays without a look and the scene stays current (D-102).
+          lookRefusals.push(...skipped.map((region) => region.reason));
         } catch (error) {
           // Canonical parsers never echo input. Bad labels/versions fail closed; bounds remain explicit.
           const reason = error instanceof ProjectionUnavailable ? error.reason : 'temporarily_unavailable';
@@ -70,6 +74,8 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             !(error instanceof Error && error.name === 'SceneParseError')
           )
             throw error;
+          // The plan and the stored objects disagree: the scene is unavailable, and the cause is logged.
+          if (error instanceof LookRefused) lookRefusals.push(error.reason);
           await p.store.save(
             scope,
             {
@@ -87,5 +93,6 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
         await p.notify(scope, await p.advance(scope));
       },
     );
+    for (const reasonCode of lookRefusals) p.logEvent('scenes.look_refused', { reasonCode });
   };
 }

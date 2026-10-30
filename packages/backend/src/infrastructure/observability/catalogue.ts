@@ -208,6 +208,8 @@ export const diagnosticCatalogue = {
   'scenarios.branches_resolved': { severity: 'info', module: 'scenarios', fields: ['count'] },
   // Places given their look by the operator's backfill (D-102): a count only.
   'scenes.looks_backfilled': { severity: 'info', module: 'scenes', fields: ['count'] },
+  // A place left without a look, or a scene refused because the plan and its stored objects disagree (D-102): a code only.
+  'scenes.look_refused': { severity: 'warn', module: 'scenes', fields: ['reasonCode'] },
   'evidence.reading_projected': {
     severity: 'info',
     module: 'evidence',

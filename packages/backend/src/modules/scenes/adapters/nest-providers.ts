@@ -33,6 +33,7 @@ import {
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { projectSceneQueue } from '../events.js';
 import { PROJECT_SCENE, BACKFILL_SCENE_LOOKS, READ_OWN_SCENE_MANIFEST, READ_OWN_SCENE_CHUNK } from '../public.js';
@@ -67,15 +68,16 @@ export function sceneAppliedProviders(t: { readonly enqueueJob: symbol }) {
     },
   ];
 }
-export function sceneProviders(t: { readonly withPersonalScope: symbol }) {
+export function sceneProviders(t: { readonly withPersonalScope: symbol; readonly logEvent: symbol }) {
   return [
     {
       provide: SCENE_PORTS,
-      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT],
+      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT, t.logEvent],
       useFactory: (
         withScope: WithPersonalScope,
         ownerActive: CheckPersonalOwnerActive,
         readInput: ReadGeographySceneInput,
+        logEvent: LogEvent,
       ): ScenePorts => ({
         withScope,
         ownerActive,
@@ -86,6 +88,7 @@ export function sceneProviders(t: { readonly withPersonalScope: symbol }) {
         advance: advanceScopeRevision,
         notify: (scope, revision) => notifyScopeChanged(scope, { revision, eventId: uuidv7() }),
         now: () => new Date(),
+        logEvent,
       }),
     },
     { provide: PROJECT_SCENE, inject: [SCENE_PORTS], useFactory: (p: ScenePorts) => makeProjectScene(p) },

@@ -88,10 +88,13 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
     expect(sceneFamilyOf('astronomy')).toBeUndefined();
   });
 
-  it('gives each system its own haze family, one of the six, so no two systems share a colour', () => {
+  it('gives each system a haze family of the six, and no two systems the same while six or fewer exist', () => {
     const hazes = LIBRARY_SYSTEMS.map((system) => system.haze);
-    expect(new Set(hazes).size).toBe(LIBRARY_SYSTEMS.length);
-    expect([...hazes].sort()).toEqual(['amber', 'cobalt', 'coral', 'pink', 'teal', 'violet']);
+    const six = ['amber', 'cobalt', 'coral', 'pink', 'teal', 'violet'];
+    for (const haze of hazes) expect(six).toContain(haze);
+    // A seventh system has to share a family (D-102); until then every system has its own colour.
+    if (LIBRARY_SYSTEMS.length <= six.length) expect(new Set(hazes).size).toBe(LIBRARY_SYSTEMS.length);
+    if (LIBRARY_SYSTEMS.length === six.length) expect([...hazes].sort()).toEqual(six);
     expect(LIBRARY_SYSTEMS.map((system) => hazeFamilyOf(system.id))).toEqual(hazes);
     expect(hazeFamilyOf('earth.seasons')).toBeUndefined();
     expect(hazeFamilyOf('astronomy')).toBeUndefined();

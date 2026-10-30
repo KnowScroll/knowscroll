@@ -21,6 +21,7 @@ import type {
   CheckPersonalOwnerActive,
 } from '../../identity/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import type { BackfillLooksJob, ProjectSceneJob } from '../events.js';
 export interface StoredObject {
   readonly descriptor: SceneDescriptor;
@@ -72,6 +73,8 @@ export interface ScenePorts {
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number) => Promise<void>;
   readonly now: () => Date;
+  /** Diagnostics only: a region left without a look, or a plan that disagrees with the stored objects. */
+  readonly logEvent: LogEvent;
 }
 export type ProjectScene = (job: ProjectSceneJob) => Promise<void>;
 /** Gives the looks a world projected before looks existed; returns how many it gave. */

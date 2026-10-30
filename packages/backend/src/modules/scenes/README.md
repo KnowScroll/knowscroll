@@ -123,8 +123,11 @@ descriptors, chunks and manifests stay `scene-descriptor.v1`, `scene-chunk.v1` a
   missing rows only: no slot, seed, family, anchor, chunk or manifest changes. It advances the root
   and sends the disposable notice once, and only when it assigned something. Idempotent. Queue policy
   as the projection's: 120s expiry, three 10s backoff retries, concurrency 1, dead letter.
-- **Limits.** A facet added later to a planet that already has its look is refused (the region
-  would lie beyond the planet's `siteCount`); a new facet needs a new planet. A visitor's device
+- **Growth.** A planet is drawn with its facets plus 4 spare sites, so a facet the plan appends
+  later takes the next site and moves nothing. Facets are append-only (a pinned table in
+  `assign-looks.test.ts`). A region past even the spare sites is left without a look, the scene
+  stays current, and `scenes.look_refused` is logged; only a structural disagreement between the
+  plan and the stored objects makes the scene unavailable. A visitor's device
   derives its own look from public ids (D-047) and may repeat a type.
 - **Not built here.** The world generator that lays out continents and regions from a planet's seed
   (`worldmap.v1`), and every screen that draws a look (U-2 to U-4).

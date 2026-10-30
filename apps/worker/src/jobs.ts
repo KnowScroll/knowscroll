@@ -152,7 +152,7 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
 const PERSONAL_MATERIAL_CHANGE = Symbol('personal.materialChange');
 export const jobWiring: Provider[] = [
   ...sceneAppliedProviders({ enqueueJob: ENQUEUE_JOB }),
-  ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, logEvent: LOG_EVENT }),
   ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),

@@ -33,6 +33,19 @@ export interface LookSubject {
   readonly seed: string;
 }
 
+/** A region the rule left without a look, and why: it is drawn as before, and the cause is logged. */
+export interface SkippedLook {
+  readonly objectId: string;
+  /** `site_beyond_capacity`: its facet's ordinal is past the sites its planet was drawn with. */
+  readonly reason: 'site_beyond_capacity';
+}
+
+/** What `assignLooks` decided: the looks to store now, and the regions it could not give one. */
+export interface LookAssignment {
+  readonly created: SceneLook[];
+  readonly skipped: SkippedLook[];
+}
+
 /** The plan and the stored objects disagree, so no look can be given without guessing. */
 export class LookRefused extends Error {
   constructor(readonly reason: string) {
@@ -65,6 +78,13 @@ const HAZE_HUE_SHIFT: Readonly<Record<HazeFamily, number>> = {
  */
 const REPEAT_HUE_STEP = 75;
 const HUE_JITTER = 30;
+/**
+ * Sites a planet's world keeps in reserve beyond its facets today. The plan grows by appending facets
+ * (the Seasons planet gained one after its look was drawn), and a region keeps the site of its facet's
+ * ordinal, so a later facet takes a spare site and no earlier border moves. Spare sites draw as the
+ * decorative grey of D-078. This amends D-078's "one site per facet" (D-103).
+ */
+export const RESERVED_SITES = 4;
 const FROZEN_RINGS_BELOW = 0.5;
 const MOON_BELOW = 0.45;
 
@@ -155,12 +175,14 @@ function planetLook(
 
 /**
  * Gives a look to every system, planet and region in `subjects` that has none in `existing`, in
- * creation order (kind, then object id, which is creation order for UUIDv7 ids). Stars have none. A
- * planet takes one site per facet of its catalogue entry; a region takes the ordinal of its facet.
- * It never changes or repeats a look in `existing`. Throws `LookRefused` when the plan and the
- * objects disagree.
+ * order (kind, then object id; for UUIDv7 ids that is close to creation order, and it is the same on
+ * every run whatever the order Geography lists them in). Stars have none. A planet takes a site for
+ * each facet of its catalogue entry and `RESERVED_SITES` spare ones; a region takes the ordinal of its
+ * facet. A region whose ordinal is past its planet's sites is skipped and reported, never refused, so
+ * one grown planet cannot take the scene down. It never changes or repeats a look in `existing`.
+ * Throws `LookRefused` only when the plan and the stored objects structurally disagree.
  */
-export function assignLooks(subjects: readonly LookSubject[], existing: readonly SceneLook[]): SceneLook[] {
+export function assignLooks(subjects: readonly LookSubject[], existing: readonly SceneLook[]): LookAssignment {
   const subjectOf = new Map(subjects.map((subject) => [subject.objectId, subject]));
   const known = new Map(existing.map((look) => [look.objectId, look]));
   const use = new TypeUse();
@@ -170,6 +192,7 @@ export function assignLooks(subjects: readonly LookSubject[], existing: readonly
     if (look.kind === 'planet') use.add(subject.systemId, look.type);
   }
   const created: SceneLook[] = [];
+  const skipped: SkippedLook[] = [];
   const pending = subjects.filter((subject) => subject.kind !== 'star' && !known.has(subject.objectId));
   for (const subject of [...pending].sort(byCreation)) {
     const look =
@@ -178,10 +201,14 @@ export function assignLooks(subjects: readonly LookSubject[], existing: readonly
         : subject.kind === 'planet'
           ? newPlanetLook(subject, subjectOf, use)
           : regionLook(subject, subjectOf, known);
+    if (look === 'beyond_capacity') {
+      skipped.push({ objectId: subject.objectId, reason: 'site_beyond_capacity' });
+      continue;
+    }
     known.set(look.objectId, look);
     created.push(look);
   }
-  return created;
+  return { created, skipped };
 }
 
 function systemLook(subject: LookSubject): SystemLook {
@@ -200,27 +227,27 @@ function newPlanetLook(subject: LookSubject, subjectOf: ReadonlyMap<string, Look
   const system = subjectOf.get(subject.systemId);
   const haze = system && hazeFamilyOf(system.meaningId);
   const facets = CONCEPTS.find((concept) => concept.id === subject.meaningId)?.facets.length ?? 0;
-  if (!haze || facets < 1 || facets > LOOK_LIMITS.sites) throw new LookRefused('planet_without_plan');
+  if (!haze || facets < 1) throw new LookRefused('planet_without_plan');
   const type = chooseType(subject.seed, use, subject.systemId);
   const variant = use.count(type);
   use.add(subject.systemId, type);
-  return planetLook(subject, type, variant, haze, facets);
+  return planetLook(subject, type, variant, haze, Math.min(LOOK_LIMITS.sites, facets + RESERVED_SITES));
 }
 
 function regionLook(
   subject: LookSubject,
   subjectOf: ReadonlyMap<string, LookSubject>,
   known: ReadonlyMap<string, SceneLook>,
-): RegionLook {
+): RegionLook | 'beyond_capacity' {
   const planet = known.get(subject.parentId);
   const planetMeaning = subjectOf.get(subject.parentId)?.meaningId;
   const site = CONCEPTS.find((concept) => concept.id === planetMeaning)?.facets.findIndex(
     (facet) => facet.id === subject.meaningId,
   );
-  // A site beyond the planet's recorded count means the plan grew after the planet was drawn: refuse
-  // rather than lay a region on a site its planet's world was never given.
-  if (planet?.kind !== 'planet' || site === undefined || site < 0 || site >= planet.siteCount)
-    throw new LookRefused('region_without_site');
+  if (planet?.kind !== 'planet' || site === undefined || site < 0) throw new LookRefused('region_without_site');
+  // The plan grew past the spare sites the planet was drawn with: leave this region without a look
+  // rather than lay it on a site its planet's world was never given.
+  if (site >= planet.siteCount) return 'beyond_capacity';
   return {
     schemaVersion: SCENE_LOOK_VERSION,
     generatorVersion: WORLD_GENERATOR_VERSION,
