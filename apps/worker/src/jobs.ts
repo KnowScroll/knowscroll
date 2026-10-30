@@ -12,16 +12,26 @@ import {
   type FormationUseCases,
   type ProjectScene,
 } from '@knowscroll/backend/modules/scenes';
-import { geographyProviders, cartographerWorkerProviders } from '@knowscroll/backend/modules/geography/nest-providers';
+import {
+  geographyProviders,
+  cartographerWorkerProviders,
+  quietSweepProviders,
+} from '@knowscroll/backend/modules/geography/nest-providers';
 import {
   GEOGRAPHY_MATERIAL_CHANGE,
   RUN_CARTOGRAPHER,
   PUBLISH_GEOGRAPHY_DELTA,
+  SETTLE_QUIET,
+  SWEEP_QUIET,
   cartographyQueue,
   publishDeltaQueue,
+  settleQuietQueue,
+  sweepQuietQueue,
   type MaterialGeographyChange,
   type RunCartographer,
   type PublishGeographyDelta,
+  type SettleQuiet,
+  type SweepQuiet,
 } from '@knowscroll/backend/modules/geography';
 import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
@@ -157,6 +167,7 @@ export const jobWiring: Provider[] = [
   ...socialPeopleProviders(),
   ...roomsWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
+  ...quietSweepProviders({ database: DATABASE, boss: PG_BOSS, workerConfig: WORKER_CONFIG }),
   {
     provide: PERSONAL_MATERIAL_CHANGE,
     inject: [PLANNER_MATERIAL_CHANGE, GEOGRAPHY_MATERIAL_CHANGE],
@@ -217,6 +228,8 @@ export const jobWiring: Provider[] = [
       FORMATION_PRESENTATIONS,
       RUN_CARTOGRAPHER,
       PUBLISH_GEOGRAPHY_DELTA,
+      SETTLE_QUIET,
+      SWEEP_QUIET,
       RESOLVE_CONTENT_REQUEST,
       SUGGEST_SCENARIO_DRAFT,
       RESOLVE_SCENARIO_BRANCHES,
@@ -244,6 +257,8 @@ export const jobWiring: Provider[] = [
       formation: FormationUseCases,
       runCartographer: RunCartographer,
       publishDelta: PublishGeographyDelta,
+      settleQuiet: SettleQuiet,
+      sweepQuiet: SweepQuiet,
       resolveRequest: ResolveRequest,
       suggestDraft: SuggestStep,
       resolveBranches: () => Promise<ResolveSummary>,
@@ -309,6 +324,16 @@ export const jobWiring: Provider[] = [
       }),
       jobConsumer(publishDeltaQueue, async (payload) => {
         await publishDelta(payload);
+      }),
+      // Every 15 minutes: universes with a place due to go quiet are handed to a settle (D-104).
+      jobConsumer(sweepQuietQueue, async () => {
+        const { handedOver } = await sweepQuiet();
+        if (handedOver > 0) logEvent('geography.quiet_swept', { count: handedOver });
+      }),
+      // Rules only, no model: a place whose newest support is over 30 days old goes quiet (D-104).
+      jobConsumer(settleQuietQueue, async (payload) => {
+        const { outcome, changed } = await settleQuiet(payload);
+        logEvent('geography.quiet_settled', { outcome, count: changed });
       }),
       jobConsumer(resolveSupplyQueue, async (payload, delivery) => {
         await resolveRequest(payload, delivery);

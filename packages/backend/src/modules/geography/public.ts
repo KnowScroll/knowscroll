@@ -11,6 +11,8 @@ export type {
   PublishGeographyDelta,
 } from './application/ports.js';
 export { CartographyJobSchema, type CartographyJob, cartographyQueue, publishDeltaQueue } from './events.js';
+export type { SettleQuiet, SettleQuietResult, SettleQuietOutcome, SweepQuiet } from './application/quiet.js';
+export { SettleQuietJobSchema, type SettleQuietJob, settleQuietQueue, sweepQuietQueue } from './events.js';
 export const GEOGRAPHY_MATERIAL_CHANGE = Symbol('geography.materialChange');
 export const REQUEST_CARTOGRAPHY = Symbol('geography.requestCartography');
 export const RUN_CARTOGRAPHER = Symbol('geography.runCartographer');
@@ -18,6 +20,8 @@ export const READ_OWN_GEOGRAPHY = Symbol('geography.readOwn');
 export const READ_OWN_DELTAS = Symbol('geography.readDeltas');
 export const READ_OWN_EMERGING = Symbol('geography.readEmerging');
 export const PUBLISH_GEOGRAPHY_DELTA = Symbol('geography.publishDelta');
+export const SETTLE_QUIET = Symbol('geography.settleQuiet');
+export const SWEEP_QUIET = Symbol('geography.sweepQuiet');
 
 export type { GeographySceneInput, ReadGeographySceneInput, GeographyApplied } from './application/ports.js';
 export const READ_GEOGRAPHY_SCENE_INPUT = Symbol('geography.readSceneInput');

@@ -10,6 +10,7 @@ import {
   type Place,
   type Route,
 } from '../domain/policy.js';
+import { nextQuietAt, withNextQuietAt } from '../domain/quiet.js';
 import type { GeographyPorts, GeographyContext, GeographyView } from './ports.js';
 import { prepareGeography } from './context.js';
 export function publicPlace(p: Place, universeId: string, objects: readonly Place[]): GeographyObject {
@@ -26,11 +27,15 @@ export function publicPlace(p: Place, universeId: string, objects: readonly Plac
     parent: { kind: p.kind === 'system' ? 'universe' : p.kind === 'region' ? 'planet' : 'system', id: parentId },
   } as GeographyObject;
 }
-/** Current authority, complete pure validation, all writes + immutable delta + required work in one root. */
+/**
+ * Current authority, complete pure validation, all writes + immutable delta + required work in one root.
+ * `runId` names the Cartographer run that made the delta; the quiet sweep has no run and passes none.
+ * The universe's `nextQuietAt` is rewritten from the places as they are after the delta.
+ */
 export async function applyProposal(
   p: GeographyPorts,
   cap: RecordingScopeTx,
-  runId: string,
+  runId: string | undefined,
   c: GeographyContext,
   proposal: GeographyProposal,
   closeLedger: () => Promise<void>,
@@ -163,7 +168,8 @@ export async function applyProposal(
     if (write.route) await p.store.saveRoute(scope, write.route, write.refs);
   }
   await p.store.writeDelta(scope, runId, hash, delta);
-  await p.store.writeState(scope, { ...view.state, ...geography });
+  const quietAt = nextQuietAt({ ...fresh.facts, objects });
+  await p.store.writeState(scope, withNextQuietAt({ ...view.state, ...geography }, quietAt));
   await p.enqueueDelta(scope, delta);
   await p.applied(cap, {
     recordingGeneration: cap.generation,

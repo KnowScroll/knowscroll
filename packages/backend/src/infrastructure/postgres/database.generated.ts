@@ -638,7 +638,7 @@ export interface GeographyDeltas {
   policy_version: string;
   privacy_epoch: number;
   revision: number;
-  run_id: string;
+  run_id: string | null;
   transition_id: string;
   universe_id: string;
 }
@@ -696,6 +696,7 @@ export interface GeographyState {
   desired_recording_generation: number | null;
   desired_revision: Generated<number>;
   material_revision: Generated<number>;
+  next_quiet_at: Timestamp | null;
   next_run_not_before: Timestamp | null;
   privacy_epoch: number;
   published_revision: Generated<number>;

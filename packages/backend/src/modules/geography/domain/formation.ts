@@ -1,6 +1,5 @@
 import {
   MAX_PROPOSAL_OPERATIONS,
-  activityFor,
   formationEligible,
   proposalIssue,
   supportsFor,
@@ -8,6 +7,7 @@ import {
   type GeographyProposal,
   type PlaceKind,
 } from './policy.js';
+import { activityChanges } from './quiet.js';
 
 type Operation = GeographyProposal['operations'][number];
 type CreationOperation = Extract<Operation, { key: string }>;
@@ -57,29 +57,13 @@ export function placesDue(facts: FormationFacts): boolean {
   return dueCreations(facts).length > 0;
 }
 
-/** Established places whose activity differs from what their latest verified support implies. */
-function dueActivityChanges(facts: FormationFacts): Operation[] {
-  const due: Operation[] = [];
-  for (const place of facts.objects) {
-    const state = activityFor(facts, place);
-    if (!state || (place.activity.availability === 'available' && place.activity.state === state)) continue;
-    due.push({
-      kind: 'set_activity',
-      objectId: place.id,
-      state,
-      supportRefs: supportsFor(facts, place).map((support) => support.ref),
-    });
-  }
-  return due;
-}
-
 /**
  * Everything the rules already require, as one proposal: due places (parents first, canonical
  * catalogue labels), then due activity changes. Pure. The caller still validates and applies it
  * exactly as it would a model proposal.
  */
 export function requiredChanges(facts: FormationFacts): GeographyProposal {
-  const operations = [...dueCreations(facts), ...dueActivityChanges(facts)].slice(0, MAX_PROPOSAL_OPERATIONS);
+  const operations = [...dueCreations(facts), ...activityChanges(facts)].slice(0, MAX_PROPOSAL_OPERATIONS);
   return { version: 'cartographer-proposal.v1', operations };
 }
 
