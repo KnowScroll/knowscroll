@@ -71,3 +71,55 @@ export const publishDeltaQueue = defineQueue({
   },
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 1 },
 });
+
+/** Payload of the scheduled scan: nothing to name, it finds the work itself. */
+export const SweepQuietJobSchema = z.strictObject({ v: z.literal(1) });
+/**
+ * Every 15 minutes: finds universes with a place due to go quiet and hands each to
+ * `geography.settle-quiet` (D-104). Names no person. Safe to run late or twice.
+ */
+export const sweepQuietQueue = defineQueue({
+  name: 'geography.sweep-quiet',
+  purpose: 'Find universes whose places are due to go quiet and enqueue one rules-only settle for each; no model.',
+  payload: SweepQuietJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 1,
+    retryDelaySeconds: 60,
+    retryBackoff: false,
+    retentionSeconds: 3600,
+    deleteAfterSeconds: 86400,
+    deadLetter: false,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '*/15 * * * *', payload: { v: 1 } },
+});
+
+/** One universe to settle, bound to the recording generation the sweep saw. IDs only. */
+export const SettleQuietJobSchema = z.strictObject({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().positive(),
+  recordingGeneration: z.number().int().min(1).max(2147483647),
+});
+export type SettleQuietJob = z.infer<typeof SettleQuietJobSchema>;
+/**
+ * Settles the activity of one universe's places by the rules: a short transaction under the
+ * personal root that rechecks authority, epoch and recording, reads current support, and applies
+ * only the activity changes the support implies. Makes no model call and no network wait.
+ */
+export const settleQuietQueue = defineQueue({
+  name: 'geography.settle-quiet',
+  purpose: 'Apply the activity changes the rules require for one universe; no model, no supply, no scene generation.',
+  payload: SettleQuietJobSchema,
+  policy: {
+    expireInSeconds: 300,
+    retryLimit: 3,
+    retryDelaySeconds: 30,
+    retryBackoff: true,
+    retentionSeconds: 7 * 86400,
+    deleteAfterSeconds: 2 * 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 2, pollingIntervalSeconds: 5 },
+});

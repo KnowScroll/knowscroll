@@ -26,7 +26,10 @@ import {
 import type { WorkerConfig } from '../../../infrastructure/config/index.js';
 import { transactionOf, advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
-import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
+import { makeEnqueueInTransaction, type EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
+import type { PgBoss } from 'pg-boss';
+import type { Kysely } from 'kysely';
+import type { Database } from '../../../infrastructure/postgres/database.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
 import {
   findPersonalReceipt,
@@ -47,6 +50,8 @@ import {
   READ_OWN_EMERGING,
   PUBLISH_GEOGRAPHY_DELTA,
   READ_OWN_REGION_CONSTRAINT,
+  SETTLE_QUIET,
+  SWEEP_QUIET,
 } from '../public.js';
 import { makeRequestCartography, makeGeographyMaterialChange } from '../application/request.js';
 import { makeReadGeography, makeReadDeltas } from '../application/read.js';
@@ -66,6 +71,8 @@ import { makeReadGeographySceneInput } from '../application/scene-input.js';
 import type { GeographyApplied } from '../public.js';
 import { geographyStore, readRegionPlace } from './postgres-store.js';
 import { makeReadOwnRegionConstraint } from '../application/region-constraint.js';
+import { makeSettleQuiet, makeSweepQuiet } from '../application/quiet.js';
+import { quietSweepStore } from './quiet-store.js';
 export const GEOGRAPHY_PORTS = Symbol('geography.ports');
 const key = (commandId: string, input: unknown) => ({
   commandId,
@@ -347,9 +354,37 @@ export function cartographerWorkerProviders(t: { readonly workerConfig: symbol }
       useFactory: (base: GeographyPorts, harness: RecordingReasoningHarness, config: WorkerConfig) =>
         makeRunCartographer({ ...base, harness, enabled: () => config.cartographerEnabled }),
     },
+    // The rules-only settle of one universe's quiet places: the same switch, no model harness (D-104).
+    {
+      provide: SETTLE_QUIET,
+      inject: [GEOGRAPHY_PORTS, t.workerConfig],
+      useFactory: (base: GeographyPorts, config: WorkerConfig) =>
+        makeSettleQuiet({ ...base, enabled: () => config.cartographerEnabled }),
+    },
+  ];
+}
+/** The scheduled quiet sweep (D-104). It reads state rows only and hands each due universe to its settle. */
+export function quietSweepProviders(t: {
+  readonly database: symbol;
+  readonly boss: symbol;
+  readonly workerConfig: symbol;
+}) {
+  return [
+    {
+      provide: SWEEP_QUIET,
+      inject: [t.database, t.boss, t.workerConfig],
+      useFactory: (db: Kysely<Database>, boss: PgBoss, config: WorkerConfig) =>
+        makeSweepQuiet({
+          enabled: () => config.cartographerEnabled,
+          now: () => new Date(),
+          store: quietSweepStore({ db, enqueueInTransaction: makeEnqueueInTransaction(boss) }),
+        }),
+    },
   ];
 }
 export { makeRunCartographer } from '../application/run.js';
+export { makeSettleQuiet, makeSweepQuiet } from '../application/quiet.js';
+export { quietSweepStore } from './quiet-store.js';
 export function makeCheckGeographyRecordingRun(p: Pick<GeographyPorts, 'store' | 'now'>) {
   return makeOwnerCheck({ ...p, hash: canonicalSha256 });
 }
