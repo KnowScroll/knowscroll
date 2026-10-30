@@ -127,9 +127,10 @@ export async function prepare(
       decisionId: stored.buffer.decisionId,
     };
 
-  const found = await retrieve(p, scope, command, started, region);
+  const rules = subjectMoveRules(command, started, region);
+  const found = await retrieve(p, scope, command, started, region, rules);
   if (found.kind !== 'retrieved') return found;
-  const { snapshot, truncated } = await rankingInput(p, scope, command, started, found, stored.assessments);
+  const { snapshot, truncated } = await rankingInput(p, scope, command, started, found, stored.assessments, rules);
   return {
     ...common,
     links: found.links,
@@ -195,7 +196,8 @@ async function startOf(
 
 /**
  * What the worker prepared for this exact vertical move: the buffer itself while it is within its
- * life, otherwise only its Jev assessments while those are. Anything else is ranked from scratch.
+ * life and ranked for the format the move asks for, otherwise only its Jev assessments while those
+ * are. Anything else is ranked from scratch.
  */
 async function storedBuffer(
   p: NavigationPorts,
@@ -214,9 +216,28 @@ async function storedBuffer(
     source: command.from,
   });
   if (!buffer) return {};
-  if (bufferIsServable(buffer, start.now)) return { buffer };
+  // The worker ranked this buffer for the source's own format. A move that asks for another format,
+  // or states none, is ranked afresh; the buffer stays until its life ends.
+  if (bufferIsServable(buffer, start.now) && command.intent.format === start.sourceContent?.kind) return { buffer };
   const assessments = validAssessments(buffer.assessments, start.now);
   return assessments ? { assessments } : {};
+}
+
+/** The two rules of a subject move (D-131, D-132), as snapshot inputs. */
+interface SubjectMoveRules {
+  readonly stickyFormat?: 'reel' | 'scroll';
+  readonly excludeSourceSeries?: true;
+}
+
+/**
+ * A vertical move is a new subject: it leaves the series the person is in and stays in the format
+ * the client names. A move inside a region keeps the region's own scope, where the parts of a series
+ * are part of the place the person chose to browse, so it takes neither rule.
+ */
+function subjectMoveRules(command: NavigationCommand, start: Start, region: CommandRegion): SubjectMoveRules {
+  if (start.mode !== 'vertical' || region.kind === 'region') return {};
+  const format = 'intent' in command && command.intent.mode === 'vertical' ? command.intent.format : undefined;
+  return { excludeSourceSeries: true, ...(format ? { stickyFormat: format } : {}) };
 }
 
 /** Retrieves the candidates for the command's mode. */
@@ -226,6 +247,7 @@ async function retrieve(
   command: NavigationCommand,
   start: Start,
   region: CommandRegion,
+  rules: SubjectMoveRules,
 ): Promise<Retrieved | NavigationResult> {
   const nothing: Retrieved = {
     kind: 'retrieved',
@@ -245,6 +267,7 @@ async function retrieve(
               ...(start.sourceContent ? { source: start.sourceContent } : {}),
               formats: start.formats,
               capabilities: start.capabilities,
+              ...(rules.stickyFormat ? { stickyFormat: rules.stickyFormat } : {}),
             }),
           };
     case 'return':
@@ -380,6 +403,7 @@ async function rankingInput(
   start: Start,
   found: Retrieved,
   assessments: SemanticAssessments | undefined,
+  rules: SubjectMoveRules,
 ): Promise<{ snapshot: ComposerSnapshot; truncated: boolean }> {
   const query = evidenceQueryFor(found.candidates, start.now.toISOString());
   const hiddenAssetIds = await readWithheld(p, scope, query.candidateAssetIds ?? [], found.exact !== undefined);
@@ -399,6 +423,7 @@ async function rankingInput(
     links: found.links,
     ...(found.exact ? { exactTarget: found.exact } : {}),
     ...(variantFormat ? { variantFormat } : {}),
+    ...rules,
     ...(evidence ? { evidence } : {}),
     ...(assessments ? { semanticAssessments: assessments } : {}),
     fallbackContextWatermark: `unprepared:${String(scope.revisionAtEntry)}`,

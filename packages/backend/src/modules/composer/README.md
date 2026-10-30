@@ -10,6 +10,7 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Buffer job `composer.prepare-buffer`, `composer.buffers`, serving from a buffer | implemented (integration-tested; not yet run on dev) |
 | Jev (`composer.jev`, `KS_JEV_ENABLED`) | implemented; four real MiniMax calls succeeded locally (M3 x3, M3.1-Flash x1); not yet run on dev |
 | Stored-assessment use on the HTTP path | implemented |
+| A vertical move leaves the series the person is in (`same_series`, D-131) and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); not yet run on dev |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
 
@@ -127,6 +128,30 @@ the person is on, in either format (exclusion `current_explanation`). This is ha
 penalty: the just-activated encounter may not have reached Evidence yet, and the person must never be
 offered what is already on screen. With nothing else to offer the move is exhausted
 (`no_eligible_content`), never a repeat. Series, related, variant and return moves are unchanged.
+
+## A subject move is a new topic in the same format
+
+Status: implemented, CI-tested against real PostgreSQL; not yet run on dev. Related: #472, D-131, D-132.
+
+The V3 grammar is swipe left for Part 2 and pull up for a new topic. Two rules in `domain/vertical-rules.ts`
+make a vertical move say the second.
+
+- **`same_series`.** The snapshot's `intent.currentSeriesId` names the source's series. Any candidate of it, in any
+  series revision, is excluded. With only the series left the move is exhausted. Only vertical moves ask: the
+  Part move still reaches the series through its admitted link. A snapshot that names a series on another move
+  is refused, so the rule cannot be silently ignored.
+- **`format_sticky`.** The snapshot's `intent.stickyFormat` is the format the person is in. While any candidate of
+  it is still eligible (after every other exclusion), every candidate of the other format is excluded. When
+  none is, nothing is excluded and the decision records `stickyFormat: { preferred, outcome: 'fell_back' }`;
+  otherwise `'kept'`. It never reads a stored preference. `intent.format` stays the hard requirement of an
+  explicit format switch, and a snapshot cannot carry both.
+- **Retrieval.** `readVerticalCandidates` reads the person's format first (up to 100) and the other format fills
+  the rest of the cap.
+- **Buffers.** The worker passes the source's own format and series, so a buffer is the next topic in the
+  source's format. Experience serves it only to a move that names that format.
+
+Both fields are optional inputs, so the label stays `composer-policy.v0` (migration 0017 pins it) and every
+stored decision replays unchanged. A move inside a region (Experience) takes neither rule.
 
 ## Prepared buffers and Jev
 

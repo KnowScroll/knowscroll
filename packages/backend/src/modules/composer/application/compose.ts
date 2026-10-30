@@ -2,6 +2,7 @@ import { validateTopics } from '../../content/public.js';
 import { features, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
 import { COMPOSER_POLICY, randomSource, refKey, uniformIndex } from '../domain/policy.js';
+import { applyStickyFormat, inCurrentSeries } from '../domain/vertical-rules.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
 import type { ComposerDecision, ComposerSnapshot } from '../domain/types.js';
 function validRef(ref: { readonly assetId: string; readonly assetRevision: number }): boolean {
@@ -38,6 +39,9 @@ export function validateSnapshot(s: ComposerSnapshot): void {
     !['vertical', 'horizontal', 'return', 'variant'].includes(s.mode)
   )
     fail();
+  // The two vertical rules would be silently ignored on another move, so a snapshot that asks is wrong.
+  if ((s.intent.stickyFormat || s.intent.currentSeriesId) && s.mode !== 'vertical') fail();
+  if (s.intent.stickyFormat && s.intent.format) fail();
   if (s.source && !validRef(s.source)) fail();
   if (s.explorationPool.some((r) => !validRef(r))) fail();
   if (s.intent.exactTarget && !validRef(s.intent.exactTarget)) fail();
@@ -155,6 +159,8 @@ function exclusionsOf(s: ComposerSnapshot, c: ComposerSnapshot['candidates'][num
   // A subject move never offers the explanation the person is already on, in either format.
   if (s.mode === 'vertical' && c.encounter.explanationUnitId === s.intent.explanationUnitId)
     exclusions.push('current_explanation');
+  // Another part of the series the person is in is reached by the Part move, never by a new subject.
+  if (inCurrentSeries(s, c)) exclusions.push('same_series');
   if (
     s.intent.requiredTopicIds?.some(
       (id) => !c.encounter.topics.some((t) => t.topicId === id && t.role !== 'incidental'),
@@ -171,11 +177,14 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
   // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
   const s: ComposerSnapshot = structuredClone(snapshot);
   validateSnapshot(s);
-  const assessed = s.candidates.map((candidate) => ({
-    candidate,
-    exclusions: exclusionsOf(s, candidate),
-    base: features(s, candidate),
-  }));
+  const { screened: assessed, sticky } = applyStickyFormat(
+    s,
+    s.candidates.map((candidate) => ({
+      candidate,
+      exclusions: exclusionsOf(s, candidate),
+      base: features(s, candidate),
+    })),
+  );
   // The plan lifts only among eligible candidates, after the intent has ranked them.
   const lifts = planLifts(
     s,
@@ -262,6 +271,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
         ? { rankedWinner: { assetId: rankedWinner.assetId, assetRevision: rankedWinner.assetRevision } }
         : {}),
     },
+    ...(sticky ? { stickyFormat: sticky } : {}),
     outcome: selection.length ? 'ready' : 'exhausted',
   };
 }

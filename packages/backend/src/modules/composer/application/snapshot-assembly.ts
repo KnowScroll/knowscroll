@@ -53,6 +53,10 @@ export interface SnapshotInput {
   readonly links: readonly ContinuityLink[];
   readonly exactTarget?: EncounterRef;
   readonly variantFormat?: 'reel' | 'scroll';
+  /** Vertical subject moves: stay in this format while anything of it is eligible (`format_sticky`). */
+  readonly stickyFormat?: 'reel' | 'scroll';
+  /** Vertical subject moves: never offer another part of the source's series (`same_series`). */
+  readonly excludeSourceSeries?: boolean;
   readonly evidence?: PreparedEvidenceInput;
   readonly semanticAssessments?: SemanticAssessments;
   /** Used when no prepared context exists, so the decision still names what it was ranked against. */
@@ -92,6 +96,10 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
         ? { explanationUnitId: source.explanationUnitId }
         : {}),
       ...(links[0] ? { continuityLinkId: links[0].linkId } : {}),
+      ...(input.mode === 'vertical' && input.stickyFormat ? { stickyFormat: input.stickyFormat } : {}),
+      ...(input.mode === 'vertical' && input.excludeSourceSeries && source?.series
+        ? { currentSeriesId: source.series.seriesId }
+        : {}),
     },
     ...(source ? { source: refOf(source) } : {}),
     candidates: candidates.map((encounter) => candidateRow(input, encounter)),

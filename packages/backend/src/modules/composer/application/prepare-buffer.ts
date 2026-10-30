@@ -191,6 +191,7 @@ async function gather(
     source,
     formats: renderableFormats(capabilities.data.documentSchemas),
     capabilities: facts.capabilities,
+    stickyFormat: source.kind,
   });
   const query = evidenceQueryFor(candidates, now.toISOString());
   const evidence = await ports.readPrepared(scope, query);
@@ -207,6 +208,9 @@ async function gather(
         seed: `buffer:${key.sessionId}:${String(key.intentRevision)}:${key.source.offerId}`,
         mode: 'vertical',
         source,
+        // A buffer is the next subject in the source's own format, which is what the client asks for.
+        stickyFormat: source.kind,
+        excludeSourceSeries: true,
         candidates,
         hiddenAssetIds,
         links: [],

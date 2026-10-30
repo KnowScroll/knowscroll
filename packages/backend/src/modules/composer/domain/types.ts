@@ -122,6 +122,17 @@ export interface ComposerSnapshot {
     readonly text: string;
     readonly exactTarget?: EncounterRef;
     readonly explanationUnitId?: string;
+    /**
+     * Vertical moves only. The format the person is in: while any candidate of it is eligible the
+     * other format is excluded (`format_sticky`). Unlike `format`, a hard requirement of an explicit
+     * format switch, it gives way when nothing of the format is eligible.
+     */
+    readonly stickyFormat?: 'reel' | 'scroll';
+    /**
+     * Vertical moves only. The series the person is in. Another part of it is a series move, never
+     * a new subject, so every candidate of it is excluded (`same_series`) whatever its revision.
+     */
+    readonly currentSeriesId?: string;
   };
   readonly source?: EncounterRef;
   readonly candidates: readonly {
@@ -165,6 +176,12 @@ export interface CandidateEvaluation extends EncounterRef {
   readonly plan?: PlanInfluence;
   readonly score: number;
 }
+/** What sticky format did in one decision: `kept` the person's format, or `fell_back` because none of it was eligible. */
+export interface StickyFormatOutcome {
+  readonly preferred: 'reel' | 'scroll';
+  readonly outcome: 'kept' | 'fell_back';
+}
+
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
   readonly policyVersion: 'composer-policy.v0';
@@ -187,5 +204,7 @@ export interface ComposerDecision {
     readonly selectedProbability: number;
     readonly rankedWinner?: EncounterRef;
   };
+  /** Present when the input asked for sticky format. */
+  readonly stickyFormat?: StickyFormatOutcome;
   readonly outcome: 'ready' | 'exhausted';
 }

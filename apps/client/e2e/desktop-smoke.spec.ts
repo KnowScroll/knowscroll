@@ -43,7 +43,7 @@ test('a desktop Reel is a card with Previous subject, the actions and Next subje
 
   // Next subject is the same vertical move as a swipe.
   await page.getByRole('button', { name: 'Next subject' }).click();
-  await expect.poll(() => intents(commands)).toEqual([{ mode: 'vertical', direction: 'next' }]);
+  await expect.poll(() => intents(commands)).toEqual([{ mode: 'vertical', direction: 'next', format: 'reel' }]);
   await expect(page.getByTestId('encounter-reel-caption')).toContainText('CI encounter fixture 2');
 });
 
