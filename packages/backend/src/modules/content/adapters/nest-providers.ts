@@ -11,6 +11,7 @@ import {
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
   READ_CONTINUATIONS,
+  READ_SERIES_TOTAL,
   RESOLVE_CONTINUITY_LINK,
   READ_ENCOUNTER_TOPICS,
   READ_SAVED_METADATA,
@@ -63,7 +64,7 @@ import {
   recordMadeToOrderScroll,
 } from './made-to-order.js';
 import { readAdmittedCoverageMapping, lockCurrentCoverageAuthorities } from './coverage-store.js';
-import { readContentSequence } from './content-sequence.js';
+import { readContentSequence, readSeriesTotal } from './content-sequence.js';
 import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
@@ -81,6 +82,7 @@ export function contentProviders() {
     { provide: READ_DISCOVERY_CANDIDATES, useValue: readDiscoveryCandidates },
     { provide: READ_EXACT_ENCOUNTER, useValue: readExactEncounter },
     { provide: READ_CONTINUATIONS, useValue: readContinuations },
+    { provide: READ_SERIES_TOTAL, useValue: readSeriesTotal },
     { provide: RESOLVE_CONTINUITY_LINK, useValue: resolveContinuityLink },
     { provide: READ_ENCOUNTER_TOPICS, useValue: readEncounterTopics },
     { provide: READ_SAVED_METADATA, useValue: readSavedMetadata },

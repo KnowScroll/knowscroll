@@ -1,4 +1,5 @@
 import { KeepAssetRefSchema, ReelDocumentSchema } from '@knowscroll/contracts';
+import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION, validateDocumentV2 } from '@knowscroll/scroll-model';
 import { admitDocument } from '@knowscroll/scroll-model/admission';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { LockKeepPositionTarget } from '../public.js';
@@ -41,6 +42,18 @@ export const lockKeepPositionTarget: LockKeepPositionTarget = async (scope, owne
     .where('revision', '=', ref.assetRevision)
     .executeTakeFirst();
   if (!row) return undefined;
+  if (head.kind === 'scroll' && row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
+    // A v2 Scroll's places are its stops: the units the recorder and the reader name.
+    const result = validateDocumentV2(row.document);
+    if (
+      result.kind !== 'valid' ||
+      result.document.assetId.toLowerCase() !== ref.assetId.toLowerCase() ||
+      result.document.revision !== ref.assetRevision ||
+      result.document.integrity.sha256 !== row.document_sha256
+    )
+      return undefined;
+    return { kind: 'scroll', topLevelBlockIds: result.document.stops.map((stop) => stop.id) };
+  }
   if (head.kind === 'scroll' && row.document_version === 'scroll-document.v1') {
     // Stored admission validation verifies integrity/measures/bounds and excludes renditions.
     const result = admitDocument(row.document);

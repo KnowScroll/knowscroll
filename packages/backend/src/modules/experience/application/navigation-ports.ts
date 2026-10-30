@@ -19,6 +19,7 @@ import type {
   ReadDiscoveryCandidates,
   ReadExactEncounter,
   ReadContinuations,
+  ReadSeriesTotal,
   ResolveContinuityLink,
   ReadEncounterAttribution,
   EncounterRef,
@@ -130,6 +131,7 @@ export interface NavigationPorts extends CommandPorts {
   readonly readDiscoveryCandidates: ReadDiscoveryCandidates;
   readonly readExactEncounter: ReadExactEncounter;
   readonly readContinuations: ReadContinuations;
+  readonly readSeriesTotal: ReadSeriesTotal;
   readonly resolveContinuityLink: ResolveContinuityLink;
   readonly readAttribution: ReadEncounterAttribution;
   readonly readPrepared: ReadPreparedEvidenceInput;

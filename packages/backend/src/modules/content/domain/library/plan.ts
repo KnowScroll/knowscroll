@@ -79,7 +79,31 @@ export type LibraryRecipe<Topic extends string = string, Facet extends string = 
   readonly pages: readonly string[];
   /** Cutroom script name of the matching approved Reel, for the original three recipes only. */
   readonly script?: string;
+  /**
+   * Present when this recipe is produced as a `scroll-document.v2` (stops, calls and, for a stage Scroll,
+   * a pinned picture). Every other recipe stays a v1 Scroll. A person decides it, per recipe: the writer
+   * and the system never do (D-129).
+   */
+  readonly scrollV2?: ScrollV2Plan;
 };
+
+/** What the plan decides before the writer starts a v2 Scroll (`RecipeDataV2` in the producer). */
+export interface ScrollV2Plan {
+  /** `stage`: a pinned picture from a drawing kit; `plain`: stops and calls only. */
+  readonly variant: 'stage' | 'plain';
+  /**
+   * The common wrong idea the first call tests, with the label of the source that says it is common,
+   * or `none` for a narrative Scroll. Structurally scroll-model's `Misconception`. A label counts only
+   * once a person has `reviewed` it against its source; the library admits no other.
+   */
+  readonly misconception:
+    | {
+        readonly kind: 'myth';
+        readonly claim: string;
+        readonly source: { readonly label: string; readonly reviewed: boolean };
+      }
+    | { readonly kind: 'none' };
+}
 
 /**
  * The recipes of one system file. The topic and facet ids a recipe may name are typed from the

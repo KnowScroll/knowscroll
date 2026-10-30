@@ -112,7 +112,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
         revision: intentRevision,
         session: { sessionId: id(3), intentRevision },
         actions: { saved: false, liked: false, hidden: false },
-        ...(series ? { series: { seriesId: 'ci-series', seriesRevision: 1, part: 1 } } : {}),
+        ...(series ? { series: { seriesId: 'ci-series', seriesRevision: 1, part: 1, total: 2 } } : {}),
         variants: variantsOf(n),
         continuations: {
           seriesPrevious: { status: 'unavailable', reason: 'series_boundary' },

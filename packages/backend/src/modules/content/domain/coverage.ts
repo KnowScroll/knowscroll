@@ -2,8 +2,15 @@ import { z } from 'zod';
 import { CONCEPT_CATALOGUE_VERSION, conceptMeaning } from './concepts.js';
 
 export const COVERAGE_POLICY = 'scroll-static-coverage.v1' as const;
-/** Top-level reading prose is the only block kind a coverage locator may name. */
+/** Top-level reading prose is the only block kind a coverage locator of a v1 document may name. */
 export const COVERAGE_LOCATOR_TYPES: readonly string[] = ['paragraph', 'quote', 'callout'];
+/** The only unit a coverage locator of a v2 document may name: a read stop. A call is play, not explanation (D-127). */
+export const COVERAGE_LOCATOR_TYPES_V2: readonly string[] = ['stop'];
+
+/** The unit kinds a coverage locator may name, by the version of the reading facts the document has. */
+export function coverageLocatorTypes(readingFactsVersion: number): readonly string[] {
+  return readingFactsVersion === 3 ? COVERAGE_LOCATOR_TYPES_V2 : COVERAGE_LOCATOR_TYPES;
+}
 const Hash = z.string().regex(/^[0-9a-f]{64}$/u);
 const Ref = z.string().min(1).max(160);
 const Id = z.uuid().transform((value) => value.toLowerCase());
@@ -18,7 +25,7 @@ export const CoverageMappingSchema = z.strictObject({
   explanationUnitId: Ref,
   framing: z.literal('factual'),
   framingSha256: Hash,
-  readingFactsVersion: z.literal(2),
+  readingFactsVersion: z.union([z.literal(2), z.literal(3)]),
   readingFactsSha256: Hash,
   catalogueVersion: z.literal(CONCEPT_CATALOGUE_VERSION),
   catalogueSha256: Hash,
@@ -90,7 +97,12 @@ function assertLocators(binding: CoverageMapping['bindings'][number], target: Co
     throw new Error('CONTENT_COVERAGE_BINDING_INVALID');
   for (const id of binding.requiredBlockIds) {
     const block = target.blocks.find((entry) => entry.id === id);
-    if (!block || block.nested || !block.truthSupported || !COVERAGE_LOCATOR_TYPES.includes(block.type))
+    if (
+      !block ||
+      block.nested ||
+      !block.truthSupported ||
+      !coverageLocatorTypes(target.readingFactsVersion).includes(block.type)
+    )
       throw new Error('CONTENT_COVERAGE_LOCATOR_INVALID');
   }
 }

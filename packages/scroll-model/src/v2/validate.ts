@@ -14,6 +14,15 @@ export function computeIntegrityV2(document: Omit<ScrollDocumentV2, 'integrity'>
   return canonicalSha256({ ...document, integrity: undefined });
 }
 
+export interface ValidateV2Options {
+  /**
+   * Recompute the reading measures, the reading time and the integrity hash (the default). Only
+   * `parseDocumentV2`, the client path, turns it off, as v1's `parseDocument` does: SHA-256 over up
+   * to 128 KiB is cheap on a JIT and not on Hermes.
+   */
+  readonly verify?: boolean;
+}
+
 export type DocumentV2Outcome =
   | {
       readonly kind: 'valid';
@@ -198,10 +207,9 @@ function storedIssues(document: ScrollDocumentV2): IssueV2[] {
  * their options, the common guess is the recipe's) and the stored measures and hash, recomputed.
  *
  * Pure and deterministic; the findings carry codes and paths, never the text they are about. The
- * client path (`parseDocumentV2`, planned for the reader slice) will skip the measures and the hash
- * exactly as v1's does.
+ * client path, `parseDocumentV2`, skips the measures and the hash exactly as v1's does.
  */
-export function validateDocumentV2(input: unknown): DocumentV2Outcome {
+export function validateDocumentV2(input: unknown, options: ValidateV2Options = {}): DocumentV2Outcome {
   try {
     if (canonicalSize(input) > LIMITS_V2.documentBytes)
       return { kind: 'invalid', issues: [{ code: 'document_too_large', path: '$' }] };
@@ -214,12 +222,15 @@ export function validateDocumentV2(input: unknown): DocumentV2Outcome {
   const issues: IssueV2[] = [
     ...idIssues(document),
     ...(document.stops.length < LIMITS_V2.minStops ? [{ code: 'stops_too_few', path: 'stops' } as const] : []),
+    ...(document.stops.filter((stop) => stop.kind === 'read').length < LIMITS_V2.minReadStops
+      ? [{ code: 'read_stops_too_few', path: 'stops' } as const]
+      : []),
     ...document.stops.flatMap(stopTextIssues),
     ...callIssues(document),
     ...restatementIssues(document),
     ...asideIssues(document),
     ...stageIssues(document),
-    ...storedIssues(document),
+    ...(options.verify === false ? [] : storedIssues(document)),
   ];
   if (issues.length > 0) return { kind: 'invalid', issues: uniqueIssuesV2(issues) };
   const notices: IssueV2[] =

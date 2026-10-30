@@ -1,4 +1,4 @@
-import { parseScrollTopic, SCROLL_PRODUCTION_VERSION } from './topics.js';
+import { parseScrollTopic, productionVersionOf } from './topics.js';
 import { isMadeToOrderKey } from '../domain/order-key.js';
 import type { ProductionKey } from './subject.js';
 import type { ProduceScrollJob } from './events.js';
@@ -44,7 +44,7 @@ export function makeRunScrollProduction(produce: ProduceScroll) {
     job: ProduceScrollJob,
     delivery: { readonly signal: AbortSignal },
   ): Promise<ScrollProductionJobOutcome> {
-    if (job.policyVersion !== SCROLL_PRODUCTION_VERSION) return { kind: 'skipped', reason: 'policy_version' };
+    if (job.policyVersion !== productionVersionOf(job.recipe)) return { kind: 'skipped', reason: 'policy_version' };
     const recipe = parseScrollTopic(job.recipe) ?? (isMadeToOrderKey(job.recipe) ? job.recipe : undefined);
     if (recipe === undefined) return { kind: 'skipped', reason: 'unknown_recipe' };
     const result = await produce(recipe, false, delivery.signal, true, job.take);

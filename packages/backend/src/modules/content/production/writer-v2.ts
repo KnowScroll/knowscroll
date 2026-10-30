@@ -11,6 +11,7 @@ import { FIELD_LIMITS_V2, LIMITS_V2, READING_SECONDS_V2 } from '@knowscroll/scro
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
+import { CITATIONS_TOO_MANY, CITATIONS_TOO_MANY_HINT, citationLimitIssues } from './citation-limits.js';
 import { authoringEvidence, MIN_EVIDENCE_PASSAGES, type EvidencePassage } from './evidence.js';
 import { explanationUnitFor, TOPICS, type ScrollTopic } from './topics.js';
 import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } from './writer.js';
@@ -158,6 +159,9 @@ export function compileGeneratedScrollV2(authored: AuthoredScrollV2, context: Wr
   if (compiled.kind === 'refused')
     return { kind: 'refused', stage: compiled.stage, issues: [...compiled.issues, ...own].slice(0, 32) };
   if (own.length > 0) return { kind: 'refused', stage: 'authoring', issues: own };
+  // A Scroll whose citations the provenance cannot record is refused here, where the one repair can fix it.
+  const tooMany = citationLimitIssues(compiled.citations, context.passages);
+  if (tooMany.length > 0) return { kind: 'refused', stage: 'authoring', issues: tooMany };
   return compiled;
 }
 
@@ -204,6 +208,7 @@ export function writerRoleV2(context: WriterV2Context): ReasoningRole<AuthoredSc
   const names = bannedNames({ sources: context.pages });
   const safeIssues: Readonly<Record<string, string>> = Object.freeze({
     ...REPAIR_HINTS_V2,
+    [CITATIONS_TOO_MANY]: CITATIONS_TOO_MANY_HINT,
     ...Object.fromEntries(names.map((name) => [name.code, name.hint])),
   });
   return {

@@ -195,7 +195,11 @@ describe('Explore prerequisite wire contracts', () => {
       ...context.continuations.related,
       relation: { kind: 'series_step', ...series, part: 3 },
     };
-    const inSeries = { ...composer, series, continuations: { ...context.continuations, seriesNext: readySeries } };
+    const inSeries = {
+      ...composer,
+      series: { ...series, total: 3 },
+      continuations: { ...context.continuations, seriesNext: readySeries },
+    };
     expect(ExposureContextResponseSchema.parse(inSeries)).toEqual(inSeries);
     for (const invalid of [
       { ...context, session: { sessionId: id } },
