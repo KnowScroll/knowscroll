@@ -2,7 +2,7 @@ import { validateTopics } from '../../content/public.js';
 import { features, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
 import { COMPOSER_POLICY, randomSource, refKey, uniformIndex } from '../domain/policy.js';
-import { applyStickyFormat, inCurrentSeries } from '../domain/vertical-rules.js';
+import { applyRelatedExclusion, applyStickyFormat, inCurrentSeries } from '../domain/vertical-rules.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
 import type { ComposerDecision, ComposerSnapshot } from '../domain/types.js';
 function validRef(ref: { readonly assetId: string; readonly assetRevision: number }): boolean {
@@ -40,7 +40,7 @@ export function validateSnapshot(s: ComposerSnapshot): void {
   )
     fail();
   // The two vertical rules would be silently ignored on another move, so a snapshot that asks is wrong.
-  if ((s.intent.stickyFormat || s.intent.currentSeriesId) && s.mode !== 'vertical') fail();
+  if ((s.intent.stickyFormat || s.intent.currentSeriesId || s.intent.relatedAssetIds) && s.mode !== 'vertical') fail();
   if (s.intent.stickyFormat && s.intent.format) fail();
   if (s.source && !validRef(s.source)) fail();
   if (s.explorationPool.some((r) => !validRef(r))) fail();
@@ -177,7 +177,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
   // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
   const s: ComposerSnapshot = structuredClone(snapshot);
   validateSnapshot(s);
-  const { screened: assessed, sticky } = applyStickyFormat(
+  const { screened: unrelated, related } = applyRelatedExclusion(
     s,
     s.candidates.map((candidate) => ({
       candidate,
@@ -185,6 +185,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
       base: features(s, candidate),
     })),
   );
+  const { screened: assessed, sticky } = applyStickyFormat(s, unrelated);
   // The plan lifts only among eligible candidates, after the intent has ranked them.
   const lifts = planLifts(
     s,
@@ -272,6 +273,7 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
         : {}),
     },
     ...(sticky ? { stickyFormat: sticky } : {}),
+    ...(related ? { relatedTarget: related } : {}),
     outcome: selection.length ? 'ready' : 'exhausted',
   };
 }

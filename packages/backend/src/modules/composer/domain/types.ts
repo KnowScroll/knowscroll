@@ -133,6 +133,12 @@ export interface ComposerSnapshot {
      * a new subject, so every candidate of it is excluded (`same_series`) whatever its revision.
      */
     readonly currentSeriesId?: string;
+    /**
+     * Vertical moves only. The assets the person can reach from this thread by the Related tab (any
+     * revision). Another perspective is a related move, never a new subject, so they and their format
+     * twins are excluded (`related_target`) unless that would leave nothing to offer.
+     */
+    readonly relatedAssetIds?: readonly string[];
   };
   readonly source?: EncounterRef;
   readonly candidates: readonly {
@@ -182,6 +188,16 @@ export interface StickyFormatOutcome {
   readonly outcome: 'kept' | 'fell_back';
 }
 
+/**
+ * What the related-target rule did in one decision: `applied` (it excluded `matched` otherwise eligible
+ * candidates, possibly none) or `fell_back` (excluding the `matched` candidates would have left nothing to
+ * offer, so none were excluded).
+ */
+export interface RelatedTargetOutcome {
+  readonly outcome: 'applied' | 'fell_back';
+  readonly matched: number;
+}
+
 export interface ComposerDecision {
   readonly version: 'composer-decision.v0';
   readonly policyVersion: 'composer-policy.v0';
@@ -206,5 +222,7 @@ export interface ComposerDecision {
   };
   /** Present when the input asked for sticky format. */
   readonly stickyFormat?: StickyFormatOutcome;
+  /** Present when the input named related targets. */
+  readonly relatedTarget?: RelatedTargetOutcome;
   readonly outcome: 'ready' | 'exhausted';
 }

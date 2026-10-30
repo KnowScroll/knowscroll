@@ -131,9 +131,9 @@ offered what is already on screen. With nothing else to offer the move is exhaus
 
 ## A subject move is a new topic in the same format
 
-Status: implemented, CI-tested against real PostgreSQL; not yet run on dev. Related: #472, D-131, D-132.
+Status: implemented, CI-tested against real PostgreSQL; not yet run on dev. Related: #472, D-131, D-132, D-136.
 
-The V3 grammar is swipe left for Part 2 and pull up for a new topic. Two rules in `domain/vertical-rules.ts`
+The V3 grammar is swipe left for Part 2 and pull up for a new topic. Three rules in `domain/vertical-rules.ts`
 make a vertical move say the second.
 
 - **`same_series`.** The snapshot's `intent.currentSeriesId` names the source's series. Any candidate of it, in any
@@ -145,13 +145,17 @@ make a vertical move say the second.
   none is, nothing is excluded and the decision records `stickyFormat: { preferred, outcome: 'fell_back' }`;
   otherwise `'kept'`. It never reads a stored preference. `intent.format` stays the hard requirement of an
   explicit format switch, and a snapshot cannot carry both.
+- **`related_target` (D-136).** The snapshot's `intent.relatedAssetIds` lists what the thread's Related tab reaches
+  (`readRelatedAssetIds`: the source, its format twins and every other part of its series among the candidates).
+  Those assets and their format twins are excluded unless that would leave nothing eligible, when the rule steps
+  aside and the decision records `relatedTarget: { outcome: 'fell_back', matched }`. It runs before sticky format.
 - **Retrieval.** `readVerticalCandidates` reads the person's format first (up to 100) and the other format fills
   the rest of the cap.
-- **Buffers.** The worker passes the source's own format and series, so a buffer is the next topic in the
+- **Buffers.** The worker passes the source's own format, series and related assets, so a buffer is the next topic in the
   source's format. Experience serves it only to a move that names that format.
 
-Both fields are optional inputs, so the label stays `composer-policy.v0` (migration 0017 pins it) and every
-stored decision replays unchanged. A move inside a region (Experience) takes neither rule.
+These fields are optional inputs, so the label stays `composer-policy.v0` (migration 0017 pins it) and every
+stored decision replays unchanged. A move inside a region (Experience) takes none of the rules.
 
 ## Prepared buffers and Jev
 

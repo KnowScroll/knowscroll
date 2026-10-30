@@ -203,6 +203,8 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
   let seasons: Awaited<ReturnType<typeof publishRecipe>>;
   let hemispheres: Awaited<ReturnType<typeof publishRecipe>>;
   let part3: Awaited<ReturnType<typeof publishRecipe>>;
+  /** seasons-limits: the related move of Part 3 (D-125), on the Seasons planet but not in the series. */
+  let limits: Awaited<ReturnType<typeof publishRecipe>>;
   const elsewhere: Awaited<ReturnType<typeof admitScroll>>[] = [];
   const reels: Awaited<ReturnType<typeof admitReel>>[] = [];
 
@@ -210,15 +212,17 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     seasons = await publishRecipe('seasons');
     hemispheres = await publishRecipe('seasons-hemispheres');
     part3 = await publishRecipe('seasons-elsewhere');
+    limits = await publishRecipe('seasons-limits');
     const admitted = await admitLibraryContinuityUseCase(database.db)({ dryRun: false });
-    expect(admitted).toMatchObject({ seriesRevisionsAdmitted: 1, linksAdmitted: 4 });
+    // Four series steps and Part 3's related move to seasons-limits.
+    expect(admitted).toMatchObject({ seriesRevisionsAdmitted: 1, linksAdmitted: 5 });
     elsewhere.push(await admitScroll('earth.tides'), await admitScroll('space.stars'));
     // A Reel on the Seasons topic: if format were free it would rank beside the Seasons parts.
     reels.push(await admitReel(SEASONS_TOPIC), await admitReel('earth.tides'));
   });
 
   describe('from Seasons Part 1, a Scroll', () => {
-    it('next offers a different topic as a Scroll, never Part 2 or Part 3, and says why in the decision', async () => {
+    it('next offers a different topic as a Scroll, never Part 2, Part 3 or the related move, and says why in the decision', async () => {
       const person = await seedPerson(database.db);
       const stand = await standOn(person, seasons);
       const next = ready(await nextSubject(person, stand, 'scroll'));
@@ -227,6 +231,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const ids = offered.map((offer) => offer.assetId);
       expect(ids).not.toContain(hemispheres.assetId);
       expect(ids).not.toContain(part3.assetId);
+      expect(ids).not.toContain(limits.assetId);
       expect(ids).not.toContain(seasons.assetId);
       expect(ids.sort()).toEqual(elsewhere.map((scroll) => scroll.assetId).sort());
       expect(offered.every((offer) => offer.metadata.kind === 'scroll')).toBe(true);
@@ -235,6 +240,10 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const decision = await decisionOf(next.decisionId);
       expect(exclusionsIn(decision, hemispheres.assetId)).toEqual(['same_series']);
       expect(exclusionsIn(decision, part3.assetId)).toEqual(['same_series']);
+      // seasons-limits is on the planet but is the thread's other perspective, reached by its own tab.
+      expect(exclusionsIn(decision, limits.assetId)).toEqual(['related_target']);
+      expect(decision.relatedTarget).toEqual({ outcome: 'applied', matched: 1 });
+      expect(decision.input.intent.relatedAssetIds).toEqual([limits.assetId]);
       expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'kept' });
       for (const reel of reels) expect(exclusionsIn(decision, reel.assetId)).toEqual(['format_sticky']);
       expect(decision.input.intent).toMatchObject({ stickyFormat: 'scroll', currentSeriesId: 'library.earth.seasons' });
@@ -252,6 +261,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
         expect(ids.length).toBeGreaterThan(0);
         expect(ids).not.toContain(hemispheres.assetId);
         expect(ids).not.toContain(part3.assetId);
+        expect(ids).not.toContain(limits.assetId);
       }
 
       // The stored decision of a move that names no format has no format preference: today's ranking, minus the series.
@@ -291,6 +301,50 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const next = ready(await nextSubject(person, stand, 'scroll'));
       expect(offers(next).every((offer) => offer.metadata.kind === 'reel')).toBe(true);
       expect((await decisionOf(next.decisionId)).stickyFormat).toEqual({ preferred: 'scroll', outcome: 'fell_back' });
+    });
+  });
+
+  describe('the related move of the thread (D-136)', () => {
+    it('is not offered from the Part that owns the Related tab either', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOn(person, part3);
+      const next = ready(await nextSubject(person, stand, 'scroll'));
+      const ids = offers(next).map((offer) => offer.assetId);
+      expect(ids).not.toContain(limits.assetId);
+      expect(ids).not.toContain(seasons.assetId);
+      expect(ids).not.toContain(hemispheres.assetId);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.relatedTarget).toEqual({ outcome: 'applied', matched: 1 });
+      expect(exclusionsIn(decision, limits.assetId)).toEqual(['related_target']);
+    });
+
+    it('is reached by the Related tab, which still opens it', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOn(person, part3);
+      const related = await cases.navigate(person.authority, {
+        commandId: randomUUID(),
+        sessionId: stand.open.sessionId,
+        expectedIntentRevision: stand.open.intentRevision,
+        from: stand.from,
+        intent: { mode: 'related' },
+      });
+      expect(ready(related).offer).toMatchObject({
+        assetId: limits.assetId,
+        relation: { kind: 'related_move' },
+      });
+    });
+
+    it('is offered when it is all there is, and the decision says the rule stepped aside', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOn(person, seasons);
+      for (const other of [...elsewhere, ...reels])
+        await cases.applyEncounterAction(person.authority, { commandId: randomUUID(), kind: 'hide', target: other });
+      const next = ready(await nextSubject(person, stand, 'scroll'));
+      expect(offers(next).map((offer) => offer.assetId)).toEqual([limits.assetId]);
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.relatedTarget).toEqual({ outcome: 'fell_back', matched: 1 });
+      // The series stays out even then.
+      expect(exclusionsIn(decision, hemispheres.assetId)).toEqual(['same_series']);
     });
   });
 
@@ -336,7 +390,9 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const buffer = await prepareFor(person.universeId);
       expect(buffer.selection.map((s) => s.assetId)).not.toContain(hemispheres.assetId);
       expect(buffer.selection.map((s) => s.assetId)).not.toContain(part3.assetId);
+      expect(buffer.selection.map((s) => s.assetId)).not.toContain(limits.assetId);
       const decision = await decisionOf(buffer.decision_id);
+      expect(decision.relatedTarget).toEqual({ outcome: 'applied', matched: 1 });
       expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'kept' });
 
       const next = ready(await nextSubject(person, stand, 'scroll'));
@@ -358,6 +414,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       const ids = offers(next).map((offer) => offer.assetId);
       expect(ids).not.toContain(hemispheres.assetId);
       expect(ids).not.toContain(part3.assetId);
+      expect(ids).not.toContain(limits.assetId);
     });
   });
 });

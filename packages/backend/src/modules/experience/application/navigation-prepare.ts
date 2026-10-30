@@ -3,6 +3,7 @@ import {
   assembleSnapshot,
   bufferIsServable,
   evidenceQueryFor,
+  readRelatedAssetIds,
   readVerticalCandidates,
   renderableFormats,
   validAssessments,
@@ -130,7 +131,11 @@ export async function prepare(
   const rules = subjectMoveRules(command, started, region);
   const found = await retrieve(p, scope, command, started, region, rules);
   if (found.kind !== 'retrieved') return found;
-  const { snapshot, truncated } = await rankingInput(p, scope, command, started, found, stored.assessments, rules);
+  const related = await relatedAssetIdsOf(p, scope, started, found, rules);
+  const { snapshot, truncated } = await rankingInput(p, scope, command, started, found, stored.assessments, {
+    ...rules,
+    ...related,
+  });
   return {
     ...common,
     links: found.links,
@@ -223,10 +228,11 @@ async function storedBuffer(
   return assessments ? { assessments } : {};
 }
 
-/** The two rules of a subject move (D-131, D-132), as snapshot inputs. */
+/** The rules of a subject move (D-131, D-132, D-136), as snapshot inputs. */
 interface SubjectMoveRules {
   readonly stickyFormat?: 'reel' | 'scroll';
   readonly excludeSourceSeries?: true;
+  readonly relatedAssetIds?: readonly string[];
 }
 
 /**
@@ -238,6 +244,22 @@ function subjectMoveRules(command: NavigationCommand, start: Start, region: Comm
   if (start.mode !== 'vertical' || region.kind === 'region') return {};
   const format = 'intent' in command && command.intent.mode === 'vertical' ? command.intent.format : undefined;
   return { excludeSourceSeries: true, ...(format ? { stickyFormat: format } : {}) };
+}
+
+/**
+ * What the Related tab of the thread the person is in reaches (D-136), read once the candidates are
+ * known so the other parts of the series can be found among them. Only a subject move asks.
+ */
+async function relatedAssetIdsOf(
+  p: NavigationPorts,
+  scope: PersonalScopeTx,
+  start: Start,
+  found: Retrieved,
+  rules: SubjectMoveRules,
+): Promise<Pick<SubjectMoveRules, 'relatedAssetIds'>> {
+  if (!rules.excludeSourceSeries || !start.sourceContent) return {};
+  const related = await readRelatedAssetIds(p.readContinuations, scope, start.sourceContent, found.candidates);
+  return related.length > 0 ? { relatedAssetIds: related } : {};
 }
 
 /** Retrieves the candidates for the command's mode. */

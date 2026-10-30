@@ -17,6 +17,8 @@ function candidate(
     readonly unit?: string;
     readonly topic?: string;
     readonly hidden?: boolean;
+    /** Format twins of this candidate, by asset id. */
+    readonly twins?: readonly { readonly assetId: string; readonly kind: 'reel' | 'scroll' }[];
   } = {},
 ): Candidate {
   const kind = options.kind ?? 'scroll';
@@ -32,7 +34,7 @@ function candidate(
       metadata: { kind, title: `Fixture ${name}`, summary: '', language: 'en' },
       topics: [{ topicId: options.topic ?? 'earth.seasons', role: 'primary', weight: 1 }],
       facets: [`facet-${name}`],
-      siblings: [],
+      siblings: (options.twins ?? []).map((twin) => ({ ...twin, assetRevision: 1 })),
       ...(options.series ? { series: options.series } : {}),
       catalogWatermark: 'fixture-catalog',
       attributionVersion: 'fixture-taxonomy',
@@ -165,6 +167,103 @@ describe('same_series: a vertical move is a new subject (D-131)', () => {
   });
 });
 
+describe('related_target: another perspective is not a new subject (D-136)', () => {
+  // The Related tab of the Seasons thread reaches seasons-limits; it shares the planet, so it ranks first.
+  const limits = candidate('seasons-limits');
+  const parts = [candidate('part-2', { series: part(2) }), candidate('part-3', { series: part(3) })];
+  const elsewhere = candidate('tides', { topic: 'earth.tides' });
+  const related = { currentSeriesId: SERIES, relatedAssetIds: ['seasons-limits'] };
+
+  it('never offers the related target while anything else is eligible, and records it', () => {
+    const decision = composeEncounter(vertical([limits, ...parts, elsewhere], related));
+    expect(decision.selection.map((s) => s.assetId)).toEqual(['tides']);
+    expect(decision.evaluations.find((e) => e.assetId === 'seasons-limits')).toMatchObject({
+      eligible: false,
+      exclusions: ['related_target'],
+    });
+    expect(decision.relatedTarget).toEqual({ outcome: 'applied', matched: 1 });
+  });
+
+  it('would have offered it without the rule: the target leads on the topic of the thread', () => {
+    const without = composeEncounter(vertical([limits, ...parts, elsewhere], { currentSeriesId: SERIES }));
+    expect(without.selection[0]?.assetId).toBe('seasons-limits');
+    expect(without.relatedTarget).toBeUndefined();
+  });
+
+  it('also excludes the format twin of the target, in either format', () => {
+    const twin = candidate('limits-reel', {
+      kind: 'reel',
+      unit: 'unit-seasons-limits',
+      twins: [{ assetId: 'seasons-limits', kind: 'scroll' }],
+    });
+    const decision = composeEncounter(vertical([twin, elsewhere], related));
+    expect(decision.selection.map((s) => s.assetId)).toEqual(['tides']);
+    expect(decision.evaluations.find((e) => e.assetId === 'limits-reel')?.exclusions).toEqual(['related_target']);
+  });
+
+  it('steps aside when excluding would leave nothing, offers the target and records the fall back', () => {
+    const decision = composeEncounter(vertical([limits, ...parts], related));
+    expect(decision.selection.map((s) => s.assetId)).toEqual(['seasons-limits']);
+    expect(decision.relatedTarget).toEqual({ outcome: 'fell_back', matched: 1 });
+    expect(decision.evaluations.every((e) => !e.exclusions.includes('related_target'))).toBe(true);
+    // The series stays out even then: it is a hard rule.
+    expect(decision.evaluations.find((e) => e.assetId === 'part-2')?.exclusions).toEqual(['same_series']);
+  });
+
+  it('ranks a new topic in the other format ahead of the related target in the same format', () => {
+    const reel = candidate('reel-a', { kind: 'reel', topic: 'space.stars' });
+    const decision = composeEncounter(vertical([limits, reel], { ...related, stickyFormat: 'scroll' }));
+    expect(decision.selection.map((s) => s.assetId)).toEqual(['reel-a']);
+    expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'fell_back' });
+    expect(decision.relatedTarget).toEqual({ outcome: 'applied', matched: 1 });
+  });
+
+  it('records an applied rule that matched nothing eligible, and names nothing when no target is given', () => {
+    const hidden = candidate('seasons-limits', { hidden: true });
+    expect(composeEncounter(vertical([hidden, elsewhere], related)).relatedTarget).toEqual({
+      outcome: 'applied',
+      matched: 0,
+    });
+    expect(composeEncounter(vertical([limits, elsewhere], { relatedAssetIds: [] })).relatedTarget).toBeUndefined();
+  });
+
+  it('is asked of vertical moves only', () => {
+    const base = vertical([elsewhere]);
+    expect(() =>
+      composeEncounter({ ...base, mode: 'return', intent: { ...base.intent, relatedAssetIds: ['seasons-limits'] } }),
+    ).toThrow('COMPOSER_SNAPSHOT_INVALID');
+  });
+
+  test.prop([
+    fc.array(fc.record({ target: fc.boolean(), reel: fc.boolean(), hidden: fc.boolean() }), {
+      minLength: 0,
+      maxLength: 30,
+    }),
+    fc.string({ minLength: 1, maxLength: 40 }),
+    fc.constantFrom('reel', 'scroll', undefined),
+  ])('offers a related target only when nothing else is eligible, and then says so', (specs, seed, sticky) => {
+    const name = (index: number) => `c-${String(index)}`;
+    const candidates = specs.map((spec, index) =>
+      candidate(name(index), { kind: spec.reel ? 'reel' : 'scroll', hidden: spec.hidden }),
+    );
+    const targets = specs.flatMap((spec, index) => (spec.target ? [name(index)] : []));
+    const decision = composeEncounter(
+      vertical(candidates, { relatedAssetIds: targets, ...(sticky ? { stickyFormat: sticky } : {}) }, seed),
+    );
+    const open = specs.flatMap((spec, index) => (spec.hidden ? [] : [{ id: name(index), target: spec.target }]));
+    const offered = new Set(decision.selection.map((s) => s.assetId));
+    if (targets.length === 0) {
+      expect(decision.relatedTarget).toBeUndefined();
+    } else if (open.some((entry) => !entry.target)) {
+      expect(open.filter((entry) => entry.target && offered.has(entry.id))).toEqual([]);
+      expect(decision.relatedTarget?.outcome).toBe('applied');
+    } else if (open.length > 0) {
+      expect(decision.relatedTarget).toEqual({ outcome: 'fell_back', matched: open.length });
+      expect(decision.selection.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('sticky format: next stays in the format the person is in (D-132)', () => {
   const scrolls = [candidate('scroll-a'), candidate('scroll-b'), candidate('scroll-c')];
   const reels = [candidate('reel-a', { kind: 'reel' }), candidate('reel-b', { kind: 'reel' })];
@@ -294,7 +393,11 @@ describe('deterministic replay', () => {
       ];
       const snapshot = vertical(
         candidates,
-        { stickyFormat: preferred, ...(withSeries ? { currentSeriesId: SERIES } : {}) },
+        {
+          stickyFormat: preferred,
+          relatedAssetIds: ['tides'],
+          ...(withSeries ? { currentSeriesId: SERIES } : {}),
+        },
         seed,
       );
       const first = composeEncounter(snapshot);
@@ -347,6 +450,16 @@ describe('assembling the vertical rules from the source (labelled CI inputs)', (
     const plain = assembleSnapshot(input()).snapshot.intent;
     expect(plain.currentSeriesId).toBeUndefined();
     expect(plain.stickyFormat).toBeUndefined();
+  });
+
+  it('carries the related assets only on a subject move and only when there are some', () => {
+    expect(assembleSnapshot(input({ relatedAssetIds: ['limits'] })).snapshot.intent.relatedAssetIds).toEqual([
+      'limits',
+    ]);
+    expect(assembleSnapshot(input({ relatedAssetIds: [] })).snapshot.intent.relatedAssetIds).toBeUndefined();
+    expect(
+      assembleSnapshot(input({ mode: 'horizontal', relatedAssetIds: ['limits'] })).snapshot.intent.relatedAssetIds,
+    ).toBeUndefined();
   });
 
   it('names no series for a source outside one, and never on a move that is not a subject move', () => {

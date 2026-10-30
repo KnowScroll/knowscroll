@@ -1,5 +1,10 @@
 import { ClientCapabilities } from '@knowscroll/contracts';
-import type { EncounterSnapshot, ReadDiscoveryCandidates, ReadExactEncounter } from '../../content/public.js';
+import type {
+  EncounterSnapshot,
+  ReadContinuations,
+  ReadDiscoveryCandidates,
+  ReadExactEncounter,
+} from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx, WithPersonalScope } from '../../identity/public.js';
 import { ASSESSMENT_LIFETIME_MS, BUFFER_LIFETIME_MS, bufferIsServable, type BufferKey } from '../domain/buffer.js';
 import { JEV_SHORTLIST_LIMIT } from '../domain/jev.js';
@@ -32,6 +37,7 @@ import type {
   StoreJevAssessments,
 } from './ports.js';
 import { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './snapshot-assembly.js';
+import { readRelatedAssetIds } from './related-targets.js';
 import { readVerticalCandidates, renderableFormats } from './vertical-candidates.js';
 
 /** Jev, when it is switched on: the assessor, the model it runs on, how to close its run and the person's pool. */
@@ -52,6 +58,7 @@ export interface PrepareBufferPorts {
   readonly readHidden: ReadHiddenAssets;
   readonly readExactEncounter: ReadExactEncounter;
   readonly readDiscoveryCandidates: ReadDiscoveryCandidates;
+  readonly readContinuations: ReadContinuations;
   readonly readPrepared: ReadPreparedEvidenceInput;
   readonly readBuffer: ReadComposerBuffer;
   readonly storeBuffer: StoreComposerBuffer;
@@ -193,6 +200,7 @@ async function gather(
     capabilities: facts.capabilities,
     stickyFormat: source.kind,
   });
+  const relatedAssetIds = await readRelatedAssetIds(ports.readContinuations, scope, source, candidates);
   const query = evidenceQueryFor(candidates, now.toISOString());
   const evidence = await ports.readPrepared(scope, query);
   const hiddenAssetIds = await ports.readHidden(scope, query.candidateAssetIds ?? []);
@@ -211,6 +219,7 @@ async function gather(
         // A buffer is the next subject in the source's own format, which is what the client asks for.
         stickyFormat: source.kind,
         excludeSourceSeries: true,
+        relatedAssetIds,
         candidates,
         hiddenAssetIds,
         links: [],

@@ -1208,7 +1208,7 @@ In the V3 grammar swipe left is Part 2 and pull up is a new topic. Until now the
 - **Where.** Composer's pure policy decides, in `domain/vertical-rules.ts`. Experience names the source's series in the snapshot (`intent.currentSeriesId`) for a fresh ranking, and the worker does the same for a buffer. The reason is stored in `composer.decisions` beside the other exclusions.
 - **Unchanged.** Series, related, variant and return moves. The Part move is how a series is reached.
 - **A move inside a region is left alone.** A person who opened a place to browse it can reach its parts there. Only the open-ended "next subject" leaves the series.
-- **Not done.** The source's related target (the dashed tab) is not excluded. A Reel is not a series unit, so from a Reel the series is not known and its twin's parts may be offered. Both are S-5 questions.
+- **Not done.** A Reel is not a series unit, so from a Reel the series is not known and its twin's parts may be offered (S-5). The related move of the thread is excluded by D-136.
 - **The policy label stays `composer-policy.v0`.** Migration 0017 allows only that label, and the rule applies only when the snapshot names a series, so every stored decision replays as before. S-5 changes the weights and moves the label with a migration.
 - **Verified.** Pure and property tests (a ranked-first Part 2 is never returned, for any seed, order or format) and an integration test on real PostgreSQL from Seasons Part 1. Each fails when the rule is removed.
 
@@ -1226,3 +1226,17 @@ A person reading a Scroll who pulls up for a new topic expects a Scroll; a perso
 - **Buffers.** The worker ranks a buffer for the source's own format. Experience serves it only to a move that names that format. A move that names another format, or none, is ranked fresh and the buffer waits for its own end of life.
 - **Not here.** Anything finer than the format. Play level is S-5 (#476).
 - **Verified.** Pure and property tests (stay in the format exactly when something of it is eligible; the same inputs give the same decision), an integration test on real PostgreSQL from a Scroll and from a Reel, with and without an eligible candidate of the format, and the buffer cases. Each fails when the rule is removed.
+
+## D-136 · 2026-10-30 · A vertical move does not offer what the thread's Related tab reaches (S-1d, #472)
+
+After D-131 the Seasons thread still led to "Seasons limits": it shares the planet, so it ranks first. It is the related move of Part 3 (D-125), another perspective on the thread, and a related perspective is one of the four distinct relationships. It is reached from its own tab, not by pulling up.
+
+**Amends** D-131 (which left the related target out).
+
+- **Rule.** A vertical move excludes the assets the thread's Related tab reaches (`related_target`), by asset id in any revision, and the format twin of each. These are the related targets of the source, of its format twins and of every other part of the source's series found among the candidates. The tab sits on one part (Part 3 for Seasons), but the thread owns it, so Part 1 leaves it too.
+- **A Reel.** Its series is not known (D-131), so only the continuity of the Reel and of its twin counts. A Reel whose Scroll twin has a related move leaves it. The rest of that twin's series is not looked up.
+- **Steps aside rather than leave nothing.** If excluding would leave nothing eligible in either format, none are excluded and the move offers what is there, as it did before. The series rule stays hard (D-131). The decision stores `relatedTarget: { outcome, matched }`, with `outcome` either `applied` or `fell_back`.
+- **Before sticky format.** When a new topic and the person's format cannot both be had, the new topic wins: the related target in the same format is passed over and the other format is offered (D-132 records `fell_back`).
+- **Where.** The pure policy decides (`applyRelatedExclusion`). `readRelatedAssetIds` reads the admitted links, a few small reads of shared data inside the transaction already open; Experience and the buffer worker both use it. A move inside a region takes no part in it.
+- **Unchanged.** The Related tab and the `related` move still open the target.
+- **Verified.** Pure and property tests, a unit test of the reads, and an integration test on real PostgreSQL from Seasons Part 1 and Part 3, with the fall back and the Related tab. Each fails when the rule or the read of the other parts is removed.

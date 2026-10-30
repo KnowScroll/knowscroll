@@ -117,10 +117,11 @@ answers the buffer worker's read-only questions (`experienceBufferSourceProvider
 session facts, and Hide). A subject move (vertical) never offers the explanation unit of the encounter it
 starts from.
 
-**A vertical move is a new topic in the same format** (D-131, D-132; implemented, CI-tested against real
-PostgreSQL, not yet run on dev). `subjectMoveRules` in `navigation-prepare.ts` turns the intent into two
-snapshot inputs: leave the source's series (`excludeSourceSeries`) and stay in `intent.format`
-(`stickyFormat`, read first by `readVerticalCandidates`). A move inside a region takes neither. A buffer
+**A vertical move is a new topic in the same format** (D-131, D-132, D-136; implemented, CI-tested against real
+PostgreSQL, not yet run on dev). `subjectMoveRules` and `relatedAssetIdsOf` in `navigation-prepare.ts` turn the intent into
+snapshot inputs: leave the source's series (`excludeSourceSeries`), leave what the thread's Related tab reaches
+(`relatedAssetIds`, read with `readRelatedAssetIds`) and stay in `intent.format` (`stickyFormat`, read first by
+`readVerticalCandidates`). A move inside a region takes none of them. A buffer
 is served only to a move whose `format` is the source's own, because the worker ranks it for that format;
 a move that names another format or none is ranked afresh. The client fills `format` from the
 encounter in front of the person (`encounter-session.ts`); an older client that omits it is ranked with no

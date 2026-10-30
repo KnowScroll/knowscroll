@@ -1,4 +1,4 @@
-import type { ComposerSnapshot, StickyFormatOutcome } from './types.js';
+import type { ComposerSnapshot, RelatedTargetOutcome, StickyFormatOutcome } from './types.js';
 
 type Candidate = ComposerSnapshot['candidates'][number];
 
@@ -20,6 +20,32 @@ export function inCurrentSeries(snapshot: ComposerSnapshot, candidate: Candidate
     currentSeriesId !== undefined &&
     candidate.encounter.series?.seriesId === currentSeriesId
   );
+}
+
+/**
+ * Related-target rule for a vertical move: a candidate the person can reach by the Related tab, or the
+ * format twin of one, is another perspective on this thread, not a new subject, so it is excluded
+ * (`related_target`). When that would leave nothing eligible in either format the rule steps aside and
+ * the outcome says it fell back, so the move still offers something. It runs before sticky format: a
+ * new topic matters more than the format when both cannot be had.
+ */
+export function applyRelatedExclusion<T extends Screened>(
+  snapshot: ComposerSnapshot,
+  screened: readonly T[],
+): { readonly screened: readonly T[]; readonly related?: RelatedTargetOutcome } {
+  const targets = snapshot.intent.relatedAssetIds;
+  if (snapshot.mode !== 'vertical' || targets === undefined || targets.length === 0) return { screened };
+  const isTarget = ({ candidate }: Screened) =>
+    targets.includes(candidate.encounter.assetId) ||
+    candidate.encounter.siblings.some((sibling) => targets.includes(sibling.assetId));
+  const matched = screened.filter((entry) => isTarget(entry) && entry.exclusions.length === 0).length;
+  const marked = screened.map((entry) =>
+    isTarget(entry) ? { ...entry, exclusions: [...entry.exclusions, 'related_target'] } : entry,
+  );
+  const fellBack = matched > 0 && !marked.some((entry) => entry.exclusions.length === 0);
+  return fellBack
+    ? { screened, related: { outcome: 'fell_back', matched } }
+    : { screened: marked, related: { outcome: 'applied', matched } };
 }
 
 /**

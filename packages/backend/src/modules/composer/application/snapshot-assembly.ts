@@ -57,6 +57,8 @@ export interface SnapshotInput {
   readonly stickyFormat?: 'reel' | 'scroll';
   /** Vertical subject moves: never offer another part of the source's series (`same_series`). */
   readonly excludeSourceSeries?: boolean;
+  /** Vertical subject moves: the assets reachable by the Related tab, excluded as another perspective (`related_target`). */
+  readonly relatedAssetIds?: readonly string[];
   readonly evidence?: PreparedEvidenceInput;
   readonly semanticAssessments?: SemanticAssessments;
   /** Used when no prepared context exists, so the decision still names what it was ranked against. */
@@ -99,6 +101,9 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
       ...(input.mode === 'vertical' && input.stickyFormat ? { stickyFormat: input.stickyFormat } : {}),
       ...(input.mode === 'vertical' && input.excludeSourceSeries && source?.series
         ? { currentSeriesId: source.series.seriesId }
+        : {}),
+      ...(input.mode === 'vertical' && input.relatedAssetIds?.length
+        ? { relatedAssetIds: [...input.relatedAssetIds] }
         : {}),
     },
     ...(source ? { source: refOf(source) } : {}),

@@ -67,6 +67,7 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
     explanationUnitId: Id.optional(),
     stickyFormat: Format.optional(),
     currentSeriesId: Id.optional(),
+    relatedAssetIds: z.array(Id).max(16).optional(),
   }),
   source: Ref.optional(),
   candidates: z
