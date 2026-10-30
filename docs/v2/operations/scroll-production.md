@@ -223,6 +223,10 @@ The end line has `requested`, `completed`, `notStarted` (topics never started be
 
 To read a refused answer: `node dist/operator.js reasoning rejected --attempt <attemptId>` (kept 30 days, redacted). To size a wave: sum `tokens` and `wallMs.total` over the lines, and note how much of the five-hour MiniMax window the run used.
 
+### Running it again
+
+Each run starts fresh and remembers nothing. Before running again, reconcile every attempt the last run left  with `reasoning unknown` (or write it off): re-running that topic before then would send a second paid request while the first is unsettled. Then re-run only the topics in `notStarted` plus `stoppedBy.key`, which is not in `notStarted`. Re-running all twenty repeats the finished ones and pays for them again.
+
 ## Facts about the model
 
 `MiniMax-M3.1-Flash` thinks before it answers and refuses `thinking: disabled`; thinking tokens
