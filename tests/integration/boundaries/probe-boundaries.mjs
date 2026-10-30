@@ -10,8 +10,25 @@ import { dirname, posix } from 'node:path';
 const B = 'packages/backend/src';
 const wire = `${B}/modules/content/adapters/cutroom/wire-v1/errors.ts`;
 
-/** The modules the play wall names (`jev` is part of composer today and is walled by name in case it becomes a module). */
+/**
+ * What the play wall (D-063) is for: the modules that rank, plan, remember or form places from what a
+ * person does, and the reasoning engine they call. `jev` is part of composer today; it is named in
+ * case it becomes a module of its own.
+ */
 const playWalled = ['composer', 'jev', 'planner', 'evidence', 'personal-context', 'geography', 'scenes'];
+/**
+ * Modules the wall does not name, which an allow-list must stop all the same: `planner` imports
+ * `supply`, so planner to supply to play is a path nobody wrote on a list.
+ */
+const playOthers = ['supply', 'social', 'rooms'];
+/** Every folder whose public surface play must not import, and whose code must not import play. */
+const playFolders = [
+  ...playWalled.map((name) => `modules/${name}`),
+  'reasoning',
+  ...playOthers.map((name) => `modules/${name}`),
+];
+const importsPlay = 'play-wall-only-roots-import-play';
+const playImports = 'play-wall-play-imports-three-public-surfaces';
 
 /** Each probe file and the edges it must produce, with the rule that must reject each edge. */
 const probes = [
@@ -217,25 +234,26 @@ const probes = [
       "import { makeAttemptLedger } from '../../../../packages/backend/src/reasoning/adapters/postgres-ledger.js';\nexport const p = makeAttemptLedger;\n",
     expect: [[`${B}/reasoning/adapters/postgres-ledger.ts`, 'apps-reach-modules-through-public-or-wiring']],
   },
-  // D-063, the play wall: nothing that ranks, plans, remembers or forms places imports play ...
-  ...[...playWalled.map((name) => `modules/${name}`), 'reasoning'].map((folder) => ({
+  // D-063, the play wall. Only play, the apps' roots, tests and the erasure registry may import play: one
+  // forbidden import from every module and from the reasoning engine ...
+  ...playFolders.map((folder) => ({
     file: `${B}/${folder}/application/zz-probe-play.ts`,
-    source: `import * as play from '${posix.relative(`${B}/${folder}/application`, `${B}/modules/play/public.js`)}';
-export const probe = play;
-`,
-    expect: [[`${B}/modules/play/public.ts`, 'play-wall-nothing-derives-from-play']],
+    source: `import * as play from '${posix.relative(`${B}/${folder}/application`, `${B}/modules/play/public.js`)}';\nexport const probe = play;\n`,
+    expect: [[`${B}/modules/play/public.ts`, importsPlay]],
   })),
-  // ... and play imports none of it.
+  // ... and play may import only the public surfaces of identity, content and experience: one forbidden
+  // import of every other public surface, the reasoning engine's included. `jev` has no folder yet, so
+  // the probe makes the public surface it would have.
   {
-    file: `${B}/modules/play/application/zz-probe-wall.ts`,
-    source:
-      "import * as evidence from '../../evidence/public.js';\nimport * as composer from '../../composer/public.js';\nimport * as reasoning from '../../../reasoning/public.js';\nexport const probe = [evidence, composer, reasoning];\n",
-    expect: [
-      [`${B}/modules/evidence/public.ts`, 'play-wall-play-reaches-nothing-there'],
-      [`${B}/modules/composer/public.ts`, 'play-wall-play-reaches-nothing-there'],
-      [`${B}/reasoning/public.ts`, 'play-wall-play-reaches-nothing-there'],
-    ],
+    file: `${B}/modules/jev/public.ts`,
+    source: 'export const jev = 1;\n',
+    expect: [],
   },
+  ...playFolders.map((folder) => ({
+    file: `${B}/modules/play/application/zz-probe-${folder.replace('modules/', '')}.ts`,
+    source: `import * as surface from '${posix.relative(`${B}/modules/play/application`, `${B}/${folder}/public.js`)}';\nexport const probe = surface;\n`,
+    expect: [[`${B}/${folder}/public.ts`, playImports]],
+  })),
   // Apps never import each other; no cycles.
   {
     file: 'apps/api/src/zz-probe-cross-app.ts',
@@ -277,52 +295,76 @@ for (const directory of createdDirectories) {
   }
 }
 
+/** Runs dependency-cruiser over the probe files with a config; the violations it finds. */
+function cruise(config, files) {
+  const run = spawnSync('pnpm', ['exec', 'depcruise', '--config', config, '--output-type', 'json', ...files], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (run.stdout === '') throw new Error(`depcruise produced no output: ${run.stderr}`);
+  return JSON.parse(run.stdout).summary.violations;
+}
+
+/**
+ * `node:x` matches the core module `x`; a bare package name matches its resolved node_modules
+ * path, or itself when it is a workspace specifier the importer cannot resolve.
+ */
+const targetMatches = (actual, expected) =>
+  expected.startsWith('node:')
+    ? actual === expected.slice(5)
+    : /^(?:packages|apps|migrations|tests)\//.test(expected)
+      ? actual === expected
+      : actual === expected || actual.includes(`/node_modules/${expected}/`);
+
+const rejects = (found, probe, [to, rule]) =>
+  found.some(
+    (violation) => violation.from === probe.file && violation.rule.name === rule && targetMatches(violation.to, to),
+  );
+
+/**
+ * A copy of the real config with some rules loosened: `pathNot` entries added to one side of a rule.
+ * Written next to the real config so its relative `require` resolves; removed with the probe files.
+ */
+const loosened = '.dependency-cruiser.zz-probe.cjs';
+function loosenedConfig(adds) {
+  writeFileSync(
+    loosened,
+    `const base = require('./.dependency-cruiser.cjs');
+const adds = ${JSON.stringify(adds)};
+module.exports = {
+  ...base,
+  forbidden: base.forbidden.map((rule) =>
+    adds
+      .filter((add) => add.rule === rule.name)
+      .reduce(
+        (changed, add) => ({
+          ...changed,
+          [add.side]: { ...changed[add.side], pathNot: [].concat(changed[add.side].pathNot ?? [], add.pathNot) },
+        }),
+        rule,
+      ),
+  ),
+};
+`,
+  );
+  return loosened;
+}
+
 let failed = false;
 try {
   for (const probe of probes) {
     mkdirSync(dirname(probe.file), { recursive: true });
     writeFileSync(probe.file, probe.source);
   }
-  const cruise = spawnSync(
-    'pnpm',
-    [
-      'exec',
-      'depcruise',
-      '--config',
-      '.dependency-cruiser.cjs',
-      '--output-type',
-      'json',
-      ...probes.map((probe) => probe.file),
-    ],
-    {
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    },
+  const found = cruise(
+    '.dependency-cruiser.cjs',
+    probes.map((probe) => probe.file),
   );
-  if (cruise.stdout === '') throw new Error(`depcruise produced no output: ${cruise.stderr}`);
-  const result = JSON.parse(cruise.stdout);
-  const found = result.summary.violations;
   const violations = found.map((violation) => `${violation.from} → ${violation.to} [${violation.rule.name}]`);
-  /**
-   * `node:x` matches the core module `x`; a bare package name matches its resolved node_modules
-   * path, or itself when it is a workspace specifier the importer cannot resolve.
-   */
-  const targetMatches = (actual, expected) =>
-    expected.startsWith('node:')
-      ? actual === expected.slice(5)
-      : /^(?:packages|apps|migrations|tests)\//.test(expected)
-        ? actual === expected
-        : actual === expected || actual.includes(`/node_modules/${expected}/`);
   for (const probe of probes) {
-    for (const [to, rule] of probe.expect) {
-      const wanted = `${probe.file} → ${to} [${rule}]`;
-      if (
-        found.some(
-          (violation) =>
-            violation.from === probe.file && violation.rule.name === rule && targetMatches(violation.to, to),
-        )
-      )
-        console.log(`rejected as expected: ${wanted}`);
+    for (const edge of probe.expect) {
+      const wanted = `${probe.file} → ${edge[0]} [${edge[1]}]`;
+      if (rejects(found, probe, edge)) console.log(`rejected as expected: ${wanted}`);
       else {
         failed = true;
         console.error(`NOT REJECTED: ${wanted}`);
@@ -330,9 +372,54 @@ try {
     }
   }
   if (failed) console.error(`all violations found:\n  ${violations.join('\n  ')}`);
+
+  // The play probes must be able to fail. Loosen the wall's rules and run the same files again: an edge a
+  // loosened rule still rejects was never rejected by that rule, so the probe proves nothing.
+  const wallProbes = probes.filter((probe) =>
+    probe.expect.some(([, rule]) => rule === importsPlay || rule === playImports),
+  );
+  const wallFiles = wallProbes.map((probe) => probe.file);
+  const everything = cruise(
+    loosenedConfig([
+      { rule: importsPlay, side: 'from', pathNot: '.' },
+      { rule: playImports, side: 'from', pathNot: '.' },
+    ]),
+    wallFiles,
+  );
+  for (const probe of wallProbes)
+    for (const edge of probe.expect)
+      if (rejects(everything, probe, edge)) {
+        failed = true;
+        console.error(
+          `STILL REJECTED with the wall's rules loosened (the probe cannot fail): ${probe.file} [${edge[1]}]`,
+        );
+      }
+  // And each folder is held by the rule on its own, not by chance: loosen the rule for supply alone, and the
+  // supply probe goes through while the others are still rejected.
+  const supplyOnly = cruise(
+    loosenedConfig([
+      { rule: importsPlay, side: 'from', pathNot: `^${B}/modules/supply/` },
+      { rule: playImports, side: 'to', pathNot: `^${B}/modules/supply/public\\.ts$` },
+    ]),
+    wallFiles,
+  );
+  for (const probe of wallProbes) {
+    const supply = probe.file.includes('/supply/') || probe.file.endsWith('zz-probe-supply.ts');
+    for (const edge of probe.expect) {
+      const rejected = rejects(supplyOnly, probe, edge);
+      if (rejected === supply) {
+        failed = true;
+        console.error(
+          `${supply ? 'STILL REJECTED' : 'NOT REJECTED'} with the wall loosened for supply alone: ${probe.file} [${edge[1]}]`,
+        );
+      }
+    }
+  }
+  if (!failed) console.log(`boundaries:probe: the ${wallProbes.length} play probes fail when the wall is loosened`);
 } finally {
   for (const probe of probes) rmSync(probe.file, { force: true });
   for (const directory of createdDirectories) rmSync(directory, { recursive: true, force: true });
+  rmSync(loosened, { force: true });
   rmSync('apps/client/theme/zz-probe.ts', { force: true });
   rmSync('apps/client/theme/zz-probe-scroll.ts', { force: true });
   rmSync('apps/client/theme/zz-probe-scroll-name.ts', { force: true });

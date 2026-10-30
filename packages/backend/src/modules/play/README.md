@@ -20,10 +20,19 @@ Sparks belong to one Scroll revision. There is no total across Scrolls, no level
 ## The wall (D-063)
 
 Which option was picked, whether it was right, sparks and combo are play results. They are shown back to the person and
-exported to them, and go nowhere else. The modules that rank, plan, remember or form places from behaviour (`composer`
-with Jev, `planner`, `evidence`, `personal-context`, `geography`, `scenes`) and the reasoning engine they call **never
-import this module, and this module never imports them**: the dependency-cruiser rules `play-wall-nothing-derives-from-play`
-and `play-wall-play-reaches-nothing-there`, proved to fail by `pnpm boundaries:probe`.
+exported to them, and go nowhere else. The wall is two allow-lists in `.dependency-cruiser.cjs`, so it holds for every
+module, named or not, and for a path through one (`planner` imports `supply`, so `planner` to `supply` to `play` is closed too):
+
+- `play-wall-only-roots-import-play`: only this module, the apps' composition roots, tests and the erasure registry import `modules/play/`.
+- `play-wall-play-imports-three-public-surfaces`: this module imports only the `public.ts` of `identity`, `content` and
+  `experience`, plus infrastructure and contracts. It imports none of `composer` (with Jev), `planner`, `evidence`,
+  `personal-context`, `geography`, `scenes`, the reasoning engine, or any other module.
+- `wall.test.ts`: no production file outside this module names `play.calls` or `play.scroll_results`, so nothing reads a
+  pick from the tables either.
+
+`pnpm boundaries:probe` writes a forbidden import from each walled module, the reasoning engine, `supply`, `social` and
+`rooms` into play, and from play into each of their public surfaces (22 probes), then runs the same files with the rules
+loosened, and loosened for `supply` alone, and fails if a probe still passes: the probes can fail.
 
 What still counts as engagement is unchanged: the reader reports `revealed` (and the contract allows `locked`) by kind,
 through Evidence, with no field for an option or a result. `tests/integration/modules/play.test.ts` reads the same Scroll
@@ -53,7 +62,7 @@ option and `newlyLocked: false`, and nothing changes.
 | Clear | erased (both tables) |
 | Account deletion | erased (universe-keyed) |
 | Export | `play.scrolls`: per Scroll its title (if still reachable), sparks, combo and, for each call, the question, the option picked in words, whether it was right and when. No identifier and not the right answer. |
-| Erasure order | first in the registry: nothing refers to play rows |
+| Erasure order | third in the registry (after rooms and feedback): nothing refers to play rows |
 
 ## Failure and recovery
 

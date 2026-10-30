@@ -93,14 +93,22 @@ interface Entry {
   readonly keeping: PlayKeeping;
 }
 
-function snapshotOf(entries: readonly Entry[]): PlaySnapshot {
-  const tallies = talliesAfterEach(entries);
+/**
+ * What the dock and the reveals show. While recording is paused the device's own play counts, so the
+ * person sees what they have just earned. Once recording is on again the numbers are the server's
+ * (D-181): a lock made while paused was never stored and, as D-083 says, does not appear later, so it
+ * is left out of the sparks and the combo (its own reveal still says it was not saved).
+ */
+function snapshotOf(entries: readonly Entry[], recordingOn: boolean): PlaySnapshot {
+  const counted = entries.filter((entry) => !recordingOn || entry.keeping !== 'recording_paused');
+  const tallies = talliesAfterEach(counted);
+  const comboAt = new Map(counted.map((entry, index) => [entry.stopId, tallies[index]!.combo]));
   return {
-    locks: entries.map((entry, index) => ({
+    locks: entries.map((entry) => ({
       stopId: entry.stopId,
       option: entry.option,
       correct: entry.correct,
-      combo: tallies[index]!.combo,
+      combo: comboAt.get(entry.stopId) ?? 0,
       keeping: entry.keeping,
     })),
     ...(tallies.at(-1) ?? NO_TALLY),
@@ -127,7 +135,9 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
   const answers = new Map(options.calls.map((call) => [call.stopId, call.answer]));
   const listeners = new Set<() => void>();
   let entries: Entry[] = [];
-  let snapshot = snapshotOf(entries);
+  /** Recording is on unless the person's policy, as this device last read it, says paused. */
+  const recordingOn = (): boolean => scope.recording?.getState().policy?.on !== false;
+  let snapshot = snapshotOf(entries, recordingOn());
   let flushing = false;
   let flushAgain = false;
   let retryTimer: unknown;
@@ -136,7 +146,7 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
   function set(next: Entry[]): void {
     if (!scope.active) return;
     entries = next;
-    snapshot = snapshotOf(entries);
+    snapshot = snapshotOf(entries, recordingOn());
     for (const listener of [...listeners]) listener();
   }
 
@@ -221,11 +231,15 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
     retryTimer = timers.setTimeout(() => void flush(), delay);
   }
 
+  // Pausing or resuming changes which numbers the dock shows, whether or not anyone locks anything.
+  const stopWatchingPolicy = scope.recording?.subscribe(() => set(entries));
+
   scope.onEnd?.(() => {
+    stopWatchingPolicy?.();
     timers.clearTimeout(retryTimer);
     listeners.clear();
     entries = [];
-    snapshot = snapshotOf(entries);
+    snapshot = snapshotOf(entries, true);
   });
 
   return {

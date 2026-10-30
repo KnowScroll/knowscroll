@@ -4,10 +4,10 @@
  *
  * Play is a wall, not a signal. Which option a person picked, whether it was right, sparks and
  * combo are shown back to the person and exported to them; they never reach ranking, planning,
- * evidence, formation or the Universe. The modules that do those jobs (`composer`, `planner`,
- * `evidence`, `personal-context`, `geography`, `scenes`, and the reasoning engine they call) are
- * forbidden from importing this module, and this module from importing them: the dependency rule
- * `play-wall` in `.dependency-cruiser.cjs`, proved by `pnpm boundaries:probe`.
+ * evidence, formation or the Universe. Only the apps' composition roots, tests and the erasure
+ * registry may import this module, and it imports only the public surfaces of `identity`, `content`
+ * and `experience`: two allow-lists (`play-wall-*` in `.dependency-cruiser.cjs`), so a module the
+ * lists never named, and a path through one, is walled too. `pnpm boundaries:probe` proves they fail.
  */
 import type { LockCall } from './application/lock-call.js';
 import type { ReadResults } from './application/read-results.js';

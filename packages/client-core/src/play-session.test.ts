@@ -86,6 +86,7 @@ function fixture(api: { lockCall?: unknown; readResults?: unknown } = {}, record
   const policy = { on: recording === 'on', generation: recording === 'on' ? 1 : 2 };
   const generation = vi.fn(() => Promise.resolve(policy.generation));
   const refresh = vi.fn(() => Promise.resolve(true));
+  const policyListeners = new Set<() => void>();
   const scope = {
     active: true,
     api: { play: { lockCall: base.lockCall, readResults: base.readResults, ...api } },
@@ -93,6 +94,10 @@ function fixture(api: { lockCall?: unknown; readResults?: unknown } = {}, record
       getState: () => ({ status: 'current', policy, retryOriginal: false, collecting: true }),
       generation,
       refresh,
+      subscribe: (listener: () => void) => {
+        policyListeners.add(listener);
+        return () => policyListeners.delete(listener);
+      },
     },
     onEnd: (listener: () => void) => {
       ended.push(listener);
@@ -108,6 +113,12 @@ function fixture(api: { lockCall?: unknown; readResults?: unknown } = {}, record
     session,
     generation,
     refresh,
+    /** The person turns recording back on: the policy changes and whoever watches it is told. */
+    resume: () => {
+      policy.on = true;
+      policy.generation = 3;
+      for (const listener of [...policyListeners]) listener();
+    },
     end: () => {
       (scope as { active: boolean }).active = false;
       for (const listener of ended) listener();
@@ -257,6 +268,52 @@ describe('keeping a lock', () => {
     await settled();
     expect(base.lockCall.mock.calls.map(([request]) => request.stopId)).toEqual(['call-june', 'call-angle']);
     expect(session.getSnapshot().locks.map((lock) => lock.keeping)).toEqual(['saved', 'saved']);
+  });
+});
+
+describe('pausing and resuming in one sitting', () => {
+  it("counts what was earned while paused on the device, then shows only the server's numbers once recording resumes", async () => {
+    const { session, base, resume } = fixture({}, 'paused');
+    session.lock('call-june', 1);
+    await settled();
+    // While paused the dock shows what was just earned, on the device.
+    expect(session.getSnapshot()).toMatchObject({
+      sparks: 1,
+      combo: 1,
+      locks: [{ keeping: 'recording_paused', combo: 1 }],
+    });
+    // Resumed: nothing was stored, so the server's numbers are zero and the dock says so at once.
+    resume();
+    expect(session.getSnapshot()).toMatchObject({
+      sparks: 0,
+      combo: 0,
+      locks: [{ keeping: 'recording_paused', combo: 0 }],
+    });
+    // The next right call is kept: one spark and a combo of one, not a combo of two over a lock the server never held.
+    session.lock('call-angle', 0);
+    await settled();
+    expect(base.kept).toEqual([{ stopId: 'call-angle', option: 0, correct: true }]);
+    expect(session.getSnapshot()).toMatchObject({
+      sparks: 1,
+      combo: 1,
+      locks: [
+        // What the server holds comes first, then what was only on the device.
+        { stopId: 'call-angle', keeping: 'saved', combo: 1 },
+        { stopId: 'call-june', keeping: 'recording_paused', combo: 0 },
+      ],
+    });
+  });
+
+  it('tells whoever is watching when the policy changes, and stops when the scope ends', async () => {
+    const { session, resume, end } = fixture({}, 'paused');
+    session.lock('call-june', 1);
+    await settled();
+    const listener = vi.fn();
+    session.subscribe(listener);
+    resume();
+    expect(listener).toHaveBeenCalledTimes(1);
+    end();
+    expect(session.getSnapshot()).toEqual({ locks: [], sparks: 0, combo: 0 });
   });
 });
 
