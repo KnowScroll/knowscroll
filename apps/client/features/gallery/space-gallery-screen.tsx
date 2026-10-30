@@ -1,8 +1,9 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { Text, useDisplay } from '@knowscroll/ui';
+import { DisplayProvider, Text, useDisplay } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { SAMPLE_SPACE } from '../universe/space/space-definition';
 import { SpaceSimpleLists } from '../universe/space/space-simple-lists';
@@ -32,6 +33,17 @@ function readoutText(stats: SpaceGalleryStats, reducedMotion: boolean): string {
  * `EXPO_PUBLIC_KS_GALLERY=1`. The Universe tab does not use it yet.
  */
 export function SpaceGalleryScreen() {
+  // The Android emulator lane turns system animations off, which reads as reduced motion. `?motion=full`
+  // draws the moving scene there anyway (developer gallery only).
+  const { motion } = useLocalSearchParams<{ motion?: string }>();
+  return (
+    <DisplayProvider value={motion === 'full' ? { reducedMotion: false } : {}}>
+      <SpaceGalleryPage />
+    </DisplayProvider>
+  );
+}
+
+function SpaceGalleryPage() {
   useDocumentTitle('Space renderer · KnowScroll');
   const insets = useSafeAreaInsets();
   const { reducedMotion } = useDisplay();
