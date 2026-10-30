@@ -13,7 +13,14 @@ import { CAST_PASS_ROUNDS, type CastPassJob } from '../events.js';
 import { queueCastDue } from './cast-schedule.js';
 import { assembleMaterial } from './inhabitant-context.js';
 import { contributionContext, contributionVerdict, type ContributionVerdict } from './inhabitant-role.js';
-import { hasResident, type AiTurnRow, type DiscussionRow, type RoomLock, type RoomPorts } from './ports.js';
+import {
+  hasResident,
+  type AiTurnRow,
+  type DiscussionRow,
+  type RoomLock,
+  type RoomPorts,
+  type RoomRow,
+} from './ports.js';
 import { RESIDENT_POLICY_VERSION, RESIDENT_ROLE_VERSION, residentRole } from './resident-role.js';
 import { unpostedOutcome } from './turn-outcome.js';
 
@@ -31,6 +38,7 @@ export interface CastPassPorts extends RoomPorts {
 /** A turn the router allowed, and whether it is still wanted. */
 interface Standing {
   readonly turn: AiTurnRow & { readonly trigger: SpeechTrigger; readonly causeMessageId: string };
+  readonly room: RoomRow;
   readonly discussion: DiscussionRow;
   readonly wanted: boolean;
 }
@@ -58,7 +66,7 @@ async function standingTurn(p: RoomPorts, lock: RoomLock, turnId: string): Promi
     open && cause !== undefined && !cause.hidden
       ? await p.cast.activityAfter(lock, turn.discussionId, cause.sequence, cause.authorAccountId)
       : undefined;
-  return { turn, discussion, wanted: after !== undefined && after.byOthers === 0 && after.byAi === 0 };
+  return { turn, room, discussion, wanted: after !== undefined && after.byOthers === 0 && after.byAi === 0 };
 }
 
 /**
@@ -75,8 +83,7 @@ async function prepare(
   if (!lock) return undefined;
   const found = await standingTurn(p, lock, job.turnId);
   if (found === undefined) return undefined;
-  const { turn, discussion } = found;
-  const room = await p.rooms.roomRow(lock);
+  const { turn, room, discussion } = found;
   const material = found.wanted
     ? await assembleMaterial(p, scope, lock, { turn, room, discussion, focus: turn.causeMessageId })
     : undefined;
@@ -103,7 +110,7 @@ async function apply(
   if (!lock) return 'gone';
   const found = await standingTurn(p, lock, job.turnId);
   if (found === undefined) return 'settled';
-  const { turn, discussion } = found;
+  const { turn, room, discussion } = found;
   const at = p.now();
   if (verdict.kind !== 'contribution' || !found.wanted) {
     await p.ai.settle(lock, turn.turnId, unpostedOutcome(verdict, found.wanted, at));
@@ -138,7 +145,6 @@ async function apply(
     },
   });
   // The one reply the Skeptic may make to an Explainer that overstated: scheduled like any check, decided by the router.
-  const room = await p.rooms.roomRow(lock);
   if (turn.trigger === 'unanswered_question' && hasResident(room, 'skeptic') && looksOverstated(verdict.answer.text))
     await queueCastDue(p, scope, {
       roomId: job.roomId,

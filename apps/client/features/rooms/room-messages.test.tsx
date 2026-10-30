@@ -102,7 +102,7 @@ describe('room messages', () => {
   });
 
   it('names a resident beside its label and says why it spoke when it was not asked', async () => {
-    const unprompted: RoomMessage = { ...skeptic, trigger: 'overstated_claim' } as RoomMessage;
+    const unprompted: RoomMessage = { ...skeptic, trigger: 'overstated_claim' };
     await show([text(1, asha, 'so we have proven it'), unprompted]);
     expect(screen.getByText('Halley')).toBeOnTheScreen();
     expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
@@ -113,7 +113,7 @@ describe('room messages', () => {
   });
 
   it('folds a resident’s unprompted message into one line for a Quieter reader, with the words one tap away', async () => {
-    const folded: RoomMessage = { ...skeptic, trigger: 'unanswered_question', folded: true } as RoomMessage;
+    const folded: RoomMessage = { ...skeptic, trigger: 'unanswered_question', folded: true };
     await show([text(1, asha, 'Why do we have seasons?'), folded]);
     expect(screen.getByText('Halley added something.')).toBeOnTheScreen();
     expect(screen.queryByText('Does that assume requests arrive in bursts?')).not.toBeOnTheScreen();

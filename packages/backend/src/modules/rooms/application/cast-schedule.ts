@@ -4,7 +4,7 @@ import { residentFor, waitFor } from '../domain/router.js';
 import { triggerOfPersonMessage, type SpeechTrigger } from '../domain/triggers.js';
 import { hasResident, type RoomLock, type RoomPorts, type RoomRow } from './ports.js';
 
-/** The people who may fall silent for the wait: the fewest faces that tell "only the author is here" from "others are". */
+/** Two faces are enough to tell "only the author is here" from "someone else is too". */
 const FACES_NEEDED = 2;
 
 /**

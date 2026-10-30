@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { roomFixture, type RoomCall } from './rooms-fixture';
+import { room, roomFixture, type RoomCall } from './rooms-fixture';
 
 /**
  * The room as a place (v3 R-1) in the production export over labelled HTTP fixtures: General under the room's band, the
@@ -127,4 +127,46 @@ test('on a desktop the rail has General first, the member’s AI settings and th
   await expect(page.getByText(/online/i)).toHaveCount(0);
   await shoot(page, 'desktop-1-room');
   expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('a resident that answered on its own is named, labelled as AI and says why, on a phone and on a desktop', async ({
+  page,
+}) => {
+  await roomFixture(page, phone, { others: 1, lastMessageMinutesAgo: 8, noticeSeen: true, resident: 'lively' });
+  await page.goto(`/rooms/${room.roomId}`);
+  const header = page.getByTestId('resident-header');
+  await expect(header).toContainText('Nova');
+  await expect(header).toContainText('AI · Explainer');
+  await expect(header).toContainText('Explanation');
+  await expect(page.getByTestId('resident-why')).toHaveText('Answering a question nobody had answered yet');
+  await expect(page.getByText(/Lensing maps show the missing mass/)).toBeVisible();
+  await shoot(page, 'phone-6-resident-answer');
+  expect(await seriousViolations(page)).toEqual([]);
+
+  await roomFixture(page, desktop, { others: 2, lastMessageMinutesAgo: 8, noticeSeen: true, resident: 'lively' });
+  await page.goto(`/rooms/${room.roomId}`);
+  await expect(page.getByTestId('resident-header')).toContainText('Nova');
+  await shoot(page, 'desktop-2-resident-answer');
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('for a Quieter reader a resident’s own message is one line with the words one tap away', async ({ page }) => {
+  await roomFixture(page, phone, { others: 1, lastMessageMinutesAgo: 8, noticeSeen: true, resident: 'quieter' });
+  await page.goto(`/rooms/${room.roomId}`);
+  await expect(page.getByTestId('resident-folded')).toContainText('Nova added something.');
+  await expect(page.getByText(/Lensing maps show the missing mass/)).toHaveCount(0);
+  await shoot(page, 'phone-7-resident-folded');
+  expect(await seriousViolations(page)).toEqual([]);
+  await page.getByTestId('resident-show').click();
+  await expect(page.getByText(/Lensing maps show the missing mass/)).toBeVisible();
+  await expect(page.getByTestId('resident-header')).toContainText('AI · Explainer');
+});
+
+test('for a reader whose AI is Off nothing a resident said on its own is drawn', async ({ page }) => {
+  await roomFixture(page, phone, { others: 1, lastMessageMinutesAgo: 8, noticeSeen: true, resident: 'off' });
+  await page.goto(`/rooms/${room.roomId}`);
+  await expect(page.getByText('Huh. Then what is it?')).toBeVisible();
+  await expect(page.getByTestId('resident-header')).toHaveCount(0);
+  await expect(page.getByTestId('resident-folded')).toHaveCount(0);
+  await shoot(page, 'phone-8-resident-off');
 });
