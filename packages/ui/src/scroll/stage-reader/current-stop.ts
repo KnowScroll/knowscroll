@@ -21,6 +21,18 @@ export function currentSection(input: {
   return current;
 }
 
+/** How near the end, in px, still counts as at it. */
+export const END_SLACK = 4;
+
+/** Whether text that scrolls is scrolled to its very end; text that fits has no end to be at. */
+export function scrolledToEnd(input: {
+  readonly scrollTop: number;
+  readonly viewport: number;
+  readonly content: number;
+}): boolean {
+  return input.content > input.viewport && input.scrollTop + input.viewport >= input.content - END_SLACK;
+}
+
 /** Where the reading line sits in the visible text, from its top. */
 export const READING_LINE = 0.4;
 

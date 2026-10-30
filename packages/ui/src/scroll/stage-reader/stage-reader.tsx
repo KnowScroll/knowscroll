@@ -186,7 +186,7 @@ export function StageReader({
         </View>
       )}
       <View style={styles.body}>
-        <PartSwipe onMove={move} atEnd={text.atEnd}>
+        <PartSwipe onMove={move}>
           <ScrollView
             ref={scroller}
             testID="stop-scroller"
