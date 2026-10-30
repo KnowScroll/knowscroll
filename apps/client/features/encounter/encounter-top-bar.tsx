@@ -19,15 +19,17 @@ export function formatAvailability(entry: EncounterEntry): Record<Format, Format
 export function EncounterFormatSwitch({
   entry,
   session,
+  showIcons = true,
 }: {
   readonly entry: EncounterEntry;
   readonly session: EncounterSession;
+  readonly showIcons?: boolean;
 }) {
   return (
     <FormatSwitch
       selected={entry.kind}
       availability={formatAvailability(entry)}
-      showIcons
+      showIcons={showIcons}
       onSelect={(to) => {
         const sibling = entry.context.variants.find((variant) => variant.kind === to);
         if (sibling?.status === 'ready') session.navigate({ mode: 'variant', to });

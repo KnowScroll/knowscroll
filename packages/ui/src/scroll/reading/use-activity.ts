@@ -9,7 +9,10 @@ import { monotonicNow } from './visibility';
  * state is reported when the article mounts, and `active: false` when it unmounts, so the
  * recorder never counts time the article was not on screen.
  */
-export function useArticleActivity(observer: ScrollReadingObserver | undefined, paused: boolean): void {
+export function useArticleActivity(
+  observer: Pick<ScrollReadingObserver, 'onActivity'> | undefined,
+  paused: boolean,
+): void {
   const observerRef = useRef(observer);
   const pausedRef = useRef(paused);
   const lastRef = useRef<boolean | null>(null);

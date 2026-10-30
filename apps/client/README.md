@@ -58,7 +58,7 @@ the screen in the document, so reading and Tab order is top bar → content → 
 the phone pill floats over the bottom, and on tablets and desktops the rail is drawn over a left
 margin the screens leave free (`sceneStyle`), with the desktop avatar last in the rail.
 
-The encounter controller advertises both `scroll-document.v1` and `reel-document.v1` when
+The encounter controller advertises `scroll-document.v1`, `scroll-document.v2` and `reel-document.v1` when
 opening discovery or a Saved revisit. Its Scroll block/version declaration still comes from the
 actual renderer registry. A Scroll-only capability declaration would correctly make the backend
 exclude Reels, even though this controller has a working Reel player.
@@ -97,6 +97,7 @@ exclude Reels, even though this controller has a working Reel player.
   article revision, in the account scope's storage), the capabilities this build declares
   (`capabilities.ts`, exported directly by the renderer registry). The route uses `packages/ui` `ScrollArticle` with AccountScope block state and a recorder observer; the resume keeper freezes before unmount closes visibility intervals. `features/diagnostics/evidence-panel.tsx` is the dev-only
   evidence view, off unless `EXPO_PUBLIC_KS_DEV_EVIDENCE=1`, and then only where `GET /health` names a world with operator tools.
+- `features/scroll/stage-reader-surface.tsx` and `features/encounter/encounter-stage.tsx`: the Stage + Spine reader of a v2 Scroll (D-133 to D-135; status: **implemented**, web smoke-tested; native by unit tests only, not run on a device). `scroll-session.ts` opens a v2 document as `ready_stage` only for a caller that passes `stage: true` and declares `STAGE_CAPABILITIES`; `isStageScroll` picks the reader (Explore, `/scroll/<id>`), and a v1 document keeps the article. The reader's Part moves are the encounter session's series intents, Next ↑ is the vertical move, and ••• holds Save and Share. A position is a stop id. `e2e/stage-reader-smoke.spec.ts` runs it over the labelled `seasons-stage-ci` fixture: the picture follows the stops, a dot jumps, Part 2 and Next by button, key and swipe, reduced motion, axe at 390 and 1440, and the reading facts a full read and a tap through the dots report.
 - `features/operator/`: the Operator screen. It has its own flat grey look on purpose (`operator-theme.ts`), takes its state from client-core's `createOperatorSession`, and shows the unknown-page screen when the server says the account is not an operator.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).

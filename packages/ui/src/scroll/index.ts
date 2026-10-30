@@ -19,3 +19,4 @@ export {
   type ScrollBlockStateStore,
 } from './state';
 export { type ScrollMediaRenderer, type ScrollMediaRequest } from './media';
+export * from './stage-reader';

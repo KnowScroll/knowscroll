@@ -99,6 +99,19 @@ JS thread), and the web applies `classifyMove` to pointer events on a track that
 article (E03-4). When a revision changes what a block's state means the block starts over and says so (`ResetNotice`), unless
 the caller declares it unchanged (`carryOverBlockIds`, from the package's anchor map).
 
+## Stage + Spine reader (`src/scroll/{kit,stage,stage-reader}`, D-133 to D-135)
+
+Status: **implemented** for `scroll-document.v2`, unit-tested and smoke-tested on the web; not run on a native device.
+
+| Piece | What it does |
+|---|---|
+| `kit/earth-sky-scene.ts` | Turns a settled stage state and `stagePhysics` into positions and angles (month → place on the orbit, axis turn, pin distance from the Sun point). It derives no physics; tests check it agrees with `stagePhysics` for every month. Also `lerpScene` and `canTween` |
+| `kit/earth-sky.tsx` | `EarthSkyPicture`: the Sun, Earth with its 23.4° axis, the orbit (to scale and stretched), Ray the sunbeam, pins, the Moon and its phase, focus rings, drawn with `react-native-svg` in the V3 style |
+| `stage/` | `Stage`: the pinned picture. `stageEntryAt` is the state at a stop; `useStagePictures` tweens inside a view, fades between views and only cross-fades under reduced motion. The accessible name is the document's description of the state; `data-ks-stage-state` and `data-ks-stage-transition` are for tests |
+| `stage-reader/` | `StageReader`: the stage over the stops, the spine (`Spine`), calls played on the device (`CallView`), asides, the end tray (`EndTray`), `ReaderTopBar` and `ReaderDock`. It reports through `StageReadingObserver` (the stop on screen, a call's reveal) and takes every move as a command from the app. `PartSwipe` reads the text-only swipe and the pull past the end, `ReaderFocus` is the web focus group the keys belong to |
+
+The stage takes no drag in this version; the swipe is read on the text only (D-071). Soft snap is native `snapToOffsets` and a script on the web.
+
 ## Platform files
 
 Only where behaviour differs (blueprint §18):
@@ -108,6 +121,7 @@ Only where behaviour differs (blueprint §18):
 | `display/focus-ring(.web).ts` | Ring drawn while the element has focus (`outline*` styles) | One stylesheet draws the ring on `:focus-visible` only, so pointer clicks do not |
 | `display/semantics(.web).ts` | `togglebutton` + checked, `radio` + checked, `tab` + selected, `tablist`, accessibility hint, dialog on the sheet's panel | `button` + `aria-pressed`, `radio` + `aria-checked`, `link` + `aria-current` (button without an `href`), `navigation` landmark, `aria-describedby`, `aria-level`, the dialog name on the Modal |
 | `display/link(.web).ts` | `onPress` only | `href` plus a press handler that leaves modified and middle clicks to the browser |
+| `scroll/stage-reader/part-swipe(.web).tsx`, `reader-focus(.web).tsx`, `snap(.web).ts`, `data-set(.web).ts` | A `PanResponder` for the sideways swipe, no key layer, scroll snap offsets, no data attributes | Pointer and touch events with `touch-action: pan-y`, the keyboard group, the script that settles on a stop, `data-ks-*` attributes |
 | `overlay/overlay-history(.web).ts` | Nothing (Android Back reaches `onRequestClose`) | The transient history entry that makes browser Back close an open overlay |
 
 ## Icons

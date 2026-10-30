@@ -8,6 +8,8 @@ export interface EncounterFixtureOptions {
   readonly viewport?: { readonly width: number; readonly height: number };
   /** Makes the current encounter Part 1 of a series, with Part 2 next and the other format ready. */
   readonly series?: boolean;
+  /** A different Scroll document to serve for every Scroll offer (the labelled v2 fixture); the default is the v1 fixture. */
+  readonly scrollDocument?: Record<string, unknown>;
 }
 
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
@@ -23,6 +25,9 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   let intentRevision = 1;
   let saved = true;
   const commands: { path: string; body: Record<string, unknown> }[] = [];
+  /** Every observation event the page sent, in order. */
+  const observed: { kind: string; payload: Record<string, unknown> }[] = [];
+  const served = options.scrollDocument ?? document;
   const offer = (n: number): EncounterOffer => ({
     offerId: id(100 + n),
     decisionId: id(200 + n),
@@ -176,7 +181,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
           exposureId: id(400 + n),
           assetId: offer(n).assetId,
           assetRevision: document.revision,
-          document: { ...document, assetId: offer(n).assetId, title: offer(n).metadata.title },
+          document: { ...served, assetId: offer(n).assetId, title: offer(n).metadata.title },
           degradedEssential: [],
         },
       });
@@ -241,7 +246,8 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       return;
     }
     if (path === '/v1/observations/recording-batch') {
-      const events = body.events as { eventId: string }[];
+      const events = body.events as { eventId: string; kind: string; payload: Record<string, unknown> }[];
+      for (const event of events) observed.push({ kind: event.kind, payload: event.payload });
       await route.fulfill({
         json: {
           version: 'observation-batch.v2',
@@ -260,5 +266,5 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     }
     await route.fulfill({ status: 404, json: {} });
   });
-  return { commands };
+  return { commands, observed };
 }

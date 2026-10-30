@@ -13,7 +13,9 @@ import {
   OfflineState,
   Skeleton,
   StateBlock,
+  useDisplay,
   type ScrollPositionHandle,
+  type StageReaderHandle,
 } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useFormatSiblings } from '../encounter/use-format-siblings';
@@ -23,7 +25,8 @@ import { useKeepSurface } from '../saved/use-keep-surface';
 import { KeepWriteStatus } from '../saved/keep-detail';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
-import type { OpenedScroll } from './scroll-session';
+import type { OpenedScroll, OpenedStageScroll } from './scroll-session';
+import { StageReaderSurface } from './stage-reader-surface';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
 import { readResume, writeResume } from '../encounter/encounter-history';
@@ -54,6 +57,64 @@ function Frame({ children }: { readonly children: React.ReactNode }) {
         <IconButton icon="back" label="Back" onPress={back} />
       </View>
       <View style={styles.state}>{children}</View>
+    </View>
+  );
+}
+
+type KeepState = ReturnType<typeof useKeepSurface>;
+
+/** Save, and what to say when saving or the remembered place is not settled (shared by both readers). */
+function KeepActions({
+  kept,
+  isKept,
+  capture,
+  degraded,
+}: {
+  readonly kept: KeepState;
+  readonly isKept: boolean;
+  readonly capture: () => unknown;
+  readonly degraded: boolean;
+}) {
+  return (
+    <View style={{ gap: spacing[3] }}>
+      {degraded ? (
+        <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
+      ) : null}
+      <ActionStrip
+        available={['save']}
+        saved={isKept}
+        saving={kept.state.save === 'sending'}
+        onAction={() => {
+          if (isKept) return;
+          capture();
+          void kept.surface.save();
+        }}
+      />
+      {kept.state.save === 'unavailable' ? (
+        <Banner kind="info" lead="Couldn't save yet." message="Earlier saves still need confirming." />
+      ) : null}
+      {kept.state.save === 'unknown' ? (
+        <Banner
+          kind="error"
+          lead="Save wasn't confirmed."
+          message="Retrying checks the same save."
+          action={{
+            label: 'Retry Save',
+            onPress: () => {
+              capture();
+              void kept.surface.save();
+            },
+          }}
+        />
+      ) : null}
+      {kept.state.place.write === 'unknown' || kept.state.place.write === 'conflict' ? (
+        <KeepWriteStatus
+          state={kept.state.place}
+          refresh={kept.surface.refresh}
+          retry={kept.surface.retry}
+          resolve={kept.surface.resolveConflict}
+        />
+      ) : null}
     </View>
   );
 }
@@ -158,46 +219,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
         bottomInset={spacing[24] + insets.bottom}
         readingBottomInset={insets.bottom}
         afterHeader={
-          <View style={{ gap: spacing[3] }}>
-            {scroll.degradedEssential.length > 0 ? (
-              <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
-            ) : null}
-            <ActionStrip
-              available={['save']}
-              saved={isKept}
-              saving={kept.state.save === 'sending'}
-              onAction={() => {
-                if (isKept) return;
-                capture();
-                void kept.surface.save();
-              }}
-            />
-            {kept.state.save === 'unavailable' ? (
-              <Banner kind="info" lead="Couldn't save yet." message="Earlier saves still need confirming." />
-            ) : null}
-            {kept.state.save === 'unknown' ? (
-              <Banner
-                kind="error"
-                lead="Save wasn't confirmed."
-                message="Retrying checks the same save."
-                action={{
-                  label: 'Retry Save',
-                  onPress: () => {
-                    capture();
-                    void kept.surface.save();
-                  },
-                }}
-              />
-            ) : null}
-            {kept.state.place.write === 'unknown' || kept.state.place.write === 'conflict' ? (
-              <KeepWriteStatus
-                state={kept.state.place}
-                refresh={kept.surface.refresh}
-                retry={kept.surface.retry}
-                resolve={kept.surface.resolveConflict}
-              />
-            ) : null}
-          </View>
+          <KeepActions kept={kept} isKept={isKept} capture={capture} degraded={scroll.degradedEssential.length > 0} />
         }
       />
       <EvidencePanel scope={scope} exposureId={scroll.exposureId} />
@@ -205,9 +227,93 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
   );
 }
 
+/**
+ * A v2 Scroll on its own address: the Stage + Spine reader with the same recorder and the same
+ * remembered place as the article, by stop (a stop id is the position's block id). There is no
+ * thread here, so no Part moves; Next ↑ goes to Explore for a new topic.
+ */
+function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedStageScroll }) {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const back = useBack();
+  const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
+  const params = useLocalSearchParams<{ anchor?: string | string[] }>();
+  const compact = useDisplay().breakpoint === 'compact';
+  useDocumentTitle(scroll.document.title);
+  const [recorder] = useState(() =>
+    createScrollRecorder({
+      exposure: {
+        exposureId: scroll.exposureId,
+        assetId: scroll.assetId,
+        assetRevision: scroll.assetRevision,
+        ...(scroll.recordingGeneration === undefined ? {} : { recordingGeneration: scroll.recordingGeneration }),
+        ...(scroll.recordingSessionId === undefined ? {} : { recordingSessionId: scroll.recordingSessionId }),
+      },
+      scope,
+      newId: newCommandId,
+    }),
+  );
+  const reader = useRef<StageReaderHandle>(null);
+  const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
+  const remember = useCallback(
+    (stopId: string) => {
+      const value = { assetId: scroll.assetId, revision: scroll.assetRevision, blockId: stopId, offsetWithinBlock: 0 };
+      writeResume(scope, scroll.assetId, scroll.assetRevision, { kind: 'scroll', value });
+      return { kind: 'scroll' as const, blockId: stopId, offsetWithinBlock: 0 };
+    },
+    [scope, scroll],
+  );
+  const capture = useCallback(() => {
+    const stop = reader.current?.capture();
+    return stop === undefined ? undefined : remember(stop.stopId);
+  }, [remember]);
+  const kept = useKeepSurface(scope, target, scroll.exposureId, capture);
+  const isKept =
+    kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
+  const [resume] = useState(() => readResume(scope, scroll.assetId, scroll.assetRevision));
+  useLayoutEffect(() => {
+    recorder.start();
+    return () => recorder.end();
+  }, [recorder]);
+  const initialStopId = firstOf(params.anchor) ?? (resume?.kind === 'scroll' ? resume.value.blockId : undefined);
+  const part = scroll.document.series?.part;
+  return (
+    <>
+      <StageReaderSurface
+        scroll={scroll}
+        observer={recorder.observer}
+        initialStopId={initialStopId}
+        handleRef={reader}
+        onStopChange={(stopId) => {
+          if (stopId !== undefined) remember(stopId);
+        }}
+        partLabel={part === undefined ? undefined : `Part ${String(part)}`}
+        moves={{
+          universe: () => router.navigate('/universe'),
+          nextTopic: () => router.navigate('/explore'),
+          formatSwitch: (
+            <FormatSwitch
+              selected="scroll"
+              availability={siblings.availability}
+              showIcons={!compact}
+              onSelect={siblings.select}
+            />
+          ),
+          format: () => siblings.select('reel'),
+          done: back,
+        }}
+        moreBody={() => <KeepActions kept={kept} isKept={isKept} capture={capture} degraded={false} />}
+        topInset={insets.top + spacing[3]}
+        bottomInset={insets.bottom}
+      />
+      <EvidencePanel scope={scope} exposureId={scroll.exposureId} />
+    </>
+  );
+}
+
 function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; readonly assetId: string }) {
   const router = useRouter();
-  const { session, state } = useScrollSession(scope, assetId);
+  const { session, state } = useScrollSession(scope, assetId, { stage: true });
   useEffect(() => {
     session.start();
     return () => session.dispose();
@@ -216,6 +322,8 @@ function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; read
   switch (state.status) {
     case 'ready':
       return <ReadyScroll scope={scope} scroll={state.scroll} />;
+    case 'ready_stage':
+      return <ReadyStageScroll scope={scope} scroll={state.scroll} />;
     case 'opening':
     case 'loading':
     case 'activating':
