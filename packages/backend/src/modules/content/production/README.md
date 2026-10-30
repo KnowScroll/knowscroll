@@ -12,7 +12,7 @@ Status: the pipeline below is **implemented** and has been **runtime-verified** 
 ## Producing a v2 Scroll (D-129)
 
 Status: **implemented**, runtime-verified with the labelled CI fixture model on real PostgreSQL; real
-provider generation of Seasons is the next step (no recipe is marked yet).
+real provider generation of the Seasons recipes (D-137) is run by the operator on dev. A v2 library Scroll is **held** at the end of the job and served only after an operator releases it (D-138).
 
 A recipe the library plan marks `scrollV2` (`{variant, misconception}`) is produced by the same job, take
 and attempt ledger, with the v2 writer (`writer-v2.ts`) in place of the v1 writer. `writer-plan.ts` is the one
@@ -30,6 +30,11 @@ request and at most one repair, none inside a transaction.
   while a job runs.
 - **Citation bound.** A Scroll may cite at most 48 different passages (the provenance's bound); the
   validated compile finds it, so the one repair can fix it (`citations_too_many`).
+- **Held, not served (D-138).** The same transaction stores the revision held: the asset's current revision does not
+  move (a new asset is born `held`), a `content.revision_reviews` row says `held`, and the job records
+  `held_for_review`. `production-status` shows `held`; the next take is refused until the operator rejects the
+  revision (`reject` spends the take; the next one writes the next revision). The rule is applied where the revision is
+  stored (`review-hold.ts`), so no sender can bypass it.
 - **Same publication.** Revision, provenance, topic attribution and coverage (`scroll-recipe-coverage.v2`)
   commit in one transaction. `content produce-scroll`, `produce-library` and `production-status` work for v2
   recipes unchanged.

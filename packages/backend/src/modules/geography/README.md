@@ -92,11 +92,13 @@ place going quiet. The quiet sweep (D-104, D-105) closes that gap by rules alone
    the newest support under an active place turns 30 days old, or now when a change is already due.
    Every Cartographer apply and every sweep pass rewrites it. It is scheduling state, never evidence,
    and never leaves the server. Null means no place can go quiet.
-2. `geography.sweep-quiet` (pg-boss cron every 15 minutes, worker) makes one indexed query for at
-   most 100 states whose time has passed, that no run holds, whose account is active and whose
-   recording is on. For each it enqueues `geography.settle-quiet` in the same transaction and pushes
-   `next_quiet_at` 30 minutes ahead (a lease), so the next pass does not queue it twice. It reads no
-   support.
+2. `geography.sweep-quiet` (pg-boss cron every 15 minutes, worker) makes one indexed query for the
+   oldest 100 states whose time has passed. A universe that no run holds, whose account is active,
+   that is not being cleared and whose recording is on gets a `geography.settle-quiet` job in the
+   same transaction and `next_quiet_at` pushed 30 minutes ahead (a lease), so the next pass does not
+   queue it twice. Any other due universe is parked: `next_quiet_at` moves a day ahead. Every row a
+   pass looks at leaves the head of the index, so a pass reads at most 100 rows however many
+   universes are refused. It reads no support.
 3. `geography.settle-quiet` enters the personal scope as a system actor and rechecks the account,
    epoch and the recording generation the sweep saw. It reads current support (`prepareGeography`),
    and applies only `activityChanges` (`domain/quiet.ts`), the same pure rule the Cartographer's
@@ -104,10 +106,14 @@ place going quiet. The quiet sweep (D-104, D-105) closes that gap by rules alone
    revision stamps (only `activityRevision` moves), a scene-projection job and a publish job commit
    together. With nothing due it stores the corrected time and moves no revision. No model call, no
    ledger run, no network wait.
-4. It stands aside, and writes nothing, when recording is paused, when `KS_CARTOGRAPHER_ENABLED` is
-   off, or when a Cartographer run holds the universe (a delta under a run's frozen context would
-   void its answer). Places settle on the first pass after the obstacle ends. If support cannot be
-   read it looks again after a day. More than 32 changes settle over several passes.
+4. It stands aside, and changes no place, delta or revision, when recording is paused, when
+   `KS_CARTOGRAPHER_ENABLED` is off, or when a Cartographer run holds the universe (a delta under a
+   run's frozen context would void its answer). The only thing it writes then is its own
+   `next_quiet_at`: the sweep parks a refused universe a day ahead, and the settle stores the same
+   day when current support cannot be read. With the role off, the sweep does nothing at all. Places
+   settle within a day after the obstacle ends. Paused time counts toward the 30 days: the server
+   keeps no record of reading while recording is paused (D-083). More than 32 changes settle over
+   several passes.
 
 Inactivity changes activity, never existence: ids, labels and origin transitions are untouched. A new
 encounter after quiet starts a Cartographer run as before, and that run sets the places it supports

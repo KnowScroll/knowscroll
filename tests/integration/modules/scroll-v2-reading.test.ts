@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { InteractionEvent } from '@knowscroll/contracts';
 import { stopWords, WORDS_PER_MINUTE_V2 } from '@knowscroll/scroll-model';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
+import { makeReviewGate } from '@knowscroll/backend/modules/content/nest-providers';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
 import { readingFactsOfV2 } from '../../../packages/backend/src/modules/content/adapters/reading-facts-v2.js';
 import { evidencePassages } from '../../../packages/backend/src/modules/content/production/evidence.js';
@@ -29,7 +30,7 @@ import { geographyWorld, type GeographyWorld } from '../support/geography-world.
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
-import { markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
+import { markScrollV1, ORRIN_PLAN } from '../support/scroll-v2.js';
 
 /**
  * How a v2 Scroll is read (D-128): a stop counts after its own reading time, a call when it is
@@ -296,23 +297,36 @@ describe('The Seasons planet forms from a v2 Part 1 and two v1 parts (real Postg
 
   it('qualifies a full reading of the v2 Part 1, and a quick tap through it forms nothing', async () => {
     const { database, observe, snapshot } = world;
-    const undo = markScrollV2('seasons', ORRIN_PLAN);
     const scrolls: { assetId: string; revision: number }[] = [];
-    try {
-      const part1 = fixtureProduction(
-        database.db,
-        () => answerWith(fixtureAuthoredV2()),
-        () => fixtureResearchPageV2,
-      );
-      expect(await part1.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', revision: 1 });
-      scrolls.push({ assetId: TOPICS.seasons.assetId, revision: 1 });
-    } finally {
-      undo();
-    }
+    // Part 1 is a v2 Scroll as the plan makes it: produced, held, and served once an operator releases it (D-138).
+    const part1 = fixtureProduction(
+      database.db,
+      () => answerWith(fixtureAuthoredV2()),
+      () => fixtureResearchPageV2,
+    );
+    expect(await part1.produce('seasons', false, signal())).toMatchObject({
+      outcome: 'published',
+      held: true,
+      revision: 1,
+    });
+    expect(
+      await makeReviewGate(database.db).release({
+        assetId: TOPICS.seasons.assetId,
+        revision: 1,
+        decidedBy: 'cli:ci-reviewer',
+      }),
+    ).toMatchObject({ kind: 'released' });
+    scrolls.push({ assetId: TOPICS.seasons.assetId, revision: 1 });
+    // Parts 2 and 3 stay v1 Scrolls here, to show a planet forms the same from a v2 part and v1 parts.
     for (const key of ['seasons-hemispheres', 'seasons-limits'] as const) {
       const recipe = TOPICS[key];
-      const production = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
-      expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
+      const undo = markScrollV1(key);
+      try {
+        const production = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(recipe))));
+        expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
+      } finally {
+        undo();
+      }
       const row = await database.db
         .selectFrom('content.asset_revisions')
         .select('reading_facts')

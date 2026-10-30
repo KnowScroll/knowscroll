@@ -121,8 +121,9 @@ async function resolveAsset(
   scope: PersonalScopeTx,
   target: { readonly assetId: string; readonly assetRevision: number },
 ): Promise<ResolvedTarget | undefined> {
-  const asset = await ports.findAsset(scope, target.assetId);
-  if (!asset?.admitted || asset.revision < target.assetRevision) return undefined;
+  const asset = await ports.findAsset(scope, target.assetId, target.assetRevision);
+  // A revision the review gate held or rejected was never served, so no one can have met it to report it.
+  if (!asset?.admitted || asset.revision < target.assetRevision || asset.revisionReleased === false) return undefined;
   return { targetKind: 'asset', assetId: target.assetId, assetRevision: target.assetRevision };
 }
 

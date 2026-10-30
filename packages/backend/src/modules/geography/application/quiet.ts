@@ -38,11 +38,18 @@ export interface SettleQuietPorts extends GeographyPorts {
 /** Discovery of due universes; the adapter hands each over in the same transaction. */
 export interface QuietSweepStore {
   /**
-   * Finds up to `limit` universes whose `next_quiet_at` has passed, that no run holds and whose
-   * recording is on, enqueues one settle for each and pushes their `next_quiet_at` to `leaseUntil`,
-   * all in one transaction. Skips rows another transaction holds. Returns how many were handed over.
+   * Looks at the first `limit` universes whose `next_quiet_at` has passed, oldest first, in one
+   * transaction. Each that can be settled now (no run holds it, its account is active, nothing is
+   * being cleared, recording is on) gets one settle and its `next_quiet_at` moves to `leaseUntil`.
+   * Each that cannot moves to `parkUntil`, so a refused universe never stays at the head of the index.
+   * Skips rows another transaction holds. Returns how many were handed over.
    */
-  handOverDue(input: { readonly now: Date; readonly limit: number; readonly leaseUntil: Date }): Promise<number>;
+  handOverDue(input: {
+    readonly now: Date;
+    readonly limit: number;
+    readonly leaseUntil: Date;
+    readonly parkUntil: Date;
+  }): Promise<number>;
 }
 
 export interface SweepQuietPorts {
@@ -52,9 +59,10 @@ export interface SweepQuietPorts {
 }
 
 /**
- * Scheduled pass (D-104). One indexed query for universes with a place due to go quiet, bounded to a
- * batch. It reads no support and calls no model; the settle does the work for each universe. With the
- * Cartographer switched off it hands over nothing.
+ * Scheduled pass (D-104). One indexed query for the oldest due universes, bounded to a batch whether
+ * or not they can be settled. It reads no support and calls no model; the settle does the work for
+ * each universe. It writes nothing but each looked-at universe's own `next_quiet_at`. With the
+ * Cartographer switched off it does nothing.
  */
 export function makeSweepQuiet(p: SweepQuietPorts): SweepQuiet {
   return async () => {
@@ -64,6 +72,7 @@ export function makeSweepQuiet(p: SweepQuietPorts): SweepQuiet {
       now,
       limit: QUIET_SWEEP.batch,
       leaseUntil: new Date(now.getTime() + QUIET_SWEEP.leaseMs),
+      parkUntil: new Date(now.getTime() + QUIET_SWEEP.parkMs),
     });
     return { handedOver };
   };
@@ -77,7 +86,7 @@ export function makeSweepQuiet(p: SweepQuietPorts): SweepQuiet {
  * Authority: runs as a system actor under the personal root lock and rechecks the account, the epoch
  * and the recording generation the sweep saw, as the Cartographer's worker does. Recording paused or
  * restarted, a Clear, a suspended or deleted account: nothing is written, and the sweep finds the
- * universe again once it is current. Lock order: personal root, then the owned Geography, Personal
+ * universe again within a day once it is current. Lock order: personal root, then the owned Geography, Personal
  * Context and Evidence rows, the same as a Cartographer run.
  *
  * Side effects: when activity changed, one immutable delta with no run, the revision stamps, a
@@ -113,7 +122,7 @@ async function settleUnderScope(
   if (state.activeRunId) return { outcome: 'run_active', changed: 0 };
   const context = await prepareGeography(p, gate.scope, await p.store.view(scope));
   if (!context) {
-    const retryAt = new Date(p.now().getTime() + QUIET_SWEEP.unreadableRetryMs).toISOString();
+    const retryAt = new Date(p.now().getTime() + QUIET_SWEEP.parkMs).toISOString();
     await p.store.writeState(scope, withNextQuietAt(state, retryAt));
     return { outcome: 'support_unreadable', changed: 0 };
   }

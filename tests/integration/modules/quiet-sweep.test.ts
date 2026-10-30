@@ -117,6 +117,27 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     return places(person);
   }
   const states = (list: Awaited<ReturnType<typeof places>>) => list.map((place) => place.state);
+  /** Waits for a condition of the database itself, never for a fixed time. */
+  async function until(condition: () => Promise<boolean>, what: string) {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      if (await condition()) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`CI timed out waiting for ${what}`);
+  }
+  /** Turns the person's recording off (generation 1 to 2) or on again (2 to 3). */
+  function recording(person: FixturePerson) {
+    const policy = recordingPolicyFor(db(), { lockTimeoutMs: 5000 });
+    const set = (expectedRecordingGeneration: number, on: boolean) =>
+      policy.set(person.authority, {
+        version: 'recording-policy.v1',
+        commandId: randomUUID(),
+        expectedPrivacyEpoch: 1,
+        expectedRecordingGeneration,
+        on,
+      });
+    return { pause: () => set(1, false), resume: () => set(2, true) };
+  }
 
   it('turns every place quiet 31 days after the last reading, with the same ids, labels and origins', async () => {
     const person = await seedPerson(db());
@@ -189,9 +210,34 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     expect(await personalRevision(person)).toBe(revisionBefore + 1);
   });
 
+  it('hands a universe over once while its settle waits, and again only when the lease ends', async () => {
+    const person = await seedPerson(db());
+    await formedLongAgo(person);
+    const now = atDay(0);
+    await now.sweep();
+    await now.sweep();
+    expect(await jobsOf(person)).toHaveLength(1);
+    // The lease: the stored time moved about half an hour ahead, so the next pass does not see it.
+    const leased = (await stateOf(person)).next_quiet_at!.getTime();
+    expect(leased).toBeGreaterThan(Date.now() + 20 * 60_000);
+    expect(leased).toBeLessThan(Date.now() + 40 * 60_000);
+    // A settle job that was lost leaves the lease to run out; the sweep then hands the universe over again.
+    await atDay(0.05).sweep();
+    const jobs = await jobsOf(person);
+    expect(jobs).toHaveLength(2);
+    // The settle rewrites the lease: nothing left to quiet means no stored time.
+    expect(await now.settle(jobs[0]!.data)).toEqual({ outcome: 'applied', changed: 5 });
+    expect((await stateOf(person)).next_quiet_at).toBeNull();
+  });
+
   it('hands over no universe that has nothing to settle', async () => {
+    // One unit forms no place. Its Cartographer run is settled, so nothing is pending either.
     const dustOnly = await seedPerson(db());
     await world.observe(dustOnly, await world.fixture(undefined, topic, [facet]));
+    await cartograph(dustOnly);
+    expect((await world.state(dustOnly)).activeRunId).toBeUndefined();
+    const idle = await stateOf(dustOnly);
+    expect(idle.next_quiet_at).toBeNull();
     const fresh = await seedPerson(db());
     await world.coherent(fresh);
     await cartograph(fresh);
@@ -203,6 +249,8 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     await atDay(31).sweep();
     expect(await jobsOf(fresh)).toHaveLength(1);
     expect(await jobsOf(dustOnly)).toEqual([]);
+    // The sweep did not even touch the dust-only universe's state.
+    expect(await stateOf(dustOnly)).toEqual(idle);
   });
 
   it('lets a new encounter after quiet wake only the places it supports, as the Cartographer always did', async () => {
@@ -231,10 +279,14 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     await formedLongAgo(person);
     await world.observe(person, await world.fixture(undefined, topic, [facet]));
     const runId = (await world.state(person)).activeRunId!;
-    const held = await stateOf(person);
+    const before = await stateOf(person);
 
     await atDay(0).sweep();
     expect(await jobsOf(person)).toEqual([]);
+    // The sweep only moves its own scheduling time, a day ahead, so the universe leaves the head of the index.
+    const held = await stateOf(person);
+    expect(held).toMatchObject({ revision: before.revision, activity_revision: before.activity_revision });
+    expect(held.next_quiet_at!.getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
     // A settle that was already queued stands aside rather than move the revision under the run.
     expect(await atDay(0).settle(settleJob(person))).toEqual({ outcome: 'run_active', changed: 0 });
     expect(await stateOf(person)).toEqual(held);
@@ -267,7 +319,15 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
         finished = true;
         return result;
       });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The settle is blocked on the root: a backend waits for a row lock, so it cannot have finished.
+    await until(
+      async () =>
+        (
+          await sql<{ n: number }>`select count(*)::int as n from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock' and query ilike '%universes%'`.execute(db())
+        ).rows[0]!.n > 0,
+      'the settle to wait for the personal root',
+    );
     expect(finished).toBe(false);
     release.open();
     await holding;
@@ -275,35 +335,38 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     expect(new Set(states(await places(person)))).toEqual(new Set(['quiet']));
   });
 
-  it('leaves a paused universe exactly as it was, and settles it once recording is back on', async () => {
+  it('leaves a paused universe exactly as it was, and settles it within a day of recording being back on', async () => {
     const person = await seedPerson(db());
     const formed = await formedLongAgo(person);
-    const policy = recordingPolicyFor(db(), { lockTimeoutMs: 5000 });
-    const set = (expectedRecordingGeneration: number, on: boolean) =>
-      policy.set(person.authority, {
-        version: 'recording-policy.v1',
-        commandId: randomUUID(),
-        expectedPrivacyEpoch: 1,
-        expectedRecordingGeneration,
-        on,
-      });
-    await set(1, false);
+    const { pause, resume } = recording(person);
+    await pause();
     const paused = await stateOf(person);
 
     await atDay(0).sweep();
     expect(await jobsOf(person)).toEqual([]);
+    // No place, delta or revision moved. The sweep only parked its own scheduling time a day ahead.
+    const parked = await stateOf(person);
+    expect(parked).toMatchObject({
+      revision: paused.revision,
+      structure_revision: paused.structure_revision,
+      activity_revision: paused.activity_revision,
+    });
+    expect(parked.next_quiet_at!.getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
     expect(await atDay(0).settle(settleJob(person))).toEqual({ outcome: 'not_current', changed: 0 });
-    expect(await stateOf(person)).toEqual(paused);
+    expect(await stateOf(person)).toEqual(parked);
     expect(states(await places(person))).toEqual(states(formed));
 
-    await set(2, true);
-    const now = atDay(0);
-    await now.sweep();
+    await resume();
+    // Before the parked time the sweep leaves it; once that has passed it hands the universe over.
+    await atDay(0).sweep();
+    expect(await jobsOf(person)).toEqual([]);
+    const nextDay = atDay(2);
+    await nextDay.sweep();
     const jobs = await jobsOf(person);
     expect(jobs.map((job) => job.data)).toEqual([settleJob(person, 3)]);
     // The old generation's payload is refused; the current one settles.
-    expect(await now.settle(settleJob(person))).toEqual({ outcome: 'not_current', changed: 0 });
-    expect(await now.settle(jobs[0]!.data)).toEqual({ outcome: 'applied', changed: 5 });
+    expect(await nextDay.settle(settleJob(person))).toEqual({ outcome: 'not_current', changed: 0 });
+    expect(await nextDay.settle(jobs[0]!.data)).toEqual({ outcome: 'applied', changed: 5 });
     expect(new Set(states(await places(person)))).toEqual(new Set(['quiet']));
   });
 
@@ -339,5 +402,37 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
       ).rows[0]!.n,
     ).toBe(0);
     expect(await now.settle(settleJob(person))).toEqual({ outcome: 'not_current', changed: 0 });
+  });
+
+  it('keeps refused universes from crowding the head of the index', async () => {
+    const store = quietSweepStore({ db: db(), enqueueInTransaction: makeEnqueueInTransaction(world.c.boss) });
+    const pass = (limit: number) => {
+      const now = new Date();
+      return store.handOverDue({
+        now,
+        limit,
+        leaseUntil: new Date(now.getTime() + 30 * 60_000),
+        parkUntil: new Date(now.getTime() + DAY),
+      });
+    };
+    // Whatever earlier tests left due is leased or parked first, so only this test's universes are at the head.
+    await pass(10_000);
+    // Two paused universes are due before a third that can be settled, and a pass looks at two.
+    const refused = [await seedPerson(db()), await seedPerson(db())];
+    for (const person of refused) {
+      await formedLongAgo(person);
+      await recording(person).pause();
+    }
+    const settleable = await seedPerson(db());
+    await formedLongAgo(settleable);
+
+    expect(await pass(2)).toBe(0);
+    expect(await jobsOf(settleable)).toEqual([]);
+    for (const person of refused)
+      expect((await stateOf(person)).next_quiet_at!.getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
+    // They left the head, so the next pass of the same size reaches the universe that can be settled.
+    expect(await pass(2)).toBe(1);
+    expect(await jobsOf(settleable)).toHaveLength(1);
+    for (const person of refused) expect(await jobsOf(person)).toEqual([]);
   });
 });

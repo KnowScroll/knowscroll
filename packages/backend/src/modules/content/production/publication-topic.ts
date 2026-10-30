@@ -68,12 +68,17 @@ async function readPublishedRevision(
   writerRunId: string,
   generation: number,
 ) {
+  // The revision is served now (the asset's current revision) or held for review (D-138): the gate keeps a
+  // held revision away from the current-revision pointer, and attribution and coverage are decided for it all the same.
   return tx
     .selectFrom('content.scroll_production_runs as job')
     .innerJoin('content.asset_revisions as revision', (join) =>
       join.onRef('revision.asset_id', '=', 'job.asset_id').onRef('revision.revision', '=', 'job.asset_revision'),
     )
     .innerJoin('content.assets as asset', 'asset.id', 'revision.asset_id')
+    .leftJoin('content.revision_reviews as review', (join) =>
+      join.onRef('review.asset_id', '=', 'revision.asset_id').onRef('review.revision', '=', 'revision.revision'),
+    )
     .innerJoin('content.asset_provenance as provenance', (join) =>
       join
         .onRef('provenance.asset_id', '=', 'revision.asset_id')
@@ -102,8 +107,12 @@ async function readPublishedRevision(
     .where('job.scope_generation', '=', generation)
     .where('revision.provenance_kind', '=', 'generated')
     .where('asset.kind', '=', 'scroll')
-    .where('asset.status', '=', 'admitted')
-    .whereRef('asset.revision', '=', 'revision.revision')
+    .where((eb) =>
+      eb.or([
+        eb.and([eb('asset.status', '=', 'admitted'), eb('asset.revision', '=', eb.ref('revision.revision'))]),
+        eb('review.state', '=', 'held'),
+      ]),
+    )
     .executeTakeFirst();
 }
 

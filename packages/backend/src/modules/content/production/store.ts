@@ -5,6 +5,16 @@ import type { ResearchPage } from '../../../infrastructure/research/public-pages
 import type { RoleReceipt } from './types.js';
 import { productionVersionOf } from './topics.js';
 
+/**
+ * A job's state as far as takes and the recipe's standing are concerned. A job whose Scroll the review
+ * gate rejected is final for its take like a rejected one, so the next take may start (D-138). The
+ * query must name the job table `run`.
+ */
+export const jobStateForTakes = sql<string>`case when run.state = 'published' and exists (
+  select 1 from content.revision_reviews review
+  where review.asset_id = run.asset_id and review.revision = run.asset_revision and review.state = 'rejected')
+  then 'rejected' else run.state end`;
+
 export type CreateJobResult =
   | { readonly kind: 'job'; readonly row: ProductionRow; readonly created: boolean }
   /** A take above 1 may start only after every earlier take was rejected. */
@@ -73,7 +83,7 @@ export function productionStore(db: Kysely<Database>) {
         const earlier = (
           await sql<{
             state: string;
-          }>`select state from content.scroll_production_runs where topic=${topic} and policy_version=${productionVersionOf(topic)} and take<${take}`.execute(
+          }>`select ${jobStateForTakes} as state from content.scroll_production_runs run where run.topic=${topic} and run.policy_version=${productionVersionOf(topic)} and run.take<${take}`.execute(
             tx,
           )
         ).rows;
@@ -81,7 +91,7 @@ export function productionStore(db: Kysely<Database>) {
           return { kind: 'take_refused' };
       }
       const inserted =
-        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${productionVersionOf(topic)},${take},(select coalesce((select revision from content.assets where id=${assetId}),0)+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
+        await sql<ProductionRow>`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (${randomUUID()},${topic},${productionVersionOf(topic)},${take},(select greatest(coalesce((select revision from content.assets where id=${assetId}),0),coalesce((select max(revision) from content.asset_revisions where asset_id=${assetId}),0))+1),${generation},'research',${randomUUID()}) on conflict (topic,policy_version,take) do nothing returning *`.execute(
           tx,
         );
       if (inserted.rows[0]) return { kind: 'job', row: inserted.rows[0], created: true };

@@ -20,7 +20,7 @@ screen; a room's moderators read the reports on their room's messages (`POST /v1
 
 | Operation | Route | Authority, effects, failure |
 |---|---|---|
-| `reportContentError(authority, {commandId, target, category, anchor?, note?})` | `POST /v1/feedback/content-errors` | Personal root, then the caller's own account. The asset must be admitted, reachable by the caller (audience gate) and have the named revision. |
+| `reportContentError(authority, {commandId, target, category, anchor?, note?})` | `POST /v1/feedback/content-errors` | Personal root, then the caller's own account. The asset must be admitted, reachable by the caller (audience gate) and have the named revision, one the review gate did not hold or reject (D-138). |
 | `reportAbuse(authority, {commandId, target, category, note?})` | `POST /v1/feedback/abuse-reports` | Same locks. A message must be one the caller can see as a current member (Social's `READ_REPORTABLE_MESSAGE`, Rooms' `READ_REPORTABLE_ROOM_MESSAGE`); a person must have a claimed profile (`READ_PUBLIC_PEOPLE`). Not the caller's own message or profile. |
 | `READ_ROOM_REPORTS` | Rooms' `reports` use case | One row per reported message of one room: reasons, how many different people reported it, the newest time (Rooms shows only its day). Leaves out reports on the asking moderator's own words; never the sender, the note or the author. |
 

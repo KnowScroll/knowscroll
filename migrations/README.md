@@ -211,6 +211,11 @@ time, no account) and the `ops.room_turns` view. The rename means a process from
 restarts; every other change is additive. `rooms.rooms.inhabitants` is no longer read and is dropped by a later migration. Apply with
 the new binary; the generated database types change by the same tables, columns and view.
 
+0072 is the review gate for library v2 Scrolls (v3 S-1e, #472, D-138): `content.assets.status` may also be `held` (an asset whose first
+revision waits for an operator; every existing read already treats it as not admitted) and `content.revision_reviews` records, for each
+held v2 library revision, its state (`held`, `released`, `rejected`), who decided and when, and why a rejection. Additive: old writers never
+store a held revision. Apply with the new binary; the generated database types change by the table and nothing else.
+
 0073 is the quiet sweep (v3 U-3, #467, D-104): `geography.state.next_quiet_at` (when the sweep next needs to look at a universe; a
 partial index serves the sweep's query), `geography.deltas.run_id` becomes nullable (a settle that only changes activity has no
 Cartographer run), and every state that has places is set due once so the first passes store each world's true time. Additive;

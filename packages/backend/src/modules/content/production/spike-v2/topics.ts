@@ -6,12 +6,13 @@ import { parseScrollTopic, TOPICS, type ScrollTopic } from '../topics.js';
  * What the writer spike decides for a library recipe before the model starts: whether the Scroll has
  * a pinned picture, and the misconception its first call tests.
  *
- * Whether there is a picture is recipe data: a recipe has one only where a drawing kit draws its
- * subject (`stageKit` in the library plan, D-125). The misconception is still the spike's own table
- * and becomes a recipe field in S-6. It is a claim a person decided, with a source label a person
- * has checked (`reviewed: true`). Only the seasons myth has one, taken from the V3 design. Every
- * other label is a placeholder marked `reviewed: false`: a document that carries one is a spike
- * result, never a Scroll the library may admit.
+ * A recipe the library plan marks `scrollV2` is spiked exactly as it is produced: the plan's variant
+ * and misconception (D-137), so a spike measures what the library will publish. For every other
+ * recipe whether there is a picture is recipe data (`stageKit`, D-125), and the misconception is the
+ * spike's own table below. It is a claim a person decided, with a source label a person has checked
+ * (`reviewed: true`). No label in this table is checked: each is a placeholder marked
+ * `reviewed: false`, so a document that carries one is a spike result, never a Scroll the library
+ * may admit.
  */
 export interface SpikeRecipeV2 extends RecipeDataV2 {
   /** True for a recipe this table does not list: plain, with no misconception. */
@@ -21,18 +22,8 @@ export interface SpikeRecipeV2 extends RecipeDataV2 {
 const PENDING: SourceLabel = { label: 'A common idea; its source is still to be named', reviewed: false };
 const myth = (claim: string, source: SourceLabel = PENDING): Misconception => ({ kind: 'myth', claim, source });
 
-/** The seasons myth is the V3 design's own example, with the source it names (design pages 3 and 6). */
-const SEASONS_SOURCE: SourceLabel = { label: 'A Private Universe (1987 documentary)', reviewed: true };
-
 const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
-  // Earth & sky: the recipes a kit draws are the Seasons parts; the rest are plain Scrolls until a kit draws them.
-  seasons: myth(
-    'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
-    SEASONS_SOURCE,
-  ),
-  'seasons-hemispheres': myth('Summer comes to the whole Earth at the same time.'),
-  'seasons-limits': myth('Every place on Earth has the same four seasons of equal length.'),
-  'seasons-elsewhere': myth('Every planet has four seasons that last about as long as Earth’s.'),
+  // Earth & sky. The four Seasons recipes are decided by the library plan (D-137), not by this table.
   tides: myth('The Moon makes one bulge of water, on the side of Earth that faces it.'),
   'tides-spring-neap': myth('Spring tides happen in the spring.'),
   'greenhouse-radiation': myth('The atmosphere traps heat like a lid that stops warm air from rising away.'),
@@ -102,6 +93,9 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
  * the misconception table does not list has no misconception, and the line says so.
  */
 export function spikeRecipeV2(topic: ScrollTopic): SpikeRecipeV2 {
+  const planned = TOPICS[topic].scrollV2;
+  if (planned !== undefined)
+    return { variant: planned.variant, misconception: planned.misconception, defaulted: false };
   const variant = TOPICS[topic].stageKit === undefined ? 'plain' : 'stage';
   const listed = SPIKE_MYTHS[topic];
   return listed === undefined

@@ -16,6 +16,7 @@ const takesOf: Record<ScrollProductionState, number> = {
   not_started: 0,
   running: 1,
   published: 1,
+  held: 1,
   retryable: 1,
   stopped: 3,
 };

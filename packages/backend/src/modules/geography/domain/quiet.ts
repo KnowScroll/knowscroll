@@ -37,8 +37,10 @@ export function activityChanges(facts: FormationFacts): ActivityChange[] {
  * already due. Absent when no place can go quiet. Derived scheduling state, never evidence; callers
  * store it so a sweep finds due universes without reading anyone's support.
  *
- * It is a lower bound: later reading only moves the true time forward, and a sweep that finds
- * nothing due stores the corrected value.
+ * It is a lower bound for later reading, which only moves the true time forward, and a sweep that
+ * finds nothing due stores the corrected value. Support that is withdrawn, corrected or retracted
+ * can move the true time earlier; the place then goes quiet at the stored time or at the next apply,
+ * whichever comes first.
  */
 export function nextQuietAt(facts: FormationFacts): string | undefined {
   let earliest: number | undefined;
@@ -60,12 +62,18 @@ function quietFrom(facts: FormationFacts, place: FormationFacts['objects'][numbe
 
 /** How the quiet sweep paces itself (D-104). */
 export const QUIET_SWEEP = {
-  /** Universes one pass hands to a settle. The rest wait for the next pass. */
+  /**
+   * Due universes one pass looks at, oldest first, whether or not they can be settled. Each leaves
+   * the head of the index in the same pass (leased or parked), so the head is always settleable.
+   */
   batch: 100,
   /** How long a handed-over universe is left alone while its settle is queued or running. */
   leaseMs: 30 * 60_000,
-  /** How long to wait before settling a universe whose support could not be read. */
-  unreadableRetryMs: 24 * 3_600_000,
+  /**
+   * How long a due universe that cannot be settled now (recording paused, a run holds it, a Clear in
+   * progress, support unreadable) is left alone before the sweep looks at it again.
+   */
+  parkMs: 24 * 3_600_000,
 } as const;
 
 /** `state` with its `nextQuietAt` set to `at`, or without one when `at` is absent. */

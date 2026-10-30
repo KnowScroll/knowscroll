@@ -53,9 +53,9 @@ export function reportUseCases(deps: FeedbackDeps): ReportUseCases {
     insertReceipt: insertPersonalReceipt,
     completeReceipt: (scope, commandId, outcome) =>
       completePersonalReceipt(scope, commandId, outcome as { readonly [key: string]: CanonicalJson }),
-    findAsset: async (scope, assetId) =>
+    findAsset: async (scope, assetId, revision) =>
       (await deps.checkAudience({ scope }, scope.authority, [assetId])).has(assetId)
-        ? deps.findAsset(scope, assetId)
+        ? deps.findAsset(scope, assetId, revision)
         : undefined,
     readMessage: deps.readMessage,
     readRoomMessage: deps.readRoomMessage,

@@ -6,6 +6,7 @@ import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
 import { productionStanding, takeToSend, type ProductionJobState } from '../domain/library/serving.js';
 import { madeToOrderKey } from '../domain/order-key.js';
 import { SCROLL_PRODUCTION_VERSION } from '../production/topics.js';
+import { notUnderReview } from './review-gate-sql.js';
 import type {
   CheckAssetAudience,
   ReadMadeToOrderProduction,
@@ -92,10 +93,11 @@ function pagesOf(sources: unknown): string[] {
 export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) => {
   const trx = transactionOf(scope);
   const unit = await trx
-    .selectFrom('content.asset_revisions')
-    .select('explanation_unit_id')
-    .where('asset_id', '=', root.assetId)
-    .where('revision', '=', root.assetRevision)
+    .selectFrom('content.asset_revisions as r')
+    .select('r.explanation_unit_id')
+    .where('r.asset_id', '=', root.assetId)
+    .where('r.revision', '=', root.assetRevision)
+    .where(sql<boolean>`${notUnderReview('r.asset_id', 'r.revision')}`)
     .executeTakeFirst();
   if (unit === undefined) return [];
   const records = await sql<{ sources: unknown }>`
@@ -105,6 +107,7 @@ export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) 
     join content.asset_provenance p on p.asset_id = r.asset_id and p.revision = r.revision
     where r.explanation_unit_id = ${unit.explanation_unit_id}
       and not exists (select 1 from content.made_to_order_scrolls o where o.asset_id = r.asset_id)
+      and ${notUnderReview('r.asset_id', 'r.revision')}
     order by (r.asset_id = ${root.assetId}::uuid and r.revision = ${root.assetRevision}) desc, r.admitted_at, r.asset_id, r.revision desc
     limit 8`.execute(trx);
   for (const record of records.rows) {
