@@ -1269,7 +1269,7 @@ Confirmed by: `budgets.test.ts` (the share), `rooms-residents.test.ts` ("lets as
 - **Always labelled.** The contract's AI author carries the resident's `name` beside the label that cannot be removed (`AI · Explainer`). A resident never has a person ID, handle or profile, and is never counted among the people here.
 - **Not yet.** The Quizmaster (Pixel) comes with the Launch in R-6, with its behaviour. The role enum and the table's check stay at two roles until then; the table's shape already holds four.
 
-Confirmed by: `cast.test.ts`, `rooms-residents.test.ts` ("gives every seeded room a named Explainer and Skeptic"), `rooms-residents.test.ts` migration case in `rooms-residents-migration.test.ts`.
+Confirmed by: `cast.test.ts`, `rooms-residents.test.ts` ("gives every seeded room a named Explainer and Skeptic"), `rooms-residents-migration.test.ts` (existing rooms get their residents).
 
 ## D-164 · 2026-10-30 · The router decides who speaks, and every turn is a ledger row (R-2, #488)
 
@@ -1284,7 +1284,7 @@ Confirmed by: `cast.test.ts`, `rooms-residents.test.ts` ("gives every seeded roo
 - **What a reader sees.** Lively shows a resident's unprompted message, Quieter marks it `folded` (one line, the words on request), Off receives a `muted` marker with no words. The one-line why is a fixed phrase for the trigger the server names, never model text. An asked contribution always shows in full.
 - **Idle.** A message that is neither a question nor a strong claim queues nothing. An idle room makes no call.
 
-Confirmed by: `router.test.ts`, `triggers.test.ts`, `rooms-residents.test.ts` (the 22 cases: idle, the wait, a human answer, the Skeptic and the newcomer, the reply chain, the ratio and hour and day caps, levels, kept-out bytes, a quiet refusal, the room scope spent).
+Confirmed by: `router.test.ts`, `triggers.test.ts`, `rooms-residents.test.ts` (idle, the wait, a human answer, the Skeptic and the newcomer, the reply chain, the ratio and hour and day caps, levels, kept-out bytes, a quiet refusal, the room scope spent).
 
 ## D-165 · 2026-10-30 · Typing is a ten-second hold on a discussion, with no person in it (R-2, #488)
 

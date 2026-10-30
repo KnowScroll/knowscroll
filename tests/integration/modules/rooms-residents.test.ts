@@ -9,6 +9,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { holdCast } from '@knowscroll/backend/modules/rooms/nest-providers';
+import { readOperatorPanelsFor } from '@knowscroll/backend/modules/operator/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { fixtureHarness, fixtureModel, fixtureSettings } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
@@ -731,6 +732,24 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
       expect(spokenBy((await view(room.asha, room)).messages)).toEqual(['Nova', 'Halley']);
       expect(await rowsIn(world.db, schemas)).toBe(before);
     });
+  });
+
+  it('feeds the Operator’s rooms panel with counts and the caps that refused, and never a word anyone said', async () => {
+    const room = await gathering();
+    at(1);
+    unwrap(await say(world, room.ravi, room.roomId, room.general, 'Why do we have seasons at all?'));
+    await runTurn(room, explains());
+    at(20);
+    unwrap(await say(world, room.kenji, room.roomId, room.general, 'What causes the tides in the sea?'));
+    await runTurn(room, explains());
+    unwrap(await ask(world, room.asha, room.roomId, room.general, 'skeptic'));
+
+    const panels = await readOperatorPanelsFor(world.db)();
+    if (panels.rooms.calls.status !== 'available') throw new Error('expected the rooms panel');
+    const row = panels.rooms.calls.data.rooms.find((entry) => entry.roomId === room.roomId);
+    expect(row).toMatchObject({ asked: 1, unprompted: 1, refused: [{ cap: 'ratio', count: 1 }] });
+    // Ids, counts and codes only: nothing anyone typed or an AI wrote is in the panel.
+    expect(JSON.stringify(panels.rooms)).not.toMatch(/seasons|tides|Lensing|Nova|Halley/i);
   });
 
   it('has a turn row for every AI message there is, and the message says why only when it was unprompted', async () => {
