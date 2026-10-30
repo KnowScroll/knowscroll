@@ -90,7 +90,7 @@ alter table rooms.ai_turns validate constraint ai_turns_decision_check;
 
 -- Several members may challenge the same message, so the one-turn-per-message rule holds for unprompted turns only; a
 -- message that mentions a resident asks once.
--- squawk-ignore ban-drop-index
+-- squawk-ignore require-concurrent-index-deletion
 drop index rooms.ai_turns_cause;
 -- Existing turn inventory is a handful of rows at rollout; the transactional migrator cannot run CONCURRENTLY.
 -- squawk-ignore require-concurrent-index-creation
