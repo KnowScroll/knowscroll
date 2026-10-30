@@ -1,6 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -13,7 +21,7 @@ import {
 } from '@knowscroll/client-core';
 import type { ContentThreadRef, ReelDocument, SendThreadBody } from '@knowscroll/contracts';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, Skeleton, StateBlock, Text, useDisplay, type ReelPositionHandle } from '@knowscroll/ui';
+import { Banner, PullDownSheet, Skeleton, StateBlock, useDisplay, type ReelPositionHandle } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
@@ -24,18 +32,21 @@ import { AsksBar } from '../scenarios/asks-bar';
 import { BranchSheets } from '../scenarios/branch-sheets';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
 import { useThreadBranches } from '../scenarios/use-thread-branches';
-import { EpisodeNavigator } from './episode-navigator';
 import { useOwnPlace } from './own-place';
 import { useMarkHere } from '../scenarios/use-mark-here';
 import { ShareMomentSheet } from './share-moment-sheet';
-import { InvitationView, OptionsSheet, PeopleSheet, ThreadHeader, threadTitle } from './thread-chrome';
+import { PartsSection, seriesHeading } from './series-sections';
+import { InvitationView, OptionsSheet, ThreadPeople, ThreadStrip, threadEyebrow, threadTitle } from './thread-chrome';
 import { ThreadEncounter } from './thread-encounter';
 import { readInThreadHref, snippetHref, threadRefFromParams } from './thread-links';
 import { ThreadMessages } from './thread-messages';
 import { useContentThread } from './use-content-thread';
 
-/** D03: the thread's pane beside the conversation. */
-const THREAD_PANE_WIDTH = 560;
+/** D03, T3: the series panel beside the conversation. */
+const SERIES_PANEL_WIDTH = 400;
+
+/** Until the header reports its own height (T3: 72 px on a thread). */
+const HEADER_HEIGHT_GUESS = 72;
 
 const draftKey = (threadId: string) => `thread.draft.${threadId}`;
 
@@ -50,16 +61,7 @@ function useDraft(scope: AccountScope, threadId: string) {
   return [draft, keepDraft] as const;
 }
 
-/** What the person sees once the thread is read: episodes, encounter, messages, composer and sheets. */
-function ReadyThread({
-  scope,
-  thread,
-  controller,
-  state,
-  title,
-  onBack,
-  onLeft,
-}: {
+interface ReadyThreadProps {
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
   readonly controller: ContentThreadController;
@@ -67,14 +69,23 @@ function ReadyThread({
   readonly title: string;
   readonly onBack: () => void;
   readonly onLeft: () => void;
-}) {
+}
+
+/**
+ * What the person sees once the thread is read: a 72 px header, the thread's own part (a docked
+ * player on a phone, a panel of parts and the player on a desktop), then the conversation, which
+ * keeps the rest of the screen (T3, D-140).
+ */
+function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }: ReadyThreadProps) {
   const router = useRouter();
-  // From 1024 px the thread and the conversation sit side by side (D03).
+  const insets = useSafeAreaInsets();
+  // From 1024 px the panel and the conversation sit side by side (D03, T3); below it the player docks.
   const sideBySide = useDisplay().breakpoint === 'desktop';
-  const place = useOwnPlace(scope, thread.threadId);
+  const place = useOwnPlace(scope, thread.threadId, !sideBySide);
   useMarkHere(scope, thread.threadId);
   const [draft, keepDraft] = useDraft(scope, thread.threadId);
-  const [people, setPeople] = useState(false);
+  const [seriesOpen, setSeriesOpen] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(HEADER_HEIGHT_GUESS);
   const [menu, setMenu] = useState(false);
   const [moment, setMoment] = useState<ShareableMoment>();
   const board = useScenarioBoard(scope, thread);
@@ -90,6 +101,9 @@ function ReadyThread({
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setFolded only writes this device's storage and state
   }, []);
+  // Watching is the person's own choice to have the player open: a later resize does not dock it.
+  const { setFolded } = place;
+  const onReelOpened = useCallback(() => setFolded(false), [setFolded]);
 
   const episodes = state.episodes;
   const series = state.sequence === 'series';
@@ -112,104 +126,112 @@ function ReadyThread({
     state.root?.status === 'available' && state.root.target.assetId === current?.assetId
       ? state.root.metadata.summary
       : undefined;
-  const threadPane = (
+  // The sheet exists only below 1024 px: a resize to desktop with it open must not leave the player paused.
+  const sheetOpen = seriesOpen && !sideBySide;
+  const showMap = branches.mapOffered
+    ? () => {
+        setSeriesOpen(false);
+        branches.map.show();
+      }
+    : undefined;
+  const parts =
+    current === undefined ? null : (
+      <PartsSection
+        episodes={episodes}
+        selected={current.assetId}
+        series={series}
+        heading={sideBySide ? seriesHeading(series, episodes.length) : undefined}
+        onSelect={(assetId) => {
+          place.select(assetId);
+          setSeriesOpen(false);
+        }}
+        onStep={place.select}
+        onMap={showMap}
+      />
+    );
+  const encounter =
+    current === undefined ? null : (
+      <ThreadEncounter
+        scope={scope}
+        readHref={(assetId) => readInThreadHref(thread, assetId)}
+        episode={current}
+        series={series}
+        total={episodes.length}
+        folded={place.folded}
+        onToggleFold={() => place.setFolded(!place.folded)}
+        onShareMoment={setMoment}
+        paused={moment !== undefined || sheetOpen || menu}
+        positionRef={positionRef}
+        onOpened={onReelOpened}
+        summary={rootSummary}
+        dock
+      />
+    );
+  // One element path for both layouts: only styles differ, and the roles stay the same because React
+  // Native Web draws a different element for each role, which would remount the player on a resize
+  // across 1024 px (ending its recorder and opening a second exposure). The parts and the people sit
+  // in fixed slots around the encounter for the same reason: the panel adds them, the phone does not.
+  return (
     <>
-      <ThreadHeader
+      <ThreadStrip
         title={title}
-        people={state.participants.map((participant) => participant.person.displayName).join(', ')}
+        eyebrow={threadEyebrow(state, sideBySide)}
         onBack={onBack}
-        onMap={branches.mapOffered ? branches.map.show : undefined}
-        onPeople={() => setPeople(true)}
+        series={
+          sideBySide || current === undefined
+            ? undefined
+            : { open: seriesOpen, onPress: () => setSeriesOpen(!seriesOpen) }
+        }
         onMenu={() => setMenu(true)}
+        onLayout={(event: LayoutChangeEvent) => setHeaderHeight(event.nativeEvent.layout.height)}
       />
       {state.offline ? (
         <View style={styles.banner}>
           <Banner kind="reconnecting" lead="Reconnecting…" message="Missing messages will appear in order." />
         </View>
       ) : null}
-      {current === undefined ? null : (
-        <View style={sideBySide ? styles.paneColumn : styles.column}>
-          <EpisodeNavigator
-            episodes={episodes}
-            selected={current.assetId}
-            series={series}
-            folded={place.folded}
-            onSelect={place.select}
-          />
-          <ThreadEncounter
-            scope={scope}
-            readHref={(assetId) => readInThreadHref(thread, assetId)}
-            episode={current}
-            series={series}
-            total={episodes.length}
-            folded={place.folded}
-            onToggleFold={() => place.setFolded(!place.folded)}
-            onShareMoment={setMoment}
-            paused={moment !== undefined || people || menu}
-            positionRef={positionRef}
-            summary={rootSummary}
-          />
-        </View>
-      )}
-    </>
-  );
-  const conversationPane = (
-    <>
-      <ThreadMessages
-        state={state}
-        controller={controller}
-        ownPersonId={ownPersonId}
-        episodes={episodes}
-        scrollRef={scrollRef}
-        onScroll={onScroll}
-        onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
-        branches={board.state.cards}
-        openedBranches={board.state.opened}
-        onOpenBranch={branches.openBranch}
-        onContinueBranch={branches.scenarios.continueBranch}
-        onRemoveBranch={branches.scenarios.removeBranch}
-        onMessageMenu={branches.scenarios.askFromMessage}
-        onAsk={branches.scenarios.askFromMessage}
-      />
-      <AsksBar onAsk={branches.scenarios.askFromRoot} />
-      <Composer
-        name={composerAddressees(
-          state.participants.filter((participant) => !participant.you).map((participant) => participant.person),
-        )}
-        value={draft}
-        onChange={keepDraft}
-        onSend={(text) => {
-          keepDraft('');
-          follow();
-          void controller.send({ kind: 'text', text });
-        }}
-      />
-    </>
-  );
-  // One element path for both layouts: only styles and the Conversation title differ, and the roles
-  // stay the same because React Native Web draws a different element for each role, which would
-  // remount the player on a resize across 1024 px (ending its recorder and opening a second exposure).
-  return (
-    <>
       <View style={sideBySide ? styles.panes : styles.stack}>
-        <View role="region" aria-label="Thread" style={sideBySide ? styles.threadPane : styles.fitContent}>
+        <View role="region" aria-label="Thread" style={sideBySide ? styles.panel : styles.fitContent}>
           <ScrollView
             scrollEnabled={sideBySide}
             style={sideBySide ? undefined : styles.fitContent}
-            contentContainerStyle={sideBySide ? styles.threadPaneContent : undefined}
+            contentContainerStyle={sideBySide ? styles.panelContent : undefined}
           >
-            {threadPane}
+            {sideBySide ? parts : null}
+            {encounter}
+            {sideBySide ? <ThreadPeople participants={state.participants} /> : null}
           </ScrollView>
         </View>
-        <View role="region" aria-label="Conversation" style={sideBySide ? styles.conversationPane : styles.stack}>
-          {sideBySide ? (
-            <View style={styles.conversationHeader}>
-              <Text variant="title" heading={2}>
-                Conversation
-              </Text>
-            </View>
-          ) : null}
-          {conversationPane}
+        <View role="region" aria-label="Conversation" style={styles.stack}>
+          <ThreadMessages
+            state={state}
+            controller={controller}
+            ownPersonId={ownPersonId}
+            episodes={episodes}
+            scrollRef={scrollRef}
+            onScroll={onScroll}
+            onOpenSnippet={(messageId) => router.push(snippetHref(thread, messageId))}
+            branches={board.state.cards}
+            openedBranches={board.state.opened}
+            onOpenBranch={branches.openBranch}
+            onContinueBranch={branches.scenarios.continueBranch}
+            onRemoveBranch={branches.scenarios.removeBranch}
+            onMessageMenu={branches.scenarios.askFromMessage}
+            onAsk={branches.scenarios.askFromMessage}
+          />
+          <AsksBar onAsk={branches.scenarios.askFromRoot} />
+          <Composer
+            name={composerAddressees(
+              state.participants.filter((participant) => !participant.you).map((participant) => participant.person),
+            )}
+            value={draft}
+            onChange={keepDraft}
+            onSend={(text) => {
+              keepDraft('');
+              follow();
+              void controller.send({ kind: 'text', text });
+            }}
+          />
         </View>
       </View>
       {moment === undefined ? null : (
@@ -228,6 +250,16 @@ function ReadyThread({
           }}
         />
       )}
+      <PullDownSheet
+        visible={sheetOpen}
+        title={seriesHeading(series, episodes.length)}
+        top={insets.top + headerHeight}
+        onClose={() => setSeriesOpen(false)}
+        testID="thread-series-sheet"
+      >
+        {parts}
+        <ThreadPeople participants={state.participants} />
+      </PullDownSheet>
       <BranchSheets
         scope={scope}
         thread={thread}
@@ -238,7 +270,6 @@ function ReadyThread({
         onChosen={branches.scenarios.branchStarted}
         onOpenEpisode={place.select}
       />
-      <PeopleSheet visible={people} participants={state.participants} onClose={() => setPeople(false)} />
       <OptionsSheet
         visible={menu}
         onClose={() => setMenu(false)}
@@ -313,7 +344,7 @@ function OpenThread({ scope, thread }: { readonly scope: AccountScope; readonly 
   if (state.phase === 'invitation')
     return (
       <>
-        <ThreadHeader title={title} people={undefined} onBack={back} onPeople={undefined} onMenu={undefined} />
+        <ThreadStrip title={title} eyebrow={undefined} onBack={back} onMenu={undefined} />
         <InvitationView
           state={state}
           onJoin={() => void controller.respond('join')}
@@ -424,27 +455,16 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
-  /** The episodes and the encounter keep the reading measure, centred, on wide screens (the multi-pane layout is D03). */
-  column: { width: '100%', maxWidth: layout.measureDesktop, alignSelf: 'center' },
-  /** D03: the thread's own pane takes the width it is given; the conversation fills the rest. */
-  panes: { flex: 1, minHeight: 0, flexDirection: 'row' },
+  /** T3 desktop: the series panel on the right, the conversation filling the rest (the DOM order stays panel first). */
+  panes: { flex: 1, minHeight: 0, flexDirection: 'row-reverse' },
   stack: { flex: 1, minHeight: 0 },
   /** One column: the thread's own part takes the height of its content and the messages take the rest. */
   fitContent: { flexGrow: 0, flexShrink: 0 },
-  threadPane: {
-    width: THREAD_PANE_WIDTH,
-    borderRightWidth: borderWidth.regular,
-    borderRightColor: content.ink,
+  panel: {
+    width: SERIES_PANEL_WIDTH,
+    borderLeftWidth: borderWidth.regular,
+    borderLeftColor: content.ink,
     minHeight: 0,
   },
-  threadPaneContent: { paddingBottom: spacing[6] },
-  paneColumn: { width: '100%', paddingHorizontal: layout.gutter },
-  conversationPane: { flex: 1, minWidth: 340, minHeight: 0 },
-  conversationHeader: {
-    minHeight: 64,
-    justifyContent: 'center',
-    paddingHorizontal: layout.gutter,
-    borderBottomWidth: borderWidth.hairline,
-    borderBottomColor: content.rule,
-  },
+  panelContent: { padding: layout.gutter, gap: spacing[4], paddingBottom: spacing[6] },
 });

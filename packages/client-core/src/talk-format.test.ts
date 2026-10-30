@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DirectConversationSummary } from '@knowscroll/contracts';
-import { dayKey, dayLabel, describeMessage, inboxRowView, listTime } from './talk-format';
+import { clockTime, dayKey, dayLabel, describeMessage, endsRun, inboxRowView, listTime } from './talk-format';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const peer = { kind: 'person' as const, personId: id(1), handle: 'ravi', displayName: 'Ravi' };
@@ -92,5 +92,22 @@ describe('day dividers', () => {
   it('group by calendar day in the reader’s own time zone', () => {
     expect(dayKey(new Date(2026, 9, 24, 0, 1))).toBe(dayKey(new Date(2026, 9, 24, 23, 59)));
     expect(dayKey(new Date(2026, 9, 24, 12))).not.toBe(dayKey(new Date(2026, 9, 25, 12)));
+  });
+});
+
+describe('runs of messages', () => {
+  const step = (authorId: string, hour: number, minute: number, day = 24) => ({
+    authorId,
+    at: new Date(2026, 9, day, hour, minute),
+  });
+  it('end at the last message before another author, a pause of five minutes or a new day', () => {
+    expect(endsRun(step('a', 9, 0), undefined)).toBe(true);
+    expect(endsRun(step('a', 9, 0), step('b', 9, 1))).toBe(true);
+    expect(endsRun(step('a', 9, 0), step('a', 9, 4))).toBe(false);
+    expect(endsRun(step('a', 9, 0), step('a', 9, 5))).toBe(true);
+    expect(endsRun(step('a', 23, 59), step('a', 0, 1, 25))).toBe(true);
+  });
+  it('show the clock time in the reader’s own time zone', () => {
+    expect(clockTime(new Date(2026, 9, 24, 18, 40), 'en-GB')).toBe('18:40');
   });
 });

@@ -54,7 +54,18 @@ export {
   type ThreadOptions,
   type ThreadState,
 } from './conversation-thread';
-export { dayKey, dayLabel, describeMessage, inboxRowView, listTime, type InboxRowView } from './talk-format';
+export {
+  clockTime,
+  dayKey,
+  dayLabel,
+  describeMessage,
+  endsRun,
+  inboxRowView,
+  listTime,
+  RUN_GAP_MS,
+  type InboxRowView,
+  type RunStep,
+} from './talk-format';
 export {
   createContentThread,
   type ContentThreadController,
