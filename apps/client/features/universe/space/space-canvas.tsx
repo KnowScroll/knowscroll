@@ -27,6 +27,33 @@ function canvasStandIn(gl: ExpoWebGLRenderingContext) {
 }
 
 /**
+ * three.js reads `getContextAttributes()` while it starts. A native context that does not answer
+ * it gets a view that does, with the attributes a GLView is made with; every other call goes to
+ * the real context.
+ */
+function withContextAttributes(gl: ExpoWebGLRenderingContext): ExpoWebGLRenderingContext {
+  if (typeof gl.getContextAttributes === 'function' && gl.getContextAttributes()) return gl;
+  const attributes = {
+    alpha: false,
+    depth: true,
+    stencil: false,
+    antialias: false,
+    premultipliedAlpha: true,
+    preserveDrawingBuffer: false,
+    powerPreference: 'default',
+    failIfMajorPerformanceCaveat: false,
+    desynchronized: false,
+  };
+  return new Proxy(gl, {
+    get(target, key) {
+      if (key === 'getContextAttributes') return () => attributes;
+      const value: unknown = Reflect.get(target, key);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+}
+
+/**
  * The native canvas host: an `expo-gl` `GLView`. The drawing buffer of a GLView has one pixel per
  * device pixel, so to cap the pixel ratio at 1.5 the view is laid out smaller than its parent and
  * scaled up to fill it; the GPU stretches the buffer, three.js draws fewer pixels.
@@ -57,7 +84,7 @@ function SpaceCanvasNative({ onSurface, onResize, onFailure }: SpaceCanvasProps)
       }
       onSurface({
         canvas: canvasStandIn(gl),
-        context: gl,
+        context: withContextAttributes(gl),
         width: gl.drawingBufferWidth / pixelRatio,
         height: gl.drawingBufferHeight / pixelRatio,
         pixelRatio,
