@@ -15,6 +15,7 @@ export type {
 export { prepareBufferQueue, PrepareBufferJobSchema, type PrepareBufferJob } from './events.js';
 export { assembleSnapshot, evidenceQueryFor, type SnapshotInput } from './application/snapshot-assembly.js';
 export { readVerticalCandidates, renderableFormats } from './application/vertical-candidates.js';
+export { readRelatedAssetIds } from './application/related-targets.js';
 export type { PrepareBuffer, PrepareBufferResult } from './application/prepare-buffer.js';
 export {
   bufferIsServable,

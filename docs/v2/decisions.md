@@ -1352,3 +1352,47 @@ R3 question 6 (keep my messages out of what AI reads) and question 5 (default le
 - **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
 - **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
 - **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
+
+## D-131 · 2026-10-30 · A vertical move never offers another part of the series the person is in (S-1d, #472)
+
+In the V3 grammar swipe left is Part 2 and pull up is a new topic. Until now the best "next subject" after Seasons Part 1 was Part 2 or Part 3, because they share the planet and rank first. That made the two moves say the same thing.
+
+**Amends** D-034 (the list of hard exclusions on a subject move).
+
+- **Rule.** A vertical move excludes every candidate of the source's series, in any revision of that series (`same_series`). The series is compared by its id only. With nothing else to offer the move is exhausted (`no_eligible_content`), never Part 2.
+- **A Reel is not a series unit, but it is still a part.** Only Scrolls have a `series_units` row. So the series comes from the source, or else from a candidate that shares the source's explanation unit (its Scroll twin), and a candidate whose explanation unit is that of a part is excluded too. The Reel of Part 2 is Part 2, from a Scroll and from a Reel. This looks only at the candidates already retrieved, so it adds no read.
+- **Where.** Composer's pure policy decides, in `domain/vertical-rules.ts`. Experience names the source's series in the snapshot (`intent.currentSeriesId`) for a fresh ranking, and the worker does the same for a buffer. The reason is stored in `composer.decisions` beside the other exclusions.
+- **Unchanged.** Series, related, variant and return moves. The Part move is how a series is reached.
+- **A move inside a region is left alone.** A person who opened a place to browse it can reach its parts there. Only the open-ended "next subject" leaves the series.
+- **Not done.** The related move of the thread is left to D-136. If the Scroll twin of a Reel is not among the candidates (a catalogue past the retrieval cap), the series is not known.
+- **The policy label stays `composer-policy.v0`.** Migration 0017 allows only that label, and the rule applies only when the snapshot names a series, so every stored decision replays as before. S-5 changes the weights and moves the label with a migration.
+- **Verified.** Pure and property tests (a ranked-first Part 2 is never returned, for any seed, order or format) and integration tests on real PostgreSQL from Seasons Part 1, with the Reel of Part 2 as the only other format, and from the Reel of Part 1. Each fails when the rule is removed.
+
+## D-132 · 2026-10-30 · Next stays in the format the person is in, and falls back only when none is left (S-1d, #472)
+
+A person reading a Scroll who pulls up for a new topic expects a Scroll; a person watching a Reel expects a Reel. Today a vertical move carries no format, so a Scroll can be followed by a Reel.
+
+**Amends** D-034 (what a buffer is ranked for).
+
+- **Contract.** The vertical navigation intent has an optional `format` (`reel` or `scroll`). The client fills it with the format of the encounter in front of the person. A request without it is ranked with no format preference, as before.
+- **Rule.** Composer reads that format first. While anything of it is eligible, every candidate of the other format is excluded (`format_sticky`). Eligible means after every other exclusion, so a hidden item or another part of the series does not keep the format alive. When none is eligible nothing is excluded and the other format is offered.
+- **Recorded.** The decision stores `stickyFormat: { preferred, outcome }`, with `outcome` either `kept` or `fell_back`.
+- **Equal status.** The rule follows the format the person is in now. It is the same for Reel and Scroll and stores nothing. The per-topic format learning (`format` feature) is unchanged.
+- **Retrieval.** With a format, up to 100 candidates of that format are read first and the other format fills what is left, so a large catalogue of one format cannot crowd the person's format out of the cap.
+- **Buffers.** The worker ranks a buffer for the source's own format. Experience serves it only to a move that names that format. A move that names another format, or none, is ranked fresh and the buffer waits for its own end of life.
+- **Not here.** Anything finer than the format. Play level is S-5 (#476).
+- **Verified.** Pure and property tests (stay in the format exactly when something of it is eligible; the same inputs give the same decision), an integration test on real PostgreSQL from a Scroll and from a Reel, with and without an eligible candidate of the format, and the buffer cases. Each fails when the rule is removed.
+
+## D-136 · 2026-10-30 · A vertical move does not offer what the thread's Related tab reaches (S-1d, #472)
+
+After D-131 the Seasons thread still led to "Seasons limits": it shares the planet, so it ranks first. It is the related move of Part 3 (D-125), another perspective on the thread, and a related perspective is one of the four distinct relationships. It is reached from its own tab, not by pulling up.
+
+**Amends** D-131 (which left the related target out).
+
+- **Rule.** A vertical move excludes the assets the thread's Related tab reaches (`related_target`), by asset id in any revision, and the format twin of each. These are the related targets of the source, of its format twins and of every other part of the source's series found among the candidates. The tab sits on one part (Part 3 for Seasons), but the thread owns it, so Part 1 leaves it too.
+- **A Reel.** The continuity of the Reel and of its Scroll twin counts, and the Reel takes the series of its twin among the candidates (D-131), so the related move of any part of that series is left too.
+- **Steps aside rather than leave nothing.** If excluding would leave nothing eligible in either format, none are excluded and the move offers what is there, as it did before. The series rule stays hard (D-131). The decision stores `relatedTarget: { outcome, matched }`, with `outcome` either `applied` or `fell_back`.
+- **Before sticky format.** When a new topic and the person's format cannot both be had, the new topic wins: the related target in the same format is passed over and the other format is offered (D-132 records `fell_back`).
+- **Where.** The pure policy decides (`applyRelatedExclusion`). `readRelatedAssetIds` reads the admitted links, a few small reads of shared data inside the transaction already open; Experience and the buffer worker both use it. A move inside a region takes no part in it.
+- **Unchanged.** The Related tab and the `related` move still open the target.
+- **Verified.** Pure and property tests, a unit test of the reads, and an integration test on real PostgreSQL from Seasons Part 1 and Part 3, with the fall back and the Related tab. Each fails when the rule or the read of the other parts is removed.
