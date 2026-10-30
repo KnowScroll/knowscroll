@@ -169,7 +169,7 @@ function classify(result: ProposeOutcome<AuthoredScrollV2>): { outcome: SpikeOut
 
 /**
  * The writer spike for `scroll-authoring.v2` (S-0, D-120): for each library recipe, fetch its public
- * research, ask the v14 writer once (the harness allows one repair), validate and assemble the
+ * research, ask the v15 writer once (the harness allows one repair), validate and assemble the
  * answer, and report what it cost and what was refused. Nothing is admitted, published or stored in
  * a content table: the only records are the harness's own (run, attempts, kept refused answers), so
  * every paid attempt consults the attempt ledger and an unknown outcome is never resent.

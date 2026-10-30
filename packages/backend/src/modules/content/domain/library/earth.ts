@@ -104,12 +104,11 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.elsewhere',
-    stageKit: 'earth-sky.v1',
     interactive: false,
     interactiveKind: null,
     brief:
-      'Seasons on other planets, and why Earth is not the template. Explain that seasons come from an axis tilted against the orbit, and say what the supplied passages state about Mars and about Uranus, whose axis lies far over so that each pole faces the Sun in turn. A planet with no tilt would have almost no seasons. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
-    pages: ['https://en.wikipedia.org/wiki/Axial_tilt', 'https://science.nasa.gov/uranus/facts/'],
+      'Seasons on other planets, and why Earth is not the template. Say what the supplied passages state about seasons on Mars and on Uranus: Mars’s axis is tilted much as Earth’s is, so it has distinct seasons, but they last longer, while Uranus’s axis lies nearly at a right angle to its orbit, which gives it the most extreme seasons in the Solar System. Compare each with Earth’s seasons and say what the tilt does in each case. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
+    pages: ['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/'],
   },
   tides: {
     explanationUnitId: 'legacy-cutroom-tides-v4',

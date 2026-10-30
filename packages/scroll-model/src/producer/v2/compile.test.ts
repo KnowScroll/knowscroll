@@ -376,6 +376,58 @@ describe('compileAuthoredV2: the Final call asks something new', () => {
   });
 });
 
+describe('compileAuthoredV2: Earth’s axis is tilted, never sideways', () => {
+  const saying = (text: string, variant: 'stage' | 'plain' = 'stage') =>
+    codes(
+      changed((draft) => {
+        draft.items[2] = { ...draft.items[2], text: `${filler(30, 60)} ${text}` };
+      }, variant),
+      variant,
+    );
+
+  it('refuses a sentence of a stage Scroll that calls the axis or the lean sideways, at the writer’s item', () => {
+    for (const text of [
+      'Earth’s sideways axis keeps pointing the same way.',
+      'The sideways lean of the planet makes the seasons.',
+      'Earth is tilted so far that it lies on its side.',
+      'Its axis is SIDEWAYS all year.',
+    ])
+      expect(saying(text), text).toContain('earth_axis_sideways@items.2');
+  });
+
+  it('finds it in a call’s answer, a simple text and a caption too', () => {
+    const result = codes(
+      changed((draft) => {
+        const call = itemIndex(draft, 'call_it', 1);
+        draft.items[call] = { ...draft.items[call], explain: `${filler(20, 61)} The sideways lean is why.` };
+        draft.items[3] = { ...draft.items[3], simple: 'Earth’s axis is sideways.' };
+        (draft['recap'] as { captions: string[] }).captions[0] = 'A sideways tilt makes seasons.';
+      }),
+    );
+    expect(result).toEqual(
+      expect.arrayContaining([
+        'earth_axis_sideways@items.4',
+        'earth_axis_sideways@items.3',
+        'earth_axis_sideways@recap',
+      ]),
+    );
+  });
+
+  it('leaves a sentence alone that says sideways of something else, or tilted of the axis without it', () => {
+    expect(saying('A beam can slide sideways across the ground.')).not.toContain('earth_axis_sideways@items.2');
+    expect(saying('The lean is steady. A cloud drifts sideways.')).not.toContain('earth_axis_sideways@items.2');
+    expect(saying('Earth’s axis is tilted and points the same way all year.')).not.toContain(
+      'earth_axis_sideways@items.2',
+    );
+  });
+
+  it('lets a plain Scroll say it, because its subject may be Uranus', () => {
+    expect(saying('Uranus spins sideways, its axis nearly at right angles to its orbit.', 'plain')).not.toContain(
+      'earth_axis_sideways@items.2',
+    );
+  });
+});
+
 describe('compileAuthoredV2: claims cite like any other claim', () => {
   it('refuses a handle that was not offered and a Scroll that cites too few passages', () => {
     expect(codes(changed((draft) => (draft.items[2] = { ...draft.items[2], cites: ['e1', 'e99'] })))).toContain(

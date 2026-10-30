@@ -42,6 +42,7 @@ export const V2_REASON_CODES = [
   'stage_too_static',
   'stage_alt_mismatch',
   'stage_state_on_call',
+  'earth_axis_sideways',
   'stage_state_unsettled',
   // The misconception, decided with the recipe.
   'misconception_source_unreviewed',

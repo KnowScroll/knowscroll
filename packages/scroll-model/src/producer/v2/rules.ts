@@ -93,6 +93,24 @@ function unitsOf(authored: AuthoredScrollV2): Unit[] {
 }
 
 /**
+ * Earth's axis is tilted by a fixed angle; "sideways" and "on its side" are the words for Uranus. A
+ * sentence of a stage Scroll (whose picture is always Earth) that joins them to the axis, the lean
+ * or the tilt is refused, because it teaches a picture the kit never draws (D-123). A plain Scroll
+ * may say them: its subject may be Uranus.
+ */
+const SIDEWAYS = /\bsideways\b|\bon (?:its|their) side\b/iu;
+const AXIS_WORDS = /\b(?:axis|axes|lean|leans|leaning|tilt|tilts|tilted|tilting)\b/iu;
+
+function earthAxisIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[] {
+  if (recipe.variant !== 'stage') return [];
+  const sidewaysAxis = (text: string): boolean =>
+    text.split(/(?<=[.!?])\s+/u).some((sentence) => SIDEWAYS.test(sentence) && AXIS_WORDS.test(sentence));
+  return unitsOf(authored)
+    .filter((unit) => unit.texts.some(sidewaysAxis))
+    .map((unit): IssueV2 => ({ code: 'earth_axis_sideways', path: unit.path }));
+}
+
+/**
  * Every claim in a call's answer, an aside or a stop cites a passage, like any other claim: handles
  * must exist, at least `minDistinctCitations` different passages are cited in all, and every figure
  * in reader text appears in a passage its unit cites. Kit values are words, never numbers, so there
@@ -140,8 +158,8 @@ function copyIssues(authored: AuthoredScrollV2, sources: readonly string[]): Iss
 
 /**
  * The checks only the authored list can make, because the assembled document no longer says what
- * the writer wrote where: placement of asides, the stage against the recipe's variant, citations and
- * figures, and copying. Everything the document itself can prove (word limits, the call budget, the
+ * the writer wrote where: placement of asides, the stage against the recipe's variant (and what a stage
+ * Scroll may say about Earth's axis), citations and figures, and copying. Everything the document itself can prove (word limits, the call budget, the
  * Final call and whether it restates a call, the limits aside, the stage's order and what it holds,
  * the reading time) is left to `validateDocumentV2`. The common guess has no check here: it is a
  * place in the call's options that code reads (D-126), not a number the writer could get wrong.
@@ -153,6 +171,7 @@ export function authoringIssuesV2(authored: AuthoredScrollV2, input: AuthoringRu
   return uniqueIssuesV2([
     ...placementIssues(authored),
     ...stageIssues(authored, input.recipe),
+    ...earthAxisIssues(authored, input.recipe),
     ...citationIssues(authored, input.evidence),
     ...copyIssues(authored, input.sources),
   ]);

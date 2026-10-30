@@ -175,16 +175,16 @@ describe('the kit that draws a recipe (stageKit, D-125)', () => {
       if (recipe.stageKit !== undefined) expect(STAGE_KIT_IDS, recipe.key).toContain(recipe.stageKit);
   });
 
-  it('gives a stage only to the recipes the Earth & sky kit draws: the Seasons parts, and nothing else yet', () => {
+  it('gives a stage only to the recipes the Earth & sky kit draws: three Seasons parts, and nothing else yet', () => {
     expect(
       recipes
         .filter((recipe) => recipe.stageKit !== undefined)
         .map((recipe) => recipe.key)
         .sort(),
-    ).toEqual(['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons-limits']);
+    ).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
   });
 
-  it('leaves tides, stars, exoplanets and the greenhouse effect plain: the kit draws no bulge, no star and no energy flow', () => {
+  it('leaves tides, stars, exoplanets, the greenhouse effect and other worlds plain: the kit draws no bulge, no star, no energy flow and no planet but Earth', () => {
     for (const key of [
       'tides',
       'tides-spring-neap',
@@ -195,11 +195,18 @@ describe('the kit that draws a recipe (stageKit, D-125)', () => {
       'greenhouse-limits',
       'stars-fusion',
       'exoplanet-habitable-zone',
+      'seasons-elsewhere',
     ] as const)
       expect(RECIPES[key].stageKit, key).toBeUndefined();
   });
 
-  it('keeps the brief of "Seasons elsewhere" free of the picture, which only the v2 writer prompt describes', () => {
-    expect(RECIPES['seasons-elsewhere'].brief).not.toMatch(/picture|stage|pinned/iu);
+  it('draws "Seasons elsewhere" from pages about Mars and Uranus, and keeps its brief to what they state', () => {
+    const { brief, pages } = RECIPES['seasons-elsewhere'];
+    expect(pages).toEqual(['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/']);
+    expect(brief).toContain('Mars');
+    expect(brief).toContain('Uranus');
+    // No passage of these pages is about a world without a tilt, so the brief does not ask for one.
+    expect(brief).not.toMatch(/no tilt|without a tilt|upright/iu);
+    expect(brief).not.toMatch(/picture|stage|pinned/iu);
   });
 });

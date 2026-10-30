@@ -193,8 +193,7 @@ describe('the v15 instructions', () => {
     expect(stage).toContain('view: sun-earth | orbit | orbit-stretched | earth-close | moon-orbit');
     expect(stage).toContain('earthAt: jan | feb');
     // The writer chooses no tilt, pin or Ray: code derives them from the month.
-    for (const gone of ['axis:', 'northPin', 'southPin', 'ray:', 'sideways', 'upright'])
-      expect(stage).not.toContain(gone);
+    for (const gone of ['axis:', 'northPin', 'southPin', 'ray:', 'upright']) expect(stage).not.toContain(gone);
     expect(stage).toContain('Earth’s tilt is fixed');
     expect(stage).toContain('"orbit" shows Earth’s orbit from above, drawn to scale');
     expect(stage).toContain('"orbit-stretched" is the same orbit stretched');
@@ -218,10 +217,40 @@ describe('the v15 instructions', () => {
     expect(stop).toContain('"stage":{…}');
   });
 
-  it('ask for a Final call that is a new case, and for the picture of another world to be Earth for comparison', () => {
-    const text = writerInstructionsV2(spikeRecipeV2('seasons-elsewhere'));
-    expect(text).toContain('its question and its correct answer must be new');
-    expect(text).toContain('it is Earth for comparison');
+  it('ask for a Final call that is a new case', () => {
+    expect(writerInstructionsV2(spikeRecipeV2('seasons'))).toContain('its question and its correct answer must be new');
+  });
+
+  it('say Earth’s axis is tilted and never sideways, for a stage recipe only, and that such a text is refused', () => {
+    const stage = writerInstructionsV2(spikeRecipeV2('seasons'));
+    expect(stage).toContain('Earth’s axis is tilted by a fixed angle');
+    expect(stage).toContain('never call it sideways or say it lies on its side');
+    expect(stage).toContain('A text that does so is refused');
+    // Uranus really does spin sideways, so a plain Scroll about other worlds is not told otherwise.
+    const elsewhere = writerInstructionsV2(spikeRecipeV2('seasons-elsewhere'));
+    expect(elsewhere).toContain('NO PICTURE');
+    expect(elsewhere).not.toContain('never call it sideways');
+  });
+
+  it('give "Seasons elsewhere" no picture, because the kit draws no other world', () => {
+    const recipe = spikeRecipeV2('seasons-elsewhere');
+    expect(recipe.variant).toBe('plain');
+    expect(writerInstructionsV2(recipe)).not.toContain('earthAt');
+    expect(writerInstructionsV2(recipe)).not.toContain('Earth for comparison');
+  });
+
+  it('refuse a stage Scroll that calls Earth’s axis sideways, with a fixed hint the repair can use', () => {
+    const answer = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
+    answer.items[2] = {
+      ...answer.items[2],
+      text: 'Earth’s sideways axis points the same way all year, and that is what makes the seasons.',
+    };
+    const outcome = compileGeneratedScrollV2(AuthoredScrollV2.parse(answer), context());
+    expect(outcome.kind === 'refused' && outcome.issues).toContainEqual({
+      code: 'earth_axis_sideways',
+      path: 'items.2',
+    });
+    expect(writerRoleV2(context()).safeCustomIssues?.['earth_axis_sideways']).toContain('never call it sideways');
   });
 
   it('tell the writer to ignore the v1 layout words of a brief', () => {

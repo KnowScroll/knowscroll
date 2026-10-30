@@ -59,7 +59,7 @@ const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
 /**
  * The twenty recipes of the first spike, in the order they ran: the three Seasons parts first, then
  * nine Earth & sky and Space recipes in all, four of the human body, and seven of computing,
- * machine learning and history. Only the Seasons parts are drawn by a kit, so only they get a
+ * machine learning and history. Only three Seasons parts are drawn by a kit, so only they get a
  * stage; the rest are plain Scrolls with calls. `seasons-elsewhere` is not one of the twenty: name
  * it with `--topics` (see `SEASONS_SPIKE_TOPICS_V2`).
  */
@@ -86,7 +86,10 @@ export const SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'industrial-causes',
 ];
 
-/** The Seasons trio and "Seasons elsewhere": the recipes the Earth & sky kit draws, for measuring the stage. */
+/**
+ * The Seasons trio, which the Earth & sky kit draws (a stage), and "Seasons elsewhere" (a plain
+ * Scroll: the kit draws no other world), to measure the stage and the Mars and Uranus sources again.
+ */
 export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'seasons',
   'seasons-hemispheres',

@@ -37,12 +37,13 @@ describe('the twenty topics of the writer spike', () => {
       expect(spikeRecipeV2(topic).variant, topic).toBe('plain');
   });
 
-  it('measure the Seasons parts and "Seasons elsewhere" with one command line, the one the runbook prints', () => {
+  it('measure the three Seasons stages and the plain "Seasons elsewhere" with one command line, the one the runbook prints', () => {
     expect(SEASONS_SPIKE_TOPICS_V2).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits', 'seasons-elsewhere']);
     expect(parseSpikeTopics(SEASONS_SPIKE_TOPICS_V2.join(','))).toEqual(SEASONS_SPIKE_TOPICS_V2);
     for (const topic of SEASONS_SPIKE_TOPICS_V2) {
       const recipe = spikeRecipeV2(topic);
-      expect(recipe.variant, topic).toBe('stage');
+      // The kit draws only Earth, so the other worlds of "Seasons elsewhere" are told in words and calls.
+      expect(recipe.variant, topic).toBe(topic === 'seasons-elsewhere' ? 'plain' : 'stage');
       expect(recipe.defaulted, topic).toBe(false);
     }
     const runbook = readFileSync(

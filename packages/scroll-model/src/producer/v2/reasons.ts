@@ -30,6 +30,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   recap_small_print_unknown: 'The recap links to the limits aside; add one.',
   stage_unexpected: 'This Scroll has no stage: remove the stage object from this item.',
   stage_missing: 'This Scroll has a stage: give the first stop a stage object that sets the starting picture.',
+  earth_axis_sideways:
+    'Earth’s axis is tilted by a fixed angle and points the same way all year. Say it is tilted or leans, and never call it sideways or on its side.',
   stage_state_on_call:
     'A call never changes the picture, or it would show the answer before the reader has chosen. Remove stage here and change the picture on the stop after the call.',
   stage_first_state_missing:
