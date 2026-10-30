@@ -51,4 +51,16 @@ describe('library series and related moves', () => {
       expect(RECIPES[link.from].explanationUnitId, link.from).not.toBe(RECIPES[link.to].explanationUnitId);
     }
   });
+
+  it('makes "Seasons elsewhere" Part 3 of the Seasons thread, and reaches seasons-limits as a related move', () => {
+    const seasons = LIBRARY_SERIES.find((series) => series.id === 'library.earth.seasons');
+    expect(seasons?.parts).toEqual(['seasons', 'seasons-hemispheres', 'seasons-elsewhere']);
+    expect(LIBRARY_RELATED).toContainEqual({
+      from: 'seasons-elsewhere',
+      to: 'seasons-limits',
+      label: 'Where the simple tilt picture breaks down',
+    });
+    // seasons-limits is in no series, so no recipe is in two.
+    expect(LIBRARY_SERIES.flatMap((series) => series.parts)).not.toContain('seasons-limits');
+  });
 });

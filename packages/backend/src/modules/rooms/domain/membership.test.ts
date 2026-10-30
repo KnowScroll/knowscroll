@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { canRemove, joinDecision, roomAcceptsPosts, statusAfter, type JoinFacts } from './membership.js';
+import {
+  canRemove,
+  defaultAiLevel,
+  joinDecision,
+  KEPT_OUT_MESSAGE,
+  roomAcceptsPosts,
+  statusAfter,
+  type JoinFacts,
+} from './membership.js';
 
 const facts = (overrides: Partial<JoinFacts> = {}): JoinFacts => ({
   rule: 'open',
@@ -75,5 +83,17 @@ describe('canRemove', () => {
     expect(canRemove(actor, { accountId: 'b', role: 'member' })).toBe(true);
     expect(canRemove(actor, { accountId: 'b', role: 'moderator' })).toBe(false);
     expect(canRemove(actor, { accountId: 'a', role: 'member' })).toBe(false);
+  });
+});
+
+describe('the AI level a member starts at', () => {
+  it('is Lively in a room anyone can enter and Quieter in a room that is not', () => {
+    expect(defaultAiLevel('open')).toBe('lively');
+    expect(defaultAiLevel('friends_of_members')).toBe('quieter');
+    expect(defaultAiLevel('invite_only')).toBe('quieter');
+  });
+
+  it('stands in for a kept-out message with words that name no one', () => {
+    expect(KEPT_OUT_MESSAGE).toBe("[a member's message]");
   });
 });

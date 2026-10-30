@@ -4,11 +4,12 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { StoredSnippetAnchor } from '../../content/public.js';
 import type { Counters, DiscussionRow, DiscussionStore, MessageRow, RoomLock } from '../application/ports.js';
-import { contributionKindOf, inhabitantOf } from './columns.js';
+import { contributionKindOf, discussionKindOf, inhabitantOf } from './columns.js';
 
 interface DiscussionColumns {
   discussion_id: string;
   room_id: string;
+  kind: string;
   title: string;
   root_asset_id: string | null;
   root_asset_revision: number | null;
@@ -23,6 +24,7 @@ interface DiscussionColumns {
 const DISCUSSION_COLUMNS = [
   'discussion_id',
   'room_id',
+  'kind',
   'title',
   'root_asset_id',
   'root_asset_revision',
@@ -37,6 +39,7 @@ const DISCUSSION_COLUMNS = [
 const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
   discussionId: row.discussion_id,
   roomId: row.room_id,
+  kind: discussionKindOf(row.kind),
   title: row.title,
   root:
     row.root_asset_id === null || row.root_asset_revision === null
@@ -180,12 +183,38 @@ export const discussionStore: DiscussionStore = {
       .selectFrom('rooms.discussions')
       .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
+      .where('kind', '<>', 'general')
       .orderBy(sql`pinned_at desc nulls last`)
       .orderBy('last_activity_at', 'desc')
       .orderBy('discussion_id')
       .limit(limit)
       .execute();
     return rows.map(discussionOf);
+  },
+
+  async general(lock) {
+    const row = await trxOf(lock)
+      .selectFrom('rooms.discussions')
+      .select(DISCUSSION_COLUMNS)
+      .where('room_id', '=', lock.roomId)
+      .where('kind', '=', 'general')
+      .executeTakeFirst();
+    return row === undefined ? undefined : discussionOf(row);
+  },
+
+  async lastMessageAt(lock) {
+    // One probe of `messages_latest_visible` per discussion, newest first, so a read never scans a room's messages.
+    const result = await sql<{ latest: Date | string | null }>`
+      select max(newest.recorded_at) as latest
+      from rooms.discussions discussion
+      cross join lateral (
+        select message.recorded_at from rooms.messages message
+        where message.discussion_id = discussion.discussion_id and message.hidden_at is null
+        order by message.recorded_at desc limit 1
+      ) newest
+      where discussion.room_id = ${lock.roomId}::uuid`.execute(trxOf(lock));
+    const latest = result.rows[0]?.latest;
+    return latest === undefined || latest === null ? undefined : new Date(latest);
   },
 
   async pinnedTitle(lock) {

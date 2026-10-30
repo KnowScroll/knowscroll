@@ -61,3 +61,18 @@ export function canRemove(
 ): boolean {
   return target.role === 'member' && target.accountId !== actor.accountId;
 }
+
+/** How much the room's AI inhabitants may speak to one member (R3 question 5). */
+export type AiLevel = 'lively' | 'quieter' | 'off';
+
+/**
+ * The level a new member starts at: Lively in a room anyone can enter, Quieter in a room that is closed to
+ * strangers. Their own choice replaces it and a person who comes back keeps what they chose.
+ */
+export const defaultAiLevel = (rule: JoinRule): AiLevel => (rule === 'open' ? 'lively' : 'quieter');
+
+/** The words that stand in for a member's message when they keep their messages out of what AI reads. */
+export const KEPT_OUT_MESSAGE = "[a member's message]";
+
+/** The same for a discussion's title when the member who started it keeps their messages out: a title is their typing. */
+export const KEPT_OUT_TOPIC = "[a member's topic]";

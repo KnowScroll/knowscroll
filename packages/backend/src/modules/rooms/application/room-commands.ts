@@ -10,7 +10,7 @@ import {
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
 import type { PersonalAuthority } from '../../identity/public.js';
-import { canRemove, joinDecision, statusAfter } from '../domain/membership.js';
+import { canRemove, defaultAiLevel, joinDecision, statusAfter } from '../domain/membership.js';
 import { receiptBase, runCommand } from './command.js';
 import { earlierPlaceOf, ok, refuse, type Result, type RoomPorts } from './ports.js';
 
@@ -22,7 +22,8 @@ const FRIEND_LOOKUP_LIMIT = 1000;
  * moderator's pause, resume and removal. Each runs in the caller's personal scope and the room's
  * lock (FOR UPDATE), checks current authority, and commits its effect and receipt together. Joining
  * a room, leaving it and being invited are communication state: none is consumption evidence, and
- * joining never changes the person's universe.
+ * joining never changes the person's universe. A member who leaves or is removed loses their presence
+ * lease in the same transaction, and the room hears of it.
  */
 export function makeRoomCommands(p: RoomPorts) {
   return {
@@ -59,7 +60,7 @@ export function makeRoomCommands(p: RoomPorts) {
           });
           if (!decision.allowed) return refuse('unavailable');
           return ok(async () => {
-            const role = await p.rooms.join(lock, owner.accountId, now);
+            const role = await p.rooms.join(lock, owner.accountId, defaultAiLevel(standing.room.joinRule), now);
             return RoomJoinAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'room.join',
@@ -88,6 +89,8 @@ export function makeRoomCommands(p: RoomPorts) {
           return Promise.resolve(
             ok(async () => {
               await p.rooms.end(entered.lock, entered.owner.accountId, 'left', now);
+              await p.presence.clear(entered.lock, entered.owner.accountId);
+              await p.rooms.announce(entered.lock, now);
               return RoomLeaveAcceptanceSchema.parse({
                 ...receiptBase(scope, now, command.commandId),
                 operation: 'room.leave',
@@ -174,6 +177,8 @@ export function makeRoomCommands(p: RoomPorts) {
             if (!canRemove({ accountId: owner.accountId }, target)) return refuse('unavailable');
             return ok(async () => {
               await p.rooms.end(lock, targetAccountId, 'removed', now);
+              await p.presence.clear(lock, targetAccountId);
+              await p.rooms.announce(lock, now);
               return accepted();
             });
           }

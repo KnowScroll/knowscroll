@@ -18,6 +18,8 @@ import type {
   RoomMessageAcceptanceSchema,
   RoomMessageHidingAcceptanceSchema,
   RoomModerationAcceptanceSchema,
+  RoomPreferencesAcceptanceSchema,
+  RoomPresenceAckSchema,
   RoomReportsSchema,
   RoomSnippetOpeningSchema,
   RoomStationsSchema,
@@ -38,7 +40,8 @@ export type { RoomSeed } from './application/seeds.js';
  * claimed authority and an unparsed body and rechecks authority itself: membership of the room,
  * its status and the caller's role. Answers use one `unavailable` shape for a stranger, a person
  * who left or was removed, and a missing room, so nothing says why. Reads create no evidence, and
- * no answer counts members, shows who is online or says what anyone watched.
+ * no answer says what anyone watched. A list, a preview and a station count nobody; a member's own view
+ * of a room names who is here (a number only from three), the member total and the last message (D-069).
  */
 export interface RoomUseCases {
   list(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomListSchema>>>;
@@ -50,6 +53,13 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof RoomModerationAcceptanceSchema>>>;
+  /** The caller's own AI level, keep-out choice and notice acknowledgement in a room (D-062). */
+  setPreferences(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof RoomPreferencesAcceptanceSchema>>>;
+  /** The caller's device has the room open, or has closed it: a lease of one minute that shows their face (D-069). */
+  setPresence(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomPresenceAckSchema>>>;
   create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionCreationSchema>>>;
   send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomMessageAcceptanceSchema>>>;
   pin(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DiscussionPinAcceptanceSchema>>>;
@@ -77,6 +87,14 @@ export interface RoomUseCases {
   ): Promise<Result<z.infer<typeof ActivityModerationAcceptanceSchema>>>;
 }
 export const ROOM_USE_CASES = Symbol('rooms.useCases');
+
+/**
+ * Port for the socket gateway: whether this account is a current member of the room, which is what lets a
+ * socket subscribe to the room's hints. A lookup by IDs with no scope: it reads one membership row and decides
+ * nothing else.
+ */
+export type ReadRoomMembership = (accountId: string, roomId: string) => Promise<boolean>;
+export const READ_ROOM_MEMBERSHIP = Symbol('rooms.readRoomMembership');
 
 /**
  * The worker's consumer of `rooms.contribute`: one member's ask of an AI inhabitant becomes at most

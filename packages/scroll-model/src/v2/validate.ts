@@ -2,11 +2,12 @@ import { canonicalJson, canonicalSha256, canonicalSize } from '../canonical.js';
 import { INTEGRITY_METHOD } from '../document.js';
 import { issueFromSchema } from '../issues.js';
 import { countWords } from '../text.js';
-import { callsOf, ScrollDocumentV2, type Stop } from './document.js';
+import { callsOf, ScrollDocumentV2, type CallItStop, type FinalCallStop, type Stop } from './document.js';
 import { uniqueIssuesV2, type IssueV2 } from './issues.js';
-import { describeStageState } from './kit.js';
+import { describeStageState, settleStageState } from './kit.js';
 import { LIMITS_V2 } from './limits.js';
 import { computeMeasuresV2, READING_SECONDS_V2 } from './measures.js';
+import { restates } from './similarity.js';
 
 /** SHA-256 of the canonical JSON of the document without its `integrity` member. */
 export function computeIntegrityV2(document: Omit<ScrollDocumentV2, 'integrity'> & { integrity?: unknown }): string {
@@ -109,6 +110,24 @@ function callIssues(document: ScrollDocumentV2): IssueV2[] {
   return issues;
 }
 
+/**
+ * The Final call applies the idea to a new case. One whose question, or whose correct answer, is
+ * near-identical to an earlier call's only asks again, so it is refused (D-126).
+ */
+function restatementIssues(document: ScrollDocumentV2): IssueV2[] {
+  const finalIndex = document.stops.findIndex((stop) => stop.kind === 'final_call');
+  const final = document.stops[finalIndex];
+  if (final === undefined || final.kind !== 'final_call') return [];
+  const correct = (stop: CallItStop | FinalCallStop): string => stop.options[stop.answer] ?? '';
+  const asksAgain = document.stops
+    .slice(0, finalIndex)
+    .some(
+      (stop) =>
+        stop.kind !== 'read' && (restates(stop.prompt, final.prompt) || restates(correct(stop), correct(final))),
+    );
+  return asksAgain ? [{ code: 'final_call_restates_call', path: `stops.${finalIndex}` }] : [];
+}
+
 /** Asides: each opens next to a stop; a limits aside exists, opens before the Final call, and the recap links to it. */
 function asideIssues(document: ScrollDocumentV2): IssueV2[] {
   const issues: IssueV2[] = [];
@@ -134,7 +153,12 @@ function asideIssues(document: ScrollDocumentV2): IssueV2[] {
   return issues;
 }
 
-/** The stage: states in stop order from the first stop, each describing itself, enough of them to be a stage. */
+/**
+ * The stage: states in stop order from the first stop, each describing itself, enough of them to be
+ * a stage. A state sits on a read stop, never on a call, so the picture cannot show an answer before
+ * the reader has given one (D-124). Each state holds only what its view draws, and its physics (tilt,
+ * pins, Ray) follows from the month, so there is nothing else to contradict.
+ */
 function stageIssues(document: ScrollDocumentV2): IssueV2[] {
   const stage = document.stage;
   if (stage === undefined) return [];
@@ -149,6 +173,10 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
       if (at <= previousIndex) issues.push({ code: 'stage_states_unordered', path: `${path}.stop` });
       previousIndex = at;
     }
+    if (at !== undefined && document.stops[at]?.kind !== 'read')
+      issues.push({ code: 'stage_state_on_call', path: `${path}.stop` });
+    if (canonicalJson(settleStageState(entry.state)) !== canonicalJson(entry.state))
+      issues.push({ code: 'stage_state_unsettled', path: `${path}.state` });
     if (entry.alt !== describeStageState(entry.state)) issues.push({ code: 'stage_alt_mismatch', path: `${path}.alt` });
     const before = stage.states[index - 1];
     if (before !== undefined && canonicalJson(before.state) === canonicalJson(entry.state))
@@ -196,6 +224,7 @@ export function validateDocumentV2(input: unknown, options: ValidateV2Options = 
     ...(document.stops.length < LIMITS_V2.minStops ? [{ code: 'stops_too_few', path: 'stops' } as const] : []),
     ...document.stops.flatMap(stopTextIssues),
     ...callIssues(document),
+    ...restatementIssues(document),
     ...asideIssues(document),
     ...stageIssues(document),
     ...(options.verify === false ? [] : storedIssues(document)),

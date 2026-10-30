@@ -184,18 +184,26 @@ Usual findings and what they mean:
 
 ## The v2 writer spike (S-0)
 
-Before any V3 engine is built, the team measures whether the writer can produce `scroll-document.v2` Scrolls reliably, and what a library wave costs (issue #471, decisions D-120 to D-122). The command runs the v14 writer on real library recipes, validates and assembles what it writes, and **admits and publishes nothing**. It needs no migration, so a branch with it can be deployed to dev by manual dispatch.
+Before any V3 engine is built, the team measures whether the writer can produce `scroll-document.v2` Scrolls reliably, and what a library wave costs (issues #471 and #472, decisions D-120 to D-126). The command runs the v15 writer on real library recipes, validates and assembles what it writes, and **admits and publishes nothing**. It needs no migration, so a branch with it can be deployed to dev by manual dispatch.
 
 ```sh
 # worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash (the only model it accepts)
 node dist/operator.js content writer-spike-v2 --topics <recipe key,…> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
 ```
 
-The twenty topics of the first run, in order (the three Seasons parts first; nine Earth & sky and Space recipes with a stage, four of the human body, seven of computing, machine learning and history without one):
+The twenty topics of the first run, in order (the three Seasons parts first; nine Earth & sky and Space recipes, four of the human body, seven of computing, machine learning and history). That run used prompt v14, which gave a stage to every Earth & sky and Space recipe. Since v15 a recipe has a stage only where its library entry names a `stageKit` (D-125): three Seasons parts. The others run as plain Scrolls with calls:
 
 ```text
 seasons,seasons-hemispheres,seasons-limits,tides,tides-spring-neap,greenhouse-radiation,greenhouse-balance,stars-fusion,exoplanet-habitable-zone,cardiac-cycle,blood-pressure,reflex-arc,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
 ```
+
+To measure the Seasons stage again with the v15 prompt (the three Seasons stages, and "Seasons elsewhere" as a plain Scroll to check its Mars and Uranus sources), at most eight requests:
+
+```sh
+node dist/operator.js content writer-spike-v2 --topics seasons,seasons-hemispheres,seasons-limits,seasons-elsewhere --concurrency 2 --spike-id seasons-v15 --out /var/tmp/ks-v3-spike/seasons-v15.jsonl
+```
+
+What to read in the lines for these four: `variant` is `stage` for the first three and `plain` for `seasons-elsewhere`, `stageStates` is at least 3 for the stage ones, and the `findings` have no `common_guess_*`, `stage_state_on_call`, `earth_axis_sideways` or `final_call_restates_call` that survive the repair. Then read each accepted document on the server: the picture must match each stop's words (the month decides the pins and Ray), no stage text calls Earth's axis sideways, and every statement about Mars and Uranus must be in the NASA pages the recipe cites. Tides, stars-fusion, the exoplanet and greenhouse recipes can be re-measured as plain Scrolls with the same command and their own keys.
 
 Each run is two requests at most per topic (the writer and one repair), at most 40 for the twenty, inside the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) and the MiniMax window. `--concurrency` (default 1, at most 4) runs topics side by side. `--out` appends the assembled documents of accepted topics to a file, one JSON line each; the file holds the model's own text about public sources, so read it on the server and do not paste it into an issue. A recipe key that is not one of the twenty runs as a plain Scroll with no misconception, and the line says `recipeDefaulted: true`.
 

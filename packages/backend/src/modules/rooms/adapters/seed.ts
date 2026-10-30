@@ -4,8 +4,28 @@ import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { RoomSeed } from '../application/seeds.js';
 
 /**
- * Creates the rooms that do not exist yet, by slug, and leaves existing ones as they are. It writes
- * only room rows: no member, no message and no moderator, so a seeded room is empty until people come.
+ * Gives a room its General discussion if it has none: the place a member lands, made with the room. It is an
+ * empty discussion with no starter, so a seeded room still has no message and no person in it.
+ */
+async function ensureGeneral(db: Kysely<Database>, roomId: string, now: Date): Promise<void> {
+  await db
+    .insertInto('rooms.discussions')
+    .values({
+      discussion_id: uuidv7(),
+      room_id: roomId,
+      kind: 'general',
+      title: 'General',
+      last_activity_at: now,
+      created_at: now,
+    })
+    .onConflict((conflict) => conflict.column('room_id').where('kind', '=', 'general').doNothing())
+    .execute();
+}
+
+/**
+ * Creates the rooms that do not exist yet, by slug, and leaves existing ones as they are, except that a room
+ * without a General gets one. It writes only room and General rows: no member, no message and no moderator, so
+ * a seeded room is empty until people come.
  */
 export async function seedRooms(
   db: Kysely<Database>,
@@ -30,8 +50,13 @@ export async function seedRooms(
         created_at: now,
       })
       .onConflict((conflict) => conflict.column('slug').doNothing())
-      .returning('slug')
+      .returning(['slug', 'room_id'])
       .executeTakeFirst();
+    const roomId =
+      inserted?.room_id ??
+      (await db.selectFrom('rooms.rooms').select('room_id').where('slug', '=', seed.slug).executeTakeFirstOrThrow())
+        .room_id;
+    await ensureGeneral(db, roomId, now);
     (inserted === undefined ? existing : created).push(seed.slug);
   }
   return { created, existing };

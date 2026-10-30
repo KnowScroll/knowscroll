@@ -20,17 +20,17 @@ import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } fr
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v14';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v15';
 
 const minutes = (seconds: number): number => seconds / 60;
 
 function mythInstructions(recipe: RecipeDataV2): string[] {
   if (recipe.misconception.kind === 'none')
     return [
-      '- This Scroll names no misconception: do not invent one and never use "commonGuess". Still open with a call_it that makes the reader predict before you explain.',
+      '- This Scroll names no misconception: do not invent one. Still open with a call_it that makes the reader predict before you explain.',
     ];
   return [
-    `- THE MISCONCEPTION. A common wrong idea about this subject is: "${recipe.misconception.claim}" The first call_it tests exactly this idea. Put the correct option first, and give the wrong option that states the misconception as "commonGuess" (1 or 2). The twist of that call is the best moment of the Scroll: say warmly that this is the natural first guess and why it fails, without blame and without naming any study or source (code adds the source).`,
+    `- THE MISCONCEPTION. A common wrong idea about this subject is: "${recipe.misconception.claim}" The first call_it tests exactly this idea. Put the correct option FIRST and the wrong option that states this idea SECOND: code marks the second option as the common guess, so write no number for it. A third option, if you give one, is another wrong answer a thoughtful person might give. The twist of that call is the best moment of the Scroll: say warmly that this is the natural first guess and why it fails, without blame and without naming any study or source (code adds the source).`,
     '- Teach against the misconception in the stops that follow, and use the other calls on different ideas.',
   ];
 }
@@ -39,10 +39,12 @@ function stageInstructions(recipe: RecipeDataV2): string[] {
   if (recipe.variant === 'plain')
     return ['THIS SCROLL HAS NO PICTURE. Write no "stage" objects. Calls and short stops carry it.'];
   return [
-    'THIS SCROLL HAS A PINNED PICTURE. One picture stays on screen while the stops go by, and "stage" on an item changes it. The picture is built only from a fixed kit (the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in the north and one in the south, and the Moon) and you choose only from the listed words.',
+    'THIS SCROLL HAS A PINNED PICTURE. One picture stays on screen while the stops go by, and "stage" on a stop changes it. Code draws the picture from a fixed kit: the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in the north and one in the south, and the Moon. You choose only the view, the month, the Moon’s phase and the part to look at, from the listed words. Code decides everything else: Earth’s tilt is fixed, and which half of Earth leans toward the Sun, the pins and the angle of Ray all follow from the month. So the month you choose is a claim the picture makes: choose the month that matches what the stop says.',
     '- The first stop sets the starting picture. After that, change the picture on most stops so that it shows what the stop says, and name only what changes. Over the whole Scroll the picture changes at least three times.',
-    '- Make each call land on the picture: set the picture to show the answer when the call is revealed.',
-    '- If the subject is not about the Sun, Earth or the Moon, choose the closest honest picture and let the words do the rest. Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support.',
+    '- The views: "sun-earth" shows the Sun and Earth side by side, with Ray and the pins; "orbit" shows Earth’s orbit from above, drawn to scale (nearly a circle); "orbit-stretched" is the same orbit stretched so that the nearest and farthest points show; "earth-close" is a close view of Earth with Ray and the pins; "moon-orbit" shows the Moon circling Earth and is the only view with a Moon phase. A focus on a part the view does not draw is ignored.',
+    '- A call never changes the picture, or it would show the answer before the reader has chosen. The stop before a call sets up its question; show the answer by changing the picture on the stop right after the call. Write "stage" on stops only, never on a call_it or the final_call.',
+    '- Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support. The picture shows only Earth, the Sun and the Moon.',
+    '- Earth’s axis is tilted by a fixed angle and points the same way all year. Say that it is tilted or that it leans, and never call it sideways or say it lies on its side: those words belong to Uranus, which the picture does not draw. A text that does so is refused.',
   ];
 }
 
@@ -58,7 +60,7 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     'HOW THE SCROLL GOES.',
     '- Open with a stop that hooks: a question or a surprise in a few short sentences. The reader’s first job is a guess, not a lecture.',
     ...mythInstructions(recipe),
-    '- Then alternate: one or two stops that explain, a call_it that asks the reader to predict, a stop that reveals and builds. Use two or three call_it items and exactly one final_call as the last item, which asks the reader to apply the whole idea to a new case.',
+    '- Then alternate: one or two stops that explain, a call_it that asks the reader to predict, a stop that reveals and builds. Use two or three call_it items and exactly one final_call as the last item, which asks the reader to apply the whole idea to a new case: its question and its correct answer must be new, never a repeat of an earlier call in other words.',
     '- Put one aside of kind "limits" right after the stop whose claim it limits: what this picture leaves out, using the caveats of the passages. It belongs well before the final_call, never at the end.',
     `- Eight to eleven stops and calls in all. A stop is at most ${LIMITS_V2.stopWords} words, its text and its line together; a line is a short punchline of at most ${LIMITS_V2.lineWords} words.`,
     '- Voice: second person ("you"), short plain sentences, warm. A light joke at most every other stop, never at the reader’s expense. Never call the reader wrong.',

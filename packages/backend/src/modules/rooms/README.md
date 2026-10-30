@@ -3,9 +3,10 @@
 A room is a shared place to talk about a library topic. It has its own identity, its own members and
 its own discussions; where its station sits on a map is each person's own. People join, read and
 write in discussions, share a Reel or Scroll into the room to start a content thread, and a moderator
-keeps the room in order. AI inhabitants answer when a member asks, are always labelled as AI, and
-make nothing. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration model");
-decisions D-006 o, D-051.
+keeps the room in order. A member lands in the room's **General**, sees the faces of who has the room open,
+and sets how much the AI inhabitants may speak to them. AI inhabitants answer when a member asks, are always
+labelled as AI, and make nothing. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
+model"); decisions D-006 o, D-051, D-062, D-069, D-160, D-161.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -24,6 +25,12 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | Find a room's station beside a system of their own map (U01, U02, the list view) and open it | Implemented; runtime-verified |
 | Moderator: start a poll or a quiz (R03); members vote in a poll (visible to the room, changeable until it closes) and read a quiz one question at a time; the moderator closes or removes it | Implemented; runtime-verified |
 | The desktop room (D04): the room, the open discussion and the room extras in three panes | Implemented (client); runtime-verified |
+| Land in the room's General (one per room, backfilled for rooms that existed); topics and pins stay in the room menu (v3 R-1) | Implemented (CI-verified) |
+| See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last message 3 h ago" (v3 R-1, D-069) | Implemented (CI-verified) |
+| Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified). Keep-out already changes what AI reads; the level is stored and read by nothing until inhabitants speak on their own (R-2) |
+| The room menu: About, Guidelines, AI here, Members with the total, Pins, Topics (v3 R-1) | Implemented (CI-verified) |
+| Room hints on the socket: a message or a face appearing is read within seconds (v3 R-1) | Implemented (CI-verified) |
+| Inhabitants that speak unprompted, honour the AI level, and a "while you were away" summary that excludes kept-out messages (v3 R-2, R-3) | Planned (not built); the level and keep-out are stored and the substitution already holds for asked turns. Until R-2 the level changes nothing a member sees, and the screen says so: inhabitants only answer when asked |
 | What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -31,9 +38,10 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | Table (schema `rooms`) | Holds |
 | --- | --- |
 | `rooms` | A room: slug, name, topic (a library system or planet), join rule, status, guidelines, which inhabitants it has |
-| `members` | One row per person per room: role (`member`, `moderator`), joined, ended (`left`, `removed`) |
+| `members` | One row per person per room: role (`member`, `moderator`), joined, ended (`left`, `removed`), and the member's own settings: `ai_level` (`lively`, `quieter`, `off`), `keep_out` and `notice_seen_at` |
+| `room_presence` | One lease row per member who has the room open: `last_seen_at`, renewed by their own device and read only while it is under a minute old |
 | `invitations` | A member's invitation of a friend; valid while the inviter is still a member |
-| `discussions` | A room thread: title, optional root (an exact asset revision), origin message, starter, pin, counters |
+| `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional root (an exact asset revision), origin message, starter, pin, counters |
 | `messages` | A person's text or card, an AI inhabitant's contribution, or a tombstone; `hidden_at` is a moderator's removal |
 | `message_snippets` | The anchor of a snippet message, copied from the exact revision when sent |
 | `ai_requests` | One row per ask of an inhabitant: the rate-bound ledger and the provenance of the contribution |
@@ -41,8 +49,9 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
 
 Use cases (`public.ts`, `RoomUseCases`): `list`, `read`, `join`, `leave`, `invite`, `moderate`,
-`create` (a discussion), `readDiscussion`, `history`, `changes`, `send`, `openSnippet`, `pin`,
-`hideMessage`, `ask`, `stations`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. The worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue.
+`setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
+`readDiscussion`, `history`, `changes`, `send`, `openSnippet`, `pin`, `hideMessage`, `ask`, `stations`, `activities`,
+`readActivity`, `createActivity`, `votePoll`, `moderateActivity`. The worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue.
 Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`.
 
 Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribution text rules,
@@ -55,9 +64,21 @@ conversations or threads.
 
 ## Rules that matter
 
-- **Nothing is invented.** A seeded room has no members, no messages and no moderator. A room list
-  and a preview count nobody, show nobody online and say nothing about activity. An empty room says it
-  is empty.
+- **Nothing is invented.** A seeded room has no members, no messages and no moderator, only an empty General. A
+  room list and a preview count nobody and say nothing about activity. An empty room says it is empty.
+- **Who is here (D-069, D-160).** Only a member's own view of a room carries `here`, `memberTotal` and
+  `lastMessageAt` (an explicit allow-list in the contract). Faces come from a one-minute lease the member's own
+  device renews (`setPresence`), never from messages or another module. The number appears only from three people
+  and the contract refuses one below that, so "0 online" and "1 online" cannot be said. The AI cast has no lease and
+  is never a face or counted. The reader is always a face. A blocked person is left out of the blocker's faces and
+  count, and nobody else's. The quiet pill is worked out on the device from `lastMessageAt`.
+- **Keeping messages out (D-161).** A member's `keep_out` makes the asked-turn context builder replace each of
+  their messages with `[a member's message]` before any item is built, so neither the model nor the stored request
+  bytes carry their words, the title of what they shared, their note or the title of a discussion they started (it becomes
+  `[a member's topic]`). Nothing else a member types reaches a context item. A test reads the stored request. No summary
+  exists yet; one built later must use the same builder.
+- **The AI notice.** Shown once (`notice_seen_at`, first acknowledgement kept), then only in the room menu. Its words
+  describe what is true now.
 - **AI inhabitants are always labelled.** A message's author is either a person (a public profile) or
   `{ kind: 'ai', inhabitant, label }` with a label fixed by the role. The contract has no way to
   show an AI as a person. The client draws the label, a dotted outline and a square corner, and the
@@ -124,7 +145,7 @@ no receipt.
 
 Lock order: personal root (`withPersonalScope`), the caller's own account gate (`fenceOwn`), then
 the room's own root (`rooms.rooms` row: FOR UPDATE for join, leave, invite, moderate and ask; FOR
-SHARE for sends, pins, hides and reads), then the room's discussion, message and request rows. A
+SHARE for sends, pins, hides, reads, a member's settings and presence beats), then the room's discussion, message and request rows. A
 discussion's counters are atomic increments on its row, so sends are gapless; reads take the counters
 before the messages, so a message that commits meanwhile is read again by catch-up, never missed.
 Account deletion locks the discussions the person wrote in or started, in id order, before it touches
@@ -159,7 +180,8 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 
 | Store | Exploration Clear | Account deletion |
 | --- | --- | --- |
-| members, invitations | kept | the person's rows are deleted |
+| members, invitations | kept (a member's AI level, keep-out choice and notice mark are part of the membership) | the person's rows are deleted |
+| room_presence | kept: a lease of the account, not exploration; it ends by itself after a minute | the person's rows are deleted; also deleted when they leave or are removed |
 | discussions | kept | the starter link is cleared; the discussion stays for the others |
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
@@ -169,7 +191,7 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | pg-boss `rooms.contribute` | the universe's job payloads are deleted | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
-The export holds the person's rooms, the discussions they started and their own words (newest 2,000, with
+The export holds the person's rooms (with their AI level, keep-out choice and when they read the AI notice; never where they were), the discussions they started and their own words (newest 2,000, with
 `truncated`), how many times they asked an inhabitant, their poll votes (with the option's words) and the activities they started; it names no other person and no AI text, and a
 person who never took part in a room has no section.
 
@@ -177,7 +199,9 @@ person who never took part in a room has no section.
 
 - A lost response: retry with the same command ID; the receipt replays it.
 - A lost update: the client reads `changes` from its cursor on focus, on reconnect and every 20 seconds, and
-  reads the discussion afresh while an inhabitant is preparing a reply. There is no socket hint for rooms.
+  reads the discussion afresh while an inhabitant is preparing a reply. A room hint on the socket (a message sent, a
+  lease starting or ending, someone leaving, an AI reply the worker stored) makes a member's client read within seconds; it is disposable and
+  names only the room. A lease that lapses without a hint is noticed on the next poll.
 - A lost job: an ask still queued after 15 minutes no longer holds its discussion; a new ask is allowed.
 - A moderator's hide or restore gives the message a fresh change number, so catch-up replaces the bubble.
 
@@ -185,8 +209,9 @@ person who never took part in a room has no section.
 
 - Contracts: `packages/contracts/src/rooms.ts` (routes under `/v1/rooms/*`, sharing Social's problem
   family and private cache policy).
-- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`, `rooms-stations.test.ts`,
-  `rooms-activities.test.ts`, and `tests/integration/release/rooms-http.test.ts` over the installed API;
+- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
+  `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
+  `rooms-stations.test.ts`, `rooms-activities.test.ts`, and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.
 - Operator: `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
   (naming needs a claimed profile and never undoes a removal; `--remove` only takes the role from a current member;

@@ -203,6 +203,7 @@ export function makeDiscussionCommands(p: RoomPorts) {
                 : { content: body.target, ...(body.note === undefined ? {} : { note: body.note }) }),
             });
             if (snippet !== undefined) await p.discussions.saveSnippet(lock, messageId, snippet);
+            await p.rooms.announce(lock, now);
             return RoomMessageAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'discussion.send',
@@ -235,6 +236,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
         async decide({ scope, entered, now }) {
           const found = await discussionOf(entered.lock, command.discussionId);
           if (found.kind === 'refused') return found;
+          // General is where everyone lands; a pin would only hide it behind itself.
+          if (found.value.kind === 'general') return refuse('unavailable');
           return ok(async () => {
             await p.discussions.setPinned(entered.lock, command.discussionId, command.pinned ? now : null);
             return DiscussionPinAcceptanceSchema.parse({

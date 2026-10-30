@@ -26,9 +26,12 @@ export const fixtureResearchPageV2: ResearchPage = extractResearch(
 );
 
 /**
- * The writer's recorded answer in `scroll-authoring.v2`: a stage Scroll with three calls, a limits
- * aside, a recap and three questions, in other words than the source. It is valid against the
- * fixture page above, with the myth below as the recipe's misconception.
+ * The writer's recorded answer in `scroll-authoring.v2`, written the way the v15 instructions say:
+ * a stage Scroll with three calls, a limits aside, a recap and three questions, in other words than
+ * the source. The picture changes on stops only and is chosen by view, month and focus (never a pin
+ * or a tilt); the first call has two options with the common guess second and no number; the Final
+ * call is a new case. It is valid against the fixture page above, with the seasons myth as the
+ * recipe's misconception.
  */
 export function fixtureAuthoredV2(): AuthoredScrollV2 {
   return AuthoredScrollV2.parse({
@@ -42,24 +45,18 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         text: 'Orrin has long warm summers and short grey winters in the north, and the reason is not the one most people reach for first. Keep your eye on the picture while you read, because it will change with every step.',
         line: 'First, make a guess.',
         simple: 'Orrin has warm summers and cold winters. Watch the picture as you read. First, make a guess.',
-        stage: { view: 'sun-earth', earthAt: 'jun', axis: 'earth', northPin: 'warm', southPin: 'cool', focus: 'earth' },
+        stage: { view: 'sun-earth', earthAt: 'jun', focus: 'earth' },
       },
       {
         type: 'call_it',
         cites: ['e1', 'e2', 'e4'],
         prompt: 'Why is the north of Orrin warm in midsummer?',
-        options: [
-          'Its northern half leans toward Vael',
-          'Orrin is closest to Vael at that moment',
-          'Vael shines more fiercely in midsummer',
-        ],
-        commonGuess: 1,
+        options: ['Its northern half leans toward Vael', 'Orrin is closest to Vael at that moment'],
         explain:
           'The north is warm because that half of the planet leans toward Vael, so sunlight arrives steeply there. Orrin is actually nearest to its star during the southern summer, when the north is having its winter.',
         twist:
           'Most people pick the nearness answer at first, and it is easy to see why. A closer star sounds like a hotter star. The surprise is that the gap in distance is tiny, and the lean does the real work.',
         simple: 'The north is warm because it leans toward Vael. Orrin is closest to Vael in the north’s winter.',
-        stage: { view: 'orbit', orbit: 'exaggerated', earthAt: 'jan', focus: 'orbit' },
       },
       {
         type: 'stop',
@@ -68,7 +65,7 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         text: 'Drawn to scale, the orbit of Orrin is almost a perfect circle. The gap between its nearest and farthest points is only a few percent, far too little to explain months of heat or frost. Distance was never the lever.',
         line: 'Distance is not it.',
         simple: 'The orbit is nearly a circle, so distance cannot explain the seasons.',
-        stage: { orbit: 'to-scale', focus: 'none' },
+        stage: { view: 'orbit', earthAt: 'jan', focus: 'orbit' },
       },
       {
         type: 'stop',
@@ -76,7 +73,7 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         text: 'What matters is the lean of the axis. It tips by 31 degrees and keeps pointing the same direction all year. So for part of the orbit the northern half faces toward Vael, and half an orbit later it faces away.',
         simple:
           'The axis tips and keeps pointing the same way. The north faces Vael for half the year and away for half.',
-        stage: { view: 'orbit', earthAt: 'dec', axis: 'earth', northPin: 'cool', southPin: 'warm', focus: 'axis' },
+        stage: { earthAt: 'dec', focus: 'axis' },
       },
       {
         type: 'call_it',
@@ -88,7 +85,6 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         twist:
           'Many people expect a slanted beam to be a squeezed one, and the picture is easy to get backwards. Slanting stretches the patch, and a stretched patch means thinner warmth.',
         simple: 'A low beam stretches over more ground, so each bit of ground gets less warmth.',
-        stage: { view: 'earth-close', ray: 'low', focus: 'ray' },
       },
       {
         type: 'stop',
@@ -96,21 +92,21 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         text: 'Meet Ray, a single beam of Vael’s light. In the north’s summer Ray arrives from high in the sky and lands on a small patch, packing its warmth into a tight space. That is a hot, long day.',
         line: 'Same sunshine, smaller patch.',
         simple: 'In summer the light comes from high up and lands on a small patch, so it feels hot.',
-        stage: { ray: 'high', northPin: 'warm', focus: 'ray' },
+        stage: { view: 'earth-close', earthAt: 'jun', focus: 'ray' },
       },
       {
         type: 'stop',
         cites: ['e3', 'e5'],
         text: 'Half an orbit on, the north leans away. Ray now comes in low and spreads thin across the ground, the days shrink, and the same sunshine does far less work. Winter is not a distance problem; it is an angle problem.',
         simple: 'Later the north leans away. The light comes in low, spreads out, and the days get short.',
-        stage: { ray: 'low', northPin: 'cool', southPin: 'warm', earthAt: 'dec', focus: 'north-pin' },
+        stage: { earthAt: 'dec', focus: 'north-pin' },
       },
       {
         type: 'stop',
         cites: ['e6'],
         text: 'Near the equator the noon sun stays high whatever the month, so the tropics barely notice the year turning. The poles feel it most. The same lean produces very different seasons depending on where you stand.',
         simple: 'Near the equator the sun stays high all year, so the seasons barely change. The poles change most.',
-        stage: { view: 'earth-close', ray: 'overhead', northPin: 'off', southPin: 'off', focus: 'earth' },
+        stage: { focus: 'earth' },
       },
       {
         type: 'aside',
@@ -134,7 +130,6 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         twist:
           'It is tempting to think a straight planet must be extreme in some way. In fact the lean is what makes the year uneven, and removing it makes the year calm.',
         simple: 'With no lean, days stay about the same length, so there are almost no seasons.',
-        stage: { axis: 'upright', ray: 'off', view: 'sun-earth', focus: 'axis' },
       },
     ],
     recap: {
