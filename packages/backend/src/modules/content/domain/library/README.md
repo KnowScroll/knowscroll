@@ -13,7 +13,7 @@ import only domain code. It has no behaviour, no storage and no model call.
 
 ## Files
 
-- `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `STAGE_KIT_IDS`).
+- `plan.ts`: the shapes (`LibrarySystem`, `LibraryRecipe`, `INTERACTIVE_KINDS`, `STAGE_KIT_IDS`, `ScrollV2Plan`).
 - `earth.ts`, `space.ts`, `machine-learning.ts`, `human-body.ts`, `computing.ts`, `history.ts`: one
   system each, with its planets, facets and recipes. The record key of a recipe is the operator key
   (`content produce-scroll --topic <key>`).
@@ -27,6 +27,14 @@ import only domain code. It has no behaviour, no storage and no model call.
 - `library.test.ts`: the plan's acceptance rules (50 to 60 recipes, at least 22 interactive over all
   six kinds, at least three recipes and two facets per planet, a recipe for every facet, unique identities,
   allowlisted pages). `serving.test.ts` covers the serving rules.
+
+## Recipes produced as v2 Scrolls
+
+A recipe with `scrollV2` is written as a `scroll-document.v2` Scroll and held for an operator's read before anyone is
+served it (D-129, D-138). Today the four Seasons recipes carry it (D-137): `seasons`, `seasons-hemispheres` and
+`seasons-limits` with a picture (their `stageKit`), `seasons-elsewhere` without. Only `seasons` has a misconception, the
+distance myth with its reviewed source; the other three have none because their pages do not document one. Marking a
+recipe is a person's decision, one recipe at a time, with its own decision entry; `library.test.ts` pins the list.
 
 ## Rules for editing the plan
 

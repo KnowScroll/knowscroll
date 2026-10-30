@@ -21,8 +21,21 @@ type Queryable = Kysely<Database> | Transaction<Database>;
 
 interface RunRow {
   readonly topic: string;
-  readonly state: ProductionJobState;
+  readonly state: 'research' | 'writer' | 'published' | 'rejected' | 'unknown';
+  /** The review gate's decision on the revision this job published, when it went through the gate (D-138). */
+  readonly review: 'held' | 'released' | 'rejected' | null;
+  readonly revision: number | null;
   readonly outcomes: readonly { readonly attempts?: readonly unknown[] }[];
+}
+
+/**
+ * The job's state for the recipe's standing. A job that published into the review gate is `held` until
+ * an operator decides, and `rejected` (its take spent, the next may start) once the gate rejected it.
+ */
+function standingStateOf(run: RunRow): ProductionJobState {
+  if (run.state !== 'published') return run.state;
+  if (run.review === 'held') return 'held';
+  return run.review === 'rejected' ? 'rejected' : 'published';
 }
 
 /**
@@ -38,9 +51,11 @@ export async function readLibraryStatus(
 ): Promise<readonly LibraryRecipeStatus[]> {
   if (recipes.length === 0) return [];
   const runs = (
-    await sql<RunRow>`select topic, state, outcomes from content.scroll_production_runs
-      where (topic, policy_version) in (${sql.join(recipes.map((recipe) => sql`(${recipe}, ${productionVersionOf(recipe)})`))})
-      order by topic, take`.execute(db)
+    await sql<RunRow>`select run.topic, run.state, review.state as review, run.asset_revision as revision, run.outcomes
+      from content.scroll_production_runs run
+      left join content.revision_reviews review on review.asset_id = run.asset_id and review.revision = run.asset_revision
+      where (run.topic, run.policy_version) in (${sql.join(recipes.map((recipe) => sql`(${recipe}, ${productionVersionOf(recipe)})`))})
+      order by run.topic, run.take`.execute(db)
   ).rows;
   const assetIds = recipes.map((recipe) => RECIPES[recipe].assetId);
   const assets = await db
@@ -64,13 +79,13 @@ export async function readLibraryStatus(
       state:
         !admitted && planRefusalOf(recipe) !== undefined
           ? 'stopped'
-          : productionStanding(
-              jobs.map((job) => job.state),
-              admitted,
-            ),
-      ...(latest === undefined ? {} : { job: latest.state }),
+          : productionStanding(jobs.map(standingStateOf), admitted),
+      ...(latest === undefined ? {} : { job: standingStateOf(latest) }),
       takes: jobs.length,
       ...(admitted ? { assetId: asset.id, revision: asset.revision } : {}),
+      ...(!admitted && latest !== undefined && standingStateOf(latest) === 'held' && latest.revision !== null
+        ? { assetId: RECIPES[recipe].assetId, heldRevision: latest.revision }
+        : {}),
       attempts: jobs.reduce(
         (total, job) => total + job.outcomes.reduce((sum, receipt) => sum + (receipt.attempts?.length ?? 0), 0),
         0,
@@ -83,9 +98,13 @@ export async function readLibraryStatus(
  * Chooses the library recipe a Create decision commissions for a catalogue brief, and the take to
  * run (D-037): code only, from the plan and the recipes' current standing. Read inside the caller's
  * personal transaction; no lock and no write.
+ *
+ * A v2 library recipe is never chosen: its Scroll waits for an operator to read it before anyone is
+ * served (D-138), so a person's ask could not be answered by it and the production would only be
+ * paid for. The operator's library run makes those.
  */
 export async function chooseScrollRecipe(scope: PersonalScopeTx, brief: CatalogueBrief): Promise<ScrollRecipeChoice> {
-  const candidates = recipesServing(brief);
+  const candidates = recipesServing(brief).filter((recipe) => scrollV2PlanOf(recipe) === undefined);
   const standing = await readLibraryStatus(transactionOf(scope), candidates);
   const row = (key: RecipeKey) => standing.find((entry) => entry.recipe === key);
   const recipe = pickRecipeToProduce(candidates, (key) => row(key)?.state ?? 'stopped');

@@ -3,7 +3,8 @@ export const BRANCH_WAIT_LIMIT_MS = 30 * 60_000;
 
 /** Where an order's production stands, as content reports it. */
 export interface ProductionStanding {
-  readonly state: 'not_started' | 'running' | 'published' | 'retryable' | 'stopped';
+  /** `held` is a library recipe's state at the review gate (D-138); an order never reaches it, and if it did nothing here could produce it. */
+  readonly state: 'not_started' | 'running' | 'published' | 'held' | 'retryable' | 'stopped';
   /** The take a send for the order should name. */
   readonly take?: number;
   readonly published?: { readonly assetRevision: number; readonly title: string };
@@ -28,7 +29,8 @@ export type BranchProgress =
 export function branchProgress(standing: ProductionStanding, ageMs: number): BranchProgress {
   if (standing.state === 'published' && standing.published !== undefined)
     return { kind: 'bind', assetRevision: standing.published.assetRevision, assetTitle: standing.published.title };
-  if (standing.state === 'stopped' || ageMs >= BRANCH_WAIT_LIMIT_MS) return { kind: 'fail' };
+  if (standing.state === 'stopped' || standing.state === 'held' || ageMs >= BRANCH_WAIT_LIMIT_MS)
+    return { kind: 'fail' };
   if (standing.take === undefined) return { kind: 'wait' };
   return { kind: 'send', take: standing.take };
 }

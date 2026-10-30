@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import type { ConversationContentProjectionSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import { notUnderReview } from './review-gate-sql.js';
 import type { ContentRef, ReadPublicContent, ReadShareableContent } from '../public.js';
 
 interface Row {
@@ -42,7 +43,7 @@ async function readMetadata(reader: Kysely<Database>, refs: readonly ContentRef[
       exists (select 1 from content.made_to_order_scrolls o where o.asset_id = x."assetId") as ordered
     from jsonb_to_recordset(${JSON.stringify(refs)}::jsonb) as x("assetId" uuid, "assetRevision" integer)
     left join content.assets a on a.id = x."assetId"
-    left join content.asset_revisions r on r.asset_id = x."assetId" and r.revision = x."assetRevision"
+    left join content.asset_revisions r on r.asset_id = x."assetId" and r.revision = x."assetRevision" and ${notUnderReview('r.asset_id', 'r.revision')}
     left join content.discovery_revisions d on d.asset_id = r.asset_id and d.asset_revision = r.revision
     left join content.asset_revisions rc on rc.asset_id = a.id and rc.revision = a.revision
     left join content.discovery_revisions dc on dc.asset_id = rc.asset_id and dc.asset_revision = rc.revision`.execute(

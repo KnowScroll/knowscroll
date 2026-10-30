@@ -4,6 +4,7 @@ import type { PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
 import { readingFactsOf } from './scroll-compiler.js';
+import { notUnderReview } from './review-gate-sql.js';
 import type { AssetKind } from '../domain/provenance.js';
 import { ReadingFactsUnavailableError, type ReadingFacts } from '../domain/reading-facts.js';
 import { readingFactsOfV2 } from './reading-facts-v2.js';
@@ -94,11 +95,17 @@ export async function readStoredScrollDocument(
     .where('revision.revision', '=', revision)
     .where('asset.kind', '=', 'scroll')
     .where('asset.status', '=', 'admitted')
+    .where(sql<boolean>`${notUnderReview('revision.asset_id', 'revision.revision')}`)
     .executeTakeFirst();
   return row?.document;
 }
 
 const admissions = new WeakMap<AdmissionTx, Transaction<Database>>();
+
+/** An asset row's stored status as admission knows it; anything that is not admitted or held counts as withdrawn. */
+function assetStatusOf(status: string): 'admitted' | 'held' | 'withdrawn' {
+  return status === 'admitted' || status === 'held' ? status : 'withdrawn';
+}
 
 export function admissionTransaction(tx: AdmissionTx): Transaction<Database> {
   const trx = admissions.get(tx);
@@ -146,11 +153,17 @@ export function makeAdmissionStore(
         .where('asset_id', '=', assetId)
         .where('revision', '=', asset.revision)
         .executeTakeFirst();
+      const latest = await trx
+        .selectFrom('content.asset_revisions')
+        .select(sql<number>`coalesce(max(revision), 0)`.as('latest'))
+        .where('asset_id', '=', assetId)
+        .executeTakeFirstOrThrow();
       return {
         kind: 'present',
         assetKind: asset.kind as AssetKind,
-        status: asset.status === 'admitted' ? 'admitted' : 'withdrawn',
+        status: assetStatusOf(asset.status),
         revision: asset.revision,
+        latestRevision: Math.max(asset.revision, latest.latest),
         documentSha256: stored?.document_sha256,
       };
     },
@@ -169,12 +182,19 @@ export function makeAdmissionStore(
     async storeRevision(tx, admitted): Promise<void> {
       const trx = admissionTransaction(tx);
       const { compiled } = admitted;
+      // A held revision never becomes the asset's current revision here: a new asset is born `held`
+      // (every read treats it as not admitted) and an asset with a served revision keeps serving it.
       if (admitted.createsAsset) {
         await trx
           .insertInto('content.assets')
-          .values({ id: admitted.assetId, revision: admitted.revision, kind: 'scroll', status: 'admitted' })
+          .values({
+            id: admitted.assetId,
+            revision: admitted.revision,
+            kind: 'scroll',
+            status: admitted.held === true ? 'held' : 'admitted',
+          })
           .execute();
-      } else {
+      } else if (admitted.held !== true) {
         await trx
           .updateTable('content.assets')
           .set({ revision: admitted.revision })
@@ -205,6 +225,11 @@ export function makeAdmissionStore(
           provenance: JSON.stringify(compiled.provenance),
         })
         .execute();
+      if (admitted.held === true)
+        await trx
+          .insertInto('content.revision_reviews')
+          .values({ asset_id: admitted.assetId, revision: admitted.revision, state: 'held' })
+          .execute();
     },
   };
 }

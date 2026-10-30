@@ -34,10 +34,12 @@ under way), ready, unavailable with a coarse reason, cancelled. No percentages, 
    - the day's Create cap for this origin is used up: `budget_unavailable`. People's asks count against
      `KS_SUPPLY_CREATE_DAILY_CAP`; the Planner's demand against its own, smaller
      `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (never above the first), so the Planner cannot starve an ask;
-   - no recipe is left (all published, or none can be taken again): `could_not_prepare`.
+   - no recipe is left (all published, or none can be taken again): `could_not_prepare`. A v2 library recipe is never
+     chosen: its Scroll waits at the operator review gate before anyone is served it (D-138), so the operator's
+     library run makes those and an ask for such a meaning is answered once the Scroll is released.
 
    Only an exact catalogue meaning can be produced. The catalogue is derived from the library plan and
-   a library test proves every facet has a recipe, so a recipe always exists for a valid brief.
+   a library test proves every facet has a recipe, but a recipe that is v2 exists only through the operator.
 
 A person may have at most 10 asks open at once; an eleventh is refused (`too_many_open`, HTTP 429, no
 receipt) until one ends or is cancelled. The limit bounds the polling jobs.

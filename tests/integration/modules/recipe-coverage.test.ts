@@ -25,6 +25,7 @@ import {
   FIXTURE_PROSE,
   fixtureAuthored,
   fixtureProduction,
+  fixtureResearchFor,
 } from '../support/generated-scroll.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { baselineCapabilities } from '../support/scroll.js';
@@ -43,9 +44,9 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await database.drop();
   });
 
-  /** Recipes that name one page, because the fixture serves a single research page. */
+  /** Recipes of one or two pages: the fixture serves each page a recipe names as a source of its own. */
   function publishing(recipeKey: ScrollTopic) {
-    expect(TOPICS[recipeKey].pages).toHaveLength(1);
+    for (const url of TOPICS[recipeKey].pages) expect(fixtureResearchFor(url).url).toBe(url);
     const run = fixtureProduction(database.db, () => answerWith(fixtureAuthored(writerFormatOf(TOPICS[recipeKey]))));
     return { ...run, publish: (resume = false) => run.produce(recipeKey, false, signal(), resume) };
   }
@@ -65,7 +66,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
 
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 2000 });
 
-  it.each(['seasons', 'seasons-limits', 'greenhouse'] as const)(
+  it.each(['tides', 'tides-coasts', 'greenhouse'] as const)(
     'writes topic attribution and a facet mapping with the %s publication, and the consumers read them back',
     async (recipeKey) => {
       const recipe = TOPICS[recipeKey];
@@ -179,7 +180,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
   );
 
   it('maps a real-shaped answer with exactly the three body blocks the rule needs, and publishes one with two without coverage', async () => {
-    const recipe = TOPICS.seasons;
+    const recipe = TOPICS.tides;
     const authored = fixtureAuthored(writerFormatOf(recipe));
     const formatBlock = authored.blocks.find((block) => block.type === 'diagram');
     if (formatBlock === undefined) throw new Error('CI_FORMAT_MISSING');
@@ -194,7 +195,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
       return { ...authored, blocks: [{ type: 'heading', text: 'The beam' }, ...paragraphs, formatBlock] };
     };
     const three = fixtureProduction(database.db, () => answerWith(withBodyBlocks(3)));
-    expect(await three.produce('seasons', false, signal())).toMatchObject({
+    expect(await three.produce('tides', false, signal())).toMatchObject({
       outcome: 'published',
       assetId: recipe.assetId,
     });
@@ -206,20 +207,20 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     database = await createTestDatabase<Database>('recipe_coverage');
     await enableProductionScope(database.db);
     const two = fixtureProduction(database.db, () => answerWith(withBodyBlocks(2)));
-    const result = await two.produce('seasons', false, signal());
+    const result = await two.produce('tides', false, signal());
     expect(result.outcome).toBe('published');
     expect(result.attempts).toContainEqual({ role: 'checks', kind: 'published', code: 'coverage_too_few_body_blocks' });
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
   });
 
   it('lets two recipes of one planet each add their own facets', async () => {
-    await publishing('seasons').publish();
-    await publishing('seasons-limits').publish();
+    await publishing('tides').publish();
+    await publishing('tides-coasts').publish();
     const person = await seedPerson(database.db);
     const candidatesFor = async (facetId: string) => {
       const regions = await withScope()(person.authority, (scope) =>
         readRegionEncounterCandidates(scope, {
-          topicId: 'earth.seasons',
+          topicId: 'earth.tides',
           facetId,
           truthStatus: 'factual',
           capabilities: baselineCapabilities,
@@ -228,9 +229,9 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
       if (regions.kind !== 'entered' || regions.value.kind !== 'read') throw new Error('regions not readable');
       return regions.value.candidates.map((candidate) => candidate.coverage.assetId).sort();
     };
-    expect(await candidatesFor('earth.seasons.axial-tilt')).toEqual([TOPICS.seasons.assetId]);
-    expect(await candidatesFor('earth.seasons.limits')).toEqual(
-      [TOPICS.seasons.assetId, TOPICS['seasons-limits'].assetId].sort(),
+    expect(await candidatesFor('earth.tides.forcing')).toEqual([TOPICS.tides.assetId]);
+    expect(await candidatesFor('earth.tides.coasts')).toEqual(
+      [TOPICS.tides.assetId, TOPICS['tides-coasts'].assetId].sort(),
     );
   });
 
@@ -241,7 +242,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await sql`create trigger ci_fail_coverage before insert on content.coverage_revisions for each row execute function content.ci_fail_coverage()`.execute(
       database.db,
     );
-    const run = publishing('seasons');
+    const run = publishing('tides');
     await expect(run.publish()).rejects.toThrow('CI_COVERAGE_FAILURE');
     expect(run.calls).toHaveLength(1);
     expect(await database.db.selectFrom('content.asset_revisions').select('asset_id').execute()).toEqual([]);
@@ -259,11 +260,11 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
   });
 
   describe('after the plan changes', () => {
-    /** A plan edit as the readers see it: a new digest, and the seasons "limits" facet reworded. */
+    /** A plan edit as the readers see it: a new digest, and the tides "coasts" facet reworded. */
     const editedCatalogue = {
       sha256: 'e'.repeat(64),
       meaningSha256: (topicId: string, facetId: string) =>
-        facetId === 'earth.seasons.limits' ? 'f'.repeat(64) : coverageCatalogue.meaningSha256(topicId, facetId),
+        facetId === 'earth.tides.coasts' ? 'f'.repeat(64) : coverageCatalogue.meaningSha256(topicId, facetId),
     };
     const readEdited = makeReadAdmittedCoverageMapping(editedCatalogue);
     const recipes = Object.values(RECIPES);
@@ -283,8 +284,8 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
       (await database.db.selectFrom('content.coverage_revisions').select('revision').execute()).length;
 
     it('keeps stored coverage readable, drops only the facet whose meaning changed, and re-admission appends', async () => {
-      const recipe = TOPICS.seasons;
-      await publishing('seasons').publish();
+      const recipe = TOPICS.tides;
+      await publishing('tides').publish();
       const person = await seedPerson(database.db);
       const readFacets = async (read: typeof readAdmittedCoverageMapping) => {
         const result = await withScope()(person.authority, (scope) =>
@@ -298,14 +299,14 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
       };
 
       // The old head is still readable against the edited plan; the reworded facet is unmapped.
-      expect(await readFacets(readEdited)).toEqual({ facets: ['earth.seasons.axial-tilt'], headRevision: 1 });
+      expect(await readFacets(readEdited)).toEqual({ facets: ['earth.tides.forcing'], headRevision: 1 });
 
       // Deciding again against the edited plan appends a corrected head, once.
       const first = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: false });
       expect(first).toEqual({ dryRun: false, considered: 1, appended: 1, unchanged: 0, skipped: {} });
       expect(await headCount()).toBe(2);
       expect(await readFacets(readEdited)).toEqual({
-        facets: ['earth.seasons.axial-tilt', 'earth.seasons.limits'],
+        facets: ['earth.tides.forcing', 'earth.tides.coasts'],
         headRevision: 2,
       });
       const again = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: false });
@@ -314,15 +315,15 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     });
 
     it('reports what it would do in a dry run and writes nothing', async () => {
-      await publishing('seasons').publish();
+      await publishing('tides').publish();
       const dry = await readmitRecipeCoverage(readmitPorts(editedCatalogue), recipes, { dryRun: true });
       expect(dry).toEqual({ dryRun: true, considered: 1, appended: 1, unchanged: 0, skipped: {} });
       expect(await headCount()).toBe(1);
     });
 
     it('finds generated revisions itself and changes nothing when the plan is unchanged', async () => {
-      await publishing('seasons').publish();
-      await publishing('seasons-limits').publish();
+      await publishing('tides').publish();
+      await publishing('tides-coasts').publish();
       const summary = await readmitCoverageUseCase(database.db)({ dryRun: false });
       expect(summary).toEqual({ dryRun: false, considered: 2, appended: 0, unchanged: 2, skipped: {} });
       expect(await headCount()).toBe(2);
@@ -343,10 +344,10 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await sql`create trigger ci_unsupport_claims after insert on content.asset_provenance for each row execute function content.ci_unsupport_claims()`.execute(
       database.db,
     );
-    const result = await publishing('seasons').publish();
+    const result = await publishing('tides').publish();
     expect(result.outcome).toBe('published');
     expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
-      { topic_id: 'earth.seasons' },
+      { topic_id: 'earth.tides' },
     ]);
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);
     expect(await database.db.selectFrom('content.region_bindings').select('facet_id').execute()).toEqual([]);
@@ -366,7 +367,7 @@ describe('Generated Scroll coverage at publication (CI fixture transport, real P
     await sql`create trigger ci_fixture_production after insert on content.asset_provenance for each row execute function content.ci_fixture_production()`.execute(
       database.db,
     );
-    const result = await publishing('seasons').publish();
+    const result = await publishing('tides').publish();
     expect(result.outcome).toBe('published');
     expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([]);
     expect(await database.db.selectFrom('content.coverage_heads').select('revision').execute()).toEqual([]);

@@ -201,3 +201,8 @@ per room by a partial unique index; every existing room gets an empty General, e
 kept out, the AI notice unread) and `rooms.room_presence` (one lease row per member who has the room open, account-keyed, read
 only while under a minute old). Additive with defaults; an older writer leaves `kind` as `topic` and the settings at their defaults.
 Apply with the new binary; the generated database types change by the same columns and table.
+
+0070 is the review gate for library v2 Scrolls (v3 S-1e, #472, D-138): `content.assets.status` may also be `held` (an asset whose first
+revision waits for an operator; every existing read already treats it as not admitted) and `content.revision_reviews` records, for each
+held v2 library revision, its state (`held`, `released`, `rejected`), who decided and when, and why a rejection. Additive: old writers never
+store a held revision. Apply with the new binary; the generated database types change by the table and nothing else.

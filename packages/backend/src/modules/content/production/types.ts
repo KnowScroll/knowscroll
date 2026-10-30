@@ -37,6 +37,12 @@ export interface ProduceScrollResult {
   readonly take?: number;
   readonly assetId?: string;
   readonly revision?: number;
+  /**
+   * Present on the delivery that stored the Scroll: it was stored held for operator review and is
+   * not served until `content release` (D-138). A later read of the finished job does not carry it;
+   * `content production-status` is the authority on whether the Scroll is held.
+   */
+  readonly held?: true;
   readonly codes?: readonly string[];
   readonly attempts?: readonly RoleReceipt[];
 }

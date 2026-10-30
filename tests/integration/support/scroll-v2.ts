@@ -21,8 +21,8 @@ export const v2Capabilities = {
 };
 
 /**
- * Marks a library recipe as a v2 recipe for the duration of a test and returns the undo. No recipe of
- * the real plan is marked yet, so the tests mark one the way the plan will.
+ * Marks a library recipe as a v2 recipe for the duration of a test and returns the undo. The plan marks
+ * the four Seasons recipes (D-137); a test uses this for another recipe, or for a different plan.
  */
 export function markScrollV2(key: ScrollTopic, plan: ScrollV2Plan): () => void {
   const recipe = RECIPES[key] as { scrollV2?: ScrollV2Plan };
@@ -31,5 +31,19 @@ export function markScrollV2(key: ScrollTopic, plan: ScrollV2Plan): () => void {
   return () => {
     if (before === undefined) delete recipe.scrollV2;
     else recipe.scrollV2 = before;
+  };
+}
+
+/**
+ * Makes a library recipe a v1 recipe for the duration of a test and returns the undo. The plan marks
+ * the four Seasons recipes v2; this is how a test publishes the v1 revision that a v2 regeneration
+ * follows, the way the library's Scrolls were before D-137.
+ */
+export function markScrollV1(key: ScrollTopic): () => void {
+  const recipe = RECIPES[key] as { scrollV2?: ScrollV2Plan };
+  const before = recipe.scrollV2;
+  delete recipe.scrollV2;
+  return () => {
+    if (before !== undefined) recipe.scrollV2 = before;
   };
 }

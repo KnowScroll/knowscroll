@@ -3,6 +3,7 @@ import { journeyCommand } from './journey-operator.js';
 import { reelCommand } from './reel-operator.js';
 import { roomsCommand } from './rooms-operator.js';
 import { recoverOpenDemandCommand } from './supply-operator.js';
+import { rejectCommand, releaseCommand, reviewListCommand, reviewShowCommand } from './review-operator.js';
 import { writerSpikeCommand } from './writer-spike-operator.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
 import { userInfo } from 'node:os';
@@ -43,13 +44,15 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  *   journey <id> | journey --account <accountId> [--json]    one record's journey across modules (journey-operator.ts, docs/v2/operations/looking-at-the-system.md)
  *   rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]   idea rooms, one per library system (rooms-operator.ts)
  *   content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]   the v15 writer on real recipes; admits and publishes nothing (writer-spike-operator.ts, S-0)
+ *   content review-list [--all] | review-show --asset <id> [--revision <n>] [--sources]   library v2 Scrolls held for review, and their text (review-operator.ts, D-138)
+ *   content release --asset <id> --revision <n> | reject --asset <id> --revision <n> --reason <text>   the two decisions; both are recorded with who and when
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
  * MiniMax offers no request lookup: an `unknown` attempt is never resent; a write-off records the
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -105,6 +108,10 @@ async function main(): Promise<number> {
         out: { type: 'string' },
         concurrency: { type: 'string' },
         'spike-id': { type: 'string' },
+        asset: { type: 'string' },
+        revision: { type: 'string' },
+        all: { type: 'boolean', default: false },
+        sources: { type: 'boolean', default: false },
       },
       allowPositionals: true,
       strict: true,
@@ -196,6 +203,42 @@ async function main(): Promise<number> {
         ...(args.values.only === undefined ? {} : { only: args.values.only }),
         interactiveFirst: args.values['interactive-first'],
         dryRun: args.values['dry-run'],
+      },
+      print,
+      logEvent,
+    );
+  if (area === 'content' && command === 'review-list' && args.positionals.length === 2)
+    return reviewListCommand({ all: args.values.all }, print, logEvent);
+  if (area === 'content' && command === 'review-show' && args.positionals.length === 2)
+    return reviewShowCommand(
+      {
+        ...(args.values.asset === undefined ? {} : { asset: args.values.asset }),
+        ...(args.values.revision === undefined ? {} : { revision: args.values.revision }),
+        sources: args.values.sources,
+      },
+      print,
+      (text) =>
+        process.stdout.write(`${text}
+`),
+      logEvent,
+    );
+  if (area === 'content' && command === 'release' && args.positionals.length === 2)
+    return releaseCommand(
+      {
+        ...(args.values.asset === undefined ? {} : { asset: args.values.asset }),
+        ...(args.values.revision === undefined ? {} : { revision: args.values.revision }),
+        decidedBy: operatorSource(process.env),
+      },
+      print,
+      logEvent,
+    );
+  if (area === 'content' && command === 'reject' && args.positionals.length === 2)
+    return rejectCommand(
+      {
+        ...(args.values.asset === undefined ? {} : { asset: args.values.asset }),
+        ...(args.values.revision === undefined ? {} : { revision: args.values.revision }),
+        ...(args.values.reason === undefined ? {} : { reason: args.values.reason }),
+        decidedBy: operatorSource(process.env),
       },
       print,
       logEvent,

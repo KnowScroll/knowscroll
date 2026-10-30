@@ -14,24 +14,32 @@ export type ScrollProductionState =
   | 'running'
   /** Its Scroll is admitted. */
   | 'published'
+  /** A v2 Scroll was produced and waits for an operator to read and release it; no take can start (D-138). */
+  | 'held'
   /** Every take so far was rejected and another may start. */
   | 'retryable'
   /** No take can start: one is of unknown outcome, the takes are used up, or its Scroll was withdrawn. */
   | 'stopped';
 
-/** A production job's own state. */
-export type ProductionJobState = 'research' | 'writer' | 'published' | 'rejected' | 'unknown';
+/**
+ * A production job's own state, as far as a recipe's standing is concerned. `held`: the job published
+ * its Scroll into the review gate and an operator has not decided yet. A job whose Scroll the gate
+ * rejected is counted `rejected`, because the take is spent and the next may start (D-138).
+ */
+export type ProductionJobState = 'research' | 'writer' | 'published' | 'held' | 'rejected' | 'unknown';
 
 /**
  * A recipe's standing from its takes at the current recipe version, in take order. A published job
  * or an unknown attempt ends it for good: only rejections can be taken again, up to
- * {@link MAX_TAKES_PER_RECIPE}. `admitted` says the recipe's Scroll is in the library. Pure.
+ * {@link MAX_TAKES_PER_RECIPE}. `admitted` says the recipe's Scroll is in the library. A job held for
+ * review is neither: it waits for an operator, and only a rejection by the gate frees the next take. Pure.
  */
 export function productionStanding(jobs: readonly ProductionJobState[], admitted: boolean): ScrollProductionState {
   if (admitted) return 'published';
   const latest = jobs.at(-1);
   if (latest === undefined) return 'not_started';
   if (latest === 'research' || latest === 'writer') return 'running';
+  if (latest === 'held') return 'held';
   if (jobs.some((job) => job === 'unknown' || job === 'published')) return 'stopped';
   return jobs.length < MAX_TAKES_PER_RECIPE ? 'retryable' : 'stopped';
 }
@@ -46,6 +54,7 @@ export function takeToSend(standing: ScrollProductionState, takes: number): numb
     case 'retryable':
       return takes + 1;
     case 'published':
+    case 'held':
     case 'stopped':
       return undefined;
   }
@@ -74,6 +83,8 @@ export interface LibraryRecipeStatus {
   /** The recipe's stable asset; present once a Scroll is admitted. */
   readonly assetId?: string;
   readonly revision?: number;
+  /** The held revision waiting for an operator, when the recipe's standing is `held`. */
+  readonly heldRevision?: number;
   /** Paid model attempts recorded on its jobs, across takes. */
   readonly attempts: number;
 }
@@ -126,7 +137,7 @@ export interface LibraryProductionPlan {
   /** Jobs to send, in the order to send them. A take above 1 retries a rejected recipe. */
   readonly queue: readonly ProductionSend[];
   /** Recipes with nothing left to do: their Scroll exists, or no take can start. */
-  readonly skipped: readonly { readonly recipe: RecipeKey; readonly reason: 'published' | 'stopped' }[];
+  readonly skipped: readonly { readonly recipe: RecipeKey; readonly reason: 'published' | 'held' | 'stopped' }[];
 }
 
 /**
@@ -141,7 +152,9 @@ export function planLibraryProduction(
   options: { readonly interactiveFirst: boolean },
 ): LibraryProductionPlan {
   const skipped = standing.flatMap((row) =>
-    row.state === 'published' || row.state === 'stopped' ? [{ recipe: row.recipe, reason: row.state } as const] : [],
+    row.state === 'published' || row.state === 'held' || row.state === 'stopped'
+      ? [{ recipe: row.recipe, reason: row.state } as const]
+      : [],
   );
   const queue = standing.flatMap((row): ProductionSend[] => {
     const take = takeToSend(row.state, row.takes);
