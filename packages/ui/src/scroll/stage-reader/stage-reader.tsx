@@ -1,34 +1,34 @@
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
-import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { callsOf, type ScrollDocumentV2 } from '../model';
 import { toggleSemantics } from '../../display/semantics';
 import { useDisplay } from '../../display/display';
 import { useFocusRing } from '../../display/focus-ring';
 import { Text } from '../../text/text';
 import { Stage } from '../stage';
-import { CallView } from './call-view';
-import { dataSet } from './data-set';
-import { EndTray, type NextPartPeek } from './end-tray';
+import type { NextPartPeek } from './end-tray';
 import type { PartMove } from './part-gesture';
 import { PartSwipe } from './part-swipe';
+import { actOnKey, run, type ReaderCommands } from './reader-actions';
 import { ReaderFocus } from './reader-focus';
 import type { ReaderKey } from './reader-keys';
 import { Spine, type SpineDot } from './spine';
-import { AsideView, ReadStopView } from './stop-view';
+import { StopList } from './stop-list';
 import { useCallPlay } from './use-call-play';
 import { useReaderScroll } from './use-reader-scroll';
 import { useStopReading, type StageReadingObserver } from './use-stop-reading';
 
-/** What the app can do for the reader beyond reading: each is also a button, so no key or gesture stands alone. */
-export interface ReaderCommands {
-  readonly universe?: () => void;
-  readonly ask?: () => void;
-  readonly format?: () => void;
-  readonly nextPart?: () => void;
-  readonly previousPart?: () => void;
-  readonly nextTopic?: () => void;
-}
+export type { ReaderCommands } from './reader-actions';
 
 export interface StageReaderHandle {
   /** The stop the reader is on, or `undefined` at the end tray. */
@@ -104,12 +104,11 @@ export function StageReader({
   const { height: windowHeight } = useWindowDimensions();
   const dots = useMemo(() => spineOf(document), [document]);
   const calls = useMemo(() => callsOf(document), [document]);
-  const startAt = Math.max(0, indexOfStop(document.stops, initialStopId));
   const scroller = useRef<ScrollViewInstance>(null);
   const text = useReaderScroll({
     scroller,
     sections: document.stops.length + 1,
-    startAt,
+    startAt: Math.max(0, indexOfStop(document.stops, initialStopId)),
     reducedMotion,
     onPullPastEnd: commands.nextTopic,
   });
@@ -143,48 +142,29 @@ export function StageReader({
     setOpened((all) => new Set(all).add(asideId));
     jump(indexOfStop(document.stops, document.asides.find((aside) => aside.id === asideId)?.anchorStop), false);
   };
-  const move = (part: PartMove) =>
-    run(
-      part === 'next-part' ? commands.nextPart : part === 'previous-part' ? commands.previousPart : commands.nextTopic,
-    );
-
-  const onKey = (key: ReaderKey): boolean => {
-    const stop = document.stops[current];
-    const open = stop !== undefined && stop.kind !== 'read' ? stop : undefined;
-    switch (key.action) {
-      case 'next-stop':
-        jump(text.heading() + 1, true);
-        return true;
-      case 'previous-stop':
-        jump(text.heading() - 1, true);
-        return true;
-      case 'next-part':
-        return run(commands.nextPart);
-      case 'previous-part':
-        return run(commands.previousPart);
-      case 'next-topic':
-        return run(commands.nextTopic);
-      case 'universe':
-        return run(commands.universe);
-      case 'ask':
-        return run(commands.ask);
-      case 'format':
-        return run(commands.format);
-      case 'text-version':
-        if (document.stage === undefined) return false;
-        setTextVersion((now) => !now);
-        return true;
-      case 'pick':
-        if (open === undefined) return false;
-        play.pick(open.id, key.option - 1, open.options.length);
-        return true;
-      case 'lock-in':
-        return open !== undefined && play.lock(open.id);
-    }
-  };
+  // Stable across renders, so the native swipe responder is built once; it reads the commands as of the drag's end.
+  const latestCommands = useRef(commands);
+  useEffect(() => {
+    latestCommands.current = commands;
+  });
+  const move = useCallback((part: PartMove) => {
+    const at = latestCommands.current;
+    run(part === 'next-part' ? at.nextPart : part === 'previous-part' ? at.previousPart : at.nextTopic);
+  }, []);
+  const onKey = (key: ReaderKey): boolean =>
+    actOnKey(key, {
+      stops: document.stops,
+      current,
+      hasStage: document.stage !== undefined,
+      commands,
+      jump,
+      heading: text.heading,
+      toggleTextVersion: () => setTextVersion((now) => !now),
+      pick: play.pick,
+      lock: play.lock,
+    });
 
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
-  const sectionHeight = text.viewport > 0 ? Math.round(text.viewport * 0.8) : 320;
   const stopId = document.stops[Math.min(current, document.stops.length - 1)]?.id ?? '';
   return (
     <ReaderFocus onKey={onKey}>
@@ -215,57 +195,22 @@ export function StageReader({
             contentContainerStyle={styles.content}
             {...text.scrollProps}
           >
-            {document.stops.map((stop, index) => (
-              <View
-                key={stop.id}
-                role="group"
-                aria-label={dots[index]?.label}
-                onLayout={text.measureSection(index)}
-                style={[styles.section, { minHeight: sectionHeight }]}
-                {...dataSet({ ksStop: stop.id })}
-              >
-                {stop.kind === 'read' ? (
-                  <ReadStopView stop={stop} />
-                ) : (
-                  <CallView
-                    call={stop}
-                    position={`${String(calls.indexOf(stop) + 1)} of ${String(calls.length)}`}
-                    state={play.stateOf(stop.id)}
-                    onPick={(option) => play.pick(stop.id, option, stop.options.length)}
-                    onLockIn={() => play.lock(stop.id)}
-                  />
-                )}
-                {document.asides
-                  .filter((aside) => aside.anchorStop === stop.id)
-                  .map((aside) => (
-                    <AsideView
-                      key={aside.id}
-                      aside={aside}
-                      expanded={opened.has(aside.id)}
-                      onToggle={() => toggleAside(aside.id)}
-                    />
-                  ))}
-              </View>
-            ))}
-            <View
-              role="group"
-              aria-label={dots[dots.length - 1]?.label}
-              onLayout={text.measureSection(document.stops.length)}
-              style={[styles.section, { minHeight: sectionHeight }]}
-              {...dataSet({ ksStop: 'end' })}
-            >
-              <EndTray
-                recap={document.recap}
-                nextPart={nextPart}
-                onSmallPrint={
-                  document.recap.smallPrintAside === undefined
-                    ? undefined
-                    : () => showSmallPrint(document.recap.smallPrintAside ?? '')
-                }
-                onDone={onDone}
-                onNextTopic={commands.nextTopic}
-              />
-            </View>
+            <StopList
+              document={document}
+              dots={dots}
+              calls={calls}
+              sectionHeight={text.viewport > 0 ? Math.round(text.viewport * 0.8) : 320}
+              measureSection={text.measureSection}
+              stateOf={play.stateOf}
+              pick={play.pick}
+              lock={play.lock}
+              opened={opened}
+              onToggleAside={toggleAside}
+              onSmallPrint={showSmallPrint}
+              nextPart={nextPart}
+              onDone={onDone}
+              onNextTopic={commands.nextTopic}
+            />
           </ScrollView>
         </PartSwipe>
         <Spine dots={dots} current={current} onJump={(index) => jump(index, false)} />
@@ -292,18 +237,10 @@ function TextVersionSwitch({ on, onPress }: { readonly on: boolean; readonly onP
   );
 }
 
-/** Runs a command the app may not provide; whether it ran is whether the key or swipe was used. */
-function run(command: (() => void) | undefined): boolean {
-  if (command === undefined) return false;
-  command();
-  return true;
-}
-
 const styles = StyleSheet.create({
   body: { flex: 1, minHeight: 0, flexDirection: 'row' },
   scroller: { flex: 1 },
   content: { paddingBottom: spacing[12] },
-  section: { paddingHorizontal: layout.gutter, paddingTop: spacing[5], paddingBottom: spacing[5], gap: spacing[4] },
   textChip: {
     position: 'absolute',
     right: spacing[2],

@@ -37,6 +37,7 @@ export function PartSwipe({
   readonly atEnd?: () => boolean;
 }) {
   const { width } = useWindowDimensions();
+  // `onMove` should be stable (the reader keeps it so): a new one makes a new responder.
   const responder = useMemo(() => createPartResponder(onMove, width), [onMove, width]);
   return (
     <View style={styles.fill} {...responder.panHandlers}>

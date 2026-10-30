@@ -43,6 +43,42 @@ const dotName = (index: number): string => {
   return `Call it ${String(calls.indexOf(stop) + 1)} of ${String(calls.length)}`;
 };
 
+type Box = { x: number; y: number; width: number; height: number };
+
+/** A finger drag across the page, as the browser's own touch events (the path a phone takes). */
+async function fingerDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+  const cdp = await page.context().newCDPSession(page);
+  const at = (point: { x: number; y: number }) => [{ x: point.x, y: point.y }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(from) });
+  for (let step = 1; step <= 8; step += 1) {
+    const along = step / 8;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: at({ x: from.x + (to.x - from.x) * along, y: from.y + (to.y - from.y) * along }),
+    });
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+/** A sideways finger drag across the middle of a box, from one share of its width to another. */
+const swipe = (page: Page, box: Box, from: number, to: number) => {
+  const y = box.y + box.height / 2;
+  return fingerDrag(page, { x: box.x + box.width * from, y }, { x: box.x + box.width * to, y: y + 8 });
+};
+
+/** Scrolls the text to its very end and waits until it is there. */
+async function scrollToTheEnd(page: Page) {
+  const scroller = page.getByTestId('stop-scroller');
+  // (React Native Web gives the scroll node its own `scrollTo({ x, y })`, so the DOM property is set directly.)
+  await scroller.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  await expect
+    .poll(() => scroller.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+    .toBeLessThan(4);
+}
+
 const stage = (page: Page) => page.getByTestId('stage');
 const reader = (page: Page) => page.getByRole('group', { name: 'Scroll reader' });
 const here = (page: Page, name: string) => page.getByRole('button', { name: `${name}, you are here` });
@@ -105,7 +141,7 @@ test('a tap on a dot jumps to that stop, and the dot says where you are', async 
   await expect(page.getByTestId('end-tray')).toBeVisible();
 });
 
-test('Part 2 is a button, a key and a swipe, and the Scroll that follows has its own stage', async ({ page }) => {
+test('Part 2 is a button and a key, and the Scroll that follows has its own stage', async ({ page }) => {
   const { commands } = await open(page);
   await page.getByRole('button', { name: 'Part 2', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 2' })).toBeVisible();
@@ -122,39 +158,94 @@ test('Part 2 is a button, a key and a swipe, and the Scroll that follows has its
   expect(navigations(commands).at(-1)).toMatchObject({ mode: 'series', direction: 'next' });
 });
 
-test('a swipe left on the text goes to Part 2, a swipe right goes back, and the stage keeps its own drags', async ({
-  page,
-}) => {
-  const { commands } = await open(page);
-  const text = await page.getByTestId('stop-scroller').boundingBox();
-  const picture = await stage(page).boundingBox();
-  if (text === null || picture === null) throw new Error('the text and the stage are on the page');
-  const drag = async (box: { x: number; y: number; width: number; height: number }, from: number, to: number) => {
-    const y = box.y + box.height / 2;
-    await page.mouse.move(box.x + box.width * from, y);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * ((from + to) / 2), y + 6, { steps: 4 });
-    await page.mouse.move(box.x + box.width * to, y + 8, { steps: 4 });
-    await page.mouse.up();
-  };
+test.describe('by finger', () => {
+  test.use({ hasTouch: true });
 
-  // On the stage a sideways drag is the picture's own: it moves nothing.
-  await drag(picture, 0.8, 0.2);
-  await page.waitForTimeout(300);
-  expect(navigations(commands)).toEqual([]);
+  test('a swipe left on the text goes to Part 2, and the stage keeps its own drags', async ({ page }) => {
+    const { commands } = await open(page);
+    const text = await page.getByTestId('stop-scroller').boundingBox();
+    const picture = await stage(page).boundingBox();
+    if (text === null || picture === null) throw new Error('the text and the stage are on the page');
 
-  // A short, slow-looking nudge on the text is not a swipe either.
-  await drag(text, 0.6, 0.5);
-  await page.waitForTimeout(300);
-  expect(navigations(commands)).toEqual([]);
+    // On the stage a sideways drag is the picture's own: it moves nothing.
+    await swipe(page, picture, 0.8, 0.2);
+    await page.waitForTimeout(300);
+    expect(navigations(commands)).toEqual([]);
 
-  await drag(text, 0.85, 0.15);
-  await expect.poll(() => navigations(commands).length).toBe(1);
-  expect(navigations(commands)[0]).toMatchObject({ mode: 'series', direction: 'next' });
-  await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 2' })).toBeVisible();
+    // A short nudge on the text is not a swipe either.
+    await swipe(page, text, 0.6, 0.5);
+    await page.waitForTimeout(300);
+    expect(navigations(commands)).toEqual([]);
+
+    await swipe(page, text, 0.85, 0.15);
+    await expect.poll(() => navigations(commands).length).toBe(1);
+    expect(navigations(commands)[0]).toMatchObject({ mode: 'series', direction: 'next' });
+    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 2' })).toBeVisible();
+  });
+
+  test('a swipe right asks for the Part before; the first Part has none, so nothing moves', async ({ page }) => {
+    const { commands } = await open(page);
+    const text = await page.getByTestId('stop-scroller').boundingBox();
+    if (text === null) throw new Error('the text is on the page');
+    await swipe(page, text, 0.15, 0.85);
+    await page.waitForTimeout(300);
+    expect(navigations(commands)).toEqual([]);
+    await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 1' })).toBeVisible();
+  });
+
+  test('a pull up past the end is a new topic; the same pull in the middle of the text is reading', async ({
+    page,
+  }) => {
+    const { commands } = await open(page);
+    const text = await page.getByTestId('stop-scroller').boundingBox();
+    if (text === null) throw new Error('the text is on the page');
+    const x = text.x + text.width / 2;
+    const pull = (from: number, to: number) =>
+      fingerDrag(page, { x, y: text.y + text.height * from }, { x, y: text.y + text.height * to });
+
+    await pull(0.9, 0.1);
+    await page.waitForTimeout(300);
+    expect(navigations(commands)).toEqual([]);
+
+    await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+    await expect(here(page, 'The end of this Scroll')).toBeVisible();
+    await scrollToTheEnd(page);
+    await pull(0.95, 0.05);
+    await expect.poll(() => navigations(commands).length).toBe(1);
+    expect(navigations(commands)[0]).toMatchObject({ mode: 'vertical', direction: 'next' });
+  });
 });
 
-test('a new topic is Next, the N key and a pull up past the end, never reading', async ({ page }) => {
+test('a mouse drag across the text selects it and moves nowhere: sideways, or upward at the end', async ({ page }) => {
+  const { commands } = await open(page);
+  const text = await page.getByTestId('stop-scroller').boundingBox();
+  if (text === null) throw new Error('the text is on the page');
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 5 });
+    await page.mouse.move(to.x, to.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  // Across a line of the first stop, further than a swipe.
+  const line = await page.getByText('It leans.').boundingBox();
+  if (line === null) throw new Error('the first stop is on the page');
+  const y = line.y + line.height / 2;
+  await drag({ x: line.x + 2, y }, { x: text.x + text.width * 0.9, y: y + 6 });
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).not.toBe('');
+  expect(navigations(commands)).toEqual([]);
+
+  // Upward at the very end, further than a pull.
+  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await scrollToTheEnd(page);
+  const x = text.x + text.width / 2;
+  await drag({ x, y: text.y + text.height * 0.95 }, { x, y: text.y + text.height * 0.05 });
+  await page.waitForTimeout(300);
+  expect(navigations(commands)).toEqual([]);
+});
+
+test('a new topic is Next and the N key', async ({ page }) => {
   const { commands } = await open(page);
   await page.getByRole('button', { name: 'Next topic', exact: true }).click();
   await expect.poll(() => navigations(commands).length).toBe(1);
@@ -166,36 +257,6 @@ test('a new topic is Next, the N key and a pull up past the end, never reading',
   await expect.poll(() => navigations(commands).length).toBe(2);
   expect(navigations(commands)[1]).toMatchObject({ mode: 'vertical', direction: 'next' });
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 3' })).toBeVisible();
-
-  // A pull up in the middle of the text is reading: the text scrolls and nothing navigates.
-  const text = await page.getByTestId('stop-scroller').boundingBox();
-  if (text === null) throw new Error('the text is on the page');
-  const x = text.x + text.width / 2;
-  const pull = async (from: number, to: number) => {
-    await page.mouse.move(x, text.y + text.height * from);
-    await page.mouse.down();
-    await page.mouse.move(x, text.y + text.height * ((from + to) / 2), { steps: 5 });
-    await page.mouse.move(x, text.y + text.height * to, { steps: 5 });
-    await page.mouse.up();
-  };
-  await pull(0.9, 0.1);
-  await page.waitForTimeout(300);
-  expect(navigations(commands)).toHaveLength(2);
-
-  // At the end, the same pull is a deliberate ask for something new.
-  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
-  await expect(here(page, 'The end of this Scroll')).toBeVisible();
-  const scroller = page.getByTestId('stop-scroller');
-  // (React Native Web gives the scroll node its own `scrollTo({ x, y })`, so the DOM property is set directly.)
-  await scroller.evaluate((node) => {
-    node.scrollTop = node.scrollHeight;
-  });
-  await expect
-    .poll(() => scroller.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
-    .toBeLessThan(4);
-  await pull(0.95, 0.05);
-  await expect.poll(() => navigations(commands).length).toBe(3);
-  expect(navigations(commands)[2]).toMatchObject({ mode: 'vertical', direction: 'next' });
 });
 
 test('the same view moves between states (a tween); a different view fades', async ({ page }) => {

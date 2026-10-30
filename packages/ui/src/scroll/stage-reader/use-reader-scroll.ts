@@ -41,6 +41,7 @@ export function useReaderScroll(input: {
   const heights = useRef<number[]>([]);
   const metrics = useRef<Metrics>({ scrollTop: 0, viewport: 0, content: 0 });
   const restored = useRef(false);
+  const dragBeganAtEnd = useRef(false);
   const settling = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** Where the last jump was heading, so quick key presses add up while the scroll is still travelling. */
   const aim = useRef({ index: startAt, at: 0 });
@@ -109,9 +110,15 @@ export function useReaderScroll(input: {
     onContentSizeChange: (_width, height) => {
       metrics.current.content = height;
     },
+    // A pull is one that began at the very end: a drag that began mid-text and was flung past it is reading.
+    onScrollBeginDrag: () => {
+      dragBeganAtEnd.current = atEnd();
+    },
     onScrollEndDrag: (event) => {
       const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
-      if (contentOffset.y + layoutMeasurement.height - contentSize.height >= NATIVE_PULL) onPullPastEnd?.();
+      const past = contentOffset.y + layoutMeasurement.height - contentSize.height;
+      if (dragBeganAtEnd.current && past >= NATIVE_PULL) onPullPastEnd?.();
+      dragBeganAtEnd.current = false;
     },
     ...snapProps(offsets),
   };
