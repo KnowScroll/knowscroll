@@ -40,6 +40,8 @@ const compositionRoots = [
   '^apps/worker/src/journey-operator\\.ts$',
   // The rooms operator seeds rooms and names moderators (D-051).
   '^apps/worker/src/rooms-operator\\.ts$',
+  // The writer spike composes the production harness and the v2 writer for one operator command (S-0, D-120).
+  '^apps/worker/src/writer-spike-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 
