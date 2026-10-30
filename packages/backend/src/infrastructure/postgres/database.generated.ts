@@ -1231,6 +1231,7 @@ export interface PlayCalls {
   asset_id: string;
   command_id: string;
   correct: boolean;
+  lock_seq: Generated<Int8>;
   locked_at: Generated<Timestamp>;
   option: number;
   privacy_epoch: number;

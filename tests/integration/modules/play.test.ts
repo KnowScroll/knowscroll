@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CallLockRequest, InteractionEvent } from '@knowscroll/contracts';
+import type { CallLockRequest } from '@knowscroll/contracts';
 import { exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -136,7 +136,7 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
       },
     });
     const stored = await sql<{ stop_id: string; option: number; correct: boolean }>`
-      select stop_id, option, correct from play.calls where universe_id = ${person.universeId}::uuid order by locked_at`.execute(
+      select stop_id, option, correct from play.calls where universe_id = ${person.universeId}::uuid order by lock_seq`.execute(
       database.db,
     );
     expect(stored.rows).toEqual([
@@ -368,7 +368,7 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
           event(opened, {
             kind: 'scroll.block_interaction',
             payload: { blockId, kind: 'revealed', atMs: 1 },
-          } as Pick<InteractionEvent, 'kind' | 'payload'>),
+          }),
         ),
         event(opened, dwell(...visits.map((visit): [number, number] => [visit.from, visit.to]))),
       ],

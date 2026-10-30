@@ -7,7 +7,7 @@
 -- derives interest, a planet, a ranking or a claim about what the person knows from it, and no other
 -- module reads it (a dependency rule forbids the modules that rank, plan or form places from
 -- importing play).
---   Reads: all of one person's calls on one revision (the reader's "my results", the export).
+--   Reads: all of one person's calls on one revision, in lock_seq order (the reader's "my results", the export).
 --   Writes: one insert per accepted lock, in the personal root's transaction with its receipt.
 --   Growth: at most four calls a Scroll revision (scroll-limits.v2) per person who played it.
 --   Retention: kept until the person clears exploration or deletes the account.
@@ -37,6 +37,9 @@ create table play.calls (
   correct boolean not null,
   -- The command that locked it, to answer an identical retry with the same outcome.
   command_id uuid not null,
+  -- The order the person locked their calls in. A sequence, not the clock: a clock that steps back must
+  -- not reorder a combo.
+  lock_seq bigint generated always as identity,
   locked_at timestamptz not null default now(),
   primary key (universe_id, asset_id, revision, stop_id),
   foreign key (asset_id, revision) references content.asset_revisions(asset_id, revision) on delete restrict

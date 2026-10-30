@@ -19,7 +19,7 @@ interface TallyRow {
 /**
  * `play.calls` and `play.scroll_results` (migration 0073). Every row is the caller's own and at
  * their current privacy epoch. A call row is only ever inserted: the first lock stands, so there is
- * no update here. Times come from the database clock, which also orders the calls.
+ * no update here. The order of the calls is the sequence `lock_seq`, never the clock.
  */
 export const playStore: PlayStore = {
   async readPlay(scope, assetId, revision) {
@@ -29,7 +29,7 @@ export const playStore: PlayStore = {
       select stop_id, option, correct from play.calls
       where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}
         and asset_id = ${assetId}::uuid and revision = ${revision}
-      order by locked_at, stop_id`.execute(db);
+      order by lock_seq`.execute(db);
     const tally = await sql<TallyRow>`
       select calls_locked, sparks, combo from play.scroll_results
       where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}

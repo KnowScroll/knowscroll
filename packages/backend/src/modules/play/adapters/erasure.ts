@@ -77,7 +77,7 @@ export const playErasure = declareErasure({
         left join content.asset_revisions revision
           on revision.asset_id = call.asset_id and revision.revision = call.revision
         where call.universe_id = ${scope.authority.universeId}::uuid and call.privacy_epoch = ${scope.authority.privacyEpoch}
-        order by call.locked_at desc, call.stop_id
+        order by call.lock_seq desc
         limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
         if (rows.rows.length === 0) return {};
         const reachable = await person.reach([...new Set(rows.rows.map((row) => row.asset_id))]);
