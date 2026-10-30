@@ -126,6 +126,7 @@ describe('own Scene HTTP boundary in the installed release', () => {
     for (const table of [
       'scenes.state',
       'scenes.objects',
+      'scenes.looks',
       'scenes.chunks',
       'scenes.manifests',
       'geography.state',

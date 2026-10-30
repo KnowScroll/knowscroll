@@ -8,6 +8,7 @@ export const humanBodySystem = {
   id: 'human-body',
   meaning: 'How the organs and systems of the human body work.',
   sceneFamily: 'archipelago.v1',
+  haze: 'coral',
   topics: [
     {
       id: 'human-body.heart-and-blood',

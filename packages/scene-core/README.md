@@ -71,6 +71,22 @@ not a camera implementation, encounter resume record, durable receipt or
 formation acknowledgement. Consumers must fence cached private scenes and
 return locators by their existing account/epoch resource scope.
 
+## Look data (U-1)
+
+Status: implemented and unit-tested; not yet drawn by any screen. Related: #465, D-102, D-103.
+
+`SceneLookSchema` parses `scene-look.v1`, the persisted look of one object: a system's `haze` (one of
+`HAZE_FAMILIES`), a planet's `type` (one of `PLANET_TYPES`), `rings`, `moon`, whole-degree `hueShift`,
+`variant` and `siteCount`, or a region's `site`. It pins generator `worldmap.v1`
+(`WORLD_GENERATOR_VERSION`) and, like the descriptor parser, is strict: it refuses extra fields, so no
+activity, count or time can ride on a look. `SceneLookJsonSchema` documents its structure.
+
+`seededUnit(seed, channel)` is the one pinned source of seeded numbers: the same integer mixing as
+`silhouette.v1`, shared by the server (which stores what it decides) and by a client generator (which
+derives layout from the planet's seed and the look). Channels 0 and 1 are the silhouette's; look rules
+use 16 and above. The world generator itself (continents, regions, the globe and the landed map) is not
+here yet.
+
 ## Bounds and verification
 
 `SCENE_LIMITS` caps wire input at 262,144 UTF-8 bytes, object-input UTF-8/JSON-escape
