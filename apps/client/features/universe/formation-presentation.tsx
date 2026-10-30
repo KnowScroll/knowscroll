@@ -2,12 +2,12 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Modal, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Ellipse, G, Line } from 'react-native-svg';
-import { Button, dialogHostSemantics, dialogSemantics, Tag, Text, usePageInert } from '@knowscroll/ui';
+import { Button, dialogHostSemantics, dialogSemantics, Icon, Tag, Text, usePageInert } from '@knowscroll/ui';
 import { content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
 import type { SceneGeometry } from '@knowscroll/scene-core';
 import type { FormationPresentationState } from '@knowscroll/client-core';
 import type { FormationPresentationFact } from '@knowscroll/contracts';
-import { OrbitRing, PlanetGlyph, StarGlyph } from './universe-bodies';
+import { PlanetGlyph, StarGlyph } from './universe-bodies';
 import { SpaceChip } from './space-chip';
 import { UniverseBackdrop } from './universe-backdrop';
 import type { UniverseViewSession } from './universe-session';
@@ -22,7 +22,8 @@ export function FormationPresentation({ session }: { session: UniverseViewSessio
     return (
       <Notice
         text="New-place views aren’t available right now."
-        action="Refresh new-place view"
+        action="Refresh"
+        actionLabel="Refresh new-place view"
         onAction={() => {
           void controller.refresh();
         }}
@@ -32,19 +33,38 @@ export function FormationPresentation({ session }: { session: UniverseViewSessio
     return (
       <Notice
         text="This map view couldn’t be confirmed. Retry when connected."
-        action="Retry map view"
+        action="Retry"
+        actionLabel="Retry map view"
         onAction={() => controller.retry()}
       />
     );
   return null;
 }
-/** A quiet card over the map when the new-place story cannot be shown or confirmed. */
-function Notice({ text, action, onAction }: { text: string; action: string; onAction: () => void }) {
+/**
+ * A quiet card over the map when the new-place story cannot be shown or confirmed (the design's
+ * "Notice Formation"): a round mark, one plain line and a short action. The map stays usable.
+ */
+function Notice({
+  text,
+  action,
+  actionLabel,
+  onAction,
+}: {
+  text: string;
+  action: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
   return (
     <View pointerEvents="box-none" style={styles.noticeHost}>
-      <View style={styles.notice}>
-        <Text variant="bodyS">{text}</Text>
-        <Button label={action} variant="ink" size="sm" onPress={onAction} />
+      <View style={styles.notice} role="status">
+        <View style={styles.noticeMark}>
+          <Icon name="info" size={16} color={content.ink} />
+        </View>
+        <Text variant="bodyS" style={styles.noticeText}>
+          {text}
+        </Text>
+        <Button label={action} accessibilityLabel={actionLabel} variant="ink" size="sm" onPress={onAction} />
       </View>
     </View>
   );
@@ -263,7 +283,6 @@ function FormationDrawing({
         ) : null}
         {showStar ? (
           <>
-            <OrbitRing cx={cx} cy={cy} rx={orbit.rx} ry={orbit.ry} />
             <StarGlyph cx={cx} cy={cy} r={26} />
           </>
         ) : null}
@@ -326,12 +345,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: content.paper,
-    borderRadius: radius.panel,
-    padding: spacing[4],
-    gap: spacing[2],
+    borderRadius: 20,
+    paddingVertical: spacing[2],
+    paddingLeft: spacing[3],
+    paddingRight: spacing[2],
+    gap: spacing[3],
     maxWidth: 460,
-    alignItems: 'flex-start',
   },
+  noticeMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(21,48,42,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noticeText: { flex: 1 },
   pending: { position: 'absolute', bottom: spacing[12], alignItems: 'center', gap: spacing[3] },
 });

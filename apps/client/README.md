@@ -279,25 +279,33 @@ Geography and Scenes path and the CI fixture model; not on dev).
 
 | Capability                                                                                   | Status                           |
 | -------------------------------------------------------------------------------------------- | -------------------------------- |
-| Overview with levels of detail, system, planet and region views, region card and Open/return | runtime-verified                 |
+| Overview and Far levels and a system, drawn in 3D (v3 U-2, D-106, D-107)                     | runtime-verified (web); Android: lane |
+| Planet and region views, region card and Open/return (SVG)                                   | runtime-verified                 |
 | Dust cues and their note                                                                     | runtime-verified                 |
 | Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
 | Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
 | Formation story (U05), all five beats                                                        | runtime-verified                 |
-| Routes between planets (a target on each, "Route to ..." from a planet)                      | implemented                      |
+| Routes between planets: a "Route to ..." chip on a planet, never a line (D-074)               | implemented                      |
 | Desktop outline panel (D02)                                                                  | runtime-verified                 |
 | Native persistence of the camera (memory only today)                                         | planned                          |
-| Room stations beside their systems, a "Rooms" section in the list view (D-051)                | runtime-verified                 |
+| Room stations in 3D beside their systems, a "Rooms" section in the list view (D-051)         | runtime-verified (web)           |
+| The ship parked at the planet of the last place, "Return to <planet>" (D-080)                | implemented                      |
 | Sky regions that merge quiet systems (U08)                                                   | planned (no backend or data yet) |
 
 `/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
 float over it.
 
-- **Overview (U01, U08).** Every system as a star with orbits and planets. Level of detail follows
-  the system's size on screen (far: name only; mid: orbits and planet dots; near: planets). A tap
-  flies into a system; far away a first tap selects it and shows its card, and Open enters.
-  Labels never overlap (`placeLabels`); a label with no room is left out and its body keeps its
-  accessible name.
+- **Overview, Far and a system (U01, U08, U02) are 3D** (`space/space-stage.tsx`, D-106, D-107). One scene holds every
+  system: an orange sun, haze in the system's family, planets that revolve and no line of any kind. The camera is the
+  level: the whole universe nearer (Overview) or farther (Far, past 68 units: a first tap picks a system and shows its
+  card, Open enters), or close over one system. A tap flies in (2.4 s; reduced motion jumps); stepping up takes 0.3 s.
+  Type, rings, moon, hue and haze are the server's look (`looks` on the manifest read, asked for with
+  `scene-look.v1` and `worldmap.v1`); the client never makes its own. A place with no look (a friend's visit, a world
+  not backfilled yet) is drawn plainly: a colour set from its palette, teal haze, no rings or moon.
+  Positions come from the persisted anchors and the seed; size never from reading.
+- **Labels and targets stay views.** `space-overlay.tsx` places a 48 px button and a label (`placeLabels`) at each
+  projected point; the canvas is hidden from assistive technology. Where 3D cannot run (no WebGL, a lost context, a
+  failed frame, low memory) `SpaceSimpleLists` shows the same names in the same order and every place still opens.
 - **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
   persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
   palette from the scene, seed turns the land). Regions are pins on the land; choosing one lowers
@@ -308,18 +316,20 @@ float over it.
   a private marker kept in the account scope's storage (purged with the scope, dropped after 14 days),
   cleared when the person chooses that region again. The card offers Open and Close only: there is
   no read yet for more encounters from a region.
-- **Routes.** Only the Cartographer's routes (between planets of one system) are drawn: a dashed
-  line with a 48 px target named "Route from A to B" in the system view, and a "Route to B" chip
-  on a planet. No line is drawn between regions.
-- **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn,
-  never labelled, never a destination; a tap explains them in one sentence.
+- **Routes.** Only the Cartographer's routes (between planets of one system) exist, and they are a "Route to B"
+  chip on a planet (D-074). No line is drawn on any screen.
+- **Dust (U01 "Emerging").** `POST /v1/universe/emerging/read` gives opaque cues. They are drawn as toon nebulae
+  (one large at the centre when nothing else exists, small ones past the systems), never labelled, never a
+  destination; a tap explains them in one sentence. U01 "Empty", loading and Offline draw the quiet sky only
+  (`space/sky-backdrop.tsx`; the old still stars are its fallback).
 - **Lately, search, list.** Lately dims quiet places and sorts recent ones first (activity, never
   existence). Search runs on the device over the person's own places and the query is not kept.
   The list view is the full outline (the screen-reader primary); from 1024 px it is a permanent
   panel (D02).
 - **Return.** The camera, lens and ship's place persist per device in the account scope's storage
-  (purged on logout, account switch and privacy reset). After three days away the camera starts
-  framed on everything with the ship parked and a "Return to ..." chip. `/universe?focus=last`
+  (purged on logout, account switch and privacy reset). The ship is parked on the planet of the last place
+  (hidden under Lately). After three days away the camera starts framed on everything and a "Return to <planet>" chip
+  flies back. `/universe?focus=last`
   flies there.
 - **Formation (U05).** Plays once per committed transition (the server decides): dust, gathering,
   protostar, star and orbit (new systems only), planet. Reduced motion shows the last frame.
@@ -330,36 +340,42 @@ Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on
 arrows, zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
 token; reduced motion stops drift and plays the formation as one still.
 
-### Space renderer (v3 U-0, D-073, D-100)
+### Space renderer (v3 U-0 gate, U-2 in use; D-073, D-100, D-106, D-107)
 
-`features/universe/space/` draws the space views with three.js. It is the gate for lane U and the base of the
-3D Universe: nothing in the Universe tab uses it yet. It is reached only through the developer gallery page
-`/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; not in a production export).
+`features/universe/space/` draws the space views with three.js. The Universe tab uses it for the Overview, Far, a
+system and the Empty, loading and Offline sky; planet and region views stay SVG. It is also reached through the
+developer gallery page `/gallery-space` (builds made with `EXPO_PUBLIC_KS_GALLERY=1`; `?scene=universe` draws the
+tab's own layout of a labelled sample universe, for the frame numbers).
 
 | Capability | Status |
 | --- | --- |
-| One three.js scene (orange sun with haze, two painted planets that revolve, no orbit lines, nebula dust, stars) | runtime-verified (web, browser) |
+| One three.js scene (orange sun with haze, painted planets that revolve, no lines, nebula dust, stars) | runtime-verified (web, browser) |
+| Systems, stations, the parked ship, dust and quiet (Lately) places from the real Universe data | runtime-verified (web, browser; `e2e/universe-space-smoke.spec.ts`) |
+| Camera rig: Overview, Far and System as distances of one camera; pan, zoom, fly in (2.4 s) and out (0.3 s) | runtime-verified (web); unit-tested maths (`camera-rig.ts`) |
 | Web canvas host: a DOM canvas, WebGL 2 context made by three.js | runtime-verified (web, browser) |
-| Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | runtime-verified (Android emulator; no phone or iOS yet) |
-| 30 fps cap (a frame at most every 33 ms), time step clamped to 0.1 s, pixel ratio capped at 1.5 | runtime-verified (web, Android emulator) |
+| Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | runtime-verified (Android emulator lane; no phone or iOS yet) |
+| 30 fps cap (a frame at most every 33 ms), time step clamped to 0.1 s, pixel ratio capped at 1.5 | runtime-verified (web: 33.3 ms mean on the real tab; Android emulator) |
 | Loop stops when the route is unfocused, the app is not active or the tab is hidden | runtime-verified (web); native: implemented (unit tests, not driven on a device) |
 | Loop stops when the canvas is scrolled off screen | runtime-verified (web only; native does not report it, see D-100) |
-| Reduced motion: one frame, no loop | runtime-verified (web, Android emulator) |
+| Reduced motion: one frame, no loop, a fly is a jump | runtime-verified (web, Android emulator) |
 | No WebGL, context creation failure, context loss or a failed frame: the plain lists (`SpaceSimpleLists`) | runtime-verified (web; on the emulator a failed context creation showed the lists) |
 | A new native surface after resume replaces the renderer and loop; unmount releases them | implemented (unit tests, not driven on a device) |
 | Low memory (`AppState` `memoryWarning`) shows the plain lists | implemented (unit test; raised by iOS, not known on Android; device-memory check deferred to the Simple drawing slice) |
 | Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web, Android emulator) |
-| Real Universe data, Overview/Lately/Far/System levels, fly-ins | planned (U-2 onward) |
+| Landmark markers, constellations, the entering animations, a friend's own look | planned (later slices) |
 
 How it fits together. A platform canvas host (`space-canvas.web.tsx`, `space-canvas.tsx`) hands `SpaceView` a
 `SpaceSurface`. `SpaceView` loads `space-renderer.ts` (three.js) on first use, builds the scene from a
 `SpaceDefinition` and runs one loop (`render-loop.ts` over the pure clock in `frame-clock.ts`). A scene is a pure
-function of the time `t`, so one frame is a valid picture. Textures are plain pixel arrays (`texture-data.ts`),
-because Hermes has no canvas. The web smoke is `e2e/space-gallery.spec.ts`; the emulator flow is
-`maestro/space.yaml`.
+function of the time `t`, so one frame is a valid picture. `space-model.ts` lays the projected places out as a
+definition and `camera-rig.ts` aims the camera; both are pure. When the definition changes (Lately, a new place,
+the ship) the scene is rebuilt in place and the camera, glow and any fly in flight are kept. Textures are plain pixel
+arrays (`texture-data.ts`), because Hermes has no canvas. Tests stand in for the GPU with `fake-space-gpu.ts`. The web
+smokes are `e2e/space-gallery.spec.ts` and `e2e/universe-space-smoke.spec.ts`; the emulator flows are
+`maestro/space.yaml` and `maestro/universe.yaml`.
 
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
-(pure placement), `overview-scene.tsx`, `system-scene.tsx`, `planet-scene.tsx` (drawing and targets),
+(pure placement of regions and labels), `space/` (the 3D views, above), `planet-scene.tsx` (the SVG planet),
 `universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
 `universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
 `formation-presentation.tsx`. Choices are in D-039.
@@ -580,7 +596,7 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   server answers. A discussion catches up on focus, on reconnect and every 20 seconds.
 - Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
 - Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes
-  the stations to `UniverseSurface`, which draws a `StationGlyph` beside the system it names (angle from the room's ID, just
+  the stations to `UniverseSurface`, which draws a 3D station beside the system it names (angle from the room's ID, just
   outside the outermost orbit), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
   room on a tap. A read that fails leaves the map as it was. A visit to a friend's map passes none.
 - R03 (`activities-section.tsx`, `activity-screen.tsx`, `poll-card.tsx`, `quiz-flow.tsx`, `start-activity-sheet.tsx`): the

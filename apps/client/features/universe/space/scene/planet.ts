@@ -1,9 +1,25 @@
 import * as THREE from 'three';
 import { seededRandom, TAU } from '../paint';
 import type { PlanetGenome } from '../planet-genome';
-import { paintPlanet } from '../texture-data';
+import { paintPlanet, type PlanetPixels } from '../texture-data';
 import { additive, hazeUniforms, SKY_COLOUR, unitColour, type Built, type SceneContext } from './context';
 import { ATMOSPHERE_FRAGMENT, PLANET_FRAGMENT, RING_FRAGMENT, RING_VERTEX, WORLD_VERTEX } from './shaders';
+
+/**
+ * Painting a planet takes a few milliseconds; the Lately lens and new places rebuild the scene, so the
+ * pixels of a planet already painted are kept (a planet is a pure function of its genome).
+ */
+const painted = new Map<string, PlanetPixels>();
+const PAINTED_LIMIT = 64;
+function paintOnce(genome: PlanetGenome): PlanetPixels {
+  const key = [genome.id, genome.type, genome.hueShift, genome.rings, genome.moon].join('|');
+  const known = painted.get(key);
+  if (known !== undefined) return known;
+  const pixels = paintPlanet(genome);
+  if (painted.size >= PAINTED_LIMIT) painted.delete(painted.keys().next().value!);
+  painted.set(key, pixels);
+  return pixels;
+}
 
 function surfaceMaterial(
   context: SceneContext,
@@ -40,7 +56,7 @@ function atmosphereShell(radius: number, sun: THREE.Vector3, colour: THREE.Vecto
         strength: { value: 1.15 },
         calm: { value: context.calm ? 1 : 0 },
         fogCol: { value: SKY_COLOUR },
-        fogR: { value: new THREE.Vector2(context.fogRange[0], context.fogRange[1]) },
+        fogR: { value: context.fog },
       },
     }),
   );
@@ -81,7 +97,7 @@ function ringMesh(
 }
 
 function makeMoon(genome: PlanetGenome, radius: number, sunPosition: THREE.Vector3, context: SceneContext): THREE.Mesh {
-  const moon = paintPlanet({ ...genome, id: genome.id + '-moon', type: 'barren', rings: false, moon: false });
+  const moon = paintOnce({ ...genome, id: genome.id + '-moon', type: 'barren', rings: false, moon: false });
   return new THREE.Mesh(
     new THREE.SphereGeometry(radius * 0.27, 24, 12),
     surfaceMaterial(context, context.trackTexture(moon.surface), sunPosition, new THREE.Vector3(0.5, 0.45, 0.6), false),
@@ -98,7 +114,7 @@ export function makePlanet(
   sunPosition: THREE.Vector3,
   context: SceneContext,
 ): Built {
-  const pixels = paintPlanet(genome);
+  const pixels = paintOnce(genome);
   const atmosphere = unitColour(pixels.atmosphere);
   const group = new THREE.Group();
   const spinner = new THREE.Group();

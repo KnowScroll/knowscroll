@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StateBlock } from '@knowscroll/ui';
 import { ScreenFrame } from '../shell/screen-frame';
-import { UniverseBackdrop } from './universe-backdrop';
+import { SkyBackdrop } from './space/sky-backdrop';
 
 /**
  * U01 "Empty · first visit": the universe before anything has been explored. No promises, no
@@ -16,7 +16,7 @@ export function EmptyUniverseScreen() {
       title="Your universe"
       pageTitle="Universe"
       titleVariant="heading"
-      backdrop={<UniverseBackdrop />}
+      backdrop={<SkyBackdrop />}
       bodyPlacement="center"
     >
       <StateBlock

@@ -24,8 +24,8 @@ export interface SceneContext {
   readonly time: { value: number };
   /** Drawing-buffer pixels per layout pixel (point sizes scale with it). */
   readonly pixelRatio: { value: number };
-  /** Distance range over which things melt into the sky colour. */
-  readonly fogRange: readonly [number, number];
+  /** Distance range over which things melt into the sky colour; the camera rig retunes it as it moves. */
+  readonly fog: THREE.Vector2;
   /** A quiet system draws grey and dim. */
   readonly calm: boolean;
   readonly sprites: SpriteTextures;
@@ -46,7 +46,7 @@ export const SKY_COLOUR = new THREE.Vector3(0.012, 0.016, 0.045);
 export function hazeUniforms(context: SceneContext): Record<string, THREE.IUniform> {
   return {
     fogCol: { value: SKY_COLOUR },
-    fogR: { value: new THREE.Vector2(context.fogRange[0], context.fogRange[1]) },
+    fogR: { value: context.fog },
     calm: { value: context.calm ? 1 : 0 },
   };
 }

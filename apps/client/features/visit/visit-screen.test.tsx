@@ -1,4 +1,5 @@
 import type * as React from 'react';
+import type * as FakeGpu from '../universe/space/fake-space-gpu';
 import type { EffectCallback } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState } from 'react-native';
@@ -20,6 +21,7 @@ jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
     useFocusEffect: (effect: EffectCallback) => useEffect(effect, [effect]),
+    useIsFocused: () => true,
     useRouter: () => ({
       navigate: mockNavigate,
       back: mockBack,
@@ -29,6 +31,13 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
+// The real stage and overlay over a stand-in for the GPU (no WebGL claimed).
+jest.mock('../universe/space/space-canvas', () => ({
+  SpaceCanvas: jest.requireActual<typeof FakeGpu>('../universe/space/fake-space-gpu').fakeGpu.Canvas,
+}));
+jest.mock('../universe/space/load-space-renderer', () => ({
+  loadSpaceRenderer: () => jest.requireActual<typeof FakeGpu>('../universe/space/fake-space-gpu').fakeGpu.load(),
+}));
 beforeEach(() => {
   jest.clearAllMocks();
   mockCanGoBack = true;

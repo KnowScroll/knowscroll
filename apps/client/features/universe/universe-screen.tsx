@@ -4,7 +4,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope } from '@knowscroll/client-core';
-import { Button, Skeleton, Text, useDisplay } from '@knowscroll/ui';
+import { Button, Icon, Skeleton, Text, useDisplay } from '@knowscroll/ui';
 import { space, spacing } from '@knowscroll/design-tokens';
 import { useAccountScope } from '../../providers/account-scope';
 import { roomHref } from '../rooms/room-links';
@@ -12,7 +12,7 @@ import { useRoomStationsOnMap } from '../rooms/use-room-stations';
 import { useDocumentTitle } from '../../platform/document-title';
 import { EmptyUniverseScreen } from './empty-universe-screen';
 import { FormationPresentation } from './formation-presentation';
-import { UniverseBackdrop } from './universe-backdrop';
+import { SkyBackdrop } from './space/sky-backdrop';
 import { indexUniverse } from './universe-layout';
 import { UniverseSurface } from './universe-surface';
 import { useUniverseBack } from './use-universe-back';
@@ -106,7 +106,7 @@ function QuietGround({ label }: { label: string }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.ground, { paddingTop: insets.top + spacing[6] }]}>
-      <UniverseBackdrop />
+      <SkyBackdrop />
       <View style={styles.centred}>
         <Skeleton rows={2} label={label} />
       </View>
@@ -127,38 +127,55 @@ function Unavailable({
   const insets = useSafeAreaInsets();
   const { read } = state;
   if (['idle', 'loading'].includes(read.status)) return <QuietGround label="Loading your universe" />;
-  const message =
-    read.status === 'unsupported'
-      ? 'This drawing isn’t supported on this device yet.'
-      : read.reason === 'authority'
-        ? 'Your map is no longer available.'
-        : read.reason === 'network'
-          ? 'You’re offline. Your universe is kept; refresh when you’re connected.'
-          : 'Couldn’t draw your map. Try again in a moment.';
+  const { heading, message } = unavailableWords(read);
   return (
     <View style={[styles.ground, { paddingTop: insets.top + spacing[6] }]}>
-      <UniverseBackdrop />
-      <View style={styles.centred}>
-        <Text variant="heading" heading={1} color={space.label}>
-          Your universe
+      <SkyBackdrop />
+      <Text variant="heading" heading={1} color={space.label}>
+        Your universe
+      </Text>
+      <View style={styles.offline}>
+        <View style={styles.offlineMark}>
+          <Icon name="offline" size={28} color={space.label} />
+        </View>
+        <Text variant="heading" heading={2} color={space.label} align="center">
+          {heading}
         </Text>
-        <Text variant="body" color={space.label2}>
+        <Text variant="body" color={space.label2} align="center">
           {message}
         </Text>
         <View style={styles.actions}>
           <Button
             label="Refresh map"
             variant="space"
+            icon="retry"
             disabled={read.status === 'ended'}
             onPress={() => {
               void session.refresh();
             }}
           />
-          <Button label="Go to Explore" variant="space" role="link" href="/explore" onPress={onExplore} />
+          <Button label="Go to Explore" variant="spaceGhost" role="link" href="/explore" onPress={onExplore} />
         </View>
       </View>
     </View>
   );
+}
+
+/** The heading and the one plain line for each reason there is no map to draw (the design's Offline, in three voices). */
+function unavailableWords(read: ReturnType<typeof useUniverseSession>['state']['read']): {
+  heading: string;
+  message: string;
+} {
+  if (read.status === 'unsupported')
+    return { heading: 'Not on this device yet', message: 'This drawing isn�t supported on this device yet.' };
+  if (read.reason === 'authority')
+    return { heading: 'No longer available', message: 'Your map is no longer available.' };
+  if (read.reason === 'network')
+    return {
+      heading: 'You�re offline',
+      message: 'Your universe is kept. Refresh when you�re connected.',
+    };
+  return { heading: 'Couldn�t draw your map', message: 'Couldn�t draw your map. Try again in a moment.' };
 }
 
 export function UniverseScreen() {
@@ -170,5 +187,16 @@ export function UniverseScreen() {
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: space.s0, paddingHorizontal: spacing[5] },
   centred: { flex: 1, justifyContent: 'center', gap: spacing[4] },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  offline: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing[3], paddingBottom: spacing[12] },
+  offlineMark: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,253,242,0.35)',
+    backgroundColor: 'rgba(2,3,8,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], justifyContent: 'center', marginTop: spacing[2] },
 });

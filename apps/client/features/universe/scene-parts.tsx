@@ -21,9 +21,6 @@ export interface SceneProps {
   readonly onStation?: (roomId: string) => void;
 }
 
-/** The accessible name of a station: the room's name and what it is, as the artboards name it. */
-export const stationName = (station: RoomStation) => `${station.room.name}, a room station`;
-
 /**
  * A place's silhouette, or `undefined` when it cannot be built. A descriptor that fails the drawing
  * rules must not take the screen down: its target and its row in the list stay, only the drawing goes.

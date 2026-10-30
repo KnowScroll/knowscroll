@@ -1,16 +1,12 @@
 import type { SceneDescriptor } from '@knowscroll/scene-core';
 import {
   composeRegions,
-  composeSystem,
   indexUniverse,
   outlineRows,
-  overviewScale,
-  placeDust,
   placeLabels,
   placeTrail,
   unitsFromId,
   viewFor,
-  ORBIT_BANDS,
 } from './universe-layout';
 import { fixtureId, sceneFixture } from './universe.fixture';
 
@@ -55,32 +51,10 @@ describe('Universe layout', () => {
     expect(viewFor(index, fixtureId(999)).kind).toBe('universe');
   });
 
-  it('places planets on the orbit and in the direction their anchors have from the star', () => {
-    const composition = composeSystem(index, system);
-    const near = composition.planets.find((p) => p.descriptor.label === 'Near')!;
-    const far = composition.planets.find((p) => p.descriptor.label === 'Far')!;
-    expect(near.band).toBe(0);
-    expect(far.band).toBe(2);
-    // Near is below-left of the star (anchor diff (0, 300)): straight down the ellipse.
-    expect(near.position.x).toBeCloseTo(0, 5);
-    expect(near.position.y).toBeCloseTo(ORBIT_BANDS[0].ry, 5);
-    // Far is left of the star (anchor diff (-900, 0)).
-    expect(far.position.x).toBeCloseTo(-ORBIT_BANDS[2].rx, 5);
-    expect(composition.bands).toEqual([0, 2]);
-  });
-
   it('names the places that contain a place, nearest first', () => {
     expect(placeTrail(index, regions[0]!)).toEqual(['Near', 'Alpha']);
     expect(placeTrail(index, planets[0]!)).toEqual(['Alpha']);
     expect(placeTrail(index, system)).toEqual([]);
-  });
-
-  it('keeps a planet where it was when another arrives, whatever the input order', () => {
-    const before = composeSystem(index, system).planets.find((p) => p.descriptor.objectId === planets[0]!.objectId)!;
-    const later = descriptor(104, 'planet', system.objectId, 0, -300, 'Later');
-    const grown = indexUniverse([later, ...regions, ...planets, star, system].reverse(), []);
-    const after = composeSystem(grown, system).planets.find((p) => p.descriptor.objectId === planets[0]!.objectId)!;
-    expect(after.position).toEqual(before.position);
   });
 
   it('spreads regions apart on their own spots and never moves one when another is added', () => {
@@ -93,20 +67,8 @@ describe('Universe layout', () => {
     expect(four).toHaveLength(4);
   });
 
-  it('draws one lone dust cue at the centre and others outside the systems', () => {
-    const lone = placeDust([fixtureId(1)], []);
-    expect([...lone.values()]).toEqual([{ x: 0, y: 0 }]);
-    const several = placeDust([fixtureId(2), fixtureId(3)], [system]);
-    for (const at of several.values()) expect(Math.hypot(at.x, at.y)).toBeGreaterThan(130);
-    expect(placeDust([fixtureId(3), fixtureId(2)], [system])).toEqual(several);
+  it('gives decoration numbers between 0 and 1 from an opaque id', () => {
     expect(unitsFromId(fixtureId(2)).every((unit) => unit >= 0 && unit <= 1)).toBe(true);
-  });
-
-  it('fits the overview to the stage and never magnifies a lone system past a readable size', () => {
-    expect(overviewScale([system], { width: 390, height: 700 })).toBeGreaterThan(0.5);
-    expect(overviewScale([system], { width: 4000, height: 4000 })).toBeLessThanOrEqual(1.7);
-    const spread = [system, { ...system, objectId: fixtureId(300), anchor: { x: 6000, y: 0, layer: 0 } }];
-    expect(overviewScale(spread, { width: 390, height: 700 })).toBeLessThan(0.1);
   });
 
   it('lists every place in order, with recent activity first only when Lately is on', () => {

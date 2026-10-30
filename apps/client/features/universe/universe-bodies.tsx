@@ -1,8 +1,8 @@
-import { Circle, ClipPath, Defs, Ellipse, G, Path, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { Circle, ClipPath, Defs, G, Path, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { content, space } from '@knowscroll/design-tokens';
 import type { SceneGeometry } from '@knowscroll/scene-core';
 import { BODY_COLOURS, calmColours, calmer, STAR_COLOUR } from './universe-palette';
-import { unitsFromId, type Vec } from './universe-layout';
+import type { Vec } from './universe-layout';
 
 /**
  * The layered-SVG drawing kit of the Universe (D-026): stars, planets, orbit hairlines, region
@@ -129,34 +129,6 @@ export function StarGlyph({ cx, cy, r, calm }: { cx: number; cy: number; r: numb
   );
 }
 
-/** An orbit hairline: decoration only. */
-export function OrbitRing({
-  cx,
-  cy,
-  rx,
-  ry,
-  calm,
-}: {
-  cx: number;
-  cy: number;
-  rx: number;
-  ry: number;
-  calm?: boolean;
-}) {
-  return (
-    <Ellipse
-      cx={cx}
-      cy={cy}
-      rx={rx}
-      ry={ry}
-      fill="none"
-      stroke={content.paper}
-      strokeOpacity={calm ? 0.1 : 0.18}
-      strokeWidth={1.2}
-    />
-  );
-}
-
 /** A region pin: an octagon with a centre dot, yellow when selected. */
 export function RegionPin({
   x,
@@ -202,43 +174,6 @@ export function RegionPin({
   );
 }
 
-/** Dust: unlabelled gathering that is not a place yet. With `lone` it reads as a protostar. */
-export function DustGlyph({ cx, cy, r, id, lone }: { cx: number; cy: number; r: number; id: string; lone?: boolean }) {
-  const [phase] = unitsFromId(id);
-  const specks = Array.from({ length: 7 }, (_, index) => {
-    const angle = phase * Math.PI * 2 + index * 2.4;
-    const distance = r * (0.18 + ((index * 37) % 10) / 16);
-    return { x: cx + Math.cos(angle) * distance, y: cy + Math.sin(angle) * distance, size: 1 + (index % 3) * 0.5 };
-  });
-  return (
-    <G>
-      <Circle cx={cx} cy={cy} r={r} fill="#0E3A3F" opacity={lone ? 0.55 : 0.4} />
-      <Circle cx={cx} cy={cy} r={r * 0.66} fill="#12525A" opacity={0.35} />
-      {lone ? (
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={r * 0.9}
-          fill="none"
-          stroke={content.paper}
-          strokeOpacity={0.35}
-          strokeDasharray="2 6"
-          strokeLinecap="round"
-        />
-      ) : null}
-      {specks.map((speck, index) => (
-        <Circle key={index} cx={speck.x} cy={speck.y} r={speck.size} fill={content.paper} opacity={0.55} />
-      ))}
-      {lone ? (
-        <>
-          <Circle cx={cx} cy={cy} r={9} fill={STAR_COLOUR} opacity={0.18} />
-          <Circle cx={cx} cy={cy} r={4.5} fill={STAR_COLOUR} />
-        </>
-      ) : null}
-    </G>
-  );
-}
-
 /** The ship: parked at the last place visited, with a short dotted trail behind it. */
 export function ShipGlyph({ x, y }: { x: number; y: number }) {
   return (
@@ -252,34 +187,6 @@ export function ShipGlyph({ x, y }: { x: number; y: number }) {
         strokeLinecap="round"
       />
       <Path d={`M ${x - 12} ${y - 10} l 20 2 -12 16 z`} fill={content.paper} />
-    </G>
-  );
-}
-
-/**
- * A room station (U01, U02): a small module with two arms and panels and a warm light, drawn in cream
- * line so it reads beside the stars. It is a doorway to a shared room, not a place of the person's own
- * universe; `calm` mutes it like a quiet place.
- */
-export function StationGlyph({
-  x,
-  y,
-  scale = 1,
-  calm,
-}: {
-  readonly x: number;
-  readonly y: number;
-  readonly scale?: number;
-  readonly calm?: boolean;
-}) {
-  const stroke = calm ? space.label2 : space.label;
-  return (
-    <G transform={`translate(${x} ${y}) scale(${scale})`}>
-      <Rect x={-14} y={-7} width={28} height={14} rx={4} fill={space.s0} stroke={stroke} strokeWidth={2} />
-      <Path d="M-26 0h12M14 0h12" stroke={stroke} strokeWidth={2} strokeLinecap="round" />
-      <Rect x={-33} y={-5} width={7} height={10} fill={stroke} />
-      <Rect x={26} y={-5} width={7} height={10} fill={stroke} />
-      <Circle cx={0} cy={0} r={2.6} fill={calm ? calmer(STAR_COLOUR, 0.55) : STAR_COLOUR} />
     </G>
   );
 }
