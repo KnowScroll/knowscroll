@@ -15,19 +15,32 @@ import {
   TALK_QUERY_KEY,
   composerAddressees,
   findThread,
+  liveReplyTarget,
+  messagePreview,
   type AccountScope,
   type ContentThreadController,
   type ContentThreadState,
+  type FeedbackTarget,
 } from '@knowscroll/client-core';
 import type { ContentThreadRef, ReelDocument, SendThreadBody } from '@knowscroll/contracts';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, PullDownSheet, Skeleton, StateBlock, useDisplay, type ReelPositionHandle } from '@knowscroll/ui';
+import {
+  Banner,
+  PullDownSheet,
+  Skeleton,
+  StateBlock,
+  useDisplay,
+  useTalkTheme,
+  type ReelPositionHandle,
+} from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { TalkFrame } from '../shell/talk-frame';
 import { Composer } from '../conversations/composer';
 import { useFollowEnd } from '../conversations/message-list';
+import type { AvailableTalkMessage } from '../conversations/talk-message';
+import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { AsksBar } from '../scenarios/asks-bar';
 import { BranchSheets } from '../scenarios/branch-sheets';
 import { useScenarioBoard } from '../scenarios/use-scenarios';
@@ -88,6 +101,11 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const [headerHeight, setHeaderHeight] = useState(HEADER_HEIGHT_GUESS);
   const [menu, setMenu] = useState(false);
   const [moment, setMoment] = useState<ShareableMoment>();
+  const [replyTo, setReplyTo] = useState<AvailableTalkMessage>();
+  const [reporting, setReporting] = useState<FeedbackTarget>();
+  const theme = useTalkTheme();
+  // A reply waits only while its original stands: once it is removed there is nothing to answer.
+  const waitingReply = liveReplyTarget(replyTo, state.messages);
   const board = useScenarioBoard(scope, thread);
   const positionRef = useRef<ReelPositionHandle>(null);
   const {
@@ -172,7 +190,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   // across 1024 px (ending its recorder and opening a second exposure). The parts and the people sit
   // in fixed slots around the encounter for the same reason: the panel adds them, the phone does not.
   return (
-    <>
+    <View style={[styles.ready, { backgroundColor: theme.ground }]}>
       <ThreadStrip
         title={title}
         eyebrow={threadEyebrow(state, sideBySide)}
@@ -216,8 +234,19 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
             onOpenBranch={branches.openBranch}
             onContinueBranch={branches.scenarios.continueBranch}
             onRemoveBranch={branches.scenarios.removeBranch}
-            onMessageMenu={branches.scenarios.askFromMessage}
             onAsk={branches.scenarios.askFromMessage}
+            onReply={setReplyTo}
+            onReport={(message) =>
+              setReporting({
+                kind: 'message',
+                messageId: message.messageId,
+                author: {
+                  personId: message.author.personId,
+                  displayName: message.author.displayName,
+                  handle: message.author.handle,
+                },
+              })
+            }
           />
           <AsksBar onAsk={branches.scenarios.askFromRoot} />
           <Composer
@@ -226,10 +255,17 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
             )}
             value={draft}
             onChange={keepDraft}
+            replyTo={
+              waitingReply === undefined
+                ? undefined
+                : { author: waitingReply.author.displayName, preview: messagePreview(waitingReply) }
+            }
+            onCancelReply={() => setReplyTo(undefined)}
             onSend={(text) => {
               keepDraft('');
               follow();
-              void controller.send({ kind: 'text', text });
+              void controller.send({ kind: 'text', text }, waitingReply?.messageId);
+              setReplyTo(undefined);
             }}
           />
         </View>
@@ -278,7 +314,8 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
           void controller.leave().then((left) => left && onLeft());
         }}
       />
-    </>
+      <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
+    </View>
   );
 }
 
@@ -453,18 +490,20 @@ export function ThreadScreen(params: {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
+  ready: { flex: 1 },
   body: { padding: layout.gutter },
   banner: { paddingHorizontal: layout.gutter, paddingTop: spacing[2] },
   /** T3 desktop: the series panel on the right, the conversation filling the rest (the DOM order stays panel first). */
   panes: { flex: 1, minHeight: 0, flexDirection: 'row-reverse' },
   stack: { flex: 1, minHeight: 0 },
   /** One column: the thread's own part takes the height of its content and the messages take the rest. */
-  fitContent: { flexGrow: 0, flexShrink: 0 },
+  fitContent: { flexGrow: 0, flexShrink: 0, backgroundColor: content.paper },
   panel: {
     width: SERIES_PANEL_WIDTH,
     borderLeftWidth: borderWidth.regular,
     borderLeftColor: content.ink,
     minHeight: 0,
+    backgroundColor: content.paper,
   },
   panelContent: { padding: layout.gutter, gap: spacing[4], paddingBottom: spacing[6] },
 });

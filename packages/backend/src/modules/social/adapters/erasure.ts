@@ -44,7 +44,14 @@ export const socialStoreLifecycle = {
     clear: 'preserve',
     onAccountErasure: 'the account membership is removed; invitations it made no longer depend on it',
   },
-  'social.messages': { clear: 'preserve', onAccountErasure: 'the account authored messages become tombstones' },
+  'social.messages': {
+    clear: 'preserve',
+    onAccountErasure: 'the account authored messages become tombstones, with no reply pointer',
+  },
+  'social.message_reactions': {
+    clear: 'preserve',
+    onAccountErasure: 'the account reactions, and every reaction on its tombstoned messages, are deleted',
+  },
   'social.content_threads': {
     clear: 'preserve',
     onAccountErasure: 'the starter link is cleared; the thread stays for the others',
@@ -77,6 +84,7 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'conversations', ownerColumn: 'pair_id' },
     { schema: 'social', table: 'conversation_members', ownerColumn: 'account_id' },
     { schema: 'social', table: 'messages', ownerColumn: 'author_account_id' },
+    { schema: 'social', table: 'message_reactions', ownerColumn: 'account_id' },
     { schema: 'social', table: 'content_threads', ownerColumn: 'starter_account_id' },
     { schema: 'social', table: 'message_snippets', ownerColumn: 'message_id' },
     { schema: 'social', table: 'inbox_heads', ownerColumn: 'account_id' },
@@ -101,6 +109,7 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'conversation_members', column: 'invited_by_account_id' },
     { schema: 'social', table: 'content_threads', column: 'starter_account_id' },
     { schema: 'social', table: 'messages', column: 'author_account_id' },
+    { schema: 'social', table: 'message_reactions', column: 'account_id' },
     { schema: 'social', table: 'inbox_heads', column: 'account_id' },
     { schema: 'social', table: 'content_shares', column: 'owner_account_id' },
   ],
@@ -145,6 +154,7 @@ export const socialErasure = declareErasure({
           select message_id from social.messages where author_account_id = ${account}::uuid)`.execute(trx)
       ).numAffectedRows ?? 0,
     );
+    removed += await eraseReactions(trx, account);
     const tombstoned = await sql`
       with mine as (
         select conversation_id, sequence,
@@ -158,7 +168,7 @@ export const socialErasure = declareErasure({
         returning c.conversation_id, c.last_change_sequence as top, t.total
       )
       update social.messages m set author_account_id = null, command_id = null, body_text = null,
-        asset_id = null, asset_revision = null, note = null,
+        asset_id = null, asset_revision = null, note = null, reply_to_sequence = null,
         change_sequence = bumped.top - bumped.total + mine.position
       from mine join bumped on bumped.conversation_id = mine.conversation_id
       where m.conversation_id = mine.conversation_id and m.sequence = mine.sequence`.execute(trx);
@@ -252,6 +262,42 @@ async function lockThreadsOf(trx: Transaction<Database>, account: string): Promi
 }
 
 /**
+ * The account's reactions and every reaction on its own messages (those messages become tombstones next,
+ * and a tombstone shows nothing). Each message of someone else that loses a reaction gets the
+ * conversation's next change number, in one statement like the tombstones below, so the other person's
+ * catch-up replaces it and the count drops. Returns how many rows went.
+ */
+async function eraseReactions(trx: Transaction<Database>, account: string): Promise<number> {
+  await sql`
+    with touched as (
+      select distinct reaction.conversation_id, reaction.message_sequence as sequence
+      from social.message_reactions reaction
+      join social.messages message
+        on message.conversation_id = reaction.conversation_id and message.sequence = reaction.message_sequence
+      where reaction.account_id = ${account}::uuid and message.author_account_id is distinct from ${account}::uuid
+    ), numbered as (
+      select conversation_id, sequence,
+        row_number() over (partition by conversation_id order by sequence) as position,
+        count(*) over (partition by conversation_id) as total
+      from touched
+    ), bumped as (
+      update social.conversations c set last_change_sequence = c.last_change_sequence + t.total
+      from (select conversation_id, max(total) as total from numbered group by conversation_id) t
+      where c.conversation_id = t.conversation_id
+      returning c.conversation_id, c.last_change_sequence as top, t.total
+    )
+    update social.messages m set change_sequence = bumped.top - bumped.total + numbered.position
+    from numbered join bumped on bumped.conversation_id = numbered.conversation_id
+    where m.conversation_id = numbered.conversation_id and m.sequence = numbered.sequence`.execute(trx);
+  const onOwnMessages = await sql`
+    delete from social.message_reactions reaction using social.messages message
+    where message.conversation_id = reaction.conversation_id and message.sequence = reaction.message_sequence
+      and message.author_account_id = ${account}::uuid`.execute(trx);
+  const own = await sql`delete from social.message_reactions where account_id = ${account}::uuid`.execute(trx);
+  return Number(onOwnMessages.numAffectedRows ?? 0) + Number(own.numAffectedRows ?? 0);
+}
+
+/**
  * The links other rows hold to this account: it stops being the starter of threads, and the people it
  * invited stand on their own membership from now on (see `releaseInvitees`). Returns how many rows changed.
  */
@@ -290,6 +336,7 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
       'social.conversations',
       'social.conversation_members',
       'social.messages',
+      'social.message_reactions',
       'social.content_threads',
       'social.message_snippets',
       'social.content_shares',
@@ -320,12 +367,34 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
       const messages = await trx
         .selectFrom('social.messages as m')
         .leftJoin('social.message_snippets as s', 's.message_id', 'm.message_id')
-        .select(['m.recorded_at', 'm.body_text', 'm.asset_id', 'm.note', 's.kind as snippet_kind'])
+        .select([
+          'm.recorded_at',
+          'm.body_text',
+          'm.asset_id',
+          'm.note',
+          'm.reply_to_sequence',
+          's.kind as snippet_kind',
+        ])
         .where('m.author_account_id', '=', person.accountId)
         .orderBy('m.recorded_at', 'desc')
         .orderBy('m.sequence', 'desc')
         .limit(EXPORT_MESSAGE_LIMIT)
         .execute();
+      const reactions = await trx
+        .selectFrom('social.message_reactions as r')
+        .innerJoin('social.messages as m', (join) =>
+          join.onRef('m.conversation_id', '=', 'r.conversation_id').onRef('m.sequence', '=', 'r.message_sequence'),
+        )
+        .select(['r.kind', 'r.reacted_at', 'm.author_account_id'])
+        .where('r.account_id', '=', person.accountId)
+        .orderBy('r.reacted_at', 'desc')
+        .limit(EXPORT_MESSAGE_LIMIT)
+        .execute();
+      const reactionsGiven = await trx
+        .selectFrom('social.message_reactions')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('account_id', '=', person.accountId)
+        .executeTakeFirstOrThrow();
       const started = await trx
         .selectFrom('social.content_threads')
         .select(['name', 'created_at'])
@@ -374,15 +443,23 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
           count: membershipsOf('direct'),
           messagesWritten: Number(written.n),
           truncated: Number(written.n) > messages.length,
-          yourMessages: messages.map((message) =>
-            message.body_text === null
+          yourMessages: messages.map((message) => ({
+            sentAt: message.recorded_at.toISOString(),
+            ...(message.body_text === null
               ? {
-                  sentAt: message.recorded_at.toISOString(),
                   shared: sharedWords(message.snippet_kind),
                   ...(message.note === null ? {} : { note: message.note }),
                 }
-              : { sentAt: message.recorded_at.toISOString(), text: message.body_text },
-          ),
+              : { text: message.body_text }),
+            ...(message.reply_to_sequence === null ? {} : { wasAReply: true }),
+          })),
+          reactionsGiven: Number(reactionsGiven.n),
+          reactionsTruncated: Number(reactionsGiven.n) > reactions.length,
+          yourReactions: reactions.map((reaction) => ({
+            reactedAt: reaction.reacted_at.toISOString(),
+            kind: reaction.kind,
+            on: reaction.author_account_id === person.accountId ? 'your own message' : 'a message from someone else',
+          })),
         },
         threads: {
           count: membershipsOf('thread'),

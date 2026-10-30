@@ -470,6 +470,15 @@ Related: #242.
   `createConversationThread` in client-core: first a snapshot, then catch-up reads from a cursor. A message the
   person sends shows as sending, sent, "not confirmed" or "not sent", and a retry reuses the same command ID. The
   draft is kept in the account scope's storage.
+- Talk in the New Universe look, with replies and reactions (v3 T-B, D-145 to D-149; *implemented, runtime-verified only on the fixture stack*): the
+  conversation and a thread's messages are dark (`TalkThemeProvider`, `sky` by default) with a glass header,
+  a capsule per day, bubbles in runs and the time under each run. `talk-message.tsx` is one message (the bubble,
+  its quote, its reaction pills, the swipe in `use-swipe-reply.ts`, the long-press menu, the keys R and E, the options
+  button on the web); `use-message-jump.ts` scrolls to a quote's original and lights it; `reactor-sheet.tsx` is "who
+  reacted". The message box (`composer.tsx`) holds the "Replying to" chip. A shared card has "Watch together", which
+  opens the same sheet as Start a thread and creates a thread for the same two people (D-149). The thread's messages
+  (`features/threads/thread-messages.tsx`) use the same message, and its menu adds What if... and Another perspective.
+  Not drawn yet: the Talk list in the new look, SEEN, the Paper setting (T-C), the party and places (T-D).
 - `features/sharing/`: `share-sheet-body.tsx` is what a sheet container renders for H01: it needs only the exact
   asset revision, the title and a close callback. It reads the account scope and the API origin itself, and wraps
   `share-sheet-content.tsx`, which switches between `share-menu.tsx` (Send to a conversation, Copy link, Share

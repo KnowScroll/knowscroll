@@ -340,16 +340,46 @@ describe('account deletion (real database)', () => {
       });
       if (started.kind !== 'ok') throw new Error('conversation not started');
       const talkContent = await seedContent(database.db);
-      expect(
-        (
-          await talk.talk.conversations.send(erased.authority, {
+      const ownMessage = unwrap(
+        await talk.talk.conversations.send(erased.authority, {
+          version: 'direct-conversation.v1',
+          commandId: randomUUID(),
+          conversation: started.value.conversation,
+          body: { kind: 'text', text: 'a message from the person who will delete their account' },
+        }),
+      );
+      // The friend answers it with a reply, each reacts to the other's message, and a reaction sits on the person's own.
+      const buddyStarted = unwrap(
+        await talk.talk.conversations.start(buddy.authority, {
+          version: 'direct-conversation.v1',
+          commandId: randomUUID(),
+          peerPersonId: erasedPerson.personId,
+          expectedPairRevision: await pairRevision(talk.friends, buddy, erasedAsFriend),
+        }),
+      );
+      const buddyMessage = unwrap(
+        await talk.talk.conversations.send(buddy.authority, {
+          version: 'direct-conversation.v1',
+          commandId: randomUUID(),
+          conversation: buddyStarted.conversation,
+          body: { kind: 'text', text: 'a reply from the friend' },
+          replyTo: ownMessage.messageId,
+        }),
+      );
+      for (const [reactor, conversation, messageId] of [
+        [erased, started.value.conversation, buddyMessage.messageId],
+        [buddy, buddyStarted.conversation, ownMessage.messageId],
+      ] as const)
+        unwrap(
+          await talk.talk.conversations.react(reactor.authority, {
             version: 'direct-conversation.v1',
             commandId: randomUUID(),
-            conversation: started.value.conversation,
-            body: { kind: 'text', text: 'a message from the person who will delete their account' },
-          })
-        ).kind,
-      ).toBe('ok');
+            conversation,
+            messageId,
+            kind: 'spark',
+            present: true,
+          }),
+        );
       // A content thread the person started, with the friend invited into it.
       const startedThread = await talk.threads.create(erased.authority, {
         version: 'content-thread.v1',

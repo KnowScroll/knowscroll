@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { DirectConversationSummary } from '@knowscroll/contracts';
-import { clockTime, dayKey, dayLabel, describeMessage, endsRun, inboxRowView, listTime } from './talk-format';
+import {
+  capsuleLabel,
+  clockTime,
+  dayKey,
+  dayLabel,
+  describeMessage,
+  endsRun,
+  inboxRowView,
+  listTime,
+} from './talk-format';
 
 const id = (n: number) => `0199a000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const peer = { kind: 'person' as const, personId: id(1), handle: 'ravi', displayName: 'Ravi' };
@@ -109,5 +118,15 @@ describe('runs of messages', () => {
   });
   it('show the clock time in the reader’s own time zone', () => {
     expect(clockTime(new Date(2026, 9, 24, 18, 40), 'en-GB')).toBe('18:40');
+  });
+});
+
+describe('the day capsule', () => {
+  const now = new Date(2026, 9, 26, 15, 0);
+  it('says Today and Yesterday, then the weekday, day and month, and the year once it is not this year', () => {
+    expect(capsuleLabel(new Date(2026, 9, 26, 0, 5), now, 'en-GB')).toBe('Today');
+    expect(capsuleLabel(new Date(2026, 9, 25, 23, 59), now, 'en-GB')).toBe('Yesterday');
+    expect(capsuleLabel(new Date(2026, 9, 18, 12, 0), now, 'en-GB')).toBe('Sun 18 Oct');
+    expect(capsuleLabel(new Date(2025, 11, 31, 12, 0), now, 'en-GB')).toBe('Wed 31 Dec 2025');
   });
 });

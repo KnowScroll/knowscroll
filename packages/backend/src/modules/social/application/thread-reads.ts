@@ -20,7 +20,8 @@ import { isParticipant } from '../domain/threads.js';
 import type { ContentRef, MessageRow } from './conversation-ports.js';
 import { DELETED_PERSON } from './deleted-person.js';
 import { refuse, threadEnvelope, type Result } from './ports.js';
-import { enterThread, threadRefOf } from './thread-gate.js';
+import { enterThread, threadRefOf, type EnteredThread } from './thread-gate.js';
+import type { ExtrasContext } from './message-extras.js';
 import type { ThreadLock, ThreadMember, ThreadPorts } from './thread-ports.js';
 import { participantsOf, threadEpisodes, viewThreadMessages } from './thread-view.js';
 
@@ -29,6 +30,12 @@ const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
 const own = (member: { readThroughSequence: number; muted: boolean }) => ({
   readThroughSequence: member.readThroughSequence,
   muted: member.muted,
+});
+
+/** Reactions and reply quotes are read for this thread, as its caller may see them. */
+const extrasContext = (entered: EnteredThread): ExtrasContext => ({
+  conversationId: entered.thread.threadId,
+  viewerAccountId: entered.owner.accountId,
 });
 
 /** The older-history continuation after a page that starts at `rows[0]`. */
@@ -134,7 +141,7 @@ export function makeThreadReads(p: ThreadPorts) {
             episodes: sequence.episodes,
             own: own(entered.own),
             latestMessageSequence: thread.lastSequence,
-            messages: await viewThreadMessages(p, entered.lock, rows),
+            messages: await viewThreadMessages(p, entered.lock, rows, extrasContext(entered)),
             limit: query.limit,
             history: olderThan(rows, thread.threadId),
             catchUpCursor: changesCursor.encode({
@@ -177,7 +184,7 @@ export function makeThreadReads(p: ThreadPorts) {
             thread: threadRefOf(entered),
             limit: query.limit,
             requestCursor: query.cursor,
-            messages: await viewThreadMessages(p, entered.lock, rows),
+            messages: await viewThreadMessages(p, entered.lock, rows, extrasContext(entered)),
             continuation: olderThan(rows, position.conversationId),
           }),
         );
@@ -211,7 +218,7 @@ export function makeThreadReads(p: ThreadPorts) {
           after: position.afterChangeSequence,
           limit: query.limit,
         });
-        const views = await viewThreadMessages(p, entered.lock, rows);
+        const views = await viewThreadMessages(p, entered.lock, rows, extrasContext(entered));
         const changes = rows.map((row, index) => ({ changeSequence: row.changeSequence, message: views[index]! }));
         const through = thread.lastChangeSequence;
         const last = changes.at(-1)?.changeSequence ?? position.afterChangeSequence;

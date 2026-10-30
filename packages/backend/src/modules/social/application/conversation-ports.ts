@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ConversationContentProjectionSchema, PublicPersonRef } from '@knowscroll/contracts';
+import type { ConversationContentProjectionSchema, MessageReactionKind, PublicPersonRef } from '@knowscroll/contracts';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { PairLock, SharedLock, SocialPorts } from './ports.js';
 
@@ -43,6 +43,8 @@ export interface MessageRow {
   readonly text: string | null;
   readonly content: ContentRef | null;
   readonly note: string | null;
+  /** The earlier message of this conversation this one answers; null for a plain message and for a tombstone. */
+  readonly replyToSequence: number | null;
 }
 
 /** The caller's own membership, found before any lock so the peer's account can be gated first. */
@@ -81,6 +83,25 @@ export interface NewMessage {
   readonly text?: string;
   readonly content?: ContentRef;
   readonly note?: string;
+  /** The sequence of the message this one answers, already checked to be in the same conversation. */
+  readonly replyToSequence?: number;
+}
+
+/** One person's reaction on one message, as the reader may see it (their blocks already left out). */
+export interface ReactionRow {
+  readonly sequence: number;
+  readonly kind: MessageReactionKind;
+  readonly accountId: string;
+  readonly person: PublicPersonRef;
+}
+
+/** The words a reply quotes: the original's author (null once removed) and its text or note. */
+export interface QuoteRow {
+  readonly sequence: number;
+  readonly messageId: string;
+  readonly author: PublicPersonRef | null;
+  readonly text: string | null;
+  readonly note: string | null;
 }
 
 export interface InboxChange {
@@ -124,6 +145,54 @@ export interface ConversationStore {
     conversationId: string,
     query: { readonly before?: number; readonly after?: number; readonly limit: number },
   ): Promise<readonly MessageRow[]>;
+  /** The message with this ID in this conversation (never another's), and whether it is a tombstone. */
+  messageRef(
+    reader: ConversationReader,
+    conversationId: string,
+    messageId: string,
+  ): Promise<{ readonly sequence: number; readonly removed: boolean } | undefined>;
+  /** Whether the person holds this reaction on this message now. */
+  hasReaction(
+    reader: ConversationReader,
+    reaction: {
+      readonly conversationId: string;
+      readonly sequence: number;
+      readonly accountId: string;
+      readonly kind: MessageReactionKind;
+    },
+  ): Promise<boolean>;
+  /**
+   * Puts the reaction on or takes it off, and gives the message the conversation's next change number so
+   * catch-up carries it. The caller has already seen that the state differs. Does not move the
+   * conversation's activity time or its message sequence.
+   */
+  setReaction(
+    lock: SharedLock,
+    reaction: {
+      readonly conversationId: string;
+      readonly sequence: number;
+      readonly accountId: string;
+      readonly kind: MessageReactionKind;
+      readonly present: boolean;
+      readonly now: Date;
+    },
+  ): Promise<void>;
+  /**
+   * The reactions on these messages, without people `viewerAccountId` has blocked, ordered by the reactor's
+   * display name and then person ID. Never by when they reacted: no order of reacting is carried (D-147).
+   */
+  reactionsOf(
+    reader: ConversationReader,
+    conversationId: string,
+    sequences: readonly number[],
+    viewerAccountId: string,
+  ): Promise<readonly ReactionRow[]>;
+  /** The originals that these message sequences are replies to. */
+  quotesOf(
+    reader: ConversationReader,
+    conversationId: string,
+    sequences: readonly number[],
+  ): Promise<readonly QuoteRow[]>;
   messageOfCommand(
     reader: ConversationReader,
     conversationId: string,

@@ -8,19 +8,28 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import {
+  capsuleLabel,
   clockTime,
   dayKey,
-  dayLabel,
   endsRun,
   type ContentThreadController,
   type ContentThreadState,
+  type OutgoingMessage,
   type OutgoingThreadMessage,
   type RunStep,
 } from '@knowscroll/client-core';
-import type { ScenarioCard, ScenarioKind, ThreadEpisode, ThreadMessage } from '@knowscroll/contracts';
-import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
-import { Button, IconButton, Text } from '@knowscroll/ui';
-import { AwayDivider, firstAwayMessage } from '../conversations/message-views';
+import type {
+  MessageReactionKind,
+  ScenarioCard,
+  ScenarioKind,
+  ThreadEpisode,
+  ThreadMessage,
+} from '@knowscroll/contracts';
+import { layout, spacing } from '@knowscroll/design-tokens';
+import { Button, DateCapsule, MenuRow, TalkBubble, Text, useDisplay, useTalkTheme } from '@knowscroll/ui';
+import { AwayDivider, firstAwayMessage, OutgoingBubble, RemovedMessage } from '../conversations/message-views';
+import { TalkMessage, type AvailableTalkMessage, type TalkMessageBody } from '../conversations/talk-message';
+import { useMessageJump } from '../conversations/use-message-jump';
 import { BranchCard } from '../scenarios/branch-card';
 import type { AvailableMessage } from '../scenarios/message-step';
 import { SnippetCard } from './snippet-card';
@@ -63,7 +72,7 @@ const timeOf = (entry: Entry): Date | undefined =>
       ? new Date(entry.message.recordedAt)
       : undefined;
 
-/** Entries grouped under a day label; one with no time (a tombstone) stays in the day before it. */
+/** Entries grouped under a day capsule; one with no time (a tombstone) stays in the day before it. */
 function dividedByDay(entries: readonly Entry[]): Group[] {
   const groups: { key: string; at: Date; items: Entry[] }[] = [];
   for (const entry of entries) {
@@ -91,9 +100,10 @@ function runEndTime(entry: Entry, next: Entry | undefined): Date | undefined {
 
 /** The time under the last message of a run, on the side the bubbles of that run sit. */
 function RunTime({ at, mine }: { readonly at: Date | undefined; readonly mine: boolean }) {
+  const theme = useTalkTheme();
   if (at === undefined) return null;
   return (
-    <Text variant="monoXs" color={content.ink2} align={mine ? 'right' : 'left'} testID="message-time">
+    <Text variant="monoXs" color={theme.textQuiet} align={mine ? 'right' : 'left'} testID="message-time">
       {clockTime(at)}
     </Text>
   );
@@ -108,71 +118,46 @@ function startedLine(card: ScenarioCard, messages: readonly ThreadMessage[]): st
   return message?.status === 'available' ? `from ${message.author.displayName}’s message` : 'from a message';
 }
 
-function Bubble({
-  message,
-  mine,
-  partOf,
-  onOpenSnippet,
-  onWhatIf,
-}: {
-  readonly message: ThreadMessage;
-  readonly mine: boolean;
-  readonly partOf: (assetId: string) => string | undefined;
-  readonly onOpenSnippet: (messageId: string) => void;
-  /** Starts a What if… from this snippet (X01: the button on a snippet card). */
-  readonly onWhatIf: (message: AvailableMessage) => void;
-}) {
-  if (message.status === 'unavailable')
-    return (
-      <View style={[styles.bubble, styles.removed, mine ? styles.mine : styles.theirs]}>
-        <Text variant="meta" color={content.ink2}>
-          Message removed
-        </Text>
-      </View>
-    );
-  const align = mine ? styles.mine : styles.theirs;
-  if (message.body.kind === 'snippet') {
-    const { snippet, note } = message.body;
-    const target = snippet.content.target;
-    return (
-      <View style={[styles.snippet, align]}>
+const entryKey = (entry: Entry | undefined): string =>
+  entry === undefined ? '' : entry.kind === 'branch' ? entry.card.nodeId : String(entry.message.sequence);
+
+/** What a message says: its words, or the snippet it shares (with the note above it and What if… below). */
+function bodyOf(
+  message: AvailableMessage,
+  mine: boolean,
+  partOf: (assetId: string) => string | undefined,
+  onOpenSnippet: (messageId: string) => void,
+  onWhatIf: (message: AvailableMessage) => void,
+  theme: ReturnType<typeof useTalkTheme>,
+): TalkMessageBody {
+  if (message.body.kind === 'text') return { kind: 'text', text: message.body.text };
+  const { snippet, note } = message.body;
+  return {
+    kind: 'card',
+    node: (
+      <View style={styles.snippet}>
         {note === undefined ? null : (
-          <View style={[styles.bubble, mine ? styles.mineBubble : styles.theirBubble]}>
-            <Text variant="bodyS" color={mine ? content.onAccent : content.ink} selectable>
+          <TalkBubble mine={mine} tail={false}>
+            <Text variant="bubble" color={mine ? theme.bubbleOwn.text : theme.bubbleOther.text} selectable>
               {note}
             </Text>
-          </View>
+          </TalkBubble>
         )}
         <SnippetCard
           snippet={snippet}
-          partLabel={partOf(target.assetId)}
+          partLabel={partOf(snippet.content.target.assetId)}
           onOpen={() => onOpenSnippet(message.messageId)}
         />
         {snippet.content.status === 'unavailable' ? null : (
-          <Button label="What if…" size="sm" variant="ghost" icon="hypothetical" onPress={() => onWhatIf(message)} />
+          <Button label="What if…" size="sm" variant="space" icon="hypothetical" onPress={() => onWhatIf(message)} />
         )}
       </View>
-    );
-  }
-  return (
-    <View style={[styles.bubble, mine ? styles.mineBubble : styles.theirBubble, align]}>
-      <Text variant="bodyS" color={mine ? content.onAccent : content.ink} selectable>
-        {message.body.text}
-      </Text>
-    </View>
-  );
+    ),
+  };
 }
 
-function OutgoingBubble({
-  entry,
-  onRetry,
-  onDismiss,
-}: {
-  readonly entry: OutgoingThreadMessage;
-  readonly onRetry: () => void;
-  readonly onDismiss: () => void;
-}) {
-  const failed = entry.status === 'unconfirmed' || entry.status === 'not_sent';
+/** A sending bubble: its words, or what a shared moment is called while it goes. */
+function outgoingAsMessage(entry: OutgoingThreadMessage): OutgoingMessage {
   const words =
     entry.body.kind === 'text'
       ? entry.body.text
@@ -181,52 +166,12 @@ function OutgoingBubble({
         : entry.body.anchor.kind === 'scroll_passage'
           ? 'Sharing a passage…'
           : 'Sharing a part of a Scroll…';
-  return (
-    <View style={styles.mine} testID="outgoing-message">
-      <View style={[styles.bubble, failed ? styles.failedBubble : styles.mineBubble]}>
-        <Text variant="bodyS" color={failed ? content.ink : content.onAccent} selectable>
-          {words}
-        </Text>
-      </View>
-      {failed ? (
-        <View style={styles.failure} accessibilityLiveRegion="polite">
-          <Text variant="metaS" color={status.danger.foreground}>
-            {entry.status === 'unconfirmed' ? 'Not confirmed' : 'Not sent'}
-          </Text>
-          <Button label="Retry" size="sm" icon="retry" onPress={onRetry} />
-          {entry.status === 'not_sent' ? (
-            <Button label="Dismiss" size="sm" variant="ghost" onPress={onDismiss} />
-          ) : null}
-        </View>
-      ) : (
-        <Text variant="monoXs" color={content.ink2}>
-          {entry.status === 'sending' ? 'Sending…' : 'Sent'}
-        </Text>
-      )}
-    </View>
-  );
-}
-
-const entryKey = (entry: Entry | undefined): string =>
-  entry === undefined ? '' : entry.kind === 'branch' ? entry.card.nodeId : String(entry.message.sequence);
-
-/** The visible ⋯ of a message (X01: a message's menu, as well as long-press): What if… and Another perspective start here. */
-function MessageMenuButton({
-  message,
-  onOpen,
-}: {
-  readonly message: AvailableMessage;
-  readonly onOpen: (message: AvailableMessage) => void;
-}) {
-  return (
-    <IconButton
-      icon="more"
-      label={`Options for ${message.author.displayName}’s message`}
-      variant="plain"
-      size={44}
-      onPress={() => onOpen(message)}
-    />
-  );
+  return {
+    commandId: entry.commandId,
+    status: entry.status,
+    body: { kind: 'text', text: words },
+    ...(entry.replyTo === undefined ? {} : { replyTo: entry.replyTo }),
+  };
 }
 
 export interface ThreadMessagesProps {
@@ -246,13 +191,20 @@ export interface ThreadMessagesProps {
   readonly onRemoveBranch: (card: ScenarioCard) => void;
   /** Asks What if… from a branch that is ready: the new one continues it. */
   readonly onContinueBranch: (card: ScenarioCard) => void;
-  /** The message menu: What if… and Another perspective from this message. */
-  readonly onMessageMenu: (message: AvailableMessage) => void;
-  /** Starts a request from a message or a snippet card directly. */
+  /** Starts a request from a message or a snippet card (What if…, Another perspective). */
   readonly onAsk: (message: AvailableMessage, kind: ScenarioKind) => void;
+  /** Starts a reply to a message (the chip waits in the message box). */
+  readonly onReply: (message: AvailableTalkMessage) => void;
+  /** Reports another person's message. */
+  readonly onReport: (message: AvailableTalkMessage) => void;
 }
 
-/** The thread's messages by day with the author named above each other person's bubble, then what is still being sent. */
+/**
+ * The thread's messages by day, in the Talk look: a capsule for every day, the author named above each
+ * other person's run, bubbles with the time under the last of each, and what is still being sent. A
+ * message has the whole menu (reply, react, copy, report, and What if… and Another perspective) and a
+ * reply's quote jumps to its original.
+ */
 export function ThreadMessages({
   state,
   controller,
@@ -266,9 +218,13 @@ export function ThreadMessages({
   onOpenBranch,
   onRemoveBranch,
   onContinueBranch,
-  onMessageMenu,
   onAsk,
+  onReply,
+  onReport,
 }: ThreadMessagesProps) {
+  const theme = useTalkTheme();
+  const { reducedMotion } = useDisplay();
+  const jumper = useMessageJump(scrollRef, reducedMotion);
   const now = new Date();
   const series = state.sequence === 'series';
   const partOf = (assetId: string) => {
@@ -277,10 +233,14 @@ export function ThreadMessages({
   };
   const mineOf = (message: ThreadMessage) => message.status === 'available' && message.author.personId === ownPersonId;
   const awayFrom = firstAwayMessage(state.messages, state.awayAfterSequence);
+  const jump = (sequence: number) =>
+    void jumper.jump(sequence, { hasOlder: () => controller.getState().hasOlder, loadOlder: controller.loadOlder });
+  const react = (message: AvailableTalkMessage, kind: MessageReactionKind, present: boolean) =>
+    void controller.react(message.messageId, kind, present);
   return (
     <ScrollView
       ref={scrollRef}
-      style={styles.list}
+      style={[styles.list, { backgroundColor: theme.ground }]}
       contentContainerStyle={styles.listContent}
       onScroll={onScroll}
       scrollEventThrottle={100}
@@ -290,78 +250,140 @@ export function ThreadMessages({
         <Button
           label="Earlier messages"
           size="sm"
-          variant="ghost"
+          variant="space"
           busy={state.loadingOlder}
           busyLabel="Loading"
           onPress={() => void controller.loadOlder()}
         />
       ) : null}
       {state.messages.length === 0 && state.outgoing.length === 0 ? (
-        <Text variant="meta" color={content.ink2} align="center">
+        <Text variant="meta" color={theme.textQuiet} align="center">
           Nothing said yet. Say why you’re sharing it, or let it speak.
         </Text>
       ) : null}
-      <View role="list" accessibilityLabel="Messages in this thread" style={styles.messages}>
+      <View style={styles.messages}>
         {dividedByDay(timeline(state.messages, branches)).map((group) => (
           <View key={group.key + entryKey(group.items[0])} style={styles.messages}>
-            <Text variant="metaS" color={content.ink2} align="center">
-              {dayLabel(group.at, now)}
-            </Text>
-            {group.items.map((entry, index) =>
-              entry.kind === 'branch' ? (
-                <View key={entry.card.nodeId} role="listitem" style={styles.branch}>
-                  <BranchCard
-                    card={entry.card}
-                    starterIsYou={entry.card.startedBy?.personId === ownPersonId}
-                    openedByYou={openedBranches.includes(entry.card.nodeId)}
-                    startedLine={startedLine(entry.card, state.messages)}
-                    onOpen={onOpenBranch}
-                    onRemove={onRemoveBranch}
-                    onContinue={onContinueBranch}
-                  />
-                </View>
-              ) : (
-                <View key={entry.message.sequence} role="listitem" style={styles.item}>
-                  {entry.message.sequence === awayFrom ? <AwayDivider /> : null}
-                  {entry.message.status === 'available' && !mineOf(entry.message) ? (
-                    <Text variant="metaS" color={content.ink2}>
-                      {entry.message.author.displayName}
-                    </Text>
-                  ) : null}
-                  <View style={[styles.line, mineOf(entry.message) ? styles.mine : styles.theirs]}>
-                    <Bubble
-                      message={entry.message}
-                      mine={mineOf(entry.message)}
-                      partOf={partOf}
-                      onOpenSnippet={onOpenSnippet}
-                      onWhatIf={(message) => onAsk(message, 'what_if')}
+            <DateCapsule label={capsuleLabel(group.at, now)} />
+            <View
+              role="list"
+              accessibilityLabel={`Messages in this thread, ${capsuleLabel(group.at, now)}`}
+              style={styles.messages}
+            >
+              {group.items.map((entry, index) =>
+                entry.kind === 'branch' ? (
+                  <View key={entry.card.nodeId} role="listitem" style={styles.branch}>
+                    <BranchCard
+                      card={entry.card}
+                      starterIsYou={entry.card.startedBy?.personId === ownPersonId}
+                      openedByYou={openedBranches.includes(entry.card.nodeId)}
+                      startedLine={startedLine(entry.card, state.messages)}
+                      onOpen={onOpenBranch}
+                      onRemove={onRemoveBranch}
+                      onContinue={onContinueBranch}
                     />
-                    {entry.message.status === 'available' ? (
-                      <MessageMenuButton message={entry.message} onOpen={onMessageMenu} />
-                    ) : null}
                   </View>
-                  <RunTime at={runEndTime(entry, group.items[index + 1])} mine={mineOf(entry.message)} />
-                </View>
-              ),
-            )}
+                ) : (
+                  <View
+                    key={entry.message.sequence}
+                    ref={jumper.register(entry.message.sequence)}
+                    collapsable={false}
+                    role="listitem"
+                    style={styles.item}
+                  >
+                    {entry.message.sequence === awayFrom ? <AwayDivider /> : null}
+                    {entry.message.status === 'unavailable' ? (
+                      <RemovedMessage mine={mineOf(entry.message)} />
+                    ) : (
+                      <>
+                        {mineOf(entry.message) ? null : (
+                          <Text variant="metaS" color={theme.textQuiet}>
+                            {entry.message.author.displayName}
+                          </Text>
+                        )}
+                        <TalkMessage
+                          message={entry.message}
+                          all={state.messages}
+                          mine={mineOf(entry.message)}
+                          tail={runEndTime(entry, group.items[index + 1]) !== undefined}
+                          ownPersonId={ownPersonId}
+                          flash={jumper.lit === entry.message.sequence ? jumper.flash : undefined}
+                          open
+                          body={bodyOf(
+                            entry.message,
+                            mineOf(entry.message),
+                            partOf,
+                            onOpenSnippet,
+                            (message) => onAsk(message, 'what_if'),
+                            theme,
+                          )}
+                          onReply={onReply}
+                          onReact={react}
+                          onReport={mineOf(entry.message) ? undefined : onReport}
+                          onJump={jump}
+                          extraRows={(close) =>
+                            entry.message.status === 'available' ? (
+                              <AskRows
+                                message={entry.message}
+                                onAsk={(message, kind) => {
+                                  close();
+                                  onAsk(message, kind);
+                                }}
+                              />
+                            ) : null
+                          }
+                        />
+                      </>
+                    )}
+                    <RunTime at={runEndTime(entry, group.items[index + 1])} mine={mineOf(entry.message)} />
+                  </View>
+                ),
+              )}
+            </View>
           </View>
         ))}
-        {state.outgoing.map((entry) => (
-          <View key={entry.commandId} role="listitem">
-            <OutgoingBubble
-              entry={entry}
-              onRetry={() => void controller.retry(entry.commandId)}
-              onDismiss={() => controller.dismiss(entry.commandId)}
-            />
+        {state.outgoing.length === 0 ? null : (
+          <View role="list" accessibilityLabel="Messages being sent" style={styles.messages}>
+            {state.outgoing.map((entry) => (
+              <View key={entry.commandId} role="listitem">
+                <OutgoingBubble
+                  entry={outgoingAsMessage(entry)}
+                  onRetry={() => void controller.retry(entry.commandId)}
+                  onDismiss={() => controller.dismiss(entry.commandId)}
+                  onSendWithoutQuote={() => void controller.sendWithoutQuote(entry.commandId)}
+                />
+              </View>
+            ))}
           </View>
-        ))}
+        )}
       </View>
     </ScrollView>
   );
 }
 
+/** What if… and Another perspective, from one message's menu (X01). */
+function AskRows({
+  message,
+  onAsk,
+}: {
+  readonly message: AvailableMessage;
+  readonly onAsk: (message: AvailableMessage, kind: ScenarioKind) => void;
+}) {
+  return (
+    <>
+      <MenuRow icon="hypothetical" label="What if…" onPress={() => onAsk(message, 'what_if')} testID="menu-what-if" />
+      <MenuRow
+        icon="arrowRight"
+        label="Another perspective"
+        onPress={() => onAsk(message, 'perspective')}
+        testID="menu-perspective"
+      />
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
-  list: { flex: 1, backgroundColor: content.paper2 },
+  list: { flex: 1 },
   listContent: {
     padding: layout.gutter,
     gap: spacing[3],
@@ -374,20 +396,5 @@ const styles = StyleSheet.create({
   messages: { gap: spacing[3] },
   item: { gap: spacing[1] },
   branch: { alignItems: 'center' },
-  line: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], maxWidth: '100%' },
-  bubble: { maxWidth: '82%', borderRadius: radius.panel, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   snippet: { gap: spacing[2], maxWidth: '100%' },
-  mine: { alignSelf: 'flex-end', alignItems: 'flex-end', gap: spacing[1] },
-  theirs: { alignSelf: 'flex-start' },
-  mineBubble: { backgroundColor: content.accent },
-  theirBubble: { backgroundColor: content.paper, borderWidth: borderWidth.regular, borderColor: content.ink },
-  failedBubble: { backgroundColor: content.paper, borderWidth: borderWidth.regular, borderColor: status.danger.edge },
-  removed: { backgroundColor: content.paper2, borderWidth: borderWidth.light, borderColor: content.muted },
-  failure: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-  },
 });

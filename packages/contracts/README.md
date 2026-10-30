@@ -955,6 +955,14 @@ nothing. Group/thread invitations, content threads, snippets/anchors/block setti
 rooms, typing, AI participants and Social sockets are separate phases. Never display authored
 contacts, messages or availability as real activity. Missing features stay explicitly unavailable.
 
+Replies and reactions (v3 T-B, D-146 to D-148): `send` takes an optional `replyTo` (a message ID of the same
+conversation or thread; any other ID is refused as unavailable), and `react` (`/v1/social/conversations/react`,
+`/v1/social/threads/react`) puts one of the five `MESSAGE_REACTION_KINDS` on a message or takes it off: `present` is
+the wanted state, so a repeat is accepted with `changed: false`. An available message may carry `replyTo` (the
+original's author and first words, or `unavailable`) and `reactions` (each kind once: whether the reader is one and the
+people, never a time; people the reader blocked are left out). A reaction advances the message's change number, so
+`changes` sends it again. The thread contract reuses the same shapes.
+
 A future backend must enter the current personal root/account/epoch gates, then reuse the
 existing private pair aggregate as its **sole** shared locking authority for direct conversation
 work. The conversation has a separate opaque public ID; no private pair root or revision travels.

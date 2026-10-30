@@ -1,5 +1,5 @@
 import { sql, type Transaction } from 'kysely';
-import { PublicPersonRefSchema } from '@knowscroll/contracts';
+import { PublicPersonRefSchema, type MessageReactionKind } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { sharedTransactionOf, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
@@ -15,6 +15,8 @@ import type {
   InboxRow,
   MemberRow,
   MessageRow,
+  QuoteRow,
+  ReactionRow,
 } from '../application/conversation-ports.js';
 import type { PairLock } from '../application/ports.js';
 
@@ -67,10 +69,19 @@ export interface MessageColumns {
   asset_id: string | null;
   asset_revision: number | null;
   note: string | null;
+  reply_to_sequence: string | null;
   person_id: string | null;
   handle: string | null;
   display_name: string | null;
 }
+
+const personOf = (row: { person_id: string; handle: string; display_name: string }) =>
+  PublicPersonRefSchema.parse({
+    kind: 'person',
+    personId: row.person_id,
+    handle: row.handle,
+    displayName: row.display_name,
+  });
 
 export const messageOf = (row: MessageColumns): MessageRow => ({
   sequence: Number(row.sequence),
@@ -90,6 +101,7 @@ export const messageOf = (row: MessageColumns): MessageRow => ({
   text: row.body_text,
   content: row.asset_id === null ? null : { assetId: row.asset_id, assetRevision: row.asset_revision! },
   note: row.note,
+  replyToSequence: row.reply_to_sequence === null ? null : Number(row.reply_to_sequence),
 });
 
 export const MESSAGE_COLUMNS = [
@@ -102,6 +114,7 @@ export const MESSAGE_COLUMNS = [
   'm.asset_id',
   'm.asset_revision',
   'm.note',
+  'm.reply_to_sequence',
   'p.person_id',
   'p.handle',
   'p.display_name',
@@ -194,9 +207,105 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
           asset_id: message.content?.assetId ?? null,
           asset_revision: message.content?.assetRevision ?? null,
           note: message.note ?? null,
+          reply_to_sequence: message.replyToSequence ?? null,
         })
         .execute();
       return { sequence, changeSequence };
+    },
+
+    async messageRef(reader, conversationId, messageId) {
+      const row = await trxOf(reader)
+        .selectFrom('social.messages')
+        .select(['sequence', 'author_account_id'])
+        .where('conversation_id', '=', conversationId)
+        .where('message_id', '=', messageId)
+        .executeTakeFirst();
+      return row && { sequence: Number(row.sequence), removed: row.author_account_id === null };
+    },
+
+    async hasReaction(reader, reaction) {
+      const row = await trxOf(reader)
+        .selectFrom('social.message_reactions')
+        .select('kind')
+        .where('conversation_id', '=', reaction.conversationId)
+        .where('message_sequence', '=', String(reaction.sequence))
+        .where('account_id', '=', reaction.accountId)
+        .where('kind', '=', reaction.kind)
+        .executeTakeFirst();
+      return row !== undefined;
+    },
+
+    async setReaction(lock, reaction) {
+      const trx = trxOf(lock);
+      const where = { conversation_id: reaction.conversationId, message_sequence: String(reaction.sequence) };
+      if (reaction.present)
+        await trx
+          .insertInto('social.message_reactions')
+          .values({ ...where, account_id: reaction.accountId, kind: reaction.kind, reacted_at: reaction.now })
+          .onConflict((conflict) => conflict.doNothing())
+          .execute();
+      else
+        await trx
+          .deleteFrom('social.message_reactions')
+          .where('conversation_id', '=', where.conversation_id)
+          .where('message_sequence', '=', where.message_sequence)
+          .where('account_id', '=', reaction.accountId)
+          .where('kind', '=', reaction.kind)
+          .execute();
+      await bumpMessageChange(trx, reaction.conversationId, reaction.sequence);
+    },
+
+    async reactionsOf(reader, conversationId, sequences, viewerAccountId) {
+      if (sequences.length === 0) return [];
+      // Ordered by a neutral key, never by when each person reacted: the wire carries no order of reacting (D-147).
+      // Someone the reader blocked leaves no trace in what the reader sees (D-051's mask, as for words).
+      const rows = await sql<{
+        message_sequence: string;
+        kind: MessageReactionKind;
+        account_id: string;
+        person_id: string;
+        handle: string;
+        display_name: string;
+      }>`
+        select reaction.message_sequence, reaction.kind, reaction.account_id, profile.person_id, profile.handle, profile.display_name
+        from social.message_reactions reaction
+        join social.profiles profile on profile.account_id = reaction.account_id
+        where reaction.conversation_id = ${conversationId}::uuid
+          and reaction.message_sequence = any(${[...sequences]}::bigint[])
+          and not exists (
+            select 1 from social.pairs pair
+            join social.pair_sides side on side.pair_id = pair.pair_id and side.account_id = ${viewerAccountId}::uuid
+            where side.own_blocked
+              and ((pair.low_account_id = ${viewerAccountId}::uuid and pair.high_account_id = reaction.account_id)
+                or (pair.high_account_id = ${viewerAccountId}::uuid and pair.low_account_id = reaction.account_id)))
+        order by profile.display_name collate "C", profile.person_id`.execute(trxOf(reader));
+      return rows.rows.map((row): ReactionRow => ({
+        sequence: Number(row.message_sequence),
+        kind: row.kind,
+        accountId: row.account_id,
+        person: personOf(row),
+      }));
+    },
+
+    async quotesOf(reader, conversationId, sequences) {
+      if (sequences.length === 0) return [];
+      const rows = await trxOf(reader)
+        .selectFrom('social.messages as m')
+        .leftJoin('social.profiles as p', 'p.account_id', 'm.author_account_id')
+        .select(['m.sequence', 'm.message_id', 'm.body_text', 'm.note', 'p.person_id', 'p.handle', 'p.display_name'])
+        .where('m.conversation_id', '=', conversationId)
+        .where('m.sequence', 'in', sequences.map(String))
+        .execute();
+      return rows.map((row): QuoteRow => ({
+        sequence: Number(row.sequence),
+        messageId: row.message_id,
+        author:
+          row.person_id === null || row.handle === null || row.display_name === null
+            ? null
+            : personOf({ person_id: row.person_id, handle: row.handle, display_name: row.display_name }),
+        text: row.body_text,
+        note: row.note,
+      }));
     },
 
     async messages(reader, conversationId, query) {
@@ -320,6 +429,22 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       peer: peer === undefined ? undefined : memberOf(peer),
     };
   }
+}
+
+/** Gives one message the conversation's next change number, so the changes feed carries it again. */
+async function bumpMessageChange(trx: Transaction<Database>, conversationId: string, sequence: number): Promise<void> {
+  const counters = await trx
+    .updateTable('social.conversations')
+    .set({ last_change_sequence: sql`last_change_sequence + 1` })
+    .where('conversation_id', '=', conversationId)
+    .returning('last_change_sequence')
+    .executeTakeFirstOrThrow();
+  await trx
+    .updateTable('social.messages')
+    .set({ change_sequence: counters.last_change_sequence })
+    .where('conversation_id', '=', conversationId)
+    .where('sequence', '=', String(sequence))
+    .execute();
 }
 
 type InboxQuery = Parameters<ConversationStore['inbox']>[2];
