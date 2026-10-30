@@ -60,6 +60,16 @@ function cardTitle(card: ContentCard): string {
   return titleFrom(metadata?.title ?? '', 'Shared');
 }
 
+/** What a new discussion begins with: its title, an optional tag and root, the message it began from and where its card goes. */
+interface StartingPoint {
+  readonly title: string;
+  readonly tag?: TopicTag | undefined;
+  readonly root?: ContentRef;
+  readonly originMessageId?: string;
+  /** The discussion a topic card is left in: set only for a topic that began from a message with words. */
+  readonly cardIn?: string;
+}
+
 /**
  * The commands of discussions: start one, send a message, and the moderator's pin and hide. Each
  * runs in the caller's personal scope and the room's lock (FOR SHARE: who is in does not change
@@ -95,6 +105,48 @@ export function makeDiscussionCommands(p: RoomPorts) {
     return ok(checked.anchor);
   }
 
+  /**
+   * What a new discussion begins with, from how it was asked for: words (a topic), a Reel or Scroll (a content
+   * thread) or a message of this room. A card for content starts a content thread about it; a message with words
+   * starts a topic that begins with it and leaves a card where it was (D-167); anything else is unavailable.
+   */
+  async function resolveStart(
+    scope: PersonalScopeTx,
+    lock: RoomLock,
+    accountId: string,
+    start: z.infer<typeof CreateDiscussionSchema>['start'],
+  ): Promise<Result<StartingPoint>> {
+    if (start.kind === 'topic') return ok({ title: start.title, tag: start.tag });
+    if (start.kind === 'content') {
+      const card = await availableCard(scope, start.root);
+      return card === undefined
+        ? refuse('unavailable')
+        : ok({ root: start.root, title: start.title ?? cardTitle(card) });
+    }
+    const origin = await p.discussions.messageInRoom(lock, start.messageId);
+    if (origin === undefined || origin.discussionId !== start.discussionId) return refuse('unavailable');
+    const { message } = origin;
+    if (message.hidden) return refuse('unavailable');
+    if (message.content !== null) {
+      const card = await availableCard(scope, message.content);
+      if (card === undefined) return refuse('unavailable');
+      return ok({ root: message.content, originMessageId: message.messageId, title: start.title ?? cardTitle(card) });
+    }
+    if (message.text === null) return refuse('unavailable');
+    // Only someone who has not blocked the author can read the words to start a topic from them.
+    if (
+      message.authorAccountId !== null &&
+      (await p.blocked(scope, accountId, [message.authorAccountId])).has(message.authorAccountId)
+    )
+      return refuse('unavailable');
+    return ok({
+      originMessageId: message.messageId,
+      title: start.title ?? titleFrom(message.text, 'Topic'),
+      tag: start.tag,
+      cardIn: start.discussionId,
+    });
+  }
+
   /** The discussion of this room, or the refusal; for the commands that act inside one. */
   async function discussionOf(lock: RoomLock, discussionId: string): Promise<Result<DiscussionRow>> {
     const discussion = await p.discussions.load(lock, discussionId);
@@ -124,44 +176,9 @@ export function makeDiscussionCommands(p: RoomPorts) {
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
-          const start = command.start;
-          let root: ContentRef | undefined;
-          let title: string;
-          let tag: TopicTag | undefined;
-          let originMessageId: string | undefined;
-          // The discussion a topic card is left in: set only for a topic that began from a message with words.
-          let cardIn: string | undefined;
-          if (start.kind === 'topic') {
-            title = start.title;
-            tag = start.tag;
-          } else if (start.kind === 'content') {
-            const card = await availableCard(scope, start.root);
-            if (card === undefined) return refuse('unavailable');
-            root = start.root;
-            title = start.title ?? cardTitle(card);
-          } else {
-            const origin = await p.discussions.messageInRoom(lock, start.messageId);
-            if (origin === undefined || origin.discussionId !== start.discussionId) return refuse('unavailable');
-            const { message } = origin;
-            if (message.hidden) return refuse('unavailable');
-            if (message.content !== null) {
-              const card = await availableCard(scope, message.content);
-              if (card === undefined) return refuse('unavailable');
-              root = message.content;
-              title = start.title ?? cardTitle(card);
-            } else if (message.text !== null) {
-              // A topic that begins with this message: only someone who has not blocked its author can read it to start from it.
-              if (
-                message.authorAccountId !== null &&
-                (await p.blocked(scope, owner.accountId, [message.authorAccountId])).has(message.authorAccountId)
-              )
-                return refuse('unavailable');
-              title = start.title ?? titleFrom(message.text, 'Topic');
-              tag = start.tag;
-              cardIn = start.discussionId;
-            } else return refuse('unavailable');
-            originMessageId = message.messageId;
-          }
+          const found = await resolveStart(scope, lock, owner.accountId, command.start);
+          if (found.kind === 'refused') return found;
+          const { title, tag, root, originMessageId, cardIn } = found.value;
           return ok(async () => {
             const discussionId = p.newId();
             await p.discussions.create(lock, {

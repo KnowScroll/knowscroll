@@ -99,11 +99,18 @@ export function useRoom(scope: AccountScope, roomId: string): { controller: Room
 export function useRoomTopics(
   scope: AccountScope,
   roomId: string,
-  query: { readonly sort: RoomTopicSort; readonly tag: RoomTopicTag | undefined; readonly refreshKey: unknown },
+  query: {
+    readonly sort: RoomTopicSort;
+    readonly tag: RoomTopicTag | undefined;
+    readonly refreshKey: unknown;
+    /** Off where the list is not shown (the pinned page), so nothing is read for it. */
+    readonly enabled: boolean;
+  },
 ): readonly RoomTopicItem[] | undefined {
   const [topics, setTopics] = useState<readonly RoomTopicItem[]>();
-  const { sort, tag, refreshKey } = query;
+  const { sort, tag, refreshKey, enabled } = query;
   useEffect(() => {
+    if (!enabled) return undefined;
     let current = true;
     readRoomTopics(scope, newCommandId, roomId, { sort, ...(tag === undefined ? {} : { tag }) }).then(
       (items) => {
@@ -116,8 +123,8 @@ export function useRoomTopics(
     return () => {
       current = false;
     };
-  }, [scope, roomId, sort, tag, refreshKey]);
-  return topics;
+  }, [scope, roomId, sort, tag, refreshKey, enabled]);
+  return enabled ? topics : undefined;
 }
 
 /**

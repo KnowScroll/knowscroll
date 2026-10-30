@@ -163,7 +163,7 @@ describe('a resident’s answer to an ask, and the cards a topic leaves', () => 
       recordedAt: at,
       body: { kind: 'topic', topic: { discussionId: id(400), title: 'A topic' } },
     };
-    await show([card, { ...text(5, asha, 'useful words'), usefulByYou: true }]);
+    await show([card, { ...text(5, asha, 'useful words'), usefulByYou: true as const } as RoomMessage]);
     expect(screen.getByTestId(`topic-card-${id(400)}`)).not.toHaveTextContent('replies');
     expect(screen.getByText('You marked this useful')).toBeOnTheScreen();
   });

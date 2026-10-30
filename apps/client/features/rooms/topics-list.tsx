@@ -191,8 +191,13 @@ export function TopicsList({
   const [sort, setSort] = useState<RoomTopicSort>('hot');
   const [tag, setTag] = useState<RoomTopicTag>();
   // The forum list (sorted, filtered, with figures) is read apart from the room; until it arrives the room's own list stands.
-  const forum = useRoomTopics(scope, view.room.roomId, { sort, tag, refreshKey: view.discussions });
   const pinned = pinnedOnly === true;
+  const forum = useRoomTopics(scope, view.room.roomId, {
+    sort,
+    tag,
+    refreshKey: view.discussions,
+    enabled: !pinned,
+  });
   const items: readonly (RoomDiscussionSummary & Partial<Pick<RoomTopicItem, 'usefulCount'>>)[] = pinned
     ? view.discussions.filter((item) => item.pinned)
     : (forum ?? view.discussions.filter((item) => tag === undefined || item.tag === tag));
