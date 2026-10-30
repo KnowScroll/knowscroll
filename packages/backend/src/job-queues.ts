@@ -1,4 +1,4 @@
-import { expireFormationQueue, recoverFormationQueue } from './modules/scenes/events.js';
+import { backfillLooksQueue, expireFormationQueue, recoverFormationQueue } from './modules/scenes/events.js';
 import { projectSceneQueue } from './modules/scenes/public.js';
 import { cartographyQueue, publishDeltaQueue, settleQuietQueue, sweepQuietQueue } from './modules/geography/public.js';
 import { resolveSupplyQueue } from './modules/supply/public.js';
@@ -36,6 +36,7 @@ export const releaseQueues = queueRegistry([
   recoverAccountDeletionsQueue,
   buildDataExportQueue,
   projectSceneQueue,
+  backfillLooksQueue,
   expireFormationQueue,
   recoverFormationQueue,
   cartographyQueue,

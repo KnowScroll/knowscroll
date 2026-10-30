@@ -5,6 +5,7 @@ export const earthSystem = {
   id: 'earth',
   meaning: 'Physical processes of Earth and its astronomical setting.',
   sceneFamily: 'terraced.v1',
+  haze: 'amber',
   topics: [
     {
       id: 'earth.seasons',

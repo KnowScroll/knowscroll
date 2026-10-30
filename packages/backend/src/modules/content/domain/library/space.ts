@@ -5,6 +5,7 @@ export const spaceSystem = {
   id: 'space',
   meaning: 'Stars, planets and black holes, and the methods astronomers use to study them.',
   sceneFamily: 'archipelago.v1',
+  haze: 'violet',
   topics: [
     {
       id: 'space.stars',

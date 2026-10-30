@@ -143,6 +143,7 @@ describe('Explore Reel as drawn in E01', () => {
       expect(h.calls.find((call) => call.path === '/v1/experience/navigate')?.body.intent).toEqual({
         mode: 'vertical',
         direction: 'next',
+        format: 'reel',
       });
     } finally {
       await app.unmount();

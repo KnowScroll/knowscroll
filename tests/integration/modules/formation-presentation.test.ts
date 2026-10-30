@@ -136,14 +136,16 @@ describe('durable U05 presentation (real PostgreSQL Actions fixtures)', () => {
       await installer.stop({ graceful: false });
     }
     const SCOPE = Symbol('scope'),
-      ENQUEUE = Symbol('enqueue');
+      ENQUEUE = Symbol('enqueue'),
+      LOG = Symbol('log');
     const providers = [
       ...sceneAppliedProviders({ enqueueJob: ENQUEUE }),
       ...geographyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE }),
-      ...sceneProviders({ withPersonalScope: SCOPE }),
+      ...sceneProviders({ withPersonalScope: SCOPE, logEvent: LOG }),
     ];
     const values = new Map<symbol, unknown>([
       [SCOPE, scope()],
+      [LOG, () => undefined],
       [FENCE_OWN_ACCOUNT, accountAccessUseCases({ db: database.db, lockTimeoutMs: 5000 }).fenceOwnAccount],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [ENQUEUE, makeEnqueueJob(c.boss)],

@@ -15,6 +15,12 @@ export type InteractiveKind = (typeof INTERACTIVE_KINDS)[number];
  */
 export type SceneFamilyName = 'terraced.v1' | 'ridged.v1' | 'archipelago.v1';
 
+/**
+ * The colour of the haze around a system's orange sun in the New Universe (D-077). Scenes keeps its
+ * own list of the six and a test keeps the two in step.
+ */
+export type HazeFamilyName = 'teal' | 'cobalt' | 'coral' | 'amber' | 'pink' | 'violet';
+
 /** A kind of angle on a topic (mechanism, example, limitation...), written as a topic-specific id. */
 export interface LibraryFacet {
   readonly id: string;
@@ -36,6 +42,11 @@ export interface LibrarySystem {
   readonly meaning: string;
   /** The family of the system and its star, and the default for its planets. */
   readonly sceneFamily: SceneFamilyName;
+  /**
+   * The haze family of this system, one per system. Assigned once with the system's look and never
+   * changed, so edit it for new systems only (D-102).
+   */
+  readonly haze: HazeFamilyName;
   readonly topics: readonly LibraryTopic[];
 }
 

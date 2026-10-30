@@ -82,6 +82,13 @@ export interface EncounterState {
   readonly removal?: SavedRemovalState;
 }
 type Intent = NavigateExperienceRequest['intent'];
+/**
+ * A move to a new subject names the format the person is in, so "next" stays a Reel after a Reel and a
+ * Scroll after a Scroll; the other moves are not about format. The server falls back to the other
+ * format only when nothing of this one is left.
+ */
+const inFormat = (intent: Intent, format: 'reel' | 'scroll'): Intent =>
+  intent.mode === 'vertical' ? { ...intent, format } : intent;
 type OfferActivation = Extract<
   Awaited<ReturnType<AccountScope['api']['experience']['activateExposure']>>,
   { sessionId: string }
@@ -665,7 +672,7 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
       sessionId: entry.sessionId,
       expectedIntentRevision: latestSession.intentRevision,
       from: { offerId: entry.offer.offerId, exposureId: entry.exposureId },
-      intent,
+      intent: inFormat(intent, entry.offer.metadata.kind),
     });
     begin((fields) => scope.api.experience.navigate({ ...input, ...fields }));
   };

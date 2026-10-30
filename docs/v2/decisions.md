@@ -213,7 +213,6 @@ Use the existing react-native-svg dependency for the initial layered 2D Universe
 
 The server persists meaning-selected family/template, opaque personal seed, generator version and anchors; rendering never rerolls identity from sibling order or activity. Full/low/reduced-motion keep the same semantic targets and framing. No arbitrary model SVG/scripts/URLs, placeholder growth, evidence-from-map-visits or client-invented region offers. Exact scoped camera return, supported Composer Open and durable per-account shown/skipped transition acknowledgement remain explicit acceptance work; origin IDs or client memory alone do not establish cross-device once-only presentation.
 
-
 Initial finite scene convention (coordinator refinement 2026-10-20, clarified 2026-10-21): the established Earth system and its star retain distinct object kinds, and both use the existing terraced.v1 family/template fields. Star names an object kind and renderer semantic, not a fourth SceneFamily; the earlier phrase “star family” was ambiguous. Seasons uses terraced.v1, Tides archipelago.v1, and Greenhouse ridged.v1. Regions inherit their canonical parent's selected family. These are cosmetic rendering conventions, not scientific classifications, formation evidence or new meaning authority. Persist family/template, seed, generator and anchors before variation; unsupported/ambiguous meaning labels fail closed and alias resolution remains Geography-owned. The initial projector does not bootstrap nonempty historical worlds: empty worlds remain empty, and any later bootstrap requires an explicit reviewed maintenance path.
 
 ## D-027 · 2026-10-20 · Coordinator: public social view revisions do not expose private transitions
@@ -225,7 +224,6 @@ Sharing contracts distinguish caller-visible view revisions from internal pair/a
 In response to the concrete #232 request to add ten dev MiniMax calls (24 → 34 total, development 12 + dev 22), the owner answered “yes you can increase as you like.” The coordinator applies the reviewed bounded 34 ceiling now; this permission permits further necessary #232 increases with an explicit bounded ledger entry before any calls, rather than an unrecorded or session-based reset. All 21 previous calls remain counted (development 11/dev 10); reservations and unknowns remain zero. The old 24 ledger is preserved byte-for-byte on the SSD, and every prior allocation/attempt is unchanged.
 
 The immediate plan remains three new greenhouse Scroll jobs, at least two interactive, maximum four calls per job including repairs, unchanged token caps and stable roles/generation/brakes. Only the two Scroll roles’ request ceilings may rise as needed, to at most 12 each under this reviewed plan. Current-day runtime counters are separate from cumulative programme allowance: UTC rollover does not erase historical calls or liabilities. Deployment, exact source/operation review and launch preflights remain required. This grants no Planner/Cartographer/Quartermaster calls, Cutroom spend or Reel-script approval.
-
 
 **Recorded bounded extension, 21Oct15:59UTC:** after 30 settled requests (development 11/dev 19), the coordinator applied 43 total =development 12+dev 31 under this existing owner authority. The +9 dev ceiling leaves at most 12 future dev calls for three separately reviewed max 4 jobs, including two interactive recipes. Ledger 7abd9961 preserves all 12 prior allocations/authorizations; zero reserved/unknown, no new calls. Daily 22/per-role12, token caps, brakes and generation 1 stay unchanged. Prior 98c500/34 remains retained. Each job still requires its own deployment/preservation, fresh baseline, reservation, independent concrete review, one-use launch and terminal settlement.
 
@@ -630,7 +628,6 @@ On dev, one test account that read every 15 s started 229 Cartographer runs in f
 - **Space on checkbox, radio and switch.** React Native Web leaves Space to button roles, so a keyboard user could not tick the delete or clear acknowledgement. `spaceActivates` fixes it for the acknowledgement, the friend and sentence pickers, the request choices and the text-version switch.
 - **Headings break long words.** On the web a heading uses `overflow-wrap: anywhere`, so a long title at a large text size on a 320 px phone does not run past the edge. Body text and labels keep the default, because `anywhere` would let a flex item shrink to one letter.
 - **Not claimed.** VoiceOver was not run by an agent (it needs a person at the machine). Axe covers names, roles, contrast of text on paper and landmarks; contrast of captions over video is not machine-checkable.
-
 
 - **One element path across 1024 px.** A resize must not remount what holds state: the Reel card and the phone column are one tree (`ReelFrame`), the thread's panes and a conversation's wrapper are one tree with the inbox as a sibling, and roles stay constant because React Native Web draws a different element per role. Tests resize across 1024 px with a playing Reel and a typed draft and require the same video, no second exposure and no second read.
 - **Focus follows the stage.** Each encounter is its own stage element, so a key that moves on would drop focus to the page. A stage that held focus when it went away hands focus to the next stage within three seconds, so the next key lands. The arrows ignore Alt, Ctrl and Cmd (browser Back, the person's own shortcuts).
@@ -1065,6 +1062,38 @@ Records the gate that D-073 asked for. D-073 (the owner's ruling) chose three.js
   - *Native context loss.* `expo-gl` raises no loss event. A context made anew after a resume arrives as a new surface, which the view handles (unit-tested, not driven on a device).
   - *Phones and iOS.* Nothing was run on a physical phone or on iOS, and no long run was checked for memory.
 
+## D-102 · 2026-10-30 · The look lives in `scenes.looks` and reaches a client on the manifest read, under a capability (v3 U-1, #465)
+
+D-077 said the look is a sibling table and D-078 said sites ride on the planet and region. This records where the look lives, what it holds and how a client asks for it. The scene descriptor, chunk and manifest stay `scene-descriptor.v1`, `scene-chunk.v1` and `scene-manifest.v1`.
+
+- **A sibling table, not a new descriptor version.** `scenes.looks` has one row per system, planet and region, keyed like `scenes.objects` and referencing it. An update is refused by the database, so a look cannot be recomputed. `scenes.guard_object` and every stored chunk are untouched, so a client that predates looks parses exactly what it parsed. Stars have no look.
+- **What a look holds** (`scene-look.v1`, pinning generator `worldmap.v1`). System: `haze`. Planet: `type`, `rings`, `moon`, `hueShift`, `variant`, `siteCount`. Region: `site`. There is no activity, count, support, time or score in it, and `ReadGeographySceneInput` gained nothing.
+- **Haze is in the library plan.** `LibrarySystem.haze` is one of the six families, different for each system: Earth amber, Space violet, Machine learning teal, Human body coral, Computing cobalt, History pink. Like `sceneFamily`, edit it for new systems only. All six are used, so a seventh system has to share a family: the person who adds it chooses one in the plan, and the plan test (no two alike while there are six or fewer systems) allows it from then on. Nothing picks a haze by itself.
+- **Delivered on the manifest read, not the chunk read.** A chunk is immutable for its revision and a backfill adds looks later without a new chunk, so a look in a chunk would go stale in a cache. The manifest is what a client reads again. `looks` lists the looks of the objects in the manifest read, for the selected universe or system.
+- **The capability.** `SceneClientCapabilities.looks` is a new optional list. A client that sends `scene-look.v1` and declares the `worldmap.v1` generator gets `looks` on `empty`, `ready` and `lagging` reads; the response schema requires it exactly then. Any other client gets the read it always got, byte for byte. A world with fewer looks than objects (not yet backfilled) lists only those that exist, and a client draws the rest as it always did.
+- **Assigned in the projection.** The projector gives a look to every system, planet and region that has none, in the transaction that stores the object. Rollback removes both. The rule is D-103.
+- **Backfill.** `scenes backfill-looks [--dry-run] [--limit n]` (operator) sends one `scenes.backfill-looks` job per universe that has a projected place without a look. The worker, under that universe's lock and after its own owner check, inserts the missing rows and nothing else: no slot, seed, family, anchor, chunk or manifest changes. It advances the personal root once and sends the disposable notice, only when it assigned something. A second run assigns nothing.
+- **Clear and erasure** delete `scenes.looks` before `scenes.objects`, and the new queue's payloads with them. A look exports nothing, like the objects it describes.
+- **The plan grows by appending facets, and a look must survive it.** A planet's look is drawn once, so a facet appended later (the Seasons planet has a fourth, "elsewhere", that the plan added after its first three) must still find a site. Each planet is therefore drawn with spare sites (D-103). A region past even those is left without a look: the scene stays current, the object is drawn as before, and `scenes.look_refused` is logged with the reason `site_beyond_capacity`. Only a structural disagreement between the plan and the stored objects (a look with no object, an object with no meaning, a facet not on its planet) still makes the scene unavailable, and that is logged with its reason too.
+- **A world with such a region stays in the backfill's list.** The command finds it again, its job assigns nothing and logs the same event. That is the signal that the planet needs more spare sites, which is a new look version, not an edit.
+
+Amends D-077 (it named the table; this adds the delivery and the capability) and D-078's "one site per facet" (spare sites, D-103). Confirmed by: `tests/integration/modules/scenes.test.ts` (served only to a declaring client; stored once; backfill moves nothing; rollback; erasure), `packages/contracts/src/scenes.test.ts`, `privacy-clear.test.ts` and `erasure.test.ts` (the new table is in the inventory).
+
+## D-103 · 2026-10-30 · How a planet gets its type, hue, rings, moon and sites (v3 U-1, #465)
+
+D-077 gave the rule in one line: least-used first, preferring a type not in the same system. This is the exact rule, so that every process gives the same answer.
+
+- **Order.** Places that need a look are taken by kind (system, planet, region) and then by object id. Object ids are UUIDv7 minted when the Cartographer's context is built, not when the place is stored, so this is close to creation order but not exactly it. That is enough: the answer is the same on every run, whatever order Geography lists the places in and across restarts, and a look once given is never given again.
+- **Type.** The least-used of the six types in the whole universe. Among equals, one the planet's system does not hold yet. Among those, the first in an order that depends only on the planet's seed (a seeded shuffle). Hypothetical planets count like factual ones. The first six planets get six types; after that the counts differ by at most one.
+- **A repeat.** `variant` is the number of planets of that type before it. The first planet of a type leans toward its system's haze (the design's shift per family) with a seeded jitter of 15 degrees either way. A repeat turns its hue 75 degrees one way, then the other, a step further each time, with the same jitter, so it cannot be mistaken for the first. `variant` also tells the generator to lay out a different world.
+- **Rings and moon** come from the planet's seed after its type: a gas world always has rings, a frozen one has them when its seed says so, no other type does. Any type has a moon when its seed says so.
+- **Sites.** A planet's `siteCount` is the number of facets of its catalogue entry plus 4 spare sites (`RESERVED_SITES`), at most 32. A region's `site` is the position of its facet in the plan's list, so a facet appended later takes the next site and no earlier border moves; spare sites draw as the decorative grey of D-078. Nothing about which other regions have formed is used, so a region never moves when another forms. **Amends D-078**, "one site per facet".
+- **Facets are append-only.** A site is a position, so the plan may only append a facet to a planet, never insert one or reorder them, or two regions would share a cell. A pinned table of every planet's facet order in `assign-looks.test.ts` fails the change that breaks it.
+- **One source of numbers.** Every seeded number is `seededUnit(seed, channel)` from `scene-core`, the same integer mixing as `silhouette.v1`. Channels 16 and above belong to looks. Changing a channel, a constant or this order is a new look version, not an edit.
+- **Not guaranteed.** A friend's visit derives its own look on the visitor's device from public ids (D-047) and may repeat a type.
+
+Amends D-077. Confirmed by: `packages/backend/src/modules/scenes/application/assign-looks.test.ts` (six types, least-used afterwards, system preference, stability across passes and orders, hue gap, rings, sites from the pinned facet order, a facet appended inside the spare sites, a region past them skipped, refusals) and `scenes.test.ts` (the scene stays `ready` in both cases and the event is logged).
+
 ## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
 
 The V3 Scrolls need stops, calls, asides, a recap and a pinned stage. D-032 found that a model writing long, nested JSON loses count of its brackets, and the V3 block table nests: `stage.states[{stop, changes}]`, a call with its options and common guess, an aside with `anchor_stop`. This entry settles how the model writes a v2 Scroll. It changes nothing in v1: `scroll-document.v1`, `scroll-authoring.v1` and writer `scroll-writer.v13` still publish the library.
@@ -1323,3 +1352,47 @@ R3 question 6 (keep my messages out of what AI reads) and question 5 (default le
 - **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
 - **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
 - **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
+
+## D-131 · 2026-10-30 · A vertical move never offers another part of the series the person is in (S-1d, #472)
+
+In the V3 grammar swipe left is Part 2 and pull up is a new topic. Until now the best "next subject" after Seasons Part 1 was Part 2 or Part 3, because they share the planet and rank first. That made the two moves say the same thing.
+
+**Amends** D-034 (the list of hard exclusions on a subject move).
+
+- **Rule.** A vertical move excludes every candidate of the source's series, in any revision of that series (`same_series`). The series is compared by its id only. With nothing else to offer the move is exhausted (`no_eligible_content`), never Part 2.
+- **A Reel is not a series unit, but it is still a part.** Only Scrolls have a `series_units` row. So the series comes from the source, or else from a candidate that shares the source's explanation unit (its Scroll twin), and a candidate whose explanation unit is that of a part is excluded too. The Reel of Part 2 is Part 2, from a Scroll and from a Reel. This looks only at the candidates already retrieved, so it adds no read.
+- **Where.** Composer's pure policy decides, in `domain/vertical-rules.ts`. Experience names the source's series in the snapshot (`intent.currentSeriesId`) for a fresh ranking, and the worker does the same for a buffer. The reason is stored in `composer.decisions` beside the other exclusions.
+- **Unchanged.** Series, related, variant and return moves. The Part move is how a series is reached.
+- **A move inside a region is left alone.** A person who opened a place to browse it can reach its parts there. Only the open-ended "next subject" leaves the series.
+- **Not done.** The related move of the thread is left to D-136. If the Scroll twin of a Reel is not among the candidates (a catalogue past the retrieval cap), the series is not known.
+- **The policy label stays `composer-policy.v0`.** Migration 0017 allows only that label, and the rule applies only when the snapshot names a series, so every stored decision replays as before. S-5 changes the weights and moves the label with a migration.
+- **Verified.** Pure and property tests (a ranked-first Part 2 is never returned, for any seed, order or format) and integration tests on real PostgreSQL from Seasons Part 1, with the Reel of Part 2 as the only other format, and from the Reel of Part 1. Each fails when the rule is removed.
+
+## D-132 · 2026-10-30 · Next stays in the format the person is in, and falls back only when none is left (S-1d, #472)
+
+A person reading a Scroll who pulls up for a new topic expects a Scroll; a person watching a Reel expects a Reel. Today a vertical move carries no format, so a Scroll can be followed by a Reel.
+
+**Amends** D-034 (what a buffer is ranked for).
+
+- **Contract.** The vertical navigation intent has an optional `format` (`reel` or `scroll`). The client fills it with the format of the encounter in front of the person. A request without it is ranked with no format preference, as before.
+- **Rule.** Composer reads that format first. While anything of it is eligible, every candidate of the other format is excluded (`format_sticky`). Eligible means after every other exclusion, so a hidden item or another part of the series does not keep the format alive. When none is eligible nothing is excluded and the other format is offered.
+- **Recorded.** The decision stores `stickyFormat: { preferred, outcome }`, with `outcome` either `kept` or `fell_back`.
+- **Equal status.** The rule follows the format the person is in now. It is the same for Reel and Scroll and stores nothing. The per-topic format learning (`format` feature) is unchanged.
+- **Retrieval.** With a format, up to 100 candidates of that format are read first and the other format fills what is left, so a large catalogue of one format cannot crowd the person's format out of the cap.
+- **Buffers.** The worker ranks a buffer for the source's own format. Experience serves it only to a move that names that format. A move that names another format, or none, is ranked fresh and the buffer waits for its own end of life.
+- **Not here.** Anything finer than the format. Play level is S-5 (#476).
+- **Verified.** Pure and property tests (stay in the format exactly when something of it is eligible; the same inputs give the same decision), an integration test on real PostgreSQL from a Scroll and from a Reel, with and without an eligible candidate of the format, and the buffer cases. Each fails when the rule is removed.
+
+## D-136 · 2026-10-30 · A vertical move does not offer what the thread's Related tab reaches (S-1d, #472)
+
+After D-131 the Seasons thread still led to "Seasons limits": it shares the planet, so it ranks first. It is the related move of Part 3 (D-125), another perspective on the thread, and a related perspective is one of the four distinct relationships. It is reached from its own tab, not by pulling up.
+
+**Amends** D-131 (which left the related target out).
+
+- **Rule.** A vertical move excludes the assets the thread's Related tab reaches (`related_target`), by asset id in any revision, and the format twin of each. These are the related targets of the source, of its format twins and of every other part of the source's series found among the candidates. The tab sits on one part (Part 3 for Seasons), but the thread owns it, so Part 1 leaves it too.
+- **A Reel.** The continuity of the Reel and of its Scroll twin counts, and the Reel takes the series of its twin among the candidates (D-131), so the related move of any part of that series is left too.
+- **Steps aside rather than leave nothing.** If excluding would leave nothing eligible in either format, none are excluded and the move offers what is there, as it did before. The series rule stays hard (D-131). The decision stores `relatedTarget: { outcome, matched }`, with `outcome` either `applied` or `fell_back`.
+- **Before sticky format.** When a new topic and the person's format cannot both be had, the new topic wins: the related target in the same format is passed over and the other format is offered (D-132 records `fell_back`).
+- **Where.** The pure policy decides (`applyRelatedExclusion`). `readRelatedAssetIds` reads the admitted links, a few small reads of shared data inside the transaction already open; Experience and the buffer worker both use it. A move inside a region takes no part in it.
+- **Unchanged.** The Related tab and the `related` move still open the target.
+- **Verified.** Pure and property tests, a unit test of the reads, and an integration test on real PostgreSQL from Seasons Part 1 and Part 3, with the fall back and the Related tab. Each fails when the rule or the read of the other parts is removed.
