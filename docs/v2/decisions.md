@@ -1276,6 +1276,16 @@ Confirmed by: `part-gesture.test.ts`, `reader-keys.test.ts`, `keyboard-map.test.
 
 Confirmed by: `stage-reader.test.tsx`, `scroll-session.test.ts`, `scroll-v2-reader-trace.test.ts` (what the reader reports, qualified by the server's own rules: a full read qualifies, tapping every dot does not), and the two reading tests of `stage-reader-smoke.spec.ts`, which check every observation against the intake schema. Shown failing when the stop on screen was reported as not visible.
 
+## D-139 · 2026-10-30 · Keys in a Scroll act on the stop the reader is heading to (S-1c follow-up, #472)
+
+**Amends** D-134 ("Quick presses add up" now covers the call keys too, and a jump follows a section that grows).
+
+- **The race.** The reader learns which stop is on screen from the scroll report, and the web can hold that report back (a slow device, or a scroll end that has not fired yet). A 1 to 4 or Enter pressed in that gap acted on the stop the reader had just left, and the pick was lost for good.
+- **The rule.** Every key acts on the stop the reader is on or travelling to: where the last jump was heading while it is under way (800 ms), otherwise the stop on screen. Arrows and Space already worked this way; the call keys now do too.
+- **A section that grows.** Showing a call's answer makes its section taller, and the new height is reported a frame later. A jump made in that frame (Enter, then Down at once) used the old tops and landed inside the answer, short of the next stop. A jump under way (800 ms) is repeated to the new top when the heights arrive; a layout change later leaves the reader's place alone.
+
+Confirmed by: `reader-actions.test.ts`, `stage-reader-smoke.spec.ts` (a key pressed before the scroll to a call is reported). `use-reader-scroll.test.tsx`, and the full-read test (it failed about 1 run in 20 before). Shown failing with the call keys on the stop on screen (e2e 10 of 10, unit test red) and with the jump left on the old top (unit test red).
+
 ## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
 
 Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
