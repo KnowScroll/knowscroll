@@ -1046,6 +1046,57 @@ No reverse animations were designed.
 
 Taken for the owner; listed under Waiting for owner on #462.
 
+## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
+
+The V3 Scrolls need stops, calls, asides, a recap and a pinned stage. D-032 found that a model writing long, nested JSON loses count of its brackets, and the V3 block table nests: `stage.states[{stop, changes}]`, a call with its options and common guess, an aside with `anchor_stop`. This entry settles how the model writes a v2 Scroll. It changes nothing in v1: `scroll-document.v1`, `scroll-authoring.v1` and writer `scroll-writer.v13` still publish the library.
+
+- **One flat list.** `scroll-authoring.v2` is `{title, dek, items[], recap, askSuggestions[]}`. Each item is a `stop`, a `call_it`, the `final_call` or an `aside`, in reading order. The model writes no id, no index and no count.
+- **Position replaces references.** An aside belongs to the item before it. The Final call is the last item. A stage change belongs to the item that carries it. There is nothing to number and nothing to point at.
+- **The stage is a small object of words.** An item's `stage` names only what changes, from closed word lists of the Earth & sky kit (view, month, axis, Ray, orbit, two pins, Moon, focus). The model writes no number, coordinate or place name. Code carries the unnamed values over and builds the full `stage.states[]`.
+- **Code writes what the model could get wrong.** Ids; the description of every stage state (the text version and accessible name, derived from the state, so it cannot disagree with the picture; this replaces the design's `alt_per_state` written by the writer); the order of a call's options (the model writes the correct one first, code shuffles them by a stable seed, so the right answer is not always first); the misconception and its source; the common guess's source; the measures and the hash.
+- **Claims cite like any other.** Every item and the recap cite passages. The answer, explanation and twist of a call and the text of an aside are claims. A figure in any reader text must be in a passage that item cites. Nine words in a row from the research fail the Scroll.
+- **Findings sit at the writer's item** (`items[4]`, `recap`), so the one repair can fix them all together.
+- **Two validators, one set of findings.** The authoring rules check what only the authored list can show (citations, copying, where an aside sits, the recipe's myth and variant). `validateDocumentV2` checks what the document can prove (limits, structure, stage, reading time, measures, hash). Their findings are merged.
+- **Not decided here.** The limits and measures (D-121), the spike command (D-122), the reader, play, coverage v2 and admission of v2 documents (S-1, S-2).
+- **Verified.** Unit tests of every rule, each shown failing on a broken input; property tests of the option shuffle and the stage descriptions; the recorded fixture answer through the real harness over PostgreSQL.
+
+## D-121 · 2026-10-30 · scroll-limits.v2 and scroll-measures.v2: what counts and what is refused (S-0, #471)
+
+The V3 design gives the numbers (at most one stage, four calls, two other interactives; 230 words a minute and ten seconds a call; three to six minutes; a stop of at most 60 words) and leaves the rules for applying them open. These are the rules the code applies. v1 limits and measures (200 words a minute, 2 to 8 minutes, 8 interactive blocks) are untouched.
+
+- **Words.** A stop's text and its line together are at most 60 words, and the line at most 12. The explanation, the twist, an aside and a `simple` text are each at most 60 words.
+- **Reading time.** Words at 230 a minute plus ten seconds for every call, the Final call included, must come to 180 to 360 seconds. Counted: stops, calls (prompt, options, explanation, twist), asides and recap captions. Not counted: `simple` texts. The twist is counted although only a wrong pick reads it, so the estimate is for the longer path. A call also weighs 38 word-equivalents (ten seconds) in the stop weights that coverage will use.
+- **Budget.** At most 1 stage, 4 calls (the Final call included) and 2 other interactives (none is built, so this is a constant only); 6 to 14 stops and calls; at most 4 asides; at most 3 ask suggestions; 2 or 3 options per call; 128 KiB.
+- **Structure.** Exactly one Final call, and it is the last stop. At least one Call it before it. At least one aside of kind `limits`, anchored before the Final call (never last), and the recap links to it. Only the first Call it of a myth Scroll has a common guess, and it carries the recipe's source. A stage has its first state on the first stop, states in stop order, and at least three states; a Scroll without a stage has none.
+- **Notices, not refusals.** A myth whose source label has not been reviewed does not refuse the document; `validateDocumentV2` returns it as a notice, and the library must clear it before admission.
+- **Interpretation.** The design says "stops about 14"; the code takes 6 as the least a 3-minute Scroll can have.
+
+## D-122 · 2026-10-30 · The v2 writer spike: one operator command, nothing stored (S-0, #471)
+
+The V3 design asks to run 20 topics through the new authoring shape before any engine is built. `content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>]` does that on the dev worker. It amends nothing: it is an operator tool, not product code.
+
+- **Migration-free, no table, nothing admitted.** The command fetches each recipe's public research, runs writer prompt `scroll-writer.v14` through the production harness, assembles and validates the answer, and reports. The only records are the harness's own (run, attempts, kept refused answers). The branch can be deployed to dev by manual dispatch for the spike.
+- **The same bounds as production.** One writer request and at most one repair per topic. Every paid attempt goes through the attempt ledger and the existing caps. An unknown attempt is never resent and its run stays open. No model call or network wait is inside a transaction. The batch starts no new topic after a spent budget, an unknown attempt, a refused harness, a model mismatch or two provider failures in a row.
+- **Model.** Only `MiniMax-M3.1-Flash` (D-031). The command refuses to start on another configured model, and the transport already fails an attempt whose reply names another model. Each line reports the models of its paid attempts.
+- **What a line reports.** Outcome (accepted first take, accepted after repair, rejected, or why not), the findings of each refused answer (codes and paths, no text), words, measured minutes, counts of stops, calls and stage states, tokens in and out with thinking tokens (reported by the provider; thinking is part of output), wall time, and the run and attempt ids.
+- **Recipe data the spike carries.** The library plan has no variant or misconception, so the spike keeps a table for its 20 recipes: stage or plain, and the misconception. Only the seasons myth has a reviewed source label, taken from the V3 design. Every other label is a placeholder marked `reviewed: false`, so no spike document can pass for a library Scroll. In the product these become recipe fields (S-6).
+- **Output files.** `--out` appends each accepted topic's document and citations as a JSON line. It holds the model's own text about public sources: read it on the server, never paste it into an issue.
+- **Results.** The numbers (acceptance within two requests, repair rate, minutes, tokens, the top findings) are measured on dev and recorded in #471 and in the entry that follows, not here.
+
+## D-123 · 2026-10-30 · The v2 writer spike passed; four things change before v2 Scrolls are published (S-0, #471)
+
+The spike ran on dev on 30 Oct through the dev worker with real `MiniMax-M3.1-Flash` (D-122): 20 recipes, nothing admitted. Results are in #471.
+
+- **Gate passed.** 17 of 20 were accepted within the writer and one repair (85 %), 8 of 9 stage recipes (89 %; the gate was 70 %), 11 on the first take. Every paid request reported `MiniMax-M3.1-Flash`. About 11k tokens and 75 s per Scroll; the run used about 2 % of the five-hour window. Reading times were 3.0 to 4.4 minutes.
+- **So the flat shape (D-120) stays,** and the library waves can be sized at about 11k tokens a Scroll.
+
+A read of six documents found errors the validator cannot see. These change the next slices:
+
+1. **Stage states are derived by code from a few choices.** The writer set Earth's axis "sideways" in every Seasons state and drew hemisphere pins that contradict the month. The kit fixes Earth's tilt at 23.4° and derives the pins and Ray's angle from the month and the view; the writer chooses only the view, the month and the focus (S-1).
+2. **A recipe gets a stage only when a kit draws its subject.** Tides and stars-fusion got pictures that show neither bulges nor a star's interior. Stage assignment is recipe data, per kit (S-1, S-6).
+3. **Every wave gets a factual read, and the validator refuses a Final call that restates an earlier call.** Two correct options were wrong or evasive, and one Final call repeated a call (S-6).
+4. **The common-guess rule and the prompt are brought into line** before the waves; two recipes were refused twice on it (S-1).
+
 ## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
 
 Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
