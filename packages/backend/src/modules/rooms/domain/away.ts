@@ -32,10 +32,18 @@ export interface ReturnFacts {
   readonly level: AiLevel;
 }
 
+/**
+ * Whether a return could start a "while you were away": the member listens and was away long enough. It needs no
+ * message count, so a caller checks it first and reads the count (a query) only for a return that passes.
+ */
+export function wasAwayLongEnough(facts: Pick<ReturnFacts, 'previous' | 'now' | 'level'>): boolean {
+  if (facts.previous === undefined || facts.level === 'off') return false;
+  return facts.now.getTime() - facts.previous.getTime() >= AWAY_AFTER_MS;
+}
+
 /** Whether a return starts a "while you were away": long enough away, enough said meanwhile, and the member listens. */
 export function isOwedSummary(facts: ReturnFacts): boolean {
-  if (facts.previous === undefined || facts.level === 'off') return false;
-  return facts.now.getTime() - facts.previous.getTime() >= AWAY_AFTER_MS && facts.newMessages >= AWAY_MIN_NEW_MESSAGES;
+  return wasAwayLongEnough(facts) && facts.newMessages >= AWAY_MIN_NEW_MESSAGES;
 }
 
 /** Where a window's summary starts: when the first member to return left, but never more than a day before it is written. */

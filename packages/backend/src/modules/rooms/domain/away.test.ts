@@ -6,6 +6,7 @@ import {
   WINDOW_MS,
   coversFrom,
   isOwedSummary,
+  wasAwayLongEnough,
   welcomeText,
   windowOf,
 } from './away.js';
@@ -35,6 +36,16 @@ describe('when a return is owed a "while you were away"', () => {
 
   it('counts exactly the threshold absence as long enough', () => {
     expect(isOwedSummary({ ...facts, previous: before(AWAY_AFTER_MS) })).toBe(true);
+  });
+
+  it('is decided by time and level alone before any message is counted, and the count only adds to it', () => {
+    expect(wasAwayLongEnough(facts)).toBe(true);
+    expect(wasAwayLongEnough({ ...facts, previous: before(AWAY_AFTER_MS - 1) })).toBe(false);
+    expect(wasAwayLongEnough({ ...facts, previous: undefined })).toBe(false);
+    expect(wasAwayLongEnough({ ...facts, level: 'off' })).toBe(false);
+    // Long enough away says nothing of how much was said.
+    expect(wasAwayLongEnough(facts)).toBe(true);
+    expect(isOwedSummary({ ...facts, newMessages: 0 })).toBe(false);
   });
 });
 

@@ -6,11 +6,12 @@ import { AiLabel } from './ai-label';
 
 /**
  * What a member is told about AI in a room. True of what the room does today: residents are always labelled, answer when
- * someone asks, and may join in on their own, reading only this room's recent messages without names.
+ * someone asks, may join in on their own, and one writes a short recap when a member returns after a long absence, reading
+ * only this room's recent messages without names.
  */
 export const AI_NOTICE = {
   title: 'AI lives in this room',
-  body: 'AI residents are always labelled AI and never pretend to be people. They answer when someone asks, and now and then join in when a question goes unanswered. To do that they read this room’s recent messages, without names.',
+  body: 'AI residents are always labelled AI and never pretend to be people. They answer when someone asks, and now and then join in when a question goes unanswered. To do that they read this room’s recent messages, without names. When you come back after a long time away, Halley may write a short recap of what you missed, once for everyone who returns in the same stretch.',
   control: 'You can change what AI reads at any time: room menu, AI here.',
 } as const;
 

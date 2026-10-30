@@ -14,12 +14,12 @@ const LEVELS: readonly { readonly level: RoomAiLevel; readonly label: string; re
   {
     level: 'quieter',
     label: 'Quieter',
-    hint: 'What AI adds on its own is folded into one line, and you open it if you want it. Answers you ask for show in full.',
+    hint: 'What AI adds on its own, and the recap when you return, is folded into one line, and you open it if you want it. Answers you ask for show in full.',
   },
   {
     level: 'off',
     label: 'Off',
-    hint: 'You see nothing AI adds on its own. Answers you ask for still show.',
+    hint: 'You see nothing AI adds on its own, and no recap when you return. Answers you ask for still show.',
   },
 ];
 

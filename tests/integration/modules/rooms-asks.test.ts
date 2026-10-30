@@ -492,6 +492,48 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       expect(await topicsOf(world, room.asha, room.roomId, 'new', 'share')).toEqual([]);
     });
 
+    it('counts the replies a discussion shows from its counter: a removed message and a topic card are not replies', async () => {
+      const room = await gathering();
+      const moderator = await seedFriend(world.db, world.friends);
+      await makeModerator(world, room.slug, moderator);
+      const said = [];
+      for (let index = 0; index < 3; index++)
+        said.push(
+          unwrap(await say(world, room.kenji, room.roomId, room.general, `another point, number ${String(index)}`)),
+        );
+      const shown = async (discussionId: string) =>
+        Number(
+          (
+            await sql<{ n: string }>`
+              select count(*)::text as n from rooms.messages
+              where discussion_id = ${discussionId}::uuid and hidden_at is null and topic_discussion_id is null`.execute(
+              world.db,
+            )
+          ).rows[0]!.n,
+        );
+      const generalFigure = async () => (await memberView(world, room.asha, room.roomId)).general.replyCount;
+      expect(await generalFigure()).toBe(4);
+
+      // A topic card in General is a message, but not a reply; the topic's own replies are counted in the topic.
+      const topic = unwrap(
+        await startTopicFrom(world, room.kenji, room.roomId, {
+          discussionId: room.general,
+          messageId: room.claim.messageId,
+        }),
+      ).discussionId;
+      unwrap(await say(world, room.asha, room.roomId, topic, 'a reply in the topic'));
+      expect(await generalFigure()).toBe(4);
+      expect(
+        (await topicsOf(world, room.asha, room.roomId)).find((entry) => entry.discussionId === topic),
+      ).toMatchObject({ replyCount: 1 });
+
+      unwrap(await hideMessage(world, moderator, room.roomId, room.general, said[0]!.messageId));
+      expect(await generalFigure()).toBe(3);
+      unwrap(await hideMessage(world, moderator, room.roomId, room.general, said[0]!.messageId, false));
+      expect(await generalFigure()).toBe(4);
+      expect(await generalFigure()).toBe(await shown(room.general));
+    });
+
     it('reads the topic’s first message to an AI that is asked in it, and the placeholder when its author keeps messages out', async () => {
       const room = await gathering();
       const topic = unwrap(

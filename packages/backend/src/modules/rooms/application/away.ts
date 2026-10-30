@@ -1,6 +1,13 @@
 import { CONCEPTS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
-import { AWAY_MIN_NEW_MESSAGES, SUMMARY_MESSAGES, coversFrom, isOwedSummary, windowOf } from '../domain/away.js';
+import {
+  AWAY_MIN_NEW_MESSAGES,
+  SUMMARY_MESSAGES,
+  coversFrom,
+  isOwedSummary,
+  wasAwayLongEnough,
+  windowOf,
+} from '../domain/away.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import type { AwayMaterial } from './away-role.js';
 import { reduceMessages } from './inhabitant-context.js';
@@ -23,6 +30,8 @@ export async function openWindowOnReturn(
 ): Promise<void> {
   const { lock, owner, room } = entered;
   if (!p.residentsEnabled || !roomAcceptsPosts(room.status) || !hasResident(room, 'skeptic')) return;
+  // The cheap rules first: the count below is a query, and most returns are short.
+  if (!wasAwayLongEnough({ previous, now, level: member.aiLevel })) return;
   const newMessages = await p.discussions.newMessagesFor(lock, owner.accountId, previous, AWAY_MIN_NEW_MESSAGES);
   if (!isOwedSummary({ previous, now, newMessages, level: member.aiLevel })) return;
   const window = windowOf(now);

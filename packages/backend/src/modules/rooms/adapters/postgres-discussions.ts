@@ -241,9 +241,14 @@ export const discussionStore: DiscussionStore = {
       last_inhabitant: string | null;
     }>`
       select discussion.discussion_id,
-        (select count(*) from rooms.messages message
-          where message.discussion_id = discussion.discussion_id and message.hidden_at is null
-            and message.topic_discussion_id is null) as reply_count,
+        -- The counter is every message ever appended; the removed ones and the cards are few and indexed, so this is not a
+        -- count over the whole discussion (General can hold thousands of messages and is read with every room view).
+        (discussion.last_sequence
+          - (select count(*) from rooms.messages removed
+              where removed.discussion_id = discussion.discussion_id and removed.hidden_at is not null)
+          - (select count(*) from rooms.messages card
+              where card.discussion_id = discussion.discussion_id and card.hidden_at is null
+                and card.topic_discussion_id is not null)) as reply_count,
         (select count(*) from rooms.message_useful useful
           join rooms.messages message on message.message_id = useful.message_id
           where message.discussion_id = discussion.discussion_id and message.hidden_at is null) as useful_count,

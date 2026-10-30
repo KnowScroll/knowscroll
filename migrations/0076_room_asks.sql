@@ -45,6 +45,14 @@ alter table rooms.messages
 -- squawk-ignore constraint-missing-not-valid
 alter table rooms.messages validate constraint messages_topic_discussion_fkey;
 
+-- A discussion's reply count is its message counter less the removed messages and the cards, so a room read takes it from
+-- the counter and these two small partial indexes instead of counting every message of General each time.
+-- The transactional migrator cannot run CONCURRENTLY; rooms are new and these indexes are tiny.
+-- squawk-ignore require-concurrent-index-creation
+create index messages_removed on rooms.messages(discussion_id) where hidden_at is not null;
+-- squawk-ignore require-concurrent-index-creation
+create index messages_topic_cards on rooms.messages(discussion_id) where topic_discussion_id is not null;
+
 -- squawk-ignore ban-drop-constraint
 alter table rooms.messages drop constraint messages_check1;
 alter table rooms.messages

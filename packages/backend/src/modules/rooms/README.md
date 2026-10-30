@@ -53,7 +53,7 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `read_positions` | Private: one row per member per room, the last time their device had it open (moved by their own presence beats) and, after a long return, when they left and the window of the summary written for it. Never sent to anyone but its member |
 | `room_presence` | One lease row per member who has the room open: `last_seen_at`, renewed by their own device and read only while it is under a minute old |
 | `invitations` | A member's invitation of a friend; valid while the inviter is still a member |
-| `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional `tag` (question, debate, explainer, share; topics only), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters |
+| `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional `tag` (question, debate, explainer, share; topics only), `title_derived` (the title is the first words of the origin message, not the starter's typing), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters |
 | `messages` | A person's text or card, a topic card (`topic_discussion_id`: the topic a member started from a message, no words of its own), an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
 | `message_useful` | One mark of Useful per member per message (`message_id`, `account_id`, `marked_at`). Never on one's own message; counted only on a topic of the list; the author is never told |
 | `summaries` | A resident's "while you were away" for one room and 12-hour window: the unique key (room, window) is the one-call cap, the words (`ready` only), the span they cover, and the provenance of the call. Erased (`stale`) when what it read is removed |
@@ -94,8 +94,8 @@ conversations or threads.
 - **Keeping messages out (D-161).** A member's `keep_out` makes the asked-turn context builder replace each of
   their messages with `[a member's message]` before any item is built, so neither the model nor the stored request
   bytes carry their words, the title of what they shared, their note or the title of a discussion they started (it becomes
-  `[a member's topic]`). Nothing else a member types reaches a context item. A test reads the stored request. No summary
-  exists yet; one built later must use the same builder.
+  `[a member's topic]`). Nothing else a member types reaches a context item. A test reads the stored request. The "while you
+  were away" summary uses the same builder and reads no topic title at all.
 - **The AI notice.** Shown once (`notice_seen_at`, first acknowledgement kept), then only in the room menu. Its words
   describe what is true now.
 - **AI inhabitants are always labelled.** A message's author is either a person (a public profile) or
@@ -114,15 +114,19 @@ conversations or threads.
   a message to the Explainer, whatever the client says; a text that names a resident (`@Nova`, `@Halley`) asks it, once. Each is an
   `ai_turns` row with `trigger = asked`, its kind and the message it is about, and counts against the asked bounds only. A pointed ask
   must name a message of the discussion that is shown to the asker, by someone they have not blocked. The message of a member who
-  keeps messages out is accepted and ends without a call, so the choice is not revealed. A mention never fails its message.
+  keeps messages out is accepted and ends without a call, so the choice is not revealed. A mention never fails its message. The
+  message a turn is about is read by its ID when it is older than the newest 20 the context holds.
 - **Topics and Useful (D-168).** A topic that begins from a message reads it as its first item (so a removal or a block applies to
-  it) and leaves a card where the message was. Its title is the starter's typing and is withheld from AI when the starter or the
+  it) and leaves a card where the message was. A title left as the message's own words is another person's: readers see it only
+  while the message is shown to them (not removed, author present, not blocked by the reader) and otherwise "A topic from a
+  message" (`titlesFor`); deleting the author rewrites it. For AI it is withheld when the starter or the
   author of the message keeps out, or that message was removed. Useful is one mark per member per message, refused on one's own
   message, on one that is not shown and on one whose author the member blocked; a message carries only `usefulByYou`.
 - **The welcome and "while you were away" (D-169).** The welcome is a template read from the room, so it costs no call. A long
   return claims the window (a 12-hour UTC block) with one insert on a unique key, queues the one summary job in the same transaction
   and records the member's own mark; everyone who returns in the window reads the same words. The summary reads the window through
-  the same builder as every context path and leaves kept-out members and removed messages out altogether. Removing a message it
+  the same builder as every context path and leaves kept-out members and removed messages out altogether; a topic is "a topic" in
+  it, never its title. Removing a message it
   read, turning keep-out on after writing in it, or deleting the account erases it (`stale`) and the window is not rewritten. A
   member's card is read only for a day after the summary was written.
 - **The router is pure and runs under the room lock (D-081, D-164).** `domain/router.ts` takes facts read under the lock

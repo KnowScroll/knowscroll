@@ -1148,6 +1148,30 @@ export const ROOM_COUNT_AND_ACTIVITY_FIELDS: readonly {
     why: 'how many messages the discussion shows: a topic card reads the topic by this figure',
   },
   {
+    route: 'read',
+    view: 'member',
+    path: 'general.lastReplyBy',
+    why: 'who spoke last in the discussion, as a name and whether it is an AI: a topic card reads it; left out for a blocked person',
+  },
+  {
+    route: 'read',
+    view: 'member',
+    path: 'discussions.lastReplyBy',
+    why: 'who spoke last in the discussion, as a name and whether it is an AI: a topic card reads it; left out for a blocked person',
+  },
+  {
+    route: 'topics',
+    view: 'ready',
+    path: 'topics.lastReplyBy',
+    why: 'who spoke last in the topic: the forum list; left out for a blocked person',
+  },
+  {
+    route: 'topics',
+    view: 'ready',
+    path: 'topics.answered',
+    why: 'whether anyone but the starter has spoken in the topic: the Unanswered sort and its row',
+  },
+  {
     route: 'topics',
     view: 'ready',
     path: 'topics.lastActivityAt',
