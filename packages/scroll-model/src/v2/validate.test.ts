@@ -3,6 +3,7 @@ import { INTEGRITY_METHOD } from '../document.js';
 import { assembleScrollV2 } from '../producer/v2/assemble.js';
 import { authoredV2, filler, PUBLICATION_V2, recipeV2 } from '../test-support/v2-fixtures.js';
 import { callsOf, type CallItStop, type FinalCallStop, type ReadStop, type ScrollDocumentV2 } from './document.js';
+import { describeStageState } from './kit.js';
 import { computeMeasuresV2 } from './measures.js';
 import { computeIntegrityV2, validateDocumentV2 } from './validate.js';
 
@@ -150,6 +151,27 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     expect(callsOf(fixture())).toHaveLength(3);
   });
 
+  it('refuses a Final call that asks again what an earlier call asked, or whose answer repeats an earlier answer', () => {
+    const final = (document: ScrollDocumentV2) => call(document, document.stops.length - 1);
+    expect(broken((document) => (final(document).prompt = callIt(document, 1).prompt))).toContain(
+      'final_call_restates_call@stops.8',
+    );
+    expect(
+      broken((document) => {
+        const earlier = callIt(document, 4);
+        final(document).options[final(document).answer] = `${earlier.options[earlier.answer] ?? ''} again`;
+      }),
+    ).toContain('final_call_restates_call@stops.8');
+    // A different question and a different answer pass, and an earlier Call it may repeat another Call it.
+    expect(
+      broken((document) => {
+        final(document).prompt = 'Imagine a world that never leans. What would its year be like?';
+        final(document).options[final(document).answer] = 'The days would stay about as long all year';
+      }),
+    ).toEqual([]);
+    expect(broken((document) => (callIt(document, 4).prompt = callIt(document, 1).prompt))).toEqual([]);
+  });
+
   it('answers inside the options: an index beyond the last option is refused', () => {
     const result = broken((document) => {
       const stop = callIt(document, 4);
@@ -220,6 +242,36 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     expect(broken((document) => (stageOf(document).states = stageOf(document).states.slice(0, 2)))).toContain(
       'stage_too_static@stage.states',
     );
+  });
+
+  it('keeps the picture off the calls, so it cannot show an answer before the reader gives one', () => {
+    // s2 is the first Call it; the states sit on read stops only.
+    expect(stageOf(fixture()).states.map((entry) => entry.stop)).not.toContain('s2');
+    expect(broken((document) => (stateAt(document, 1).stop = 's2'))).toContain(
+      'stage_state_on_call@stage.states.1.stop',
+    );
+    expect(broken((document) => (stateAt(document, 5).stop = 's9'))).toContain(
+      'stage_state_on_call@stage.states.5.stop',
+    );
+  });
+
+  it('refuses a stored state that holds what its view does not draw, so a picture cannot contradict itself', () => {
+    const unsettled = { view: 'earth-close', earthAt: 'jun', moonAt: 'full', focus: 'moon' } as const;
+    expect(
+      broken((document) => {
+        stateAt(document, 1).state = unsettled;
+        stateAt(document, 1).alt = describeStageState(unsettled);
+      }),
+    ).toEqual(['stage_state_unsettled@stage.states.1.state']);
+  });
+
+  it('refuses a stored state with a field the kit no longer has: Earth’s tilt, the pins and Ray are not stored', () => {
+    for (const extra of [{ axis: 'sideways' }, { northPin: 'warm' }, { ray: 'low' }])
+      expect(
+        broken((document) => {
+          Object.assign(stateAt(document, 1).state, extra);
+        }),
+      ).toContain('schema_unrecognized_keys@stage.states.1.state');
   });
 
   it('holds the reading time to three to six minutes at 230 words a minute plus ten seconds a call', () => {

@@ -143,7 +143,7 @@ refused, `node dist/operator.js reasoning rejected [--attempt <uuid>]` shows the
 and the validator's findings. No production job or source text is placed on the HTTP path.
 
 `node dist/operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>]`
-(`src/writer-spike-operator.ts`, S-0, D-120 to D-122) runs the v14 writer for `scroll-authoring.v2` on library recipes through the
+(`src/writer-spike-operator.ts`, S-0 and S-1a, D-120 to D-126) runs the v15 writer for `scroll-authoring.v2` on library recipes through the
 same nonpersonal harness grant (one request and at most one repair per topic, `MiniMax-M3.1-Flash` only) and prints one JSON
 line per topic with its outcome, findings, measured minutes, counts and tokens. It admits and publishes nothing and creates no
 table, so it needs no migration. How to read the output: the runbook, "The v2 writer spike (S-0)".

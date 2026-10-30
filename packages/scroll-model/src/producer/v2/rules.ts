@@ -52,27 +52,6 @@ function placementIssues(authored: AuthoredScrollV2): IssueV2[] {
   return issues;
 }
 
-/**
- * The common guess belongs to the recipe's myth and to the first call_it only; it names a wrong
- * option that exists (the correct option is always the first).
- */
-function commonGuessIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[] {
-  const issues: IssueV2[] = [];
-  let firstCall = true;
-  authored.items.forEach((item, index) => {
-    if (item.type !== 'call_it') return;
-    const path = `items.${index}`;
-    const expected = recipe.misconception.kind === 'myth' && firstCall;
-    firstCall = false;
-    if (item.commonGuess === undefined) {
-      if (expected) issues.push({ code: 'common_guess_missing', path });
-    } else if (!expected) issues.push({ code: 'common_guess_unexpected', path: `${path}.commonGuess` });
-    else if (item.commonGuess >= item.options.length)
-      issues.push({ code: 'common_guess_invalid', path: `${path}.commonGuess` });
-  });
-  return issues;
-}
-
 /** A plain Scroll has no stage; a stage Scroll sets the starting picture on its first stop. */
 function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[] {
   const issues: IssueV2[] = [];
@@ -111,6 +90,24 @@ function unitsOf(authored: AuthoredScrollV2): Unit[] {
     { path: 'recap', texts: authored.recap.captions, cites: authored.recap.cites },
     { path: 'askSuggestions', texts: authored.askSuggestions, cites: undefined },
   ];
+}
+
+/**
+ * Earth's axis is tilted by a fixed angle; "sideways" and "on its side" are the words for Uranus. A
+ * sentence of a stage Scroll (whose picture is always Earth) that joins them to the axis, the lean
+ * or the tilt is refused, because it teaches a picture the kit never draws (D-123). A plain Scroll
+ * may say them: its subject may be Uranus.
+ */
+const SIDEWAYS = /\bsideways\b|\bon (?:its|their) side\b/iu;
+const AXIS_WORDS = /\b(?:axis|axes|lean|leans|leaning|tilt|tilts|tilted|tilting)\b/iu;
+
+function earthAxisIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[] {
+  if (recipe.variant !== 'stage') return [];
+  const sidewaysAxis = (text: string): boolean =>
+    text.split(/(?<=[.!?])\s+/u).some((sentence) => SIDEWAYS.test(sentence) && AXIS_WORDS.test(sentence));
+  return unitsOf(authored)
+    .filter((unit) => unit.texts.some(sidewaysAxis))
+    .map((unit): IssueV2 => ({ code: 'earth_axis_sideways', path: unit.path }));
 }
 
 /**
@@ -161,10 +158,11 @@ function copyIssues(authored: AuthoredScrollV2, sources: readonly string[]): Iss
 
 /**
  * The checks only the authored list can make, because the assembled document no longer says what
- * the writer wrote where: placement of asides, the common guess against the recipe's myth, the
- * stage against the recipe's variant, citations and figures, and copying. Everything the document
- * itself can prove (word limits, the call budget, the Final call, the limits aside, the stage's
- * order, the reading time) is left to `validateDocumentV2`.
+ * the writer wrote where: placement of asides, the stage against the recipe's variant (and what a stage
+ * Scroll may say about Earth's axis), citations and figures, and copying. Everything the document itself can prove (word limits, the call budget, the
+ * Final call and whether it restates a call, the limits aside, the stage's order and what it holds,
+ * the reading time) is left to `validateDocumentV2`. The common guess has no check here: it is a
+ * place in the call's options that code reads (D-126), not a number the writer could get wrong.
  *
  * Pure and deterministic. Findings are located at the writer's item (`items.4`, `recap`) and carry
  * no text.
@@ -172,8 +170,8 @@ function copyIssues(authored: AuthoredScrollV2, sources: readonly string[]): Iss
 export function authoringIssuesV2(authored: AuthoredScrollV2, input: AuthoringRulesInput): IssueV2[] {
   return uniqueIssuesV2([
     ...placementIssues(authored),
-    ...commonGuessIssues(authored, input.recipe),
     ...stageIssues(authored, input.recipe),
+    ...earthAxisIssues(authored, input.recipe),
     ...citationIssues(authored, input.evidence),
     ...copyIssues(authored, input.sources),
   ]);

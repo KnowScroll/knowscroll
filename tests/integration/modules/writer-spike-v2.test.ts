@@ -117,14 +117,15 @@ describe('the writer spike (CI fixture model + real PostgreSQL; no provider netw
       tokens: { input: 4321, output: 8765, thinking: 5432, complete: true },
       stops: 9,
       calls: 3,
-      promptVersion: 'scroll-writer.v14',
+      promptVersion: 'scroll-writer.v15',
     });
     expect(line.attempts).toHaveLength(1);
     expect(document?.document.schemaVersion).toBe('scroll-document.v2');
     expect(p.fixture.calls).toHaveLength(1);
-    // The request carried the v14 instructions and the brief, as data.
+    // The request carried the v15 instructions and the brief, as data.
     const request = p.fixture.calls[0]?.request;
-    expect(request?.system).toContain('"commonGuess"');
+    expect(request?.system).toContain('wrong option that states this idea SECOND');
+    expect(request?.system).toContain('A call never changes the picture');
     expect(request?.user).toContain('[e1]');
     expect(await attempts()).toEqual([{ step: 'primary', state: 'succeeded', model: SPIKE_MODEL, run_id: line.runId }]);
     expect(await runs()).toEqual([
