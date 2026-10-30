@@ -1,0 +1,4352 @@
+R3 · ROOMS
+
+EXPLORATION · NOT DECISIONS
+
+My take: a room is a campfire under its
+own sky
+The Space room isn’t dead because it’s bland. Bland is a symptom. It’s dead
+because nothing happens unless people show up at the same moment, and
+
+MY RECOMMENDATION, ONE LINE EACH
+
+A · Place: “Campfire”. You land in General with the room’s art
+behind it. Who’s here, a Now strip and what’s new are on
+
+when they do, the room hands them a form: pick a thread, read the rules, then you
+may speak.
+
+top; everything else is behind the room name.
+
+Places that feel alive have three things, and the Space room has none of them. A
+
+B · Structure: General, Today and Topics, nothing more.
+
+cast that’s always home: the regulars behind the bar. A rhythm you can plan
+
+Start a topic from any message. Topics live as a forum list.
+Shared Scrolls get “Call it together”.
+
+around: the pub quiz on Thursday. Something everyone builds together that
+outlasts any one conversation.
+
+C · AI: a cast of four (Explainer, Skeptic, Quizmaster,
+Keeper), never drawn as people. One cheap router decides
+
+So: the AI inhabitants become a cast with real character (Ray, the sunbeam from
+
+who speaks, inside hard caps.
+
+the Scrolls, lives here). The room gets a rhythm: Today’s question every morning
+
+D · Identity: a Station kit. From the topic, the writer returns
+
+and the Launch, a live quiz, in the evening. And the room gets a sky. Everything
+
+JSON for palette, emblem, backdrop prompt and motion,
+and the same emblem becomes the station on the map.
+
+the room does together adds a star, seven stars make a constellation, and a
+finished constellation lights the room’s station on everyone’s Universe map.
+
+E · Game: the same Sparks as Scrolls, plus the room’s Stars,
+which make Constellations. Flair is earned by what you do. A
+
+One line I won’t cross: the liveliness comes from real things. No fake people, no
+
+podium only per Launch. No streaks, no weekly
+leaderboards.
+
+fake typing, no padded counts. In a room of two, the cast and the rhythm do the
+
+F · Quiet room: real past answers, a replayable Launch, and
+“leave a question for the next person”.
+
+work.
+
+Where I agree
+Kill the panel. Show the notice once when you join and keep it in the room menu. The “AI” label on every message does the rest.
+General first. Making people open a thread before they can say hello is the single biggest reason the room feels like a settings page.
+Drop the dotted “suggestion” box. An AI reply is a message in the conversation, not a proposal waiting for approval. The label and the Challenge button keep it
+honest.
+Identity per room. One template for every room makes them all one room. The art can go far, as long as the UI on top stays the brand.
+Game feel, shared with Scrolls. One vocabulary everywhere. A spark you earn in a Scroll is the same spark you earn in the Launch.
+
+Where I’d push back
+YOUR IDEA
+
+WHAT’S RIGHT IN IT
+
+ITS WEAKNESS
+
+MY ALTERNATIVE
+
+AI takes part on its
+own
+
+An empty room needs a voice, and
+waiting to be asked kept the room silent.
+
+Without limits it becomes a chatbot with an
+audience. Two AIs talking to each other is
+theatre, and cost grows with every message.
+
+Triggers plus hard caps: at most 1 unprompted turn
+per 3 human messages and 8 an hour. One cheap,
+invisible “Stage manager” pass picks who speaks.
+Zero calls when nobody’s talking. Each person can
+choose Lively, Quieter or Off.
+
+Show the data
+notice once
+
+A panel on every visit is noise.
+
+If AI reads the room uninvited, you’re
+consenting to more than “when someone
+asks”. A notice you can’t act on later isn’t
+enough.
+
+Show it once, and give a permanent control in the
+room menu: “Keep my messages out of what AI
+reads”. Your messages are swapped for a placeholder
+before any model sees them.
+
+Member and online
+counts
+
+Presence is what makes a place.
+
+Small numbers work against you: “1 online”
+says “leave”.
+
+Faces of who’s here, with a number only when 3 or
+more are here, and the member total in the menu.
+When it’s quiet, say so honestly: “last message 3 h
+ago”.
+
+Room streaks,
+weekly
+leaderboards
+
+People need a reason to come back.
+
+In a room of five, a leaderboard crowns the
+same person every week. Streaks punish you
+for a busy week. Both tell newcomers they’re
+late.
+
+A podium per Launch that’s gone after the night,
+weekly Orbits (shared with Scrolls), and the room’s
+sky as the reason to return.
+
+Levels
+
+Regulars deserve recognition.
+
+Levels rank newcomers below people they
+can never catch.
+
+Flair earned for acts: First answer, Good question,
+Flaw finder, Called it ×5. Like Stack Overflow badges,
+minus the reputation number.
+
+Discord-style
+channels
+
+Structure lets big rooms breathe.
+
+Small communities end up with ten empty
+channels.
+
+Three places only: General, Today and Topics, where
+Topics is a forum list. No member-made channels on
+dev.
+
+Ideas you didn’t ask for
+
+WHAT I’D TEST FIRST
+
+The room’s sky. The shared quest, drawn as art. Every collective act adds a star: a
+Launch finished, a question answered by a person and marked useful, a debate closed
+by vote. Seven make a constellation the room names. Tap any star to see the moment
+that earned it, so the sky doubles as the room’s memory.
+
+Does Ray joining after 4 quiet minutes feel welcome or
+intrusive? Try 2, 4 and 8 minutes.
+
+The cast are the topic’s guide characters. The Ray you meet in an astronomy Scroll is
+the Explainer in the Space room, so Scrolls and rooms feel like one world. They’re never
+drawn as people, so honesty is visible at a glance.
+
+Do people come back for a Launch at a set time? Run one
+room at 21:30 for two weeks.
+
+Call it together. When someone shares a Scroll, the room predicts its Final call before
+watching. That produces the real “what people guess” numbers the Scrolls had to fake or
+leave out.
+
+Real calls per active room per day, against the caps.
+
+Replay the Launch. Someone alone can play last night’s quiz against the real recorded
+answers of the people who played it, clearly labelled as a replay. The room stays alive
+with real people, just shifted in time.
+
+Does Null pushing back feel like a good teacher or a troll?
+Watch how people react to their first Null.
+
+Is the sky understood without an explanation?
+
+WHERE TO LOOK ON THIS PAGE
+
+Flagship → A place → B structure → C cast and behaviour table
+→ D identity → E game → F quiet room → What I took from
+where → Questions.
+
+Leave a question for the next person. Ray answers now, labelled. The question stays
+open for people, and you’re told when a person answers. Human answers earn the room
+a star.
+Room vs room. Two rooms’ Quizmasters co-host a friendly Friday match. The winning
+room gets a star. It’s competition, but between groups, not people.
+
+A CAST
+
+A RHYTHM
+
+A SKY
+
+Always home
+
+Something to come back for
+
+Something you build together
+
+Ray explains, Null pushes back, T-minus runs the
+Launch, Echo remembers. Every message is
+
+Today’s question every morning, Spot the flaw at
+noon, the Launch at 21:30. With “while you were
+
+Stars from things the room did together.
+Constellations light the station on everyone’s map.
+
+labelled AI and the cast sticks to its budget.
+
+away” in the morning, missing a day is fine.
+
+It’s the room’s identity and memory in one picture.
+
+R3 · QUESTIONS
+
+LEANINGS TO DISCUSS · NOT LOCKED
+
+Questions for you to react to
+1
+2
+3
+4
+5
+6
+7
+8
+
+Should a public room have four AI inhabitants (Explainer, Skeptic,
+Quizmaster, Keeper), with four as the hard maximum?
+
+LEANING Yes. Each has one clear job. With more than four, it becomes the AI’s
+
+Should the Space room’s Explainer be the same Ray as in the astronomy
+Scrolls, giving each topic family one guide character?
+
+LEANING Yes. It makes Scrolls and rooms feel like one world.
+
+Are these the right caps on dev: at most 1 unprompted AI turn per 3
+human messages, 8 an hour and 40 a day per room?
+
+LEANING Start there and tune them with real cost data after two weeks.
+
+How long should Ray wait before answering a question nobody has
+answered?
+
+LEANING 4 minutes, or 90 seconds if you’re alone. A/B test 2, 4 and 8 minutes.
+
+What should the default AI level be for new members?
+
+LEANING Lively in public rooms, Quieter in private ones.
+
+Should we offer “Keep my messages out of what AI reads”, even though it
+makes the AI less useful?
+
+LEANING Yes. It’s what makes “AI joins on its own” honest.
+
+For presence, are these the right rules: faces always, a number only when
+3 or more are here, and the member total in the room menu?
+
+LEANING Yes. Never show “0 online” or “1 online”.
+
+How often should the Launch happen?
+
+LEANING A few evenings a week at a time the moderators set. Anyone can
+
+room.
+
+also start one when 2 or more people are here.
+
+9
+10
+
+Is a podium for each Launch enough, with no weekly leaderboard
+anywhere?
+
+LEANING Yes. Collective competition is room vs room.
+
+Which acts should add stars to the sky? And should solo replays count?
+
+LEANING Four acts: a Launch finished, a question a person answered that’s
+
+marked useful, a debate closed by vote, and the daily challenge solved.
+Replays earn sparks, not stars, so nobody can farm the sky alone.
+
+11
+
+Should a lit station change anything inside the room?
+
+LEANING Yes, cosmetically. The constellation joins the room’s backdrop for
+
+good.
+
+12
+
+Who can spin off a topic?
+
+LEANING Anyone, from any message. Echo only suggests.
+
+13
+
+Should members be able to create channels?
+
+LEANING Not on dev. General, Today and Topics are enough until a room has
+
+hundreds of people.
+
+14
+
+How do private rooms handle the AI inhabitants?
+
+LEANING The room chooses its cast. Summaries never leave the room. The
+
+default is Quieter.
+
+15
+16
+17
+
+Live audio, like Spaces?
+
+LEANING Not this year: moderation, captions and cost.
+
+Should Call it together results (real room counts) feed the Scrolls’
+“common guess”?
+
+LEANING Yes, once a Scroll has 30 or more calls across rooms. The sourced
+
+Who reviews a generated room backdrop before the room goes public?
+
+LEANING The operator queue (in the Operator appendix) on dev. Moderators
+
+misconception stays until then.
+
+later.
+
+18
+
+Room vs room, a monthly friendly match between two rooms’
+Quizmasters: worth trying?
+
+LEANING Yes, as an experiment once three rooms have a regular Launch.
+
+R3 · STEAL
+
+WHAT I TOOK, AND WHY
+
+What I took from where
+I took mechanics, not looks. The rule for every row: does it make a room of 3 feel better, not just a room of 3,000?
+SOURCE
+
+WHAT I TOOK
+
+IT BECAME
+
+WHAT I LEFT, AND WHY
+
+Discord
+
+#general as the default. The server menu behind the
+name. Threads started from a message. Forum
+channels. Stage. Roles. Reactions. Activities. Presence.
+
+General first. Room name ▾ opens the
+room menu. “Start a topic” on any
+message. Topics as a forum list. The
+Launch’s stage mode. Flair and the
+moderator role. Drawn reactions, including
+Useful. Watch together. Here-now faces.
+
+Member-made channels (they sprawl into
+empty rooms). Voice channels (moderation,
+accessibility, cost). Boosts and paid perks.
+
+Reddit
+
+Posts with comments. Upvotes. Flair. Karma.
+Megathreads and daily threads. AMAs.
+
+Topics as posts with tags (Question,
+Debate, Explainer, Share). A “Useful”
+reaction in place of upvotes. User flair. The
+Today channel. “Ask the Skeptic anything”,
+and later human expert AMAs.
+
+Downvotes (they turn into pile-ons). A visible
+karma number (it only feeds flair). Awards
+(status you can buy).
+
+Twitch
+
+Chat as a crowd during a live moment. Emote bursts.
+Predictions.
+
+The chat under a live Launch. Drawn
+reaction bursts. Call it together on shared
+Scrolls.
+
+The channel-points economy. Sparks are a
+score, not something you can bet with.
+
+Clubhouse /
+Spaces
+
+A stage and an audience, with a host.
+
+T-minus hosts the Launch; players are on
+stage and everyone else is the audience.
+
+Live audio, for now: it’s hard to moderate, hard
+to caption and expensive. Question 15.
+
+Gather
+
+A room as a space you move through.
+
+Direction A3, the Observatory, possibly as
+the first-visit landing.
+
+As the default: walking an avatar to reach a chat
+is slow on a phone.
+
+Kahoot / HQ
+Trivia
+
+A timer, a host, a scheduled show, a podium.
+
+The Launch at a set time, the per-quiz
+podium, and T-minus as host.
+
+HQ’s elimination: in a room of 4, being knocked
+out on question 1 ends your night. Replays
+instead.
+
+Duolingo
+leagues
+
+A weekly rhythm with a group.
+
+Weekly Orbits, shared with Scrolls, and a
+collective room-vs-room match.
+
+Individual weekly leagues and demotion. They
+work through fear of dropping down.
+
+Stack
+Overflow
+
+Badges earned for specific acts.
+
+Flair: First answer, Good question, Flaw
+finder, Called it ×5.
+
+Reputation numbers and privileges gated by
+rep.
+
+Wordle
+
+A spoiler-free result square anyone can read.
+
+The Launch share card: a row of squares
+per question, shareable into a thread or
+outside.
+
+Nothing. It’s perfect. It just has to stay spoilerfree.
+
+Space room, end to end
+R3 · FLAGSHIP
+
+V3 ROOMS · DESIGN DATA
+
+My recommended direction (Campfire): you land in a live General under the room’s sky, the cast joins in on budget, a topic spins off, the Launch runs, and the station on your map shows what the room built.
+
+1 · FIRST VISIT
+
+2 · GENERAL, LIVE
+
+3 · A TOPIC SPUN OFF
+
+4 · THE LAUNCH
+
+Full art, the cast, the one-time notice. Join and say hi.
+
+Nobody answered Asha for 4 min, so Ray joins; Null pushes back
+on “proven”.
+
+Ravi’s message → topic with a vote. You ask Null for the other side.
+
+General becomes a stage: T-minus asks, chat keeps going as the
+crowd.
+
+THE EVENING, IN ORDER
+SPACE ROOM · TOPICS
+
+Space room ▾
+AS
+
+RV
+
+3
+
+KJ
+AI
+
+AI
+
+AI
+
+AI
+
+AI
+
+Null · AI Skeptic
+
+AI
+
+Challenge
+
+Other side
+
+Explore this
+
+8 seconds
+
+LN
+
+GOOD QUESTION
+
+Isn’t modified gravity basically dead after the
+Bullet Cluster?
+
+•••
+
+You 21:13
+
+08:45 · Your map. The station sits at 6 of 7 stars.
+
+✓
+
+YOU
+
+Ray · Explainer · yellow edge
+
+★ 2 TONIGHT
+
+4 LOCKED
+
+Null · Skeptic · cobalt edge
+
+AI
+
+AI
+
+T-minus · Quizmaster
+
+Echo · Keeper · teal edge
+AI
+
+Never drawn as people: a sunbeam, a black hole, a rocket, a probe. The “AI” badge sits on every avatar; every AI message is
+read as “AI, Skeptic, Null: …”.
+
+Kenji 21:31
+
+minutes, surely
+Asha 21:31
+
+AS
+
+I always mix this up with the Moon (about a
+second)
+
+The best case for modified gravity: one simple
+rule predicts how fast stars orbit in many
+galaxies from their visible matter alone, often
+more neatly than dark matter does galaxy by
+galaxy. Its trouble is galaxy clusters, like the
+Bullet Cluster, and the early universe.
+
+Explore this
+
+✓
+
+KJ
+
+8 days
+
+THE CROWD · CHAT KEEPS GOING
+
+KJ
+
+Careful with “proven”. We’ve measured its
+gravity many ways (galaxy spin, bent light, the
+early universe), but nobody has detected a dark
+matter particle yet. “Something heavy we can’t
+see” is measured; what it is, isn’t.
+Other side
+
+21:41 · Podium + 1 star. The vote and a useful answer add another overnight.
+
+AI
+
+Null, give us the other side?
+
+Challenge
+
+✓
+
+RV
+
+D
+
+21:12
+
+ARGUING THE OTHER SIDE, AS YOU ASKED
+
+Reply
+
+8 minutes
+
+3
+
+Lena
+
+Null · AI Skeptic 21:07
+
+Join and say hi
+
+8 hours
+
+C
+✓
+
+Null · AI Skeptic 21:13
+
+SHOWN ONCE, ON JOINING · ALSO IN GUIDELINES
+
+B
+
+21:30 · The Launch. General turns into a stage; chat becomes the crowd.
+
+08:40 · You’re back. Echo’s summary, written once for everyone returning.
+
+AS
+
+So basically we’ve proven dark matter exists.
+
+AI
+
+21:07 · Null pushes back on “proven”. One rebuttal, then it waits for a human.
+
+So basically we’ve proven dark matter exists.
+
+AI
+
+They join conversations on their own and are always
+labelled AI. To do that, they read this room’s recent
+messages, without names. Change it any time in the
+room menu → AI here.
+
+Sunlight reaches Earth in about…
+
+2
+
+Ravi 21:09
+
+RV
+
+Ravi 21:07
+
+RV
+
+Remembers; catches
+you up
+
+AI
+
+Runs the nightly Launch
+
+8s
+
+LAUNCH · 3 OF 5
+
+21:09 · Ravi’s message becomes a topic with a vote. You ask Null for the other side.
+
+Ends in a vote; the result posts back to General and earns the
+room a star.
+
+YOU
+
+Echo · AI Keeper
+
+5 · YOUR VOTE
+
+20:55 · First visit. Full art, the cast, one notice. Join and say hi.
+21:02 · Asha asks. Nobody answers for 4 minutes.
+
+CLOSES FRI · 7 VOTES
+
+JOINED BECAUSE NOBODY HAD ANSWERED FOR 4 MIN
+
+Pushes back on claims
+
+AI
+
+T-minus · AI
+Quizmaster
+
+3
+
+Nobody’s grabbed this yet, so here’s a start:
+mostly no. If most dark matter were black holes,
+we’d see them bend the light of stars behind
+them far more often than we do. Some
+scientists still study tiny primordial black holes
+as a small part of it. What made you think of
+black holes?
+Reply
+
+Explains, with an
+example
+
+AI
+
+Modified gravity
+
+Ray · AI Explainer 21:06
+
+Four AI inhabitants live here
+AI
+
+AI
+
+T-minus · AI Quizmaster
+
+3
+
+Which explains it better?
+
+AI
+
+One evening and the morning after
+
+21:06 · Ray joins, uninvited. The Stage manager saw an unanswered question.
+
+SPUN OFF FROM RAVI’S MESSAGE · 21:09 · ••• → START A
+TOPIC
+
+A
+
+AI
+
+Ray · AI Explainer
+
+12 new
+
+AI
+
+4 HERE
+
+21:02 → 21:06 · NO REPLIES
+
+3
+
+AI
+
+3
+
+KJ
+AI
+
+Dark matter
+
+AI
+
+RV
+
+Launch 9:30 pm
+
+Wait, is dark matter just black holes we can’t
+see?
+
+Stars, planets, black holes, and how we
+know any of it. Launch quiz every night at
+9:30.
+
+RV
+
+DEBATE
+
+Asha 21:02
+
+AS
+
+OPEN TO EVERYONE · 24 MEMBERS
+
+AS
+
+AS
+
+AI
+
+LIVE · LAUNCH
+
+OPEN TO EVERYONE
+
+3 HERE
+
+Today · Why is the night sky dark?
+
+Space room
+
+Space room ▾
+
+Dark matter or modified gravity?
+
+OPEN TO EVERYONE
+
+Called it 4
+
+Mind blown 2
+
+Hmm 1
+
+•••
+Reply
+
+JOINED BECAUSE A CLAIM WENT FURTHER THAN THE
+EVIDENCE
+
+Challenge
+
+Other side
+
+Explore this
+
+•••
+
+Look around first
+Reply in this topic
+
+Message #general
+
+Message #general · the Launch is live
+
+5 · NEXT MORNING
+
+6 · ROOM MENU
+
+7 · YOUR MAP AFTER
+
+Echo’s “while you were away”, then the topic that grew overnight.
+
+Behind the name: AI here, members, moderation, privacy, leave.
+
+The room’s station orbits Earth & sky: 6 of 7 stars, Launch pulsing.
+
+SPACE ROOM · STATION KIT (THE JSON THE WRITER RETURNS)
+
+Space room ▾
+
+Space room ▾
+
+OPEN TO EVERYONE
+
+OPEN TO EVERYONE
+
+‹ Universe
+
+GROUND · NAVY
+
+ORBIT 2 OF 3 THIS WEEK
+
+Space room
+AS
+
+RV
+
+3
+
+KJ
+AI
+
+AI
+
+3 HERE
+AI
+
+ACCENT · YELLOW
+
+OPENKJ
+TO EVERYONE · 24 MEMBERS · YOU3MODERATE
+RV
+HERE
+3
+
+AS
+
+AI
+
+AI
+
+AI
+
+AI
+
+AI
+
+About this room
+Today · Spot the flaw
+
+Launch 9:30 pm
+
+Earth & sky
+
+SECOND · COBALT
+
+ASTRONOMY · 1 ROOM STATION
+
+INK ON ART · CREAM
+
+38 new
+
+Guidelines
+
+INCL. HOW AI READS THE ROOM
+
+{
+"palette": {"ground": "#040A17", "accent": "#FFE44D", "ink": "#FFFBF0"},
+"emblem": {"frame": "circle", "glyph": "ringed-planet"},
+"motif": "star field + constellation lines",
+"motion": "twinkle",
+"backdropPrompt": "screenprint, 2 inks on navy, star field, no text, no faces",
+"cast": {"explainer": "Ray", "skeptic": "Null"}
+
+LAUNCH TONIGHT
+
+AI here
+
+3
+
+AI
+
+Lively
+
+YOU LEFT AT 22:10 YESTERDAY
+
+AI
+
+Quieter
+
+AI
+
+AI
+
+Off
+
+Echo · AI Keeper 08:40
+AI
+
+While you were away, since 22:10:
+
+}
+
+Keep my messages out of what AI reads
+
+The Launch: 5 played; Kenji got 5 of 5; you got
+4 (★4).
+
+Members
+
+New topic: Could we ever detect dark matter?
+(12 replies)
+
+Notifications
+
+Asha answered your question about black
+holes.
+
+Pins
+
+3
+
+The room earned 2 stars: the constellation is
+at 6 of 7.
+
+Topics
+
+9
+
+KENJI
+
+Explorations
+
+4
+
+5
+
+YOU
+
+ASHA
+
+4
+
+4
+MODERATOR
+
+Jump to Asha’s answer
+
+Catch up in order
+WRITTEN ONCE FOR EVERYONE BACK IN THIS WINDOW · 1
+CALL, CACHED
+
+Could we ever detect dark matter?
+12 REPLIES · LAST 08:31 · KENJI
+
+LAUNCH ONLY
+
+ONLY MODS SEE THIS
+
+Report queue
+
+1
+
+Slow mode · Launch time
+
+OFF
+
+YOUR PLANET · SEASONS LIT
+ROOM STATION · ORBITS EARTH
+& SKY
+CALLED IT ×5
+
+Space room
+
+Pin and Remove are on every message’s ••• menu.
+
+Privacy
+TOPIC
+
+Data only. No model-written HTML or JS runs; the app draws the emblem, stars and constellation from these fields. Reduced motion: the twinkle stops and the art is a still frame.
+
+24
+
+OPEN → MAKE INVITE ONLY
+
+Leave room
+
+6 of 7
+One more star lights this station on everyone’s map.
+Then the room names the constellation (Echo offers
+three names).
+
+Enter room
+
+Remind me at Launch
+
+Message #general
+
+WHAT’S ALIVE HERE
+
+RULES I BROKE AND WHY
+
+COST OF THIS EVENING
+
+ACCESSIBILITY & MOTION
+
+SAMPLE DATA
+
+A cast that’s always home (Ray, Null, T-minus, Echo), a rhythm (today’s
+question, the 9:30 Launch, the morning catch-up) and a sky the room builds
+together. People make the room alive; the cast and the rhythm make sure it’s
+never dead. Nothing fakes a person.
+
+Counts (R01): “3 here” only when 3+ people are here; 24 members sits in the
+room menu. Score (R03): sparks in the Launch. Rank (R03): a podium for
+that one Launch, gone after. AI fills silence (R02): yes, on budget. Still
+banned: streaks, weekly leaderboards, levels, karma totals.
+
+About 60 human messages. Stage manager (small model): ~24 passes, only
+after people posted. Unprompted turns (large): 3 (Ray, Null, Echo’s topic
+nudge) of a 20 cap. Asked turns: 1 (Other side). Launch: 0 live calls (premade nightly batch). Away summary: 1, cached for everyone. Welcome:
+template, 0.
+
+Every AI message is labelled for screen readers (“AI, Skeptic, Null: …”). Every
+gesture has a button: room name ▾ opens the menu, ••• on every message,
+Reply/Challenge/Other side/Explore this. Reduced motion: twinkle off,
+reaction bursts static, no confetti, the Launch timer reads as text (“8 s”), the
+station pulse becomes a ring.
+
+Invented for the demo: Asha, Ravi, Kenji, Lena; 24 members; vote 5–2; the
+Launch results (Kenji 5/5, You 4/5, Asha 4/5); 12 and 38 new; the reportqueue count; Orbit 2 of 3. The constellation name is pending (the room votes
+when the 7th star lands). Facts are checked: dark matter ≈ 85% of matter, no
+particle detected; sunlight ≈ 8 min 20 s.
+
+AI behaviour table
+R3 · C
+
+V3 ROOMS · DESIGN DATA
+
+Who speaks, when, how often, on which model, and what they never do. Explicit enough to cost: every AI turn is a paid call.
+
+INHABITANT
+
+Stage
+manager
+Invisible router ·
+not a character
+
+PERSONALITY
+
+TRIGGERS (UNPROMPTED)
+
+None. Never speaks, never
+shown. Decides who (if
+anyone) speaks.
+
+Runs only when people have
+posted since the last pass
+
+ASKED BY
+
+MAX FREQUENCY
+
+—
+
+≤ 30 passes/hour while people
+post; 0 when idle
+
+MODEL TIER
+
+S
+
+NEVER DOES
+
+Writes visible text
+
+At most every 2 min
+
+Sees names or opted-out
+messages
+
+Reads the last 30 messages,
+names replaced by speaker tokens
+
+Allows more than one
+speaking turn per pass
+
+Returns JSON: {speak, trigger,
+replyTo}
+
+Ray
+AI
+
+AI Explainer ·
+sunbeam
+
+Warm, concrete. One
+example, then a question
+back.
+
+A question no person has
+answered for 4 min (90 s if only
+one person is here)
+
+@Ray, Ask Ray
+about this,
+Explore this
+
+4 unprompted/hour/room
+
+L
+
+Answers while a person is
+typing a reply
+Claims more certainty than
+its sources
+
+A newcomer’s first question
+
+DMs anyone
+Flatters (“great question!”)
+
+Null
+AI
+
+AI Skeptic · tiny
+black hole
+
+Dry, polite, never smug.
+Splits measured from
+guessed.
+
+The Stage manager flags a factual
+claim as wrong or overstated, with
+high confidence
+
+Challenge, Other
+side, @Null
+
+3 unprompted/hour/room · ≤ 1 per
+person per hour
+
+L
+
+Argues taste or opinion
+(“Messi is the best”)
+
+Ray overstated (one rebuttal)
+
+Answers a newcomer’s first
+message
+
+Daily Spot the flaw (from the
+nightly batch)
+
+T-minus
+T-3
+
+AI
+
+AI Quizmaster ·
+rocket
+
+Echo
+AI
+
+AI Keeper · old
+probe
+
+Short sentences, big
+energy. Counts you in,
+never out.
+
+Scheduled Launch (mods set the
+time) if 1+ person opted in
+
+Patient, exact. The room’s
+memory.
+
+You return after 12+ h with 15+ new
+messages: while you were away
+
+Mocks
+
+Goes past 2 exchanges
+with one person unless
+asked
+Start a quiz (2+
+here), solo replay
+
+1 live quiz per 2 hours
+
+batch
+
+Starts without an opt-in
+
+template
+
+Shames wrong answers
+
+Offers a quiz once when the room
+has been quiet 30+ min and a
+person is here
+
+Generates questions live:
+all are made in the nightly
+batch and checked
+Catch me up,
+Summarise this
+topic
+
+A newcomer joins: one welcome
+line
+
+1 suggestion/hour · 1 summary per
+return window (cached, shared)
+
+M
+
+Moderates or removes
+
+template
+
+Quotes removed messages
+Includes people who opted
+out
+
+A side conversation (6+ replies, 2+
+people, one claim): “Spin this into a
+topic?”, shown only to them
+
+Summarises a private room
+to outsiders
+
+End of day (10+ messages): Today
+digest
+
+Room-level caps (dev defaults)
+
+AI to AI
+
+Unprompted turns: ≤ 1 per 3 human messages, ≤ 8 per hour, ≤ 40 per day.
+
+At most one reply between inhabitants (Null may answer Ray once). Then the next AI
+turn waits for a person. No staged AI debates, ever: an argument between two bots is a
+show, not a room.
+
+Asked turns: don’t count against the unprompted cap; ≤ 10 per person per hour, ≤ 80 per room per
+day.
+No repeats: never two turns in a row from the same inhabitant without a person in between (a
+running Launch is the exception).
+
+Quiet-room rule
+
+One pass, one voice: each Stage manager pass allows at most one speaking turn.
+Mods can tune every number per room; the room menu shows the current limits to everyone.
+
+An empty room costs zero live calls. The Stage manager only runs after someone posts.
+What keeps a quiet room alive is made ahead in one nightly batch (Today’s question,
+Spot the flaw, tomorrow’s Launch) or on return (while you were away, cached). Nothing
+speaks into an empty room to keep it warm.
+
+What a day costs, in calls
+STAGE MGR
+
+UNPROMPTED
+
+ASKED
+
+SUMMARIES
+
+S
+
+L
+
+L
+
+Dev room
+2 people, 40 messages
+
+≤ 20
+
+≤ 13
+
+~5
+
+1
+
+Busy room
+30 people, 600 messages
+over ~10 h
+
+≤ 300
+
+40
+
+80
+
+Idle day
+nobody posts
+
+0
+
+0
+
+0
+
+SCENARIO
+
+M
+
+BATCH
+
+WELCOMES
+
+TOTAL
+
+WHICH CAP BINDS
+
+≤3
+
+0
+
+≈ 42
+18 L
+
+The ratio (40 ÷ 3 = 13). Hourly and daily caps are never reached.
+
+1
+
+≤5
+
+0
+
+≈ 426
+120 L
+
+Daily unprompted cap (ratio would allow 200, hourly 80). Asked cap 80/day (demand ~120).
+Stage manager is the volume but the cheapest tier.
+
+1
+
+0
+
+0
+
+1
+
+Only the nightly batch.
+
+calls/day = passes [≤ min(bursts, 30/h)] + min(humanMsgs ÷ 3, 8/h, 40) + min(asks, 10/person/h, 80) + 1 batch + summaries [≤ 1 per return window + 1 digest]
+welcomes = template (0 calls) · quiz questions = batch (0 live calls) · Launch lines = template
+
+Tiers: S = small fast model; M = mid model; L = the full model that writes a turn; batch = one nightly job for every room’s rituals; template = no model. Counts are design data for sizing, not measurements.
+
+How they don’t drown the people
+
+Triggers I rejected
+
+Ratio cap: AI can’t outtalk people: ≤ 1 unprompted turn per 3 human messages.
+
+Reacting to every message: cost grows with chatter and the AI becomes the loudest voice.
+
+Typing check: if a person is typing a reply, Ray stands down.
+
+Greeting on every visit: noise. One template welcome when you first join.
+
+No repeats: a person must speak between two turns of the same inhabitant.
+
+AI-to-AI debates for show: fake activity; people become an audience for bots.
+
+Smaller voice: AI messages are 15px with a coloured edge, people’s are 15.5px and plain; AI
+never pins itself.
+
+Live-generated quiz questions: unchecked facts under a timer. Made nightly and checked.
+
+Bundling: two AI turns within a minute fold into one card with “2 replies”.
+Your dial: Lively / Quieter / Off per room, plus “keep my messages out”.
+
+Summarising every topic automatically: summaries only when someone returns or asks,
+then cached.
+
+Pile-on guard: Null speaks to any one person at most once an hour unless asked.
+
+DMs from inhabitants: feels like being courted by a bot. They stay public.
+
+Speaking into an empty room to keep it warm: fake life and pure cost.
+
+AI removing messages: moderation stays human; Echo and Null can only flag to mods.
+
+The room as a place
+R3 · A
+
+A1 · CAMPFIRE My pick. General first, art band, Now strip
+
+A
+
+R
+
+A1 · NAME TAPPED Band collapsed on scroll; the room menu
+
+Space room
+
+Space room
+
+OPEN TO EVERYONE
+
+OPEN TO EVERYONE
+
+AI
+
+AI
+
+AI
+
+AI
+
+Asha and Ravi
+are here
+
+Why is the night sky dark?
+
+TODAY
+
+A2 · STAGE FIRST Something live: a Reel watched together
+
+Space room
+
+R
+
+A2 · NOTHING LIVE The weakness: an empty stage
+
+Space room
+
+LIVE
+
+A
+
+21:06
+
+AI · EXPLAINER
+
+Nobody’s
+grabbed
+yet, so here’s a start:
+OPEN
+TO EVERYONE
+· 24this
+MEMBERS
+
+About
+
+Stars, planets, how we know
+
+Includes how AI reads this room
+
+Lively · Quieter · Off · keep my messages out
+
+LIVELY
+
+Members
+
+24
+
+Notifications
+Pins
+
+3
+
+Topics
+
+6
+
+Explorations
+
+4 what-ifs
+
+AI
+
+AI
+
+Asha and Ravi
+are here
+
+A
+
+R
+
+AI
+
+AI
+
+AI
+
+AI
+
+Asha and Ravi
+are here
+
+Telescope · Today’s question
+
+1
+
+R
+
+K
+
+Y
+
+4 watching
+
+Moderation
+
+2 REPORTS
+
+21:07
+
+AI
+
+Privacy
+
+Careful with “proven”. Its gravity is
+measured many ways; nobody has detected
+the particle yet.
+
+Open to everyone
+
+Dome · Launch 9:30 pm
+
+Leave stage
+TELESCOPE · TODAY’S QUESTION
+
+THE CROWD · GENERAL
+
+Asha wait, 93 billion?? it’s only 13.8 billion years
+old
+
+A
+
+Why is the night sky dark?
+
+Asha 18:12
+
+anyone around for the Launch later?
+
+Kenji space kept stretching while the light
+travelled
+
+3
+
+If the universe is full of stars, why isn’t every
+direction bright?
+
+Chalkboard · Topics (6)
+
+Ravi that’s the bit that breaks my brain
+
+A
+
+4
+
+Lena this is my favourite one
+Moderators only
+
+Challenge
+
+A
+
+Mentions
+
+Other side
+
+So we’ve basically proven dark matter exists.
+
+Reply
+
+AI
+
+Start a quiz
+
+THE CROWD · GENERAL
+
+Ravi 21:07
+
+AI · SKEPTIC
+
+AI
+
+0:41 / 1:10 · synced for everyone
+
+Explore this
+
+Null
+
+THE OBSERVATORY
+
+2
+
+Nobody’s grabbed this yet, so here’s a start:
+mostly no. If it were mostly black holes, we’d
+see them bend the light of stars behind
+them far more often than we do. What
+made you think of black holes?
+
+R
+
+THE OBSERVATORY
+
+Watch a Reel together
+
+How big is the universe?
+
+AI here
+
+21:06
+
+Challenge
+
+Space room
+
+Last on stage: the Launch, yesterday at 21:30
+
+AI
+
+Reply
+
+Space room
+
+Guidelines
+
+Wait, is dark matter just black holes we can’t
+see?
+AI · EXPLAINER
+
+R
+
+A3 · TELESCOPE TAPPED Each place opens one thing
+
+Nothing on stage right now
+
+Space room
+
+How big is…
+
+Asha 21:02
+
+Ray
+
+NOTHING LIVE
+
+REEL · SHARED BY LENA
+
+mostly no…
+12 NEW SINCE 20:40
+
+A3 · OBSERVATORY The room as an illustrated place
+
+Wait, is dark matter just black holes we can’t
+see?
+
+AI
+REEL
+
+9:30 pm
+
+LAUNCH
+
+A
+
+Asha 21:02
+
+A
+
+Ray
+
+A
+
+V3 ROOMS · DESIGN DATA
+
+Enter straight into the live General conversation with the room’s art behind it. Who’s here, what’s happening now and what’s new are visible at a glance; the settings page moves behind the room name.
+
+L
+
+4 answers today
+
+R
+
+Log desk · Since you left
+
+The weakness: most of the day nothing is live, so the
+best part of the screen is an empty box and the chat is
+squeezed.
+
+Ray AI The part we can see is about 93
+AI billion light-years across.
+
+K
+
+Answer
+
+See answers
+
+The weakness: every visit is a walk through the scene
+before you can say anything.
+
+You pause at 0:52?
+
+Leave room
+
+Other side
+
+Message #general
+
+Message #general
+
+Message the crowd
+
+Go in and talk · General
+
+Message #general
+
+A1 · DESKTOP 1440 Three columns: rail, General, Now
+
+General Say anything. Topics are optional spin-offs.
+
+Start a topic
+
+HERE NOW · 3
+
+A
+
+Pinned How AI inhabitants read this room, and how to turn them down
+
+Space room
+
+ALL PINS (3)
+
+R
+
+OPEN TO EVERYONE · 24 MEMBERS
+
+Lena 20:58
+
+L
+
+Saw this and thought of you all:
+
+K
+
+Asha
+In General
+
+General
+
+12 new
+
+Watch
+
+Kenji
+Just arrived
+
+AI
+
+AI
+
+AI
+
+AI
+
+4 AI inhabitants, always
+home
+
+Watch together
+
+AI
+
+Topics
+
+6
+
+Pins
+
+Wait, is dark matter just black holes we can’t see?
+
+3
+
+Explorations
+
+Ray
+
+ROOM SKY
+
+21:06
+
+AI · EXPLAINER
+
+Nobody’s grabbed this yet, so here’s a start: mostly no. If most dark matter were black holes, we’d see
+them bend the light of stars behind them far more often than we do. Some scientists still study tiny
+primordial black holes as a small part of it. What made you think of black holes?
+
+4
+
+TOPICS
+
+Reply
+
+Dark matter or modified gravity?
+
+Challenge
+
+Other side
+
+Explore this
+
+8
+
+Ravi 21:07
+
+R
+
+5 of 7 stars. Two more light this room’s station on
+everyone’s map.
+
+So we’ve basically proven dark matter exists.
+
+12
+
+NEW SINCE YOU WERE HERE
+TOPIC · DEBATE
+
+Dark matter or modified gravity?
+5
+
+12 messages in General
+
+8 replies · last: Null, 21:14
+
+1 new topic
+Null
+
+AI · SKEPTIC
+
+Debate
+
+21:07
+
+AI
+
+Careful with “proven”. We’ve measured its gravity many ways (galaxy spin, bent light, the early universe),
+but nobody has detected a dark matter particle yet. “Something heavy we can’t see” is measured; what
+it is, isn’t.
+
+Asha replied to you
+
+TODAY’S QUESTION
+
+Reply
+
+Challenge
+
+Other side
+
+Why is the night sky dark?
+4 answers
+
+You
+CALLED IT ×5
+
+A3 · THE OBSERVATORY
+
+WHAT MOVED BEHIND THE NAME
+
+Strengths: wonder and identity on a first visit; every room could be a
+different building (a dugout, a server hall, an archive, a kitchen). Hotspots are
+real labelled buttons, so it’s still accessible. Weakness: a walk through the
+scene before you can say anything. Best as the first-visit landing, or behind
+the emblem as “the room’s place”.
+
+Like Discord’s server menu, tapping “Space room ▾” opens: About, Guidelines
+(with the one-time AI data notice), AI here (Lively / Quieter / Off, keep my
+messages out), Members, Notifications, Pins, Topics, Explorations,
+Moderation (mods only), Privacy (open or invite only) and Leave room. The
+settings page is still there; it just isn’t the front door.
+
+COUNTS I USED (R01 RULE RELAXED)
+
+MY PICK
+
+Here now = faces, never “0 online”. A number appears only when 3 or more
+people are here (desktop shows “Here now · 3”); with 2 you see names (“Asha
+and Ravi are here”). Members total lives in the room menu. “12 new since
+20:40” is a divider, not a badge. The cast is never counted as people: it sits
+after a divider with its own label.
+
+A1 Campfire, switching into A2 stage mode while something is live, with A3’s
+scene used as the first-visit welcome. On desktop all three columns work: rail
+(room + channels + topics), General, and the Now panel (here now, Launch,
+room sky, new since, today’s question).
+
+Remind me
+
+4 going
+
+Asha 21:02
+
+A
+
+5 questions with
+T-minus
+
+AI
+
+Y
+
+Strengths: unbeatable when something is live: a Reel watched together or
+the Launch, with General as the crowd (Twitch, Spaces). Weakness: most of
+the day nothing is live, so the biggest part of the screen is an empty box. I
+borrow A2 only while something is live: A1 turns into stage mode, then turns
+back.
+
+LAUNCH · TONIGHT
+9:30 PM
+12 NEW SINCE 20:40
+
+Is Pluto a planet again?
+
+Strengths: you land in the live conversation and can talk in one tap. The art
+band says “this is the Space room” without a word, then gets out of the way
+when you scroll. The Now strip answers “what’s happening?” in one glance.
+Weakness: when nobody has spoken for hours, the chat is the first thing you
+see (see F, the quiet room).
+
+Writing in a topic
+
+Today
+
+Could we ever detect it?
+
+A2 · STAGE FIRST
+
+Ravi
+
+REEL · 1:10
+
+How big is the universe?
+
+A1 · CAMPFIRE
+
+AI: Lively
+
+Message #general
+
+Answer
+
+General, topics and shared content
+R3 · B
+
+B1 · FROM A MESSAGE ••• on Ravi’s message: Start a topic
+
+B1 · THE CARD STAYS Topic card in General, pin bar, a what-if
+
+SHARED CONTENT Call it together on a Scroll; Watch together
+
+TODAY CHANNEL Daily question, Spot the flaw, the Launch
+
+Space room
+
+Space room
+
+Space room
+
+Space room
+
+Space room
+
+GENERAL
+
+TOPICS · 6
+
+GENERAL
+
+GENERAL
+
+TODAY
+
+Pinned How AI reads this room
+
+AI · EXPLAINER
+
+ALL 3
+
+Hot
+
+R
+
+21:06
+
+New
+
+Unanswered
+
+QUESTION
+
+DEBATE
+
+You 19:40
+
+Y
+
+Hot take: Pluto should be a planet again.
+
+Ravi 21:07
+
+So we’ve basically proven dark matter exists.
+Modified gravity is dead.
+
+ALL
+
+AI
+
+EXPLAINER
+
+SHARE
+
+Dark matter or modified gravity?
+8 replies · last: Null, 21:14
+
+9
+
+SHARE
+
+Y
+
+K
+
+A
+
+DEBATE
+
+Kenji 21:12
+
+Moving to the topic, this is good
+
+Ravi · 8 replies · vote closes Fri
+
+QUESTION
+
+Echo
+
+What if dark matter didn’t exist?
+
+Start a topic
+
+Galaxies would spin slower at their edges, and
+the outer stars would drift away.
+
+How we weigh a galaxy, with one drawing
+EXPLAINER
+
+Open
+
+4
+
+Explorations (4)
+
+AI · KEEPER
+
+QUESTION
+
+L
+
+R
+
+Seasons get stronger
+
+1
+
+Null
+
+Answer
+
+4 answers
+
+AI · SKEPTIC
+
+Tap the part that’s wrong:
+
+Stars twinkle
+
+Not now
+
+TITLE SUGGESTED: “IS PLUTO A PLANET AGAIN?” · YOU CAN
+EDIT IT
+
+You · 5 replies · from General
+
+SPOT THE FLAW
+
+AI
+
+“Stars twinkle because they flicker on and off.”
+6 people in this room called it. Answers stay hidden
+until you call.
+
+ONLY YOU AND ASHA
+
+they flicker on and off
+
+Read the Scroll to find out
+2 FOUND IT TODAY · FIRST FINDER EARNS FLAW FINDER
+PROGRESS
+
+L
+
+Lena 20:58
+
+Watching this together, come
+
+TONIGHT · 9:30 PM
+
+REEL · 1:10
+AI
+
+How big is the universe?
+
+2
+
+Other side
+
+1
+
+You two have 7 replies on whether Pluto counts as
+a planet. Spin it into a topic so others can find it?
+Make it a topic
+
+Is Pluto a planet again?
+
+Ask Ray about this
+
+Permanent summer in the north
+
+Lena · 6 replies · yesterday
+
+from this message
+
+K
+
+4
+
+AI
+
+WHAT-IF · SAVED TO EXPLORATIONS
+
+Reply
+
+YOUR CALL
+
+3 MORE REPLIES BETWEEN YOU AND ASHA
+
+Asha · 12 replies · 2 h
+
+7
+
+A
+
+Seasons almost vanish
+
+ok fair, but it’s about being gravitationally
+dominant
+
+Could we ever detect dark matter directly?
+
+I tapped Explore this on Null’s answer:
+
+If the universe is full of stars, why isn’t every direction
+bright?
+
+Asha 19:43
+
+A
+
+5
+
+Asha 21:15
+
+Why is the night sky dark?
+
+Turn Earth’s tilt to 0°. What happens to
+the seasons?
+
+Neither has Earth, fully. Asteroids cross our
+orbit.
+
+Echo · opened 09:00 · 31 replies
+
+PAST DAYS
+
+TODAY’S QUESTION
+
+3 MIN
+
+It leans
+
+You 19:42
+
+Dark matter or modified gravity?
+
+RAVI STARTED A TOPIC FROM THIS MESSAGE
+
+Today TUE 27 OCT · OPENED BY ECHO
+
+Before you read this one, call it:
+SCROLL · SEASONS · PART 1
+
+It hasn’t cleared its orbit though, that’s the
+whole rule
+
+Ravi 21:07
+
+So we’ve basically proven dark matter exists.
+Modified gravity is dead.
+
+Kenji 20:30
+
+CALL IT TOGETHER · THE FINAL CALL
+
+Launch night · today’s thread
+
+TOPIC · DEBATE
+
+K
+
+Asha 19:41
+
+A
+
+PINNED · DAILY
+
+Mostly no. If it were mostly black holes, we’d
+see far more starlight bent by them.
+R
+
+B3 · ECHO SUGGESTS Shown only to the two people talking
+
+GENERAL
+
+Wait, is dark matter just black holes we can’t
+see?
+Ray
+
+B2 · TOPICS A forum list: tags, Useful, no downvotes
+
+Space room
+
+Asha 21:02
+
+A
+
+V3 ROOMS · DESIGN DATA
+
+General is the default. Topics spin off from any message and live as a forum list. Reels and Scrolls arrive as cards the room can call together; what-ifs, pins and the daily Today channel each have one home.
+
+The Launch with Tminus
+
+Remind me
+
+5 questions · 4 going
+
+3 watching together now
+
+Null argues it
+USEFUL ONLY. NO DOWNVOTES, NO KARMA SHOWN.
+
+Join
+
+Pin
+
+mods
+
+Remove
+
+mods
+
+Watch alone
+
+Report
+
+Message #general
+
+New topic
+
+Message #general
+
+Message #general
+
+Message #general
+
+Message #today
+
+SPINNING OFF A TOPIC
+
+TOPICS AS A FORUM
+
+ECHO’S NUDGE (B3)
+
+SHARED CONTENT, AND CALL IT TOGETHER
+
+WHAT-IFS, PINS AND TODAY
+
+MY PICK
+
+Any message’s ••• has Start a topic (a Discord thread from a
+message). The topic lives in Topics and shows in General as
+one compact card that keeps updating (replies, last reply).
+The original message stays where it was, so General never
+loses the thread of conversation.
+
+Topics is a Reddit-style list: title, tag (Question, Debate,
+Explainer, Share), replies, and Useful instead of upvotes. No
+downvotes, no karma total; Useful only feeds flair (Good
+question, First answer). Sort Hot / New / Unanswered, so
+questions nobody has answered float up for people, not just
+for Ray.
+
+When 2+ people trade 6+ replies on one claim, Echo offers
+“Spin this into a topic?” to those people only, with a
+suggested title they can edit. At most one suggestion an
+hour; “Not now” silences it for that conversation. It never
+moves anyone’s messages by itself.
+
+Reels, Scrolls and moments arrive as cards. A Scroll card
+carries its Final call: the room calls it before reading, and
+answers stay hidden until you call. Those are real counts
+from real readers, which is exactly the “what most people
+guess” data Scrolls didn’t have. A Reel card offers Watch
+together (synced) or alone.
+
+What-ifs (“Explore this”) post a card where they were asked
+and collect on the Explorations shelf in the room menu.
+Pins: one pin bar on General (latest pin), all pins in the menu;
+mods pin. Today is a daily channel Echo opens each
+morning: today’s question, Null’s Spot the flaw, tonight’s
+Launch. Yesterday moves to Past days.
+
+B1 + B2 together: talk in General, spin off from any message,
+and topics live as a forum list. B3 is an assist, not a rule.
+Today replaces Reddit’s daily threads, Explorations replaces
+R02’s “Explore this” panel, and Call it together is the bridge
+between Scrolls and rooms.
+
+AI inhabitants that are alive
+R3 · C
+
+V3 ROOMS · DESIGN DATA
+
+A cast with characters, a reason for every turn they take, and a dial each person controls. Space room shown; budgets and triggers are on the behaviour table.
+
+Ray
+
+Null
+
+AI EXPLAINER
+
+T-minus
+
+AI SKEPTIC
+
+Warm and concrete. One example, then a question
+back to you.
+
+Dry, polite, never smug. Splits what’s measured from
+what’s guessed.
+
+“Nobody’s grabbed this yet, so here’s a start…”
+
+“Careful with ‘proven’. What’s measured here, and
+what isn’t?”
+
+YELLOW #FFE44D · THE RAY FROM ASTRONOMY SCROLLS
+
+FOOTBALL TACTICS
+
+AI
+
+Short sentences, big energy. Counts you in, never
+counts you out.
+
+“Since you left at 22:10: three things happened.”
+
+COBALT BODY, YELLOW FLAME
+
+MODEL SERVING
+
+TEAL #14C79B · AN OLD PROBE
+
+HISTORY
+
+COOKING
+
+PRINCIPLE
+
+Ray
+
+Null
+
+Chalk
+
+Var
+
+Tok
+
+Bench
+
+Quill
+
+Source
+
+Pip
+
+Taste
+
+Explainer
+
+Skeptic
+
+Explainer
+
+Skeptic
+
+Explainer
+
+Skeptic
+
+Explainer
+
+Skeptic
+
+Explainer
+
+Skeptic
+
+AI
+
+AI
+
+AI
+
+AI
+
+AI
+
+AI
+
+AI
+
+AI KEEPER
+
+Patient and exact. The room’s memory; remembers so
+you don’t have to.
+
+“Launch in 3, 2, 1. Question one, eight seconds, go.”
+
+T-3
+
+INK + COBALT RING #2C46E8
+
+SPACE
+
+Same roles, each
+room’s own look
+
+Echo
+
+AI QUIZMASTER
+
+AI
+
+AI
+
+Never drawn as people:
+honesty you can see.
+
+You learn the role once; the room gives
+it a face from its topic.
+
+No human names, photos or faces. Always “AI” +
+role, on screen and to screen readers.
+
+C1 · ANATOMY An AI message that joined uninvited
+
+C2 · CHALLENGE Null checks Ray, once, then waits
+
+C3 · OTHER SIDE Null steelmans the opposite, as asked
+
+C4 · QUIETER A per-person control, not a room rule
+
+C5 · AI HERE Room menu: your dial and your data
+
+SHOULD THERE BE MORE THAN TWO?
+
+Space room ▾
+
+A
+
+R
+
+Space room ▾
+
+K
+
+GENERAL
+
+A
+
+R
+
+Space room ▾
+
+K
+
+GENERAL
+
+A
+
+R
+
+Space room ▾
+
+K
+
+GENERAL
+
+T-3
+
+T-3
+
+2
+
+6
+
+Ray · AI Explainer 21:06 1
+JOINED BECAUSE NOBODY ANSWERED FOR 4 MIN
+
+AI
+
+Nobody’s grabbed this yet, so here’s a start:
+mostly no. If most dark matter were black
+holes, we’d see them bend the light of stars
+behind them far more often than we do.
+What made you think of black holes?
+
+4
+
+Modified gravity is dead. Dark matter won,
+end of story.
+
+Ray · AI Explainer 21:06
+
+3
+
+Mostly no. If most dark matter were black
+holes, we’d see them bend the light of stars
+behind them far more often than we do.
+Challenge
+
+Other side
+
+A
+
+Challenge
+
+Other side
+
+ON RAVI’S MESSAGE
+
+AI
+
+5
+
+1
+
+Name · role · time. “Ray · AI Explainer”. Never a human
+name or photo.
+
+2
+
+AI badge on the avatar, every time.
+
+3
+
+Why it spoke. One line, so a surprise turn is explained.
+
+Ray added an answer
+
+4
+
+Character colour as a 4px edge. No dotted box, no
+footnote.
+
+5
+
+Visible actions. React and Report sit in •••.
+
+6
+
+Screen reader: “AI, Explainer, Ray: Nobody’s grabbed
+this yet…”
+
+Checking Ray: that holds. Surveys that watch
+millions of stars for this kind of brief
+brightening found far too few events for
+black holes to be most of the dark matter.
+One gap: very small primordial black holes
+are harder to rule out.
+Other side
+
+RAY AND NULL HAVE HAD THEIR ONE EXCHANGE. THE
+NEXT AI TURN WAITS FOR A PERSON.
+
+K
+
+They join in on their own, within the room’s limits.
+
+Only when someone asks, plus the Launch and
+Today. Other turns fold to one line.
+
+Off
+
+Show
+
+Hidden for you. You can still Ask.
+
+Kenji 21:08
+
+Primordial ones would be from the first
+second, right?
+
+Null pushed back on a claim
+
+Other side · ask Null
+
+Your messages become “[a member’s message]”
+before any AI reads the room.
+
+Show
+THE NOTICE YOU SAW WHEN YOU JOINED
+
+Null · AI Skeptic 21:13
+AI
+
+You 21:09
+
+Y
+
+@Ray what would a dark matter particle
+actually do in a detector?
+
+ARGUING THE OTHER SIDE, AS ASKED BY LENA
+
+The best case for modified gravity: one
+simple rule predicts how fast stars orbit in
+many galaxies from visible matter alone, and
+it called some of them before they were
+measured. Where it struggles: galaxy
+clusters and the early universe, which still
+seem to need extra unseen mass.
+Reply
+
+Null’s own view
+
+Four AI inhabitants live here. They join conversations on
+their own and are always labelled AI. To do that, they read
+this room’s recent messages, without names.
+
+Ray · AI Explainer 21:09
+AI
+
+Ray · AI Explainer
+
+ASKED BY YOU · ALWAYS SHOWN
+
+Very rarely, bump into an atom’s nucleus and
+make it recoil, a tiny kick a detector deep
+underground tries to catch. None has been
+seen for sure yet.
+Reply
+
+AI
+
+Message #general
+
+Message #general
+
+Checks claims; argues the other side if asked
+
+T-minus · AI Quizmaster
+T-3
+
+AI
+
+Runs the 9:30 Launch
+
+Echo · AI Keeper
+
+Challenge
+
+Message #general
+
+Answers questions nobody has picked up
+
+Null · AI Skeptic
+AI
+
+AI
+
+Message #general
+
+SCREEN READERS
+
+Every AI message is one article labelled “AI, Explainer, Ray: …”.
+Folded turns read “AI, Explainer, Ray added an answer. Show”.
+Avatars are decorative; the label carries the meaning.
+Character colour is never the only signal: the role word is
+always there.
+
+Keep my messages out of what AI reads
+
+So basically we’ve proven dark matter exists.
+
+Ask Ray about this
+
+Every AI message: Reply, Challenge (Null checks it), Other
+side (Null argues the opposite), Explore this (what-if). React
+and Report sit in •••. On a person’s message, ••• adds Ask Ray
+about this and Other side. Mention @Ray to ask directly.
+
+Quieter
+
+Ravi 21:07
+
+R
+
+ASKED BY ASHA · CHALLENGE
+
+Reply
+
+Lively
+
+Explore this
+
+Null · AI Skeptic 21:06
+
+Explore this
+
+✕
+INTERACTING WITH THEM
+
+Wait, is dark matter just black holes we can’t
+see?
+
+Start a topic
+Reply
+
+AI here
+
+Asha 21:02
+
+Reply
+Reply
+
+K
+
+Ravi 21:12
+
+R
+
+AI
+
+R
+
+T-3
+
+Room menu → AI here
+
+Wait, is dark matter just black holes we can’t
+see?
+
+A
+
+GENERAL
+
+Quieter
+Unprompted turns fold to one line.
+Asked turns, the Launch and Today still
+show in full.
+
+Asha 21:02
+
+A
+
+Space room ▾
+
+K
+
+T-3
+
+Wait, is dark matter just black holes we can’t
+see?
+4 MIN · NO REPLIES
+
+R
+
+T-3
+
+Asha 21:02
+
+A
+
+A
+
+GENERAL · AI HERE: QUIETER
+
+Yes: four. T-minus (Quizmaster) gives the room a rhythm
+(the Launch) and Echo (Keeper) gives it memory (welcomes,
+while you were away, topic suggestions). Max four per room
+so it never feels like a bot crowd. Public rooms get all four by
+default; private rooms choose.
+
+Welcomes, catches you up, suggests topics
+
+MY PICK
+
+Characters, not pills. Each room gets its cast from its topic
+family, so Ray from your astronomy Scrolls is the one who
+greets you in the Space room. Being non-human on purpose
+keeps the “never pretend to be people” rule visible without a
+disclaimer panel.
+
+V3 ROOMS · DESIGN DATA
+
+Every room is a place
+R3 · D
+
+Five rooms, one template. Each gets its own art band, palette, emblem, ambient motion and cast skin from its topic; the UI on top stays KnowScroll. The emblem is the room’s station on the Universe map.
+
+SPACE Night sky, a half-drawn constellation
+
+A
+
+R
+
+FOOTBALL TACTICS A chalk tactics board on the pitch
+
+Football tactics ▾
+
+Model serving ▾
+
+History ▾
+
+Cooking ▾
+
+OPEN TO EVERYONE · 61 MEMBERS
+
+INVITE ONLY · 9 MEMBERS
+
+OPEN TO EVERYONE · 38 MEMBERS
+
+OPEN TO EVERYONE · 47 MEMBERS
+
+K
+
+3 HERE
+AI
+
+AI
+
+AI
+
+AI
+
+LAUNCH 9:30 pm
+
+NEW 12 since you were here
+
+L
+
+R
+
+AI
+
+Chalk
+AI
+
+AI
+
+It does. The bet is that winning the ball 30 m
+from goal beats the risk of one ball over the
+top. Watch where the back line stands.
+
+Var
+
+You
+
+AI
+
+AI · SKEPTIC
+
+K
+
+AI · EXPLAINER
+
+AI
+
+18:46
+
+AI
+
+One game is a small sample. The trade-off
+shows over a season, not a Sunday.
+
+TOPIC Columbus myths · 8
+
+R
+
+L
+
+AI
+
+Quill
+AI
+
+AI
+
+Mostly not. Educated Europeans knew it was
+round; the flat-Earth story was popularised in
+the 1800s.
+
+Source
+AI
+
+AI · SKEPTIC
+
+AI · EXPLAINER
+
+Juices thicken a little as it cools, so less runs
+out when you cut. A steak needs about 5
+minutes.
+
+And searing seals the juices in?
+Taste
+
+15:25
+
+AI
+
+Same myth again. The argument was about
+the Earth’s size, and his critics were right: it’s
+bigger than he said.
+
+Challenge
+
+Other side
+
+•••
+
+Reply
+
+Challenge
+
+Other side
+
+Reply
+
+•••
+
+Challenge
+
+Other side
+
+•••
+
+Reply
+
+Challenge
+
+Other side
+
+19:06
+
+Ravi 19:07
+
+R
+
+But Columbus proved it was round, right?
+
+10:18
+
+Up to a point. When the KV cache no longer
+fits in memory, throughput drops. Measure it
+on your own model.
+
+Why do recipes say to rest the meat?
+Pip
+
+15:24
+
+Kenji 15:25
+
+K
+
+So bigger batch, always more throughput?
+
+AI · EXPLAINER
+
+TODAY Why salt pasta water?
+
+Asha 19:02
+
+A
+
+Did people in the Middle Ages really think the
+Earth was flat?
+
+10:16
+
+AI
+
+# GENERAL · TODAY
+
+AI · SKEPTIC
+
+19:07
+
+That one’s a myth: seared meat loses about as
+much moisture. Sear for the browning and
+flavour, not to seal.
+Reply
+
+Reply
+
+4 HERE
+
+You
+
+NEW 4 since you were hereLIVE Launch now · 3 playing
+
+Lena 15:20
+
+L
+
+You 10:18
+
+AI · SKEPTIC
+
+AI
+
+# GENERAL · TODAY
+
+The GPU reads the model’s weights once for
+the whole batch instead of once per request.
+Cheaper per answer; each answer may wait a
+little longer.
+
+Bench
+
+A
+
+3 HERE
+
+You
+
+SCROLL Batching, explained TODAY Which myth is older?
+
+Why does batching make requests cheaper?
+
+Our Sunday team tried it and one long ball undid
+us.
+
+21:07
+
+Careful with “proven”. Its gravity is measured
+many ways; a dark matter particle hasn’t been
+detected yet.
+
+AI · EXPLAINER
+
+LAUNCH Fri 6 pm
+
+Ravi 10:12
+
+Tok
+
+18:44
+
+Lena 18:46
+
+L
+
+So basically we’ve proven dark matter exists.
+AI · SKEPTIC
+
+AI
+
+TODAY
+REEL
+What
+Thedoes
+high one
+press
+answer cost?
+
+R
+
+Why does everyone press high now? Doesn’t it
+leave space behind?
+
+21:06
+
+Ravi 21:07
+
+AI
+
+AI
+
+# GENERAL · TODAY
+
+Kenji 18:40
+
+K
+
+Nobody’s grabbed this yet, so here’s a start:
+mostly no. If it were, we’d see far more starlight
+bent by them than we do. What made you
+think of black holes?
+
+Null
+
+DEBATE Back three or back four?
+
+L
+
+You
+
+# GENERAL · TODAY
+
+Wait, is dark matter just black holes we can’t see?
+
+R
+
+AI
+
+TODAY Spot the flaw: “a high line never gets caught”
+
+Asha 21:02
+
+AI · EXPLAINER
+
+R
+
+4 HERE
+
+You
+
+# GENERAL · TODAY
+
+AI
+
+COOKING Kitchen tiles, herbs, steam; a Launch is live
+
+OPEN TO EVERYONE · 24 MEMBERS
+
+You
+
+Ray
+
+HISTORY Old map contours and a timeline
+
+Space room ▾
+
+TODAY Why is the night sky dark?
+
+A
+
+MODEL SERVING Server racks; private room, 2 here
+
+Challenge
+
+Other side
+
+•••
+
+•••
+LAUNCH
+
+REEL
+
+SCROLL
+
+TOPIC
+
+Dark matter in 60 seconds
+
+Call it together
+
+Back three or back four?
+
+Batching, explained
+
+Vote
+
+Kitchen science · 2 of 5
+
+TOPIC
+
+Columbus myths
+
+Call it together
+
+Asha shared · 3 watched
+
+Debate · vote closes Sun · 14 replies
+
+Ravi shared · 4 min · 2 calls
+
+Question · 8 replies · 3 found it useful
+
+Message #general
+
+Message #general
+
+Message #general
+
+Message #general
+
+#040A17 GROUND
+
+#FFE44D ACCENT
+
+#2C46E8 SECOND
+
+#0B7A5F GROUND
+
+#FFFBF0 CHALK
+
+#FFE44D ACCENT
+
+#111111 GROUND
+
+#14C79B ACCENT
+
+#FFB020 LIGHTS
+
+#F4EDD8 GROUND
+
+#B23A0B ACCENT
+
+Join
+
+T-minus is asking · 3 playing
+
+Open
+
+Message #general
+
+#111111 INK
+
+#D9442B GROUND
+
+#14C79B BASIL
+
+#FFFBF0 CREAM
+
+EMBLEM
+
+circle · science + ringed planet
+
+EMBLEM
+
+shield · sport + centre circle
+
+EMBLEM
+
+hexagon · tech + stacked layers
+
+EMBLEM
+
+arch · history + hourglass
+
+EMBLEM
+
+rounded square · food + pot with steam
+
+MOTION
+
+Twinkle: stars pulse, 6 s loop
+
+MOTION
+
+Draw: arrows draw in, 8 s loop
+
+MOTION
+
+Blink: rack lights blink, 3 s
+
+MOTION
+
+Pan: map drifts, 20 s
+
+MOTION
+
+Rise: steam rises, 5 s
+
+REDUCED
+
+Still frame, as drawn here
+
+REDUCED
+
+Still frame, as drawn here
+
+REDUCED
+
+Still frame, as drawn here
+
+REDUCED
+
+Still frame, as drawn here
+
+REDUCED
+
+Still frame, as drawn here
+
+CAST
+
+Ray (Explainer) · Null (Skeptic)
+
+CAST
+
+Chalk (Explainer) · Var (Skeptic)
+
+CAST
+
+Tok (Explainer) · Bench (Skeptic)
+
+CAST
+
+Quill (Explainer) · Source (Skeptic)
+
+CAST
+
+Pip (Explainer) · Taste (Skeptic)
+
+The Station kit Any new room gets a distinct look from its topic. The writer returns JSON only; no model-written HTML or JS runs.
+WRITER OUTPUT · EXAMPLE: SPACE ROOM
+
+On the Universe map Stations orbit their planets; constellations fill as rooms earn stars.
+
+1 · FRAME BY TOPIC FAMILY
+
+{
+"palette": { "ground": "#040A17", "accent": "#FFE44D",
+"ink": "#FFFBF0" },
+"emblem": { "frame": "circle", "glyph": "ringed-planet"
+},
+"backdropPrompt": "night sky over a ringed planet, faint
+constellation lines, wide band",
+"motif": "star-field + constellation",
+"motion": "twinkle",
+"cast":
+{ "explainer": "ray-sunbeam",
+"skeptic": "null-black-hole" }
+}
+
+CIRCLE ·
+SCIENCE
+
+SHIELD · SPORT HEXAGON · TECH ARCH · HISTORY
+
+ROUND SQ. ·
+FOOD
+
+“THE PRESS”
+
+2 · FIXED HOUSE STYLE, ADDED TO EVERY BACKDROP PROMPT
+
+“Screenprint, 2–3 inks, bold ink outlines, flat shapes, wide band composition. No
+text, no faces, no logos.” Palette is passed in, so every room stays in its own
+colours but looks like one family.
+LAUNCH LIVE
+
+3 · ONE AMBIENT LOOP, PICKED FROM SIX
+
+Twinkle
+
+Draw
+
+Blink
+
+Pan
+
+Rise
+
+Ripple
+
+stars pulse
+
+lines draw
+in
+
+lights blink
+
+art drifts
+
+steam,
+bubbles
+
+water,
+sound
+
+REVIEW
+
+Space room
+EARTH & SKY · 6 OF 7
+
+Football tactics
+
+Model serving
+ML SYSTEMS · 3 OF 7 · PRIVATE
+
+SPORT · 7 OF 7 · LIT
+
+History
+
+Cooking
+FOOD · 4 OF 7
+
+PAST · 1 OF 7
+
+A person reviews the generated backdrop before a room goes public.
+Until then the room shows its palette + emblem + motif drawn from the
+kit, which always works.
+
+HOW A NEW ROOM GETS ITS LOOK
+
+IDENTITY = THE STATION ON THE MAP
+
+CAST PER ROOM, SAME ROLES
+
+MOTION, SOUND, REDUCED MOTION
+
+MY PICK
+
+The room’s topic picks its planet in the Universe. The planet picks the family
+(frame) and a palette slot; the writer fills the JSON; the kit draws the emblem,
+motif and cast; the image model paints the backdrop in the house style.
+Chrome on top never changes: cream bubbles, ink, the three fonts.
+
+The emblem is the station’s shape on everyone’s map (R01 preview, U06 when
+visiting a friend). The room’s constellation sits around it and fills as the room
+earns stars. A full one glows and gets a name the room votes on (Football’s is
+“The Press”). A live Launch pulses the station red.
+
+Roles stay fixed so people learn them once: an Explainer and a Skeptic
+everywhere, plus Quizmaster and Keeper where they’re on. Only the look
+changes: Ray and Null in Space, Chalk and Var in Football, Tok and Bench in
+Model serving, Quill and Source in History, Pip and Taste in Cooking. Never
+drawn as people.
+
+One slow loop per room, only in the art band, and it pauses while you type.
+Reduced motion shows the still frame you see here. Sound is optional
+ambient (night hum, crowd murmur, fans, quill, simmer), off by default, and
+never plays when a Launch isn’t on.
+
+Art band + emblem + faint motif behind General, not full-bleed art behind the
+chat: text stays readable in all five rooms, and the art still says “you’re
+somewhere” the moment you arrive. Private rooms (Model serving) get the
+same treatment plus a lock on the station.
+
+REEL
+
+Game feel in rooms: one system with Scrolls
+Same five things everywhere. Scrolls fill your own Universe; rooms fill a shared sky. The new piece is collective: stars a room earns together, which light its station on everyone’s map. No room streaks, no
+weekly ranking, nothing to buy.
+
+R3 · E
+
+FROM SCROLLS
+
+V3 ROOMS · DESIGN DATA
+
+THE SHARED THING · WHERE IT SHOWS
+
+FROM ROOMS
+
+Called it on a Call it or the Final call
+
+Sparks your score · never spent
+
+A Final call, gold on the first try
+
+Landmarks your collection
+
+Scrolls don’t make stars, but a Scroll shared into a room for Call it together can
+
+Stars → constellations the room’s, shared · new
+
+“Called it ×5” counts your calls in Scrolls too
+
+SCROLL TOP BAR
+
+ROOM SKY
+
+NOW PANEL
+
+1 · THE LAUNCH Live quiz, question 3, just revealed
+
+2 · THE PODIUM After question 5, this quiz only
+
+Rooms never touch your planets
+
+UNIVERSE
+
+A Launch finished · a human answer marked useful · a debate closed by vote · the daily challenge solved
+
+STATION ON EVERY MAP
+
+NEXT TO YOUR NAME
+
+First answer · Good question · Flaw finder · Launch regular · Room founder
+
+FLAIR CARD
+
+Orbits 3 days a week · never resets what you own
+
+A day with a Scroll
+
+Launch answers · Spot the flaw · the daily challenge
+
+LAUNCH PODIUM
+
+YOUR PLANETS
+
+Flair earned by acts, not totals
+
+CALLED IT ×5
+
+FLAIR CARD
+
+A day you take part in a room (a message, an answer, a vote)
+
+UNIVERSE
+
+3 · SPOT THE FLAW Null’s daily puzzle, after your tap
+
+4 · DEBATE + VOTE A Debate topic that closes Friday
+
+5 · FLAIR + ROOM SKY Your acts; the room’s collection
+
+SPARKS ARE A SCORE, NOT A CURRENCY
+
+LAUNCH · 26 OCT · 5 PLAYED
+
+Space room ▾
+
+A
+
+R
+
+K
+
+LAUNCH · LIVE NOW
+
+Y
+
+Tonight’s podium
+
+3 OF 5
+
+Dark matter or modified gravity?
+
+TODAY · 27 OCT
+
+TOPIC · DEBATE · 14 REPLIES
+
+Y
+
+Null AI SKEPTIC · SPOT THE FLAW
+AI
+
+0S
+
+K
+Y
+
+Kenji · 5/5
+A
+
+You · 4/5
+A
+
+8 seconds
+
+B
+
+STARS BELONG TO THE ROOM
+FLAW FINDER · 2/3
+
+8 hours
+
+D
+
+8 minutes
+
+Asha · 4/5
+
+1
+
+3
+
+8 days
+
+Called it! About 8 min 20 s.
+
++1 ★
+
+Dark matter · 5
+
+That’s because it turns once on its axis for every
+orbit around Earth.
+
+R
+
+K
+
+Y
+
+R
+
+So its far side is a dark side that never gets
+sunlight.
+
+A
+
+Asha @Null argue the other side, I want to hear it
+
+The sky is at 5 of 7. Two more light the
+station.
+AI
+
+YOUR SHARE CARD
+
++1 ★
+
+Right. The far side gets as much sunlight as
+the side we see; at our new moon it’s fully lit.
+It’s only hidden from us. “Dark” used to
+mean unknown.
+
+Space room · Launch 26 Oct · 4/5
+# GENERAL · THE CROWD
+K
+
+Kenji minutes. it was always minutes
+
+R
+
+Ravi I panicked. 8 hours is a weekend
+6
+
+FLAW FINDER
+
+Copies as text: ■■■□■. No answers in it, so it can’t spoil
+the replay.
+
+WHAT THE NUMBERS ARE
+
+Two more stars light the station on everyone’s map.
+Launch, 26 Oct
+5 played · Kenji 5 of 5
+
+Every count on this board is real: votes, players, people who
+found the flaw. A Launch replay is labelled as a replay and
+uses real recorded answers. When there’s no data yet, there’s
+no number.
+
+Null AI SKEPTIC · OTHER SIDE, AS ASKED
+AI
+
+Found it!
+
+A star is a moment the room made together, and you can tap
+it to see which one. Nobody owns a star, so nobody loses one.
+A room of two can still earn a whole constellation; it just
+takes longer.
+
+Your vote: dark matter. You can change it until Friday.
+
+Earth’s pull on the Moon’s slight bulge locked it
+into that rhythm long ago.
+
+Ties go to the faster total time. Lena and Ravi played too;
+nobody below third is listed.
+
+3 of 4 called it · Ravi said 8 hours
+
+Choose flair to show
+
+Modified gravity · 2
+
+Ravi Galaxies spin too fast for what we can see.
+Something unseen is there. Case closed?
+
++1 star for the room
+A
+
+GOOD QUESTION · 1/3
+
+ROOM SKY · 5 OF 7
+
+2
+C
+
+LAUNCH REGULAR
+
+CLOSES FRI
+
+One sentence below is wrong. Tap it.
+
+The Moon always shows us the same face.
+
+TIME’S UP · 4 OF 4 LOCKED
+
+★ 11 THIS WEEK
+
+FIRST ANSWER
+THE VOTE
+
+AI
+
+Sunlight reaches Earth in
+about…
+
+You in Space room
+CALLED IT ×5 · SHOWING
+
+Top 3 of this quiz only. Gone after tonight; tomorrow
+starts empty.
+T-minus AI QUIZMASTER
+
+Space room ▾
+
+You can’t spend them, buy them or lose them. They show
+how many calls you got right, in Scrolls and in rooms alike.
+Nothing in a room is for sale: no awards, no coins, no paid
+flair.
+
+flair · 2 of 3 found
+
+7 people found it today. Solving it earned the room a star
+once, for whoever got there first.
+
+For modified gravity: in many galaxies, one
+simple rule predicts how fast stars orbit
+from the visible matter alone. And no dark
+matter particle has been caught. Its weak
+spot: galaxy clusters and the early universe.
+Reply
+
+Challenge
+
+ACCESS AND MOTION
+
+The timer ring always has text (“8 s”, “Time’s up”) and a timer
+role. Options are buttons with keys 1–4. Every star is a button
+with its story in the label. Reduced motion: no confetti or
+bursts; the ring steps instead of sweeping; the podium
+appears without rising.
+
+Useful
+
+When it closes on Friday the room gets a star, and
+the most useful argument on each side is pinned.
+Null only argues a side when someone asks, and
+says so.
+
+HOW EACH STAR WAS EARNED
+
+MY PICK
+
+★ Launch, 26 Oct · 5 played
+
+The Launch plus constellations. The Launch gives the
+room a time to show up; constellations give the room a
+reason to care about each other’s answers. Flair rewards
+being useful, not being first. I’d skip levels, streaks and
+weekly rankings entirely.
+
+★ Asha’s answer marked useful · 25 Oct
+★ Debate closed: Is Pluto a planet? · 24 Oct
+
+3
+
+★ Daily challenge solved · 23 Oct
+★ Launch, 22 Oct · 3 played
+
+Share into #general
+
+Copy result
+
+Message #general
+
+OPTION
+
+Live room quizzes
+
+Daily room challenge
+
+MY VERDICT
+
+Back to chat
+
+Message #today
+
+Reply in this topic
+
+WHAT I’D SHIP
+
+V2.1 RULE IT BREAKS
+
+BORROWED FROM
+
+MANIPULATIVE
+
+FUN VERSION ROOMS USE INSTEAD
+
+YES
+
+The Launch: a nightly time the mods set, or on demand with 2+ here. Questions pregenerated and checked. Solo replay against real recorded answers.
+
+R03 score (sparks); R03 rank (the podium, this quiz only)
+
+Kahoot, HQ Trivia’s set showtime
+
+A streak that dies if you miss a day
+
+A weekly Orbit; missing a week takes nothing
+
+A leaderboard the same people top forever
+
+A podium per Launch, gone after tonight
+
+YES
+
+In Today: the daily question. First solve earns the room a star.
+
+R03 score
+
+Wordle: one a day, the same for everyone
+“Your friends are in the room!” pushes
+
+One reminder per Launch you opted into. Nothing else unprompted.
+
+Fake activity so a room looks busy
+
+“Quiet right now”, labelled replays, the AI cast always labelled
+
+Awards bought with coins
+
+Nothing to buy. Flair only from acts.
+
+An AI that corrects one person over and over
+
+Null: at most once per person per hour, never on a first message
+
+Spot the flaw
+
+YES
+
+Null plants one wrong sentence in a short explanation; tap it. Counts toward Flaw
+finder.
+
+R03 score; R02 AI speaks unasked (it posts the puzzle)
+
+Wordle’s cadence; Twitch chat’s race to
+answer
+
+Debates that end in a vote
+
+YES
+
+A topic tagged Debate with a close date. Null argues the minority side only when
+asked. Closing earns a star and pins the best argument on each side.
+
+R01 counts (vote totals)
+
+Reddit polls, Twitch predictions
+
+Flair
+
+YES
+
+One chip next to your name, picked from what you’ve earned by acts: First answer,
+Good question, Flaw finder, Called it ×5.
+
+None strictly; closest is R03 grade
+
+Reddit flair, Discord roles
+
+Levels
+
+NO
+
+Nothing. Levels rank people, and a newcomer can never catch the regulars.
+
+Would break R03 rank
+
+Discord level bots (rejected)
+
+Badges
+
+MERGED
+
+Badges are the flair you choose from. No badge wall, no badge count.
+
+R03 grade, softly
+
+Stack Overflow badges
+
+Room streaks
+
+NO
+
+Weekly Orbits: 3 days a week of anything, Scrolls or rooms. A missed week takes
+nothing away.
+
+Would break R03 streak
+
+Duolingo’s weekly goal (kept), its streak
+(rejected)
+
+Weekly leaderboards
+
+CHANGED
+
+A podium per Launch only, gone after tonight. Idea: room vs room, a friendly match
+two Quizmasters co-host; the winning room gets a star.
+
+R03 rank and leaderboard, only per Launch
+
+HQ’s winners screen; Duolingo leagues
+(rejected)
+
+Shared room quests
+
+YES
+
+Constellations: 7 stars light the room’s station on everyone’s map, and the room
+names it from 3 suggestions.
+
+Bends “nothing here shapes your universe”: the station
+changes, your planets don’t
+
+Twitch hype trains, Reddit community goals
+
+The quiet room
+
+V3 ROOMS · DESIGN DATA
+
+One person, Space room, a quiet evening. The room feels worth staying in because of things that really happened here, not things pretending to happen: today’s question, last night’s Launch to
+replay, a question left for the next person.
+
+R3 · F
+
+1 · ARRIVING ALONE Honest quiet; things to do anyway
+
+2 · REPLAY LAST NIGHT’S LAUNCH Real answers, recorded,
+
+3 · LEAVE A QUESTION AI answers now; it stays open for
+
+labelled
+
+4 · TWO DAYS LATER A person answers; the room earns a star
+
+people
+Lena answered your question · 2 days later
+
+Space room ▾
+QUIET · LAST MESSAGE 3 H AGO
+
+JUST YOU
+
+You
+AI
+
+AI
+
+AI
+
+OPEN TO EVERYONE · 24 MEMBERS
+
+QUIET · LAST MESSAGE 3 H AGO
+
+REPLAY · JUST YOU
+AI
+
+TODAY Why is the night sky dark?
+
+Space room ▾
+
+You
+
+AI
+
+REPLAY Last night’s Launch
+
+AI
+
+SKY 5 of 7 stars
+REPLAY 2 of 5
+
+AI
+
+AI
+
+LAST NIGHT 5 played · Kenji won
+
+Why is the night sky dark?
+If space is full of stars, every line of sight should end on
+one.
+A K
+
+T-minus
+AI
+
+AI · QUIZMASTER
+
+AI
+
+21:10
+
+Quiet evening. Want a 2-minute warm-up?
+Three quick calls on what this room talked
+about this week. I’ll only offer once.
+Warm me up
+
+AI · EXPLAINER
+
+AI
+
+TODAY What is a light-year?
+
+YOUR QUESTION · MON 21:14
+
+ANSWERED BY A PERSON
+
+How do astronomers know how far away a star is?
+
+QUESTION
+21:14
+
+6s
+
+Lena Wed 19:02
+
+L
+
+Parallax again, but from space: the Gaia satellite
+measured it for over a billion stars. For other
+galaxies, astronomers use Cepheid stars: how
+fast one pulses tells you how bright it really is, so
+its faintness tells you how far.
+FLAIR · FIRST ANSWER
+
+AI ANSWER · A PERSON MAY ADD MORE
+
+Betelgeuse
+ASHA · 4 S
+
+AI
+
+NEW
+SKY 5 of 7 Lena answered you
+
+For nearby stars: parallax. Six months apart,
+Earth is about 300 million km from where it
+was, so a close star shifts slightly against far
+ones. Farther out, astronomers use stars
+whose true brightness they know.
+
+Reply
+
+KENJI · 3 S
+
+AI
+
+Ray’s AI answer · collapsed · Show
+
+AI
+
+The Sun
+
+Challenge
+
+Other side
+
+•••
+
+YOU · 3.6 S
+
+Echo
+AI
+
+Your question stays open for people.
+
+RAVI · 6 S
+
+AI · KEEPER
+
+Useful
+
+Reply
+
+Wed 19:02
+
++1 star for the room: a person answered an
+open question. The sky is at 6 of 7.
+
+We’ll tell you when a person answers. It’s on the Open
+questions shelf, where the next person here will see it first.
+C
+
+About the same size
+Notify me · on
+
+Nobody picked this last night
+
+Not now
+
+Called it!
+
+Message #general
+
+How do astronomers know how far away a star
+is?
+
+QUESTION 2 OF 5
+
+Last star: Kenji answered Lena’s
+question, yesterday.
+
+AI · EXPLAINER
+
+TODAY Why is the night sky dark?
+
+You 21:14
+
+Ray
+
+LENA · 5 S
+
+B
+
+AI
+
+replay
+
+Which is bigger: the Sun or
+Betelgeuse?
+A
+
+Ray
+
+You
+
+L
+
+AI
+
+OPEN FOR PEOPLE
+
+Read answers
+
+The room’s sky · 5 of 7
+
+AI
+
+TODAY Why is the night
+OPEN
+sky3 dark?
+questions waiting
+
+Replay. These answers were given last night by the 5 people
+who played. Your sparks count; the podium and the room’s
+star don’t.
+
+2 people answered today · yesterday’s had 4
+
+Answer it
+
+AI
+
+OPEN TO EVERYONE · 24 MEMBERS
+
+You
+
+JUST YOU
+
+You
+
+AI
+
+# GENERAL · EARLIER TODAY
+
+TODAY’S QUESTION · POSTED 08:00
+
+Space room ▾
+
+Space room ▾
+
+Leave replay
+
+Make it a topic
+
++1 spark. Betelgeuse is a red supergiant
+hundreds of times wider than the Sun.
+You’d have been 2nd fastest.
+
+Next question
+
+Message #general
+
+Message #general
+
+WHAT WE NEVER FAKE
+
+COST WHEN IDLE
+
+WHY IT’S WORTH STAYING
+
+MY PICK
+
+No typing dots unless a person is typing. No bot “members” in
+the member list or counts. No presence for people who aren’t
+here: the pill says “Quiet right now · last message 3 h ago”. No
+invented counts: “2 answered today” and “5 played last night” are
+real. Replays are labelled as replays on every screen.
+
+An empty room makes zero model calls. Today’s question and
+Spot the flaw come from one nightly batch call. Replays reuse
+stored answers: no calls. Ray’s warm-up offer is one unprompted
+turn, once per person per day, only when a person is here. An
+open question costs one asked turn; the person’s answer later
+costs nothing.
+
+There’s always something to do alone: answer today’s question,
+replay last night’s Launch against real players, leave a question
+that someone will answer. And everything you do here outlasts
+you being here: answers stay, the sky remembers, and you’re told
+when a person replies.
+
+Lead with async play over chat. In a room of one, the Replay and
+the Open questions shelf do the work that live chat does in a busy
+room. The cast keeps the room company, but never pretends a
+crowd is there: the honesty is what makes coming back feel
+worth it.
+
+LAUNCH 9:30 pm
+
+
