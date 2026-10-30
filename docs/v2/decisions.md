@@ -1590,3 +1590,39 @@ Confirmed by: `play.test.ts` (right and wrong pick, retry, a second lock, forged
 - **Export.** `play.scrolls`: per Scroll its title (if still reachable), sparks, combo and, for each call, the question, the option picked in words, whether it was right and when. No identifier and not the right answer.
 
 Confirmed by: `play.test.ts` (paused stores nothing and writes no receipt, a stale generation is told to read the policy again, Clear erases, export in words with no identifier), `play-session.test.ts`, `erasure.test.ts`, `privacy-clear.test.ts`, `data-export.test.ts`, and the paused case of `play-smoke.spec.ts`.
+
+## D-184 · 2026-10-31 · A v2 Scroll offers its Part and related moves wherever the server admitted them (S-1 follow-up, #472)
+
+**Amends** D-134 ("One move, one path": a related move is now the way on when no next Part was admitted) and D-135 (`/scroll/<id>` had no moves).
+
+- **The defect.** Opened at `/scroll/<id>`, the reader had no Part button, key or swipe, although the context read said the next Part was ready. The route drew no moves at all.
+- **One source.** Both entry paths turn the exposure context into the same moves (`readerContinuations`): next Part, previous Part and related. Only a ready, admitted continuation is a move. Where none was admitted there is no button, the key and the swipe do nothing.
+- **In Explore** a move is the encounter session's navigation with the displayed link, as before. **On `/scroll/<id>`** there is no encounter, so a move opens the address of the target the server named (its own exposure, like any address). The Part label is the context's count ("Part 1 of 3"); until the context arrives it is the Scroll's own number.
+- **The way on.** The dock's primary button, the → key and a swipe left take the next Part. With none, they take the related move: the same `seriesNext ?? related` the Reel's edge tab and swipe use. The dock names the destination ("Part 2: <title>", "Related: <title>") and draws the related move dashed, as the Reel's tab does. The keyboard map says so. The end of the Scroll shows both, the related one as a dashed row.
+- **Ask is Explore's.** "Ask about this" opens the request sheet, which belongs to the encounter. `/scroll/<id>` has no encounter, so it has no Ask. It keeps the sparks and •••.
+- **v1 Scrolls** keep the article and its own end card.
+
+Confirmed by: `continuation-moves.test.ts`, `stage-reader.test.tsx` (the related row), `reader-nav-smoke.spec.ts` (Part n → by button, key and finger from the address and from Explore; absent on the last Part and on a single Scroll; the related move alone and beside a Part). Shown failing before the fix: every address-route case failed with no Part button, no key move and no swipe.
+
+## D-185 · 2026-10-31 · The reader's top bar wraps instead of hiding the title, and the end card follows the stage (S-1 follow-up, #472)
+
+**Amends** D-133 (the top bar: "a phone has no room for the title") and D-134 (the end card's "The picture you built").
+
+- **The defect.** At 390 px the title and "Part n" were drawn in one pixel and the Reel/Scroll switch was clipped ("Scro"). A Scroll with no stage said "The picture you built" over no picture.
+- **The top bar.** Your Universe, then the title with its kicker and Part ("SEASONS · PART 1 OF 3", V3 A1 and G1), then the switch and Next ↑. Below tablet width Next is its arrow alone ("Next topic" for a screen reader), so at 390 px the bar is one line and the text keeps its height (a taller bar left no room to show a call's answer whole). When the title would be left under 84 px (320 to 360 px), the switch and Next wrap under the title, right aligned. The title is cut to two lines; its whole text stays in the heading for a screen reader. Nothing is clipped down to 320 px.
+- **The switch.** Below tablet width it draws only "Reel" and "Scroll". "· unavailable" and "· preparing" stay in each option's name, and an unavailable one stays dimmed.
+- **The Part chip** on the stage is gone: the top bar says it on every width.
+- **The end card.** "The picture you built" is said only when the Scroll has a stage. A plain Scroll says "The short version" over the same recap.
+- **A tap after a swipe is not changed.** A tap on a call option right after a synthetic touch swipe was often ignored in a hands-on run. It is the browser's: after a drag made of synthesised touch events, Chromium reports the next tap (pointer and touch events) but makes no click, on a page with no app code too. A swipe on the stage, outside the reader's responder and its scroll-settle, loses it equally. Nothing in the reader is changed for it.
+
+Confirmed by: `stage-reader.test.tsx` (the end card with and without a stage), `reader-nav-smoke.spec.ts` (the bar at 320, 360 and 390 px: title, kicker and Part visible, no control leaves the screen or is cut off, axe clean; the end card both ways; a tap after a finger swipe, with a throwaway tap first for the browser's dropped one). Shown failing with the bar unable to wrap (the switch and Next left the screen at 320 px) and on the old bar (no title, a clipped switch).
+
+## D-186 · 2026-10-31 · A Scroll that another screen covers is not being read (S-1 follow-up, #472)
+
+**Builds on** D-135 (what the reader reports; activity is the article's own rule) and the product law that only an actual encounter creates consumption evidence.
+
+- **The defect.** Moving to Part 2 on `/scroll/<id>` pushes a new screen, and the web and native stacks keep Part 1 mounted under it. Part 1's reader stayed active, so its recorder went on reporting active reading (`scroll.active_dwell`) for a Scroll the person had left. Two exposures were counted for the same minutes. The Scroll to Reel switch pushes the same way and had the same flaw.
+- **The rule.** A Scroll route that is not focused is paused: the reader reports no activity, so its reading time stops. When the screen is focused again (Back) the time picks up from there. This is the Reel's rule, now the Scroll's, for both the Stage + Spine reader and the v1 article.
+- **Unchanged.** Explore pauses a reader its overlays cover, as before.
+
+Confirmed by: `reader-nav-smoke.spec.ts` ("stops when the next Part is opened over it, and picks up again on Back": Part 1 reports no reading past the moment it was left, resumes on Back, and Part 2 stops counting under it). Shown failing without the pause: Part 1 reported reading up to 16.7 s after it was left at 6 s.

@@ -30,6 +30,7 @@ export interface StopListProps {
   readonly onToggleAside: (asideId: string) => void;
   readonly onSmallPrint: (asideId: string) => void;
   readonly nextPart: NextPartPeek | undefined;
+  readonly related: NextPartPeek | undefined;
   readonly onDone: (() => void) | undefined;
   readonly onNextTopic: (() => void) | undefined;
 }
@@ -84,7 +85,9 @@ export function StopList(props: StopListProps) {
       >
         <EndTray
           recap={document.recap}
+          hasStage={document.stage !== undefined}
           nextPart={props.nextPart}
+          related={props.related}
           onSmallPrint={smallPrint === undefined ? undefined : () => props.onSmallPrint(smallPrint)}
           onDone={props.onDone}
           onNextTopic={props.onNextTopic}
