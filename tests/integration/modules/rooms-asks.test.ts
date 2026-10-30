@@ -20,6 +20,7 @@ import {
   makeModerator,
   markUseful,
   memberView,
+  PERSONAL_UNIVERSE_SCHEMAS,
   readDiscussion,
   roomWorld,
   rowsIn,
@@ -43,7 +44,6 @@ const answer = (kind: string, text: string): FixtureScenario => ({
   kind: 'success',
   text: JSON.stringify({ kind, text }),
 });
-const NO_UNPROMPTED = ['experience', 'geography', 'composer', 'planning'];
 
 describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', () => {
   let database: TestDatabase<Database>;
@@ -108,7 +108,7 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       'turns %s into an asked turn for the %s whose ledger row names the kind and the message it is about',
       async (kind, resident, contribution) => {
         const room = await gathering();
-        const before = await rowsIn(world.db, NO_UNPROMPTED);
+        const before = await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS);
         const queued = world.queued.length;
         unwrap(await askAbout(world, room.asha, room.roomId, room.general, kind, room.claim.messageId));
         expect(world.queued).toHaveLength(queued + 1);
@@ -141,7 +141,7 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
         });
         // A resident that answers an ask has no unprompted reason.
         expect(spoken).not.toHaveProperty('trigger');
-        expect(await rowsIn(world.db, NO_UNPROMPTED)).toBe(before);
+        expect(await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS)).toBe(before);
       },
     );
 
@@ -214,6 +214,49 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       );
     });
 
+    it('answers a message older than the newest twenty: it is read by id, with one call, and the ledger names it', async () => {
+      const room = await gathering();
+      // More than a context window of talk follows the claim.
+      for (let index = 0; index < 25; index++) {
+        at(index + 1);
+        const speaker = [room.asha, room.kenji][index % 2]!;
+        unwrap(await say(world, speaker, room.roomId, room.general, `a later message, number ${String(index + 1)}`));
+      }
+      at(30);
+      unwrap(await askAbout(world, room.asha, room.roomId, room.general, 'challenge', room.claim.messageId));
+      const job = world.queued.at(-1)!;
+      const { model, contribute } = modelFor(() => answer('assumption', 'The Sun pulls on the oceans too.'));
+      await contribute(job);
+      expect(model.calls).toHaveLength(1);
+      const sent = model.calls[0]!.request.user;
+      expect(sent).toContain('So the Moon alone explains');
+      expect(sent).toContain('Respond to message:1.');
+      // The newest messages are still there, and the claim is not read twice.
+      expect(sent).toContain('a later message, number 25');
+      expect(sent.split('So the Moon alone explains').length).toBe(2);
+      const [turn] = await ledger(room.roomId);
+      expect(turn).toMatchObject({
+        state: 'completed',
+        ask_kind: 'challenge',
+        cause_message_id: room.claim.messageId,
+        dispatched: true,
+      });
+    });
+
+    it('still reads nothing of an old message once its author keeps their messages out', async () => {
+      const room = await gathering();
+      for (let index = 0; index < 25; index++) {
+        at(index + 1);
+        unwrap(await say(world, room.kenji, room.roomId, room.general, `a later message, number ${String(index + 1)}`));
+      }
+      unwrap(await askAbout(world, room.asha, room.roomId, room.general, 'about', room.claim.messageId));
+      unwrap(await setPreferences(world, room.ravi, room.roomId, { keepOut: true }));
+      const { model, contribute } = modelFor(() => answer('explanation', 'anything'));
+      await contribute(world.queued.at(-1)!);
+      expect(model.calls).toHaveLength(0);
+      expect((await ledger(room.roomId))[0]).toMatchObject({ state: 'failed', dispatched: false });
+    });
+
     it('ends without a call when the message it pointed at was removed meanwhile', async () => {
       const room = await gathering();
       const moderator = await seedFriend(world.db, world.friends);
@@ -249,6 +292,28 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       expect((await view(room.ravi, room.roomId, room.general)).messages.at(-1)).toMatchObject({
         author: { kind: 'ai', inhabitant: 'explainer', name: 'Nova' },
         ask: { kind: 'mention', about: message.messageId, by: { personId: room.asha.person.personId } },
+      });
+    });
+
+    it('answers the message that named the resident even when more than a window of talk landed before the job ran', async () => {
+      const room = await gathering();
+      at(1);
+      const message = unwrap(await say(world, room.asha, room.roomId, room.general, '@Nova what is a spring tide?'));
+      const job = world.queued.at(-1)!;
+      for (let index = 0; index < 25; index++) {
+        at(index + 2);
+        unwrap(
+          await say(world, room.kenji, room.roomId, room.general, `talk while waiting, number ${String(index + 1)}`),
+        );
+      }
+      const { model, contribute } = modelFor(() => answer('explanation', 'A spring tide is the biggest tide.'));
+      await contribute(job);
+      expect(model.calls).toHaveLength(1);
+      expect(model.calls[0]!.request.user).toContain('@Nova what is a spring tide?');
+      expect((await ledger(room.roomId))[0]).toMatchObject({
+        state: 'completed',
+        ask_kind: 'mention',
+        cause_message_id: message.messageId,
       });
     });
 
@@ -449,6 +514,119 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       expect(second.model.calls[0]!.request.user).toContain("[a member's message]");
     });
 
+    it('names a topic from a message only for readers who may read it: removed and blocked words give the neutral title, a typed one stays', async () => {
+      const NEUTRAL = 'A topic from a message';
+      const WORDS = 'So the Moon alone explains why the tides swing so far every month';
+      const room = await gathering();
+      const moderator = await seedFriend(world.db, world.friends);
+      await makeModerator(world, room.slug, moderator);
+      const second = unwrap(
+        await say(world, room.ravi, room.roomId, room.general, 'A second claim about neap tides and the quarter Moon'),
+      );
+      at(2);
+      const derived = unwrap(
+        await startTopicFrom(world, room.asha, room.roomId, {
+          discussionId: room.general,
+          messageId: room.claim.messageId,
+        }),
+      ).discussionId;
+      // Giving the very words as the title is the same as leaving them: they are still the message's.
+      const sameWords = unwrap(
+        await startTopicFrom(
+          world,
+          room.asha,
+          room.roomId,
+          { discussionId: room.general, messageId: room.claim.messageId },
+          { title: WORDS },
+        ),
+      ).discussionId;
+      const typed = unwrap(
+        await startTopicFrom(
+          world,
+          room.asha,
+          room.roomId,
+          { discussionId: room.general, messageId: second.messageId },
+          { title: 'Neap tides, in my own words' },
+        ),
+      ).discussionId;
+      const stored = await world.db
+        .selectFrom('rooms.discussions')
+        .select(['discussion_id', 'title', 'title_derived'])
+        .where('discussion_id', 'in', [derived, sameWords, typed])
+        .execute();
+      expect(Object.fromEntries(stored.map((row) => [row.discussion_id, row.title_derived]))).toEqual({
+        [derived]: true,
+        [sameWords]: true,
+        [typed]: false,
+      });
+      unwrap(
+        await world.rooms.pin(moderator.authority, {
+          version: 'rooms.v1',
+          commandId: randomUUID(),
+          roomId: room.roomId,
+          discussionId: derived,
+          pinned: true,
+        }),
+      );
+      const outsider = await seedFriend(world.db, world.friends);
+
+      /** Every place a title is served to a reader: the topics list, the room view, the topic card, the header, the preview. */
+      const titlesSeenBy = async (person: Friend) => {
+        const list = await topicsOf(world, person, room.roomId, 'new');
+        const roomView = await memberView(world, person, room.roomId);
+        const cards = (await view(person, room.roomId, room.general)).messages.flatMap((message) =>
+          message.status === 'available' && message.body.kind === 'topic'
+            ? [[message.body.topic.discussionId, message.body.topic.title] as const]
+            : [],
+        );
+        return {
+          list: Object.fromEntries(list.map((topic) => [topic.discussionId, topic.title])),
+          roomView: Object.fromEntries(roomView.discussions.map((topic) => [topic.discussionId, topic.title])),
+          cards: Object.fromEntries(cards),
+          header: (await view(person, room.roomId, derived)).discussion.title,
+        };
+      };
+      const previewPinned = async () => {
+        const preview = unwrap(
+          await world.rooms.read(outsider.authority, {
+            version: 'rooms.v1',
+            readId: randomUUID(),
+            roomId: room.roomId,
+          }),
+        );
+        if (preview.status !== 'preview') throw new Error('expected a preview');
+        return preview.pinned;
+      };
+      const expectTitles = (seen: Awaited<ReturnType<typeof titlesSeenBy>>, words: string) => {
+        for (const place of [seen.list, seen.roomView, seen.cards]) {
+          expect(place[derived]).toBe(words);
+          expect(place[sameWords]).toBe(words);
+          expect(place[typed]).toBe('Neap tides, in my own words');
+        }
+        expect(seen.header).toBe(words);
+      };
+
+      expectTitles(await titlesSeenBy(room.asha), WORDS);
+      expect(await previewPinned()).toBe(WORDS);
+
+      // Kenji blocks the author: for Kenji the words are not readable, for Asha they still are.
+      unwrap(await friendCommand(world.friends, room.kenji, room.ravi, 'block'));
+      expectTitles(await titlesSeenBy(room.kenji), NEUTRAL);
+      expectTitles(await titlesSeenBy(room.asha), WORDS);
+      unwrap(await friendCommand(world.friends, room.kenji, room.ravi, 'unblock'));
+      expectTitles(await titlesSeenBy(room.kenji), WORDS);
+
+      // A moderator removes the message: nobody reads its words through a title, and the typed title is untouched.
+      unwrap(await hideMessage(world, moderator, room.roomId, room.general, room.claim.messageId));
+      expectTitles(await titlesSeenBy(room.asha), NEUTRAL);
+      expectTitles(await titlesSeenBy(room.kenji), NEUTRAL);
+      expect(await previewPinned()).toBe(NEUTRAL);
+      // The words are still stored, so restoring the message restores the title.
+      unwrap(await hideMessage(world, moderator, room.roomId, room.general, room.claim.messageId, false));
+      expectTitles(await titlesSeenBy(room.asha), WORDS);
+      expect(await previewPinned()).toBe(WORDS);
+    });
+
     it('refuses a removed message, a topic card, a message of someone the starter blocked and another room’s message', async () => {
       const room = await gathering();
       const moderator = await seedFriend(world.db, world.friends);
@@ -564,7 +742,22 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
     it('is a template read from the room until the notice is read, and no model is asked', async () => {
       at(0);
       const { roomId } = await seedRoom(world, { name: 'Machine learning' });
-      const model = fixtureModel(() => answer('explanation', 'never asked'), { label: 'rooms-welcome' });
+      const rowsOf = async (table: string) =>
+        Number(
+          (await sql<{ n: string }>`select count(*)::text as n from ${sql.table(table)}`.execute(world.db)).rows[0]!.n,
+        );
+      // Everything a model call leaves behind: its runs, attempts and receipts, the ledgers of asks and summaries, and any
+      // work queued for a worker. Joining and reading the room must change none of it.
+      const callTraces = async () => ({
+        reasoning: await rowsIn(world.db, ['reasoning']),
+        asks: await rowsOf('rooms.ai_turns'),
+        summaries: await rowsOf('rooms.summaries'),
+        asksQueued: world.queued.length,
+        checksQueued: world.castChecks.length,
+        passesQueued: world.castPasses.length,
+        summariesQueued: world.summaries.length,
+      });
+      const before = await callTraces();
       const [newcomer] = (await joined(world, roomId, 1)) as [Friend];
       const first = await memberView(world, newcomer, roomId);
       expect(first.welcome).toMatchObject({
@@ -575,20 +768,28 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       );
       // Joining, reading and reading again make no call and write no turn.
       await memberView(world, newcomer, roomId);
-      expect(model.calls).toHaveLength(0);
       expect(await ledger(roomId)).toEqual([]);
-      expect(await rowsIn(world.db, NO_UNPROMPTED)).toBe(await rowsIn(world.db, NO_UNPROMPTED));
+      expect(await callTraces()).toEqual(before);
 
       unwrap(await setPreferences(world, newcomer, roomId, { noticeSeen: true }));
       expect((await memberView(world, newcomer, roomId)).welcome).toBeUndefined();
     });
   });
 
-  it('writes nothing to the personal universe: asks, topics, marks and welcomes are conversation', async () => {
-    const before = await rowsIn(world.db, NO_UNPROMPTED);
+  it('writes nothing to the personal universe: every ask, topic, mark and removal is conversation', async () => {
     const room = await gathering();
-    unwrap(await askAbout(world, room.asha, room.roomId, room.general, 'challenge', room.claim.messageId));
-    await modelFor(() => answer('assumption', 'Is that so?')).contribute(world.queued.at(-1)!);
+    const moderator = await seedFriend(world.db, world.friends);
+    await makeModerator(world, room.slug, moderator);
+    // Counted after the people and the room exist: only what the commands below do is measured.
+    const before = await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS);
+    for (const kind of ['challenge', 'other_side', 'about'] as const) {
+      unwrap(await askAbout(world, room.asha, room.roomId, room.general, kind, room.claim.messageId));
+      await modelFor(() => answer(kind === 'about' ? 'explanation' : 'assumption', 'Is that so?')).contribute(
+        world.queued.at(-1)!,
+      );
+    }
+    unwrap(await say(world, room.kenji, room.roomId, room.general, '@Nova what is a spring tide?'));
+    await modelFor(() => answer('explanation', 'The biggest tide.')).contribute(world.queued.at(-1)!);
     const topic = unwrap(
       await startTopicFrom(world, room.kenji, room.roomId, {
         discussionId: room.general,
@@ -596,8 +797,13 @@ describe('asked turns, topics and Useful (real PostgreSQL, CI fixture model)', (
       }),
     ).discussionId;
     unwrap(await markUseful(world, room.asha, room.roomId, room.general, room.claim.messageId));
+    unwrap(await markUseful(world, room.asha, room.roomId, room.general, room.claim.messageId, false));
+    unwrap(await setPresence(world, room.asha, room.roomId));
+    unwrap(await setPreferences(world, room.asha, room.roomId, { keepOut: true }));
+    unwrap(await hideMessage(world, moderator, room.roomId, room.general, room.claim.messageId));
     await topicsOf(world, room.asha, room.roomId);
+    await memberView(world, room.asha, room.roomId);
     await view(room.kenji, room.roomId, topic);
-    expect(await rowsIn(world.db, NO_UNPROMPTED)).toBe(before);
+    expect(await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS)).toBe(before);
   });
 });

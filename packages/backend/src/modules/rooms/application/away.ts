@@ -1,9 +1,9 @@
 import { CONCEPTS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { AWAY_MIN_NEW_MESSAGES, SUMMARY_MESSAGES, coversFrom, isOwedSummary, windowOf } from '../domain/away.js';
-import { KEPT_OUT_TOPIC, roomAcceptsPosts } from '../domain/membership.js';
+import { roomAcceptsPosts } from '../domain/membership.js';
 import type { AwayMaterial } from './away-role.js';
-import { reduceMessages, titleWithheld } from './inhabitant-context.js';
+import { reduceMessages } from './inhabitant-context.js';
 import { hasResident, type MemberRow, type RoomLock, type RoomPorts, type RoomRow, type SummaryRow } from './ports.js';
 
 /**
@@ -48,8 +48,9 @@ export async function openWindowOnReturn(
  * What a resident may read to write one window's summary: the room's name and topic and the window's newest messages from
  * every discussion, reduced to words by the same builder every context path uses (D-161). A removed message and a deleted
  * account's are not there; a member who keeps their messages out is left out altogether, not shown as a placeholder, so
- * the summary cannot say that something was said. Each message carries the place it was said in; a topic whose starter
- * keeps out is `KEPT_OUT_TOPIC`. No name, handle, ID, position or friend conversation reaches the model.
+ * the summary cannot say that something was said. Each message carries the place it was said in: General, or "a topic".
+ * A topic's title is never read, because a title is someone's words that a cached summary could outlive (D-169). No
+ * name, handle, ID, position or friend conversation reaches the model.
  */
 export async function assembleAway(
   p: RoomPorts,
@@ -68,12 +69,7 @@ export async function assembleAway(
     scope,
     lock,
     window.map((entry) => entry.message),
-    {
-      also: window
-        .flatMap((entry) => [entry.startedByAccountId, entry.originAuthorAccountId])
-        .filter((id) => id !== null),
-      refs: [],
-    },
+    { also: [], refs: [] },
   );
   const placeOf = new Map(window.map((entry) => [entry.message.messageId, entry]));
   const topic = CONCEPTS.find((concept) => concept.id === room.topic.id);
@@ -84,16 +80,9 @@ export async function assembleAway(
     messages: reduced.messages.flatMap((entry) => {
       const where = placeOf.get(entry.row.messageId);
       if (entry.keptOut || where === undefined) return [];
-      const title = titleWithheld(reduced.keptOut, {
-        startedBy: where.startedByAccountId,
-        originAuthor: where.originAuthorAccountId,
-        originHidden: where.originHidden,
-      })
-        ? KEPT_OUT_TOPIC
-        : where.discussionTitle;
       return [
         {
-          place: where.discussionKind === 'general' ? 'General' : `Topic: ${title}`,
+          place: where.discussionKind === 'general' ? 'General' : 'a topic',
           speaker: entry.message.speaker,
           text: entry.message.text,
         },

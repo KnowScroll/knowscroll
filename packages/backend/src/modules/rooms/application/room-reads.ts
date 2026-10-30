@@ -27,6 +27,7 @@ import { isModerator, joinDecision, roomAcceptsPosts } from '../domain/membershi
 import { COUNT_FROM, hereOf } from '../domain/presence.js';
 import { reportedOnDay } from '../domain/reports.js';
 import { orderTopics } from '../domain/topics.js';
+import { titlesFor } from './discussion-titles.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
 import {
   earlierPlaceOf,
@@ -59,7 +60,8 @@ const keyOf = (ref: { assetId: string; assetRevision: number }) => `${ref.assetI
 /**
  * The discussion rows of a room as the list shows them: the root's card, the starter's public profile and the figures a
  * row or a topic card reads (how many messages it shows and who spoke last). Who spoke last is left out when the
- * reader has blocked them, as in every other part of a room (D-051).
+ * reader has blocked them, as in every other part of a room (D-051). A title made from a message is shown only while the
+ * reader may read that message (D-168).
  */
 async function discussionSummaries(
   p: RoomPorts,
@@ -86,6 +88,7 @@ async function discussionSummaries(
   const blocked =
     lastSpoke.length === 0 ? new Set<string>() : await p.blocked(scope, entered.owner.accountId, lastSpoke);
   const { cast } = entered.standing.room;
+  const titles = await titlesFor(p, scope, entered.lock, entered.owner.accountId, rows);
   return rows.map((row) => {
     const starter = row.startedByAccountId === null ? undefined : people.get(row.startedByAccountId);
     const figure = figures.get(row.discussionId);
@@ -101,7 +104,7 @@ async function discussionSummaries(
     return {
       discussionId: row.discussionId,
       kind: row.kind,
-      title: row.title,
+      title: titles.get(row.discussionId)!,
       ...(row.tag === null ? {} : { tag: row.tag }),
       ...(row.root === null
         ? {}
@@ -239,7 +242,11 @@ async function previewOf(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredR
     invited: standing.invited,
     friendOfMember: friends.length > 0 && (await p.rooms.anyMember(lock, friends)),
   });
-  const pinned = await p.discussions.pinnedTitle(lock);
+  const pinnedRow = await p.discussions.pinned(lock);
+  const pinned =
+    pinnedRow === undefined
+      ? undefined
+      : (await titlesFor(p, scope, lock, owner.accountId, [pinnedRow])).get(pinnedRow.discussionId);
   return RoomViewSchema.parse({
     ...roomEnvelope(scope),
     readId,
@@ -304,6 +311,17 @@ export function makeRoomReads(p: RoomPorts) {
           entered.lock,
           found.map((report) => report.messageId),
         );
+        const titles = await titlesFor(
+          p,
+          scope,
+          entered.lock,
+          entered.owner.accountId,
+          [...placed.values()].map((place) => ({
+            discussionId: place.discussionId,
+            title: place.discussionTitle,
+            titleDerived: place.titleDerived,
+          })),
+        );
         return ok(
           RoomReportsSchema.parse({
             ...roomEnvelope(scope),
@@ -317,7 +335,7 @@ export function makeRoomReads(p: RoomPorts) {
                     {
                       messageId: report.messageId,
                       discussionId: place.discussionId,
-                      discussionTitle: place.discussionTitle,
+                      discussionTitle: titles.get(place.discussionId)!,
                       sequence: place.sequence,
                       count: report.count,
                       categories: report.categories,

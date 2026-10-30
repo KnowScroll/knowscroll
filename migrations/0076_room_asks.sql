@@ -14,8 +14,8 @@
 -- Growth: one `message_useful` row per mark; one `read_positions` row per member per room (rewritten at a presence
 -- beat, never appended); at most two `summaries` rows per room per day (one per 12-hour UTC window).
 -- Retention: kept with the room. Exploration Clear keeps all of it (explicit communication, D-042). A deleted account
--- deletes its marks, the marks on its tombstoned messages and its positions, and marks every summary that covered its
--- words stale (the text is erased). A member's position is also deleted when they leave or are removed.
+-- deletes its marks, the marks on its tombstoned messages and its positions, rewrites a topic title made from its words,
+-- and marks every summary that covered its words stale (the text is erased). A member's position is also deleted when they leave or are removed.
 -- Rollout: additive, but the `ai_turns` check now requires `ask_kind` on every asked turn, so a process from before this
 -- migration cannot ask until it restarts (as at 0071). Every other change is additive. Apply with the new binary.
 set local lock_timeout = '5s';
@@ -23,12 +23,18 @@ set local statement_timeout = '60s';
 
 -- A topic carries one tag from a closed list. A topic started from a message begins with that message (`origin_message_id`
 -- already exists) and leaves a card in the discussion the message was in, so the card needs its own message shape.
+-- `title_derived` says the title is the first words of that message, not what the starter typed: it is then shown only
+-- while the message is shown to the reader, and is rewritten when the message's author deletes their account (D-168).
 alter table rooms.discussions
   add column tag text check (tag in ('question', 'debate', 'explainer', 'share')),
-  add constraint discussions_tag_topic_check check (tag is null or kind = 'topic') not valid;
--- The new column is null for every existing row, so the check holds.
+  add column title_derived boolean not null default false,
+  add constraint discussions_tag_topic_check check (tag is null or kind = 'topic') not valid,
+  add constraint discussions_title_derived_check check (not title_derived or origin_message_id is not null) not valid;
+-- The new columns are null or false for every existing row, so both checks hold.
 -- squawk-ignore constraint-missing-not-valid
 alter table rooms.discussions validate constraint discussions_tag_topic_check;
+-- squawk-ignore constraint-missing-not-valid
+alter table rooms.discussions validate constraint discussions_title_derived_check;
 
 -- A topic card: a person's message that names the discussion they started from a message. It has no words of its own;
 -- the title and tag are the discussion's, read when the card is served, so the card keeps updating.

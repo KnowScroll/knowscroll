@@ -170,6 +170,11 @@ export interface DiscussionRow {
   /** `general` is the room's own place to talk (one per room); `topic` is any other. */
   readonly kind: 'general' | 'topic' | 'today';
   readonly title: string;
+  /**
+   * The title is the first words of the message the topic began from, not what the starter typed. It is then another
+   * person's words, shown only while that message is (`shownTitle`).
+   */
+  readonly titleDerived: boolean;
   /** A label the starter picked from a closed list; none for General and for a topic started without one. */
   readonly tag: TopicTag | null;
   readonly root: ContentRef | null;
@@ -188,6 +193,7 @@ export type TopicTag = 'question' | 'debate' | 'explainer' | 'share';
 export interface NewDiscussion {
   readonly discussionId: string;
   readonly title: string;
+  readonly titleDerived: boolean;
   readonly tag: TopicTag | undefined;
   readonly root: ContentRef | undefined;
   readonly originMessageId: string | undefined;
@@ -258,18 +264,10 @@ export interface DiscussionFigures {
   readonly lastReplyBy: { readonly accountId: string } | { readonly inhabitant: InhabitantId } | undefined;
 }
 
-/** A shown message of the room's recent window, and where it sits. */
+/** A shown message of the room's recent window, and the kind of discussion it sits in (never that discussion's title). */
 export interface WindowMessage {
   readonly message: MessageRow;
-  readonly discussionId: string;
-  readonly discussionTitle: string;
   readonly discussionKind: 'general' | 'topic' | 'today';
-  /** The starter of the discussion, whose own typing the title is. */
-  readonly startedByAccountId: string | null;
-  /** The author of the message a topic began from, whose words its title may be made of; none for any other discussion. */
-  readonly originAuthorAccountId: string | null;
-  /** The message a topic began from has been removed, so a title made of its words is no longer to be read. */
-  readonly originHidden: boolean;
 }
 
 /**
@@ -308,7 +306,15 @@ export interface DiscussionStore {
   /** When the newest message a member can see was sent, anywhere in the room; none while nobody has written. */
   lastMessageAt(lock: RoomLock): Promise<Date | undefined>;
   /** The pinned discussion with the newest pin, if any. */
-  pinnedTitle(lock: RoomLock): Promise<string | undefined>;
+  pinned(lock: RoomLock): Promise<DiscussionRow | undefined>;
+  /**
+   * For topics whose title is made from a message: whether that message is shown (not removed, its author's account not
+   * deleted) and who wrote it. A discussion without such an origin is absent.
+   */
+  originsOf(
+    lock: RoomLock,
+    discussionIds: readonly string[],
+  ): Promise<ReadonlyMap<string, { readonly shown: boolean; readonly authorAccountId: string | null }>>;
   create(lock: RoomLock, discussion: NewDiscussion): Promise<void>;
   setPinned(lock: RoomLock, discussionId: string, pinnedAt: Date | null): Promise<void>;
   append(lock: RoomLock, discussionId: string, message: NewMessage): Promise<Counters>;
@@ -328,7 +334,15 @@ export interface DiscussionStore {
     lock: RoomLock,
     messageIds: readonly string[],
   ): Promise<
-    ReadonlyMap<string, { readonly discussionId: string; readonly discussionTitle: string; readonly sequence: number }>
+    ReadonlyMap<
+      string,
+      {
+        readonly discussionId: string;
+        readonly discussionTitle: string;
+        readonly titleDerived: boolean;
+        readonly sequence: number;
+      }
+    >
   >;
   /** Hides or restores a message and gives it a fresh change number, so catch-up replaces the bubble. */
   setHidden(lock: RoomLock, discussionId: string, messageId: string, hiddenAt: Date | null): Promise<void>;

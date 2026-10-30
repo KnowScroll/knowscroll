@@ -19,6 +19,7 @@ interface DiscussionColumns {
   room_id: string;
   kind: string;
   title: string;
+  title_derived: boolean;
   tag: string | null;
   root_asset_id: string | null;
   root_asset_revision: number | null;
@@ -36,6 +37,7 @@ const DISCUSSION_COLUMNS = [
   'room_id',
   'kind',
   'title',
+  'title_derived',
   'tag',
   'root_asset_id',
   'root_asset_revision',
@@ -53,6 +55,7 @@ const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
   roomId: row.room_id,
   kind: discussionKindOf(row.kind),
   title: row.title,
+  titleDerived: row.title_derived,
   tag: row.tag === null ? null : topicTagOf(row.tag),
   root:
     row.root_asset_id === null || row.root_asset_revision === null
@@ -282,14 +285,8 @@ export const discussionStore: DiscussionStore = {
     const rows = await trxOf(lock)
       .selectFrom('rooms.messages as message')
       .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
-      .leftJoin('rooms.messages as origin', 'origin.message_id', 'discussion.origin_message_id')
       .select([
-        'discussion.discussion_id as discussion_id',
-        'discussion.title as discussion_title',
         'discussion.kind as discussion_kind',
-        'discussion.started_by_account_id as started_by_account_id',
-        'origin.author_account_id as origin_author_account_id',
-        'origin.hidden_at as origin_hidden_at',
         'message.sequence',
         'message.change_sequence',
         'message.message_id',
@@ -317,12 +314,7 @@ export const discussionStore: DiscussionStore = {
       .execute();
     return rows.reverse().map((row) => ({
       message: messageOf(row),
-      discussionId: row.discussion_id,
-      discussionTitle: row.discussion_title,
       discussionKind: discussionKindOf(row.discussion_kind),
-      startedByAccountId: row.started_by_account_id,
-      originAuthorAccountId: row.origin_author_account_id,
-      originHidden: row.origin_hidden_at !== null,
     }));
   },
 
@@ -392,16 +384,36 @@ export const discussionStore: DiscussionStore = {
     return latest === undefined || latest === null ? undefined : new Date(latest);
   },
 
-  async pinnedTitle(lock) {
+  async pinned(lock) {
     const row = await trxOf(lock)
       .selectFrom('rooms.discussions')
-      .select('title')
+      .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
       .where('pinned_at', 'is not', null)
       .orderBy('pinned_at', 'desc')
       .limit(1)
       .executeTakeFirst();
-    return row?.title;
+    return row === undefined ? undefined : discussionOf(row);
+  },
+
+  async originsOf(lock, discussionIds) {
+    if (discussionIds.length === 0) return new Map();
+    const rows = await trxOf(lock)
+      .selectFrom('rooms.discussions as discussion')
+      .innerJoin('rooms.messages as origin', 'origin.message_id', 'discussion.origin_message_id')
+      .select(['discussion.discussion_id', 'origin.author_account_id', 'origin.hidden_at', 'origin.body_text'])
+      .where('discussion.room_id', '=', lock.roomId)
+      .where('discussion.discussion_id', 'in', [...discussionIds])
+      .execute();
+    return new Map(
+      rows.map((row) => [
+        row.discussion_id,
+        {
+          shown: row.hidden_at === null && row.body_text !== null && row.author_account_id !== null,
+          authorAccountId: row.author_account_id,
+        },
+      ]),
+    );
   },
 
   async create(lock, discussion) {
@@ -411,6 +423,7 @@ export const discussionStore: DiscussionStore = {
         discussion_id: discussion.discussionId,
         room_id: lock.roomId,
         title: discussion.title,
+        title_derived: discussion.titleDerived,
         tag: discussion.tag ?? null,
         root_asset_id: discussion.root?.assetId ?? null,
         root_asset_revision: discussion.root?.assetRevision ?? null,
@@ -518,14 +531,25 @@ export const discussionStore: DiscussionStore = {
     const rows = await trxOf(lock)
       .selectFrom('rooms.messages as message')
       .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
-      .select(['message.message_id', 'message.sequence', 'discussion.discussion_id', 'discussion.title'])
+      .select([
+        'message.message_id',
+        'message.sequence',
+        'discussion.discussion_id',
+        'discussion.title',
+        'discussion.title_derived',
+      ])
       .where('discussion.room_id', '=', lock.roomId)
       .where('message.message_id', 'in', [...messageIds])
       .execute();
     return new Map(
       rows.map((row) => [
         row.message_id,
-        { discussionId: row.discussion_id, discussionTitle: row.title, sequence: Number(row.sequence) },
+        {
+          discussionId: row.discussion_id,
+          discussionTitle: row.title,
+          titleDerived: row.title_derived,
+          sequence: Number(row.sequence),
+        },
       ]),
     );
   },

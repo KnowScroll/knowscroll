@@ -18,6 +18,7 @@ import {
   joined,
   makeModerator,
   memberView,
+  PERSONAL_UNIVERSE_SCHEMAS,
   roomScope,
   roomWorld,
   rowsIn,
@@ -25,6 +26,7 @@ import {
   seedRoom,
   setPreferences,
   setPresence,
+  startTopic,
   startTopicFrom,
   unwrap,
   type RoomWorld,
@@ -35,7 +37,6 @@ const today = new Date();
 const START = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 6, 0, 0));
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
-const NO_UNPROMPTED = ['experience', 'geography', 'composer', 'planning'];
 
 const summary = (text: string): FixtureScenario => ({
   kind: 'success',
@@ -122,8 +123,9 @@ describe('while you were away (real PostgreSQL, CI fixture model)', () => {
     it('is written once by the resident: kept-out members and removed messages never reach the model, and the card is the member’s own', async () => {
       const r = await room();
       await talk(r, 16, 13);
-      // A message of a member who keeps theirs out of what AI reads, and a topic that began from a message a moderator
-      // then removed: the topic is titled with that message's words, which must not be read through the title either.
+      // A message of a member who keeps theirs out of what AI reads, a topic that began from a message a moderator then
+      // removed (titled with that message's words), and a topic whose title a member typed: no topic title is read, so
+      // none can outlive what it was made of in a cached summary.
       at(13, 30);
       unwrap(await say(world, r.kept, r.roomId, r.general, 'KEPT-OUT-WORDS about the lunar orbit'));
       const removed = unwrap(await say(world, r.writerOne, r.roomId, r.general, 'REMOVED-WORDS about something else'));
@@ -132,12 +134,14 @@ describe('while you were away (real PostgreSQL, CI fixture model)', () => {
         await startTopicFrom(world, r.writerTwo, r.roomId, { discussionId: r.general, messageId: removed.messageId }),
       );
       unwrap(await say(world, r.writerOne, r.roomId, topic.discussionId, 'A reply inside the topic about neap tides'));
+      const typed = await startTopic(world, r.kept, r.roomId, 'TYPED-TITLE of a member who keeps theirs out');
+      unwrap(await say(world, r.writerTwo, r.roomId, typed, 'A reply inside the typed topic about moons'));
       unwrap(await hideMessage(world, r.moderator, r.roomId, r.general, removed.messageId));
 
       // She comes back: a job is queued in the same transaction, and her card says it is being written.
       at(14);
       const queued = world.summaries.length;
-      const spentBefore = await rowsIn(world.db, NO_UNPROMPTED);
+      const spentBefore = await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS);
       unwrap(await setPresence(world, r.asha, r.roomId));
       expect(world.summaries).toHaveLength(queued + 1);
       expect(await awayOf(r.asha, r.roomId)).toMatchObject({
@@ -156,9 +160,13 @@ describe('while you were away (real PostgreSQL, CI fixture model)', () => {
       expect(sent).not.toContain('KEPT-OUT-WORDS');
       expect(sent).not.toContain('REMOVED-WORDS');
       expect(sent).not.toContain("[a member's message]");
-      // The reply inside the topic is read, under a title that is withheld because its first message was removed.
+      // The replies inside the topics are read, as said in "a topic": no topic's title is in the request.
+      expect(sent).toContain('[a topic] ');
       expect(sent).toContain('A reply inside the topic about neap tides');
-      expect(sent).toContain("Topic: [a member's topic]");
+      expect(sent).toContain('A reply inside the typed topic about moons');
+      expect(sent).not.toContain('TYPED-TITLE');
+      expect(sent).not.toContain('Topic:');
+      expect(sent).not.toContain("[a member's topic]");
 
       const ready = await awayOf(r.asha, r.roomId);
       expect(ready).toMatchObject({ state: 'ready', text: TEXT, resident: { name: 'Halley' } });
@@ -185,7 +193,8 @@ describe('while you were away (real PostgreSQL, CI fixture model)', () => {
       expect(receipts.rows.length).toBeGreaterThan(0);
       expect(receipts.rows.every((receipt) => receipt.ambient)).toBe(true);
       // Nothing of it is evidence or part of anyone's universe.
-      expect(await rowsIn(world.db, NO_UNPROMPTED)).toBe(spentBefore);
+      unwrap(await dismissAway(world, r.asha, r.roomId));
+      expect(await rowsIn(world.db, PERSONAL_UNIVERSE_SCHEMAS)).toBe(spentBefore);
     });
 
     it('is one call for the window however many members come back, and another call in the next window', async () => {

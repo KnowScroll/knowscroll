@@ -483,6 +483,70 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     expect(after.discussion.startedBy).toBeUndefined();
   });
 
+  it('renames a topic that was titled from a deleted person’s message, and leaves a title the starter typed', async () => {
+    const NEUTRAL = 'A topic from a message';
+    const { roomId } = await seedRoom(world);
+    const author = await namedPerson();
+    const starter = await namedPerson();
+    unwrap(await joinRoom(world, author, roomId));
+    unwrap(await joinRoom(world, starter, roomId));
+    const general = (await memberView(world, author, roomId)).general.discussionId;
+    const first = unwrap(await say(world, author, roomId, general, 'ORIGINAL-WORDS that name a topic'));
+    const second = unwrap(await say(world, author, roomId, general, 'SECOND-WORDS that the starter retitles'));
+    const derived = unwrap(
+      await startTopicFrom(world, starter, roomId, { discussionId: general, messageId: first.messageId }),
+    ).discussionId;
+    const typed = unwrap(
+      await startTopicFrom(
+        world,
+        starter,
+        roomId,
+        { discussionId: general, messageId: second.messageId },
+        { title: 'A title the starter typed' },
+      ),
+    ).discussionId;
+    const titleOf = async (discussionId: string) =>
+      (
+        await world.db
+          .selectFrom('rooms.discussions')
+          .select('title')
+          .where('discussion_id', '=', discussionId)
+          .executeTakeFirstOrThrow()
+      ).title;
+    expect(await titleOf(derived)).toBe('ORIGINAL-WORDS that name a topic');
+
+    // The starter's own file holds their typed title, and the other person's words only as the neutral title.
+    const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(starter.authority, (scope) =>
+      exportCurrentPerson(scope, { accountId: starter.accountId }, openToEveryone),
+    );
+    if (exported.kind !== 'entered') throw new Error('export refused');
+    const section = JSON.stringify(exported.value.sections['rooms']);
+    expect(section).toContain('A title the starter typed');
+    expect(section).toContain(NEUTRAL);
+    expect(section).not.toContain('ORIGINAL-WORDS');
+
+    const receiptId = randomUUID();
+    const deleting = deleteAccountFor(database.db, boss, {
+      eraseAccountData: eraseCurrentAccount,
+      lockTimeoutMs: 5_000,
+    });
+    expect((await deleting.request(author.authority, { receiptId })).kind).toBe('accepted');
+    expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+
+    // The words are gone from the stored title, not merely hidden when it is served.
+    expect(await titleOf(derived)).toBe(NEUTRAL);
+    expect(await titleOf(typed)).toBe('A title the starter typed');
+    expect(
+      (
+        await sql<{ n: string }>`
+          select count(*)::text as n from rooms.discussions where title like '%ORIGINAL-WORDS%'`.execute(world.db)
+      ).rows[0]!.n,
+    ).toBe('0');
+    const after = await readDiscussion(world, starter, roomId, derived);
+    if (after.status !== 'ready') throw new Error('expected ready');
+    expect(after.discussion.title).toBe(NEUTRAL);
+  });
+
   it('keeps marks of Useful, places and summaries through a Clear, as it keeps the room', async () => {
     const { roomId, general, person, theirs, summaryId } = await markedPerson();
     await clearRecordingPerson(database, boss, person);

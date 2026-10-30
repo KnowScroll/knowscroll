@@ -138,8 +138,9 @@ export function titleWithheld(
  * the content's title and summary are the library's, and polls, pins and reports are never read.
  *
  * Every context path goes through here, so keep-out holds for them all (D-161). `focus` is the message a turn is
- * about (the one an unprompted turn answers, or a pointed ask names); `material.focus` is its number in the window, or
- * none when it is no longer in it or its author keeps their messages out, in which case there is nothing to answer.
+ * about (the one an unprompted turn answers, or a pointed ask names); `material.focus` is its number in the material (it is
+ * read by id when it is older than the newest messages), or none when it is gone or its author keeps their messages
+ * out, in which case there is nothing to answer.
  */
 export async function assembleMaterial(
   p: RoomPorts,
@@ -161,7 +162,15 @@ export async function assembleMaterial(
     discussion.originMessageId === null || discussion.root !== null
       ? undefined
       : (await p.discussions.messageInRoom(lock, discussion.originMessageId))?.message;
-  const reduced = await reduceMessages(p, scope, lock, origin === undefined ? rows : [origin, ...rows], {
+  // The message a turn is about may have scrolled out of the newest window (a pointed ask at an old message, or more
+  // than a window of talk before the job ran). It is read by id and goes through the same reducer, so keep-out and
+  // removal apply to it as to every other message.
+  const focusRow =
+    parts.focus === undefined || origin?.messageId === parts.focus || rows.some((row) => row.messageId === parts.focus)
+      ? undefined
+      : await p.discussions.messageById(lock, discussion.discussionId, parts.focus);
+  const before = [origin, focusRow].filter((row) => row !== undefined);
+  const reduced = await reduceMessages(p, scope, lock, [...before, ...rows], {
     also: [discussion.startedByAccountId, origin?.authorAccountId ?? null].filter((id) => id !== null),
     refs: discussion.root === null ? [] : [discussion.root],
   });

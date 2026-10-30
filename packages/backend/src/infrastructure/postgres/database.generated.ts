@@ -1528,6 +1528,7 @@ export interface RoomsDiscussions {
   started_by_account_id: string | null;
   tag: string | null;
   title: string;
+  title_derived: Generated<boolean>;
 }
 
 export interface RoomsInvitations {

@@ -9,7 +9,17 @@ import type { PersonalScopeTx } from '../../identity/public.js';
 import { snippetCard } from '../../social/public.js';
 import { nameOf, type CastMember } from '../domain/cast.js';
 import type { AiLevel } from '../domain/membership.js';
-import type { AskedFor, ContentCard, ContentRef, MessageRow, RoomLock, RoomPorts, TopicTag } from './ports.js';
+import { titlesFor } from './discussion-titles.js';
+import type {
+  AskedFor,
+  ContentCard,
+  ContentRef,
+  DiscussionRow,
+  MessageRow,
+  RoomLock,
+  RoomPorts,
+  TopicTag,
+} from './ports.js';
 
 const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`;
 
@@ -160,11 +170,15 @@ export async function viewRoomMessages(
   const authors =
     authorIds.length === 0 ? new Map<string, PublicPersonRef>() : await p.people.byAccounts(scope, authorIds);
   const blocked = authorIds.length === 0 ? new Set<string>() : await p.blocked(scope, viewer.accountId, authorIds);
-  const topics = new Map<string, { title: string; tag: TopicTag | null }>();
+  const topicRows: DiscussionRow[] = [];
   for (const id of new Set(shown.flatMap((row) => (row.topicDiscussionId === null ? [] : [row.topicDiscussionId])))) {
     const discussion = await p.discussions.load(lock, id);
-    if (discussion !== undefined) topics.set(id, { title: discussion.title, tag: discussion.tag });
+    if (discussion !== undefined) topicRows.push(discussion);
   }
+  const topicTitles = await titlesFor(p, scope, lock, viewer.accountId, topicRows);
+  const topics = new Map(
+    topicRows.map((row) => [row.discussionId, { title: topicTitles.get(row.discussionId)!, tag: row.tag }]),
+  );
   const useful = await p.discussions.usefulAmong(
     lock,
     viewer.accountId,

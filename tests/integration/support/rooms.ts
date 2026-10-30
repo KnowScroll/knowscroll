@@ -441,11 +441,30 @@ export function roomScope(db: Kysely<Database>, model: ModelPort, settings: Harn
   return { harness, withScope };
 }
 
-/** How many rows the given schemas hold in all, for proving that a feature wrote nothing there. */
+/**
+ * The schemas of a person's own universe. Rooms are conversation, so no room command or job may write a row to any of
+ * them (D-167 to D-169); a test that lists a schema that does not exist would pass for ever, so `rowsIn` refuses one.
+ */
+export const PERSONAL_UNIVERSE_SCHEMAS = [
+  'experience',
+  'geography',
+  'composer',
+  'planner',
+  'evidence',
+  'personal_context',
+] as const;
+
+/**
+ * How many rows the given schemas hold in all, for proving that a feature wrote nothing there. A schema that has no
+ * table (a misspelt name) throws, so the proof cannot hold for the wrong reason.
+ */
 export async function rowsIn(db: Kysely<Database>, schemas: readonly string[]): Promise<number> {
   const tables = await sql<{ table_schema: string; table_name: string }>`
     select table_schema, table_name from information_schema.tables
     where table_type = 'BASE TABLE' and table_schema = any(${[...schemas]})`.execute(db);
+  for (const schema of schemas)
+    if (!tables.rows.some((table) => table.table_schema === schema))
+      throw new Error(`rowsIn: the schema "${schema}" has no tables`);
   let total = 0;
   for (const table of tables.rows) {
     const row = await sql<{ n: string }>`

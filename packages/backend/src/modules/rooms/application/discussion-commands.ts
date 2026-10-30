@@ -63,6 +63,8 @@ function cardTitle(card: ContentCard): string {
 /** What a new discussion begins with: its title, an optional tag and root, the message it began from and where its card goes. */
 interface StartingPoint {
   readonly title: string;
+  /** The title is the first words of the message the topic began from (not typed by the starter): see `shownTitle`. */
+  readonly titleDerived?: boolean;
   readonly tag?: TopicTag | undefined;
   readonly root?: ContentRef;
   readonly originMessageId?: string;
@@ -139,9 +141,13 @@ export function makeDiscussionCommands(p: RoomPorts) {
       (await p.blocked(scope, accountId, [message.authorAccountId])).has(message.authorAccountId)
     )
       return refuse('unavailable');
+    // A title left as the message's own first words is that person's words, not the starter's: it is shown to a reader
+    // only while the message is (D-168). A title the starter changed is theirs.
+    const derivedTitle = titleFrom(message.text, 'Topic');
     return ok({
       originMessageId: message.messageId,
-      title: start.title ?? titleFrom(message.text, 'Topic'),
+      title: start.title ?? derivedTitle,
+      titleDerived: start.title === undefined || start.title === derivedTitle,
       tag: start.tag,
       cardIn: start.discussionId,
     });
@@ -178,12 +184,13 @@ export function makeDiscussionCommands(p: RoomPorts) {
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
           const found = await resolveStart(scope, lock, owner.accountId, command.start);
           if (found.kind === 'refused') return found;
-          const { title, tag, root, originMessageId, cardIn } = found.value;
+          const { title, titleDerived, tag, root, originMessageId, cardIn } = found.value;
           return ok(async () => {
             const discussionId = p.newId();
             await p.discussions.create(lock, {
               discussionId,
               title,
+              titleDerived: titleDerived ?? false,
               tag,
               root,
               originMessageId,

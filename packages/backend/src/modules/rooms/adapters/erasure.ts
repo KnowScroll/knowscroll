@@ -5,6 +5,7 @@ import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructu
 import { JOB_SCHEMA, deadLetterQueueName } from '../../../infrastructure/jobs/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
+import { NEUTRAL_TOPIC_TITLE } from '../domain/titles.js';
 import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
 
 /**
@@ -177,6 +178,14 @@ export const roomsErasure: ModuleErasure = declareErasure({
       ),
     );
     removed += count(await sql`delete from rooms.read_positions where account_id = ${account}::uuid`.execute(trx));
+    // A topic named from this person's message is called what it says, so the name is theirs too: before the message is a
+    // tombstone, it becomes the neutral title for everyone (D-168).
+    removed += count(
+      await sql`
+        update rooms.discussions set title = ${NEUTRAL_TOPIC_TITLE}
+        where title_derived and origin_message_id in (
+          select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(trx),
+    );
     removed += count(
       await sql`delete from rooms.message_snippets where message_id in (
         select message_id from rooms.messages where author_account_id = ${account}::uuid)`.execute(trx),
@@ -276,9 +285,13 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         from rooms.members member join rooms.rooms room on room.room_id = member.room_id
         where member.account_id = ${person.accountId}::uuid
         order by member.joined_at desc limit 500`.execute(trx);
+      // A title made from someone else's message is their words, not this person's: the file says so neutrally.
       const started = await sql<{ title: string; room: string; created_at: Date }>`
-        select discussion.title, room.name as room, discussion.created_at
+        select case when discussion.title_derived and origin.author_account_id is distinct from ${person.accountId}::uuid
+            then ${NEUTRAL_TOPIC_TITLE} else discussion.title end as title,
+          room.name as room, discussion.created_at
         from rooms.discussions discussion join rooms.rooms room on room.room_id = discussion.room_id
+        left join rooms.messages origin on origin.message_id = discussion.origin_message_id
         where discussion.started_by_account_id = ${person.accountId}::uuid
         order by discussion.created_at desc limit 500`.execute(trx);
       const messages = await sql<{
@@ -288,11 +301,14 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         room: string;
         topic_title: string | null;
       }>`
-        select message.recorded_at, message.body_text, message.note, room.name as room, topic.title as topic_title
+        select message.recorded_at, message.body_text, message.note, room.name as room,
+          case when topic.title_derived and topic_origin.author_account_id is distinct from ${person.accountId}::uuid
+            then ${NEUTRAL_TOPIC_TITLE} else topic.title end as topic_title
         from rooms.messages message
         join rooms.discussions discussion on discussion.discussion_id = message.discussion_id
         join rooms.rooms room on room.room_id = discussion.room_id
         left join rooms.discussions topic on topic.discussion_id = message.topic_discussion_id
+        left join rooms.messages topic_origin on topic_origin.message_id = topic.origin_message_id
         where message.author_account_id = ${person.accountId}::uuid
         order by message.recorded_at desc, message.sequence desc limit ${EXPORT_MESSAGE_LIMIT}`.execute(trx);
       const written = await sql<{ n: string }>`
