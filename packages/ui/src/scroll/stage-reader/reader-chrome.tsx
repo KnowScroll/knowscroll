@@ -2,65 +2,71 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
 import { Button } from '../../actions/button';
-import { useDisplay } from '../../display/display';
 import { IconButton } from '../../actions/icon-button';
 import { Text } from '../../text/text';
 import { SparkChip } from './play-chips';
 
 /**
- * The top bar of a v2 Scroll (D-133): Your Universe at the left with the Scroll's title and its Part ("Part 1 of 3"), the Reel and Scroll switch, and Next ↑ for a new topic in the same format when a
- * swipe does not work. Every move the gestures make has a control here or in the dock.
+ * The top bar of a v2 Scroll (D-133, D-185): Your Universe at the left, the Scroll's title with its
+ * kicker and Part ("SEASONS · Part 1 of 3") beside it, the Reel and Scroll switch, and Next ↑ for a new
+ * topic in the same format when a swipe does not work. Every move the gestures make has a control here
+ * or in the dock. On a phone the switch and Next wrap to a second line rather than take the title's room:
+ * a title is cut to two lines (its whole text stays in the page for a screen reader), never hidden, and no
+ * control is clipped down to 320 px.
  */
 export function ReaderTopBar({
   title,
+  kicker,
   partLabel,
   formatSwitch,
   onUniverse,
   onNextTopic,
 }: {
   readonly title: string;
+  /** The Scroll's own kicker ("Seasons"). */
+  readonly kicker?: string | undefined;
   /** "Part 1 of 3" or "Part 1": counts are real or absent (D-072). */
   readonly partLabel?: string | undefined;
   readonly formatSwitch?: ReactNode;
   readonly onUniverse: () => void;
   readonly onNextTopic?: (() => void) | undefined;
 }) {
-  const { breakpoint } = useDisplay();
-  // A phone has no room for the title beside the switch; it stays the page's heading for a screen reader.
-  const room = breakpoint === 'tablet' || breakpoint === 'desktop';
+  const where = [kicker, partLabel].filter((part) => part !== undefined && part !== '').join(' · ');
   return (
-    <View style={styles.top}>
+    <View style={styles.top} testID="reader-top-bar">
       <IconButton icon="universe" label="Your Universe" variant="paper" onPress={onUniverse} />
-      <View style={room ? styles.where : styles.heading}>
-        <Text variant="uiS" heading={1} numberOfLines={1}>
+      <View style={styles.where}>
+        <Text variant="uiS" heading={1} numberOfLines={2}>
           {title}
         </Text>
-        {partLabel === undefined || !room ? null : (
-          <Text variant="monoXs" color={content.ink2} numberOfLines={1}>
-            {partLabel}
+        {where === '' ? null : (
+          <Text variant="monoXs" color={content.ink2} numberOfLines={2}>
+            {where}
           </Text>
         )}
       </View>
-      {room ? null : <View style={styles.where} />}
-      {formatSwitch}
-      {onNextTopic === undefined ? null : (
-        <Button
-          label="Next"
-          icon="arrowUp"
-          iconPosition="trailing"
-          size="sm"
-          accessibilityLabel="Next topic"
-          onPress={onNextTopic}
-        />
-      )}
+      <View style={styles.controls}>
+        {formatSwitch}
+        {onNextTopic === undefined ? null : (
+          <Button
+            label="Next"
+            icon="arrowUp"
+            iconPosition="trailing"
+            size="sm"
+            accessibilityLabel="Next topic"
+            onPress={onNextTopic}
+          />
+        )}
+      </View>
     </View>
   );
 }
 
 /**
  * The dock at the bottom of a v2 Scroll: Ask, the sparks earned on this Scroll, the ••• menu and the
- * next Part. The Part is the one primary action, in the continuation yellow's place; it is absent
- * when no next Part was admitted. The sparks are this Scroll's alone, never a total (D-064).
+ * way on. The way on is the one primary action, in the continuation yellow's place: the next Part, or,
+ * where there is none, the related move (D-184). It is absent when neither was admitted. The sparks are
+ * this Scroll's alone, never a total (D-064).
  */
 export function ReaderDock({
   onAsk,
@@ -97,15 +103,17 @@ export function ReaderDock({
 const styles = StyleSheet.create({
   top: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: spacing[2],
+    columnGap: spacing[2],
+    rowGap: spacing[1],
     paddingHorizontal: layout.gutter,
     paddingBottom: spacing[2],
     backgroundColor: content.paper,
   },
-  where: { flex: 1, minWidth: 0 },
-  /** Present for assistive technology, drawn in one pixel. */
-  heading: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
+  /** Takes what the Universe button and the controls leave; below 120 px the controls wrap to their own line. */
+  where: { flex: 1, minWidth: 120 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginLeft: 'auto', maxWidth: '100%' },
   dock: {
     flexDirection: 'row',
     alignItems: 'center',

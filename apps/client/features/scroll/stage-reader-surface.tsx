@@ -19,6 +19,8 @@ export interface StageMoves {
   readonly universe: () => void;
   readonly nextTopic?: (() => void) | undefined;
   readonly nextPart?: NextPartPeek | undefined;
+  /** Another angle on the idea. With no next Part it is the way on (the dock, the → key, a swipe left) (D-184). */
+  readonly related?: NextPartPeek | undefined;
   readonly previousPart?: (() => void) | undefined;
   readonly ask?: (() => void) | undefined;
   /** The Reel/Scroll switch; `format` is the key that moves to the other format. */
@@ -70,6 +72,7 @@ export function StageReaderSurface({
   const { document } = scroll;
   // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
   const play = useStagePlay(scroll);
+  const wayOn = moves.nextPart ?? moves.related;
   return (
     <View style={styles.page}>
       <View style={[styles.column, breakpoint === 'compact' ? null : styles.wide]}>
@@ -81,14 +84,14 @@ export function StageReaderSurface({
           handleRef={handleRef}
           onStopChange={onStopChange}
           nextPart={moves.nextPart}
+          related={moves.related}
           onDone={moves.done}
           play={play}
-          partLabel={partLabel}
           commands={{
             universe: moves.universe,
             ask: moves.ask,
             format: moves.format,
-            nextPart: moves.nextPart?.onPress,
+            nextPart: wayOn?.onPress,
             previousPart: moves.previousPart,
             nextTopic: moves.nextTopic,
           }}
@@ -96,6 +99,7 @@ export function StageReaderSurface({
             <View style={{ paddingTop: topInset }}>
               <ReaderTopBar
                 title={document.title}
+                kicker={document.kicker}
                 partLabel={partLabel}
                 formatSwitch={moves.formatSwitch}
                 onUniverse={moves.universe}
@@ -110,7 +114,7 @@ export function StageReaderSurface({
                 onAsk={moves.ask}
                 sparks={play?.sparks}
                 onMore={moreBody === undefined ? undefined : () => setMoreOpen(true)}
-                nextPart={moves.nextPart}
+                nextPart={wayOn}
               />
             </View>
           }

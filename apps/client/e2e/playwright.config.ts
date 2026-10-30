@@ -42,6 +42,7 @@ export default defineConfig({
         'rooms-smoke.spec.ts',
         'stage-reader-smoke.spec.ts',
         'play-smoke.spec.ts',
+        'reader-nav-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

@@ -2,10 +2,11 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { content, spacing } from '@knowscroll/design-tokens';
-import { Button, type NextPartPeek, type StageReaderHandle } from '@knowscroll/ui';
+import { Button, useDisplay, type StageReaderHandle } from '@knowscroll/ui';
 import { StageReaderSurface } from '../scroll/stage-reader-surface';
 import { isStageScroll, type OpenedStageScroll } from '../scroll/scroll-session';
-import { continuationIntent, type ReadyContinuation } from './continuation-intent';
+import { continuationIntent } from './continuation-intent';
+import { readerContinuations } from './continuation-moves';
 import { EncounterStrip } from './encounter-actions';
 import type { EncounterEntry } from './encounter-history';
 import { useEncounterMetrics } from './encounter-metrics';
@@ -20,16 +21,6 @@ export type StageEntry = Extract<EncounterEntry, { kind: 'scroll' }> & { readonl
 /** Whether a Scroll entry holds a v2 document. The entry itself is kept: the session tracks entries by identity. */
 export function isStageEntry(entry: Extract<EncounterEntry, { kind: 'scroll' }>): entry is StageEntry {
   return isStageScroll(entry.scroll);
-}
-
-/** "Part 2" and the admitted Part's own title: the peek and the dock say where the move goes. */
-function peekOf(state: ReadyContinuation, session: EncounterSession): NextPartPeek | undefined {
-  if (state.relation.kind !== 'series_step') return undefined;
-  return {
-    label: `Part ${String(state.relation.part)}`,
-    title: state.metadata.title,
-    onPress: () => session.navigate(continuationIntent(state)),
-  };
 }
 
 /**
@@ -54,11 +45,15 @@ export function StageEncounter({
   readonly hint: ReactNode;
 }) {
   const router = useRouter();
+  const { breakpoint } = useDisplay();
+  const narrow = breakpoint === 'compact' || breakpoint === 'phone';
   const metrics = useEncounterMetrics();
   const reader = useRef<StageReaderHandle>(null);
   const playable = foreground && !state.overlay && state.phase === 'active';
   const origin = encounterOrigin(state.trail, entry, session.regionOriginOf(entry));
-  const { seriesNext, seriesPrevious } = entry.context.continuations;
+  const moves = readerContinuations(entry.context.continuations, (state, direction) =>
+    session.navigate(continuationIntent(state, direction)),
+  );
   const series = entry.context.series;
   const reel = entry.context.variants.find((variant) => variant.kind === 'reel');
   useLayoutEffect(() => {
@@ -92,13 +87,9 @@ export function StageEncounter({
         moves={{
           universe: () => router.navigate('/universe'),
           nextTopic: () => session.navigate({ mode: 'vertical', direction: 'next' }),
-          nextPart: seriesNext.status === 'ready' ? peekOf(seriesNext, session) : undefined,
-          previousPart:
-            seriesPrevious.status === 'ready'
-              ? () => session.navigate(continuationIntent(seriesPrevious, 'previous'))
-              : undefined,
+          ...moves,
           ask: () => session.openRequest(),
-          formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!metrics.compact} />,
+          formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
           format: () =>
             reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel'),
           done: back,

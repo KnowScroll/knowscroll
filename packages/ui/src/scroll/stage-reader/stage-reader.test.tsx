@@ -132,6 +132,34 @@ describe('the Stage + Spine reader', () => {
     expect(screen.queryByRole('button', { name: /^Continue Part/ })).not.toBeOnTheScreen();
   });
 
+  it('says the reader built a picture only when the Scroll has a stage', async () => {
+    const withStage = await reader(spy());
+    expect(screen.getByText('The picture you built')).toBeOnTheScreen();
+    expect(screen.queryByText('The short version')).not.toBeOnTheScreen();
+    await withStage.unmount();
+    const { stage: _stage, ...plain } = document;
+    await reader(spy(), {}, plain);
+    expect(screen.queryByText('The picture you built')).not.toBeOnTheScreen();
+    expect(screen.getByText('The short version')).toBeOnTheScreen();
+  });
+
+  it('offers a related move at the end, named for where it goes, only when one was admitted', async () => {
+    await reader(spy());
+    expect(screen.queryByRole('button', { name: /^Another related explanation/ })).not.toBeOnTheScreen();
+    const onRelated = jest.fn();
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <StageReader
+          document={document}
+          commands={{}}
+          related={{ label: 'Related', title: 'Another angle', onPress: onRelated }}
+        />
+      </DisplayProvider>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Another related explanation: Another angle' }));
+    expect(onRelated).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the picture as words in the text version', async () => {
     await reader(spy());
     await fireEvent.press(screen.getByLabelText('Text version'));
