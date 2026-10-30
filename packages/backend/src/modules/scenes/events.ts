@@ -26,6 +26,29 @@ export const projectSceneQueue = defineQueue({
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 1 },
 });
 
+export const BackfillLooksJobSchema = z.strictObject({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().positive(),
+});
+export type BackfillLooksJob = z.infer<typeof BackfillLooksJobSchema>;
+/** Sent by the operator command for a world that was projected before looks existed (D-102). */
+export const backfillLooksQueue = defineQueue({
+  name: 'scenes.backfill-looks',
+  purpose: 'Give already projected places their look without moving any slot, seed, family or anchor; no model work.',
+  payload: BackfillLooksJobSchema,
+  policy: {
+    expireInSeconds: 120,
+    retryLimit: 3,
+    retryDelaySeconds: 10,
+    retryBackoff: true,
+    retentionSeconds: 7 * 86400,
+    deleteAfterSeconds: 2 * 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 1 },
+});
+
 export const ExpireFormationJobSchema = z.strictObject({
   v: z.literal(1),
   universeId: z.uuid(),

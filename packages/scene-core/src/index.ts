@@ -1,6 +1,19 @@
 /** Portable JSON-native scene description and bounded numeric geometry. No rendering side effects. */
-export { SCENE_LIMITS } from './types.js';
+export {
+  HAZE_FAMILIES,
+  LOOK_LIMITS,
+  PLANET_TYPES,
+  SCENE_LIMITS,
+  SCENE_LOOK_VERSION,
+  WORLD_GENERATOR_VERSION,
+} from './types.js';
 export type {
+  HazeFamily,
+  PlanetLook,
+  PlanetType,
+  RegionLook,
+  SceneLook,
+  SystemLook,
   Point,
   SceneActivity,
   SceneAnchor,
@@ -22,9 +35,11 @@ export {
   SceneChunkSchema,
   SceneManifestSchema,
   SceneReturnLocatorSchema,
+  SceneLookSchema,
 } from './parse.js';
 export type { SceneSchema } from './parse.js';
 export { buildSceneGeometry } from './geometry.js';
+export { seededUnit } from './seed.js';
 export type { SceneGeometryOptions } from './geometry.js';
 
 export {
@@ -32,6 +47,7 @@ export {
   SceneChunkJsonSchema,
   SceneManifestJsonSchema,
   SceneReturnLocatorJsonSchema,
+  SceneLookJsonSchema,
 } from './json-schema.js';
 
 export type { SceneJsonSchema } from './json-schema.js';

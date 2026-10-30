@@ -423,6 +423,22 @@ export async function everyStoreSeeder(
         })
         .execute();
       await tx
+        .insertInto('scenes.looks')
+        .values({
+          universe_id: person.universeId,
+          privacy_epoch: 1,
+          object_id: sceneObjectId,
+          kind: 'region',
+          payload: JSON.stringify({
+            schemaVersion: 'scene-look.v1',
+            generatorVersion: 'worldmap.v1',
+            objectId: sceneObjectId,
+            kind: 'region',
+            site: 0,
+          }),
+        })
+        .execute();
+      await tx
         .insertInto('scenes.state')
         .values({
           universe_id: person.universeId,

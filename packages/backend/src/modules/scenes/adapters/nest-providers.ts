@@ -33,10 +33,12 @@ import {
 import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { advanceScopeRevision } from '../../../infrastructure/postgres/personal-scope.js';
 import { notifyScopeChanged } from '../../../infrastructure/notices/index.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import { projectSceneQueue } from '../events.js';
-import { PROJECT_SCENE, READ_OWN_SCENE_MANIFEST, READ_OWN_SCENE_CHUNK } from '../public.js';
+import { PROJECT_SCENE, BACKFILL_SCENE_LOOKS, READ_OWN_SCENE_MANIFEST, READ_OWN_SCENE_CHUNK } from '../public.js';
 import { makeProjectScene } from '../application/project.js';
+import { makeBackfillSceneLooks } from '../application/backfill-looks.js';
 import { makeReadSceneManifest, makeReadSceneChunk } from '../application/read.js';
 import type { ScenePorts } from '../application/ports.js';
 import { sceneStore } from './postgres-store.js';
@@ -66,15 +68,16 @@ export function sceneAppliedProviders(t: { readonly enqueueJob: symbol }) {
     },
   ];
 }
-export function sceneProviders(t: { readonly withPersonalScope: symbol }) {
+export function sceneProviders(t: { readonly withPersonalScope: symbol; readonly logEvent: symbol }) {
   return [
     {
       provide: SCENE_PORTS,
-      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT],
+      inject: [t.withPersonalScope, CHECK_PERSONAL_OWNER_ACTIVE, READ_GEOGRAPHY_SCENE_INPUT, t.logEvent],
       useFactory: (
         withScope: WithPersonalScope,
         ownerActive: CheckPersonalOwnerActive,
         readInput: ReadGeographySceneInput,
+        logEvent: LogEvent,
       ): ScenePorts => ({
         withScope,
         ownerActive,
@@ -85,9 +88,15 @@ export function sceneProviders(t: { readonly withPersonalScope: symbol }) {
         advance: advanceScopeRevision,
         notify: (scope, revision) => notifyScopeChanged(scope, { revision, eventId: uuidv7() }),
         now: () => new Date(),
+        logEvent,
       }),
     },
     { provide: PROJECT_SCENE, inject: [SCENE_PORTS], useFactory: (p: ScenePorts) => makeProjectScene(p) },
+    {
+      provide: BACKFILL_SCENE_LOOKS,
+      inject: [SCENE_PORTS],
+      useFactory: (p: ScenePorts) => makeBackfillSceneLooks(p),
+    },
     {
       provide: READ_OWN_SCENE_MANIFEST,
       inject: [SCENE_PORTS],
@@ -97,6 +106,8 @@ export function sceneProviders(t: { readonly withPersonalScope: symbol }) {
   ];
 }
 export { makeProjectScene } from '../application/project.js';
+export { makeBackfillSceneLooks } from '../application/backfill-looks.js';
+export { sendBackfillLooks, type BackfillLooksSent } from './send-backfill-looks.js';
 export { makeReadSceneManifest, makeReadSceneChunk } from '../application/read.js';
 export { sceneStore } from './postgres-store.js';
 export type { ScenePorts } from '../application/ports.js';

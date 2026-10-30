@@ -21,11 +21,14 @@ export function run(command: (() => void) | undefined): boolean {
 /** What a key can reach: where the reader is, how to move, the calls and the app's commands. */
 export interface KeyTargets {
   readonly stops: ScrollDocumentV2['stops'];
-  readonly current: number;
   readonly hasStage: boolean;
   readonly commands: ReaderCommands;
   readonly jump: (index: number, animated: boolean) => void;
-  /** The stop the last jump was heading for, so quick presses add up. */
+  /**
+   * The stop the reader is on or travelling to: where the last jump was heading while it is under way,
+   * otherwise the stop on screen. Every key acts on this stop, so a key pressed before the scroll has
+   * been reported lands where the reader is looking.
+   */
   readonly heading: () => number;
   readonly toggleTextVersion: () => void;
   readonly pick: (callId: string, option: number, optionCount: number) => void;
@@ -34,7 +37,7 @@ export interface KeyTargets {
 
 /** Does what a key means (D-134); true when the key was used, so the browser's own action is held back. */
 export function actOnKey(key: ReaderKey, at: KeyTargets): boolean {
-  const stop = at.stops[at.current];
+  const stop = at.stops[at.heading()];
   const open = stop !== undefined && stop.kind !== 'read' ? stop : undefined;
   switch (key.action) {
     case 'next-stop':

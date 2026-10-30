@@ -78,8 +78,9 @@ export const READ_SCROLL_READING_FACTS = Symbol('content.readScrollReadingFacts'
 
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
-/** Which Scene family draws a system, star or planet; defined by the library plan. */
-export { sceneFamilyOf } from './domain/library/index.js';
+/** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */
+export { sceneFamilyOf, hazeFamilyOf } from './domain/library/index.js';
+export type { HazeFamilyName } from './domain/library/plan.js';
 export {
   COVERAGE_POLICY,
   CoverageCommandSchema,
