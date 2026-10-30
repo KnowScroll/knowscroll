@@ -319,13 +319,15 @@ Pending targets cannot name uncommitted future input. `unavailable` carries only
 fixed coarse reasons (`temporarily_unavailable` or `limit`), never provider text.
 These states make no promise of formation, coverage, mastery, ETA or progress.
 
-**Looks (U-1, D-102).** `SceneClientCapabilities.looks` is an optional list. A client that sends
+**Looks (U-1, D-102; drawn by U-4, D-108).** `SceneClientCapabilities.looks` is an optional list. A client that sends
 `scene-look.v1` and declares the `worldmap.v1` generator (`supportsSceneLooks`) gets `looks` on
 `empty`, `ready` and `lagging` manifest reads: one `SceneLook` for each object of the returned manifest
 that has one, each object once. The response schema requires `looks` exactly then and refuses it
 otherwise, so a client that predates looks parses the same read as before. A look is a sibling of the
 descriptor, never merged into it, and carries no activity, count, support or time. Status: implemented,
-CI-tested; no client sends the capability yet.
+CI-tested; the Universe sends the capability (U-2) and draws a planet's world from its `siteCount`, `variant`
+and `type`, and each region's `site`, with the `worldmap.v1` generator of `scene-core` (U-4). The contract
+did not change for U-4: the generator is client code and the look is the whole of what it is given.
 
 A chunk read binds universe/epoch, selection, exact `manifestSceneRevision`,
 `chunkId`, `chunkSceneRevision` and the capability advertisement. Chunk revisions
@@ -954,6 +956,14 @@ contracts and their partial unmounted backend remain unchanged. These declaratio
 nothing. Group/thread invitations, content threads, snippets/anchors/block settings, scenarios,
 rooms, typing, AI participants and Social sockets are separate phases. Never display authored
 contacts, messages or availability as real activity. Missing features stay explicitly unavailable.
+
+Replies and reactions (v3 T-B, D-146 to D-148): `send` takes an optional `replyTo` (a message ID of the same
+conversation or thread; any other ID is refused as unavailable), and `react` (`/v1/social/conversations/react`,
+`/v1/social/threads/react`) puts one of the five `MESSAGE_REACTION_KINDS` on a message or takes it off: `present` is
+the wanted state, so a repeat is accepted with `changed: false`. An available message may carry `replyTo` (the
+original's author and first words, or `unavailable`) and `reactions` (each kind once: whether the reader is one and the
+people, never a time; people the reader blocked are left out). A reaction advances the message's change number, so
+`changes` sends it again. The thread contract reuses the same shapes.
 
 A future backend must enter the current personal root/account/epoch gates, then reuse the
 existing private pair aggregate as its **sole** shared locking authority for direct conversation

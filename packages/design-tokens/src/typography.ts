@@ -101,6 +101,8 @@ export const typeScale = {
   metaS: role('text', 600, 12, 16, { desktopScaled: true, at200: { size: 17, line: 22 } }),
   /** Banner copy (`.banner`): Instrument 14/1.4. */
   notice: role('text', 400, 14, 20, { desktopScaled: true, at200: { size: 19, line: 27 } }),
+  /** The words in a Talk bubble (T3 kit: Instrument Sans 500 16/22). */
+  bubble: role('text', 500, 16, 22, { desktopScaled: true, at200: { size: 22, line: 30 } }),
   /** Reel captions over media. */
   captionMedia: role('text', 500, 16, 22, { at200: { size: 22, line: 30 } }),
   /** Edge-tab and episode part labels. */

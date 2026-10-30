@@ -87,6 +87,14 @@ export class ConversationsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.conversations.react)
+  reactRoute(@Req() request: Request) {
+    return implement(apiContract.conversations.react).handler(async ({ input }) =>
+      value(await this.useCases.conversations.react(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.conversations.markRead)
   markReadRoute(@Req() request: Request) {
     return implement(apiContract.conversations.markRead).handler(async ({ input }) =>

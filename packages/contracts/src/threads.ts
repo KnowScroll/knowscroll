@@ -7,6 +7,8 @@ import {
   ConversationHistoryCursorSchema,
   ConversationScopeSchema,
   ConversationTextSchema,
+  MessageExtrasShape,
+  MessageReactionKindSchema,
 } from './conversations.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
 import { PublicPersonRefSchema } from './sharing.js';
@@ -131,6 +133,7 @@ export const ThreadMessageSchema = z.discriminatedUnion('status', [
     status: z.literal('available'),
     author: PublicPersonRefSchema,
     recordedAt: z.iso.datetime(),
+    ...MessageExtrasShape,
     body: z.discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('text'), text: ConversationTextSchema }),
       z.strictObject({
@@ -337,6 +340,8 @@ export const SendThreadMessageSchema = z.strictObject({
   ...Command,
   thread: ContentThreadRefSchema,
   body: SendThreadBodySchema,
+  /** A message of this same thread (a flat quote); any other ID is refused. */
+  replyTo: UuidSchema.optional(),
 });
 export const ThreadMessageAcceptanceSchema = z.strictObject({
   ...Receipt,
@@ -351,6 +356,23 @@ export const ThreadMessageAcceptanceSchema = z.strictObject({
 });
 
 /** Accepts or declines an invitation. Joining makes the history readable; declining ends the invitation. */
+/** Puts one of the five reactions on a message of the thread, or takes it off (`present` is the wanted state). */
+export const ReactToThreadMessageSchema = z.strictObject({
+  ...Command,
+  thread: ContentThreadRefSchema,
+  messageId: UuidSchema,
+  kind: MessageReactionKindSchema,
+  present: z.boolean(),
+});
+export const ThreadReactionAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('thread.react'),
+  thread: ContentThreadRefSchema,
+  messageId: UuidSchema,
+  kind: MessageReactionKindSchema,
+  present: z.boolean(),
+  changed: z.boolean(),
+});
 export const RespondToThreadInvitationSchema = z.strictObject({
   ...Command,
   thread: ContentThreadRefSchema,
@@ -472,6 +494,7 @@ export const threadsContract = {
   history: socialPost('/v1/social/threads/history', ReadThreadHistorySchema, ThreadHistoryPageSchema),
   changes: socialPost('/v1/social/threads/changes', ReadThreadChangesSchema, ThreadChangesPageSchema),
   send: socialPost('/v1/social/threads/send', SendThreadMessageSchema, ThreadMessageAcceptanceSchema),
+  react: socialPost('/v1/social/threads/react', ReactToThreadMessageSchema, ThreadReactionAcceptanceSchema),
   respond: socialPost(
     '/v1/social/threads/respond',
     RespondToThreadInvitationSchema,

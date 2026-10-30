@@ -67,6 +67,14 @@ export class ThreadsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.threads.react)
+  reactRoute(@Req() request: Request) {
+    return implement(apiContract.threads.react).handler(async ({ input }) =>
+      value(await this.useCases.react(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.threads.respond)
   respondRoute(@Req() request: Request) {
     return implement(apiContract.threads.respond).handler(async ({ input }) =>

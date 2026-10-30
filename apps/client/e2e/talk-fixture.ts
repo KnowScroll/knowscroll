@@ -37,10 +37,25 @@ const text = (sequence: number, author: typeof asha, value: string) => ({
   recordedAt: '2026-10-24T08:00:00.000Z',
   body: { kind: 'text' as const, text: value },
 });
+/** A reply's quote and a message's reactions, as the server sends them (T-B). */
+const quoteOf = (sequence: number, author: typeof asha, preview: string) => ({
+  messageId: id(100 + sequence),
+  sequence,
+  original: { status: 'available' as const, author, preview },
+});
 const messages = [
   text(1, ravi, 'That last part surprised me.'),
-  text(2, asha, 'Look at this one.'),
-  text(3, meera, 'I will catch up on Part 3 tonight.'),
+  {
+    ...text(2, asha, 'Look at this one.'),
+    reactions: [
+      { kind: 'spark' as const, mine: false, people: [ravi, meera] },
+      { kind: 'heart' as const, mine: true, people: [asha] },
+    ],
+  },
+  {
+    ...text(3, meera, 'I will catch up on Part 3 tonight.'),
+    replyTo: quoteOf(2, asha, 'Look at this one.'),
+  },
 ];
 
 /** Every request the fixture answered, in order, so a test can count a read or an open. */
@@ -95,7 +110,16 @@ export async function talkFixture(page: Page, viewport: { width: number; height:
           peer: ravi,
           own: { readThroughSequence: 2, muted: false },
           latestMessageSequence: 2,
-          messages: [text(1, asha, 'Starting the second part now.'), lastDirect],
+          messages: [
+            {
+              ...text(1, asha, 'Starting the second part now.'),
+              reactions: [
+                { kind: 'heart', mine: false, people: [ravi] },
+                { kind: 'ha', mine: true, people: [asha, ravi] },
+              ],
+            },
+            lastDirect,
+          ],
           limit: body['limit'],
           history: { kind: 'end' },
           catchUpCursor: cursor(2),

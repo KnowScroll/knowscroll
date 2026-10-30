@@ -15,9 +15,10 @@ import type { z } from 'zod';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { changesCursor, historyCursor, inboxCursor } from '../domain/cursors.js';
 import { DELETED_PERSON } from './deleted-person.js';
-import { enterConversation, refOf } from './conversation-gate.js';
+import { enterConversation, refOf, type EnteredConversation } from './conversation-gate.js';
 import type { ConversationPorts, InboxRow, MessageRow } from './conversation-ports.js';
 import { viewMessages } from './message-view.js';
+import type { ExtrasContext } from './message-extras.js';
 import { conversationEnvelope, refuse, type Result } from './ports.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
@@ -121,7 +122,7 @@ export function makeConversationReads(p: ConversationPorts) {
             own: own(entered.own),
             ...(conversation.closed ? { ended: true } : {}),
             latestMessageSequence: conversation.lastSequence,
-            messages: await viewMessages(p, entered.reader, rows),
+            messages: await viewMessages(p, entered.reader, rows, extrasContext(entered)),
             limit: query.limit,
             history: olderThan(rows, conversation.conversationId),
             catchUpCursor: changesCursor.encode({
@@ -168,7 +169,7 @@ export function makeConversationReads(p: ConversationPorts) {
             conversation: refOf(entered),
             limit: query.limit,
             requestCursor: query.cursor,
-            messages: await viewMessages(p, entered.reader, rows),
+            messages: await viewMessages(p, entered.reader, rows, extrasContext(entered)),
             continuation: olderThan(rows, position.conversationId),
           }),
         );
@@ -209,7 +210,7 @@ export function makeConversationReads(p: ConversationPorts) {
           after: position.afterChangeSequence,
           limit: query.limit,
         });
-        const views = await viewMessages(p, entered.reader, rows);
+        const views = await viewMessages(p, entered.reader, rows, extrasContext(entered));
         const changes = rows.map((row, index) => ({ changeSequence: row.changeSequence, message: views[index]! }));
         const through = conversation.lastChangeSequence;
         const last = changes.at(-1)?.changeSequence ?? position.afterChangeSequence;
@@ -289,6 +290,12 @@ function summary(row: InboxRow, messages: readonly ConversationMessage[]) {
 }
 
 /** The older-history continuation after a page that starts at `rows[0]`. */
+/** Reactions and reply quotes are read for this conversation, as its caller may see them. */
+const extrasContext = (entered: EnteredConversation): ExtrasContext => ({
+  conversationId: entered.conversation.conversationId,
+  viewerAccountId: entered.owner.accountId,
+});
+
 function olderThan(rows: readonly MessageRow[], conversationId: string) {
   const oldest = rows[0];
   return oldest && oldest.sequence > 1

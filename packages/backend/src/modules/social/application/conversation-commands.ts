@@ -2,11 +2,13 @@ import {
   ConversationLeaveAcceptanceSchema,
   ConversationMessageAcceptanceSchema,
   ConversationMuteAcceptanceSchema,
+  ConversationReactionAcceptanceSchema,
   ConversationReadAcceptanceSchema,
   DirectConversationAcceptanceSchema,
   LeaveConversationSchema,
   MarkConversationReadSchema,
   MuteConversationSchema,
+  ReactToConversationMessageSchema,
   SendConversationMessageSchema,
   StartDirectConversationSchema,
   type DirectConversationRef,
@@ -18,6 +20,7 @@ import { sideOf } from '../domain/friends.js';
 import { enterConversation, refOf, type EnteredConversation } from './conversation-gate.js';
 import type { ConversationPorts, InboxChange } from './conversation-ports.js';
 import { conversationEnvelope, refuse, type PairLock, type Result } from './ports.js';
+import { planReaction, resolveReplyTarget } from './reactions.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
 
@@ -152,8 +155,10 @@ export function makeConversationCommands(p: ConversationPorts) {
 
     /**
      * Sends a text bubble or a card for an exact content revision. A card for withdrawn or
-     * missing content is refused and nothing is stored. Sending is not consumption evidence
-     * for anyone: the card is metadata, and only opening and using the content is an encounter.
+     * missing content is refused and nothing is stored. A reply names a message of this same
+     * conversation (anything else is refused, and nothing is learned about other conversations).
+     * Sending is not consumption evidence for anyone: the card is metadata, and only opening and
+     * using the content is an encounter.
      */
     send(
       authority: PersonalAuthority,
@@ -176,6 +181,13 @@ export function makeConversationCommands(p: ConversationPorts) {
             const [card] = await p.conversations.cards(lock, [body.target]);
             if (!card || card.status === 'unavailable') return refuse('unavailable');
           }
+          const reply = await resolveReplyTarget(
+            p.conversations,
+            lock,
+            entered.conversation.conversationId,
+            command.replyTo,
+          );
+          if (reply.kind === 'refused') return reply;
           return ok({
             write: async () => {
               const messageId = p.newId();
@@ -184,6 +196,7 @@ export function makeConversationCommands(p: ConversationPorts) {
                 commandId: command.commandId,
                 authorAccountId: entered.owner.accountId,
                 recordedAt: now,
+                ...(reply.value === undefined ? {} : { replyToSequence: reply.value }),
                 ...(body.kind === 'text'
                   ? { text: body.text }
                   : { content: body.target, ...(body.note === undefined ? {} : { note: body.note }) }),
@@ -198,6 +211,55 @@ export function makeConversationCommands(p: ConversationPorts) {
               });
             },
             announce: both(entered),
+          });
+        },
+      });
+    },
+
+    /**
+     * Puts one of the five reactions on a message of this conversation, or takes it off. The wanted state
+     * is the command, so a repeat is accepted without a change; a change gives the message a fresh
+     * change number, and both people's inboxes hear of it. Not consumption evidence for anyone.
+     */
+    react(
+      authority: PersonalAuthority,
+      input: unknown,
+    ): Promise<Result<z.infer<typeof ConversationReactionAcceptanceSchema>>> {
+      const parsed = ReactToConversationMessageSchema.safeParse(input);
+      if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
+      const command = parsed.data;
+      return inConversation(authority, {
+        operation: 'social.message-react',
+        command,
+        request: command,
+        acceptance: ConversationReactionAcceptanceSchema,
+        async decide(context) {
+          const { entered, now } = context;
+          const { lock } = entered;
+          if (lock === undefined || entered.conversation.closed) return refuse('unavailable');
+          const plan = await planReaction(p.conversations, lock, {
+            conversationId: entered.conversation.conversationId,
+            messageId: command.messageId,
+            accountId: entered.owner.accountId,
+            kind: command.kind,
+            present: command.present,
+            now,
+          });
+          if (plan.kind === 'refused') return plan;
+          return ok({
+            write: async () => {
+              if (plan.value.changed) await plan.value.apply();
+              return ConversationReactionAcceptanceSchema.parse({
+                ...receiptBase(context, command.commandId),
+                operation: 'message.react',
+                conversation: refOf(entered),
+                messageId: command.messageId,
+                kind: command.kind,
+                present: command.present,
+                changed: plan.value.changed,
+              });
+            },
+            announce: plan.value.changed ? both(entered) : [],
           });
         },
       });

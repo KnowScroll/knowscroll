@@ -66,9 +66,15 @@ export function placeTrail(index: UniverseIndex, place: SceneDescriptor): readon
 export type UniverseView =
   | { readonly kind: 'universe' }
   | { readonly kind: 'system'; readonly system: SceneDescriptor }
-  | { readonly kind: 'planet'; readonly planet: SceneDescriptor; readonly selectedRegion?: SceneDescriptor };
+  | {
+      readonly kind: 'planet';
+      readonly planet: SceneDescriptor;
+      /** On the planet's landed map (U04) rather than its globe (U03). A chosen region is always on the map. */
+      readonly landed: boolean;
+      readonly selectedRegion?: SceneDescriptor;
+    };
 
-export function viewFor(index: UniverseIndex, focusId: string | null): UniverseView {
+export function viewFor(index: UniverseIndex, focusId: string | null, landed = false): UniverseView {
   const focus = focusId ? index.byId.get(focusId) : undefined;
   if (!focus) return { kind: 'universe' };
   if (focus.kind === 'system') return { kind: 'system', system: focus };
@@ -76,63 +82,9 @@ export function viewFor(index: UniverseIndex, focusId: string | null): UniverseV
     const system = index.byId.get(focus.parentId);
     return system ? { kind: 'system', system } : { kind: 'universe' };
   }
-  if (focus.kind === 'planet') return { kind: 'planet', planet: focus };
+  if (focus.kind === 'planet') return { kind: 'planet', planet: focus, landed };
   const planet = index.byId.get(focus.parentId);
-  return planet ? { kind: 'planet', planet, selectedRegion: focus } : { kind: 'universe' };
-}
-
-const difference = (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y });
-const length = (v: Vec) => Math.hypot(v.x, v.y);
-
-/** Where a region pin sits on its planet's disc, as a fraction of the disc radius from its centre. */
-export interface PlacedRegion {
-  readonly descriptor: SceneDescriptor;
-  readonly offset: Vec;
-}
-
-/** Spots on a planet's land, 75 px or more apart on a phone, in the order a region tries them. */
-const REGION_SPOTS: readonly Vec[] = [
-  ...Array.from({ length: 6 }, (_, step) => {
-    const angle = (Math.PI / 3) * step + Math.PI / 6;
-    return { x: Math.cos(angle) * 0.5, y: Math.sin(angle) * 0.5 };
-  }),
-  { x: 0, y: 0 },
-  ...Array.from({ length: 3 }, (_, step) => {
-    const angle = ((Math.PI * 2) / 3) * step + Math.PI / 2;
-    return { x: Math.cos(angle) * 0.72, y: Math.sin(angle) * 0.72 };
-  }),
-];
-
-/**
- * Region pins sit on the land, spread apart. Regions take their spots in the order they were
- * created (the IDs are time-ordered): the first by its own seed, each later one on the free spot
- * farthest from those already placed. A region that is placed never moves when another arrives.
- * The lattice slots in the anchors are not used: they crowd onto whichever side of a planet was
- * free, which would draw its regions in a heap.
- */
-export function composeRegions(index: UniverseIndex, planet: SceneDescriptor): readonly PlacedRegion[] {
-  const regions = [...(index.regions.get(planet.objectId) ?? [])].sort((a, b) => a.objectId.localeCompare(b.objectId));
-  const placed: PlacedRegion[] = [];
-  for (const descriptor of regions) {
-    const free = REGION_SPOTS.filter((spot) => !placed.some((region) => region.offset === spot));
-    const candidates = free.length ? free : REGION_SPOTS;
-    const [seedUnit] = unitsFromId(descriptor.seed);
-    const offset = placed.length
-      ? candidates.reduce((best, spot) => {
-          const gap = (candidate: Vec) =>
-            Math.min(...placed.map((region) => length(difference(candidate, region.offset))));
-          return gap(spot) > gap(best) + 1e-9 ? spot : best;
-        })
-      : candidates[Math.floor(seedUnit * candidates.length) % candidates.length]!;
-    placed.push({ descriptor, offset });
-  }
-  return placed;
-}
-
-/** Deterministic unit-interval numbers from an opaque ID, for decoration only. */
-export function unitsFromId(id: string): readonly [number, number] {
-  const hex = id.replaceAll('-', '');
-  return [Number.parseInt(hex.slice(0, 8), 16) / 0xffffffff, Number.parseInt(hex.slice(8, 12), 16) / 0xffff];
+  return planet ? { kind: 'planet', planet, landed: true, selectedRegion: focus } : { kind: 'universe' };
 }
 
 export interface LabelRequest {

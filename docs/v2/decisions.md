@@ -1642,6 +1642,44 @@ Confirmed by: `play.test.ts` (right and wrong pick, retry, a second lock, forged
 
 Confirmed by: `play.test.ts` (paused stores nothing and writes no receipt, a stale generation is told to read the policy again, Clear erases, export in words with no identifier), `play-session.test.ts`, `erasure.test.ts`, `privacy-clear.test.ts`, `data-export.test.ts`, and the paused case of `play-smoke.spec.ts`.
 
+## D-108 · 2026-10-31 · A planet's world is laid out by `worldmap.v1` in `scene-core`, with pinned maths, and drawn as SVG (v3 U-4, #468)
+
+D-078 said the generators live in `scene-core` with pinned maths and a generator version. This is how, and what the globe and the map are drawn from.
+
+- **The inputs.** `buildGlobe(spec)` and `buildMap(spec)` take the planet's seed, its type, its look `variant` and its `siteCount`. Which regions have formed is not an input, so a cell keeps its shape and its name's place when a region forms. The globe (a 480-unit band that wraps) and the map (390 by 844 units) are two drawings of one planet: they use the same sites in the same order, with different noise.
+- **How the world is cut.** Continents are placed from the seed. Each site's cell grows from a seed point on its continent, so a cell is the land nearest that point. Decorative continents have a point of their own and belong to no site. Region borders wander by noise. Coasts and outlines are marching squares, joined into loops and rounded off. A name's place is the middle of its cell, kept apart from every other name by the worst-case name width, not by the names themselves, and on the globe always inside the band.
+- **Pinned maths.** Only add, subtract, multiply, divide, `Math.floor`, `Math.round`, `Math.sqrt` (correctly rounded) and `Math.imul` are used. Streams are FNV and Mulberry32 on integers. Noise is gradient noise on a seeded permutation, and wraps by whole lattice cells, so there is no `Math.sin` or `Math.cos` and no seam. Turning round a continent uses the 64-sample unit circle that `silhouette.v1` already pins (`unit-circle.ts`). A unit test refuses `Math.sin`, `Math.cos`, `Math.pow`, `Math.hypot`, `Math.log`, `**`, clocks and randomness in the generator's sources, and pins the numbers of three planets.
+- **Land at every site.** Noise can leave a cell with no land or a speck. A cell, or a decorative continent, with less than 150 square units of land is given a rounded island of 12 to 15 units radius on its seed point (`island.ts`, from the pinned unit circle and a stream of its own), with its shallows, and the island joins the coast. A name on such an island stays put and the other name of a pair moves out of its way. This uses only the planet's own inputs, so it is the same for every formed set. A test builds 2,400 planets of 1 to 32 sites in both drawings and requires more than the floor of land in every cell.
+- **The version.** The generator is `worldmap.v1`, which every look already names. Changing a constant, a size, a channel or the order of a draw is a new generator version, not an edit, as for `silhouette.v1`.
+- **The cost.** A world is built after the screen's first frame and kept by the session (six at most), so it goes with the account scope. A world is 14,000 to 17,000 grid nodes and takes about 25 ms in V8 on a laptop.
+- **Drawn as SVG.** The globe is the design's land band turning behind a circle (70 s a turn, the clouds 46 s, the moon about 56 s; a drag turns it; reduced motion stands still), not a textured sphere. D-073 listed "a planet" among the three.js views; the design draws U03 as SVG, like the map, so this **amends D-073** for the planet globe. The ring and the moon come from the look. No blur filter is used (`react-native-svg` filters are not driven on a device), so soft edges are layered flat shapes.
+- **What is not known.** Nothing was run on Hermes or a phone. The geometry is arithmetic that every engine does exactly, so the loops should be the same numbers there, and the test pins them in V8; the drawing within one pixel on a device is not verified. Time to build a world on Hermes is not measured.
+- **Removed.** The seed-picked lighthouse and harbour and the region pins of D-039. Landmarks come back as earned markers (D-089).
+
+**Amends** D-073 (the planet globe is SVG) and D-039 ("Region pins ignore anchors", the pin layout, `composeRegions`). Confirmed by: `packages/scene-core/src/world/world.test.ts` (pinned digests and literal coordinates, no banned maths, every site has a cell, names apart, refusals), `planet-plan.test.ts`, `planet-views.test.tsx`, `e2e/universe-planet-smoke.spec.ts`.
+
+## D-109 · 2026-10-31 · Land not reached yet is outlines only, drawn on the map only (v3 U-4, #468)
+
+D-078 said unreached land is grey, never labelled, counted or interactive. This is how the code keeps it.
+
+- **Outlines and nothing else.** `chartWorld(world, regions)` splits a world into `charted` (a formed region: its id, site, outline and name's place) and `unreached` (an outline and a cloud). An unreached piece has no id, no site, no name and no count. Unformed sites and decorative continents are mixed in one list and cannot be told apart.
+- **Never the unformed count.** A planet always has one to three decorative continents (two or three islands on an ocean world), and four spare sites that are never a region. So the grey on the map is never as many pieces as there are unformed sites, and a person cannot count what is left.
+- **The map only.** The globe paints every continent in colour. Only formed regions get a dashed border and a name there.
+- **Not in text, lists, search or the accessibility tree.** The drawing, its names and its grey are hidden from assistive technology. A formed region is one 48 px target named "Name, a region", in site order. The plain list shows the formed regions in the same order, and the list view, search and the outline read the descriptors, which hold nothing unreached. A grey shape has no press handler.
+- **Without a look.** A planet that has no look (a friend's visit, a world not backfilled) is drawn plainly and keeps this rule. A friend's planet turns but does not land: a visit shows no regions.
+
+**Builds on** D-078 and D-103. Confirmed by: `world.test.ts` (no id, site, name or count in `unreached`; the grey count differs from the unformed count for every number of formed regions, and adding a region leaves every other border and name's place bit-identical over many planets and orders), `universe-screen.test.tsx` (no string about unreached land anywhere in the tree, same names in the same order in the Simple drawing), `planet-views.test.tsx`, `e2e/universe-planet-smoke.spec.ts` (the accessibility snapshot names only the formed regions).
+
+## D-110 · 2026-10-31 · A planet opens as a globe, a tap lands on its map, and Back from an encounter lands on the map (v3 U-4, #468)
+
+- **Three steps.** Focusing a planet shows its globe (U03). A tap on the globe, or Enter on its one button, lands on the map at planet level with nothing chosen (U04). Choosing a region on the map drops the camera over it and opens its card. A dragged-over click is not a tap: a press within 350 ms of the camera moving is ignored, on the globe and on the map.
+- **Back is the hierarchy.** The Back pill on the map says the system, as the design does. A region steps up to its planet's map. Browser and hardware Back follow where the person has been, so they step back from the map to the globe. Landing writes nothing and reads nothing.
+- **Remembered on the device.** `landed` is part of the camera in the account scope's storage, with the focus and frame, purged with the scope.
+- **After an encounter.** Back from a region's encounter lands on the planet's map at planet level with the region marked "you were here", as the design draws it. It does not restore the region's own zoom.
+- **A level tag.** The header shows PLANET or REGION in a small orange tag beside Back on the map. Its text is dark, not white as drawn: white on that orange fails WCAG AA.
+
+**Amends** D-026 ("exact scoped camera return": the return is to the planet's map at planet level) and D-039 (region pins). Confirmed by: `universe-session.test.ts` (land, up, Back, memory, nothing but reads), `universe-screen.test.tsx`, `e2e/universe-planet-smoke.spec.ts` (drag does not land, tap does, only reads).
+
 ## D-184 · 2026-10-31 · A v2 Scroll offers its Part and related moves wherever the server admitted them (S-1 follow-up, #472)
 
 **Amends** D-134 ("One move, one path": a related move is now the way on when no next Part was admitted) and D-135 (`/scroll/<id>` had no moves).
@@ -1677,3 +1715,68 @@ Confirmed by: `stage-reader.test.tsx` (the end card with and without a stage), `
 - **Unchanged.** Explore pauses a reader its overlays cover, as before.
 
 Confirmed by: `reader-nav-smoke.spec.ts` ("stops when the next Part is opened over it, and picks up again on Back": Part 1 reports no reading past the moment it was left, resumes on Back, and Part 2 stops counting under it). Shown failing without the pause: Part 1 reported reading up to 16.7 s after it was left at 6 s.
+
+## D-145 · 2026-10-31 · Talk is drawn on the New Universe's own palette, dark by default, with Paper a name away (v3 T-B, #482)
+
+**Amends** D-001 and D-060 for Talk: T3's kit now governs how a conversation and a thread's messages look.
+
+- **One palette.** `design-tokens` gets `universe` (the Universe file's sky, Paper, Ink, cobalt, focus, highlight, orange, red, glass and the chunky shadows, with the values copied from the file) and `talkThemes`, which gives each role of the T3 kit a value: ground, bubbles, quote strips, capsule, bar, field, Send, reaction pill, menu and the flash. There is no second token set.
+- **Two themes, one set of roles.** `sky` (dark) is the default (T3 Q1). `paper` is defined with the same roles. `TalkThemeProvider` in `ui` takes the name, so the per-person setting in T-C is a prop and changes no component. A test fails if the two themes stop defining the same roles.
+- **Contrast is tested.** Every text pair in both themes meets 4.5:1 and the focus ring 3:1 (WCAG 1.4.3 and 1.4.11).
+- **What is drawn this way.** Bubbles, day capsules, the time under a run, the header and message bar of a conversation and of a thread, the card of a shared Reel or Scroll, the quote strip, the reaction pills and the menu. The Talk list, the thread's series panel and its sheets keep the v2.1 paper look for now. A thread's series panel and docked player stay on paper beside the dark chat, as T3 draws them.
+- **Glass without blur.** The glass fill and its hairline edge are drawn everywhere; the blur only on the web, where `backdrop-filter` exists.
+
+Confirmed by: `tokens.test.ts` ("Talk themes"), `talk.test.tsx` in `ui` (a theme switch changes the bubble), `talk-smoke.spec.ts` (screenshots at 390 x 844 and 1440 x 900).
+
+## D-146 · 2026-10-31 · A reply is a flat quote of one earlier message of the same conversation (v3 T-B, #482)
+
+**Amends** D-042 and D-046 ("Not built: reply").
+
+- **One level.** A message may name the message it answers, and that is all: a reply to a reply quotes that reply, with no nesting (T3 Q4). Branch cards keep their own replies (T-F).
+- **Same conversation only.** `replyTo` on a send is a message ID. The server looks it up inside the conversation under its lock, so a message of another conversation, an unknown ID and a removed message all answer `unavailable` and write nothing. The row keeps the original's sequence under a composite foreign key, so the database refuses a pointer into another conversation too.
+- **The quote is read, not stored.** A page carries the original's author and its first 120 characters, read when the page is built, or `unavailable` once the original was removed. A client that holds the original prefers its own copy, so a removed original stops being quoted as soon as its tombstone arrives.
+- **Same receipt as a send.** `replyTo` is part of the command's body: a retry replays the first answer, and the same command ID naming another original is refused (`command_key_reused`).
+- **A removed original.** A reply waiting in the message box drops its chip as soon as the removal reaches the reader. One that was sent before the reader knew is refused for good (`unavailable`): its bubble says "Not sent" and offers "Send without the quote", which sends the same words as a plain message under a new command.
+- **A reply is an ordinary message.** The export lists it with the person's own words (marked `wasAReply`), and account deletion tombstones it and clears the pointer.
+
+Confirmed by: `social-replies-reactions.test.ts` ("stores a reply with the quote of its original", "refuses a reply to another conversation, to an unknown message and to a removed one", "reads a quote of a removed original as unavailable", "replies within the thread only"), `conversation-screen.test.tsx` ("drops the reply chip when the message it answers is removed meanwhile", "offers to send a refused reply without the quote") and `conversation-thread.test.ts` and `content-thread.test.ts` (a retry names the same original; a refused reply is sent again once, as a plain message). Shown failing with the conversation filter taken out of the lookup: three tests went red.
+
+## D-147 · 2026-10-31 · Five reactions, set by a wanted state, shown as counts and names, never as a time or a score (v3 T-B, #482)
+
+**Amends** D-042 and D-046 ("Not built: reactions"), and D-051's mask for blocks (see "Blocks").
+
+- **Five fixed kinds.** Spark, Mind blown, Ha, Heart, Question (T3). The set is closed in the contract and in the table, and the client draws each kind itself: there is no emoji keyboard.
+- **One per person, per kind, per message.** A person can hold several kinds on one message. The primary key is (conversation, message, person, kind), so the table cannot hold a duplicate and adding is idempotent by construction.
+- **The command is a wanted state.** `react{messageId, kind, present}` puts the reaction there or takes it off. A repeat, whether a retry with the same command ID (a replay) or a new command ID, answers accepted with `changed: false` and writes nothing. Reacting needs the standing of sending (a member of an open conversation, a participant of a thread) and works on any message that is not removed, the person's own included.
+- **The feed.** A change gives the message the conversation's next change number in the same transaction as the reaction and its receipt, and both inboxes hear a hint. The changes read sends the message again with its reactions. A reaction moves neither the message sequence nor the conversation's activity time, so the Talk list does not reorder and "unread" does not move.
+- **What a reader sees.** For each kind on a message: how many people, whether the reader is one, and their names (T3: "count, tap to see who"). The pill carries the count; a tap lists the names, "You" first. No reaction time and no order of reacting is carried: the names come in a neutral order (display name, then person ID), so the order cannot be read as who reacted first. There is no total, leaderboard or notification of its own. Only people the reader may already see by name appear.
+- **Blocks.** Someone the reader blocked is left out of the count and the names, for that reader only. Everyone else, the blocked person included, sees the reaction as before, so nothing tells them they were blocked. A block ends a direct conversation, so this matters in a thread, where a person the reader blocked may still be a member and their words are not masked (D-046). A reaction is therefore masked more strictly than a message. The brief asked for the same treatment as messages; this is the one place the two differ.
+- **Erasure and export.** Deleting an account removes its reactions and every reaction on its messages; each message of someone else that loses one gets a new change number, so their catch-up replaces it and the count drops. Clear keeps reactions, as it keeps conversations (D-042). A person's own reactions are exported (kind, when, and whether on their own message or someone else's; the newest 2,000, with `reactionsGiven` and `reactionsTruncated` so a cut is said); other people's are not.
+- **Not consumption evidence.** A reaction records nothing about what the reader has seen, opened or learned, and feeds no ranking.
+
+Confirmed by: `social-replies-reactions.test.ts` ("adds and removes a reaction; a replay and a repeat under another command change nothing", "keeps one reaction per person and kind", "carries a reaction in the changes feed in order, and tells the other person's inbox", "refuses a reaction from a stranger, on another conversation's message, on a removed message and after the end", "leaves out the reaction of a person the reader blocked, for that reader only", "deleting an account removes its reactions", "exports a person's own reactions"), `account-deletion.test.ts` (the every-store check now fills `message_reactions`). Shown failing with the block mask taken out, with the held-state check removed, with the lookup left open and with the people ordered by when they reacted ("the order of the people behind a reaction").
+
+## D-148 · 2026-10-31 · Reaching reply and react: swipe on touch, long press, a button and keys (v3 T-B, #482)
+
+**Amends** D-053 (keyboard map) and D-055 (a long press on a bubble reports it).
+
+- **Swipe right to reply, on touch only.** A bubble follows the finger to a limit, a reply arrow shows behind it, a tick marks 60 px and lifting the finger past 60 px asks to reply. A drag that is mostly down is scrolling and does nothing. A mouse never drags a bubble: only touch events are heard. Under reduced motion nothing slides, and the reply is asked for when the finger lifts past 60 px.
+- **Long press (400 ms)** opens the menu: the chat dims, the message stays in view, the five reactions come first, then Reply, Copy and Report. Copy is offered when there are words to copy; Report only on another person's message. A thread's menu adds What if... and Another perspective, which replace the ⋯ sheet of X01.
+- **The same without a gesture.** On the web every message has an options button ("Options for Ravi's message", shown on hover or focus, always reachable by keyboard). With it focused, R replies and E opens the menu. Esc in the message box cancels the reply. The menu key and Shift+F10 open the menu. A screen reader on a phone gets Reply, React, Copy, Report and "Go to the original message" as custom actions of a text bubble; a card keeps its options button on a phone too.
+- **The quote jumps.** Pressing the quote strip scrolls to the original and flashes it for 1.2 s. If the original is older than what is loaded, up to five older pages are read first. Under reduced motion there is no slide and no flash, and a 2 px outline stays for 3 s.
+- **Report moves into the menu.** The long press that opened the report sheet on another person's bubble (D-055) now opens the menu, whose Report row opens the same sheet. A thread's messages can be reported the same way.
+- **After the end.** Once a conversation has ended the menu offers Copy and Report only: no reply, no reaction.
+- **Keys listed.** The keyboard map has a "Talk messages" group.
+
+Confirmed by: `conversation-screen.test.tsx` ("swipes right past 60 px to reply, and not for less, or when the finger goes down", "replies and opens the menu from the keyboard, ignoring keys with a modifier", "offers no reply or reaction once the other person has left"), `talk-smoke.spec.ts` (long press, quote jump and the 2 px outline with reduced motion), `keyboard-map.test.tsx`.
+
+## D-149 · 2026-10-31 · "Watch together" in a conversation starts a thread for the same two people, with no shared playback (v3 T-B, #482)
+
+**Amends** D-042 ("Not built: group threads"); settles T3 Q5 and the change map's row "Watch together in a DM".
+
+- **A card has the button.** A Reel or Scroll shared in a conversation carries "Watch together" beside Open, while the conversation is open and the content is not withdrawn. It uses the existing `threads/create` command with the one friend and the card's exact revision, through the same sheet as Start a thread, so a retry makes the same thread.
+- **The chat stays a chat.** Nothing is sent into the conversation and nothing is moved out of it. The other person gets an ordinary invitation and joins by answering it (mutual consent). Nobody's playback is shared, followed or synchronised, and nobody learns where the other is (D-046, D-065).
+- **No evidence.** Starting a thread is not an encounter for either person.
+- **Left for later.** T3 also draws a "Thread started from your chat" line in the conversation. It needs a system message and waits for a later slice.
+
+Confirmed by: `conversation-screen.test.tsx` ("starts a thread from a shared card with Watch together, for the same two people, and leaves the chat as it is").
