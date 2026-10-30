@@ -130,6 +130,32 @@ module.exports = {
       to: { path: '^packages/backend/src/modules/[^/]+/', pathNot: '^packages/backend/src/modules/[^/]+/public\\.ts$' },
     },
     {
+      name: 'play-wall-nothing-derives-from-play',
+      comment:
+        'The wall of D-063: the modules that rank, plan, remember or form places from what a person does never import play, so which option was picked, whether it was right, sparks and combo cannot reach them. Only "locked" counts as engagement, and the client already reports it value-free through evidence. The reasoning engine is walled too: its model context must never carry play. `jev` is part of composer today; the name is walled in case it becomes a module.',
+      severity: 'error',
+      from: {
+        path: [
+          '^packages/backend/src/modules/(?:composer|jev|planner|evidence|personal-context|geography|scenes)/',
+          '^packages/backend/src/reasoning/',
+        ],
+      },
+      to: { path: '^packages/backend/src/modules/play/' },
+    },
+    {
+      name: 'play-wall-play-reaches-nothing-there',
+      comment:
+        "The other side of the wall: play keeps the person's game record and imports none of the modules that derive from behaviour (nor the reasoning engine), so it cannot write to them or read their state to decide what a pick is worth.",
+      severity: 'error',
+      from: { path: '^packages/backend/src/modules/play/' },
+      to: {
+        path: [
+          '^packages/backend/src/modules/(?:composer|jev|planner|evidence|personal-context|geography|scenes)/',
+          '^packages/backend/src/reasoning/',
+        ],
+      },
+    },
+    {
       name: 'infrastructure-below-modules',
       comment:
         'Infrastructure adapters never import modules, the reasoning engine or apps (identity public types excepted).',

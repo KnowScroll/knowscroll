@@ -5,10 +5,13 @@
 // again whatever happens. Run from the repository root (CI `static` job).
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, posix } from 'node:path';
 
 const B = 'packages/backend/src';
 const wire = `${B}/modules/content/adapters/cutroom/wire-v1/errors.ts`;
+
+/** The modules the play wall names (`jev` is part of composer today and is walled by name in case it becomes a module). */
+const playWalled = ['composer', 'jev', 'planner', 'evidence', 'personal-context', 'geography', 'scenes'];
 
 /** Each probe file and the edges it must produce, with the rule that must reject each edge. */
 const probes = [
@@ -214,6 +217,25 @@ const probes = [
       "import { makeAttemptLedger } from '../../../../packages/backend/src/reasoning/adapters/postgres-ledger.js';\nexport const p = makeAttemptLedger;\n",
     expect: [[`${B}/reasoning/adapters/postgres-ledger.ts`, 'apps-reach-modules-through-public-or-wiring']],
   },
+  // D-063, the play wall: nothing that ranks, plans, remembers or forms places imports play ...
+  ...[...playWalled.map((name) => `modules/${name}`), 'reasoning'].map((folder) => ({
+    file: `${B}/${folder}/application/zz-probe-play.ts`,
+    source: `import * as play from '${posix.relative(`${B}/${folder}/application`, `${B}/modules/play/public.js`)}';
+export const probe = play;
+`,
+    expect: [[`${B}/modules/play/public.ts`, 'play-wall-nothing-derives-from-play']],
+  })),
+  // ... and play imports none of it.
+  {
+    file: `${B}/modules/play/application/zz-probe-wall.ts`,
+    source:
+      "import * as evidence from '../../evidence/public.js';\nimport * as composer from '../../composer/public.js';\nimport * as reasoning from '../../../reasoning/public.js';\nexport const probe = [evidence, composer, reasoning];\n",
+    expect: [
+      [`${B}/modules/evidence/public.ts`, 'play-wall-play-reaches-nothing-there'],
+      [`${B}/modules/composer/public.ts`, 'play-wall-play-reaches-nothing-there'],
+      [`${B}/reasoning/public.ts`, 'play-wall-play-reaches-nothing-there'],
+    ],
+  },
   // Apps never import each other; no cycles.
   {
     file: 'apps/api/src/zz-probe-cross-app.ts',
@@ -237,6 +259,7 @@ const createdDirectories = [
   `${B}/modules/zz-probe-planning`,
   `${B}/infrastructure/zz-probe-media-store`,
   `${B}/infrastructure/zz-probe-cycle`,
+  `${B}/modules/jev`,
   'packages/shared',
   'packages/common',
 ];

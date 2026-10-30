@@ -12,6 +12,7 @@ import {
   type StageReadingObserver,
 } from '@knowscroll/ui';
 import type { OpenedStageScroll } from './scroll-session';
+import { useStagePlay } from './use-stage-play';
 
 /** What the surface needs from the screen it is on: where each move goes. Each is also a gesture and a key in the reader. */
 export interface StageMoves {
@@ -30,7 +31,8 @@ export interface StageMoves {
  * One Stage + Spine reader for a v2 Scroll, wherever it is shown (the Explore encounter and the
  * direct `/scroll/<id>` route): its top bar, the reader, its dock and the ••• sheet, with the room a
  * screen keeps for the status bar and the tab bar. The screen supplies the moves and what the sheet
- * holds (Save, Share), because those differ by screen. On a tablet or desktop the reader is a
+ * holds (Save, Share), because those differ by screen. Play (the calls, the sparks in the dock) belongs
+ * to the Scroll, so it is the same on both. On a tablet or desktop the reader is a
  * centred column with the stage pinned at its top (D-133).
  */
 export function StageReaderSurface({
@@ -66,6 +68,8 @@ export function StageReaderSurface({
   const [moreOpen, setMoreOpen] = useState(false);
   const { breakpoint } = useDisplay();
   const { document } = scroll;
+  // Play on this Scroll: the person's own calls, sparks and combo, kept unless recording is paused (D-063, D-083).
+  const play = useStagePlay(scroll);
   return (
     <View style={styles.page}>
       <View style={[styles.column, breakpoint === 'compact' ? null : styles.wide]}>
@@ -78,6 +82,7 @@ export function StageReaderSurface({
           onStopChange={onStopChange}
           nextPart={moves.nextPart}
           onDone={moves.done}
+          play={play}
           partLabel={partLabel}
           commands={{
             universe: moves.universe,
@@ -103,6 +108,7 @@ export function StageReaderSurface({
             <View style={{ paddingBottom: bottomInset }}>
               <ReaderDock
                 onAsk={moves.ask}
+                sparks={play?.sparks}
                 onMore={moreBody === undefined ? undefined : () => setMoreOpen(true)}
                 nextPart={moves.nextPart}
               />

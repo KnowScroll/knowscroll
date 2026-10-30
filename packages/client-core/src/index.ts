@@ -361,3 +361,15 @@ export {
   type ReportedPerson,
 } from './feedback-flow';
 export { parseDocumentV2, parseScrollDocument, type ParsedScrollDocument } from './scroll-document';
+
+export {
+  createPlaySession,
+  playSessionFor,
+  PLAY_RETRY_DELAYS_MS,
+  type PlayCall,
+  type PlayKeeping,
+  type PlayLock,
+  type PlaySession,
+  type PlaySessionOptions,
+  type PlaySnapshot,
+} from './play-session';

@@ -1,8 +1,8 @@
 import { recordingChannelSelection } from './channel-certification.js';
 import { READ_RECORDING_CHANNEL_SELECTION } from '../public.js';
 import { checkRequestSource } from './request-source.js';
-import { readVisitedAssets } from './visited-assets.js';
-import { READ_VISITED_ASSETS } from '../public.js';
+import { hasActivatedExposure, readVisitedAssets } from './visited-assets.js';
+import { HAS_ACTIVATED_EXPOSURE, READ_VISITED_ASSETS } from '../public.js';
 import { CHECK_REQUEST_SOURCE } from '../public.js';
 import type { Kysely } from 'kysely';
 import {
@@ -309,6 +309,7 @@ export function experienceEvidenceReadProviders() {
     { provide: READ_ACTION_FOR_EVIDENCE, useValue: readActionForEvidence },
     { provide: READ_EXPOSURE_FOR_EVIDENCE, useValue: readExposureForEvidence },
     { provide: READ_VISITED_ASSETS, useValue: readVisitedAssets },
+    { provide: HAS_ACTIVATED_EXPOSURE, useValue: hasActivatedExposure },
   ];
 }
 
@@ -338,4 +339,4 @@ export { makeRegionEncounters } from '../application/region-encounter.js';
 export { makeNavigateEncounter, makeActivateOffer } from '../application/navigation.js';
 export type { NavigationPorts, StoredOffer } from '../application/navigation-ports.js';
 
-export { readVisitedAssets } from './visited-assets.js';
+export { hasActivatedExposure, readVisitedAssets } from './visited-assets.js';

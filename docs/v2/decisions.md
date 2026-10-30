@@ -1313,3 +1313,38 @@ R3 question 6 (keep my messages out of what AI reads) and question 5 (default le
 - **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
 - **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
 - **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
+
+## D-180 · 2026-10-30 · Play is its own module, behind a wall in both directions (S-2, #473)
+
+**Builds on** D-063, D-064 and D-082.
+
+- **The module.** `modules/play` owns the calls a person locks and what they earned: `play.calls` (one row per person, Scroll revision and call stop) and `play.scroll_results` (calls locked, sparks, combo). It is in the erasure registry and the export. Sparks and combo belong to one Scroll revision; no schema sums them across Scrolls or ranks people (D-064).
+- **The wall.** Two dependency-cruiser rules: `composer` (with Jev), `planner`, `evidence`, `personal-context`, `geography`, `scenes` and the reasoning engine never import `play`, and `play` never imports them. Both directions are checked, so a play result cannot reach what ranks, plans or forms places, and `play` cannot write to them or read their state. `pnpm boundaries:probe` writes a forbidden import for each side and fails if a rule does not reject it.
+- **What still counts as engagement.** Only that a call was played. Evidence takes the value-free interaction kind it already accepts; no kind, field or table carries the option picked, correctness, sparks or combo.
+- **AGENTS.** The "scores" wording D-064 asked for is already in AGENTS.md (internal ranking, model or evidence scores; game points are play features), so sparks in the dock break no rule.
+- **Not built.** The Final call, landmarks, the Orbit and the Universe overlay are S-3 and S-4. The Final call stays on the device without a spark.
+
+Confirmed by: `tests/integration/modules/play.test.ts` (two people read the same Scroll, one calling right and one wrong: the same qualification, activity, Personal Context contribution and the same places formed; a different reading is not equal, so the comparison can fail), `pnpm boundaries:probe` (every wall edge rejected), `erasure.test.ts`.
+
+## D-181 · 2026-10-30 · A lock is judged on the server, once, from the stored revision (S-2, #473)
+
+- **The command.** `call.lock` carries the asset, the revision, the stop, the option and the recording generation. It never carries correctness. The server reads the call from the immutable revision (`content` `READ_SCROLL_CALLS`) and decides.
+- **Who may lock.** Only a person with an activated exposure of that exact revision (`experience` `HAS_ACTIVATED_EXPOSURE`), and only a Call it of it. A revision, call or exposure the person does not have is one `NOT_FOUND`; an option the call does not have is `UNPROCESSABLE_REQUEST`. Nothing is stored for a refusal.
+- **Idempotent, and the first lock stands.** An identical retry answers the stored lock with today's results. Another command locking the same call changes nothing and answers the first lock with `newlyLocked: false`. A row is never updated.
+- **Sparks and combo.** One spark for each right call. The combo is the run of right calls in the order locked; a wrong call ends it and costs nothing. The device works the same rule out at once (`scroll-model` `tallyOf`), the server's answer wins, and a test checks the two agree.
+- **Reading evidence is unchanged.** The reader still reports `revealed` once per call, by kind. The lock and the reveal are one tap and either counts as reading (D-128), so evidence has nothing new to learn.
+- **The reveal.** A right pick shows "Called it!" and "+1 spark" (and "Combo ×n" from two in a row). A wrong pick shows "Plot twist!", what was called, the warm second look and, when it is the common guess, its reviewed source. Once the answer is shown only the option called and the right one stay, and the reader scrolls the reveal into view.
+
+Confirmed by: `play.test.ts` (right and wrong pick, retry, a second lock, forged option, call and exposure refusals, Final call refused), `lock-call.test.ts`, `play.test.tsx`, `play-smoke.spec.ts`.
+
+## D-182 · 2026-10-30 · Paused recording, Clear and export for play (S-2, #473)
+
+**Builds on** D-057, D-082 and D-083.
+
+- **Paused.** The server stores nothing while recording is paused or the client's generation is stale: no row, no receipt, and an answer (`recorded: false`, a reason and the current generation) that says nothing about the call. A client whose policy says paused sends nothing at all. The screen says "Not saved while recording is paused." before the lock and in the reveal. Reading what was saved before the pause still works.
+- **On the device.** Play lives in memory for the account scope: it survives moving between Parts, not a reload, and sign-out, an account switch, a privacy reset and Clear end it. It is never written to the scope's storage, so a reload while paused starts clean, as "saves nothing" says.
+- **Not reached.** A lock that the network did not carry keeps its command ID and is sent again after 1, 5 and 30 seconds, in the order made, while the app is open. The reveal says "Will save when you're back online." A lock the server refuses says "Couldn't save this one." and is not sent again.
+- **Clear and deletion.** Both tables are universe-keyed and are erased. Play is first in the erasure order because nothing refers to its rows.
+- **Export.** `play.scrolls`: per Scroll its title (if still reachable), sparks, combo and, for each call, the question, the option picked in words, whether it was right and when. No identifier and not the right answer.
+
+Confirmed by: `play.test.ts` (paused stores nothing and writes no receipt, a stale generation is told to read the policy again, Clear erases, export in words with no identifier), `play-session.test.ts`, `erasure.test.ts`, `privacy-clear.test.ts`, `data-export.test.ts`, and the paused case of `play-smoke.spec.ts`.

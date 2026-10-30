@@ -60,3 +60,4 @@ export {
 export { computeIntegrityV2, validateDocumentV2, type DocumentV2Outcome, type ValidateV2Options } from './validate.js';
 export { negotiateV2, parseDocumentV2, type NegotiationV2Outcome } from './delivery.js';
 export { CALL_READ_INTERACTIONS, INTERACTION_KINDS_V2 } from './interactions.js';
+export { NO_TALLY, talliesAfterEach, tallyOf, type CallTally } from './play.js';

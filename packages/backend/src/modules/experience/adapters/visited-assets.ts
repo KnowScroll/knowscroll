@@ -1,5 +1,5 @@
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { ReadVisitedAssets } from '../public.js';
+import type { HasActivatedExposure, ReadVisitedAssets } from '../public.js';
 
 /** Most assets one read can ask about; a thread's sequence holds at most 99 episodes. */
 const MAX_ASSETS = 100;
@@ -21,4 +21,20 @@ export const readVisitedAssets: ReadVisitedAssets = async (scope, assetIds) => {
     .where('asset_id', 'in', [...assetIds])
     .execute();
   return new Set(rows.map((row) => row.asset_id));
+};
+
+/** See `HasActivatedExposure`. */
+export const hasActivatedExposure: HasActivatedExposure = async (scope, assetId, assetRevision) => {
+  const row = await transactionOf(scope)
+    .selectFrom('experience.exposures')
+    .select('id')
+    .where('universe_id', '=', scope.authority.universeId)
+    .where('privacy_epoch', '=', scope.authority.privacyEpoch)
+    .where('asset_id', '=', assetId)
+    .where('asset_revision', '=', assetRevision)
+    .where('kind', '=', 'scroll')
+    .where('activated_at', 'is not', null)
+    .limit(1)
+    .executeTakeFirst();
+  return row !== undefined;
 };

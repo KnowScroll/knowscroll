@@ -504,7 +504,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
 | `stage` | new | model implemented (Earth & sky kit; the physics is derived by code, D-124); stage engine and drawing planned (S-1b) |
-| `call_it` | new | implemented as a stop; locking in, sparks and the Plot twist reveal are play, planned (S-2) |
+| `call_it` | new | implemented as a stop; locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
 | `final_call` | new | implemented as the last stop; `binding` to a simulation, `bonus` and `landmark` planned (S-3) |
 | `recap` | new | implemented |
 | `scale`, `scene`, `sort`, `fork`, `guide` | new | planned (slice 8) |
@@ -543,6 +543,7 @@ Status: **implemented**, unit-tested.
   substitute.
 - `INTERACTION_KINDS_V2`: a call reports `locked` or `revealed`, nothing else. No kind carries the option
   picked or whether it was right (D-063).
+- `tallyOf` / `talliesAfterEach` (`src/v2/play.ts`, D-064, D-180): the sparks and combo of a Scroll's calls in the order locked: a spark for each right call, the combo a run of right calls, a wrong call keeps the sparks and ends the run. A device uses it to show play at once and while recording is paused; the server keeps its own copy and judges every lock from the stored revision (`modules/play`), and a test checks the two agree. It sums nothing across Scrolls.
 - `./internal` has `ScrollProvenanceV2` (`scroll-provenance.v2`): the claims, sources, production record
   and, per stop, aside and recap, the claims it cites.
 

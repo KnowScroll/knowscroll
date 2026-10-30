@@ -381,6 +381,16 @@ routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed
 cases; no handler waits for a model. The API also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_CAP`.
 Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*
 
+### Play (#473, D-180)
+
+`PlayController` mounts two private POSTs under `/v1/play/`: `calls/lock` (`call.lock`: lock a pick on a Call it of an
+exact Scroll revision; idempotent by `commandId`) and `results/read` (the caller's calls, sparks and combo for one revision).
+Both answer `Cache-Control: private, no-store`. A lock answers `recorded: true` with the stored lock and results, or
+`recorded: false` with a reason (`recording_paused`, `recording_generation_stale`) and nothing stored. Refusals are catalogue
+problems: `NOT_FOUND` (a revision, call or exposure the caller does not have: one answer), `UNPROCESSABLE_REQUEST` (an option
+the call does not have), `COMMAND_KEY_REUSED`, `PRIVACY_EPOCH_CHANGED`, `UNIVERSE_UNAVAILABLE`. Tests:
+`tests/integration/modules/play.test.ts`. *Implemented. Not yet run on dev.*
+
 ### Feedback and reports (#250, D-055)
 
 `FeedbackController` mounts private POSTs under `/v1/feedback/`: `not-interested`, `not-interested/undo`, `content-errors` and

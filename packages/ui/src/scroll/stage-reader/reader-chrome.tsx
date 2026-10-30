@@ -5,6 +5,7 @@ import { Button } from '../../actions/button';
 import { useDisplay } from '../../display/display';
 import { IconButton } from '../../actions/icon-button';
 import { Text } from '../../text/text';
+import { SparkChip } from './play-chips';
 
 /**
  * The top bar of a v2 Scroll (D-133): Your Universe at the left with the Scroll's title and its Part ("Part 1 of 3"), the Reel and Scroll switch, and Next ↑ for a new topic in the same format when a
@@ -57,21 +58,26 @@ export function ReaderTopBar({
 }
 
 /**
- * The dock at the bottom of a v2 Scroll: Ask, the ••• menu and the next Part. The Part is the one
- * primary action, in the continuation yellow's place; it is absent when no next Part was admitted.
+ * The dock at the bottom of a v2 Scroll: Ask, the sparks earned on this Scroll, the ••• menu and the
+ * next Part. The Part is the one primary action, in the continuation yellow's place; it is absent
+ * when no next Part was admitted. The sparks are this Scroll's alone, never a total (D-064).
  */
 export function ReaderDock({
   onAsk,
+  sparks,
   onMore,
   nextPart,
 }: {
   readonly onAsk?: (() => void) | undefined;
+  /** Sparks earned on this Scroll; the chip is absent when play is not on this screen. */
+  readonly sparks?: number | undefined;
   readonly onMore?: (() => void) | undefined;
   readonly nextPart?: { readonly label: string; readonly onPress: () => void } | undefined;
 }) {
   return (
     <View style={styles.dock}>
       {onAsk === undefined ? null : <Button label="Ask about this" icon="ask" size="sm" onPress={onAsk} />}
+      {sparks === undefined ? null : <SparkChip sparks={sparks} />}
       {onMore === undefined ? null : <IconButton icon="more" label="More" variant="paper" size={44} onPress={onMore} />}
       <View style={styles.spacer} />
       {nextPart === undefined ? null : (

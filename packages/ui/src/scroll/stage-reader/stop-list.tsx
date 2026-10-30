@@ -5,6 +5,7 @@ import type { CallState } from './call-state';
 import { CallView } from './call-view';
 import { dataSet } from './data-set';
 import { EndTray, type NextPartPeek } from './end-tray';
+import type { StageLock } from './stage-play';
 import type { SpineDot } from './spine';
 import { AsideView, ReadStopView } from './stop-view';
 
@@ -17,6 +18,12 @@ export interface StopListProps {
   readonly sectionHeight: number;
   readonly measureSection: (index: number) => (event: LayoutChangeEvent) => void;
   readonly stateOf: (callId: string) => CallState;
+  /** What play holds of a Call it: the lock, its spark and combo, and whether it is kept. */
+  readonly lockOf: (callId: string) => StageLock | undefined;
+  /** Recording is paused: whatever is locked stays on this device. */
+  readonly paused: boolean;
+  /** A call's reveal was laid out: its section's index and its height with the section's bottom padding. */
+  readonly onRevealLayout: (index: number, height: number) => void;
   readonly pick: (callId: string, option: number, optionCount: number) => void;
   readonly lock: (callId: string) => boolean;
   readonly opened: ReadonlySet<string>;
@@ -49,6 +56,9 @@ export function StopList(props: StopListProps) {
               call={stop}
               position={`${String(calls.indexOf(stop) + 1)} of ${String(calls.length)}`}
               state={props.stateOf(stop.id)}
+              lock={props.lockOf(stop.id)}
+              paused={props.paused}
+              onRevealLayout={(height) => props.onRevealLayout(index, height + SECTION_PADDING)}
               onPick={(option) => props.pick(stop.id, option, stop.options.length)}
               onLockIn={() => props.lock(stop.id)}
             />
@@ -84,6 +94,14 @@ export function StopList(props: StopListProps) {
   );
 }
 
+/** A section's padding above and below its content. */
+const SECTION_PADDING = spacing[5];
+
 const styles = StyleSheet.create({
-  section: { paddingHorizontal: layout.gutter, paddingTop: spacing[5], paddingBottom: spacing[5], gap: spacing[4] },
+  section: {
+    paddingHorizontal: layout.gutter,
+    paddingTop: SECTION_PADDING,
+    paddingBottom: SECTION_PADDING,
+    gap: spacing[4],
+  },
 });
