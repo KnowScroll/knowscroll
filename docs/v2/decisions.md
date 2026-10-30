@@ -711,6 +711,391 @@ Explore's Part tabs and dashed Related tabs never appeared on dev because the 54
 - **Verified.** Unit tests of the declarations and the planner; an integration test on real PostgreSQL (admits, skips unpublished, idempotent, republish replaces, and `readContext` then offers previous, next and related); the worker operator command from the built release tree. Local browser check (fixture Scrolls, real API and database): the yellow Part tab and dashed Related tab in "This thread" on a wide window and on the end card on a phone.
 - **Limits.** The order of some series (training, web requests, algorithms) is a reading of the briefs, not something a brief states; a reviewer who disagrees changes the declaration and re-runs the command. The command admits against the revision admitted when it runs, so it must be run again after a Scroll is republished.
 
+## D-060 · 2026-10-30 · Owner: the v3 designs are final, and the newer one wins (#463)
+
+On 29 Oct 2026 the owner ruled that the New Universe file, World internals 05, Simple views, Entering a system, V3 Scrolls, R3 Rooms and T3 Talk are final: "all are final". Every "MY PICK", "My recommendation" and "LEANING" is decided, and each PDF's "Questions for you to react to" page is a page of decisions. On 30 Oct the owner added the animations for the first open, entering a planet, entering a ringed planet and entering a world as final ("Never change it"), with the New Universe file updated to match.
+
+Where two designs overlap, the newer one wins. T3 Talk (29 Oct) beats R3 Rooms (27 Oct): room AI is 2 or 3 named residents, not R3's four assigned roles. The Universe files (28 to 30 Oct) govern anything drawn on the Universe map, including room stations. T3's colour, chrome and look apply to Talk and to rooms.
+
+- **Amends D-001** ("the v2.1 export governs visuals"). The v3 designs now govern the Universe, Scrolls, rooms and Talk. The v2.1 export still governs everything else.
+- **Where they are.** `docs/v2/design/v3/` holds the files; its README gives the reading rules. CI checks them against `SHA256SUMS`. The PDFs stay out of Git.
+- **Authored examples.** The people, messages, content and worlds in the designs are never product data. Their code is a reference for the scene builders, not code to paste.
+- **The blueprint is not edited.** Where a design changes a rule, the amendment is a numbered decision below (D-064 onward) and the product rules in `AGENTS.md`.
+
+## D-061 · 2026-10-30 · Owner: access for the v3 build session (#463)
+
+The session that builds v3 works for the owner with GitHub Write on `KnowScroll/knowscroll` and root SSH to the VPS. The machine it runs on holds no provider keys. Real model calls run only on the server, through the dev worker or its operator commands, never from the build machine.
+
+- **Why.** Keys stay on the server (AGENTS: no provider credentials in the client, Git, logs or evidence).
+- **Dev, within D-030.** The session may change dev's feature flags and caps in `/etc/knowscroll/dev.v2.env` after a backup, and may dump and recreate the v2 dev database.
+- **Unchanged.** The never-list in AGENTS: `main`, live, `stage`, the v1 databases, the owner's Mac database, `knowscroll_pool` rows and self-hosted runners. MiniMax use follows D-030 and D-031. Cutroom and fal spend needs the owner's approval on the tracker (D-048).
+
+## D-062 · 2026-10-30 · Owner: the 26 Oct rulings still bind, Scrolls are game-like and rooms are alive (#463)
+
+The owner gave two rulings on 26 Oct that this log never recorded. D-051 (24 Oct) and D-006 o (19 Oct) are older. They still bind, and the final designs build on them.
+
+- **Scrolls are game-like.** Streaks, scores and progress are allowed for Scrolls. Any new block must be fillable by the LLM writer from JSON. Nothing is model-written HTML. Blueprint line 43 stands: no streak is required for growth.
+- **Rooms are alive.** The Explainer and Skeptic speak unprompted. The data notice shows once. General is the default channel. Each room has its own art. Game feel is allowed. AI is always labelled and never poses as a person. The ban on counts and presence in rooms (D-051, D-006 o) is lifted, within the honesty rules of D-069.
+
+Consequence: they change D-051 and the E08 note, which D-068, D-069 and D-072 amend.
+
+## D-063 · 2026-10-30 · Play results never feed ranking, planning, evidence, formation or the Universe (#463)
+
+This is a rule of the product that the v3 designs do not change, recorded because they add a play layer. Picks, correctness, sparks and tiers are play results. Composer, Jev, Planner, Evidence, Personal Context, Geography and Scenes never read which option was picked, whether it was right, sparks or tiers.
+
+- **Why.** Behaviour is evidence, not proof of learning (AGENTS). A game must not teach the product to rank, plan or form places from how someone played.
+- **What still counts.** Evidence comes only from the encounter, as before. A call that was locked, or a Scroll that was finished, may count as engagement with the Scroll. The option picked does not.
+- **The Universe.** It may show a landmark as a read-only overlay (D-089). A play result never forms, moves or changes a place.
+- **Enforced** by a dependency-cruiser rule that stops those modules importing the `play` module. It is added with the module.
+
+## D-064 · 2026-10-30 · Game points are play features, not scores (#463)
+
+Owner ruling (29 Oct): the final designs show sparks, combos, "3 calls", the Final call, landmarks, stars and a podium.
+
+**Amends** AGENTS, "Consumer UI never shows internal prompts, model reasoning, scores, sources panels or operational machinery". It now bans internal ranking and model or evidence scores. Sparks, landmarks, stars and the podium are play-layer features and may be shown.
+
+- **Why.** The rule keeps inference and ranking machinery out of sight. A game point is something the person earned in a visible game.
+- **Limits that stay.** Blueprint line 34 (no compulsory tests, no scoring of learning, no announcing what a person believes) and line 1257 (no topic scores or mastery levels). A point belongs to one Scroll, thread or room act and is never summed into a level for a topic. A podium is per Launch only. There is no weekly leaderboard, karma total or level anywhere, and agents cannot vote or earn flair (R3 Q9, T3 Q13).
+- **Wording.** "You learned" and mastery words stay out of the UI (D-072).
+
+## D-065 · 2026-10-30 · A thread shows a coarse part-level place to its own members (#463)
+
+Owner ruling (T3 Q6: "Yes inside a thread you joined on purpose, with a per-person 'hide where I am'"). A member sees which Part each other member of a thread they joined is on, or that they finished ("Ravi is on Part 2", "all finished").
+
+**Amends** AGENTS, "Peer playback positions, seen markers and current branches are private"; blueprint lines 1045, 1152 and 1170 (seen markers, selected episodes and playback positions stay private; the UI must not imply "Ravi is currently watching Part 1"); D-006 f; and D-046, "The server holds no position, selection or seen marker of any member".
+
+- **Coarse.** A Part, `on` or `finished`, and a day. Never a playhead, a branch, a selected episode, a seen marker or a time finer than a day.
+- **Stored** as `social.thread_places(thread, account, part, on|finished, day)`, written only by the member's own client. The server never reads another member's Experience.
+- **Members only.** Only people who joined that thread can read it. Each person has a "hide where I am" switch. Places are shown by default.
+- **Removed** on leave, block, Clear and account deletion. Exported as the person's own data.
+- **Wording.** "On Part 2" or "finished", never "watching".
+- **No clock times.** T3 draws party lines with a time ("Ravi finished Part 1 · 13:02"). They are not built: a place carries a day, so the line shows at most the day. Taken for the owner; listed under Waiting for owner on #462.
+- **Unchanged.** Availability (D-047) still carries no place. Branches, playheads and seen markers stay private. The J2 check holds for everything outside places.
+
+## D-066 · 2026-10-30 · SEEN receipts in direct conversations are mutual and on by default (#463)
+
+Owner ruling (T3 Q16: "On, with a privacy switch that works both ways: if you hide yours, you don't see theirs.").
+
+**Amends** D-042, "Read state stays private: each person's `read_through_sequence` is theirs, and the other person sees only 'Sent'".
+
+- **Rule.** In a direct conversation the sender sees SEEN under their last message once the other person has read it. The switch is per person. A person who hides theirs does not see the other's.
+- **Built for direct conversations only** (T3 Q16 asks about DMs). T3's thread and room screens also draw SEEN under your last message. It is not built there: a group has no single reader, and a per-member list would show each member's read state. Taken for the owner; listed under Waiting for owner on #462.
+- **Meaning.** AGENTS "seen markers" means what a person has seen of content. SEEN here is message read state in a DM. Content seen markers stay private.
+- **Consequence.** A `social` change with a stored per-person setting, included in the export.
+
+## D-067 · 2026-10-30 · Typing is an ephemeral signal that only holds back AI (#463)
+
+R3 says a resident never answers while someone is typing.
+
+**Amends** D-042, "No typing indicator". The indicator stays banned: no person is ever shown that someone is typing. The blueprint allows ephemeral typing signals (lines 269 and 1180). R3 and the T3 kit also draw a typing indicator between people; it is not built, because D-042 still holds for display. Taken for the owner; listed under Waiting for owner on #462.
+
+- **Rule.** The client sends a typing signal over the socket. The server uses it only to hold back an AI turn. It is never stored, never shown and never sent to another person.
+- **Re-check at fire time.** Before an AI turn posts, the room checks again that no new human message or typing signal has arrived.
+- **Why.** The signal is a private behaviour signal (D-042), so it must do no more than prevent a collision with AI.
+
+## D-068 · 2026-10-30 · Residents speak unprompted, under a room scope with caps (#463)
+
+Owner ruling of 26 Oct (D-062) and T3 Q10 (2 or 3 residents per room).
+
+**Amends** D-051, "AI inhabitants speak only when asked", and the rule in the rooms module that an AI message always has an asker.
+
+- **Residents.** 2 or 3 per room, each with its own name: an Explainer and a Skeptic always, plus a Quizmaster that hosts the Launch. They may speak without being asked. They are labelled and never pose as a person.
+- **A room reasoning scope.** Unprompted turns run under a nonpersonal scope with its own enable switch and daily caps. Today's nonpersonal scope is hard-wired to Scroll supply, and every inhabitant call runs as the person who asked.
+- **A new budget class `ambient`** (beside D-058's two) can never take what a person asked for.
+- **A ledger.** Every AI turn has an `ai_turns` row naming its trigger and the cap that decided it.
+- **Caps** (R3 Q3: start here, tune after two weeks of cost data). Unprompted: 1 per 3 human messages, 8 an hour and 40 a day per room; the Explainer 4 an hour; the Skeptic 3 an hour and 1 per person per hour. Asked turns: 10 per person per hour and 80 per room per day, which replace D-051's 4 per person and 12 per room per day.
+- **Quiet.** A cap refusal on an unprompted turn posts nothing. An idle room makes no model call.
+- **Consequence.** Dev's model budgets must be raised before this ships.
+
+## D-069 · 2026-10-30 · Room presence and counts follow R3's honesty rules (#463)
+
+The owner lifted the ban on counts on 26 Oct (D-062).
+
+**Amends** D-051, "Talk lists rooms … with no count or activity (D-006 o)", and the "no member, online or activity field" comments in the rooms contract.
+
+- **Faces** of people who have the room open, from room presence on a room-scoped lease. It is separate from friends' availability, which stays off by default (D-047).
+- **A number shows only at 3 or more.** Never "0 online" or "1 online". The AI cast is never counted.
+- **The member total** shows in the room menu (R3 Q7).
+- **An explicit allow-list** in the contract names every count and activity field a room may carry.
+- **Never fabricated** (AGENTS).
+
+## D-070 · 2026-10-30 · The Launch is a scored room activity; moderator polls and quizzes stay unscored (#463)
+
+R3's Launch is a live quiz with a podium per Launch, a replay against real recorded answers, today's question and Spot the flaw.
+
+**Amends** D-051 on R03: "R03 is optional and unscored" and "the server has no command for an answer, so it never holds an answer, score or position". Both stay true for a moderator's poll or quiz.
+
+- **A new activity kind.** The Launch records answers and scores as game state. They are never evidence (D-063).
+- **Questions** come from a nightly batch over admitted library Scrolls, checked by code and approved by an operator on dev. They are never generated live. Templates cost no model call.
+- **Replays** are labelled and use real recorded answers.
+- **Consequence.** Built after the room scope exists (D-068).
+
+## D-071 · 2026-10-30 · Swipe moves between Parts in a Scroll, from text and stop surfaces only (#463)
+
+V3 Scrolls: swipe left is Part 2 of the same topic.
+
+**Amends** D-040: "A Scroll has no edge tab … Blocks own horizontal drags there".
+
+- **Rule.** Swipe left or right moves between Parts from text and stop surfaces only. The stage and any block that takes a drag (a slider, code, a wide table, a sort) keep their drags. Native edge zones stay platform Back.
+- **Equivalents.** Every swipe has a button and a key (blueprint line 1293).
+- **Unchanged.** Vertical reading never navigates (blueprint line 1293). Pulling up past the end and the top "Next ↑" are explicit commands for the next topic (V3 Q3, Q16), not reading. Reels keep their edge tabs.
+
+## D-072 · 2026-10-30 · Counts, minutes and progress are allowed for Scrolls (#463)
+
+Owner ruling (26 Oct, D-062), carried into the final V3 design. The design shows a dots spine, "4 of 10", "3 min · 3 calls", sparks and a weekly Orbit (3 days a week).
+
+**Amends** the E08 note ("Titles only — no counts, minutes, 'you learned' or progress meters", `discovery/design-screens.md`) and D-040's ending, for Scrolls.
+
+- **Allowed for Scrolls.** Counts, minutes, the spine, "3 min · 3 calls" and the weekly Orbit.
+- **Still banned.** "You learned", "you now know" and mastery wording. "Called it" speaks about the call, not the person.
+- **Plain.** Reels and the E07 "nothing more ready" card stay plain.
+- **No pressure.** Nothing is lost for missing a day, and the Orbit is required for nothing (blueprint line 43).
+- **Real numbers.** A count is always a real one. A series total comes from the admitted `series_units`, never an invented number (D-059).
+
+## D-073 · 2026-10-30 · The Universe's space views use three.js (#463)
+
+The New Universe design needs 3D suns, haze, revolving planets and a fly-in.
+
+**Amends** D-026, "Use the existing react-native-svg dependency for the initial layered 2D Universe renderer". D-026 called itself an initial choice to revisit from device evidence. The blueprint leaves 2D or 3D open (line 1326).
+
+- **Space views** (the overview, a system, a planet) are drawn with three.js: a DOM canvas on the web, `expo-gl` on native. One render loop at most every 33 ms, a pixel ratio of at most 1.5, paused off screen or in the background, and a single frame under reduced motion.
+- **Labels and tap targets** stay React Native views placed from projected points.
+- **SVG** stays for the landed map. **Plain lists** are the Simple drawing, switched on automatically when WebGL is missing, the context is lost or memory is low.
+- **Unchanged from D-026.** Identity, formation and anchors are independent of rendering.
+- **Gate.** After the first spike, one scene must hold 30 fps on the web and in the Android emulator lane. If it fails, decide and record before building more.
+
+## D-074 · 2026-10-30 · No orbit or route lines are drawn; the route is a chip (#463)
+
+The New Universe rules: no orbit lines, yellow lines or dashed route lines on any screen.
+
+**Amends** D-039, "Routes are the Cartographer's … the system view draws it with a 48 px target", and its orbits at mid detail.
+
+- **Rule.** The line drawing and its tests are deleted. A route stays a Cartographer relation and shows as a "Route to <planet>" chip on the planet view and as a row in lists.
+- **Unchanged.** D-039's anchors, camera model and 48 px planet targets.
+
+## D-075 · 2026-10-30 · Watch together in rooms is a shared clock (#463)
+
+R3 has a synced Watch together and a Stage mode while something is live.
+
+**Amends** blueprint line 1152: "There is no synchronised co-watching or shared playback cursor in the initial version."
+
+- **Rule.** A room can run a shared-clock session. The server holds only the start time. Each device works out the position from it.
+- **Count.** "N watching" shows only at 3 or more, and only among people who joined.
+- **Rooms only.** A DM's Watch together keeps the DM and starts a thread for the same two people, with no sync (T3 Q5).
+- **Still private.** Peer playback positions and seen markers (D-065). Nothing here is evidence.
+- **Consequence.** Built after the Launch exists.
+
+## D-076 · 2026-10-30 · What-if branches are capped at 5 per thread per day (#463)
+
+T3 Q8: any member may ask, up to 5 per thread per day.
+
+**Amends** D-049, "`KS_SUPPLY_SCENARIO_THREAD_CAP` per thread over its life (default 6; dev 6)".
+
+- **Rule.** The per-thread cap is 5 per UTC day, counted from Quartermaster's order ledger. It no longer counts over the thread's life.
+- **The world's daily cap** (`KS_SUPPLY_SCENARIO_DAILY_CAP`) is unchanged.
+- **Refusal** stays `budget_unavailable`, writes no node and tells the member plainly.
+- **Consequence.** The config default and the dev value change with the slice that builds it. The short What-if answer card is a new worker role and gets its own decision when it lands.
+
+## D-077 · 2026-10-30 · Planet types are unique while possible, and the look is assigned once (#463)
+
+The New Universe rules say "Never repeat a planet type inside one universe", yet there are 6 types (lush, ocean, frozen, scorched, barren, gas) and up to 17 planets.
+
+- **Decision.** Types are unique while possible. A type is chosen least-used first, preferring one not already in the same system. A repeated type gets a different hue shift and layout.
+- **Assigned once.** Type, rings, moon and each system's haze family are persisted look data. They are never recomputed from what is in use now. Rings and moon come from the seed. The look is stored in a sibling table `scenes.looks`, because `scenes.guard_object` freezes the v1 payload.
+- **Backfill.** Existing dev worlds are backfilled without moving any slot, seed or anchor.
+- **Related.** D-026: persist family, seed, generator and anchors before variation.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-078 · 2026-10-30 · "Not yet reached" land uses the exact facet sites plus decorative grey (#463)
+
+The landed map (U04) shows grey land that is not reached yet. The globe (U03) shows every continent in full colour under clouds and never grey land (New Universe rules: "uncharted land uses its own greys on the map only"). Here, "a site" is one planet's room for one region, one per facet.
+
+- **Decision.** Each planet has a fixed table of sites, one per facet. The planet descriptor carries `siteCount` and each region carries its `site`. The client lays out every site from the planet seed, so a cell keeps its shape when a region forms. On the map, unformed sites are grey, and decorative grey continents are added so the visible grey count never equals the unformed count.
+- **Never** labelled, counted, interactive, or present in lists, search or the accessibility tree. Grey cells are not offers (D-026).
+- **Maths.** The generators live in `scene-core` with pinned maths and a generator version on the descriptor. The design's `buildWorld` is not copied: it seeds from the region count, which would move every border when a region forms.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-079 · 2026-10-30 · Lately keeps its 30-day window and gains a rules-only quiet sweep (#463)
+
+In the design, quiet systems go calm without anything new being read.
+
+- **Why.** `set_activity` is computed only inside a Cartographer run, and runs start only on new evidence. A person who stops reading would never see a place go quiet.
+- **Decision.** The 30-day quiet window stays. `geography.state` stores `next_quiet_at`, and a scheduled job settles states that are due, with no model call.
+- **Unchanged.** Inactivity changes activity, never existence (AGENTS). "Everything is where you left it" stays on the device (`seenAt`).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-080 · 2026-10-30 · The ship marks the planet of the last place and stays on the device (#463)
+
+The design parks a ship at the last place and offers "Return to <planet>".
+
+- **Decision.** The ship sits on the planet of the last place. Where it is stays on the device (`universe-memory.ts`, `universe-here-marker.ts`) and is never sent. An optional per-planet last-region map is added the same way.
+- **Related.** D-039: camera, Lately and the ship's place stay on the device.
+- **Map browsing writes no evidence.** The J3 check is extended to the 3D renderer.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-081 · 2026-10-30 · The room "Stage manager" is code, not a model (#463)
+
+R3's behaviour table has a Stage manager that decides who speaks.
+
+- **Decision.** It is a code policy in the rooms domain, run under the room lock. Caps, ratio, timers, no-repeat, levels and the single AI-to-AI reply are arithmetic.
+- **Two semantic judgements.** "Is it a question?" and "is this claim overstated?" use a lexical pre-filter and the speaking role's own `nothing_to_add`. A classifier that only proposes may be added later.
+- **Why.** Models propose and code validates, with no autonomous loops (AGENTS). It also removes about half the cost of the table, and keeps its behaviour.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-082 · 2026-10-30 · Play data is erased by Clear and by account deletion, and exported (#463)
+
+- **Decision.** Calls, results and landmarks are erased by Clear and by deleting the account. They are included in the export. The `play` module is in the erasure registry (D-050).
+- **Why.** They describe what the person did in a Scroll, so they follow the same rule as the rest of their reading data.
+- **Not included.** Stars and constellations belong to a room, not to a person, and follow the rooms module (D-051).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-083 · 2026-10-30 · While recording is paused, play saves nothing on the server (#463)
+
+Pause recording (D-057) means the server keeps no record of reading.
+
+- **Decision.** While recording is paused, play works on the device and saves nothing on the server. The screen says so.
+- **Consequence.** A landmark, a spark or an Orbit day earned while paused is not stored, and does not appear later.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-084 · 2026-10-30 · A landmark earned before its planet forms waits in a tray (#463)
+
+- **Decision.** A landmark earned before its planet exists waits in a tray, then attaches when the planet forms.
+- **No formation linkage.** A landmark never makes a planet form (D-063; V3 Q7).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-085 · 2026-10-30 · "Simpler" is written when the Scroll is produced (#463)
+
+V3 D2 offers Simpler on a selected passage.
+
+- **Decision.** The simpler text is authored per stop at production and checked with the Scroll. Showing it is instant and free, and calls no model.
+- **Why.** No model call on the HTTP navigation path (AGENTS).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-086 · 2026-10-30 · "Quick answer" is a capped worker job (#463)
+
+V3 D2 offers a Quick answer on a selected passage.
+
+- **Decision.** It is a worker job: an HTTP command, then pg-boss, then MiniMax, then a socket hint and a poll. It has a daily cap. It is labelled "Quick answer · not a checked Scroll", can be reported, is never evidence and never appears in the Universe.
+- **Why.** No model call on the HTTP path or inside a transaction (AGENTS).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-087 · 2026-10-30 · The weekly Orbit is shown as text, not as a ring on the map (#463)
+
+V3 draws a weekly Orbit ring around the star. The New Universe file says no orbit lines and no sparkles. The Universe file governs the map (D-060).
+
+- **Decision.** The Orbit shows in the Scroll recap, the play summary and the Universe panel or list text. It is not a ring on the map.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-088 · 2026-10-30 · Clear skies do not thin as Scrolls are finished (#463)
+
+V3 says clear skies thin as you finish Scrolls. In the New Universe, clouds mean "not reached yet". The Universe file governs the map (D-060).
+
+- **Decision.** Cloud thinning is not built.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-089 · 2026-10-30 · Landmarks are small painted markers on the globe and the map (#463)
+
+Landmarks stand on planets. The Universe file governs how they look there (D-060).
+
+- **Decision.** A landmark is a small painted marker on the planet's globe and map, in the Universe style. It is a read-only overlay from the `play` read API and has no effect on formation (D-063).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-090 · 2026-10-30 · A room's constellation is drawn with its station, in the Universe style (#463)
+
+A room earns stars, up to a 7-star constellation the room names, and its station lights on every member's map. The Universe file governs the map (D-060).
+
+- **Decision.** The constellation is drawn with the station in the Universe style, with no sparkles. No Cartographer or Scenes change is needed: `rooms.stations` carries the sky state (D-051).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-091 · 2026-10-30 · Painted room backdrops wait for an approved image provider (#463)
+
+R3 and T3 show painted room backdrops. The MiniMax key is text-only, and fal belongs to Cutroom.
+
+- **Decision.** Ship the drawn kit: a role returns closed-enum JSON and the app draws it. No painted backdrop is built until the owner approves an image provider and a budget.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-092 · 2026-10-30 · First open for an account that already has places (#463)
+
+The first-open animation plays once in the lifetime of the account and is drawn ending on U01 Empty. The design does not say what happens when the account already has places.
+
+- **Decision.** It plays up to the moment the empty-state title, line and "Go to Explore" would rise in, then a 0.3 s cross-fade shows the real overview. It never claims the account is empty.
+- **Unchanged.** The seen flag lives on the account and is set when the animation starts. Skip and finishing both count as seen.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-093 · 2026-10-30 · Going back up uses a 0.3 s cross-fade (#463)
+
+No reverse animations were designed.
+
+- **Decision.** Back goes up one level with a 0.3 s cross-fade, not the forward animation backwards. Long jumps, such as search to a region, go straight to the destination.
+
+Taken for the owner; listed under Waiting for owner on #462.
+
+## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
+
+The V3 Scrolls need stops, calls, asides, a recap and a pinned stage. D-032 found that a model writing long, nested JSON loses count of its brackets, and the V3 block table nests: `stage.states[{stop, changes}]`, a call with its options and common guess, an aside with `anchor_stop`. This entry settles how the model writes a v2 Scroll. It changes nothing in v1: `scroll-document.v1`, `scroll-authoring.v1` and writer `scroll-writer.v13` still publish the library.
+
+- **One flat list.** `scroll-authoring.v2` is `{title, dek, items[], recap, askSuggestions[]}`. Each item is a `stop`, a `call_it`, the `final_call` or an `aside`, in reading order. The model writes no id, no index and no count.
+- **Position replaces references.** An aside belongs to the item before it. The Final call is the last item. A stage change belongs to the item that carries it. There is nothing to number and nothing to point at.
+- **The stage is a small object of words.** An item's `stage` names only what changes, from closed word lists of the Earth & sky kit (view, month, axis, Ray, orbit, two pins, Moon, focus). The model writes no number, coordinate or place name. Code carries the unnamed values over and builds the full `stage.states[]`.
+- **Code writes what the model could get wrong.** Ids; the description of every stage state (the text version and accessible name, derived from the state, so it cannot disagree with the picture; this replaces the design's `alt_per_state` written by the writer); the order of a call's options (the model writes the correct one first, code shuffles them by a stable seed, so the right answer is not always first); the misconception and its source; the common guess's source; the measures and the hash.
+- **Claims cite like any other.** Every item and the recap cite passages. The answer, explanation and twist of a call and the text of an aside are claims. A figure in any reader text must be in a passage that item cites. Nine words in a row from the research fail the Scroll.
+- **Findings sit at the writer's item** (`items[4]`, `recap`), so the one repair can fix them all together.
+- **Two validators, one set of findings.** The authoring rules check what only the authored list can show (citations, copying, where an aside sits, the recipe's myth and variant). `validateDocumentV2` checks what the document can prove (limits, structure, stage, reading time, measures, hash). Their findings are merged.
+- **Not decided here.** The limits and measures (D-121), the spike command (D-122), the reader, play, coverage v2 and admission of v2 documents (S-1, S-2).
+- **Verified.** Unit tests of every rule, each shown failing on a broken input; property tests of the option shuffle and the stage descriptions; the recorded fixture answer through the real harness over PostgreSQL.
+
+## D-121 · 2026-10-30 · scroll-limits.v2 and scroll-measures.v2: what counts and what is refused (S-0, #471)
+
+The V3 design gives the numbers (at most one stage, four calls, two other interactives; 230 words a minute and ten seconds a call; three to six minutes; a stop of at most 60 words) and leaves the rules for applying them open. These are the rules the code applies. v1 limits and measures (200 words a minute, 2 to 8 minutes, 8 interactive blocks) are untouched.
+
+- **Words.** A stop's text and its line together are at most 60 words, and the line at most 12. The explanation, the twist, an aside and a `simple` text are each at most 60 words.
+- **Reading time.** Words at 230 a minute plus ten seconds for every call, the Final call included, must come to 180 to 360 seconds. Counted: stops, calls (prompt, options, explanation, twist), asides and recap captions. Not counted: `simple` texts. The twist is counted although only a wrong pick reads it, so the estimate is for the longer path. A call also weighs 38 word-equivalents (ten seconds) in the stop weights that coverage will use.
+- **Budget.** At most 1 stage, 4 calls (the Final call included) and 2 other interactives (none is built, so this is a constant only); 6 to 14 stops and calls; at most 4 asides; at most 3 ask suggestions; 2 or 3 options per call; 128 KiB.
+- **Structure.** Exactly one Final call, and it is the last stop. At least one Call it before it. At least one aside of kind `limits`, anchored before the Final call (never last), and the recap links to it. Only the first Call it of a myth Scroll has a common guess, and it carries the recipe's source. A stage has its first state on the first stop, states in stop order, and at least three states; a Scroll without a stage has none.
+- **Notices, not refusals.** A myth whose source label has not been reviewed does not refuse the document; `validateDocumentV2` returns it as a notice, and the library must clear it before admission.
+- **Interpretation.** The design says "stops about 14"; the code takes 6 as the least a 3-minute Scroll can have.
+
+## D-122 · 2026-10-30 · The v2 writer spike: one operator command, nothing stored (S-0, #471)
+
+The V3 design asks to run 20 topics through the new authoring shape before any engine is built. `content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>]` does that on the dev worker. It amends nothing: it is an operator tool, not product code.
+
+- **Migration-free, no table, nothing admitted.** The command fetches each recipe's public research, runs writer prompt `scroll-writer.v14` through the production harness, assembles and validates the answer, and reports. The only records are the harness's own (run, attempts, kept refused answers). The branch can be deployed to dev by manual dispatch for the spike.
+- **The same bounds as production.** One writer request and at most one repair per topic. Every paid attempt goes through the attempt ledger and the existing caps. An unknown attempt is never resent and its run stays open. No model call or network wait is inside a transaction. The batch starts no new topic after a spent budget, an unknown attempt, a refused harness, a model mismatch or two provider failures in a row.
+- **Model.** Only `MiniMax-M3.1-Flash` (D-031). The command refuses to start on another configured model, and the transport already fails an attempt whose reply names another model. Each line reports the models of its paid attempts.
+- **What a line reports.** Outcome (accepted first take, accepted after repair, rejected, or why not), the findings of each refused answer (codes and paths, no text), words, measured minutes, counts of stops, calls and stage states, tokens in and out with thinking tokens (reported by the provider; thinking is part of output), wall time, and the run and attempt ids.
+- **Recipe data the spike carries.** The library plan has no variant or misconception, so the spike keeps a table for its 20 recipes: stage or plain, and the misconception. Only the seasons myth has a reviewed source label, taken from the V3 design. Every other label is a placeholder marked `reviewed: false`, so no spike document can pass for a library Scroll. In the product these become recipe fields (S-6).
+- **Output files.** `--out` appends each accepted topic's document and citations as a JSON line. It holds the model's own text about public sources: read it on the server, never paste it into an issue.
+- **Results.** The numbers (acceptance within two requests, repair rate, minutes, tokens, the top findings) are measured on dev and recorded in #471 and in the entry that follows, not here.
+
+## D-123 · 2026-10-30 · The v2 writer spike passed; four things change before v2 Scrolls are published (S-0, #471)
+
+The spike ran on dev on 30 Oct through the dev worker with real `MiniMax-M3.1-Flash` (D-122): 20 recipes, nothing admitted. Results are in #471.
+
+- **Gate passed.** 17 of 20 were accepted within the writer and one repair (85 %), 8 of 9 stage recipes (89 %; the gate was 70 %), 11 on the first take. Every paid request reported `MiniMax-M3.1-Flash`. About 11k tokens and 75 s per Scroll; the run used about 2 % of the five-hour window. Reading times were 3.0 to 4.4 minutes.
+- **So the flat shape (D-120) stays,** and the library waves can be sized at about 11k tokens a Scroll.
+
+A read of six documents found errors the validator cannot see. These change the next slices:
+
+1. **Stage states are derived by code from a few choices.** The writer set Earth's axis "sideways" in every Seasons state and drew hemisphere pins that contradict the month. The kit fixes Earth's tilt at 23.4° and derives the pins and Ray's angle from the month and the view; the writer chooses only the view, the month and the focus (S-1).
+2. **A recipe gets a stage only when a kit draws its subject.** Tides and stars-fusion got pictures that show neither bulges nor a star's interior. Stage assignment is recipe data, per kit (S-1, S-6).
+3. **Every wave gets a factual read, and the validator refuses a Final call that restates an earlier call.** Two correct options were wrong or evasive, and one Final call repeated a call (S-6).
+4. **The common-guess rule and the prompt are brought into line** before the waves; two recipes were refused twice on it (S-1).
 ## D-160 · 2026-10-30 · Who is here: a one-minute lease, on a member's own view, with the reader always in it (#487)
 
 D-069 says faces always, a number only from three, no "0 online" or "1 online", the cast never counted, and an allow-list in the contract. This is how the room module keeps it. It **builds on** D-051 and D-069 and changes neither.

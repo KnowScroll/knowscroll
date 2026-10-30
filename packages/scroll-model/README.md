@@ -1,6 +1,6 @@
 # @knowscroll/scroll-model
 
-The canonical declarative Scroll document, **`scroll-document.v1`**. This package holds:
+The canonical declarative Scroll document, **`scroll-document.v1`**, and beside it **`scroll-document.v2`** (the V3 Scrolls: stops, calls and a pinned stage; see the section on it below). This package holds:
 
 - schemas, limits and validation;
 - version negotiation;
@@ -27,8 +27,8 @@ Background reading:
 
 | Entry | Who may import it | Contents |
 |---|---|---|
-| `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
-| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScroll` (what the writer model returns), `compileAuthored`, `authoringReference()` for the prompt, `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints |
+| `@knowscroll/scroll-model` | everyone (server, worker, client); see *Limits and cost* for which functions a client may call | `ScrollDocumentV2`, `LIMITS_V2`, `computeMeasuresV2`, the kit enums and `validateDocumentV2` (`scroll-document.v2`, D-120; `validateDocumentV2` is admission, not for clients). Document and block schemas, limits, `admitDocument` / `validateDocument`, `parseDocument`, `admitBlock`, `parseBlock`, `negotiate`, `parseCapabilities`, locators and anchor maps, block state and snapshots, the telemetry payload, measures and coverage, simulation evaluation and its runtime guards, the readers of a simulation's stored display (`displayScale`, `displayRange`), `fallbackTextOf`, `textFields`, canonical JSON and SHA-256 |
+| `@knowscroll/scroll-model/producer` | backend only | `AuthoredScrollV2`, `assembleScrollV2` and `compileAuthoredV2` (the v2 writer's shape and checks, D-120), `AuthoredScroll` (what the writer model returns), `compileAuthored`, `authoringReference()` for the prompt, `ScrollDraft` (the canonical draft), `DraftProvenance` (the compile input), `validateDraft`, `compileDraft`, `draftFromDocument`, stages and repair hints |
 | `@knowscroll/scroll-model/internal` | backend only | `ScrollProvenance` (claims, sources, bindings, checks, production record) and the honesty checks |
 | `@knowscroll/scroll-model/admission` | backend only | `admitDocument`, `admitBlock` and `validateDocument`: every check including the full-grid proof. The public entry still re-exports the same functions for code written before this entry existed (they are the same function objects); new server code imports them from here, and client code may import neither (see the rules below). |
 | `@knowscroll/scroll-model/fixtures/<name>.json` | tests only | The labelled consumer-document fixtures (`fixtures/documents/`). Drafts, compile inputs and internal provenance fixtures are not exported. |
@@ -472,6 +472,77 @@ converter produces a canonical `ScrollDraft` and every canonical check still run
   - Records the bound claims, their sources, the resolved bindings and every stage in `ScrollProvenance`.
   - The same input gives byte-identical output, and compiling `draftFromDocument(document, bindings)` returns the same document.
 
+## `scroll-document.v2` (D-120, D-121)
+
+Status. **Implemented** (unit tests, and a recorded writer answer through the real harness over PostgreSQL): the document, `scroll-limits.v2`, `scroll-measures.v2`, the Earth & sky kit enums, `validateDocumentV2`, and the writer's authoring shape with its assembler and rules. **Not yet run on real MiniMax**: that is the S-0 spike (#471), whose result decides whether the shape stands. **Planned** (S-1, S-2): the reader and stage engine, negotiation and a client `parseDocumentV2`, coverage v2, play, and admission and storage of v2 documents. v1 documents, limits and measures are untouched and still govern the library.
+
+Where it lives. `src/v2/` is the public model (`@knowscroll/scroll-model`). The writer's side is backend-only (`./producer`): `src/producer/v2/`.
+
+### The document
+
+A header like v1's (`assetId`, `revision`, `language`, `explanationUnitId`, `series`, `theme`, `kicker`, `title`, `dek`, `framing`), then:
+
+| Field | Set by | Meaning |
+|---|---|---|
+| `misconception` | the recipe, by code | `{kind: 'myth', claim, source: {label, reviewed}}` or `{kind: 'none'}`. The source is a human-reviewed label, never model text. |
+| `stage` (optional) | the model's words, built by code | `{kit: 'earth-sky.v1', states[{stop, state, alt}]}`: the stops that change the picture. `alt` is derived from the state by code. A plain Scroll has none. |
+| `stops[]` | the model | `read` (optional heading, paragraph, optional line; `simple`), `call_it` (prompt, 2 or 3 options, `answer`, `explain`, `twist`, optional `commonGuess`, `simple`) and `final_call` (the same without a common guess). Ids `s1`, `s2`, … by code. |
+| `asides[]` | the model | `tangent`, `limits` or `definition`, with `anchorStop` (the stop it opens next to) and `collapsed`. |
+| `recap` | the model | Up to 3 captions and `smallPrintAside`, the limits aside the "Small print" chip links to. |
+| `askSuggestions[]` | the model | 1 to 3 questions for the Ask sheet. |
+| `limitsVersion`, `measures`, `integrity` | code | `scroll-limits.v2`; `scroll-measures.v2`; the SHA-256 of the canonical JSON without `integrity`. |
+
+### The 23 blocks of the design
+
+The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented* means schema, limits, validation and assembly exist and are tested. *Planned* means nothing exists yet.
+
+| Block | Design | Here |
+|---|---|---|
+| `stop` | new | implemented (a `read` stop; holds heading, paragraph and line) |
+| `line` | new | implemented, inside a stop (at most 12 words) |
+| `paragraph` | kept | implemented, inside a stop |
+| `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
+| `aside` | new | implemented (a limits aside is required and never last) |
+| `stage` | new | model implemented (Earth & sky kit); stage engine and drawing kit planned (S-1) |
+| `call_it` | new | implemented as a stop; locking in, sparks and the Plot twist reveal are play, planned (S-2) |
+| `final_call` | new | implemented as the last stop; `binding` to a simulation, `bonus` and `landmark` planned (S-3) |
+| `recap` | new | implemented |
+| `scale`, `scene`, `sort`, `fork`, `guide` | new | planned (slice 8) |
+| `quote`, `table`, `code`, `media` | kept | planned |
+| `list`, `diagram`, `chart`, `simulation`, `figure` | changed | planned |
+
+The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `timeline` and `subheading`, the "Text version of diagrams" toggle, and "limits as the last block". None of them is built in v2.
+
+### Limits (`scroll-limits.v2`) and measures (`scroll-measures.v2`)
+
+| Rule | Value | Code when broken |
+|---|---|---|
+| Stops and calls | 6 to 14 | `stops_too_few`, `schema_too_big` |
+| A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
+| Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
+| Stage | at most 1; at least 3 states, the first on the first stop, in stop order | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered` |
+| Calls, Final call included | at most 4; at least one Call it; exactly one Final call, the last stop | `call_budget_exceeded`, `call_it_missing`, `final_call_missing`, `final_call_misplaced` |
+| Other interactives | at most 2 (none is built; a constant only) | n/a |
+| Limits aside | at least one, anchored before the Final call, linked from the recap | `limits_aside_missing`, `limits_aside_last`, `recap_small_print_unknown` |
+| Common guess | only the first Call it of a myth Scroll; a wrong option; the recipe's source | `common_guess_missing`, `common_guess_invalid`, `common_guess_unexpected` |
+| Reading time | words at 230 a minute plus 10 seconds a call: 180 to 360 seconds | `reading_length_out_of_brief` |
+| Document | 128 KiB; measures and hash recomputed | `document_too_large`, `measures_mismatch`, `integrity_mismatch` |
+
+What counts as a word, and what does not (`simple` texts), is in D-121. `validateDocumentV2` returns `valid {document, notices}` or `invalid {issues}`. A notice (`misconception_source_unreviewed`) does not refuse the document.
+
+### The kit
+
+`EARTH_SKY_KIT` (`earth-sky.v1`) is the closed set of words a writer may use for a stage: `view`, `earthAt` (a month), `axis`, `ray`, `orbit`, `northPin`, `southPin`, `moonAt` and `focus`. `describeStageState` writes the text version of any state; a property test checks that it is plain and bounded for every state.
+
+### The writer's shape (`./producer`)
+
+`scroll-authoring.v2` is one flat list of `items` (`stop`, `call_it`, `final_call`, `aside`) plus `recap` and `askSuggestions`: no ids, no indexes, the correct option first, an aside after the item it belongs to, and a stage patch of enum words.
+
+- `assembleScrollV2` turns it into the document, deterministically.
+- `compileAuthoredV2` runs the authoring rules (citations and figures, copying, where an aside sits, the common guess against the recipe's myth, the stage against the recipe's variant), assembles, runs `validateDocumentV2`, and returns the document with the claims each part cites, or merged findings located at the writer's items.
+- `REPAIR_HINTS_V2` is the repair catalogue. It is its own because the v1 catalogue is near the harness's limit of 128 codes.
+- `authoringReferenceV2(variant)` is the prompt's description of the shape, built from the same tables as the schema.
+
 ## Fixtures
 
 The labelled examples are CI fixtures, not product content (`production.kind: "fixture"`):
@@ -505,6 +576,7 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Completeness of the text enumeration (`text-fields.test.ts`):** built from the block schema itself, it plants a marker in every free-text property of every block type and union branch and requires `textFields` to return it, so no text escapes the visible-text limit, the numeric check or the copy check.
 - **Locale (`locale.test.ts`):** formatting and every fixture's integrity hash are unchanged when the runtime's locale-sensitive built-ins are replaced, and the package's own code uses none.
 - **Display scale (`display.test.ts`):** the stored scale equals a brute-force scale over every grid point (fixtures, and generated simulations of every view); it is refused in a draft; admission refuses a scale that is not the one the grid gives and the hash covers it; the client path refuses a missing, non-finite, non-positive, inverted or wrong-kind display and reads the stored value; the public entry exports no scale, range or sweep function.
+- **`scroll-document.v2` (`v2/*.test.ts`, `producer/v2/*.test.ts`):** every rule of the limits, the structure and the authoring checks has a case that breaks it and expects its code at the writer's item; a property test on the stage descriptions over every state; property tests on the option shuffle (the correct option is found where it went, the common guess follows it, the order is stable and not always the same); compile is deterministic; the measures hold 230 words a minute plus ten seconds a call.
 - **Rulings (`rulings.test.ts`):** no chart "inspect" interaction or glyph, one `explanationUnitId` with an optional series reference, no stored fallback text on text blocks.
 
 `csp.test.ts` checks cold schema construction and the first parse with dynamic code generation refused, including the code-generation probe itself. The existing admission/client timing budgets run with the same jitless configuration.

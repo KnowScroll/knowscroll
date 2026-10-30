@@ -8,4 +8,6 @@
 
 **This is a visual specification, not evidence.** All people, messages, content and worlds are authored examples. Interactions are drawn, not implemented. Where the export conflicts with the blueprint or the product rules, `../decisions.md` (D-006) records the resolution. The coverage matrix mapping each artboard to a route, contract, issue and evidence lives on the main tracker issue.
 
+The final v3 designs (Universe, Scrolls, rooms, Talk) are in `v3/`; see `v3/README.md`. They govern those four areas and the v2.1 export governs the rest (D-060). CI checks `v3/` against its own `SHA256SUMS`.
+
 `fidelity.md` compares every consumer artboard with the app (24 Oct 2026): status per state, what differs, and design/app pair images in `fidelity/`.

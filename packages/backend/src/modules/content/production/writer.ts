@@ -255,7 +255,7 @@ const PUBLISHER_NAMES: readonly SourceName[] = [
 ];
 
 /** One thing a reader must not see in this job, with the code its finding and hint carry. */
-interface BannedName {
+export interface BannedName {
   readonly code: string;
   readonly pattern: RegExp;
   readonly hint: string;
@@ -276,7 +276,9 @@ const codeFor = (label: string): string =>
  * on a `science.nasa.gov` page may still write "science". Each entry has its own code, so the repair
  * hint can name the word to remove without echoing anything the model wrote.
  */
-function bannedNames(provenance: DraftProvenance): readonly BannedName[] {
+export function bannedNames(provenance: {
+  readonly sources: readonly { readonly url: string }[];
+}): readonly BannedName[] {
   const hostnames = [...new Set(provenance.sources.map((source) => new URL(source.url).hostname))];
   const organisations = PUBLISHER_NAMES.filter((name) =>
     hostnames.some((hostname) => name.hosts.some((suffix) => hostMatches(hostname, suffix))),
@@ -300,7 +302,7 @@ function writerSafeIssues(provenance: DraftProvenance): Readonly<Record<string, 
 }
 
 /** Strings of an authored value, depth first; citations are handles, not reader text. */
-function* readerStrings(value: unknown, key = ''): Generator<string> {
+export function* readerStrings(value: unknown, key = ''): Generator<string> {
   if (typeof value === 'string') {
     if (key !== 'cites') yield value;
   } else if (Array.isArray(value)) for (const item of value) yield* readerStrings(item, key);
@@ -368,7 +370,7 @@ export function compileGeneratedScroll(
 }
 
 /** The most blocks, runs per block and words per run a repair note names. */
-const NOTE_BLOCKS = 6;
+export const NOTE_BLOCKS = 6;
 const NOTE_RUNS_PER_BLOCK = 3;
 const NOTE_RUN_WORDS = 40;
 
@@ -381,7 +383,7 @@ function authoredPart(authored: AuthoredScroll, path: string): unknown {
 }
 
 /** The runs of the reader text in `part` that the copy check refuses, each shortened to a few lines of words. */
-function copiedIn(part: unknown, sources: readonly string[]): string[] {
+export function copiedIn(part: unknown, sources: readonly string[]): string[] {
   return [...readerStrings(part)]
     .flatMap((text) => copiedRuns(text, sources, COPY_RUN_WORDS))
     .slice(0, NOTE_RUNS_PER_BLOCK)
