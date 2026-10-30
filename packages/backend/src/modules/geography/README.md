@@ -3,7 +3,7 @@
 Geography owns the places in a person's universe: systems, their organising stars, planets, regions
 and routes. It decides when reading is enough to form one, records every change as an immutable
 delta, and offers the unlabelled dust cues that come before a system. Scene projection, rendering,
-navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052. Tracker: #237.
+navigation and sharing belong to other modules. Decisions: D-033, D-038, D-052, D-104, D-105. Tracker: #237, #467.
 
 Status words used below: **implemented** (in source, covered by `checks`), **runtime-verified**
 (seen working on a running API and worker), **planned**.
@@ -17,7 +17,7 @@ Status words used below: **implemented** (in source, covered by `checks`), **run
 | Planet | Three distinct units under one planet that cover two of its facets | The planet | implemented, runtime-verified locally |
 | Region | A supported facet of a formed planet | The region | implemented, runtime-verified locally |
 | Route | Support at both ends, two formed planets of one system | A route, only if the model proposes it | implemented |
-| Quiet | The latest support is more than 30 days old | The place goes quiet; it is never removed | implemented |
+| Quiet | The latest support is more than 30 days old, whether or not the person reads again | The place goes quiet; it is never removed. A Cartographer run or the quiet sweep sets it (see Quiet without new reading) | implemented |
 
 The thresholds are the experimental policy `geography-passive.v1` (`domain/policy.ts`). A unit is a
 canonical `explanationUnitId`. Variants, a Reel and its Scroll twin, witnesses and replays are the
@@ -82,6 +82,37 @@ settled the same way, without a second close. If the ledger run was closed under
 sweep), nothing can be applied under it; the run settles by the rules the same way, once accounting
 shows no live attempt.
 
+## Quiet without new reading
+
+A person who stops reading would never start a Cartographer run, so a run alone could never show a
+place going quiet. The quiet sweep (D-104, D-105) closes that gap by rules alone. Status:
+**implemented** (CI integration on real PostgreSQL); **planned** for runtime verification on dev.
+
+1. `geography.state.next_quiet_at` is the earliest the sweep needs to look at a universe: the moment
+   the newest support under an active place turns 30 days old, or now when a change is already due.
+   Every Cartographer apply and every sweep pass rewrites it. It is scheduling state, never evidence,
+   and never leaves the server. Null means no place can go quiet.
+2. `geography.sweep-quiet` (pg-boss cron every 15 minutes, worker) makes one indexed query for at
+   most 100 states whose time has passed, that no run holds, whose account is active and whose
+   recording is on. For each it enqueues `geography.settle-quiet` in the same transaction and pushes
+   `next_quiet_at` 30 minutes ahead (a lease), so the next pass does not queue it twice. It reads no
+   support.
+3. `geography.settle-quiet` enters the personal scope as a system actor and rechecks the account,
+   epoch and the recording generation the sweep saw. It reads current support (`prepareGeography`),
+   and applies only `activityChanges` (`domain/quiet.ts`), the same pure rule the Cartographer's
+   `requiredChanges` uses, through the same `applyProposal`. One immutable delta with no run, the
+   revision stamps (only `activityRevision` moves), a scene-projection job and a publish job commit
+   together. With nothing due it stores the corrected time and moves no revision. No model call, no
+   ledger run, no network wait.
+4. It stands aside, and writes nothing, when recording is paused, when `KS_CARTOGRAPHER_ENABLED` is
+   off, or when a Cartographer run holds the universe (a delta under a run's frozen context would
+   void its answer). Places settle on the first pass after the obstacle ends. If support cannot be
+   read it looks again after a day. More than 32 changes settle over several passes.
+
+Inactivity changes activity, never existence: ids, labels and origin transitions are untouched. A new
+encounter after quiet starts a Cartographer run as before, and that run sets the places it supports
+active again. "Everything is where you left it" stays on the device.
+
 ## What the model may propose, and what code checks
 
 The model may use eight typed operations: `create_system`, `establish_star`, `form_planet`,
@@ -119,6 +150,7 @@ selective Clear removes the evidence and so the cue. Map visits and suggestions 
 | `READ_OWN_EMERGING` | Dust cues |
 | `READ_GEOGRAPHY_SCENE_INPUT`, `GEOGRAPHY_APPLIED` | Scenes' input and the same-transaction hook; Social reads the same input to draw the list a friend may visit (D-047), and Rooms to place a room's station beside a system of the caller's own map (D-051) |
 | `READ_OWN_REGION_CONSTRAINT` | Exact region authority for region encounters (U04) |
+| `SWEEP_QUIET`, `SETTLE_QUIET` | Worker consumers of the quiet sweep and its per-universe settle (D-104) |
 
 Dependencies point inward: `adapters/` (Postgres, Nest wiring) use `application/` (run, apply,
 context, reads), which uses `domain/` (policy, formation, emerging). Geography reads Personal
@@ -126,7 +158,8 @@ Context, Content's concept catalogue and Identity through their `public.ts`.
 
 ## Configuration
 
-`KS_CARTOGRAPHER_ENABLED=1` on the worker switches the role on (default 0). It is the only switch.
+`KS_CARTOGRAPHER_ENABLED=1` on the worker switches the role on (default 0). It is the only switch,
+and it also governs the quiet sweep: with it off, nothing is handed over and no settle changes a place.
 Spend is bounded by the shared reasoning budgets and by the role's failure brake: five failed runs
 per UTC day stop its model calls, and the rules still form places. Runs are paced 30 seconds apart
 (`RUN_INTERVAL_MS` in `domain/pacing.ts`). The role is a background role (D-058): it also stops at
@@ -141,15 +174,17 @@ stranded: reading after the switch is on starts a new run. A run that older code
 
 | Store | Purpose |
 |---|---|
-| `geography.state` | One row per universe and epoch: revisions (`revision`, `structureRevision`, `activityRevision`), desired and material revision, active run, published checkpoint, `next_run_not_before` (the pacing time) |
+| `geography.state` | One row per universe and epoch: revisions (`revision`, `structureRevision`, `activityRevision`), desired and material revision, active run, published checkpoint, `next_run_not_before` (the pacing time), `next_quiet_at` (when the quiet sweep next looks, D-104) |
 | `geography.runs` | The business run: header, frozen private context (at most 512 KiB), proposal, outcome |
 | `geography.objects` | Places with stable semantic key and UUID, support references, retained structure |
 | `geography.relations` | Routes and retained aliases, withdrawn rows stay |
-| `geography.deltas` | Immutable applied changes with their input hash and run |
+| `geography.deltas` | Immutable applied changes with their input hash and the run that made them (none for a quiet settle) |
 
 Jobs: `geography.cartograph` (20 minute expiry, three retries with 30 s backoff, concurrency 1) and
 `geography.publish-delta` (3 minute expiry, three retries with 10 s backoff). Both keep 7 days queued
-and 2 days settled, with a dead letter. Payloads hold IDs only. pg-boss is the only outbox. The
+and 2 days settled, with a dead letter. `geography.sweep-quiet` (cron every 15 minutes, no payload) and
+`geography.settle-quiet` (5 minute expiry, three retries with 30 s backoff, one universe and its
+recording generation per job, dead letter) belong to the quiet sweep. Payloads hold IDs only. pg-boss is the only outbox. The
 publish job sends the disposable scope notice for a delta that is already committed; durable reads
 recover anything the notice missed.
 
@@ -157,6 +192,8 @@ recover anything the notice missed.
 
 Personal root, then the owned Geography, Personal Context and Evidence rows, then sorted Content
 asset and head SHARE locks, then the harness closure. Geography never takes another person's root.
+The quiet settle takes the same order. The sweep takes no personal root: it locks only the state rows
+it hands over, skipping any another transaction holds.
 
 ## Reads
 
@@ -203,8 +240,8 @@ not no reading. `loading` and `lagging` need a real queued or prepared run.
 
 ## Erasure
 
-Full erasure deletes deltas, relations, objects, state and runs across all epochs, and both queues'
-payloads in every state. Scenes erases first. A selective Clear removes the same stores. The dust
+Full erasure deletes deltas, relations, objects, state and runs across all epochs, and the payloads of
+the three universe-bearing queues (`cartograph`, `publish-delta`, `settle-quiet`) in every state. Scenes erases first. A selective Clear removes the same stores. The dust
 read has no store of its own.
 
 ## Scenes boundary
@@ -225,7 +262,11 @@ brake, a role switched off, parked runs, refusals before admission, a conflictin
 with more than 100 covered pairs), `cartographer-churn.test.ts` (a burst of reading is one pending
 run, a valid answer applies while more reading arrives, no model call without a place due, budget
 refusal and a closed ledger run end the run) and
-`recording-geography.test.ts` (original generation and wake ownership). Sources, maps and model
+`recording-geography.test.ts` (original generation and wake ownership) and `quiet-sweep.test.ts`
+(31 days without reading make every place quiet with the same ids, labels and origins; nothing handed
+over when nothing is due; a new encounter wakes only what it supports; a run, a pause, the role switch
+and an earlier epoch stand the settle aside; the settle waits for the root; queued settles are erased;
+no ledger run is added). `domain/quiet.test.ts` covers the rule and the stored time. Sources, maps and model
 answers in tests are labelled CI fixtures. A local drive with a real sign-in, the release API and
 worker, three Scrolls from the production path and a real MiniMax call showed dust, then a system
 and star, then a planet (D-038). A timed local session (pg-boss consumers started as the worker

@@ -1396,3 +1396,32 @@ After D-131 the Seasons thread still led to "Seasons limits": it shares the plan
 - **Where.** The pure policy decides (`applyRelatedExclusion`). `readRelatedAssetIds` reads the admitted links, a few small reads of shared data inside the transaction already open; Experience and the buffer worker both use it. A move inside a region takes no part in it.
 - **Unchanged.** The Related tab and the `related` move still open the target.
 - **Verified.** Pure and property tests, a unit test of the reads, and an integration test on real PostgreSQL from Seasons Part 1 and Part 3, with the fall back and the Related tab. Each fails when the rule or the read of the other parts is removed.
+
+## D-104 · 2026-10-30 · A scheduled sweep settles quiet places by rules, with no model (v3 U-3, #467)
+
+D-079 decided the sweep. This records how it works, so that a place goes quiet 30 days after the last reading whether or not the person comes back.
+
+**Amends** D-038 and D-052 ("activity changes alone apply by the rules" only inside a reading-triggered run).
+
+- **Stored time.** `geography.state.next_quiet_at` is the earliest the sweep needs to look at a universe: when the newest support under an active place turns 30 days old, or now when a change is already due. It is a lower bound, scheduling state and never evidence. Every Cartographer apply rewrites it from the places as they are after the delta. A sweep pass that finds nothing due stores the corrected time. Null means no place can go quiet.
+- **The rule is shared.** `activityChanges` (`domain/quiet.ts`) is the Cartographer's own rule, moved out of `requiredChanges`. A place is quiet when its newest support is more than 30 days old (`quietAfterDays` is unchanged), active otherwise, and keeps its state with no support. The sweep and a reading-triggered run call the same function, so they cannot disagree.
+- **Two jobs.** `geography.sweep-quiet` runs every 15 minutes (pg-boss cron, worker). It makes one indexed query for at most 100 states whose time has passed, and enqueues one `geography.settle-quiet` for each in the same transaction. It reads no support. The settle enters the personal scope as a system actor, rechecks the account, epoch and recording generation, reads current support, and applies only the activity changes. No model call, no ledger run, no network wait.
+- **No repeat work.** Handing a universe over pushes its `next_quiet_at` 30 minutes ahead (a lease), so the next pass does not queue it again while its settle waits. The settle rewrites the time. If the job is lost, the sweep finds the universe when the lease ends. A second delivery of a settle finds nothing to change.
+- **At most one delta of 32.** A person with more than 32 places going quiet at once settles over the following passes; the settle leaves the time at now while any change is still due.
+- **A delta without a run.** `geography.deltas.run_id` is now nullable. A quiet settle writes the same immutable delta, revision stamps, scene projection job and publish job as any apply, with no Cartographer run behind it. Only `activityRevision` moves, so Scenes redraw activity and nothing else, and a settle with nothing due moves no revision and no personal revision.
+- **Existence never changes.** The ids, labels and origin transitions of the places are untouched (AGENTS: inactivity changes activity, never existence). A new encounter after quiet behaves as it did: the next Cartographer run sets the places it supports active again.
+- **Unchanged.** "Everything is where you left it" stays on the device (`seenAt`, D-079).
+- **Existing worlds.** The migration sets `next_quiet_at` to now for every state that has places, so the first passes read each one's support and store its true time.
+- **Verified.** Pure tests of the rule and the time. An integration test on real PostgreSQL ages a world 31 days with no reading and sees every place quiet, with the same ids, labels and origins, one delta, only the activity stamps moved, a projection job, and nothing added to the reasoning ledger. It fails when the sweep hands nothing over.
+
+## D-105 · 2026-10-30 · When the quiet sweep stands aside (v3 U-3, #467)
+
+D-104 says what the sweep does. This says when it does nothing, so that it cannot change what a person has not allowed, and cannot void a Cartographer run.
+
+- **Recording paused.** A universe with recording off is not handed over, and a settle that was already queued writes nothing (`fenceRecording` against the generation the sweep saw). Pause means geography does not change, as it does for Cartographer runs. The places settle on the first pass after recording is on again, under the new generation.
+- **Clear and deletion.** Clear and account deletion remove the state row, so there is nothing due. A queued settle is erased with the universe's other geography jobs, and a payload from an earlier epoch is refused by the scope.
+- **A run holds the universe.** A Cartographer run freezes its context at the current revision, and a delta committed under it would void its answer. The sweep skips a universe with an active run and a settle stands aside (`run_active`). The run applies the same activity rule itself, and its apply rewrites the time.
+- **The role is off.** Both jobs follow `KS_CARTOGRAPHER_ENABLED`, the one switch for geography. With it off, nothing is handed over and a settle does nothing, as a run does. No new setting.
+- **Support unreadable.** If current support cannot be read, nothing changes and the sweep looks again after a day, so one universe does not occupy every pass.
+- **Lock order.** The sweep takes no personal root. The settle takes the root first, then the owned rows, as a Cartographer run does, so the two serialise on the root and never wait on each other in the other order.
+- **Verified.** Integration tests on real PostgreSQL: a paused universe is left exactly as it was and settles after resume, the old generation's payload is refused, a universe with a pending run is skipped and the run still applies, a settle waits for a held root and then applies once, nothing happens with the role off, and queued settles are erased with the universe.

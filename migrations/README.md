@@ -201,3 +201,8 @@ per room by a partial unique index; every existing room gets an empty General, e
 kept out, the AI notice unread) and `rooms.room_presence` (one lease row per member who has the room open, account-keyed, read
 only while under a minute old). Additive with defaults; an older writer leaves `kind` as `topic` and the settings at their defaults.
 Apply with the new binary; the generated database types change by the same columns and table.
+
+0074 is the quiet sweep (v3 U-3, #467, D-104): `geography.state.next_quiet_at` (when the sweep next needs to look at a universe; a
+partial index serves the sweep's query), `geography.deltas.run_id` becomes nullable (a settle that only changes activity has no
+Cartographer run), and every state that has places is set due once so the first passes store each world's true time. Additive;
+an older writer never touches the column. Apply with the new binary; the generated database types change by the same column.

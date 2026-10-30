@@ -80,7 +80,9 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
       (
         await sql<{
           n: number;
-        }>`select count(*)::int as n from ${sql.table(table)} where universe_id = ${person.universeId}::uuid`.execute(db())
+        }>`select count(*)::int as n from ${sql.table(table)} where universe_id = ${person.universeId}::uuid`.execute(
+          db(),
+        )
       ).rows[0]!.n;
     return { runs: await count('reasoning.business_runs'), attempts: await count('reasoning.external_attempts') };
   }
@@ -97,8 +99,7 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
         state: activity.availability === 'available' ? activity.state : 'unavailable',
       }));
   }
-  const identityOf = (list: Awaited<ReturnType<typeof places>>) =>
-    list.map(({ state: _state, ...place }) => place);
+  const identityOf = (list: Awaited<ReturnType<typeof places>>) => list.map(({ state: _state, ...place }) => place);
 
   /** Runs the person's pending Cartographer run once; the fixture model answers nothing usable. */
   async function cartograph(person: FixturePerson, overrides?: Partial<CartographerPorts>) {
@@ -324,7 +325,11 @@ describe('the quiet sweep (real PostgreSQL CI fixtures)', () => {
     await now.sweep();
     expect(await jobsOf(person)).toHaveLength(1);
 
-    await db().updateTable('identity.universes').set({ privacy_epoch: 2 }).where('id', '=', person.universeId).execute();
+    await db()
+      .updateTable('identity.universes')
+      .set({ privacy_epoch: 2 })
+      .where('id', '=', person.universeId)
+      .execute();
     await world.scope()({ ...person.authority, privacyEpoch: 2 }, (scope) => eraseUniverse(scope, personalStores));
     expect(await jobsOf(person)).toEqual([]);
     expect(

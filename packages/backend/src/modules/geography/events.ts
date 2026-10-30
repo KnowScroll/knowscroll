@@ -74,7 +74,6 @@ export const publishDeltaQueue = defineQueue({
 
 /** Payload of the scheduled scan: nothing to name, it finds the work itself. */
 export const SweepQuietJobSchema = z.strictObject({ v: z.literal(1) });
-export type SweepQuietJob = z.infer<typeof SweepQuietJobSchema>;
 /**
  * Every 15 minutes: finds universes with a place due to go quiet and hands each to
  * `geography.settle-quiet` (D-104). Names no person. Safe to run late or twice.

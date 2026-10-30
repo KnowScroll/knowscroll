@@ -18,7 +18,9 @@ and long-ended sessions), `reasoning.purge-expired-requests` (reasoning; schedul
 deletes protected model request bytes past their retention) and `reasoning.sweep-dispatched-attempts`
 (reasoning; scheduled every 5 minutes: moves attempts a crash left `dispatched` to `unknown`) and
 `feedback.purge-reports` (feedback; scheduled daily at 03:17 UTC: deletes reports about deleted accounts 90 days after the
-deletion). A job
+deletion) and
+`geography.sweep-quiet` (geography; scheduled every 15 minutes: hands each universe with a place due to go quiet to
+`geography.settle-quiet`, one universe per job, rules only, no model; D-104). A job
 that calls the reasoning harness declares `expireInSeconds` above what one delivery can take (see
 `reasoning/README.md`). Consumers are non-transactional: a
 handler opens its own short transactions, records its applied identity with its effects so a

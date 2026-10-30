@@ -16,13 +16,7 @@ import type { GeographyPorts } from './ports.js';
  * - `refused`: the delta was refused on fresh authority (support changed meanwhile). The sweep tries again.
  */
 export type SettleQuietOutcome =
-  | 'applied'
-  | 'nothing_due'
-  | 'disabled'
-  | 'not_current'
-  | 'run_active'
-  | 'support_unreadable'
-  | 'refused';
+  'applied' | 'nothing_due' | 'disabled' | 'not_current' | 'run_active' | 'support_unreadable' | 'refused';
 
 /** The outcome and how many places changed activity. */
 export interface SettleQuietResult {
