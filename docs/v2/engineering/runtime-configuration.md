@@ -164,7 +164,7 @@ stderr. Exit 0 done, 2 refused or not applicable, 1 failure. Steps: `docs/v2/ope
 `scenes backfill-looks [--dry-run] [--limit <1-1000>]` gives worlds projected before looks existed their look (D-102): one
 `scenes.backfill-looks` job for each universe that lacks some, which the worker runs under that universe's lock. Needs
 only `KS_WORLD` and `DATABASE_URL`, calls no provider and moves no slot, seed, family or anchor. Run it once after the
-release that adds the table is on the world, with `--dry-run` first; run it again while it reports `"more":true`.
+release that adds the table is on the world, with `--dry-run` first; run it again while it reports `"more":true`. Run it from the world's worker tree as the other operator commands are (`docs/v2/operations/environments.md`).
 
 ## Migrate (`node dist/migrate.js` in the `api/` tree)
 
