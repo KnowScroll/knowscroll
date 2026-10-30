@@ -95,10 +95,10 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('publishes once from one writer call, keeps provenance private and does no further work on rerun', async () => {
     const p = setup(() => answer(authored()));
-    const first = await p.produce('seasons', false, signal());
+    const first = await p.produce('stars-fusion', false, signal());
     expect(first).toMatchObject({ outcome: 'published', requestBound: 2, revision: 1 });
     expect(p.fixture.calls).toHaveLength(1);
-    expect(await p.produce('seasons', false, signal())).toEqual(first);
+    expect(await p.produce('stars-fusion', false, signal())).toEqual(first);
     expect(p.fixture.calls).toHaveLength(1);
 
     const revision = await database.db
@@ -106,7 +106,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       .select(['document', 'explanation_unit_id', 'provenance_kind'])
       .where('asset_id', '=', first.assetId ?? '')
       .executeTakeFirstOrThrow();
-    expect(revision.explanation_unit_id).toBe('legacy-cutroom-seasons-v5');
+    expect(revision.explanation_unit_id).toBe(TOPICS['stars-fusion'].explanationUnitId);
     expect(revision.provenance_kind).toBe('generated');
     for (const hidden of ['claims', 'sources', 'bindings', 'checks', 'production'])
       expect(revision.document).not.toHaveProperty(hidden);
@@ -130,7 +130,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const job = await database.db
       .selectFrom('content.scroll_production_runs')
       .select(['state', 'claims', 'writer_output'])
-      .where('topic', '=', 'seasons')
+      .where('topic', '=', 'stars-fusion')
       .executeTakeFirstOrThrow();
     expect(job.state).toBe('published');
     expect(job.claims).toHaveLength(6);
@@ -143,7 +143,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const p = setup((sequence) =>
       answer(sequence === 1 ? authored({ paragraph: `${PROSE[1]} ${SOURCE[1]} ${copiedRun}` }) : authored()),
     );
-    const result = await p.produce('seasons', false, signal());
+    const result = await p.produce('stars-fusion', false, signal());
     expect(result).toMatchObject({ outcome: 'published' });
     expect(p.fixture.calls).toHaveLength(2);
 
@@ -186,7 +186,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('sends no repair notes for a finding that is not about copying', async () => {
     const p = setup((sequence) => answer(sequence === 1 ? authored({ drop: 'diagram' }) : authored()));
-    expect((await p.produce('seasons', false, signal())).outcome).toBe('published');
+    expect((await p.produce('stars-fusion', false, signal())).outcome).toBe('published');
     const repair = p.fixture.calls[1]?.request;
     expect(repair?.user).toContain('<previous-answer>');
     expect(repair?.user).not.toContain('<repair-notes>');
@@ -208,7 +208,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       ),
     };
     const p = setup(() => answer(styled));
-    const result = await p.produce('seasons', false, signal());
+    const result = await p.produce('stars-fusion', false, signal());
     expect(result.outcome).toBe('published');
     expect(p.fixture.calls).toHaveLength(1);
     const stored = await database.db
@@ -230,7 +230,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         ? { kind: 'success', text: `{"title": "${key}", "note": "https://leak.example/a?X-Amz-Signature=canary" ` }
         : answer(authored({ drop: 'diagram' })),
     );
-    const result = await p.produce('seasons', false, signal());
+    const result = await p.produce('stars-fusion', false, signal());
     expect(result).toMatchObject({ outcome: 'rejected', codes: ['invalid_output'] });
     expect(p.fixture.calls).toHaveLength(2);
 
@@ -252,7 +252,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('bounds a kept answer at 64 KiB, expires it after thirty days and keeps no personal answer', async () => {
     const p = setup(() => ({ kind: 'success', text: `{"filler": "${'x'.repeat(100_000)}"}` }));
-    await p.produce('seasons', false, signal());
+    await p.produce('stars-fusion', false, signal());
     const [kept] = await rejectedRows();
     expect(kept?.truncated).toBe(true);
     expect(kept?.answer_text.length).toBeLessThanOrEqual(65_536);
@@ -272,7 +272,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('refuses a truncated answer as truncated and gives its repair the same fixed findings', async () => {
     const p = setup(() => ({ kind: 'truncated', text: '{"title": "How a lighthouse' }));
-    const result = await p.produce('seasons', false, signal());
+    const result = await p.produce('stars-fusion', false, signal());
     expect(result).toMatchObject({ outcome: 'rejected' });
     expect((await rejectedRows()).map((row) => row.reason)).toEqual(['OUTPUT_TRUNCATED', 'OUTPUT_TRUNCATED']);
     expect(p.fixture.calls[1]?.request.system).toContain('truncated');
@@ -280,8 +280,8 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('halts an unknown attempt and never resends it, even with an explicit resume', async () => {
     const p = setup(() => ({ kind: 'gateway_timeout' }));
-    expect(await p.produce('seasons', false, signal())).toMatchObject({ outcome: 'unknown' });
-    expect(await p.produce('seasons', false, signal(), true)).toMatchObject({ outcome: 'unknown' });
+    expect(await p.produce('stars-fusion', false, signal())).toMatchObject({ outcome: 'unknown' });
+    expect(await p.produce('stars-fusion', false, signal(), true)).toMatchObject({ outcome: 'unknown' });
     expect(p.fixture.calls).toHaveLength(1);
   });
 
@@ -297,7 +297,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     const p = wire(guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' }), () =>
       Promise.resolve(thin),
     );
-    expect(await p.produce('seasons', false, signal())).toMatchObject({
+    expect(await p.produce('stars-fusion', false, signal())).toMatchObject({
       outcome: 'rejected',
       codes: ['evidence_insufficient'],
     });
@@ -306,7 +306,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
   it('reports the bound on a dry run and does no database or provider work', async () => {
     const p = setup(() => answer(authored()));
-    expect(await p.produce('seasons', true, signal())).toEqual({ outcome: 'dry_run', requestBound: 2 });
+    expect(await p.produce('stars-fusion', true, signal())).toEqual({ outcome: 'dry_run', requestBound: 2 });
     expect(p.fixture.calls).toHaveLength(0);
     expect(await database.db.selectFrom('content.scroll_production_runs').select('id').execute()).toEqual([]);
   });
@@ -319,7 +319,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
     });
     const intact = setup(() => answer(authored()));
     await expect(
-      intact.producerWith({ harness: stopBeforeWriter(intact) })('seasons', false, signal()),
+      intact.producerWith({ harness: stopBeforeWriter(intact) })('stars-fusion', false, signal()),
     ).rejects.toThrow('CI_STOP_BEFORE_WRITER');
     const fetches: string[] = [];
     const resumed = await intact.producerWith({
@@ -327,7 +327,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
         fetches.push(url);
         return Promise.reject(new Error('CI_NO_SECOND_FETCH'));
       },
-    })('seasons', false, signal(), true);
+    })('stars-fusion', false, signal(), true);
     expect(resumed.outcome).toBe('published');
     expect(fetches).toEqual([]);
     expect(intact.fixture.calls).toHaveLength(1);
@@ -340,13 +340,13 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
       closeProductionRun: (scope, run) => p.harness.closeProductionRun(scope, run),
       proposeProduction: () => Promise.reject(new Error('CI_STOP_BEFORE_WRITER')),
     };
-    await expect(p.producerWith({ harness: stop })('seasons', false, signal())).rejects.toThrow(
+    await expect(p.producerWith({ harness: stop })('stars-fusion', false, signal())).rejects.toThrow(
       'CI_STOP_BEFORE_WRITER',
     );
-    await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='seasons'`.execute(
+    await sql`update content.scroll_production_runs set research=jsonb_set(research,'{0,passages,0,text}','"tampered CI passage"'::jsonb) where topic='stars-fusion'`.execute(
       database.db,
     );
-    const resumed = await p.produce('seasons', false, signal(), true);
+    const resumed = await p.produce('stars-fusion', false, signal(), true);
     expect(resumed.outcome).toBe('rejected');
     expect(resumed.codes).toContain('research_integrity');
     expect(p.fixture.calls).toHaveLength(0);
@@ -371,9 +371,9 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           if (outcome === 'refusal') throw new ResearchRefusal('network_failed');
           return fixtureResearchFor(url);
         },
-      })('seasons', false, signal());
+      })('stars-fusion', false, signal());
       await researchEntered.promise;
-      const active = p.produce('seasons', false, signal(), true);
+      const active = p.produce('stars-fusion', false, signal(), true);
       try {
         await writerEntered.promise;
         researchRelease.open();
@@ -403,20 +403,21 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
   );
 
   describe('publication authority (topic attribution)', () => {
-    const original = [
-      'seasons',
+    // v1 library recipes. The Seasons recipes are v2 (D-137) and are covered by scroll-v2-admission and review-gate.
+    const v1Recipes = [
+      'stars-fusion',
       'tides',
       'greenhouse',
       'greenhouse-radiation',
       'greenhouse-balance',
       'greenhouse-limits',
     ] as const;
-    const publishOnce = (topic: (typeof original)[number], minimaxIdentity = true) => {
+    const publishOnce = (topic: (typeof v1Recipes)[number], minimaxIdentity = true) => {
       const p = setup(() => answer(fixtureAuthored(writerFormatOf(TOPICS[topic]))), minimaxIdentity);
       return { p, publish: (resume = false) => p.produce(topic, false, signal(), resume) };
     };
 
-    it.each(original)(
+    it.each(v1Recipes)(
       'attributes only a newly completed exact %s publication (CI transport identity stand-in)',
       async (topic) => {
         const recipe = TOPICS[topic];
@@ -676,7 +677,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
           { type: 'text', text: JSON.stringify(authored()) },
         ]),
       );
-      const result = await p.produce('seasons', false, signal());
+      const result = await p.produce('stars-fusion', false, signal());
       expect(result).toMatchObject({ outcome: 'published' });
       expect(p.calls[0]).toMatchObject({
         model: 'MiniMax-M3.1-Flash',
@@ -695,7 +696,10 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
     it('refuses an answer served by another model, charges it and does not repair it', async () => {
       const p = viaTransport(() => message([{ type: 'text', text: JSON.stringify(authored()) }], 'MiniMax-M3'));
-      expect(await p.produce('seasons', false, signal())).toMatchObject({ outcome: 'rejected', codes: ['failed'] });
+      expect(await p.produce('stars-fusion', false, signal())).toMatchObject({
+        outcome: 'rejected',
+        codes: ['failed'],
+      });
       expect(p.calls).toHaveLength(1);
       const attempt = await database.db
         .selectFrom('reasoning.production_attempts')
@@ -706,7 +710,7 @@ describe('Scroll production (CI fixture + real PostgreSQL; no provider network)'
 
     it('keeps the bounded raw reply of an unreadable answer for the operator and never feeds it back to the repair', async () => {
       const p = viaTransport(() => message([{ type: 'thinking', thinking: 'ONLY-THINKING', signature: 'ci' }]));
-      await p.produce('seasons', false, signal());
+      await p.produce('stars-fusion', false, signal());
       const rows = await rejectedRows();
       expect(rows.map((row) => row.reason)).toEqual(['REPLY_NO_TEXT', 'REPLY_NO_TEXT']);
       expect(rows.map((row) => row.answer_kind)).toEqual(['raw_reply', 'raw_reply']);

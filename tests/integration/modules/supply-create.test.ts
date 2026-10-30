@@ -41,6 +41,7 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
 
 const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
 const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -249,10 +250,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
   it('commits the demand and the production job together, publishes through the worker, and resolves the waiter', async () => {
     await build();
     const person = await seedPerson(database.db);
-    const requestId = await ask(person, catalogue('earth.seasons'));
+    const requestId = await ask(person, catalogue('machine-learning.transformers'));
 
     expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'preparing' });
-    expect(await workOf(requestId)).toMatchObject({ production_recipe: 'seasons', decision: 'create', active: true });
+    expect(await workOf(requestId)).toMatchObject({
+      production_recipe: 'transformer-architecture',
+      decision: 'create',
+      active: true,
+    });
     expect(await produceJobs()).toHaveLength(1);
     expect(production.fixture.calls).toHaveLength(0);
 
@@ -266,11 +271,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     await resolve(job(person, requestId));
     expect(await resolverJobs(person)).toHaveLength(2);
 
-    expect(await publish('seasons')).toMatchObject({ kind: 'finished', result: { outcome: 'published' } });
+    expect(await publish('transformer-architecture')).toMatchObject({
+      kind: 'finished',
+      result: { outcome: 'published' },
+    });
     await resolve(job(person, requestId));
     expect(await status(person, requestId)).toMatchObject({
       status: 'ready',
-      content: { assetId: TOPICS.seasons.assetId },
+      content: { assetId: TOPICS['transformer-architecture'].assetId },
       requestRevision: 2,
     });
     expect((await workOf(requestId)).active).toBe(false);
@@ -286,7 +294,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       seedPerson(database.db),
       seedPerson(database.db),
     ]);
-    const command = catalogue('earth.seasons');
+    const command = catalogue('machine-learning.transformers');
     const [a, b, c] = await Promise.all([
       ask(first, command),
       ask(second, { ...command, commandId: randomUUID() }),
@@ -300,7 +308,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     expect(new Set((await Promise.all([workOf(a), workOf(b), workOf(c)])).map((work) => work.id)).size).toBe(1);
     expect(await produceJobs()).toHaveLength(1);
 
-    await publish('seasons');
+    await publish('transformer-architecture');
     // One waiter withdraws before the Scroll is ready; the others are bound.
     await cancel(third.authority, { version: 'content-request-cancel.v1', commandId: randomUUID(), requestId: c });
     for (const [person, id] of [
@@ -309,8 +317,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       [third, c],
     ] as const)
       await resolve(job(person, id));
-    expect(await status(first, a)).toMatchObject({ status: 'ready', content: { assetId: TOPICS.seasons.assetId } });
-    expect(await status(second, b)).toMatchObject({ status: 'ready', content: { assetId: TOPICS.seasons.assetId } });
+    expect(await status(first, a)).toMatchObject({
+      status: 'ready',
+      content: { assetId: TOPICS['transformer-architecture'].assetId },
+    });
+    expect(await status(second, b)).toMatchObject({
+      status: 'ready',
+      content: { assetId: TOPICS['transformer-architecture'].assetId },
+    });
     expect((await status(third, c)).status).toBe('cancelled');
   });
 
@@ -318,13 +332,19 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     await build();
     const topicOnly = await seedPerson(database.db),
       facetAsk = await seedPerson(database.db);
-    const a = await ask(topicOnly, catalogue('earth.seasons'));
-    const b = await ask(facetAsk, catalogue('earth.seasons', { facetId: 'earth.seasons.axial-tilt' }));
+    const a = await ask(topicOnly, catalogue('machine-learning.transformers'));
+    const b = await ask(
+      facetAsk,
+      catalogue('machine-learning.transformers', { facetId: 'machine-learning.transformers.architecture' }),
+    );
     const [workA, workB] = [await workOf(a), await workOf(b)];
     expect(workA.id).not.toBe(workB.id);
-    expect([workA.production_recipe, workB.production_recipe]).toEqual(['seasons', 'seasons']);
+    expect([workA.production_recipe, workB.production_recipe]).toEqual([
+      'transformer-architecture',
+      'transformer-architecture',
+    ]);
     expect(await produceJobs()).toHaveLength(1);
-    await publish('seasons');
+    await publish('transformer-architecture');
     await resolve(job(topicOnly, a));
     await resolve(job(facetAsk, b));
     expect(await status(topicOnly, a)).toMatchObject({ status: 'ready' });
@@ -402,14 +422,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     it('says already_open for a request that is still preparing or ready, and changes nothing', async () => {
       await build();
       const person = await seedPerson(database.db);
-      const requestId = await ask(person, catalogue('earth.seasons'));
+      const requestId = await ask(person, catalogue('machine-learning.transformers'));
       expect(await retry(person.authority, retryCommand(requestId))).toMatchObject({
         kind: 'ok',
         value: { outcome: 'already_open' },
       });
       expect(await rowOf(requestId)).toMatchObject({ state: 'requested', retries: 0, wait_started_at: null });
-      await admit('earth.seasons');
-      const reuse = await ask(person, catalogue('earth.seasons'));
+      await admit('machine-learning.transformers');
+      const reuse = await ask(person, catalogue('machine-learning.transformers'));
       expect(await status(person, reuse)).toMatchObject({ status: 'ready' });
       expect(await retry(person.authority, retryCommand(reuse))).toMatchObject({
         kind: 'ok',
@@ -420,7 +440,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     it('starts a new wait for a request the wait limit closed, so it is not closed again at once', async () => {
       await build();
       const person = await seedPerson(database.db);
-      const requestId = await ask(person, catalogue('earth.seasons'));
+      const requestId = await ask(person, catalogue('machine-learning.transformers'));
       await sql`update supply.requests set created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes' where id = ${requestId}`.execute(
         database.db,
       );
@@ -472,7 +492,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         value: { outcome: 'not_retryable' },
       });
 
-      const cancelled = await ask(person, catalogue('earth.seasons'));
+      const cancelled = await ask(person, catalogue('machine-learning.transformers'));
       await cancel(person.authority, {
         version: 'content-request-cancel.v1',
         commandId: randomUUID(),
@@ -482,7 +502,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         kind: 'ok',
         value: { outcome: 'not_retryable' },
       });
-      const reel = await ask(person, catalogue('earth.seasons', { format: 'reel' }));
+      const reel = await ask(person, catalogue('machine-learning.transformers', { format: 'reel' }));
       expect(await status(person, reel)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
       expect(await retry(person.authority, retryCommand(reel))).toMatchObject({
         kind: 'ok',
@@ -600,18 +620,18 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const enqueue = makeEnqueueJob(content.boss);
     const send = (options: Parameters<typeof enqueue>[3]) =>
       withScope()(person.authority, (scope) =>
-        enqueue(scope, produceScrollQueue, produceScrollJob('seasons', 1), options),
+        enqueue(scope, produceScrollQueue, produceScrollJob('transformer-architecture', 1), options),
       );
     await expect(send({ duplicate: 'ignore' })).rejects.toThrow('JOB_OPTIONS_INVALID');
     await expect(send({ singletonKey: 'not a key' })).rejects.toThrow('JOB_OPTIONS_INVALID');
     await expect(send({ priority: 101 })).rejects.toThrow('JOB_OPTIONS_INVALID');
     expect(await produceJobs()).toHaveLength(0);
-    const once = { singletonKey: 'seasons:one', duplicate: 'ignore' as const, priority: 5 };
+    const once = { singletonKey: 'transformer:one', duplicate: 'ignore' as const, priority: 5 };
     await send(once);
     await send(once);
     expect(await produceJobs()).toHaveLength(1);
     // Without `duplicate`, a refused send is an error: the caller's transaction must not go on.
-    await expect(send({ singletonKey: 'seasons:one' })).rejects.toThrow('did not create a job');
+    await expect(send({ singletonKey: 'transformer:one' })).rejects.toThrow('did not create a job');
   });
 
   describe('work that was dropped, left over or too slow', () => {
@@ -627,27 +647,31 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       const first = await seedPerson(database.db),
         second = await seedPerson(database.db),
         third = await seedPerson(database.db);
-      const a = await ask(first, catalogue('earth.seasons'));
-      expect(await queuedProduceJobs()).toEqual([expect.objectContaining({ recipe: 'seasons', take: 1 })]);
+      const a = await ask(first, catalogue('machine-learning.transformers'));
+      expect(await queuedProduceJobs()).toEqual([
+        expect.objectContaining({ recipe: 'transformer-architecture', take: 1 }),
+      ]);
 
       // The worker takes the job and pauses: the quota is spent, nothing is sent, the delivery completes.
-      expect(await publish('seasons')).toMatchObject({ result: { outcome: 'paused' } });
+      expect(await publish('transformer-architecture')).toMatchObject({ result: { outcome: 'paused' } });
       await sql`update pgboss.job set state='completed' where name=${produceScrollQueue.name}`.execute(database.db);
       expect(await queuedProduceJobs()).toEqual([]);
 
       // Joining the group sends the job again, so the work resumes instead of leaving the joiner to time out.
-      const b = await ask(second, catalogue('earth.seasons'));
+      const b = await ask(second, catalogue('machine-learning.transformers'));
       expect((await workOf(b)).decision).toBe('join');
-      expect(await queuedProduceJobs()).toEqual([expect.objectContaining({ recipe: 'seasons', take: 1 })]);
+      expect(await queuedProduceJobs()).toEqual([
+        expect.objectContaining({ recipe: 'transformer-architecture', take: 1 }),
+      ]);
       // A second joiner while that job is queued adds nothing.
-      await ask(third, catalogue('earth.seasons'));
+      await ask(third, catalogue('machine-learning.transformers'));
       expect(await queuedProduceJobs()).toHaveLength(1);
 
       quotaSpent = false;
-      expect(await publish('seasons')).toMatchObject({ result: { outcome: 'published' } });
+      expect(await publish('transformer-architecture')).toMatchObject({ result: { outcome: 'published' } });
       // The attempt that sent nothing before the pause must not stop the Scroll being attributed to its topic.
       expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
-        { topic_id: 'earth.seasons' },
+        { topic_id: 'machine-learning.transformers' },
       ]);
       await resolve(job(first, a));
       await resolve(job(second, b));
@@ -665,16 +689,55 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       expect((await status(fourth, c)).status).toBe('preparing');
     });
 
+    it('does not send a v2 recipe job again when someone joins a group that named it before the plan marked it v2', async () => {
+      await build();
+      const first = await seedPerson(database.db),
+        second = await seedPerson(database.db);
+      const a = await ask(first, catalogue('machine-learning.transformers'));
+      const old = await workOf(a);
+      expect(old).toMatchObject({ production_recipe: 'transformer-architecture', decision: 'create', active: true });
+      await sql`delete from pgboss.job where name=${produceScrollQueue.name}`.execute(database.db);
+
+      // The plan now makes the recipe v2: Create does not own its production (D-138).
+      const undo = markScrollV2('transformer-architecture', ORRIN_PLAN);
+      try {
+        const b = await ask(second, catalogue('machine-learning.transformers'));
+        const joined = await workOf(b);
+        // The old group is closed, not joined, and the ask starts afresh on a recipe Create may write.
+        expect(joined.id).not.toBe(old.id);
+        expect(joined).toMatchObject({ production_recipe: 'token-embeddings', decision: 'create' });
+        expect(
+          await database.db
+            .selectFrom('supply.work')
+            .select('active')
+            .where('id', '=', old.id)
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ active: false });
+        const queued = await queuedProduceJobs();
+        expect(queued).toContainEqual(expect.objectContaining({ recipe: 'token-embeddings', take: 1 }));
+        expect(queued.map((job) => job.recipe)).not.toContain('transformer-architecture');
+        // The first person's wait ends honestly too, rather than waiting on work nobody will send.
+        await resolve(job(first, a));
+        expect(await status(first, a)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      } finally {
+        undo();
+      }
+    });
+
     it('advances open demand that was left from before Create: one recovery job per ask, then it is commissioned', async () => {
       await build();
       const planned = await seedPerson(database.db),
         asked = await seedPerson(database.db);
-      const seasonsBrief = {
+      const transformersBrief = {
         version: 'supply-brief.v1',
         rights: 'shared_admitted',
         language: 'en',
         format: 'scroll',
-        subject: { kind: 'catalogue', catalogueVersion: 'content-concepts.v1', topicId: 'earth.seasons' },
+        subject: {
+          kind: 'catalogue',
+          catalogueVersion: 'content-concepts.v1',
+          topicId: 'machine-learning.transformers',
+        },
       } as const;
       // The state an older release left: a group with no recipe, and asks with no resolver job.
       const legacyGroup = randomUUID();
@@ -682,8 +745,8 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         .insertInto('supply.work')
         .values({
           id: legacyGroup,
-          canonical_key: requestHash('supply-public-canonical.v1', seasonsBrief),
-          brief: JSON.stringify(seasonsBrief),
+          canonical_key: requestHash('supply-public-canonical.v1', transformersBrief),
+          brief: JSON.stringify(transformersBrief),
         })
         .execute();
       const insertRow = async (
@@ -698,7 +761,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
             universe_id: person.universeId,
             privacy_epoch: 1,
             id,
-            command: JSON.stringify(catalogue('earth.seasons')),
+            command: JSON.stringify(catalogue('machine-learning.transformers')),
             state,
             origin,
             ...(origin === 'planner' ? { planner_run_id: randomUUID(), planner_slot: 0 } : {}),
@@ -706,7 +769,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
             revision: 0,
             decision: 'join',
             work_id: legacyGroup,
-            brief: JSON.stringify(seasonsBrief),
+            brief: JSON.stringify(transformersBrief),
             created_at: new Date(),
             updated_at: new Date(),
           })
@@ -747,10 +810,10 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
           .select(['active', 'production_recipe', 'commissioned_by'])
           .where('id', '=', workIds[0]!.work_id!)
           .executeTakeFirstOrThrow(),
-      ).toEqual({ active: true, production_recipe: 'seasons', commissioned_by: 'planner' });
+      ).toEqual({ active: true, production_recipe: 'transformer-architecture', commissioned_by: 'planner' });
       expect((await status(planned, plannedId)).status).toBe('preparing');
 
-      await publish('seasons');
+      await publish('transformer-architecture');
       await resolve(job(planned, plannedId));
       await resolve(job(asked, askedId));
       expect(await status(planned, plannedId)).toMatchObject({ status: 'ready' });
@@ -787,7 +850,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     it('closes an open request past its wait limit when it is read, though no job ever closed it', async () => {
       await build();
       const person = await seedPerson(database.db);
-      const requestId = await ask(person, catalogue('earth.seasons'));
+      const requestId = await ask(person, catalogue('machine-learning.transformers'));
       const free = await ask(person, freeText('anything at all'));
       await sql`update supply.requests set created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes'`.execute(
         database.db,
@@ -864,7 +927,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     it('counts the Planner demand against its own cap, so a person explicit ask still starts work', async () => {
       await build({ cap: 3, plannerCap: 1 });
       const person = await seedPerson(database.db);
-      expect(await recordFor(person, plan('earth.seasons'))).toMatchObject({ kind: 'deferred' });
+      expect(await recordFor(person, plan('machine-learning.transformers'))).toMatchObject({ kind: 'deferred' });
       // The Planner has used its one production today; a second brief of its own is not commissioned.
       expect(await recordFor(person, plan('earth.tides', { slot: 1 }))).toEqual({ kind: 'not_commissioned' });
 
@@ -882,7 +945,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     it('never lets the Planner start work when Create is off for people', async () => {
       await build({ cap: 0, plannerCap: 5 });
       const person = await seedPerson(database.db);
-      expect(await recordFor(person, plan('earth.seasons'))).toEqual({ kind: 'not_commissioned' });
+      expect(await recordFor(person, plan('machine-learning.transformers'))).toEqual({ kind: 'not_commissioned' });
       expect(await produceJobs()).toHaveLength(0);
     });
   });
@@ -894,8 +957,8 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       seedPerson(database.db),
       seedPerson(database.db),
     ]);
-    const a = await ask(first, catalogue('earth.seasons'));
-    const b = await ask(joiner, catalogue('earth.seasons'));
+    const a = await ask(first, catalogue('machine-learning.transformers'));
+    const b = await ask(joiner, catalogue('machine-learning.transformers'));
     const c = await ask(over, catalogue('earth.tides'));
     expect((await workOf(b)).decision).toBe('join');
     expect(await status(over, c)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
@@ -907,14 +970,14 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
   it('turns Create off with a zero cap, and a Reel has no production path at any cap', async () => {
     await build({ cap: 0 });
     const person = await seedPerson(database.db);
-    const scroll = await ask(person, catalogue('earth.seasons'));
+    const scroll = await ask(person, catalogue('machine-learning.transformers'));
     expect(await status(person, scroll)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
     expect(await produceJobs()).toHaveLength(0);
     await content.close();
     await database.drop();
     await build({ cap: 10 });
     const other = await seedPerson(database.db);
-    const reel = await ask(other, catalogue('earth.seasons', { format: 'reel' }));
+    const reel = await ask(other, catalogue('machine-learning.transformers', { format: 'reel' }));
     expect(await status(other, reel)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
     expect(await produceJobs()).toHaveLength(0);
   });
@@ -922,7 +985,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
   it('stops waiting after the wait limit while production is still unfinished', async () => {
     await build();
     const person = await seedPerson(database.db);
-    const requestId = await ask(person, catalogue('earth.seasons'));
+    const requestId = await ask(person, catalogue('machine-learning.transformers'));
     await sql`update supply.requests set created_at = now() - interval '31 minutes', updated_at = now() - interval '31 minutes' where id = ${requestId}`.execute(
       database.db,
     );
@@ -939,7 +1002,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       recordPlanned(scope, {
         plannerRunId: randomUUID(),
         slot: 0,
-        topicIds: ['earth.seasons'],
+        topicIds: ['machine-learning.transformers'],
         format: 'scroll',
         language: 'en',
         capabilities,
@@ -950,7 +1013,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
     const requestId = outcome.value.requestId;
     expect(await produceJobs()).toHaveLength(1);
     expect(await resolverJobs(person)).toHaveLength(1);
-    await publish('seasons');
+    await publish('transformer-architecture');
     await resolve(job(person, requestId));
     expect(
       await database.db.selectFrom('supply.requests').select('state').where('id', '=', requestId).executeTakeFirst(),
@@ -965,20 +1028,20 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       stranger = await seedPerson(database.db);
     await ask(person, catalogue('earth.tides', { facetId: 'earth.tides.forcing' }));
     await ask(person, freeText('How do whales sleep?'));
-    await ask(stranger, catalogue('earth.seasons'));
+    await ask(stranger, catalogue('machine-learning.transformers'));
     const listed = await list(person.authority);
     if (listed.kind !== 'ok') throw new Error('CI list refused');
     expect(listed.value.requests.map((request) => request.title)).toEqual(['How do whales sleep?', 'Tides: forcing']);
     expect(listed.value.requests.map((request) => request.status.status)).toEqual(['preparing', 'preparing']);
     expect(listed.value.requests.map((request) => request.format)).toEqual(['scroll', 'scroll']);
-    expect(await list(stranger.authority)).toMatchObject({ value: { requests: [{ title: 'Seasons' }] } });
+    expect(await list(stranger.authority)).toMatchObject({ value: { requests: [{ title: 'Transformers' }] } });
   });
 
   it('clears the private demand with the person but leaves the shared work and the published Scroll', async () => {
     await build();
     const person = await seedPerson(database.db);
-    const requestId = await ask(person, catalogue('earth.seasons'));
-    await publish('seasons');
+    const requestId = await ask(person, catalogue('machine-learning.transformers'));
+    await publish('transformer-architecture');
     await resolve(job(person, requestId));
     expect(await status(person, requestId)).toMatchObject({ status: 'ready' });
     const workBefore = await database.db.selectFrom('supply.work').select('id').execute();
@@ -996,7 +1059,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       await database.db
         .selectFrom('content.assets')
         .select('status')
-        .where('id', '=', TOPICS.seasons.assetId)
+        .where('id', '=', TOPICS['transformer-architecture'].assetId)
         .execute(),
     ).toEqual([{ status: 'admitted' }]);
     expect(await produceJobs()).toHaveLength(1);

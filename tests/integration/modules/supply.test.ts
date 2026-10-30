@@ -78,7 +78,10 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     await content.close();
     await database.drop();
   });
-  function catalogue(topicId = 'earth.seasons', format: 'reel' | 'scroll' | 'either' = 'scroll'): CreateContentRequest {
+  function catalogue(
+    topicId = 'machine-learning.transformers',
+    format: 'reel' | 'scroll' | 'either' = 'scroll',
+  ): CreateContentRequest {
     return {
       version: 'content-request.v1',
       commandId: randomUUID(),
@@ -233,7 +236,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
   });
   it('same-person concurrent retry retains one private ID/original receipt and conflicts on different input', async () => {
     const p = await seedPerson(database.db),
-      c = catalogue('earth.seasons', 'scroll');
+      c = catalogue('machine-learning.transformers', 'scroll');
     const [a, b] = await Promise.all([ask(p, c), ask(p, c)]);
     expect(a.requestId).toBe(b.requestId);
     expect([a.replayed, b.replayed].sort()).toEqual([false, true]);
@@ -283,7 +286,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
 
     // Asks that no match can serve are closed on the spot, with no shared key and no queued work.
     // A free-text ask about this encounter carries meaning the catalogue match cannot admit.
-    const contextRef = await source(p, await admit('earth.seasons'));
+    const contextRef = await source(p, await admit('machine-learning.transformers'));
     const contextual = await ask(p, {
       ...text('More like this one'),
       intent: {
@@ -404,7 +407,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     expect(work).toHaveLength(0);
   });
   it('variant source requires own exact activated encounter and optional latest session; a missing variant has no production path and closes at once', async () => {
-    const asset = await admit('earth.seasons'),
+    const asset = await admit('machine-learning.transformers'),
       p = await seedPerson(database.db),
       other = await seedPerson(database.db);
     const ref = await source(p, asset);
@@ -455,7 +458,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
   });
   it('session authority accepts actual activated membership, refuses stale intent, and keeps an accepted ask independent of later navigation', async () => {
     const p = await seedPerson(database.db);
-    await admit('earth.seasons');
+    await admit('machine-learning.transformers');
     const opened = await content.navigate(p.authority, {
       commandId: randomUUID(),
       target: { kind: 'discover' },
@@ -547,7 +550,7 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     ).toBe('requested');
   });
   it('current-head authority is separate from historical reads and rechecks withdrawal after SHARE wait', async () => {
-    const asset = await admit('earth.seasons'),
+    const asset = await admit('machine-learning.transformers'),
       p = await seedPerson(database.db);
     let release!: () => void, locked!: () => void;
     const signal = new Promise<void>((r) => {

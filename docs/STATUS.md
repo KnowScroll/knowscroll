@@ -2,9 +2,18 @@
 
 **Updated:** 2026-10-30 · **Tracker:** [#462](https://github.com/KnowScroll/knowscroll/issues/462) (v3 revamp; [#222](https://github.com/KnowScroll/knowscroll/issues/222) is the v2 history) · **Working flow:** `AGENTS.md` "How we work" (D-030) · **Handover (v2):** [`docs/v2/handover.md`](v2/handover.md)
 
-**Current phase:** the v3 revamp (Universe, Scrolls, rooms, Talk), V0 intake. The designs and the change map are in `docs/v2/design/v3/` and `docs/v2/v3-revamp/`; the rulings are D-060 to D-093. Lanes U, S, T and R start after V0; the first slices are U-0 (#464, renderer gate), S-0 (#471, writer spike), T-A (#481) and R-1 (#487). v2 (F0–F5) is done on dev. Stage, live and `main` are out of scope (owner); stage still runs v1.
+**Current phase:** the v3 revamp (Universe, Scrolls, rooms, Talk). V0 is done; lanes U, S, T and R are running in parallel. Designs and the change map: `docs/v2/design/v3/`, `docs/v2/v3-revamp/`. Rulings D-060 to D-093; slice decisions from D-100.
 
-**Decision numbers for the v3 lanes** are reserved in blocks so parallel slices do not collide: U from D-100, S from D-120, T from D-140, R from D-160.
+| Lane | Merged | Open or next |
+|---|---|---|
+| U Universe | U-0 three.js renderer gate (#501), U-1 look data (#513) | U-2 space views, U-3 quiet sweep |
+| S Scrolls | S-0 writer spike (#503), S-1a stage physics (#507), S-1b v2 admission and coverage v2 (#508), S-1c Stage + Spine reader (#511, #515), S-1d next leaves the series (#510) | S-1e Seasons v2 behind a review gate (#516), S-2 Call it and the play module |
+| T Talk | T-A thread on a phone (#504) | T-B Universe look and DM basics |
+| R Rooms | R-1 Campfire, presence, keep-out (#505) | R-2 residents (#514) |
+
+**Decision numbers** are reserved in blocks so parallel slices do not collide: U D-100–D-119, S D-120–D-139 then D-180–D-199, T D-140–D-159, R D-160–D-179.
+
+**Dev on 30 Oct:** runs `4a56e4a2` (V0, S-0, T-A, R-1, S-1a; migration `0069_room_campfire`). The promotion with U-0, S-1b and S-1c (#512) merged to `dev` but its deploy was refused by a flaky reader test, since fixed (#515); the next promotion carries it. T-A and R-1 were used on dev at 390 × 844 and 1440 × 900.
 
 ## v3 build session (not the owner's Mac)
 
@@ -28,7 +37,7 @@ The checkout uses `core.autocrlf=false` (CI expects LF). A few tests fail only o
 | stage | `8982391f` | v1. The v2 stage world exists on the server but is not configured or promoted. |
 | main | `e5fdc319` | v1. Owner-only. |
 
-Dev settings beyond the defaults (`/etc/knowscroll/dev.v2.env`; edited by hand from the Ansible template's dev values, backups in `/root/dev.v2.env.bak-*`): `KS_PLANNER_ENABLED=1`, `KS_CARTOGRAPHER_ENABLED=1`, `KS_JEV_ENABLED=1`, `KS_REASONING_PRODUCTION_ENABLED=1`, `KS_SUPPLY_CREATE_DAILY_CAP=10`, `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5`, `KS_SUPPLY_SCENARIO_DAILY_CAP=6`, `KS_SUPPLY_SCENARIO_THREAD_CAP=6`, `KS_MINIMAX_REQUEST_TIMEOUT_MS=300000`. `KS_REASONING_BACKGROUND_SHARE_PERCENT` uses its default (50). Sign-in mail is sent by AgentMail. The role `ks2_ops_reader` exists (no login) for the ops views.
+Dev settings beyond the defaults (`/etc/knowscroll/dev.v2.env`; edited by hand from the Ansible template's dev values, backups in `/root/dev.v2.env.bak-*`): `KS_PLANNER_ENABLED=1`, `KS_CARTOGRAPHER_ENABLED=1`, `KS_JEV_ENABLED=1`, `KS_REASONING_PRODUCTION_ENABLED=1`, `KS_SUPPLY_CREATE_DAILY_CAP=10`, `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5`, `KS_SUPPLY_SCENARIO_DAILY_CAP=6`, `KS_SUPPLY_SCENARIO_THREAD_CAP=6`, `KS_MINIMAX_REQUEST_TIMEOUT_MS=300000`. `KS_REASONING_BACKGROUND_SHARE_PERCENT` uses its default (50). Raised for v3 room AI on 30 Oct (CHANGE-MAP §3): `KS_REASONING_GLOBAL_REQUESTS_PER_DAY=1000`, `KS_REASONING_GLOBAL_TOKENS_PER_DAY=10000000` (were 300 and 3,000,000; backup `/root/dev.v2.env.bak-20261030T115551Z`). Sign-in mail is sent by AgentMail. The role `ks2_ops_reader` exists (no login) for the ops views.
 
 **Migration numbers** are assigned in merge order: dev refuses a migration whose name sorts before one it has applied, so an open PR renumbers to the next free number just before it merges.
 

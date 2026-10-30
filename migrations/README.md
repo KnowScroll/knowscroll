@@ -210,3 +210,8 @@ unprompted turn unique per message and trigger, `rooms.messages.trigger`, the un
 time, no account) and the `ops.room_turns` view. The rename means a process from before this migration cannot ask or answer until it
 restarts; every other change is additive. `rooms.rooms.inhabitants` is no longer read and is dropped by a later migration. Apply with
 the new binary; the generated database types change by the same tables, columns and view.
+
+0072 is the review gate for library v2 Scrolls (v3 S-1e, #472, D-138): `content.assets.status` may also be `held` (an asset whose first
+revision waits for an operator; every existing read already treats it as not admitted) and `content.revision_reviews` records, for each
+held v2 library revision, its state (`held`, `released`, `rejected`), who decided and when, and why a rejection. Additive: old writers never
+store a held revision. Apply with the new binary; the generated database types change by the table and nothing else.
