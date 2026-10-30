@@ -7,6 +7,7 @@ import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import type { PlayUseCases } from '@knowscroll/backend/modules/play';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
+import { makeReviewGate, readScrollCalls } from '@knowscroll/backend/modules/content/nest-providers';
 import {
   fixtureAuthoredV2,
   fixtureResearchPageV2,
@@ -23,7 +24,7 @@ import { activatedAgo, coverage, dwell, event, openActive } from '../support/obs
 import { callsOfRevision, picks, playFor } from '../support/play.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
+import { markScrollV1 } from '../support/scroll-v2.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -34,20 +35,31 @@ import { seedPerson, type FixturePerson } from '../support/fixtures.js';
  */
 type Scroll = { readonly assetId: string; readonly revision: number };
 
-/** Publishes the Orrin fixture as a v2 revision of the `seasons` recipe, exactly as production does. */
+/**
+ * Publishes the Orrin fixture as the v2 revision of the `seasons` recipe, as production does: stored
+ * held (D-138), then released by an operator. Until then no one can open it, and its calls read as
+ * absent to play.
+ */
 async function publishOrrin(db: Parameters<typeof fixtureProduction>[0]): Promise<Scroll> {
-  const undo = markScrollV2('seasons', ORRIN_PLAN);
-  try {
-    const production = fixtureProduction(
-      db,
-      () => answerWith(fixtureAuthoredV2()),
-      () => fixtureResearchPageV2,
-    );
-    expect(await production.produce('seasons', false, signal())).toMatchObject({ outcome: 'published', revision: 1 });
-  } finally {
-    undo();
-  }
-  return { assetId: TOPICS.seasons.assetId, revision: 1 };
+  const production = fixtureProduction(
+    db,
+    () => answerWith(fixtureAuthoredV2()),
+    () => fixtureResearchPageV2,
+  );
+  expect(await production.produce('seasons', false, signal())).toMatchObject({
+    outcome: 'published',
+    held: true,
+    revision: 1,
+  });
+  const scroll = { assetId: TOPICS.seasons.assetId, revision: 1 };
+  const held = await makeWithPersonalScope(db, { lockTimeoutMs: 5_000 })((await seedPerson(db)).authority, (scope) =>
+    readScrollCalls(scope, scroll.assetId, scroll.revision),
+  );
+  expect(held).toEqual({ kind: 'entered', value: undefined });
+  expect(await makeReviewGate(db).release({ ...scroll, decidedBy: 'cli:ci-reviewer' })).toMatchObject({
+    kind: 'released',
+  });
+  return scroll;
 }
 
 describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
@@ -312,10 +324,16 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
     scrolls = [await publishOrrin(world.database.db)];
     for (const key of ['seasons-hemispheres', 'seasons-limits'] as const) {
       const recipe = TOPICS[key];
-      const production = fixtureProduction(world.database.db, () =>
-        answerWith(fixtureAuthored(writerFormatOf(recipe))),
-      );
-      expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
+      // Parts 2 and 3 stay v1 Scrolls here, as in the reading test: the planet forms the same from a v2 part and v1 parts.
+      const undo = markScrollV1(key);
+      try {
+        const production = fixtureProduction(world.database.db, () =>
+          answerWith(fixtureAuthored(writerFormatOf(recipe))),
+        );
+        expect(await production.produce(key, false, signal())).toMatchObject({ outcome: 'published' });
+      } finally {
+        undo();
+      }
       scrolls.push({ assetId: recipe.assetId, revision: 1 });
     }
   });
