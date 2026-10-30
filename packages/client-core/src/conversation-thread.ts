@@ -1,6 +1,7 @@
 import type {
   ConversationMessage,
   DirectConversationRef,
+  MessageReactionKind,
   PublicPersonRef,
   SendConversationMessage,
 } from '@knowscroll/contracts';
@@ -25,6 +26,8 @@ export type MessageBody = SendConversationMessage['body'];
 export interface OutgoingMessage {
   readonly commandId: string;
   readonly body: MessageBody;
+  /** The message this one answers, kept with the command so a retry names the same one. */
+  readonly replyTo?: string;
   readonly status: 'sending' | 'accepted' | 'unconfirmed' | 'not_sent';
   readonly sequence?: number;
 }
@@ -55,8 +58,13 @@ export interface ThreadController {
   /** Catches up from the last confirmed change, after a hint, a reconnect, a focus or a poll. */
   readonly refresh: () => Promise<void>;
   readonly loadOlder: () => Promise<void>;
-  /** Sends one message once; a failed one stays a single bubble until retried or dismissed. */
-  readonly send: (body: MessageBody) => Promise<void>;
+  /** Sends one message once, optionally as a reply; a failed one stays a single bubble until retried or dismissed. */
+  readonly send: (body: MessageBody, replyTo?: string) => Promise<void>;
+  /**
+   * Puts one of the five reactions on a message, or takes it off, then catches up so the message comes
+   * back with the new count. The wanted state is the command, so pressing twice is harmless.
+   */
+  readonly react: (messageId: string, kind: MessageReactionKind, present: boolean) => Promise<void>;
   readonly retry: (commandId: string) => Promise<void>;
   readonly dismiss: (commandId: string) => void;
   /** While the thread is on screen its newest messages count as read. Reading never creates evidence. */
@@ -271,10 +279,16 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
       outgoing: state.outgoing.map((entry) => (entry.commandId === commandId ? { ...entry, ...patch } : entry)),
     });
 
-  async function attempt(commandId: string, body: MessageBody): Promise<void> {
+  async function attempt(commandId: string, body: MessageBody, replyTo: string | undefined): Promise<void> {
     setOutgoing(commandId, { status: 'sending' });
     try {
-      const accepted = await api.send({ version: VERSION, commandId, conversation, body });
+      const accepted = await api.send({
+        version: VERSION,
+        commandId,
+        conversation,
+        body,
+        ...(replyTo === undefined ? {} : { replyTo }),
+      });
       setOutgoing(commandId, { status: 'accepted', sequence: accepted.messageSequence });
     } catch (error) {
       const kind = talkFailure(error);
@@ -324,15 +338,32 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         failed(error);
       }
     },
-    async send(body) {
+    async send(body, replyTo) {
       const commandId = newId();
-      publish({ outgoing: [...state.outgoing, { commandId, body, status: 'sending' }] });
-      await attempt(commandId, body);
+      publish({
+        outgoing: [
+          ...state.outgoing,
+          { commandId, body, status: 'sending', ...(replyTo === undefined ? {} : { replyTo }) },
+        ],
+      });
+      await attempt(commandId, body, replyTo);
+    },
+    async react(messageId, kind, present) {
+      try {
+        await api.react({ version: VERSION, commandId: newId(), conversation, messageId, kind, present });
+      } catch (error) {
+        const failure = talkFailure(error);
+        // A refusal means the standing changed (left, blocked, the message went): read again to find out.
+        if (failure === 'unavailable') void load();
+        else failed(error);
+        return;
+      }
+      await catchUp();
     },
     async retry(commandId) {
       const entry = state.outgoing.find((candidate) => candidate.commandId === commandId);
       if (entry && (entry.status === 'unconfirmed' || entry.status === 'not_sent'))
-        await attempt(commandId, entry.body);
+        await attempt(commandId, entry.body, entry.replyTo);
     },
     dismiss(commandId) {
       publish({

@@ -54,6 +54,21 @@ export function dayLabel(at: Date, now: Date, locale?: string): string {
   return at.toLocaleDateString(locale, { day: 'numeric', month: 'short', ...(days > 300 ? { year: 'numeric' } : {}) });
 }
 
+/**
+ * The capsule above a day's messages (T3 kit): "Today", "Yesterday", then "Sun 26 Oct", with the year once the
+ * day is not in this year. The type role draws it in capitals; the words stay as they are for a screen reader.
+ */
+export function capsuleLabel(at: Date, now: Date, locale?: string): string {
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  const weekday = at.toLocaleDateString(locale, { weekday: 'short' });
+  const month = at.toLocaleDateString(locale, { month: 'short' });
+  const date = `${weekday} ${String(at.getDate())} ${month}`;
+  return at.getFullYear() === now.getFullYear() ? date : `${date} ${String(at.getFullYear())}`;
+}
+
 /** The day a message belongs to, in the reader's own time zone, as a stable key for grouping. */
 export function dayKey(at: Date): string {
   return `${String(at.getFullYear())}-${String(at.getMonth())}-${String(at.getDate())}`;

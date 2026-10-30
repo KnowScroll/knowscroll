@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   blockFriend,
+  messagePreview,
   type AccountScope,
   type FeedbackTarget,
   type ThreadController,
@@ -10,14 +11,15 @@ import {
 } from '@knowscroll/client-core';
 import { DELETED_ACCOUNT_LABEL, type ConversationMessage, type DirectConversationRef } from '@knowscroll/contracts';
 import { layout, spacing } from '@knowscroll/design-tokens';
-import { Banner, Skeleton, StateBlock } from '@knowscroll/ui';
+import { Banner, Skeleton, StateBlock, useTalkTheme } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useDocumentTitle } from '../../platform/document-title';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
 import { Composer } from './composer';
 import { ConversationMenu } from './conversation-menu';
 import { MessageList, useFollowEnd } from './message-list';
-import { StartThreadSheet, type ThreadRoot } from './start-thread-sheet';
+import { StartThreadSheet, rootOfCard, type ThreadRoot } from './start-thread-sheet';
+import type { AvailableTalkMessage } from './talk-message';
 import { ThreadHeader } from './thread-header';
 
 const draftKey = (conversationId: string) => `talk.draft.${conversationId}`;
@@ -147,13 +149,8 @@ function ThreadMenu({
 export function threadRootOf(messages: readonly ConversationMessage[]): ThreadRoot | undefined {
   for (const message of [...messages].reverse()) {
     if (message.status !== 'available' || message.body.kind !== 'content') continue;
-    const card = message.body.content;
-    if (card.status === 'available') return { target: card.target, metadata: card.metadata };
-    if (card.status === 'corrected')
-      return {
-        target: { assetId: card.current.assetId, assetRevision: card.current.assetRevision },
-        metadata: card.current.metadata,
-      };
+    const root = rootOfCard(message.body.content);
+    if (root !== undefined) return root;
   }
   return undefined;
 }
@@ -176,8 +173,12 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [reporting, setReporting] = useState<FeedbackTarget>();
-  const [starting, setStarting] = useState(false);
+  const [starting, setStarting] = useState<{ readonly root: ThreadRoot; readonly watch: boolean } | undefined>(
+    undefined,
+  );
+  const [replyTo, setReplyTo] = useState<AvailableTalkMessage | undefined>(undefined);
   const [draft, keepDraft] = useDraft(scope, reference.conversationId);
+  const theme = useTalkTheme();
   const {
     ref: scrollRef,
     onScroll,
@@ -195,13 +196,13 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const peer = state.peer;
   const canStartThread = root !== undefined && peer !== undefined && !state.ended && !accountDeleted;
   return (
-    <>
+    <View style={[styles.ready, { backgroundColor: theme.ground }]}>
       <ThreadHeader
         peer={state.peer}
         fallbackName={name}
         onBack={() => (router.canGoBack() ? router.back() : leaveToTalk())}
         onMenu={() => setMenu(true)}
-        onStartThread={canStartThread ? () => setStarting(true) : undefined}
+        onStartThread={canStartThread ? () => setStarting({ root, watch: false }) : undefined}
       />
       <ThreadNotices state={state} name={name} accountDeleted={accountDeleted} />
       <MessageList
@@ -213,21 +214,37 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         onReport={(message) =>
           setReporting({ kind: 'message', messageId: message.messageId, author: reportedPerson(message.author) })
         }
+        onReply={setReplyTo}
+        onWatchTogether={
+          peer === undefined || accountDeleted ? undefined : (target) => setStarting({ root: target, watch: true })
+        }
       />
       {state.ended ? null : (
         <Composer
           name={name}
           value={draft}
           onChange={keepDraft}
+          replyTo={
+            replyTo === undefined ? undefined : { author: replyTo.author.displayName, preview: messagePreview(replyTo) }
+          }
+          onCancelReply={() => setReplyTo(undefined)}
           onSend={(text) => {
             keepDraft('');
             follow();
-            void controller.send({ kind: 'text', text });
+            void controller.send({ kind: 'text', text }, replyTo?.messageId);
+            setReplyTo(undefined);
           }}
         />
       )}
-      {canStartThread ? (
-        <StartThreadSheet visible={starting} scope={scope} root={root} peer={peer} onClose={() => setStarting(false)} />
+      {starting !== undefined && peer !== undefined ? (
+        <StartThreadSheet
+          visible
+          scope={scope}
+          root={starting.root}
+          peer={peer}
+          purpose={starting.watch ? 'watch' : 'start'}
+          onClose={() => setStarting(undefined)}
+        />
       ) : null}
       <ThreadMenu
         scope={scope}
@@ -243,11 +260,12 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         }}
       />
       <FeedbackSheet target={reporting} onClose={() => setReporting(undefined)} />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  ready: { flex: 1 },
   body: { padding: layout.gutter },
   banner: {
     paddingHorizontal: layout.gutter,

@@ -91,6 +91,15 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
       },
     ],
   },
+  {
+    title: 'Talk messages',
+    where: 'While a message’s options button is focused (Tab to it; it shows on hover or focus)',
+    shortcuts: [
+      { keys: ['R'], spoken: 'R', action: 'Reply to the message; the reply waits above the message box' },
+      { keys: ['E'], spoken: 'E', action: 'Open the message menu: the five reactions, Copy and Report' },
+      { keys: ['Esc'], spoken: 'Escape', action: 'In the message box, cancel the reply; in the menu, close it' },
+    ],
+  },
 ];
 
 function Keys({ shortcut }: { readonly shortcut: Shortcut }) {

@@ -386,13 +386,16 @@ they end with the scope. *Implemented; exercised in browsers locally, not yet on
   unknown: the same command ID is kept and `retry()` sends it again) or `not_sent` (a definite refusal). It marks
   read, mutes and leaves. When a catch-up page first says `ended`, it rereads the snapshot, so a deleted friend shows
   as "Deleted account". `mergeMessages` orders by sequence and drops duplicates, so a hint, a poll and a send
-  answer can arrive in any order.
+  answer can arrive in any order. `send(body, replyTo?)` names the message a reply answers (kept with the bubble, so a
+  retry names the same one), and `react(messageId, kind, present)` puts one of the five reactions on or takes it off and
+  then catches up, so the message comes back with its count. A refused reaction rereads the thread, which says why
+  (D-146, D-147). The same two calls are on `createContentThread`.
 - `createShareSession(scope, target, origin)`: lists friends (the roster plus the inbox, to find an open
   conversation), starts a conversation if needed and sends the card for the exact asset revision, with one command
   ID per intent. `copyLink()` creates a public link and returns its URL once; `stopLink()` revokes it.
 - `createSharedLinksSession(scope)`: lists the person's live links and revokes one.
 - `readInboxPage`, `findConversation`, `blockFriend` (Talk's menu), and the formatting helpers in
-  `talk-format.ts` (`describeMessage`, `inboxRowView`, `listTime`, `dayLabel`, and `clockTime` and `endsRun` for the time under a run of messages: another author, a pause of five minutes or a new day ends one).
+  `talk-format.ts` (`describeMessage`, `inboxRowView`, `listTime`, `dayLabel`, and `clockTime` and `endsRun` for the time under a run of messages: another author, a pause of five minutes or a new day ends one; `capsuleLabel` for the day capsule: Today, Yesterday, then "Sun 26 Oct", with the year once it is not this year). `talk-reply.ts` has `messagePreview` (the first 120 characters), `quoteView` (a reply's quote: the reader's own copy of the original wins over the server's words, and a removed original says so), `heldReactions` and `reactorNames` ("You" first).
 - `account-scope-socket.ts` subscribes to both `universe` and `inbox`, keeps the highest revision per kind and
   invalidates `scope.queryKey('talk')` (`TALK_QUERY_KEY`) on an inbox hint.
 - `@knowscroll/client-core/talk-fixture` (`src/test-support/talk-fixture.ts`) is a labelled in-memory Talk server for tests (it can fail the next call

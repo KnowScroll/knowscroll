@@ -2,6 +2,7 @@ import type {
   ConversationContentProjection,
   ContentThreadRef,
   ContentThreadView,
+  MessageReactionKind,
   PublicPersonRef,
   SendThreadBody,
   ThreadEpisode,
@@ -28,6 +29,8 @@ const CHANGES_LIMIT = 50;
 export interface OutgoingThreadMessage {
   readonly commandId: string;
   readonly body: SendThreadBody;
+  /** The message this one answers, kept with the command so a retry names the same one. */
+  readonly replyTo?: string;
   readonly status: 'sending' | 'accepted' | 'unconfirmed' | 'not_sent';
   readonly sequence?: number;
 }
@@ -66,8 +69,13 @@ export interface ContentThreadController {
   /** Catches up from the last confirmed change, after a hint, a reconnect, a focus or a poll. */
   readonly refresh: () => Promise<void>;
   readonly loadOlder: () => Promise<void>;
-  /** Sends one message once; a failed one stays a single bubble until retried or dismissed. */
-  readonly send: (body: SendThreadBody) => Promise<void>;
+  /** Sends one message once, optionally as a reply; a failed one stays a single bubble until retried or dismissed. */
+  readonly send: (body: SendThreadBody, replyTo?: string) => Promise<void>;
+  /**
+   * Puts one of the five reactions on a message, or takes it off, then catches up so the message comes
+   * back with the new count. The wanted state is the command, so pressing twice is harmless.
+   */
+  readonly react: (messageId: string, kind: MessageReactionKind, present: boolean) => Promise<void>;
   readonly retry: (commandId: string) => Promise<void>;
   readonly dismiss: (commandId: string) => void;
   /** While the thread is on screen its newest messages count as read. Reading never creates evidence. */
@@ -118,7 +126,8 @@ export function createContentThread(options: ContentThreadOptions): ContentThrea
     load: () => session.load(),
     refresh: () => session.refresh(),
     loadOlder: () => session.loadOlder(),
-    send: (body) => session.send(body),
+    send: (body, replyTo) => session.send(body, replyTo),
+    react: (messageId, kind, present) => session.react(messageId, kind, present),
     retry: (commandId) => session.retry(commandId),
     dismiss: (commandId) => session.dismiss(commandId),
     setActive: (active) => session.setActive(active),
@@ -366,16 +375,40 @@ class ContentThreadSession {
 
   // --- Sending ---
 
-  async send(body: SendThreadBody): Promise<void> {
+  async send(body: SendThreadBody, replyTo?: string): Promise<void> {
     const commandId = this.newId();
-    this.publish({ outgoing: [...this.state.outgoing, { commandId, body, status: 'sending' }] });
-    await this.attempt(commandId, body);
+    this.publish({
+      outgoing: [
+        ...this.state.outgoing,
+        { commandId, body, status: 'sending', ...(replyTo === undefined ? {} : { replyTo }) },
+      ],
+    });
+    await this.attempt(commandId, body, replyTo);
+  }
+
+  async react(messageId: string, kind: MessageReactionKind, present: boolean): Promise<void> {
+    try {
+      await this.api.react({
+        version: VERSION,
+        commandId: this.newId(),
+        thread: this.thread,
+        messageId,
+        kind,
+        present,
+      });
+    } catch (error) {
+      // A refusal means the standing changed (left, removed, the message went): read again to find out.
+      if (talkFailure(error) === 'unavailable') void this.load();
+      else this.failed(error);
+      return;
+    }
+    await this.catchUp();
   }
 
   async retry(commandId: string): Promise<void> {
     const entry = this.state.outgoing.find((candidate) => candidate.commandId === commandId);
     if (entry && (entry.status === 'unconfirmed' || entry.status === 'not_sent'))
-      await this.attempt(commandId, entry.body);
+      await this.attempt(commandId, entry.body, entry.replyTo);
   }
 
   dismiss(commandId: string): void {
@@ -390,10 +423,16 @@ class ContentThreadSession {
     });
   }
 
-  private async attempt(commandId: string, body: SendThreadBody): Promise<void> {
+  private async attempt(commandId: string, body: SendThreadBody, replyTo: string | undefined): Promise<void> {
     this.setOutgoing(commandId, { status: 'sending' });
     try {
-      const accepted = await this.api.send({ version: VERSION, commandId, thread: this.thread, body });
+      const accepted = await this.api.send({
+        version: VERSION,
+        commandId,
+        thread: this.thread,
+        body,
+        ...(replyTo === undefined ? {} : { replyTo }),
+      });
       this.setOutgoing(commandId, { status: 'accepted', sequence: accepted.messageSequence });
     } catch (error) {
       const kind = talkFailure(error);

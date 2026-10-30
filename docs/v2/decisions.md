@@ -1520,3 +1520,67 @@ Confirmed by: `rooms-residents.test.ts` ("holds back a turn while someone types"
 - **Native** is unchanged: the pull is the scroll view's own `onScrollEndDrag`, which carries live values.
 
 Confirmed by: `current-stop.test.ts` ("whether the text is scrolled to its end"), `stage-reader-smoke.spec.ts` ("a pull that starts at the end is a new topic even when the scroll report is late"; "a pull up past the end is a new topic; the same pull in the middle of the text is reading"). Shown failing with the touch reading the reader's record: the late-report test failed 10 of 10.
+
+## D-145 · 2026-10-31 · Talk is drawn on the New Universe's own palette, dark by default, with Paper a name away (v3 T-B, #482)
+
+**Amends** D-001 and D-060 for Talk: T3's kit now governs how a conversation and a thread's messages look.
+
+- **One palette.** `design-tokens` gets `universe` (the Universe file's sky, Paper, Ink, cobalt, focus, highlight, orange, red, glass and the chunky shadows, with the values copied from the file) and `talkThemes`, which gives each role of the T3 kit a value: ground, bubbles, quote strips, capsule, bar, field, Send, reaction pill, menu and the flash. There is no second token set.
+- **Two themes, one set of roles.** `sky` (dark) is the default (T3 Q1). `paper` is defined with the same roles. `TalkThemeProvider` in `ui` takes the name, so the per-person setting in T-C is a prop and changes no component. A test fails if the two themes stop defining the same roles.
+- **Contrast is tested.** Every text pair in both themes meets 4.5:1 and the focus ring 3:1 (WCAG 1.4.3 and 1.4.11).
+- **What is drawn this way.** Bubbles, day capsules, the time under a run, the header and message bar of a conversation and of a thread, the card of a shared Reel or Scroll, the quote strip, the reaction pills and the menu. The Talk list, the thread's series panel and its sheets keep the v2.1 paper look for now. A thread's series panel and docked player stay on paper beside the dark chat, as T3 draws them.
+- **Glass without blur.** The glass fill and its hairline edge are drawn everywhere; the blur only on the web, where `backdrop-filter` exists.
+
+Confirmed by: `tokens.test.ts` ("Talk themes"), `talk.test.tsx` in `ui` (a theme switch changes the bubble), `talk-smoke.spec.ts` (screenshots at 390 x 844 and 1440 x 900).
+
+## D-146 · 2026-10-31 · A reply is a flat quote of one earlier message of the same conversation (v3 T-B, #482)
+
+**Amends** D-042 and D-046 ("Not built: reply").
+
+- **One level.** A message may name the message it answers, and that is all: a reply to a reply quotes that reply, with no nesting (T3 Q4). Branch cards keep their own replies (T-F).
+- **Same conversation only.** `replyTo` on a send is a message ID. The server looks it up inside the conversation under its lock, so a message of another conversation, an unknown ID and a removed message all answer `unavailable` and write nothing. The row keeps the original's sequence under a composite foreign key, so the database refuses a pointer into another conversation too.
+- **The quote is read, not stored.** A page carries the original's author and its first 120 characters, read when the page is built, or `unavailable` once the original was removed. A client that holds the original prefers its own copy, so a removed original stops being quoted as soon as its tombstone arrives.
+- **Same receipt as a send.** `replyTo` is part of the command's body: a retry replays the first answer, and the same command ID naming another original is refused (`command_key_reused`).
+- **A reply is an ordinary message.** The export lists it with the person's own words (marked `wasAReply`), and account deletion tombstones it and clears the pointer.
+
+Confirmed by: `social-replies-reactions.test.ts` ("stores a reply with the quote of its original", "refuses a reply to another conversation, to an unknown message and to a removed one", "reads a quote of a removed original as unavailable", "replies within the thread only"), `conversation-screen.test.tsx` and `content-thread.test.ts` (a retry names the same original). Shown failing with the conversation filter taken out of the lookup: three tests went red.
+
+## D-147 · 2026-10-31 · Five reactions, set by a wanted state, shown as counts and names, never as a time or a score (v3 T-B, #482)
+
+**Amends** D-042 and D-046 ("Not built: reactions"), and D-051's mask for blocks (see "Blocks").
+
+- **Five fixed kinds.** Spark, Mind blown, Ha, Heart, Question (T3). The set is closed in the contract and in the table, and the client draws each kind itself: there is no emoji keyboard.
+- **One per person, per kind, per message.** A person can hold several kinds on one message. The primary key is (conversation, message, person, kind), so the table cannot hold a duplicate and adding is idempotent by construction.
+- **The command is a wanted state.** `react{messageId, kind, present}` puts the reaction there or takes it off. A repeat, whether a retry with the same command ID (a replay) or a new command ID, answers accepted with `changed: false` and writes nothing. Reacting needs the standing of sending (a member of an open conversation, a participant of a thread) and works on any message that is not removed, the person's own included.
+- **The feed.** A change gives the message the conversation's next change number in the same transaction as the reaction and its receipt, and both inboxes hear a hint. The changes read sends the message again with its reactions. A reaction moves neither the message sequence nor the conversation's activity time, so the Talk list does not reorder and "unread" does not move.
+- **What a reader sees.** For each kind on a message: how many people, whether the reader is one, and their names (T3: "count, tap to see who"). The pill carries the count; a tap lists the names, "You" first. No reaction time and no order of reacting is carried, and there is no total, leaderboard or notification of its own. Only people the reader may already see by name appear.
+- **Blocks.** Someone the reader blocked is left out of the count and the names, for that reader only. Everyone else, the blocked person included, sees the reaction as before, so nothing tells them they were blocked. A block ends a direct conversation, so this matters in a thread, where a person the reader blocked may still be a member and their words are not masked (D-046). A reaction is therefore masked more strictly than a message. The brief asked for the same treatment as messages; this is the one place the two differ.
+- **Erasure and export.** Deleting an account removes its reactions and every reaction on its messages; each message of someone else that loses one gets a new change number, so their catch-up replaces it and the count drops. Clear keeps reactions, as it keeps conversations (D-042). A person's own reactions are exported (kind, when, and whether on their own message or someone else's); other people's are not.
+- **Not consumption evidence.** A reaction records nothing about what the reader has seen, opened or learned, and feeds no ranking.
+
+Confirmed by: `social-replies-reactions.test.ts` ("adds and removes a reaction; a replay and a repeat under another command change nothing", "keeps one reaction per person and kind", "carries a reaction in the changes feed in order, and tells the other person's inbox", "refuses a reaction from a stranger, on another conversation's message, on a removed message and after the end", "leaves out the reaction of a person the reader blocked, for that reader only", "deleting an account removes its reactions", "exports a person's own reactions"), `account-deletion.test.ts` (the every-store check now fills `message_reactions`). Shown failing with the block mask taken out, with the held-state check removed and with the lookup left open.
+
+## D-148 · 2026-10-31 · Reaching reply and react: swipe on touch, long press, a button and keys (v3 T-B, #482)
+
+**Amends** D-053 (keyboard map) and D-055 (a long press on a bubble reports it).
+
+- **Swipe right to reply, on touch only.** A bubble follows the finger to a limit, a reply arrow shows behind it, a tick marks 60 px and lifting the finger past 60 px asks to reply. A drag that is mostly down is scrolling and does nothing. A mouse never drags a bubble: only touch events are heard. Under reduced motion nothing slides, and the reply is asked for when the finger lifts past 60 px.
+- **Long press (400 ms)** opens the menu: the chat dims, the message stays in view, the five reactions come first, then Reply, Copy and Report. Copy is offered when there are words to copy; Report only on another person's message. A thread's menu adds What if... and Another perspective, which replace the ⋯ sheet of X01.
+- **The same without a gesture.** On the web every message has an options button ("Options for Ravi's message", shown on hover or focus, always reachable by keyboard). With it focused, R replies and E opens the menu. Esc in the message box cancels the reply. The menu key and Shift+F10 open the menu. A screen reader on a phone gets Reply, React, Copy, Report and "Go to the original message" as custom actions of a text bubble; a card keeps its options button on a phone too.
+- **The quote jumps.** Pressing the quote strip scrolls to the original and flashes it for 1.2 s. If the original is older than what is loaded, up to five older pages are read first. Under reduced motion there is no slide and no flash, and a 2 px outline stays for 3 s.
+- **Report moves into the menu.** The long press that opened the report sheet on another person's bubble (D-055) now opens the menu, whose Report row opens the same sheet. A thread's messages can be reported the same way.
+- **After the end.** Once a conversation has ended the menu offers Copy and Report only: no reply, no reaction.
+- **Keys listed.** The keyboard map has a "Talk messages" group.
+
+Confirmed by: `conversation-screen.test.tsx` ("swipes right past 60 px to reply, and not for less, or when the finger goes down", "replies and opens the menu from the keyboard, ignoring keys with a modifier", "offers no reply or reaction once the other person has left"), `talk-smoke.spec.ts` (long press, quote jump and the 2 px outline with reduced motion), `keyboard-map.test.tsx`.
+
+## D-149 · 2026-10-31 · "Watch together" in a conversation starts a thread for the same two people, with no shared playback (v3 T-B, #482)
+
+**Amends** D-042 ("Not built: group threads"); settles T3 Q5 and the change map's row "Watch together in a DM".
+
+- **A card has the button.** A Reel or Scroll shared in a conversation carries "Watch together" beside Open, while the conversation is open and the content is not withdrawn. It uses the existing `threads/create` command with the one friend and the card's exact revision, through the same sheet as Start a thread, so a retry makes the same thread.
+- **The chat stays a chat.** Nothing is sent into the conversation and nothing is moved out of it. The other person gets an ordinary invitation and joins by answering it (mutual consent). Nobody's playback is shared, followed or synchronised, and nobody learns where the other is (D-046, D-065).
+- **No evidence.** Starting a thread is not an encounter for either person.
+- **Left for later.** T3 also draws a "Thread started from your chat" line in the conversation. It needs a system message and waits for a later slice.
+
+Confirmed by: `conversation-screen.test.tsx` ("starts a thread from a shared card with Watch together, for the same two people, and leaves the chat as it is").

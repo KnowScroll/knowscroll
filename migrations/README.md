@@ -220,3 +220,8 @@ store a held revision. Apply with the new binary; the generated database types c
 partial index serves the sweep's query), `geography.deltas.run_id` becomes nullable (a settle that only changes activity has no
 Cartographer run), and every state that has places is set due once so the first passes store each world's true time. Additive;
 an older writer never touches the column. Apply with the new binary; the generated database types change by the same column.
+
+0075 is replies and reactions in Talk (v3 T-B, #482, D-146 to D-148): `social.messages.reply_to_sequence` (the earlier message of the same conversation a
+message answers; a composite foreign key keeps it inside the conversation, and a check keeps it before the message and off a tombstone) and
+`social.message_reactions` (one row per person, kind and message; five kinds). Additive: the column is nullable, so older writers keep working.
+Apply with the new binary; the generated database types change by the same table and column.

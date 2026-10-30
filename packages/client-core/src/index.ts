@@ -55,6 +55,7 @@ export {
   type ThreadState,
 } from './conversation-thread';
 export {
+  capsuleLabel,
   clockTime,
   dayKey,
   dayLabel,
@@ -66,6 +67,14 @@ export {
   type InboxRowView,
   type RunStep,
 } from './talk-format';
+export {
+  heldReactions,
+  messagePreview,
+  quoteView,
+  reactorNames,
+  type QuotableMessage,
+  type QuoteView,
+} from './talk-reply';
 export {
   createContentThread,
   type ContentThreadController,

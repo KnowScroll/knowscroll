@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConversationMessage } from '@knowscroll/contracts';
 import { createConversationThread, mergeMessages } from './conversation-thread';
-import { conversation, peer, talkServer } from './test-support/talk-fixture';
+import { conversation, me, peer, talkServer } from './test-support/talk-fixture';
 
 let counter = 0;
 const newId = () => `0199a000-0000-7000-8000-${(++counter + 5000).toString(16).padStart(12, '0')}`;
@@ -100,6 +100,53 @@ describe('conversation thread (labelled in-memory server)', () => {
     expect(thread.getState().outgoing[0]?.status).toBe('not_sent');
     thread.dismiss(thread.getState().outgoing[0]!.commandId);
     expect(thread.getState().outgoing).toEqual([]);
+  });
+
+  it('sends a reply naming its original, keeps the quote, and a retry names the same original', async () => {
+    const { server, thread } = setup();
+    server.peerSays('who is on part 2?');
+    await thread.load();
+    const original = thread.getState().messages[0]!.messageId;
+    server.failNext('/v1/social/conversations/send', 'lost_response');
+    await thread.send(text('part 2 abhi start kiya'), original);
+    const [pending] = thread.getState().outgoing;
+    expect(pending).toMatchObject({ status: 'unconfirmed', replyTo: original });
+    await thread.retry(pending!.commandId);
+    const sends = server.requests.filter((request) => request.path.endsWith('/conversations/send'));
+    expect(sends.map((request) => request.body['replyTo'])).toEqual([original, original]);
+    expect(new Set(sends.map((request) => request.body['commandId'])).size).toBe(1);
+    expect(thread.getState().messages[1]).toMatchObject({
+      replyTo: { messageId: original, sequence: 1, original: { status: 'available', preview: 'who is on part 2?' } },
+    });
+  });
+
+  it('reacts and un-reacts, reading the message back with its count; a person reacting is mine, a peer is not', async () => {
+    const { server, thread } = setup();
+    server.peerSays('the far side bulges too');
+    await thread.load();
+    const [message] = thread.getState().messages;
+    await thread.react(message!.messageId, 'heart', true);
+    server.peerReacts(1, 'heart');
+    await thread.refresh();
+    expect(thread.getState().messages[0]).toMatchObject({
+      reactions: [{ kind: 'heart', mine: true, people: [{ personId: me.personId }, { personId: peer.personId }] }],
+    });
+    await thread.react(message!.messageId, 'heart', false);
+    expect(thread.getState().messages[0]).toMatchObject({ reactions: [{ kind: 'heart', mine: false }] });
+    await thread.react(message!.messageId, 'heart', false);
+    expect(server.reactionsOn(1)).toEqual([{ kind: 'heart', by: 'peer' }]);
+  });
+
+  it('reads again, and shows nothing wrong, when a reaction is refused', async () => {
+    const { server, thread } = setup();
+    server.peerSays('hello');
+    await thread.load();
+    server.failNext('/v1/social/conversations/react', 'unavailable');
+    await thread.react(thread.getState().messages[0]!.messageId, 'spark', true);
+    expect(server.reactionsOn(1)).toEqual([]);
+    await vi.waitFor(() =>
+      expect(server.requests.filter((request) => request.path.endsWith('/conversations/read'))).toHaveLength(2),
+    );
   });
 
   it('shows the thread as unavailable, saying nothing more, when the server refuses the read', async () => {

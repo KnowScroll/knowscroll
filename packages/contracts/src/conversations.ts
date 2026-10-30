@@ -59,6 +59,55 @@ export const SendConversationBodySchema = z.discriminatedUnion('kind', [
     note: ConversationTextSchema.optional(),
   }),
 ]);
+/**
+ * The five reactions of Talk (T3: Spark, Mind blown, Ha, Heart, Question). The set is closed and
+ * has no emoji keyboard: a client draws each kind itself. A person can hold one of each kind on a
+ * message, so the kinds are independent of one another.
+ */
+export const MESSAGE_REACTION_KINDS = ['spark', 'mind_blown', 'ha', 'heart', 'question'] as const;
+export const MessageReactionKindSchema = z.enum(MESSAGE_REACTION_KINDS);
+export type MessageReactionKind = z.infer<typeof MessageReactionKindSchema>;
+/**
+ * One kind of reaction on a message, as the reader sees it: the people who put it there (without
+ * anyone the reader blocked) and whether the reader is one of them. The pill shows the number of
+ * people and "tap to see who" lists them (T3 kit); no time and no other reaction detail is carried.
+ */
+export const MessageReactionSchema = z.strictObject({
+  kind: MessageReactionKindSchema,
+  mine: z.boolean(),
+  people: z.array(PublicPersonRefSchema).min(1).max(9),
+});
+/** Each kind at most once, in the order of `MESSAGE_REACTION_KINDS`; a message with none omits the field. */
+export const MessageReactionsSchema = z
+  .array(MessageReactionSchema)
+  .min(1)
+  .max(MESSAGE_REACTION_KINDS.length)
+  .refine((items) => new Set(items.map((item) => item.kind)).size === items.length);
+/**
+ * The message a reply answers, in the same conversation. `original` is read when the page is built:
+ * an author and the first words, or "unavailable" once the original was removed (its author's account
+ * was deleted). A client that holds the original itself prefers what it holds.
+ */
+export const MessageQuoteSchema = z.strictObject({
+  messageId: UuidSchema,
+  sequence: Revision,
+  original: z.discriminatedUnion('status', [
+    z.strictObject({
+      status: z.literal('available'),
+      author: PublicPersonRefSchema,
+      /** The first words of a text message or a card's note; empty for a card without a note. */
+      preview: z.string().max(160),
+    }),
+    z.strictObject({ status: z.literal('unavailable') }),
+  ]),
+});
+export type MessageQuote = z.infer<typeof MessageQuoteSchema>;
+/** The optional parts every available message of a conversation or thread can carry. */
+export const MessageExtrasShape = {
+  reactions: MessageReactionsSchema.optional(),
+  replyTo: MessageQuoteSchema.optional(),
+};
+
 const MessageIdentity = { messageId: UuidSchema, sequence: Revision };
 /** Only actual human authors in this phase. Deleted private bodies/attachments become neutral
  * markers; no erased author, old body, source/private evidence, peer position or AI stand-in. */
@@ -68,6 +117,7 @@ export const ConversationMessageSchema = z.discriminatedUnion('status', [
     status: z.literal('available'),
     author: PublicPersonRefSchema,
     recordedAt: z.iso.datetime(),
+    ...MessageExtrasShape,
     body: z.discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('text'), text: ConversationTextSchema }),
       z.strictObject({
@@ -298,10 +348,12 @@ export const ConversationChangesPageSchema = z.discriminatedUnion('status', [
       );
     }),
 ]);
+/** `replyTo` names a message of this same conversation (a flat quote, never nested); any other ID is refused. */
 export const SendConversationMessageSchema = z.strictObject({
   ...Command,
   conversation: DirectConversationRefSchema,
   body: SendConversationBodySchema,
+  replyTo: UuidSchema.optional(),
 });
 /** Historical acceptance only. Keep the identical command/body after an unknown outcome, even
  * if a later retry is rejected; no replacement UUID or automatic ambiguous resend. The backend
@@ -353,6 +405,28 @@ export const OwnConversationSendSchema = socialJsonData(
     }),
   ]),
 );
+
+/**
+ * Puts one reaction on a message, or takes it off: `present` is the wanted state, so a repeat of
+ * either is a no-op that still answers accepted. Reacting needs the same standing as sending.
+ */
+export const ReactToConversationMessageSchema = z.strictObject({
+  ...Command,
+  conversation: DirectConversationRefSchema,
+  messageId: UuidSchema,
+  kind: MessageReactionKindSchema,
+  present: z.boolean(),
+});
+export const ConversationReactionAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('message.react'),
+  conversation: DirectConversationRefSchema,
+  messageId: UuidSchema,
+  kind: MessageReactionKindSchema,
+  present: z.boolean(),
+  /** False when the reaction was already in the wanted state. */
+  changed: z.boolean(),
+});
 
 export const MarkConversationReadSchema = z.strictObject({
   ...Command,
@@ -408,6 +482,11 @@ export const conversationsContract = {
     '/v1/social/conversations/send/read',
     ReadOwnConversationSendSchema,
     OwnConversationSendSchema,
+  ),
+  react: socialPost(
+    '/v1/social/conversations/react',
+    ReactToConversationMessageSchema,
+    ConversationReactionAcceptanceSchema,
   ),
   markRead: socialPost(
     '/v1/social/conversations/mark-read',

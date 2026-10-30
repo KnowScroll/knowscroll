@@ -92,6 +92,9 @@ export const iconShapes = {
   person: [circle(12, 8, 3.5), path('M5 20c.9-3.5 3.6-5.5 7-5.5s6.1 2 7 5.5')],
   // Scroll blocks (E03 Copy): from the export's copy icon.
   copy: [{ kind: 'rect', x: 8, y: 8, width: 12, height: 12, rx: 2 }, path('M16 8V4H4v12h4')],
+  // Talk (T3): answering a message, and reporting one.
+  reply: [path('M9 6L4 11l5 5'), path('M4 11h9a7 7 0 0 1 7 7v1')],
+  flag: [path('M5 21V4'), path('M5 4h12l-2.5 4.5L17 13H5')],
 } as const satisfies Record<string, readonly IconShape[]>;
 
 export type IconName = keyof typeof iconShapes;

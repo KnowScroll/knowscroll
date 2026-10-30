@@ -37,3 +37,4 @@ export {
   type MotionToken,
 } from './motion';
 export { focusRing, highlightRing, layer, type FocusTone } from './layers';
+export { defaultTalkTheme, talkThemes, universe, type TalkTheme, type TalkThemeName } from './universe';

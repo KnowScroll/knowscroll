@@ -1777,6 +1777,14 @@ export interface SocialInvites {
   token_hash: string;
 }
 
+export interface SocialMessageReactions {
+  account_id: string;
+  conversation_id: string;
+  kind: string;
+  message_sequence: Int8;
+  reacted_at: Timestamp;
+}
+
 export interface SocialMessages {
   asset_id: string | null;
   asset_revision: number | null;
@@ -1788,6 +1796,7 @@ export interface SocialMessages {
   message_id: string;
   note: string | null;
   recorded_at: Timestamp;
+  reply_to_sequence: Int8 | null;
   sequence: Int8;
 }
 
@@ -2075,6 +2084,7 @@ export interface DB {
   "social.conversations": SocialConversations;
   "social.inbox_heads": SocialInboxHeads;
   "social.invites": SocialInvites;
+  "social.message_reactions": SocialMessageReactions;
   "social.message_snippets": SocialMessageSnippets;
   "social.messages": SocialMessages;
   "social.pair_sides": SocialPairSides;

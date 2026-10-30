@@ -1,10 +1,14 @@
 import type * as React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import type { AccountScopeState } from '@knowscroll/client-core';
 import { conversation, createdThread, id, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
+import { capsuleLabel } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
 import { ConversationScreen } from './conversation-screen';
+
+const mockCopy = jest.fn();
+jest.mock('expo-clipboard', () => ({ setStringAsync: (text: string) => mockCopy(text) }));
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -196,6 +200,200 @@ describe('conversation thread screen (labelled in-memory server)', () => {
     expect(screen.getByRole('header', { name: 'Deleted account' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Conversation options' }));
     expect(screen.queryByRole('button', { name: /^Block/ })).toBeNull();
+    await finish(server);
+  });
+
+  it('draws a capsule for the day and the time under the last message of a run', async () => {
+    const server = talkServer();
+    server.peerSays('part 1 dekha?');
+    server.peerSays('moon ka bulge samajh aaya');
+    await open(server);
+    await screen.findByText('moon ka bulge samajh aaya');
+    // The fixture's messages are all from one moment: one run, so one time under the second.
+    const capsule = capsuleLabel(new Date('2026-10-24T08:00:00.000Z'), new Date());
+    expect(screen.getByRole('header', { name: capsule })).toBeOnTheScreen();
+    expect(screen.getAllByTestId('message-time')).toHaveLength(1);
+    await finish(server);
+  });
+
+  describe('replies, reactions and the message menu', () => {
+    const longPress = (text: string) => fireEvent(screen.getByText(text), 'longPress');
+
+    it('replies from the long-press menu: the chip waits above the box, the reply names its original, and the quote shows', async () => {
+      const server = talkServer();
+      server.peerSays('who is on part 2?');
+      await open(server);
+      await screen.findByText('who is on part 2?');
+      await longPress('who is on part 2?');
+      await fireEvent.press(await screen.findByRole('menuitem', { name: 'Reply' }));
+      expect(await screen.findByText(`Replying to ${peer.displayName}`)).toBeOnTheScreen();
+      await fireEvent.changeText(screen.getByLabelText(`Message ${peer.displayName}`), 'part 2 abhi start kiya');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+      await waitFor(() => expect(server.storedTexts()).toEqual(['who is on part 2?', 'part 2 abhi start kiya']));
+      const sent = server.requests.find((request) => request.path.endsWith('/conversations/send'));
+      expect(sent?.body['replyTo']).toBe(id(1001));
+      // The chip is gone once the reply is sent, and the quote strip names the original.
+      await waitFor(() => expect(screen.queryByTestId('reply-chip')).toBeNull());
+      expect(
+        await screen.findByRole('button', {
+          name: `Reply to ${peer.displayName}: who is on part 2?. Go to the original message`,
+        }),
+      ).toBeOnTheScreen();
+      await finish(server);
+    });
+
+    it('cancels a reply with its ✕, so the next message is not one', async () => {
+      const server = talkServer();
+      server.peerSays('hello');
+      await open(server);
+      await screen.findByText('hello');
+      await longPress('hello');
+      await fireEvent.press(await screen.findByRole('menuitem', { name: 'Reply' }));
+      await fireEvent.press(await screen.findByRole('button', { name: 'Cancel reply' }));
+      expect(screen.queryByTestId('reply-chip')).toBeNull();
+      await fireEvent.changeText(screen.getByLabelText(`Message ${peer.displayName}`), 'plain');
+      await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+      await waitFor(() => expect(server.storedTexts()).toEqual(['hello', 'plain']));
+      expect(server.requests.find((request) => request.path.endsWith('/conversations/send'))?.body).not.toHaveProperty(
+        'replyTo',
+      );
+      await finish(server);
+    });
+
+    it('reacts from the menu, shows the pill with a count, lists who, and takes the reaction back', async () => {
+      const server = talkServer();
+      server.peerSays('the far side bulges too');
+      await open(server);
+      await screen.findByText('the far side bulges too');
+      await longPress('the far side bulges too');
+      await fireEvent.press(await screen.findByRole('togglebutton', { name: 'Heart' }));
+      await waitFor(() => expect(server.reactionsOn(1)).toEqual([{ kind: 'heart', by: 'me' }]));
+      const pill = await screen.findByRole('button', { name: 'Heart, 1 person, including you' });
+      server.peerReacts(1, 'heart');
+      await server.scope.queryClient.refetchQueries();
+      await fireEvent.press(await screen.findByRole('button', { name: 'Heart, 2 people, including you' }));
+      const who = within(await screen.findByLabelText('People who reacted with Heart'));
+      expect(who.getByText('You')).toBeOnTheScreen();
+      expect(who.getByText(peer.displayName)).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('button', { name: 'Take back your Heart' }));
+      await waitFor(() => expect(server.reactionsOn(1)).toEqual([{ kind: 'heart', by: 'peer' }]));
+      expect(pill).toBeTruthy();
+      await finish(server);
+    });
+
+    it('offers Copy and Report on another person’s message, and Report opens the report about that message', async () => {
+      const server = talkServer();
+      server.peerSays('hello');
+      await open(server);
+      await screen.findByText('hello');
+      await longPress('hello');
+      await fireEvent.press(await screen.findByRole('menuitem', { name: 'Copy' }));
+      expect(mockCopy).toHaveBeenCalledWith('hello');
+      await longPress('hello');
+      expect(await screen.findByRole('menuitem', { name: 'Report' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('menuitem', { name: 'Report' }));
+      expect(await screen.findByText('Report abuse')).toBeOnTheScreen();
+      expect(screen.getByText(new RegExp(peer.displayName + '’s message'))).toBeOnTheScreen();
+      await finish(server);
+    });
+
+    it('swipes right past 60 px to reply, and not for less, or when the finger goes down', async () => {
+      const server = talkServer();
+      server.peerSays('swipe me');
+      await open(server);
+      await screen.findByText('swipe me');
+      const row = screen.getByTestId('message-1');
+      const touch = (x: number, y: number) => ({ nativeEvent: { touches: [{ pageX: x, pageY: y }] } });
+      // Short of the threshold: nothing.
+      await fireEvent(row, 'touchStart', touch(10, 100));
+      await fireEvent(row, 'touchMove', touch(50, 102));
+      await fireEvent(row, 'touchEnd', {});
+      expect(screen.queryByTestId('reply-chip')).toBeNull();
+      // Mostly down: the list scrolls, nothing replies.
+      await fireEvent(row, 'touchStart', touch(10, 100));
+      await fireEvent(row, 'touchMove', touch(80, 190));
+      await fireEvent(row, 'touchEnd', {});
+      expect(screen.queryByTestId('reply-chip')).toBeNull();
+      // Past 60 px and clearly across: the reply chip waits in the box.
+      await fireEvent(row, 'touchStart', touch(10, 100));
+      await fireEvent(row, 'touchMove', touch(40, 101));
+      await fireEvent(row, 'touchMove', touch(80, 103));
+      await fireEvent(row, 'touchEnd', {});
+      expect(await screen.findByText(`Replying to ${peer.displayName}`)).toBeOnTheScreen();
+      await finish(server);
+    });
+
+    it('replies and opens the menu from the keyboard, ignoring keys with a modifier', async () => {
+      const server = talkServer();
+      server.peerSays('keys');
+      await open(server);
+      await screen.findByText('keys');
+      const row = screen.getByTestId('message-1');
+      await fireEvent(row, 'keyDown', { key: 'r', ctrlKey: true, preventDefault: jest.fn() });
+      expect(screen.queryByTestId('reply-chip')).toBeNull();
+      await fireEvent(row, 'keyDown', { key: 'e', preventDefault: jest.fn() });
+      expect(await screen.findByRole('menuitem', { name: 'Reply' })).toBeOnTheScreen();
+      await fireEvent.press(screen.getByRole('menuitem', { name: 'Reply' }));
+      await fireEvent(row, 'keyDown', { key: 'R', preventDefault: jest.fn() });
+      expect(await screen.findByText(`Replying to ${peer.displayName}`)).toBeOnTheScreen();
+      await finish(server);
+    });
+
+    it('offers no reply or reaction once the other person has left', async () => {
+      const server = talkServer();
+      server.peerSays('goodbye');
+      await open(server);
+      await screen.findByText('goodbye');
+      server.peerLeaves();
+      await server.scope.queryClient.refetchQueries();
+      await screen.findByText(`${peer.displayName} left this conversation.`);
+      await longPress('goodbye');
+      expect(await screen.findByRole('menuitem', { name: 'Copy' })).toBeOnTheScreen();
+      expect(screen.queryByRole('menuitem', { name: 'Reply' })).toBeNull();
+      expect(screen.queryByRole('togglebutton', { name: 'Heart' })).toBeNull();
+      await finish(server);
+    });
+
+    it('says the original is gone in a quote, and does not offer to jump', async () => {
+      const server = talkServer();
+      server.peerSays('soon removed');
+      server.peerSays('an answer', 1);
+      await open(server);
+      await screen.findByText('an answer');
+      server.tombstone(1);
+      await server.scope.queryClient.refetchQueries();
+      expect(await screen.findByText('Original message removed')).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: /Go to the original message/ })).toBeNull();
+      await finish(server);
+    });
+  });
+
+  it('starts a thread from a shared card with Watch together, for the same two people, and leaves the chat as it is', async () => {
+    const server = talkServer();
+    await open(server);
+    await screen.findByText('No messages yet. Say hello.');
+    const content = { assetId: id(77), assetRevision: 1 };
+    await server.scope.api.conversations.send({
+      version: 'direct-conversation.v1',
+      commandId: id(902),
+      conversation,
+      body: { kind: 'content', target: content },
+    });
+    await server.scope.queryClient.refetchQueries();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Watch together' }));
+    expect(await screen.findByText(/This chat stays as it is/)).toBeOnTheScreen();
+    // Two buttons share the words now: the card's and the sheet's. The sheet's is the last.
+    const buttons = screen.getAllByRole('button', { name: 'Watch together' });
+    await fireEvent.press(buttons[buttons.length - 1]!);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Open thread' }));
+    const created = server.requests.filter((request) => request.path.endsWith('/threads/create'));
+    expect(created).toHaveLength(1);
+    expect(created[0]?.body).toMatchObject({ root: content, friendPersonIds: [peer.personId] });
+    expect(mockPush).toHaveBeenCalledWith(
+      `/threads/${createdThread.threadId}?m=${createdThread.membershipId}&r=${String(createdThread.membershipRevision)}`,
+    );
+    // The conversation is untouched: no message was sent by starting it.
+    expect(server.messageCount()).toBe(1);
     await finish(server);
   });
 

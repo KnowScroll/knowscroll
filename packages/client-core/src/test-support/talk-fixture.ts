@@ -26,6 +26,9 @@ interface StoredMessage {
   text: string | null;
   content: { assetId: string; assetRevision: number } | null;
   note: string | null;
+  /** The sequence of the message this one answers. */
+  replyTo: number | null;
+  reactions: { kind: string; by: 'me' | 'peer' }[];
 }
 
 export type Failure = 'network' | 'unavailable' | 'server' | 'lost_response';
@@ -50,6 +53,30 @@ export function talkServer() {
 
   const shownPeer = () =>
     peerDeleted ? { kind: 'person', personId: id(0), handle: 'deleted.account', displayName: 'Deleted account' } : peer;
+  const quoteOf = (sequence: number) => {
+    const original = messages.find((candidate) => candidate.sequence === sequence)!;
+    return {
+      messageId: original.messageId,
+      sequence,
+      original:
+        original.author === null
+          ? { status: 'unavailable' }
+          : { status: 'available', author: original.author, preview: original.text ?? original.note ?? '' },
+    };
+  };
+  const reactionsOf = (message: StoredMessage) =>
+    ['spark', 'mind_blown', 'ha', 'heart', 'question'].flatMap((kind) => {
+      const by = message.reactions.filter((reaction) => reaction.kind === kind);
+      return by.length === 0
+        ? []
+        : [
+            {
+              kind,
+              mine: by.some((reaction) => reaction.by === 'me'),
+              people: by.map((r) => (r.by === 'me' ? me : peer)),
+            },
+          ];
+    });
   const view = (message: StoredMessage) =>
     message.author === null
       ? { messageId: message.messageId, sequence: message.sequence, status: 'unavailable' }
@@ -59,6 +86,8 @@ export function talkServer() {
           status: 'available',
           author: message.author,
           recordedAt: '2026-10-24T08:00:00.000Z',
+          ...(message.replyTo === null ? {} : { replyTo: quoteOf(message.replyTo) }),
+          ...(message.reactions.length === 0 ? {} : { reactions: reactionsOf(message) }),
           body:
             message.text !== null
               ? { kind: 'text', text: message.text }
@@ -87,7 +116,7 @@ export function talkServer() {
 
   function add(
     author: StoredMessage['author'],
-    input: { text?: string; content?: StoredMessage['content']; note?: string },
+    input: { text?: string; content?: StoredMessage['content']; note?: string; replyTo?: number },
   ) {
     const sequence = messages.length + 1;
     const message: StoredMessage = {
@@ -98,6 +127,8 @@ export function talkServer() {
       text: input.text ?? null,
       content: input.content ?? null,
       note: input.note ?? null,
+      replyTo: input.replyTo ?? null,
+      reactions: [],
     };
     messages.push(message);
     return message;
@@ -173,11 +204,20 @@ export function talkServer() {
         const replay = commands.get(key);
         if (replay) return { ...(replay as Body), replayed: true };
         const sent = body['body'] as { kind: string; text?: string; target?: StoredMessage['content']; note?: string };
+        const answered =
+          body['replyTo'] === undefined
+            ? undefined
+            : messages.find((candidate) => candidate.messageId === body['replyTo'] && candidate.author !== null);
+        if (body['replyTo'] !== undefined && answered === undefined) return problem(404, 'SHARING_UNAVAILABLE');
         const message = add(
           me,
           sent.kind === 'text'
-            ? { text: sent.text! }
-            : { content: sent.target!, ...(sent.note ? { note: sent.note } : {}) },
+            ? { text: sent.text!, ...(answered ? { replyTo: answered.sequence } : {}) }
+            : {
+                content: sent.target!,
+                ...(sent.note ? { note: sent.note } : {}),
+                ...(answered ? { replyTo: answered.sequence } : {}),
+              },
         );
         const acceptance = {
           ...base,
@@ -193,6 +233,33 @@ export function talkServer() {
         };
         commands.set(key, acceptance);
         return acceptance;
+      }
+      case '/v1/social/conversations/react': {
+        const target = messages.find(
+          (candidate) => candidate.messageId === body['messageId'] && candidate.author !== null,
+        );
+        if (closed || target === undefined) return problem(404, 'SHARING_UNAVAILABLE');
+        const held = target.reactions.some((reaction) => reaction.kind === body['kind'] && reaction.by === 'me');
+        const changed = held !== body['present'];
+        if (changed) {
+          target.reactions = body['present']
+            ? [...target.reactions, { kind: String(body['kind']), by: 'me' }]
+            : target.reactions.filter((reaction) => !(reaction.kind === body['kind'] && reaction.by === 'me'));
+          target.changeSequence = ++changeCounter;
+        }
+        return {
+          ...base,
+          commandId: body['commandId'],
+          recordedAt: '2026-10-24T08:00:00.000Z',
+          replayed: false,
+          outcome: 'accepted',
+          operation: 'message.react',
+          conversation,
+          messageId: body['messageId'],
+          kind: body['kind'],
+          present: body['present'],
+          changed,
+        };
       }
       case '/v1/social/conversations/mark-read':
         readThrough = Math.max(readThrough, Number(body['throughSequence']));
@@ -454,8 +521,15 @@ export function talkServer() {
     },
     /** What the person answered to invitations, in order. */
     invitationAnswers: () => [...invitationAnswers],
-    /** The peer writes a message. */
-    peerSays: (text: string) => add(peer, { text }),
+    /** The peer writes a message, optionally answering the one with this sequence. */
+    peerSays: (text: string, replyTo?: number) => add(peer, { text, ...(replyTo === undefined ? {} : { replyTo }) }),
+    /** The peer puts a reaction on a message; it comes back through catch-up with a new change number. */
+    peerReacts(sequence: number, kind: string) {
+      const message = messages.find((candidate) => candidate.sequence === sequence)!;
+      message.reactions.push({ kind, by: 'peer' });
+      message.changeSequence = ++changeCounter;
+    },
+    reactionsOn: (sequence: number) => messages.find((candidate) => candidate.sequence === sequence)?.reactions ?? [],
     /** The server turns a message into a tombstone with a new change number. */
     tombstone(sequence: number) {
       const message = messages.find((candidate) => candidate.sequence === sequence)!;

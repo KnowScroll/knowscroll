@@ -379,6 +379,7 @@ describe('the API contract', () => {
       '/v1/social/conversations/changes': ['post'],
       '/v1/social/conversations/send': ['post'],
       '/v1/social/conversations/send/read': ['post'],
+      '/v1/social/conversations/react': ['post'],
       '/v1/social/conversations/mark-read': ['post'],
       '/v1/social/conversations/mute': ['post'],
       '/v1/social/conversations/leave': ['post'],
@@ -387,6 +388,7 @@ describe('the API contract', () => {
       '/v1/social/threads/history': ['post'],
       '/v1/social/threads/changes': ['post'],
       '/v1/social/threads/send': ['post'],
+      '/v1/social/threads/react': ['post'],
       '/v1/social/threads/respond': ['post'],
       '/v1/social/threads/mark-read': ['post'],
       '/v1/social/threads/leave': ['post'],
@@ -1325,10 +1327,11 @@ describe('Social370 declaration OpenAPI metadata', () => {
         ),
       },
     });
-    // Freeze the original13 operations independently of the additive #242 declarations.
+    // Freeze the original13 operations independently of the additive #242 declarations and T-B's react.
     const declarations = [
       ...Object.values(apiContract.conversations).filter(
-        (declaration) => declaration !== apiContract.conversations.readOwnSend,
+        (declaration) =>
+          declaration !== apiContract.conversations.readOwnSend && declaration !== apiContract.conversations.react,
       ),
       ...Object.values(apiContract.contentShares).filter(
         (declaration) => declaration !== apiContract.contentShares.list,
@@ -1544,7 +1547,7 @@ describe('additive242 current-own-send, own-link list and public-only preview Op
         ),
       },
     });
-    const { readOwnSend, ...originalConversations } = apiContract.conversations;
+    const { readOwnSend, react, ...originalConversations } = apiContract.conversations;
     const { list: ownShareList, ...originalContentShares } = apiContract.contentShares;
     const { publicContentShares, ...withoutPublic } = apiContract;
     const original = await generator.generate(
@@ -1557,12 +1560,17 @@ describe('additive242 current-own-send, own-link list and public-only preview Op
       Object.keys(document.paths ?? {})
         .filter((path) => !(path in (original.paths ?? {})))
         .sort(),
-    ).toEqual(['/s/preview', '/v1/social/content-shares/list', '/v1/social/conversations/send/read']);
+    ).toEqual([
+      '/s/preview',
+      '/v1/social/content-shares/list',
+      '/v1/social/conversations/react',
+      '/v1/social/conversations/send/read',
+    ]);
     expect(Object.values(originalConversations)).toHaveLength(9);
     expect(Object.values(originalContentShares)).toHaveLength(4);
     expect(Object.values(apiContract.contentShares)).toHaveLength(5);
     expect(ownShareList['~orpc'].errorMap).toEqual(apiContract.conversations.send['~orpc'].errorMap);
-    expect(Object.values(apiContract.conversations)).toHaveLength(10);
+    expect(Object.values(apiContract.conversations)).toHaveLength(11);
     expect(Object.values(publicContentShares)).toHaveLength(1);
     expect(readOwnSend['~orpc'].errorMap).toEqual(apiContract.conversations.send['~orpc'].errorMap);
     expect(Object.keys(privateErrors)).toHaveLength(17);

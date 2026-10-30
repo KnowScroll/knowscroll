@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   breakpointFor,
   content,
+  defaultTalkTheme,
   family,
   focusRing,
   iconStroke,
@@ -13,9 +14,11 @@ import {
   space,
   spacing,
   status,
+  talkThemes,
   target,
   toggle,
   typeScale,
+  universe,
   type TypeRole,
 } from './index';
 
@@ -221,5 +224,71 @@ describe('icons', () => {
     expect(iconStroke(22)).toBe(2);
     expect(iconStroke(18)).toBe(2.4);
     expect(iconStroke(12)).toBe(2.6);
+  });
+});
+
+describe('Talk themes (T3 kit, D-145)', () => {
+  /** An rgba() colour composited over a #RRGGBB ground, as the #RRGGBB the eye sees. */
+  function over(colour: string, ground: string): string {
+    if (colour === 'transparent') return ground;
+    if (colour.startsWith('#')) return colour;
+    const [r, g, b] = rgb(colour, rgb(ground));
+    const hex = (value: number) => Math.round(value).toString(16).padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+  }
+
+  describe.each(Object.values(talkThemes))('the $name theme', (theme) => {
+    const quoteGround = (strip: { fill: string }, bubble: string) => over(strip.fill, bubble);
+    const pairs: [string, string, string][] = [
+      ['text on the ground', theme.text, theme.ground],
+      ['the time under a run on the ground', theme.textQuiet, theme.ground],
+      ['text in another person’s bubble', theme.bubbleOther.text, theme.bubbleOther.fill],
+      ['text in your own bubble', theme.bubbleOwn.text, theme.bubbleOwn.fill],
+      [
+        'a quote in another person’s bubble',
+        theme.quoteOnOther.text,
+        quoteGround(theme.quoteOnOther, theme.bubbleOther.fill),
+      ],
+      ['a quote in your own bubble', theme.quoteOnOwn.text, quoteGround(theme.quoteOnOwn, theme.bubbleOwn.fill)],
+      ['a date capsule', theme.capsule.text, over(theme.capsule.fill, theme.ground)],
+      ['the header and message bar', theme.bar.text, over(theme.bar.fill, theme.ground)],
+      ['text in the field', theme.input.text, over(theme.input.fill, theme.ground)],
+      ['the placeholder in the field', theme.input.placeholder, over(theme.input.fill, theme.ground)],
+      ['the glyph on Send', theme.send.glyph, theme.send.fill],
+      ['a reaction pill', theme.pill.text, theme.pill.fill],
+      ['the menu', theme.menu.text, theme.menu.fill],
+      ['Report in the menu', theme.menu.danger, theme.menu.fill],
+    ];
+    it.each(pairs)('%s meets 4.5:1', (_name, foreground, background) => {
+      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('keeps the focus ring and the flash visible against the ground and the bubbles', () => {
+      expect(contrast(theme.focus, theme.ground)).toBeGreaterThanOrEqual(3);
+      // The flash lands on the jumped-to bubble: it must stand out from the bubble, and its text stays readable.
+      expect(contrast(theme.flash, theme.bubbleOther.fill)).toBeGreaterThanOrEqual(1.1);
+      expect(contrast(theme.bubbleOther.text, theme.flash)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(theme.bubbleOwn.fill, theme.ground)).toBeGreaterThanOrEqual(1.1);
+    });
+
+    it('draws your bubble cobalt and never yellow, which means focus (T3 Q2)', () => {
+      expect(theme.bubbleOwn.fill).toBe(universe.cobalt);
+      expect(theme.bubbleOwn.fill).not.toBe(universe.focus);
+    });
+  });
+
+  it('defines the same roles in both themes, so a screen never asks which one it is in', () => {
+    const roles = (value: object): string[] =>
+      Object.entries(value).flatMap(([key, inner]) =>
+        typeof inner === 'object' && inner !== null ? roles(inner).map((role) => `${key}.${role}`) : [key],
+      );
+    expect(roles(talkThemes.paper)).toEqual(roles(talkThemes.sky));
+  });
+
+  it('starts dark on the Universe’s own sky (T3 Q1) and shares its Paper and Ink', () => {
+    expect(defaultTalkTheme).toBe('sky');
+    expect(talkThemes[defaultTalkTheme].ground).toBe(universe.sky);
+    expect(talkThemes.sky.bubbleOther.fill).toBe(universe.paper);
+    expect(talkThemes.sky.bubbleOther.text).toBe(universe.ink);
   });
 });

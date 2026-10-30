@@ -2,7 +2,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import type { ContentThreadState } from '@knowscroll/client-core';
 import type { ConversationContentProjection, ThreadParticipant } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
-import { BottomSheet, Button, IconButton, Tag, Text } from '@knowscroll/ui';
+import { BottomSheet, Button, IconButton, Tag, Text, useTalkTheme } from '@knowscroll/ui';
 import { PersonAvatar } from '../conversations/person-avatar';
 
 /** The header strip's height on a thread (T3: 64 px on a conversation, 72 px on a thread). */
@@ -97,32 +97,37 @@ export function ThreadStrip({
   /** Reports the strip's height, so a sheet can hang from its bottom edge. */
   readonly onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
 }) {
+  const theme = useTalkTheme();
   return (
-    <View style={styles.strip} onLayout={onLayout} testID="thread-header">
-      <IconButton icon="back" label="Back" onPress={onBack} />
-      <View style={styles.title}>
-        {eyebrow === undefined ? null : (
-          <Text variant="monoXs" color={content.ink2} numberOfLines={1}>
-            {eyebrow}
+    <View style={[styles.stripGround, { backgroundColor: theme.ground }]} onLayout={onLayout} testID="thread-header">
+      <View style={[styles.strip, { backgroundColor: theme.bar.fill, borderColor: theme.bar.edge }]}>
+        <IconButton icon="back" label="Back" variant="onSpace" size={44} onPress={onBack} />
+        <View style={styles.title}>
+          {eyebrow === undefined ? null : (
+            <Text variant="monoXs" color={theme.textQuiet} numberOfLines={1}>
+              {eyebrow}
+            </Text>
+          )}
+          <Text variant="ui" heading={1} numberOfLines={1} color={theme.bar.text}>
+            {title}
           </Text>
+        </View>
+        {series === undefined ? null : (
+          <Button
+            label="Series"
+            size="sm"
+            variant={series.open ? 'continue' : 'space'}
+            icon={series.open ? 'chevronUp' : 'chevronDown'}
+            iconPosition="trailing"
+            accessibilityHint="Pulls down the parts of this thread"
+            onPress={series.onPress}
+            testID="thread-series-button"
+          />
         )}
-        <Text variant="ui" heading={1} numberOfLines={1}>
-          {title}
-        </Text>
+        {onMenu === undefined ? null : (
+          <IconButton icon="more" label="Thread options" variant="onSpace" size={44} onPress={onMenu} />
+        )}
       </View>
-      {series === undefined ? null : (
-        <Button
-          label="Series"
-          size="sm"
-          variant={series.open ? 'continue' : 'default'}
-          icon={series.open ? 'chevronUp' : 'chevronDown'}
-          iconPosition="trailing"
-          accessibilityHint="Pulls down the parts of this thread"
-          onPress={series.onPress}
-          testID="thread-series-button"
-        />
-      )}
-      {onMenu === undefined ? null : <IconButton icon="more" label="Thread options" onPress={onMenu} />}
     </View>
   );
 }
@@ -229,15 +234,16 @@ export function InvitationView({
 }
 
 const styles = StyleSheet.create({
+  /** The sky behind the glass bar: 8 px around it, so the strip is 72 px (T3 kit) and the glass 64. */
+  stripGround: { paddingHorizontal: spacing[2], paddingVertical: spacing[1], minHeight: HEADER_HEIGHT },
   strip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
-    paddingHorizontal: layout.gutter,
-    paddingVertical: spacing[2],
-    minHeight: HEADER_HEIGHT,
-    borderBottomWidth: borderWidth.regular,
-    borderBottomColor: content.ink,
+    paddingHorizontal: layout.gutter - spacing[2],
+    minHeight: HEADER_HEIGHT - 2 * spacing[1],
+    borderRadius: 24,
+    borderWidth: 1,
   },
   header: {
     flexDirection: 'row',

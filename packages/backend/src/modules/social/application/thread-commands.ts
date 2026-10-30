@@ -3,11 +3,13 @@ import {
   CreateContentThreadSchema,
   LeaveThreadSchema,
   MarkThreadReadSchema,
+  ReactToThreadMessageSchema,
   RespondToThreadInvitationSchema,
   SendThreadMessageSchema,
   ThreadInvitationResponseAcceptanceSchema,
   ThreadLeaveAcceptanceSchema,
   ThreadMessageAcceptanceSchema,
+  ThreadReactionAcceptanceSchema,
   ThreadReadAcceptanceSchema,
   type ContentThreadRef,
   type SendThreadBody,
@@ -20,6 +22,7 @@ import { acceptedReadThrough } from '../domain/conversations.js';
 import { canTakePart, invitable, isParticipant } from '../domain/threads.js';
 import type { InboxChange } from './conversation-ports.js';
 import { refuse, threadEnvelope, type Result } from './ports.js';
+import { planReaction, resolveReplyTarget } from './reactions.js';
 import { enterThread, threadRefOf, type EnteredThread, type Entry } from './thread-gate.js';
 import type { ThreadMember, ThreadPorts, ThreadRow } from './thread-ports.js';
 
@@ -222,7 +225,8 @@ export function makeThreadCommands(p: ThreadPorts) {
      * Sends a text message or a snippet. A snippet is checked against the exact current revision
      * (Reel range inside the duration, passage on a stable block with its quote, block settings from
      * the block's own declarations, personal values only with confirmation); the message and its anchor
-     * commit together. Sending is not consumption evidence for anyone.
+     * commit together. A reply names a message of this same thread; anything else is refused. Sending is
+     * not consumption evidence for anyone.
      */
     send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadMessageAcceptanceSchema>>> {
       const parsed = SendThreadMessageSchema.safeParse(input);
@@ -238,6 +242,13 @@ export function makeThreadCommands(p: ThreadPorts) {
           const body = command.body;
           const snippet = body.kind === 'snippet' ? await checkSnippet(scope, entered.thread, body) : undefined;
           if (snippet?.kind === 'refused') return snippet;
+          const reply = await resolveReplyTarget(
+            p.conversations,
+            entered.lock,
+            entered.thread.threadId,
+            command.replyTo,
+          );
+          if (reply.kind === 'refused') return reply;
           return ok({
             write: async () => {
               const messageId = p.newId();
@@ -246,6 +257,7 @@ export function makeThreadCommands(p: ThreadPorts) {
                 commandId: command.commandId,
                 authorAccountId: entered.owner.accountId,
                 recordedAt: now,
+                ...(reply.value === undefined ? {} : { replyToSequence: reply.value }),
                 ...(body.kind === 'text'
                   ? { text: body.text }
                   : { content: body.target, ...(body.note === undefined ? {} : { note: body.note }) }),
@@ -261,6 +273,53 @@ export function makeThreadCommands(p: ThreadPorts) {
               });
             },
             announce: takingPart(entered),
+          });
+        },
+      });
+    },
+
+    /**
+     * Puts one of the five reactions on a message of this thread, or takes it off. The wanted state is the
+     * command, so a repeat is accepted without a change; a change gives the message a fresh change number
+     * and every participant's inbox hears of it. Not consumption evidence for anyone.
+     */
+    react(
+      authority: PersonalAuthority,
+      input: unknown,
+    ): Promise<Result<z.infer<typeof ThreadReactionAcceptanceSchema>>> {
+      const parsed = ReactToThreadMessageSchema.safeParse(input);
+      if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
+      const command = parsed.data;
+      return inThread(authority, {
+        operation: 'social.thread-react',
+        command,
+        request: command,
+        acceptance: ThreadReactionAcceptanceSchema,
+        async decide(context) {
+          const { scope, entered, now } = context;
+          const plan = await planReaction(p.conversations, entered.lock, {
+            conversationId: entered.thread.threadId,
+            messageId: command.messageId,
+            accountId: entered.owner.accountId,
+            kind: command.kind,
+            present: command.present,
+            now,
+          });
+          if (plan.kind === 'refused') return plan;
+          return ok({
+            write: async () => {
+              if (plan.value.changed) await plan.value.apply();
+              return ThreadReactionAcceptanceSchema.parse({
+                ...receiptBase(scope, now, command.commandId),
+                operation: 'thread.react',
+                thread: threadRefOf(entered),
+                messageId: command.messageId,
+                kind: command.kind,
+                present: command.present,
+                changed: plan.value.changed,
+              });
+            },
+            announce: plan.value.changed ? takingPart(entered) : [],
           });
         },
       });

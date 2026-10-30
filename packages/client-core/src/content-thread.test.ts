@@ -1,5 +1,5 @@
 import { ORPCError } from '@orpc/client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { problemDetails, type ContentThreadRef, type ThreadMessage } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { createContentThread } from './content-thread';
@@ -27,6 +27,10 @@ const text = (sequence: number, value: string, author = asha): ThreadMessage => 
   recordedAt: '2026-10-24T08:00:00.000Z',
   body: { kind: 'text', text: value },
 });
+
+type AvailableThreadMessage = Extract<ThreadMessage, { status: 'available' }>;
+const available = (sequence: number, value: string, author = asha) =>
+  text(sequence, value, author) as AvailableThreadMessage;
 
 function readyView(messages: ThreadMessage[], extra: Record<string, unknown> = {}) {
   return {
@@ -252,5 +256,91 @@ describe('a content thread on the client', () => {
     lost = false;
     await controller.refresh();
     expect(controller.getState()).toMatchObject({ offline: false, awayAfterSequence: undefined });
+  });
+
+  it('sends a reply naming its original and a retry names the same one', async () => {
+    const stored = [text(1, 'who is on part 2?', ravi)];
+    let failures = 1;
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView(stored)),
+      send: (input: { body: { text: string }; replyTo?: string }) => {
+        if (failures-- > 0) return Promise.reject(new Error('network'));
+        stored.push({
+          ...available(2, input.body.text),
+          replyTo: {
+            messageId: input.replyTo!,
+            sequence: 1,
+            original: { status: 'available', author: ravi, preview: 'who is on part 2?' },
+          },
+        });
+        return Promise.resolve({ messageSequence: 2, replayed: false });
+      },
+      changes: () =>
+        Promise.resolve({
+          status: 'ready',
+          changes: stored.map((message) => ({ changeSequence: message.sequence, message })),
+          continuation: { kind: 'caught_up', cursor: cursor(stored.length) },
+        }),
+      markRead: () => Promise.resolve({ acceptedThroughSequence: stored.length }),
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    await controller.load();
+    await controller.send({ kind: 'text', text: 'part 2 abhi start kiya' }, id(101));
+    const [pending] = controller.getState().outgoing;
+    expect(pending).toMatchObject({ status: 'unconfirmed', replyTo: id(101) });
+    await controller.retry(pending!.commandId);
+    const sends = scope.calls
+      .filter((call) => call.name === 'send')
+      .map((call) => call.input as Record<string, unknown>);
+    expect(sends.map((input) => input['replyTo'])).toEqual([id(101), id(101)]);
+    expect(new Set(sends.map((input) => input['commandId'])).size).toBe(1);
+    expect(controller.getState().messages[1]).toMatchObject({ replyTo: { messageId: id(101) } });
+  });
+
+  it('reacts with the wanted state, then catches up so the message comes back with the reaction', async () => {
+    const stored: ThreadMessage[] = [text(1, 'the far side bulges too')];
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView(stored)),
+      react: (input: { present: boolean; kind: 'heart' }) => {
+        stored[0] = input.present
+          ? {
+              ...available(1, 'the far side bulges too'),
+              reactions: [{ kind: input.kind, mine: true, people: [asha] }],
+            }
+          : available(1, 'the far side bulges too');
+        return Promise.resolve({ changed: true });
+      },
+      changes: () =>
+        Promise.resolve({
+          status: 'ready',
+          changes: stored.map((message, index) => ({ changeSequence: index + 2, message })),
+          continuation: { kind: 'caught_up', cursor: cursor(stored.length + 1) },
+        }),
+      markRead: () => Promise.resolve({ acceptedThroughSequence: 1 }),
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    await controller.load();
+    await controller.react(id(101), 'heart', true);
+    expect(controller.getState().messages[0]).toMatchObject({ reactions: [{ kind: 'heart', mine: true }] });
+    await controller.react(id(101), 'heart', false);
+    expect(controller.getState().messages[0]).not.toHaveProperty('reactions');
+    const reacts = scope.calls
+      .filter((call) => call.name === 'react')
+      .map((call) => call.input as Record<string, unknown>);
+    expect(reacts.map((input) => [input['messageId'], input['kind'], input['present']])).toEqual([
+      [id(101), 'heart', true],
+      [id(101), 'heart', false],
+    ]);
+  });
+
+  it('reads the thread again when a reaction is refused, because the place may have ended', async () => {
+    const scope = scopeOf({
+      read: () => Promise.resolve(readyView([text(1, 'hello')])),
+      react: () => Promise.reject(unavailable()),
+    });
+    const controller = createContentThread({ scope, thread, newId });
+    await controller.load();
+    await controller.react(id(101), 'spark', true);
+    await vi.waitFor(() => expect(scope.calls.filter((call) => call.name === 'read')).toHaveLength(2));
   });
 });

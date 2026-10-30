@@ -6,8 +6,10 @@ import type {
   ConversationLeaveAcceptanceSchema,
   ConversationMessageAcceptanceSchema,
   ConversationMuteAcceptanceSchema,
+  ConversationReactionAcceptanceSchema,
   ConversationReadAcceptanceSchema,
   ContentShareRevocationAcceptanceSchema,
+  ThreadReactionAcceptanceSchema,
   ContentThreadCreationSchema,
   ContentThreadViewSchema,
   ThreadChangesPageSchema,
@@ -90,6 +92,10 @@ export interface ConversationUseCases {
       authority: PersonalAuthority,
       input: unknown,
     ): Promise<Result<z.infer<typeof ConversationMessageAcceptanceSchema>>>;
+    react(
+      authority: PersonalAuthority,
+      input: unknown,
+    ): Promise<Result<z.infer<typeof ConversationReactionAcceptanceSchema>>>;
     markRead(
       authority: PersonalAuthority,
       input: unknown,
@@ -147,6 +153,7 @@ export const CONVERSATION_USE_CASES = Symbol('social.conversationUseCases');
 export interface ThreadUseCases {
   create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ContentThreadCreationSchema>>>;
   send(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadMessageAcceptanceSchema>>>;
+  react(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadReactionAcceptanceSchema>>>;
   respond(
     authority: PersonalAuthority,
     input: unknown,

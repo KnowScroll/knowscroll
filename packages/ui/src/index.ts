@@ -52,3 +52,4 @@ export {
   type ReelPositionHandle,
 } from './media/reel-player';
 export { ReelProgress, formatClock, type ReelProgressProps } from './media/reel-progress';
+export * from './talk';

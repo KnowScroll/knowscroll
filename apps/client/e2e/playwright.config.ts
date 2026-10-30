@@ -33,6 +33,7 @@ export default defineConfig({
         'universe-smoke.spec.ts',
         'a11y-smoke.spec.ts',
         'talk-smoke.spec.ts',
+        'talk-reply-react-smoke.spec.ts',
         'thread-phone-smoke.spec.ts',
         'reflow-smoke.spec.ts',
         'keyboard-smoke.spec.ts',
