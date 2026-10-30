@@ -66,6 +66,10 @@ invented. A Composer member's optional `session` supplies both session ID and th
 server intent revision for catch-up; direct exposures omit it. Mutable action state belongs to
 this read, not an immutable offer or receipt snapshot.
 
+A vertical move may carry optional `format` (`reel` or `scroll`), the format the person is in: the next
+subject stays in it while anything of it is eligible (D-132). Omitting it keeps the ranking with no format
+preference. Series, related, variant and return intents do not carry it.
+
 Only series/related navigation can include optional `expectedContinuation`
 `{linkId, assetId, assetRevision}`. A displayed ready card binds that exact admitted link and
 revision for revalidation; a stale card must not silently change destination. Omission retains
