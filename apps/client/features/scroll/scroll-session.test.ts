@@ -1,7 +1,8 @@
 import { createRecordingPolicySession, createApiClient, ScopeEndedError } from '@knowscroll/client-core';
 import document from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
-import { SCROLL_CAPABILITIES } from './capabilities';
-import { createScrollSession, type ScrollSessionState } from './scroll-session';
+import stageDocument from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
+import { SCROLL_CAPABILITIES, STAGE_CAPABILITIES } from './capabilities';
+import { createScrollSession, isStageScroll, positionIds, type ScrollSessionState } from './scroll-session';
 
 /**
  * Opening a Scroll (open → document → activate) over a labelled fixture `fetch`: no network, no API.
@@ -98,7 +99,7 @@ function fixture(handlers: { open?: Handler; document?: Handler; activate?: Hand
   return { fetch, calls };
 }
 
-function sessionOver(server: ReturnType<typeof fixture>) {
+function sessionOver(server: ReturnType<typeof fixture>, stage = false) {
   const api = createApiClient({ baseUrl: 'https://app.session.test', fetch: server.fetch });
   let counter = 0;
   const newId = () => `0199a000-0000-7000-8000-${String(++counter).padStart(12, '0')}`;
@@ -110,7 +111,7 @@ function sessionOver(server: ReturnType<typeof fixture>) {
     },
     newId,
   );
-  const session = createScrollSession({ scope: { api, active: true, recording }, assetId: ASSET, newId });
+  const session = createScrollSession({ scope: { api, active: true, recording }, assetId: ASSET, newId, stage });
   const states: ScrollSessionState['status'][] = [];
   session.subscribe(() => states.push(session.getState().status));
   return { session, states };
@@ -248,6 +249,54 @@ describe('opening a Scroll for the signed-in scope', () => {
     session.start();
     expect((await settled(session, 'error')).status).toBe('error');
     expect(server.calls.some((call) => call.path === '/v1/experience/activate')).toBe(false);
+  });
+
+  it('a surface that draws v2 declares it, parses the v2 document and opens it as a stage Scroll with stop ids as its places', async () => {
+    const server = fixture({
+      document: () =>
+        json(200, {
+          exposureId: EXPOSURE,
+          assetId: ASSET,
+          assetRevision: 2,
+          document: stageDocument,
+          degradedEssential: [],
+        }),
+    });
+    const { session } = sessionOver(server, true);
+    session.start();
+    const state = await settled(session, 'ready_stage');
+    expect(server.calls[0]?.body).toMatchObject({ capabilities: STAGE_CAPABILITIES });
+    expect(STAGE_CAPABILITIES.documentSchemas).toContain('scroll-document.v2');
+    expect(SCROLL_CAPABILITIES.documentSchemas).not.toContain('scroll-document.v2');
+    if (state.status !== 'ready_stage') throw new Error('expected a stage Scroll');
+    expect(isStageScroll(state.scroll)).toBe(true);
+    expect(positionIds(state.scroll)).toEqual(state.scroll.document.stops.map((stop) => stop.id));
+  });
+
+  it('a surface that does not draw v2 never opens one: it shows the update state and does not activate', async () => {
+    const server = fixture({
+      document: () =>
+        json(200, {
+          exposureId: EXPOSURE,
+          assetId: ASSET,
+          assetRevision: 2,
+          document: stageDocument,
+          degradedEssential: [],
+        }),
+    });
+    const { session } = sessionOver(server);
+    session.start();
+    expect((await settled(session, 'needs_update')).status).toBe('needs_update');
+    expect(server.calls[0]?.body).toMatchObject({ capabilities: SCROLL_CAPABILITIES });
+    expect(server.calls.some((call) => call.path === '/v1/experience/activate')).toBe(false);
+  });
+
+  it('a v1 Scroll still opens as an article on a surface that also draws v2', async () => {
+    const { session } = sessionOver(fixture({}), true);
+    session.start();
+    const state = await settled(session, 'ready', 'ready_stage');
+    expect(state.status).toBe('ready');
+    if (state.status === 'ready') expect(isStageScroll(state.scroll)).toBe(false);
   });
 
   it('drops the answer of an ended scope: no state changes after the scope ended or the session was disposed', async () => {

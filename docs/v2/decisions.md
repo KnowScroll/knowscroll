@@ -170,18 +170,15 @@ What remained after the necessary workarounds was a session table and token hash
 
 Consequences: `KS_AUTH_ADAPTER` defaults to `session` (`none` is gone; `test-bearer` stays a CI fixture, and it too must send the scope claim). Production refuses to start unless `KS_MAIL_SENDER=agentmail` is fully configured; the v2 API unit reads `/etc/knowscroll/secrets/shared/agentmail.env` and the v2 settings gain `KS_MAIL_SENDER=agentmail`, `KS_ALLOW_OPERATOR_SIGN_IN=1` and `KS_OPERATOR_SIGN_IN_PATTERN` (Ansible `roles/worlds_v2`; apply before deploying a revision with S1.3). The v2 programs run as their own users `ks2-<world>` with `/etc/knowscroll` invisible to them, and the v2 web app gets a Content-Security-Policy and `X-Frame-Options: DENY` from Caddy (both applied by Ansible). No signing secret is needed. Open for the owner before live (re-review N2): valid addresses still spend the domain and world budgets, so a few dozen client addresses can switch sign-in off for a domain or the world; the options are in the identity README ("Before live"). OAuth does not apply until a third-party provider is added ("other sign-in options" stays a placeholder); when one is, revisit this entry rather than growing the first-party code into an OAuth server.
 
-
 ## D-023 · 2026-10-20 · Owner: continuation through remaining phases
 
 The owner's Codex continuation request authorises continuing the existing v2 programme through all remaining implementation phases, connected real-service journeys and verified dev/stage delivery. The earlier inferred pause before Phase 3 is superseded; report after each phase and continue the next unblocked phase. Main/production, total paid budgets, individual Reel-script approval, destructive actions and unavailable credentials retain their explicit owner controls. No PIO or Software Factory workflow is reinstated.
 
 Use the existing tracker #222, branches and implementation work. The Codex coordinator integrates, reviews, merges and deploys; bounded Sol agents own named issues/worktrees. Historical Claude agent IDs and attribution settings are not current assignments or controls.
 
-
 ## D-024 · 2026-10-20 · Owner: bounded additional MiniMax allowance for Scroll production
 
 For #232 the owner explicitly approved up to 24 additional MiniMax model requests total: 12 development and 12 dev generation. Every admitted attempt/repair must be recorded, uncertainty consumes the allocation until reconciliation, and a new agent/session does not reset it. The historical harness six-call grant is exhausted and separate. Coordinator shared ledger: SSD `knowscroll-dev/v2/agents/coordinator/provider-allowance-232.json`; harness database attempts remain the execution authority. This does not change D-018's separate Cutroom budget or per-script approvals.
-
 
 ## D-025 · 2026-10-20 · Coordinator: navigation lineage and mutable encounter context
 
@@ -210,7 +207,6 @@ except newly reserved discriminators (`target` for activation, `status` for open
 Interim consumers refuse unsupported new commands before any effect. Shared contracts land and
 pass independent review/Actions before feature consumers.
 
-
 ## D-026 · 2026-10-20 · Coordinator: initial layered 2D Universe renderer
 
 Use the existing react-native-svg dependency for the initial layered 2D Universe renderer, with ordinary accessible RN/Web controls and lists. The [source/design study](discovery/scene-renderer-study.md) evaluates committed U01–U08/D02, blueprint§13/§18 and current scene-core/Scroll runtime evidence; U07 explicitly permits layered SVG without 3D. This is an initial implementation choice, not populated-scene or physical-device performance acceptance. Keep descriptor/formation/identity independent of rendering and revisit from actual scene/device evidence if needed.
@@ -219,7 +215,6 @@ The server persists meaning-selected family/template, opaque personal seed, gene
 
 
 Initial finite scene convention (coordinator refinement 2026-10-20, clarified 2026-10-21): the established Earth system and its star retain distinct object kinds, and both use the existing terraced.v1 family/template fields. Star names an object kind and renderer semantic, not a fourth SceneFamily; the earlier phrase “star family” was ambiguous. Seasons uses terraced.v1, Tides archipelago.v1, and Greenhouse ridged.v1. Regions inherit their canonical parent's selected family. These are cosmetic rendering conventions, not scientific classifications, formation evidence or new meaning authority. Persist family/template, seed, generator and anchors before variation; unsupported/ambiguous meaning labels fail closed and alias resolution remains Geography-owned. The initial projector does not bootstrap nonempty historical worlds: empty worlds remain empty, and any later bootstrap requires an explicit reviewed maintenance path.
-
 
 ## D-027 · 2026-10-20 · Coordinator: public social view revisions do not expose private transitions
 
@@ -1156,72 +1151,6 @@ D-123 found two Scrolls refused twice on `common_guess_invalid` and `common_gues
 - **A Final call may not restate a call.** `final_call_restates_call` refuses a Final call whose prompt, or whose correct option, is near-identical to an earlier call's. The measure is the share of content words two texts have in common (letters and digits, lower case, filler words dropped, plurals cut back), compared as sets. The pinned threshold is 0.6. A text with fewer than three content words is not judged. The tests use a near-copy (0.83) and different questions on the same subject (0.1 at most). Heavy paraphrase is not caught; a person's read of each wave (D-123) still is needed.
 - **Prompt `scroll-writer.v15`** carries all of this: the second-option rule, the four stage choices, no stage on calls, and a Final call that is a new case.
 
-## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
-
-Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
-
-- **A strip, not a card.** A thread opens with Back, a line saying what it is ("A THREAD · 3 PARTS"), the title, Series and options. The fixed series card and the horizontal part strip are gone from the phone. Rooms keep their own header.
-- **The conversation keeps the screen.** At 390 x 844 with the player docked the messages are 65.9 % of the viewport and the whole conversation region (asks and message box included) is 84.6 %. A test measures it. With the player opened in place it is 47 %: that is the person's choice.
-
-Confirmed by: `apps/client/e2e/thread-phone-smoke.spec.ts` (the 60 % measure).
-
-## D-141 · 2026-10-30 · Series is a sheet pulled down from the header, and its arrow keys only move the selection (T-A, #481)
-
-Amends D-006 k and D-053.
-
-- **An overlay, never a route.** Series lists the parts and the people. Back, Esc, Close and a tap on the scrim close only the sheet. The header stays in view and only what is below is dimmed (`PullDownSheet`).
-- **Pressing a row chooses it and closes the sheet.** The arrow keys (up, down, left, right) only move the selection to the neighbouring part; the sheet stays open. The keyboard map says so.
-- **The sheet exists below 1024 px only.** Resizing to a desktop with it open closes it and does not leave the player paused.
-
-Confirmed by: `thread-phone-smoke.spec.ts` (sheet, Back, Esc, arrows, resize), `episode-list.test.tsx`, `pull-down-sheet.test.tsx`.
-
-## D-142 · 2026-10-30 · The thread's player starts docked on a phone and the person's own choice wins (T-A, #481)
-
-Amends D-046 (selection and fold stay on the device).
-
-- **Docked is a 56 px bar** naming the open part, with Updated when the revision is corrected. Pressing it opens the player in place; folding docks it again.
-- **A default, then the person's choice.** Until the person folds or unfolds, a phone is docked and a desktop is open. Pressing Watch counts as unfolding, so a resize across 1024 px never docks a playing Reel.
-- **Nothing is sent.** Selection and fold stay in the account scope's storage on this device.
-
-Confirmed by: `own-place.test.tsx`, `thread-phone-smoke.spec.ts`, the resize test in `talk-smoke.spec.ts`.
-
-## D-143 · 2026-10-30 · Desktop has a series panel beside the conversation (T-A, #481)
-
-Amends D-053 (Talk panes).
-
-- **From 1024 px the conversation fills the left and a 400 px panel on the right** holds the parts, the player and the people. The panel is first in reading order and last on screen.
-- **The inbox is not beside a thread yet.** The thread has the rail only.
-- **No place.** Nothing says where another member is. A coarse place is T-D (D-065).
-
-Confirmed by: `thread-phone-smoke.spec.ts` (panel), `talk-smoke.spec.ts`.
-
-## D-144 · 2026-10-30 · A time under each run of messages in a thread (T-A, #481)
-
-- **A run** is one author's messages, each within five minutes of the one before and on one day. The last message of a run shows its clock time in the reader's own time zone; the day capsule above shows the date. Both come from `recordedAt`.
-- **Threads only.** The direct conversation list gets its times in T-B.
-
-Confirmed by: `talk-format.test.ts`, `thread-phone-smoke.spec.ts`.
-## D-160 · 2026-10-30 · Who is here: a one-minute lease, on a member's own view, with the reader always in it (#487)
-
-D-069 says faces always, a number only from three, no "0 online" or "1 online", the cast never counted, and an allow-list in the contract. This is how the room module keeps it. It **builds on** D-051 and D-069 and changes neither.
-
-- **The lease.** `rooms.room_presence` holds one row per member who has the room open. Only the member's own device writes it, through `rooms/presence` (`here` or `away`), never derived from messages or another module. A row counts for 60 seconds; an open, visible room renews it every 25 seconds. Leaving, removal and account deletion delete it. Clear keeps it, as it keeps the membership: it is a lease of the account, not exploration, and ends by itself.
-- **The allow-list.** A member's own view of a room carries `here` (faces, and `count` only from three), `memberTotal` and `lastMessageAt`. A list, a preview and a station carry none of them. The contract refuses a `count` below three and a `count` smaller than the faces shown.
-- **The reader is always a face.** A person who reads the room has it open, so their own face is in `here` even before their first beat. Others appear only through a lease.
-- **A blocked person is left out, not drawn as a placeholder.** For the blocker, the person's face and the count are both computed without them, so the count cannot give them away. Everyone else reads the room as before (D-051: a block is the reader's choice).
-- **Hints.** A room scope on the socket is subscribed by current members only. A hint goes out when a lease starts or ends, when someone leaves or is removed, and when a message is sent. A steady beat sends none. The hint's revision is the commit time in milliseconds and is not a position to catch up from, so a client coalesces a burst of hints with a 300 ms quiet window instead of skipping any; the hint names the room and nothing else. The worker's stored AI reply sends the same hint, and a room scope is never held in the gateway's authorisation cache, so a removed member hears nothing at once. Expiry has no event, so a room is read again on the slow poll and on focus as before.
-- **Quiet.** "Quiet right now · last message 3 h ago" is worked out on the device from `lastMessageAt` and the device clock: after ten minutes without a message, and "no messages yet" for a room nobody has written in. A clock that runs behind never makes a busy room look quiet.
-
-## D-161 · 2026-10-30 · Keeping messages out takes effect with the setting, and the AI notice says what is true today (#487)
-
-R3 question 6 (keep my messages out of what AI reads) and question 5 (default level) are final through D-060. The R-1 issue said the substitution would come with R-2; it is built now, so the switch is never a promise.
-
-- **Substitution before items are built.** The asked-turn context builder replaces each message of a member who keeps their messages out with `[a member's message]` before any context item is created: their text, the title of what they shared and their note are not read, so neither the model nor the stored request bytes carry them. The message keeps its place and its speaker number. A discussion's title is the starter's own typing, so when the starter keeps out it becomes `[a member's topic]`; the room's name and guidelines are the operator's, the content's title and summary the library's, and polls and pins are never read. This also holds for the member's own asks. An AI message that was written earlier stays, because it is the room's.
-- **Nothing cached to unpick yet.** No summary or memory exists, so there is nothing to mark stale. A summary built later must use the same builder and add the stale mark in the change that creates the cache.
-- **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
-- **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
-- **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
-
 ## D-127 · 2026-10-30 · Coverage v2: a v2 Scroll binds its facets to read stops (S-1b, #472)
 
 A planet forms from facet coverage (D-033). Coverage v1 binds a facet to top-level paragraphs, quotes and callouts, and a v2 document has none of those, so no planet could form from a v2 Scroll. This adds `scroll-recipe-coverage.v2`. Coverage v1 is unchanged and still decides every v1 Scroll.
@@ -1271,6 +1200,119 @@ The production job published only v1 Scrolls. A v2 Scroll is now produced, admit
 - `series.total` in the exposure context is the number of `content.series_units` of the series revision the Scroll is in. It is never declared, estimated or taken from the library plan.
 - It appears for any unit that is in an admitted series, Scroll or Reel, and nowhere else. A series with no counted units has no `series` at all. Every other field of the context is unchanged.
 - The Composer's snapshot does not carry it: ranking never reads the total.
+
+## D-133 · 2026-10-30 · The stage engine and the Earth & sky kit: what is drawn, how it moves, where it sits (S-1c, #472)
+
+D-120 and D-124 fixed what a stage state may say and what code derives from it. This entry decides how the reader draws it.
+
+**Builds on** D-124. The physics stays in `scroll-model` (`stagePhysics`); the drawing only places things.
+
+- **One scene, from the derived state.** `sceneOf(state)` turns a settled state and its physics into positions and angles. It decides no physics: which half leans, how high the Sun stands and each pin's mark come from `stagePhysics`.
+- **Where Earth is.** June is at the right, September at the top, December at the left, March at the bottom. The orbit views show the four of them as pale Earths with the same axis, so the one fixed lean can be seen. A pale Earth that would sit on the real one is not drawn.
+- **Two orbits.** `orbit` is nearly a circle with the Sun in the middle. `orbit-stretched` is flatter with the Sun off-centre toward the near side. It is an illustration and says so in its words.
+- **Side views.** The Sun is at the left and its light arrives in parallel. Each hemisphere's pin sits at a distance from the point that faces the Sun that follows its Sun height (22, 50 or 76 degrees), so Ray's angle and the size of the patch the beam covers come out of the geometry: a low Sun spreads over more ground. The axis leans toward the Sun for a leaning north, away for a leaning south, and is upright when neither leans (a lean toward the viewer cannot be drawn flat).
+- **Drawing agrees with physics, by test.** For every month, the half that leans in the orbit picture is the half `stagePhysics` names; the side-view lean matches; the higher Sun covers less ground and has the warmer pin. Shown failing when the orbit's axis turn was changed.
+- **The stage at a stop** is the last state set at or before it. A call sets none, so a call never shows its own answer.
+- **How it moves.** A move inside one view, or between the two orbits, glides over the subject motion token's 320 ms (Earth by the short way round, the axis and the pins blended). A move to a different view fades one picture into the other. Under reduced motion every move is a 160 ms cross-fade and nothing between two states is drawn. A move that starts while another is under way starts from the picture on screen.
+- **Its name.** The picture is one image whose accessible name is the state's description from the document. "Text" (key T) swaps the picture for those sentences.
+- **Where it sits.** On a phone the stage is a third of the screen (at least 176, at most 300 px) pinned above the text, with the part label on it. From a tablet the top bar carries the title and the part. There is no V3 frame for a Scroll on a desktop, so a desktop is a centred column about 750 px wide with the stage pinned at its top and the thread beside it, as for any Scroll.
+- **Calls are played on the device.** Pick, lock in, then the answer and why; a wrong pick adds the Plot twist, and the reviewed source of the common guess shows when that was the pick. Nothing is saved or sent but the reveal (D-135); locking, sparks and the Plot twist's effects are S-2.
+- **Not decided here.** Parallax, an animated Ray, other kits, the stage's own drags (the stage takes none in this version).
+
+Confirmed by: `earth-sky-scene.test.ts`, `use-stage-pictures.test.tsx`, `stage-reader.test.tsx`, `stage-reader-smoke.spec.ts` (picture follows stops, tween and cross-fade, axe at 390 and 1440).
+
+## D-134 · 2026-10-30 · Gestures and keys of the Stage + Spine reader (S-1c, #472)
+
+**Builds on** D-071 (swipe between Parts from text and stop surfaces only) and D-053 (keys act on the focused part, never the page).
+
+- **Swipe, by finger only.** A mouse or pen drag across the text is selecting it (the way to "Simpler" and "Ask about this"), so it never moves a Part or asks for a new topic; on a desktop every move is a button and a key. A sideways drag of a finger of at least 64 px that is clearly more sideways than vertical moves between Parts: left is the next Part, right the one before. It is read only on the text. The stage, the spine and the dock are outside it, so the stage keeps its own drags. A drag that starts in the 24 px edge zone of a phone is the platform's Back. A drag that starts on a field or slider is that control's.
+- **Vertical reading never navigates.** Only a pull up from the very end of the text, at least 96 px, asks for a new topic. A fling that ends at the end is not that: the pull must start at the end. On iOS the scroll view's overscroll past the end (72 px) is the same ask, and only when the drag began at the end; Android uses the button.
+- **One move, one path.** Swipe, key and button call the same thing. A Part is the series continuation the server admitted for this Scroll, sent with its displayed link. A new topic is the vertical move in the same format. Where there is no admitted Part the button is absent and the swipe and key do nothing.
+- **Keys.** They work while the reader itself has focus (Tab to it or click it) and nowhere else: down or Space the next stop, up the one before, right the next Part, left the one before, N a new topic, U your Universe, A Ask, T the text version, F the other format, 1 to 4 pick in a call, Enter lock in. A control inside keeps its own keys. The keyboard map lists them, and a test fails when a key is added without a row.
+- **Quick presses add up.** A key pressed while the last is still scrolling continues from where that one was heading.
+- **Soft snap.** Native uses the scroll view's snap offsets. The web settles on a stop's top when scrolling has been still for 140 ms and the text is within 48 px of it, and never at the very end. CSS scroll snapping pulled a long last section back to the first stop, so it is not used.
+- **Not decided here.** The Part 2 entry animation and a swipe that works at once mid-read (S-5; this reader does not credit it).
+
+Confirmed by: `part-gesture.test.ts`, `reader-keys.test.ts`, `keyboard-map.test.tsx`, `stage-reader-smoke.spec.ts` (swipe left, a short nudge and a stage drag move nothing, N, a pull up in the middle and at the end). Shown failing when the swipe distance was 8 px (the nudge swiped), when an unlisted key was added to the reader, and when the iOS pull ignored where the drag began.
+
+## D-135 · 2026-10-30 · What the stage reader reports, and which screens read a v2 Scroll (S-1c, #472)
+
+**Builds on** D-063 and D-128.
+
+- **The stop on screen is the one visible stop.** The reader tells the recorder that stop is wholly visible and every other is not. The stage, the spine, an aside and the end tray are not units. Going to another stop, leaving the screen or replacing the observer closes the stop. Activity is the article's own rule, so time with a sheet over the reader never counts.
+- **A jump gives only the time it was on screen.** A dot tap or key scrolls without animation, so the stops passed on the way get no time. Reading every stop for 50 % of its own words' time plus 0.3 s reports above the 40 % rule for each; tapping through every dot reports none.
+- **A call is reported once, as revealed.** The event has no field for the option picked. `locked` is not reported until locking exists (S-2).
+- **A place is a stop.** Keep and resume store the stop id as the block id with offset 0. Opening at a place scrolls to that stop.
+- **Who reads v2.** Explore and `/scroll/<id>` declare `scroll-document.v2` and draw it. Threads, snippets and everything else still declare v1 only, so the server sends them an earlier v1 revision or nothing. A v2 document reaching a screen that did not declare it shows the update state and is not activated.
+
+Confirmed by: `stage-reader.test.tsx`, `scroll-session.test.ts`, `scroll-v2-reader-trace.test.ts` (what the reader reports, qualified by the server's own rules: a full read qualifies, tapping every dot does not), and the two reading tests of `stage-reader-smoke.spec.ts`, which check every observation against the intake schema. Shown failing when the stop on screen was reported as not visible.
+
+## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
+
+Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
+
+- **A strip, not a card.** A thread opens with Back, a line saying what it is ("A THREAD · 3 PARTS"), the title, Series and options. The fixed series card and the horizontal part strip are gone from the phone. Rooms keep their own header.
+- **The conversation keeps the screen.** At 390 x 844 with the player docked the messages are 65.9 % of the viewport and the whole conversation region (asks and message box included) is 84.6 %. A test measures it. With the player opened in place it is 47 %: that is the person's choice.
+
+Confirmed by: `apps/client/e2e/thread-phone-smoke.spec.ts` (the 60 % measure).
+
+## D-141 · 2026-10-30 · Series is a sheet pulled down from the header, and its arrow keys only move the selection (T-A, #481)
+
+Amends D-006 k and D-053.
+
+- **An overlay, never a route.** Series lists the parts and the people. Back, Esc, Close and a tap on the scrim close only the sheet. The header stays in view and only what is below is dimmed (`PullDownSheet`).
+- **Pressing a row chooses it and closes the sheet.** The arrow keys (up, down, left, right) only move the selection to the neighbouring part; the sheet stays open. The keyboard map says so.
+- **The sheet exists below 1024 px only.** Resizing to a desktop with it open closes it and does not leave the player paused.
+
+Confirmed by: `thread-phone-smoke.spec.ts` (sheet, Back, Esc, arrows, resize), `episode-list.test.tsx`, `pull-down-sheet.test.tsx`.
+
+## D-142 · 2026-10-30 · The thread's player starts docked on a phone and the person's own choice wins (T-A, #481)
+
+Amends D-046 (selection and fold stay on the device).
+
+- **Docked is a 56 px bar** naming the open part, with Updated when the revision is corrected. Pressing it opens the player in place; folding docks it again.
+- **A default, then the person's choice.** Until the person folds or unfolds, a phone is docked and a desktop is open. Pressing Watch counts as unfolding, so a resize across 1024 px never docks a playing Reel.
+- **Nothing is sent.** Selection and fold stay in the account scope's storage on this device.
+
+Confirmed by: `own-place.test.tsx`, `thread-phone-smoke.spec.ts`, the resize test in `talk-smoke.spec.ts`.
+
+## D-143 · 2026-10-30 · Desktop has a series panel beside the conversation (T-A, #481)
+
+Amends D-053 (Talk panes).
+
+- **From 1024 px the conversation fills the left and a 400 px panel on the right** holds the parts, the player and the people. The panel is first in reading order and last on screen.
+- **The inbox is not beside a thread yet.** The thread has the rail only.
+- **No place.** Nothing says where another member is. A coarse place is T-D (D-065).
+
+Confirmed by: `thread-phone-smoke.spec.ts` (panel), `talk-smoke.spec.ts`.
+
+## D-144 · 2026-10-30 · A time under each run of messages in a thread (T-A, #481)
+
+- **A run** is one author's messages, each within five minutes of the one before and on one day. The last message of a run shows its clock time in the reader's own time zone; the day capsule above shows the date. Both come from `recordedAt`.
+- **Threads only.** The direct conversation list gets its times in T-B.
+
+Confirmed by: `talk-format.test.ts`, `thread-phone-smoke.spec.ts`.
+
+## D-160 · 2026-10-30 · Who is here: a one-minute lease, on a member's own view, with the reader always in it (#487)
+
+D-069 says faces always, a number only from three, no "0 online" or "1 online", the cast never counted, and an allow-list in the contract. This is how the room module keeps it. It **builds on** D-051 and D-069 and changes neither.
+
+- **The lease.** `rooms.room_presence` holds one row per member who has the room open. Only the member's own device writes it, through `rooms/presence` (`here` or `away`), never derived from messages or another module. A row counts for 60 seconds; an open, visible room renews it every 25 seconds. Leaving, removal and account deletion delete it. Clear keeps it, as it keeps the membership: it is a lease of the account, not exploration, and ends by itself.
+- **The allow-list.** A member's own view of a room carries `here` (faces, and `count` only from three), `memberTotal` and `lastMessageAt`. A list, a preview and a station carry none of them. The contract refuses a `count` below three and a `count` smaller than the faces shown.
+- **The reader is always a face.** A person who reads the room has it open, so their own face is in `here` even before their first beat. Others appear only through a lease.
+- **A blocked person is left out, not drawn as a placeholder.** For the blocker, the person's face and the count are both computed without them, so the count cannot give them away. Everyone else reads the room as before (D-051: a block is the reader's choice).
+- **Hints.** A room scope on the socket is subscribed by current members only. A hint goes out when a lease starts or ends, when someone leaves or is removed, and when a message is sent. A steady beat sends none. The hint's revision is the commit time in milliseconds and is not a position to catch up from, so a client coalesces a burst of hints with a 300 ms quiet window instead of skipping any; the hint names the room and nothing else. The worker's stored AI reply sends the same hint, and a room scope is never held in the gateway's authorisation cache, so a removed member hears nothing at once. Expiry has no event, so a room is read again on the slow poll and on focus as before.
+- **Quiet.** "Quiet right now · last message 3 h ago" is worked out on the device from `lastMessageAt` and the device clock: after ten minutes without a message, and "no messages yet" for a room nobody has written in. A clock that runs behind never makes a busy room look quiet.
+
+## D-161 · 2026-10-30 · Keeping messages out takes effect with the setting, and the AI notice says what is true today (#487)
+
+R3 question 6 (keep my messages out of what AI reads) and question 5 (default level) are final through D-060. The R-1 issue said the substitution would come with R-2; it is built now, so the switch is never a promise.
+
+- **Substitution before items are built.** The asked-turn context builder replaces each message of a member who keeps their messages out with `[a member's message]` before any context item is created: their text, the title of what they shared and their note are not read, so neither the model nor the stored request bytes carry them. The message keeps its place and its speaker number. A discussion's title is the starter's own typing, so when the starter keeps out it becomes `[a member's topic]`; the room's name and guidelines are the operator's, the content's title and summary the library's, and polls and pins are never read. This also holds for the member's own asks. An AI message that was written earlier stays, because it is the room's.
+- **Nothing cached to unpick yet.** No summary or memory exists, so there is nothing to mark stale. A summary built later must use the same builder and add the stale mark in the change that creates the cache.
+- **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
+- **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
+- **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
 
 ## D-131 · 2026-10-30 · A vertical move never offers another part of the series the person is in (S-1d, #472)
 

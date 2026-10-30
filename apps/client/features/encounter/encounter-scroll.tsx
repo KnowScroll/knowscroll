@@ -13,8 +13,15 @@ import { EncounterOriginChip } from './encounter-origin-chip';
 import type { EncounterSession, EncounterState } from './encounter-session';
 import { EncounterTopBar } from './encounter-top-bar';
 import { ScrollEnd } from './scroll-end';
+import { isStageEntry, StageEncounter } from './encounter-stage';
+import type { OpenedScroll } from '../scroll/scroll-session';
 
 type ScrollEntry = Extract<EncounterEntry, { kind: 'scroll' }>;
+type ArticleEntry = ScrollEntry & { readonly scroll: OpenedScroll };
+
+function isArticleEntry(entry: ScrollEntry): entry is ArticleEntry {
+  return !isStageEntry(entry);
+}
 
 /** Past this many pixels into the first block the opening's action row has scrolled away. */
 const OPENING_OFFSET = 160;
@@ -24,7 +31,7 @@ const OPENING_OFFSET = 160;
  * the Reel under the opening and floating once the article is underway, and the end of the
  * article as a boundary. Vertical reading never navigates (blueprint §18).
  */
-export function ScrollEncounter({
+function ArticleEncounter({
   scope,
   entry,
   state,
@@ -34,7 +41,7 @@ export function ScrollEncounter({
   hint,
 }: {
   readonly scope: AccountScope;
-  readonly entry: ScrollEntry;
+  readonly entry: ArticleEntry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
   readonly foreground: boolean;
@@ -127,3 +134,21 @@ const styles = StyleSheet.create({
   floating: { position: 'absolute' },
   hint: { position: 'absolute', left: spacing[4], right: spacing[4] },
 });
+
+/** A Scroll in the encounter: a v2 document is read on the Stage + Spine, a v1 document in the article. */
+export function ScrollEncounter({
+  scope,
+  entry,
+  ...rest
+}: {
+  readonly scope: AccountScope;
+  readonly entry: ScrollEntry;
+  readonly state: EncounterState;
+  readonly session: EncounterSession;
+  readonly foreground: boolean;
+  readonly back: () => void;
+  readonly hint: ReactNode;
+}) {
+  if (isStageEntry(entry)) return <StageEncounter {...rest} entry={entry} />;
+  return isArticleEntry(entry) ? <ArticleEncounter {...rest} scope={scope} entry={entry} /> : null;
+}

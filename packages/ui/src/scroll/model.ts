@@ -15,6 +15,7 @@ export {
   SCROLL_DOCUMENT_SCHEMA_VERSION,
   SCROLL_LIMITS_VERSION,
   blockStateProblems,
+  callsOf,
   canonicalJson,
   computeIntegrity,
   computeMeasures,
@@ -41,11 +42,16 @@ export {
   resolveParams,
   sampleCurve,
   snapToGrid,
+  stageParts,
+  stagePhysics,
   walkBlocks,
 } from '@knowscroll/scroll-model';
 
 export type {
   AnyBlock,
+  ScrollDocumentV2,
+  StagePart,
+  StageState,
   Block,
   BlockOfType,
   BlockState,
