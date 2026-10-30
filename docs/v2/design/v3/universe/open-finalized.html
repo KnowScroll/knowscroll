@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Universe Opening</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  Animations: the first time someone opens the Universe tab. FINALIZED 2026-10-28 (copy of open-06.html). Never change it.
+  Round 04 feedback: the rush to light speed was too fast; build it slowly and smoothly (longer is fine).
+  Round 05 feedback: no full white and no iris reveal; keep the slow build, then the round-03 drop out (soft blink, streaks back into stars) into U01 Empty.
+  Round 06 feedback: the drop out was too fast and jumpy; come to a smooth stop, a little slower.
+  Round 03 feedback: the spiral must not pop in (dust streams in from off screen along the arms); the star must look 3D and float
+  (painted ball + approved atmosphere rim, slow camera orbit); much softer shake; longer travel; light-speed rush of incoming stars before U01 Empty.
+  Round 02 feedback: no purple clouds at the start; more dust; the star forms from the dust as it spirals in (no glow from nowhere);
+  sparkles multiply until it blows; the star shakes and vibrates before the bang; the first part runs at half the old speed (bang at 5.9 s).
+  Story: dust gathers from every side and spirals in, compacts into one bright point, bursts (big bang),
+  then we travel fast through the newborn universe (asteroids, planets, galaxies, a nebula, over a whole system)
+  and slow down into U01 Empty, exactly as finalized (same camera, same stars, same chrome).
+  Scene code is copied from universe-above/universe-drafts-finalized.html (makeSun, makePlanet, makeSystem, halo,
+  makeSky, toonNebula, planet textures and shaders); only the timeline, the burst dust, rocks and speed streaks are new.
+  Add #t=4.2 to the URL to freeze on a moment.
+-->
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<style>
+:root{
+  --paper:#FFFDF2; --ink:#15302A; --ink2:#566962; --focus:#FFE44D; --fresh:#14C79B;
+  --label:#FFFDF2; --label2:rgba(255,253,242,.72);
+  --f-display:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;
+  --f-text:'Instrument Sans',system-ui,sans-serif;
+  --f-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --page:#0C0C0E; --page-ink:#F2EEE3; --page-ink2:#A29C8E; --page-edge:rgba(242,238,227,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--page);color:var(--page-ink);font-family:var(--f-text);padding:32px 16px 80px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.intro{max-width:1240px;margin:0 auto 18px}
+.intro .kicker{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.intro h1{font:800 36px/40px var(--f-display);letter-spacing:-.02em;margin-top:6px}
+.intro p{color:var(--page-ink2);font-size:15px;line-height:22px;margin-top:8px;max-width:840px}
+.tools{max-width:1240px;margin:0 auto 26px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tools button{border:1.5px solid var(--page-edge);border-radius:999px;padding:8px 14px;font:600 13px/1 var(--f-text)}
+.tools button.on{background:var(--page-ink);color:var(--page)}
+.tools input[type=range]{width:260px;accent-color:#FFE44D}
+.tools .tc{font:500 12px/16px var(--f-mono);color:var(--page-ink2);min-width:150px}
+#err{position:fixed;left:12px;bottom:12px;max-width:600px;background:#B23A0B;color:#fff;font:12px/16px var(--f-mono);padding:10px;border-radius:8px;display:none;white-space:pre-wrap;z-index:99}
+
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;max-width:1240px;margin:0 auto}
+.side{width:min(640px,100%);display:flex;flex-direction:column;gap:22px}
+.side h3{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
+.shot{display:flex;flex-direction:column;gap:6px;cursor:pointer}
+.shot img{width:100%;aspect-ratio:390/844;border-radius:14px;background:#020308;box-shadow:0 0 0 1px var(--page-edge);display:block}
+.shot b{font:500 11px/14px var(--f-mono);color:var(--page-ink2)}
+.shot span{font:600 13px/17px var(--f-text)}
+.beats{width:100%;border-collapse:collapse;font-size:13.5px;line-height:19px}
+.beats td{padding:9px 10px 9px 0;border-top:1px solid var(--page-edge);vertical-align:top}
+.beats td:first-child{font:500 12px/19px var(--f-mono);color:var(--page-ink2);white-space:nowrap;width:94px}
+.beats td b{font-weight:700}
+.beats tr.cur td{color:#FFE44D}
+
+.phone{width:390px;height:844px;position:relative;overflow:hidden;border-radius:38px;background:#020308;flex:none;
+  box-shadow:0 0 0 8px #050505,0 0 0 9px #26272b,0 30px 60px -24px rgba(0,0,0,.8);isolation:isolate}
+.phone canvas{position:absolute;inset:0;width:390px;height:844px;display:block}
+.flash{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 50%,#FFF8E8 0,rgba(255,222,160,.9) 30%,rgba(255,150,70,.35) 62%,rgba(255,115,31,0) 100%)}
+.flash2{background:radial-gradient(circle at 50% 50%,#FFFFFF 0,rgba(225,235,255,.7) 40%,rgba(200,215,255,0) 100%)}
+.chrome{position:absolute;inset:0;z-index:2;color:var(--label);pointer-events:none}
+.chrome .chip,.chrome .tabbar,.chrome .btn{pointer-events:auto}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;justify-content:space-between;align-items:center;padding:0 30px 0 34px;font:600 15px/1 var(--f-text);color:var(--label);z-index:5;pointer-events:none}
+.statusbar i{width:26px;height:12px;border:1.5px solid var(--label);border-radius:4px;display:inline-block;position:relative}
+.statusbar i:after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--label);border-radius:1.5px}
+.top{position:absolute;top:0;left:0;right:0;padding:59px 16px 0;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px}
+.title{font:800 28px/32px var(--f-display);letter-spacing:-.02em;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.avatar{width:40px;height:40px;border-radius:999px;background:var(--focus);color:var(--ink);font:800 16px/1 var(--f-display);display:flex;align-items:center;justify-content:center;flex:none}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;font:600 14px/18px var(--f-text);white-space:nowrap;border:1px solid rgba(255,253,242,.5);background:rgba(2,3,8,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.skip{position:absolute;top:61px;right:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;min-height:48px;padding:0 20px;font:600 15px/20px var(--f-text);white-space:nowrap;border:2px solid var(--ink)}
+.btn.space{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:0 36px;text-align:center}
+.center h2{font:800 28px/32px var(--f-display);letter-spacing:-.02em;text-shadow:0 2px 14px rgba(0,0,0,.7)}
+.center p{font:400 17px/25px var(--f-text);color:var(--label2)}
+.tabbar{position:absolute;z-index:4;left:14px;right:14px;bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px;border:1px solid rgba(255,255,255,.15);border-radius:24px;background:rgba(10,20,28,.42);box-shadow:0 18px 40px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.14);backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35)}
+.tab{display:grid;gap:5px;justify-items:center;padding:9px 4px 8px;color:rgba(255,255,255,.6);border-radius:17px;font:800 11px/1 var(--f-text)}
+.tab svg{width:21px;height:21px;stroke-width:1.9}
+.tab.cur{color:#fff;background:rgba(255,255,255,.13);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+@media (max-width:440px){ .phone{transform:scale(.86);transform-origin:top left;margin-bottom:-118px} }
+</style>
+</head>
+<body>
+<header class="intro">
+  <span class="kicker">KnowScroll · Universe · Animations · First open · Final</span>
+  <h1>Your universe begins</h1>
+  <p>Plays once, the first time someone opens the Universe tab. Dust streams in from off screen along five spiral arms, and the star builds up out of it from a tiny ember: a floating ball with a turning painted surface. Sparkles keep multiplying around it, it trembles, squeezes, and bursts.
+     Then a long trip through the newborn universe, past asteroids, planets, galaxies and two systems, a slow, smooth build to light speed with stars coming straight at us, and a soft drop out of light speed into the empty universe exactly as it is finalized.
+     Everything is drawn with the approved scene code. Skip is always there until the end.</p>
+</header>
+<div class="tools"><button id="replay">Replay</button><button id="pause">Pause</button><button id="slow">Slow ×0.25</button>
+  <input type="range" id="scrub" min="0" max="13.6" step="0.01" value="0"><span class="tc" id="tc">0.00 s</span></div>
+<div class="stage">
+  <div class="phone" id="phone"><canvas id="c"></canvas><div class="flash" id="flash"></div><div class="flash flash2" id="flash2"></div>
+    <div class="chrome" id="chrome"></div>
+    <div class="statusbar"><span>9:41</span><i></i></div></div>
+  <div class="side">
+    <div><h3>Storyboard · click a frame to jump there</h3></div>
+    <div class="shots" id="shots"></div>
+    <div><h3>Beats</h3></div>
+    <table class="beats" id="beats"></table>
+  </div>
+</div>
+<div id="err"></div>
+
+<script>window.addEventListener('error', e => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent += (e.message || 'error') + '\n'; });</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ===================== copied verbatim from universe-above/universe-drafts-finalized.html ===================== */
+const W = 390, H = 844, PR = Math.min(1.5, window.devicePixelRatio || 1), TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { x = clamp((x - a) / (b - a)); return x * x * (3 - 2 * x); };
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+function rng(seed) { let h = 2166136261; for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hsl(h, s, l) { h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
+  const f = n => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+  return [f(0), f(8), f(4)]; }
+const v3 = c => new THREE.Vector3(c[0] / 255, c[1] / 255, c[2] / 255);
+const hexV = h => v3([parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+function ramp(stops, t) { t = clamp(t) * (stops.length - 1); const i = Math.min(stops.length - 2, t | 0); const k = t - i; return mix3(stops[i], stops[i + 1], k * k * (3 - 2 * k)); }
+
+/* ===================== smooth noise (low frequency only: painted, not photographic) ===================== */
+const perm = new Uint8Array(512);
+(() => { const p = [...Array(256).keys()], r = rng('knowscroll'); for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0; [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) perm[i] = p[i & 255]; })();
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+function grad(h, x, y, z) { h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14) ? x : z; return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+function noise(x, y, z) {
+  let X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); x -= X; y -= Y; z -= Z; X &= 255; Y &= 255; Z &= 255;
+  const u = fade(x), v = fade(y), w = fade(z), A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z, B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+  return lerp(lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u), lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+    lerp(lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u), lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+}
+function fbm(x, y, z, o = 3) { let a = .5, f = 1, s = 0; for (let i = 0; i < o; i++) { s += a * noise(x * f, y * f, z * f); f *= 2.03; a *= .5; } return s; }
+
+/* ===================== painted textures ===================== */
+const STYLE = d => ({
+  lush:     { ramp: [hsl(200 + d, 70, 34), hsl(185 + d, 75, 48), hsl(120 + d, 55, 46), hsl(95 + d, 65, 56), hsl(70 + d, 70, 68)], sea: .5, atmo: hsl(190 + d, 95, 68), clouds: .8 },
+  toxic:    { ramp: [hsl(290 + d, 45, 32), hsl(80 + d, 70, 38), hsl(68 + d, 85, 52), hsl(55 + d, 95, 66)], atmo: hsl(80 + d, 95, 62), clouds: .4 },
+  frozen:   { ramp: [hsl(215 + d, 50, 52), hsl(205 + d, 55, 70), hsl(195 + d, 50, 84), hsl(190 + d, 40, 95)], atmo: hsl(195 + d, 95, 78), clouds: .5 },
+  scorched: { ramp: [hsl(345 + d, 55, 24), hsl(355 + d, 65, 36), hsl(10 + d, 75, 48), hsl(22 + d, 80, 58)], atmo: hsl(335 + d, 90, 68) },
+  barren:   { ramp: [hsl(275 + d, 25, 34), hsl(30 + d, 35, 46), hsl(28 + d, 40, 60), hsl(35 + d, 45, 74)], atmo: hsl(275 + d, 70, 72) },
+  exotic:   { ramp: [hsl(300 + d, 70, 38), hsl(320 + d, 85, 58), hsl(195 + d, 85, 56), hsl(175 + d, 90, 72)], atmo: hsl(185 + d, 100, 70), clouds: .35 },
+  gas:      { bands: [hsl(20 + d, 80, 62), hsl(345 + d, 70, 66), hsl(285 + d, 50, 56), hsl(38 + d, 85, 76), hsl(10 + d, 70, 52)], atmo: hsl(335 + d, 95, 72) },
+  ocean:    { ramp: [hsl(225 + d, 75, 26), hsl(210 + d, 80, 42), hsl(195 + d, 85, 56), hsl(160 + d, 70, 60)], sea: .8, atmo: hsl(205 + d, 100, 70), clouds: .9 },
+});
+const TEXC = new Map();
+function dataTex(data, w, h) { const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat); t.wrapS = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; }
+function planetTextures(g) {
+  if (TEXC.has(g.id)) return TEXC.get(g.id);
+  const S = STYLE(g.d)[g.type], TW = 192, TH = 96, map = new Uint8Array(TW * TH * 4), cl = S.clouds ? new Uint8Array(TW * TH * 4) : null;
+  const r = rng(g.id + 'tex'), ox = r() * 40, oy = r() * 40, oz = r() * 40;
+  for (let j = 0; j < TH; j++) {
+    const lat = -Math.PI / 2 + (j + .5) / TH * Math.PI, y = Math.sin(lat), c0 = Math.cos(lat);
+    for (let i = 0; i < TW; i++) {
+      const lon = (i + .5) / TW * TAU, x = c0 * Math.cos(lon), z = c0 * Math.sin(lon), k = (j * TW + i) * 4;
+      let c;
+      if (g.type === 'gas') { const w = fbm(x * 1.1 + ox, y * 1.1 + oy, z * 1.1 + oz, 2); const v = y * 2.4 + w * .45; c = ramp(S.bands, .5 + .5 * Math.sin(v * 4.2)); c = mix3(c, ramp(S.bands, .5 + .5 * Math.sin(v * 2.1 + 1.7)), .35);
+        let dl = lon - 1.4; dl = Math.atan2(Math.sin(dl), Math.cos(dl)); const e = Math.pow(dl * c0 / .34, 2) + Math.pow((lat + .3) / .15, 2); if (e < 1) c = mix3(c, hsl(15 + g.d, 90, 82), smooth(1, .4, e)); }
+      else {
+        const w = fbm(x * .9 + ox, y * .9 + oy, z * .9 + oz, 2), v = .5 + fbm(x * 1.3 + ox + w, y * 1.3 + oy + w, z * 1.3 + oz, 3) * 1.1;
+        if (S.sea) { const sea = S.sea * .5 + .2; c = v < sea ? ramp(S.ramp.slice(0, 2), v / sea) : ramp(S.ramp.slice(1), (v - sea) / (1 - sea) * .9 + .1); if (Math.abs(v - sea) < .03) c = mix3(c, S.ramp[1], .5); }
+        else c = ramp(S.ramp, v);
+        const cap = smooth(.82, .9, Math.abs(y) + w * .1); if (g.type !== 'scorched' && cap > 0) c = mix3(c, [244, 248, 255], cap * .9);
+      }
+      map[k] = c[0]; map[k + 1] = c[1]; map[k + 2] = c[2]; map[k + 3] = 255;
+      if (cl) { const cv = fbm(x * 1.6 + oz, y * 3 + ox, z * 1.6 + oy, 3); cl[k] = cl[k + 1] = cl[k + 2] = 255; cl[k + 3] = smooth(.04, .3, cv) * 230 * S.clouds; }
+    }
+  }
+  const out = { map: dataTex(map, TW, TH), cloud: cl ? dataTex(cl, TW, TH) : null, atmo: S.atmo };
+  if (g.rings) { const rw = 128, rd = new Uint8Array(rw * 4), c1 = hsl(30 + g.d, 70, 78), c2 = hsl(330 + g.d, 55, 70);
+    for (let i = 0; i < rw; i++) { const u = i / rw, c = mix3(c1, c2, .5 + .5 * Math.sin(u * 9)), a = (u > .55 && u < .6 ? .15 : 1) * smooth(0, .12, u) * smooth(1, .85, u) * (.55 + .3 * Math.sin(u * 23));
+      rd[i * 4] = c[0]; rd[i * 4 + 1] = c[1]; rd[i * 4 + 2] = c[2]; rd[i * 4 + 3] = a * 255; }
+    out.ring = dataTex(rd, rw, 1); }
+  TEXC.set(g.id, out); return out;
+}
+function glowTexture(stops) {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  stops.forEach(([o, a]) => gr.addColorStop(o, `rgba(255,255,255,${a})`)); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+}
+function puffTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), r = rng('puff');
+  for (let i = 0; i < 9; i++) { const x = 64 + (r() - .5) * 52, y = 64 + (r() - .5) * 30, rad = 18 + r() * 22, gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(.7, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill(); }
+  return new THREE.CanvasTexture(c);
+}
+const PUFF = puffTexture();
+const GLOW = glowTexture([[0, 1], [.2, .55], [.5, .14], [1, 0]]), BLOOM = glowTexture([[0, .9], [.08, .5], [.25, .14], [.6, .03], [1, 0]]);
+
+/* ===================== shaders ===================== */
+const WORLD_VS = `varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const HAZE = `uniform vec3 fogCol; uniform vec2 fogR; uniform float calm;
+vec3 haze(vec3 col, vec3 w){ float g = dot(col, vec3(.3,.59,.11)); col = mix(col, vec3(g) * .7, calm * .85); float f = smoothstep(fogR.x, fogR.y, length(cameraPosition - w)); return mix(col, fogCol, f * .6); }`;
+// No Man's Sky-like: soft day side, coloured night side, warm twilight band, broad atmosphere rim
+const PLANET_FS = `uniform sampler2D map; uniform vec3 sun; uniform vec3 atmo; uniform float cloudLayer;
+varying vec2 vUv; varying vec3 vN; varying vec3 vW; ${HAZE}
+void main(){
+  vec3 N = normalize(vN), L = normalize(sun - vW), V = normalize(cameraPosition - vW);
+  vec4 tx = texture2D(map, vUv); vec3 base = cloudLayer > .5 ? vec3(1.0) : tx.rgb;
+  float nd = dot(N, L), lit = smoothstep(-.14, .06, nd) * .58 + smoothstep(.34, .5, nd) * .42;
+  vec3 col = mix(base * vec3(.2, .18, .42), base * vec3(1.06, 1.0, .94), lit);
+  col += vec3(1.0, .45, .28) * exp(-pow((nd - .02) / .17, 2.0)) * .26;
+  float fr = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+  col = mix(col, atmo, fr * smoothstep(-.35, .45, nd) * .8);
+  col += atmo * fr * fr * .3 * (1.0 - lit);
+  col += vec3(1.0) * smoothstep(.962, .975, dot(N, normalize(L + V))) * (cloudLayer > .5 ? 0.0 : .32);
+  gl_FragColor = vec4(haze(col, vW), cloudLayer > .5 ? tx.a * (.3 + .7 * lit) : 1.0);
+}`;
+const ATMO_FS = `uniform vec3 color; uniform vec3 sun; uniform float strength; uniform float calm; uniform vec3 fogCol; uniform vec2 fogR; varying vec3 vN; varying vec3 vW;
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float x = 1.0 - max(dot(N, V), 0.0);
+  float g = smoothstep(.02, .32, x) * (1.0 - smoothstep(.32, 1.0, x)); float s = .3 + .7 * smoothstep(-.5, .6, dot(N, normalize(sun - vW)));
+  float f = 1.0 - smoothstep(fogR.x, fogR.y, length(cameraPosition - vW)) * .6;
+  gl_FragColor = vec4(color * g * s * strength * (1.0 - calm * .9) * f, 1.0); }`;
+const SUN_FS = `varying vec2 vUv; varying vec3 vN; varying vec3 vW; ${HAZE}
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float nv = max(dot(N, V), 0.0);
+  vec3 col = mix(vec3(1.0, .42, .08), vec3(1.0, .7, .3), smoothstep(0.0, .5, nv)); col = mix(col, vec3(1.0, .93, .78), smoothstep(.55, .95, nv));
+  gl_FragColor = vec4(haze(col * 1.08, vW), 1.0); }`;
+const HALO_FS = `uniform vec3 c1; uniform vec3 c2; uniform float strength; uniform float calm; uniform float time; varying vec2 vUv;
+void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if (r > 1.0) discard; float a = atan(p.y, p.x);
+  float arms = .5 + .5 * cos(2.0 * (a + log(r + .05) * 2.2) - time * .15);
+  float i = pow(1.0 - r, 2.2) * (.55 + .45 * arms * smoothstep(.1, .6, r));
+  vec3 col = mix(c1, c2, smoothstep(.1, .9, r)); float g = dot(col, vec3(.3,.59,.11)); col = mix(col, vec3(g) * .5, calm);
+  gl_FragColor = vec4(col * i * strength * (1.0 - calm * .7), 1.0); }`;
+const RING_VS = `varying vec3 vW; varying vec2 vL; void main(){ vL = position.xy; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const RING_FS = `uniform sampler2D map; uniform vec3 sun; uniform vec3 pc; uniform float pr; uniform float rIn; uniform float rOut; varying vec3 vW; varying vec2 vL; ${HAZE}
+void main(){ float u = (length(vL) - rIn) / (rOut - rIn); if (u < 0.0 || u > 1.0) discard; vec4 t = texture2D(map, vec2(u, .5));
+  vec3 L = normalize(sun - vW), oc = vW - pc; float b = dot(oc, L), c = dot(oc, oc) - pr * pr; float sh = (b * b - c > 0.0 && b < 0.0) ? 1.0 : 0.0;
+  gl_FragColor = vec4(haze(t.rgb * mix(vec3(1.05, 1.0, .95), vec3(.2, .18, .42), sh * .85), vW), t.a); }`;
+const POINTS_VS = `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr; uniform float atten; uniform float wob;
+varying vec3 vC; varying float vA;
+void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(time * .11 + aPh * 7.0) * .6, sin(time * .09 + aPh * 5.0) * .4);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = aCol; vA = .72 + .28 * sin(time * (.4 + aPh * 1.4) + aPh * 6.2831);
+  float s = aSize * pr; if (atten > 0.0) s *= atten / -mv.z; gl_PointSize = s; gl_Position = projectionMatrix * mv; }`;
+const POINTS_FS = `uniform float opacity; varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = pow(smoothstep(.5, 0.0, d), 1.6); gl_FragColor = vec4(vC * a * vA * opacity * 1.35, 1.0); }`;
+// Cartoon nebula (U01 Emerging): crisp candy dots with a shine, spiralling inward along arms
+const TOON_DUST_VS = `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; attribute vec3 aCol;
+uniform float time; uniform float R; uniform float pr; uniform float arms; varying vec3 vC; varying float vA;
+void main(){ float rho = .05 + .95 * fract(aRho - time * .016); float a = aArm * 6.28318 / arms + log(rho / .05) * 1.25 + time * .2 + aJit;
+  vec3 p = vec3(cos(a) * rho * R, aH * R * (.2 + rho * .6), sin(a) * rho * R); vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vC = mix(vec3(1.0, .96, .86), aCol, smoothstep(.04, .32, rho)); vA = smoothstep(1.0, .86, rho) * smoothstep(.05, .1, rho);
+  gl_PointSize = aSize * pr * (24.0 / -mv.z) * (.85 + .15 * sin(time * 3.0 + aJit * 30.0)); gl_Position = projectionMatrix * mv; }`;
+const TOON_DUST_FS = `varying vec3 vC; varying float vA;
+void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard; float a = smoothstep(.5, .36, d);
+  vec3 c = mix(vC, vec3(1.0), smoothstep(.2, 0.0, length(gl_PointCoord - vec2(.38, .36))) * .55); gl_FragColor = vec4(c, a * vA); }`;
+
+const FOG = new THREE.Vector3(.012, .016, .045);
+const add = { blending: THREE.AdditiveBlending, transparent: true, depthWrite: false };
+const hazeU = (fogR, calm = 0) => ({ fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...fogR) }, calm: { value: calm } });
+
+/* ===================== builders ===================== */
+function makeSun(radius, ctx) {
+  const g = new THREE.Group(), k = ctx.calm ? .22 : 1;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(radius, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: SUN_FS, uniforms: hazeU(ctx.fogR, ctx.calm) }));
+  const inner = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .72, .38), opacity: .95 * k, ...add }));
+  const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .12), opacity: .85 * k, ...add }));
+  g.add(bloom, inner, core);
+  g.userData.tick = t => { const p = 1 + .05 * Math.sin(t * 1.3); inner.scale.setScalar(radius * 4.2 * p); bloom.scale.setScalar(radius * 22 * (2 - p)); };
+  g.userData.tick(0); return g;
+}
+function makePlanet(gn, radius, sunPos, ctx) {
+  const tx = planetTextures(gn), g = new THREE.Group(), calm = ctx.calm, atmo = v3(tx.atmo);
+  const mat = (cloudLayer, map) => new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS, transparent: cloudLayer > 0, depthWrite: !cloudLayer,
+    uniforms: { map: { value: map }, sun: { value: sunPos }, atmo: { value: atmo }, cloudLayer: { value: cloudLayer }, ...hazeU(ctx.fogR, calm) } });
+  const spinner = new THREE.Group(); spinner.rotation.z = gn.tilt; g.add(spinner);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 24), mat(0, tx.map)); spinner.add(body);
+  let clouds = null; if (tx.cloud) { clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.03, 40, 20), mat(1, tx.cloud)); spinner.add(clouds); }
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(radius * 1.32, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: ATMO_FS, ...add,
+    uniforms: { color: { value: atmo }, sun: { value: sunPos }, strength: { value: 1.15 }, calm: { value: calm }, fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...ctx.fogR) } } })));
+  const worldPos = new THREE.Vector3();
+  if (tx.ring) { const rIn = radius * 1.4, rOut = radius * 2.4;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 96, 1), new THREE.ShaderMaterial({ vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { map: { value: tx.ring }, sun: { value: sunPos }, pc: { value: worldPos }, pr: { value: radius }, rIn: { value: rIn }, rOut: { value: rOut }, ...hazeU(ctx.fogR, calm) } }));
+    ring.rotation.x = -Math.PI / 2 - .3; ring.rotation.y = gn.tilt * .5; g.add(ring); }
+  let moon = null;
+  if (gn.moon) { const mg = { id: gn.id + '-moon', type: 'barren', d: gn.d, rings: false }; moon = new THREE.Mesh(new THREE.SphereGeometry(radius * .27, 24, 12), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS,
+    uniforms: { map: { value: planetTextures(mg).map }, sun: { value: sunPos }, atmo: { value: new THREE.Vector3(.5, .45, .6) }, cloudLayer: { value: 0 }, ...hazeU(ctx.fogR, calm) } })); g.add(moon); }
+  const ph = rng(gn.id)() * TAU;
+  g.userData.tick = t => { body.rotation.y = t * gn.spin; if (clouds) clouds.rotation.y = t * gn.spin * 1.5 + 1;
+    if (moon) { const a = t * .5 + ph; moon.position.set(Math.cos(a) * radius * 2.4, Math.sin(a) * radius * .4, Math.sin(a) * radius * 2.4); }
+    g.getWorldPosition(worldPos); };
+  return g;
+}
+const HALO = { teal: ['#3BFFD0', '#2B5BFF'], cobalt: ['#7AD8FF', '#6B3BFF'], coral: ['#FFB03B', '#E02B7F'], amber: ['#FFD84D', '#E0502B'], pink: ['#FF8AE2', '#6B2BFF'], violet: ['#C8A8FF', '#3B2BD0'] };
+function halo(radius, family, ctx, strength = .35) {
+  const [a, b] = HALO[family].map(hexV);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: HALO_FS, ...add, side: THREE.DoubleSide,
+    uniforms: { c1: { value: a }, c2: { value: b }, time: ctx.time, strength: { value: strength }, calm: { value: ctx.calm } } }));
+  m.rotation.x = -Math.PI / 2; m.position.y = -.05; return m;
+}
+// Planets revolve around their sun (inner ones faster); no orbit lines are drawn.
+function makeSystem(def, ctx) {
+  const g = new THREE.Group(); g.position.set(def.x, def.y || 0, def.z); const center = g.position.clone(), c = { ...ctx, calm: def.calm ? 1 : 0 };
+  const outer = Math.max(...def.planets.map(p => p.R));
+  g.add(halo(outer * 1.5, def.family, c, def.glow ?? .55));
+  const sun = makeSun(def.sunR, c); g.add(sun);
+  const planets = def.planets.map(p => { const pl = makePlanet(G[p.id], Math.min(def.planetR * G[p.id].size, def.sunR * .55), center, c), pivot = new THREE.Group();
+    pl.position.set(p.R, 0, 0); pivot.add(pl); g.add(pivot); pl.userData.pivot = pivot; pl.userData.w = def.speed * Math.pow(def.planets[0].R / p.R, def.kepler ?? 1.5); pl.userData.a0 = p.ang; return pl; });
+  g.userData.tick = t => { sun.userData.tick(t); planets.forEach(p => { p.userData.pivot.rotation.y = -(p.userData.a0 + t * p.userData.w); p.userData.tick(t); }); };
+  g.userData.planets = planets; g.userData.tick(0);
+  return g;
+}
+function makeSky(scene, seed, ctx, camPos) {
+  const r = rng(seed), mk = (n, fn, extra = {}) => { const pos = new Float32Array(n * 3), size = new Float32Array(n), col = new Float32Array(n * 3), ph = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const s = fn(i); pos.set(s.p, i * 3); size[i] = s.size; col.set(s.c, i * 3); ph[i] = r(); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aPh', new THREE.BufferAttribute(ph, 1));
+    const m = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: POINTS_VS, fragmentShader: POINTS_FS, ...add,
+      uniforms: { time: ctx.time, pr: { value: PR }, atten: { value: extra.atten || 0 }, wob: { value: extra.wob || 0 }, opacity: { value: extra.opacity ?? 1 } } }));
+    m.frustumCulled = false; scene.add(m); };
+  const dir = () => { const u = r() * 2 - 1, a = r() * TAU, s = Math.sqrt(1 - u * u); return [s * Math.cos(a), u, s * Math.sin(a)]; };
+  const tint = () => { const k = r(); return k < .15 ? [1, .86, .7] : k < .3 ? [.75, .85, 1] : [1, 1, 1]; };
+  [[1600, 900, 1.6, 2.6, 1], [520, 480, 2.1, 3.2, 1.2], [140, 240, 2.8, 4.4, 1.4]].forEach(([n, R, s0, s1, b]) =>
+    mk(n, () => { const d = dir(), br = (.35 + r() * .65) * b; return { p: d.map(v => v * R * (.9 + r() * .2)), size: s0 + Math.pow(r(), 3) * (s1 - s0), c: tint().map(v => v * br) }; }));
+  mk(46, () => ({ p: [camPos.x + (r() - .5) * 26, camPos.y + (r() - .5) * 18 - 2, camPos.z - 6 - r() * 22], size: 3 + r() * 6, c: [.55, .6, .8].map(v => v * (.25 + r() * .3)) }), { atten: 6, wob: .8, opacity: .8 });
+}
+const CANDY = ['#FF7AD9', '#C58BFF', '#EBAAFF'];
+function toonNebula(R, n, seed, ctx, o = {}) {
+  const r = rng(seed), arms = 5, geo = new THREE.BufferGeometry(), F = k => new Float32Array(n * k);
+  const rho = F(1), arm = F(1), jit = F(1), size = F(1), hh = F(1), col = F(3);
+  for (let i = 0; i < n; i++) { rho[i] = r(); arm[i] = (r() * arms) | 0; jit[i] = (r() - .5) * (r() < .88 ? .32 : 1.6); size[i] = .7 + Math.pow(r(), 3) * 3.2; hh[i] = (r() - .5) * .14;
+    col.set(hexV(CANDY[(r() * CANDY.length) | 0]).toArray(), i * 3); }
+  geo.setAttribute('position', new THREE.BufferAttribute(F(3), 3));
+  [['aRho', rho, 1], ['aArm', arm, 1], ['aJit', jit, 1], ['aSize', size, 1], ['aH', hh, 1], ['aCol', col, 3]].forEach(([k, a, w]) => geo.setAttribute(k, new THREE.BufferAttribute(a, w)));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: TOON_DUST_VS, fragmentShader: TOON_DUST_FS, transparent: true, depthWrite: false,
+    uniforms: { time: ctx.time, R: { value: R }, pr: { value: PR }, arms: { value: arms } } }));
+  pts.frustumCulled = false; const g = new THREE.Group(); g.add(halo(R * 1.15, 'pink', ctx, .35), pts);
+  const puffs = Array.from({ length: o.puffs ?? 22 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFF, color: new THREE.Color(CANDY[(r() * 2) | 0]), opacity: .34, ...add }));
+    sp.material.rotation = r() * TAU; g.add(sp); return { sp, rho: .22 + r() * .6, arm: (r() * arms) | 0, jit: (r() - .5) * .12, s: (.12 + r() * .12) * R }; });
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .92, .98), opacity: 1, ...add }));
+  const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .85), opacity: .8, ...add })); g.add(bloom, core);
+  g.userData.tick = t => {
+    const spin = t * .2;
+    for (const p of puffs) { const a = p.arm * TAU / arms + Math.log(p.rho / .05) * 1.25 + spin + p.jit; p.sp.position.set(Math.cos(a) * p.rho * R, 0, Math.sin(a) * p.rho * R); p.sp.scale.setScalar(p.s * (1 + .06 * Math.sin(t + p.rho * 9))); }
+    const b = 1 + .12 * Math.sin(t * 2.2); core.scale.setScalar(R * .24 * b); bloom.scale.setScalar(R * .9 * (2 - b));
+  };
+  g.userData.tick(0); return g;
+}
+
+/* ===================== the opening: one path, everything a pure function of time T (so it can be scrubbed) ===================== */
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const G = {};
+const gn = (id, type, o = {}) => (G[id] = { id, type, d: 0, size: 1, tilt: .25, spin: .2, rings: false, moon: false, ...o });
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 3);
+
+// Ends on U01 Empty exactly: camera at (0, 4, 30) looking at the origin, drift 1.6, same sky seed.
+const END = V(0, 4, 30), TARGET = V(0, 0, 0), DIR = TARGET.clone().sub(END), LOOK = DIR.length(); DIR.normalize();
+const RIGHT = V(1, 0, 0), UP = RIGHT.clone().cross(DIR).normalize();
+// Beats: star forms, shakes, bang, long cruise past everything, slow build to light speed, drop out into U01 Empty.
+const T_SHAKE = 4.9, T_BANG = 5.9, T_WARP = 13.9, T_FULL = 16.9, T_EXIT = 17.5, T_ARRIVE = 20.0, T_END = 21.2, T_MAX = 21.7;
+const D = 2765;
+// Coming to a stop: no jolt when it starts or ends, most of the slowing early, a long gentle glide at the end.
+const stopF = T => { const u = clamp((T - T_EXIT) / (T_ARRIVE - T_EXIT)); return Math.pow(1 - u, 3) * (1 + 3 * u); };
+const vel = T => smooth(T_BANG + .05, T_BANG + .95, T) * (1 + .6 * smooth(T_WARP, T_FULL, T)) * stopF(T);
+const warpK = T => smooth(T_WARP, T_FULL, T) * stopF(T);   // 0 cruising, 1 at light speed: a slow, smooth three-second build
+const STEP = 1 / 400, NI = Math.round(T_ARRIVE / STEP);
+function integrate(f) { const c = new Float32Array(NI + 2); for (let i = 1; i < c.length; i++) c[i] = c[i - 1] + f(i * STEP) * STEP; return c; }
+const CUM = integrate(vel), VMAX = D / CUM[NI];
+const lookup = (c, T) => { if (T <= 0) return 0; if (T >= T_ARRIVE) return c[NI]; const x = T / STEP, i = x | 0; return lerp(c[i], c[i + 1], x - i); };
+const dist = T => lookup(CUM, T) * VMAX;
+const speed = T => vel(T) * VMAX;
+// Stars streaming past move faster than the path itself once we hit light speed.
+const svel = T => vel(T) * (1 + 2 * warpK(T)), SCUM = integrate(svel);
+const when = s => { let a = 0, b = T_ARRIVE; for (let k = 0; k < 40; k++) { const m = (a + b) / 2; if (dist(m) < s) a = m; else b = m; } return a; };
+const START = END.clone().addScaledVector(DIR, -D);
+const at = (s, x = 0, y = 0) => START.clone().addScaledVector(DIR, s).addScaledVector(RIGHT, x).addScaledVector(UP, y);
+const CORE = at(26);
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
+renderer.setPixelRatio(PR); renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.setClearColor(0x020308);
+const camera = new THREE.PerspectiveCamera(38, W / H, .1, 3000), scene = new THREE.Scene(), time = { value: 0 };
+const LIGHT = V(), ctx = { time, fogR: [160, 420], calm: 0, light: LIGHT }, ticks = [];
+
+/* sky: the U01 Empty star field, carried along with the camera so it reads as infinitely far; switches on at the bang */
+const sky = new THREE.Group(); scene.add(sky); makeSky(sky, 'skyempty', ctx, END);
+const skyMats = []; sky.traverse(o => { if (o.material) skyMats.push([o.material, o.material.uniforms.opacity.value]); });
+
+/* ---------- the big bang: candy dust streams in from off screen along five spiral arms and feeds a star that grows
+   from a tiny ember; sparkles keep multiplying; it trembles, squeezes, then bursts ---------- */
+const BANG_VS = `attribute vec3 aDir; attribute vec3 aOut; attribute float aR0; attribute float aDel; attribute float aDur; attribute float aSpd; attribute float aSize; attribute vec3 aCol; attribute float aJit; attribute float aArm; attribute float aH;
+uniform float T; uniform float tBang; uniform float pr; varying vec3 vC; varying float vA;
+vec3 rotY(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
+void main(){ vec3 p; vec3 warm = vec3(1.0, .86, .6);
+  if (T < tBang) { float k = clamp((T - aDel) / aDur, 0.0, 1.0); float rho = aR0 * (1.0 - k);
+    if (aArm >= 0.0) { float a = aArm * 6.28318 / 5.0 + log(max(rho, .05) / .6) * 1.15 + T * .25 + (aJit - .5) * .38;   // the Emerging spiral: five arms, wound in
+      p = vec3(cos(a) * rho, aH * (.3 + rho * .1), sin(a) * rho); }
+    else p = rotY(aDir, (1.0 - rho / aR0) * 3.6 + T * .12 + aJit * .2) * rho;
+    vC = mix(warm, aCol, smoothstep(.04, .3, rho / aR0)); vA = smoothstep(aDel, aDel + .5, T) * smoothstep(.7, 2.0, rho); }
+  else { float e = T - tBang; float rho = aSpd * (1.0 - exp(-e * 2.6)) + aSpd * .12 * e; p = aOut * rho;
+    vC = mix(vec3(1.0, .97, .9), aCol, smoothstep(.05, .7, e)); vA = 1.0 - smoothstep(2.2, 3.4, e); }
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_PointSize = min(aSize * pr * (30.0 / -mv.z), 22.0 * pr); gl_Position = projectionMatrix * mv; }`;
+const SPARK_VS = `attribute vec3 aP; attribute vec3 aOut; attribute float aB; attribute float aSize; attribute vec3 aCol; attribute float aPh;
+uniform float T; uniform float tBang; uniform float tShake; uniform float pr; varying vec3 vC; varying float vA;
+void main(){ vec3 p;
+  if (T < tBang) { float a = T * (.25 + aPh * .3), c = cos(a), s = sin(a); p = vec3(c * aP.x + s * aP.z, aP.y, -s * aP.x + c * aP.z);
+    float v = smoothstep(tShake, tBang, T); p += vec3(sin(T * 31.0 + aPh * 40.0), cos(T * 27.0 + aPh * 30.0), sin(T * 23.0 + aPh * 20.0)) * .04 * v;
+    p *= 1.0 - .4 * smoothstep(tBang - .22, tBang, T);
+    float f = 2.0 + aPh * 3.0 + v * 6.0; vA = smoothstep(aB, aB + .35, T) * (.3 + .7 * pow(.5 + .5 * sin(T * f + aPh * 60.0), 3.0)); }
+  else { float e = T - tBang; p = aP + aOut * (14.0 + aPh * 30.0) * (1.0 - exp(-e * 2.4)); vA = 1.0 - smoothstep(.6, 1.8, e); }
+  vC = aCol; vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_PointSize = min(aSize * pr * (30.0 / -mv.z), 26.0 * pr); gl_Position = projectionMatrix * mv; }`;
+const SPARK_FS = `varying vec3 vC; varying float vA;
+void main(){ vec2 q = gl_PointCoord - .5; float d = length(q);
+  float ray = max(smoothstep(.07, 0.0, abs(q.x)) * smoothstep(.5, 0.0, abs(q.y)), smoothstep(.07, 0.0, abs(q.y)) * smoothstep(.5, 0.0, abs(q.x)));
+  gl_FragColor = vec4(vC * max(smoothstep(.16, 0.0, d), ray * .85) * vA, 1.0); }`;
+const RINGW_FS = `uniform vec3 col; uniform float a; varying vec2 vUv;
+void main(){ float r = length(vUv * 2.0 - 1.0); float g = exp(-pow((r - .84) / .06, 2.0)) + exp(-pow((r - .62) / .2, 2.0)) * .22; gl_FragColor = vec4(col * g * a, 1.0); }`;
+// The forming star as a ball: slow painted convection cells that turn with it, limb darkening, a soft key from the upper left and a hot rim. Orange only.
+const STAR_VS = `varying vec3 vO; varying vec3 vN; varying vec3 vW;
+void main(){ vO = normalize(position); vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const STAR_FS = `uniform float time; uniform float heat; varying vec3 vO; varying vec3 vN; varying vec3 vW;
+float h3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float vn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float nv = max(dot(N, V), 0.0);
+  vec3 q = vO * 2.4; float n = vn(q + vec3(0.0, time * .22, 0.0)) * .62 + vn(q * 2.1 - vec3(time * .16)) * .38; float cell = smoothstep(.38, .72, n);
+  vec3 col = mix(vec3(.92, .3, .05), vec3(1.0, .6, .18), smoothstep(0.0, .5, nv));
+  col = mix(col, vec3(1.0, .9, .64), smoothstep(.45, .95, nv) * (.5 + .5 * cell));
+  col = mix(col, col * vec3(.97, .78, .6), (1.0 - cell) * .26 * smoothstep(.15, .7, nv));
+  col *= .78 + .34 * max(dot(N, normalize(vec3(-.45, .6, .65))), 0.0);
+  col += vec3(1.0, .5, .16) * pow(1.0 - nv, 3.0) * .8;
+  gl_FragColor = vec4(col * (1.0 + heat * .3), 1.0); }`;
+
+const bang = new THREE.Group(); bang.position.copy(CORE); scene.add(bang);
+bang.quaternion.setFromUnitVectors(V(0, 1, 0), DIR.clone().negate().addScaledVector(UP, 1.1).normalize());
+const WARM = ['#FFB861', '#FFE08A', '#FFF3D6'];
+const bangMat = new THREE.ShaderMaterial({ vertexShader: BANG_VS, fragmentShader: TOON_DUST_FS, transparent: true, depthWrite: false,
+  uniforms: { T: { value: 0 }, tBang: { value: T_BANG }, pr: { value: PR } } });
+const pointsOf = (N, A, mat) => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  Object.entries(A).forEach(([k, v]) => geo.setAttribute(k, new THREE.BufferAttribute(v, v.length / N))); const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; return pts; };
+const ARRIVED = (() => {
+  const N = 14000, r = rng('bigbang'), F = k => new Float32Array(N * k), arr = new Float32Array(N);
+  const A = { aDir: F(3), aOut: F(3), aR0: F(1), aDel: F(1), aDur: F(1), aSpd: F(1), aSize: F(1), aCol: F(3), aJit: F(1), aArm: F(1), aH: F(1) };
+  for (let i = 0; i < N; i++) {
+    // every grain starts off screen and falls in along its arm, so the spiral is only ever built by what streams in
+    let d, r0;
+    if (r() < .8) { A.aArm[i] = (r() * 5) | 0; A.aH[i] = (r() - .5) * 2; d = [1, 0, 0]; r0 = 22 + r() * 12; }
+    else { A.aArm[i] = -1; const u = r() * 2 - 1, a = r() * TAU, s = Math.sqrt(1 - u * u); d = [s * Math.cos(a), u, s * Math.sin(a)]; r0 = 26 + r() * 12; }
+    const l = Math.hypot(...d); A.aDir.set(d.map(v => v / l), i * 3); A.aR0[i] = r0;
+    const u = r() * 2 - 1, a = r() * TAU, s = Math.sqrt(1 - u * u); A.aOut.set([s * Math.cos(a), u * .8, s * Math.sin(a)], i * 3);
+    A.aDel[i] = Math.pow(r(), 1.1) * 3.2; A.aDur[i] = Math.min(1.8 + r() * 1.1, T_BANG - .15 - A.aDel[i]);
+    arr[i] = A.aDel[i] + A.aDur[i] * .9;                                       // roughly when it sinks into the star
+    A.aSpd[i] = 6 + Math.pow(r(), 1.5) * 50; A.aSize[i] = 1.2 + Math.pow(r(), 3) * 3.6; A.aJit[i] = r();
+    A.aCol.set(hexV(r() < .78 ? CANDY[(r() * 3) | 0] : WARM[(r() * 3) | 0]).toArray(), i * 3);
+  }
+  bang.add(pointsOf(N, A, bangMat)); return arr.sort();
+})();
+// How much of the dust has fallen in: this is what builds the star.
+const formed = T => { let a = 0, b = ARRIVED.length; while (a < b) { const m = (a + b) >> 1; if (ARRIVED[m] <= T) a = m + 1; else b = m; } return a / ARRIVED.length; };
+const sparkMat = new THREE.ShaderMaterial({ vertexShader: SPARK_VS, fragmentShader: SPARK_FS, ...add,
+  uniforms: { T: { value: 0 }, tBang: { value: T_BANG }, tShake: { value: T_SHAKE }, pr: { value: PR } } });
+{
+  const N = 2600, r = rng('sparkles'), F = k => new Float32Array(N * k), A = { aP: F(3), aOut: F(3), aB: F(1), aSize: F(1), aCol: F(3), aPh: F(1) }, SP = ['#FFF3D6', '#FFE08A', '#FFB3EC'];
+  for (let i = 0; i < N; i++) {
+    const arm = (r() * 5) | 0, rho = 2 + Math.pow(r(), 1.2) * 13, a = arm * TAU / 5 + Math.log(rho / 1.8 + 1) * 1.6 + (r() - .5) * .9;
+    A.aP.set([Math.cos(a) * rho, (r() - .5) * (.4 + rho * .12), Math.sin(a) * rho], i * 3);
+    const u = r() * 2 - 1, b = r() * TAU, s = Math.sqrt(1 - u * u); A.aOut.set([s * Math.cos(b), u, s * Math.sin(b)], i * 3);
+    A.aB[i] = 1.6 + (T_BANG - .3 - 1.6) * Math.sqrt(r());                      // more and more sparkles as the bang nears
+    A.aSize[i] = 4.5 + Math.pow(r(), 2) * 8; A.aPh[i] = r(); A.aCol.set(hexV(SP[(r() * 3) | 0]).toArray(), i * 3);
+  }
+  bang.add(pointsOf(N, A, sparkMat));
+}
+// The star: a painted ball inside the approved atmosphere rim, glow and bloom (makeSun / makePlanet values); it floats.
+const SUN_R = 1.15, CAMV = V(), star = new THREE.Group(); bang.add(star);
+const starMat = new THREE.ShaderMaterial({ vertexShader: STAR_VS, fragmentShader: STAR_FS, uniforms: { time, heat: { value: 0 } } });
+const starBall = new THREE.Mesh(new THREE.SphereGeometry(SUN_R, 48, 24), starMat); starBall.rotation.z = .35;
+const starRim = new THREE.Mesh(new THREE.SphereGeometry(SUN_R * 1.32, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: ATMO_FS, ...add,
+  uniforms: { color: { value: V(1, .55, .2) }, sun: { value: CAMV }, strength: { value: 1.25 }, calm: { value: 0 }, fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...ctx.fogR) } } }));
+const starGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .72, .38), opacity: .8, ...add }));
+const starBloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .12), opacity: .7, ...add }));
+star.add(starBloom, starGlow, starRim, starBall);
+const coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .93, .8), opacity: 1, ...add }));
+const coreBloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .12), opacity: .9, ...add }));
+bang.add(coreBloom, coreGlow);
+const shock = [[V(1, .8, .55), 0], [hexV('#FF7AD9'), .12]].map(([col, lag]) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: RINGW_FS, ...add, uniforms: { col: { value: col }, a: { value: 0 } } }));
+  m.position.copy(CORE); m.userData.lag = lag; scene.add(m); return m; });
+function bangTick(T, t) {
+  bang.visible = T < T_BANG + 4; bangMat.uniforms.T.value = sparkMat.uniforms.T.value = T; CAMV.copy(camera.position);
+  const e = T - T_BANG, f = formed(T);
+  star.visible = e < 0 && f > 0; coreGlow.visible = coreBloom.visible = e >= 0;
+  if (e < 0) {
+    const v = smooth(T_SHAKE, T_BANG - .15, T), sq = 1 - .4 * smooth(T_BANG - .22, T_BANG, T), b = 1 + .05 * Math.sin(t * 1.3);
+    star.scale.setScalar((.04 + .96 * Math.pow(f, .7)) * (1 + .025 * v * Math.sin(T * 22)) * sq);
+    star.position.set(Math.sin(t * .6) * .22 + Math.sin(T * 41) * .06 * v, Math.sin(t * .9) * .3 + Math.cos(T * 37) * .05 * v, Math.cos(t * .5) * .18);   // floats, then trembles
+    starBall.rotation.y = t * .18; starMat.uniforms.heat.value = v;
+    starGlow.scale.setScalar(SUN_R * 4.2 * b); starBloom.scale.setScalar(SUN_R * 16 * (2 - b));
+    starGlow.material.opacity = .8 * smooth(0, .12, f); starBloom.material.opacity = .7 * smooth(0, .3, f) * (1 - .12 * v * (.5 + .5 * Math.sin(T * 30)));
+  } else {
+    coreGlow.scale.setScalar(3 + 40 * easeOut(e / .6)); coreGlow.material.opacity = 1 - smooth(0, .5, e);
+    coreBloom.scale.setScalar(14 + 80 * easeOut(e / .8)); coreBloom.material.opacity = .9 * (1 - smooth(0, .45, e));
+  }
+  for (const m of shock) { const k = e - m.userData.lag; m.visible = k > 0 && k < 1.4; if (!m.visible) continue;
+    m.scale.setScalar(2 + 140 * easeOut(k / 1.1)); m.material.uniforms.a.value = 1 - smooth(.15, 1.1, k); m.quaternion.copy(camera.quaternion); }
+}
+
+/* ---------- the newborn universe we travel through (hidden until the bang) ---------- */
+const world = new THREE.Group(); world.visible = false; scene.add(world);
+const addT = o => { world.add(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+const ROCK_TX = planetTextures({ id: 'rock', type: 'barren', d: -8, rings: false }).map;
+// Asteroids: painted with the barren planet texture and the planet shader; lumpy but smooth, never faceted.
+function makeRock(seed, radius) {
+  const r = rng(seed), geo = new THREE.SphereGeometry(1, 36, 22), p = geo.attributes.position, v = V(), o = [r() * 30, r() * 30, r() * 30], sq = [1, .7 + r() * .3, .85 + r() * .25];
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 1 + .34 * fbm(v.x * 1.1 + o[0], v.y * 1.1 + o[1], v.z * 1.1 + o[2], 2); p.setXYZ(i, v.x * k * radius * sq[0], v.y * k * radius * sq[1], v.z * k * radius * sq[2]); }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS,
+    uniforms: { map: { value: ROCK_TX }, sun: { value: LIGHT }, atmo: { value: V(.42, .36, .58) }, cloudLayer: { value: 0 }, ...hazeU(ctx.fogR) } }));
+  const w = V(r() - .5, r() - .5, r() - .5).normalize(), sp = .4 + r() * 1.2;
+  m.userData.tick = t => m.setRotationFromAxisAngle(w, t * sp); return m;
+}
+function belt(s0, n, seed, spread = 60) { const r = rng(seed);
+  for (let i = 0; i < n; i++) { const a = r() * TAU, d = 4.5 + Math.pow(r(), .8) * 16, rock = makeRock(seed + i, .5 + Math.pow(r(), 2) * 2.2);
+    rock.position.copy(at(s0 + (r() - .5) * spread, Math.cos(a) * d, Math.sin(a) * d * 1.3)); addT(rock); } }
+const planet = (g, radius, s, x, y) => { const p = makePlanet(g, radius, LIGHT, ctx); p.position.copy(at(s, x, y)); return addT(p); };
+function galaxy(family, R, s, x, y, rot) { const g = new THREE.Group(); g.add(halo(R, family, ctx, .75));
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .9, .8), opacity: .9, ...add })); core.scale.setScalar(R * .28); g.add(core);
+  g.position.copy(at(s, x, y)); g.rotation.set(...rot); world.add(g); }
+const system = (s, x, y, def) => { const p = at(s, x, y); addT(makeSystem({ x: p.x, y: p.y, z: p.z, ...def }, ctx)); };
+
+const PASS = [
+  [150, 'Asteroids'], [290, 'A lush planet with a moon'], [400, 'A violet galaxy'], [480, 'A ringed gas giant'], [590, 'A pink nebula'],
+  [680, 'Over an amber system'], [790, 'More asteroids'], [860, 'A teal galaxy'], [920, 'An ocean world'], [1040, 'An exotic planet with a moon'],
+  [1130, 'A cobalt galaxy'], [1210, 'Beside a teal system'], [1310, 'A dense asteroid field'], [1400, 'A pink galaxy']];
+belt(150, 14, 'beltA');
+planet(gn('pass-lush', 'lush', { moon: true, tilt: .35 }), 5.5, 290, -14, 5);
+galaxy('violet', 60, 400, 22, 62, [1.0, .3, .4]);
+planet(gn('pass-gas', 'gas', { rings: true, tilt: -.25, spin: .15 }), 6.2, 480, 16, -8);
+{ const neb = toonNebula(20, 2600, 'pass-neb', ctx, { puffs: 14 }); neb.position.copy(at(590, -14, 32)); neb.rotation.x = .8; addT(neb); }
+gn('sys-a', 'toxic'); gn('sys-b', 'frozen', { rings: true }); gn('sys-c', 'scorched');
+system(680, 3, -15, { family: 'amber', sunR: 3, planetR: 1.35, speed: .35, kepler: .8, glow: .5,
+  planets: [{ id: 'sys-a', R: 6.5, ang: .6 }, { id: 'sys-b', R: 10, ang: 2.4 }, { id: 'sys-c', R: 13.5, ang: -1.2 }] });
+belt(790, 12, 'beltB');
+galaxy('teal', 70, 860, -26, 70, [1.1, .5, -.3]);
+planet(gn('pass-ocean', 'ocean'), 3.4, 920, 9, 10);
+planet(gn('pass-exotic', 'exotic', { moon: true, tilt: -.4 }), 4.5, 1040, -11, -9);
+galaxy('cobalt', 75, 1130, -30, -80, [1.15, -.4, -.6]);
+gn('sys-d', 'barren', { moon: true });
+system(1210, 15, 10, { family: 'teal', sunR: 2.6, planetR: 1.3, speed: .4, kepler: .8, glow: .55, planets: [{ id: 'sys-d', R: 7.5, ang: 2.2 }] });
+belt(1310, 20, 'beltC', 80);
+galaxy('pink', 55, 1400, 18, -40, [1.2, .2, .7]);
+
+/* ---------- speed: stars stretch into streaks while we move; at light speed many more rush at us, then we drop out ---------- */
+const SN = 1500, SN0 = 560, sPos = new Float32Array(SN * 6), sCol = new Float32Array(SN * 6), hPos = new Float32Array(SN * 3), hCol = new Float32Array(SN * 3), SD = [];
+{ const r = rng('streaks'); for (let i = 0; i < SN; i++) { const a = r() * TAU, d = i < SN0 ? 2.2 + Math.pow(r(), .65) * 42 : 3 + Math.pow(r(), 1.3) * 26, k = r(), b = .45 + r() * .55;
+    SD.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, z0: r() * 340, lf: .5 + r() * .9, c: (k < .15 ? [1, .86, .7] : k < .3 ? [.75, .85, 1] : [1, 1, 1]).map(v => v * b) }); } }
+const sGeo = new THREE.BufferGeometry(); sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3)); sGeo.setAttribute('color', new THREE.BufferAttribute(sCol, 3));
+const streak = new THREE.LineSegments(sGeo, new THREE.LineBasicMaterial({ vertexColors: true, ...add })); streak.frustumCulled = false;
+const HEAD_VS = `attribute vec3 color; uniform float pr; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(60.0 / -mv.z, 1.5, 5.0) * pr; gl_Position = projectionMatrix * mv; }`;
+const HEAD_FS = `varying vec3 vC; void main(){ float d = length(gl_PointCoord - .5); gl_FragColor = vec4(vC * smoothstep(.5, .1, d), 1.0); }`;
+const hGeo = new THREE.BufferGeometry(); hGeo.setAttribute('position', new THREE.BufferAttribute(hPos, 3)); hGeo.setAttribute('color', new THREE.BufferAttribute(hCol, 3));
+const heads = new THREE.Points(hGeo, new THREE.ShaderMaterial({ vertexShader: HEAD_VS, fragmentShader: HEAD_FS, ...add, uniforms: { pr: { value: PR } } })); heads.frustumCulled = false;
+const rush = new THREE.Group(); rush.add(streak, heads); scene.add(rush); rush.quaternion.setFromUnitVectors(V(0, 0, -1), DIR);
+function streaks(T, base) {
+  rush.position.copy(base); const s = lookup(SCUM, T) * VMAX, v = svel(T), w = warpK(T);
+  const vis = smooth(T_BANG + .1, T_BANG + .85, T) * (1 - smooth(T_EXIT + .8, T_ARRIVE - .2, T)), more = smooth(T_WARP, T_FULL - .5, T);
+  rush.visible = vis > 0;
+  SD.forEach((q, i) => { const z = -334 + ((q.z0 + s) % 340), len = Math.min(160, v * 26 * q.lf), f = vis * smooth(-334, -240, z) * (i < SN0 ? 1 : more) * (1 + .25 * w), k = i * 6, h = i * 3;
+    sPos[k] = sPos[k + 3] = hPos[h] = q.x; sPos[k + 1] = sPos[k + 4] = hPos[h + 1] = q.y; sPos[k + 2] = hPos[h + 2] = z; sPos[k + 5] = z - len;
+    sCol[k] = q.c[0] * f; sCol[k + 1] = q.c[1] * f; sCol[k + 2] = q.c[2] * f; sCol[k + 3] = sCol[k + 4] = sCol[k + 5] = 0;
+    hCol[h] = sCol[k] * w; hCol[h + 1] = sCol[k + 1] * w; hCol[h + 2] = sCol[k + 2] * w; });
+  sGeo.attributes.position.needsUpdate = sGeo.attributes.color.needsUpdate = hGeo.attributes.position.needsUpdate = hGeo.attributes.color.needsUpdate = true;
+}
+
+/* ---------- camera ---------- */
+const pointer = new THREE.Vector2(), pSmooth = new THREE.Vector2();
+function frame(T) {
+  const t = 4 + T, e = T - T_BANG, born = e >= 0; time.value = t; pSmooth.lerp(pointer, .06);
+  world.visible = born && T < T_WARP + 1.5; ticks.forEach(f => f(t));
+  let base, target;
+  if (!born) {   // circle slowly round the forming star (about 18°) while creeping closer, so the spiral and the star read in depth
+    const yaw = -.32 * (1 - smooth(0, T_BANG - .2, T));
+    base = CORE.clone().add(DIR.clone().negate().applyAxisAngle(UP, yaw).multiplyScalar(26 + 20 * (1 - smooth(0, T_BANG, T)))); target = CORE;
+  } else { base = at(dist(T)); target = base.clone().addScaledVector(DIR, LOOK); }
+  const shake = born ? .1 * Math.exp(-e * 5) : .05 * Math.pow(smooth(T_SHAKE, T_BANG, T), 2);
+  const pos = base.clone().addScaledVector(RIGHT, Math.sin(T * 47) * shake).addScaledVector(UP, Math.cos(T * 41) * shake);
+  const b = smooth(T_ARRIVE, T_ARRIVE + 1.4, T);                                       // hand over to the U01 Empty drift
+  pos.add(V(Math.sin(t * .11) * .6 * 1.6 + pSmooth.x * 1.6, Math.sin(t * .07) * .4 * 1.6 - pSmooth.y * 1.1, Math.sin(t * .05) * .5 * 1.6).multiplyScalar(b));
+  const roll = .2 * Math.sin(TAU * smooth(T_BANG + .35, T_WARP + .6, T));
+  camera.up.set(Math.sin(roll), Math.cos(roll), 0);
+  camera.position.copy(pos);
+  camera.fov = 38 + 18 * Math.min(1, vel(T)) + 16 * warpK(T) + (born ? 3 * Math.exp(-e * 3.5) * smooth(0, .08, e) : 0); camera.updateProjectionMatrix();
+  camera.lookAt(target);
+  sky.position.copy(base).sub(END); LIGHT.copy(base).add(V(80, 60, -20));
+  const so = smooth(T_BANG + .05, T_BANG + 1.8, T); skyMats.forEach(([m, o]) => m.uniforms.opacity.value = o * so);
+  bangTick(T, t); streaks(T, base);
+  renderer.render(scene, camera);
+}
+
+/* ===================== chrome: U01 Empty, exactly as finalized; Skip until the end ===================== */
+const ICONS = {
+  explore: '<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 3l4 4 4-4"/>', universe: '<circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/>',
+  talk: '<path d="M4 5h16v11H9l-5 4z"/>', keep: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+};
+const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${s >= 20 ? 2 : 2.4}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const tabbar = `<nav class="tabbar">${[['explore', 'Explore'], ['universe', 'Universe'], ['talk', 'Talk'], ['keep', 'Keep']].map(([k, l]) => `<div class="tab ${k === 'universe' ? 'cur' : ''}">${icon(k, 22)}<span>${l}</span></div>`).join('')}</nav>`;
+document.getElementById('chrome').innerHTML = `<div class="top" id="hdr"><div class="row"><h1 class="title">Your universe</h1><div class="avatar">U</div></div></div>
+  <div class="center"><h2 id="h2">Your universe starts quiet.</h2><p id="pp">It takes shape from what you watch and read.</p><span class="btn space" id="go" style="margin-top:8px">${icon('explore', 20)}Go to Explore</span></div>
+  <span class="chip skip" id="skip" role="button">Skip</span>${tabbar}`;
+const $ = id => document.getElementById(id);
+const rise = (el, k, dy = 10) => { el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dy}px)`; };
+function chrome(T) {
+  const A = T_ARRIVE - .4; rise($('hdr'), smooth(A, A + .6, T), -8); rise($('h2'), smooth(A + .2, A + .8, T)); rise($('pp'), smooth(A + .35, A + .95, T)); rise($('go'), smooth(A + .5, A + 1.1, T));
+  const sk = 1 - smooth(T_ARRIVE - .7, T_ARRIVE - .2, T); $('skip').style.opacity = sk; $('skip').style.visibility = sk > 0 ? 'visible' : 'hidden';
+  $('flash').style.opacity = smooth(T_BANG - .05, T_BANG + .02, T) * (1 - smooth(T_BANG + .04, T_BANG + .6, T)) * .9;
+  $('flash2').style.opacity = smooth(T_EXIT - .25, T_EXIT + .15, T) * (1 - smooth(T_EXIT + .15, T_EXIT + 1, T)) * .22;
+}
+
+/* ===================== page: beats, storyboard, controls ===================== */
+const f2 = x => x.toFixed(2);
+const BEATS = [
+  [0, 1.6, 'Dust streams in', 'Black, then pink, violet and warm dust flows in from off screen along five spiral arms. Nothing appears out of nowhere: the spiral is built by what streams in. The camera circles slowly (about 18°) so it reads in depth.'],
+  [1.6, T_SHAKE, 'The star forms', 'The dust sinks into the centre and builds the star: a tiny ember first, growing with every bit that falls in. It is a ball, not a disc: painted cells turn on it, the approved atmosphere rim glows round it, and it floats gently. Sparkles appear around it, more and more of them.'],
+  [T_SHAKE, T_BANG, 'About to blow', 'A light tremble that builds: the star quivers, glows hotter, the sparkles twinkle faster. In the last fifth of a second it squeezes.'],
+  [T_BANG, T_BANG + .35, 'Bang', 'Warm flash, two soft shock rings (warm, then pink), the dust and sparkles burst outward and the stars switch on.'],
+  [T_BANG + .35, T_WARP, 'Travel', 'A long cruise; stars stretch into short streaks. We pass: ' + PASS.map(([s, n]) => `${n.toLowerCase()} (${f2(when(s))} s)`).join(', ') + '.'],
+  [T_WARP, T_FULL, 'Towards light speed', 'A slow, smooth three-second build: more and more stars come straight at us as bright points, their trails grow longer and the view widens to +34°.'],
+  [T_FULL, T_EXIT, 'Light speed', 'A moment at full speed.'],
+  [T_EXIT, T_ARRIVE, 'Drop out', 'A faint, slow white glow and we come to a smooth stop over 2.5 s: most of the slowing early, then a long glide. Streaks shorten back into stars and the view narrows on the same curve.'],
+  [T_ARRIVE, T_END, 'Empty universe', 'Lands on U01 Empty exactly (same camera, same stars, same drift). Title, line and Go to Explore rise in one after another. Then it is the live screen.'],
+];
+const beatsEl = $('beats');
+beatsEl.innerHTML = BEATS.map(([a, b, n, d]) => `<tr><td>${f2(a)}–${f2(b)} s</td><td><b>${n}</b> · ${d}</td></tr>`).join('');
+const SHOTS = [[.9, 'Dust streams in'], [2.4, 'A tiny star forms'], [4.0, 'It grows, sparkles build'], [5.5, 'Trembling'], [T_BANG + .06, 'Bang'], [T_BANG + .5, 'Through the burst'],
+  [when(290 - 44), 'A lush planet'], [when(680 - 58), 'Over a system'], [when(1040 - 40), 'An exotic planet'], [when(1210 - 50), 'Beside a system'], [15.4, 'Building to light speed'], [17.1, 'Light speed'], [T_END + .3, 'Empty universe']];
+
+let T = 0, playing = true, rate = 1;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+$('shots').innerHTML = SHOTS.map(([s, n], i) => { frame(s); return `<div class="shot" data-t="${s}"><img alt="${n}" src="${canvas.toDataURL('image/jpeg', .82)}"><b>${f2(s)} s</b><span>${n}</span></div>`; }).join('');
+const scrub = $('scrub'), tc = $('tc'), pauseB = $('pause');
+scrub.max = T_MAX;
+function show() { frame(T); chrome(T); scrub.value = Math.min(T, T_MAX); const beat = BEATS.findLastIndex(([a]) => T >= a);
+  tc.textContent = `${f2(Math.min(T, T_MAX))} s · ${BEATS[beat][2]}`; beatsEl.querySelectorAll('tr').forEach((tr, i) => tr.classList.toggle('cur', i === beat)); }
+const setPlay = p => { playing = p; pauseB.textContent = p ? 'Pause' : 'Play'; };
+$('replay').onclick = () => { T = 0; setPlay(true); };
+pauseB.onclick = () => { if (!playing && T >= T_MAX) T = 0; setPlay(!playing); };
+$('slow').onclick = e => { rate = rate === 1 ? .25 : 1; e.target.classList.toggle('on', rate !== 1); };
+scrub.oninput = () => { T = +scrub.value; setPlay(false); show(); };
+$('shots').onclick = e => { const s = e.target.closest('.shot'); if (s) { T = +s.dataset.t; setPlay(false); show(); } };
+$('skip').onclick = () => { if (T < T_ARRIVE - .05) T = T_ARRIVE - .05; };
+const phone = $('phone');
+phone.addEventListener('pointermove', e => { const r = phone.getBoundingClientRect(); pointer.set((e.clientX - r.left) / r.width * 2 - 1, (e.clientY - r.top) / r.height * 2 - 1); });
+phone.addEventListener('pointerleave', () => pointer.set(0, 0));
+const hashT = /t=([\d.]+)/.exec(location.hash);
+if (hashT) { T = +hashT[1]; setPlay(false); }
+if (reduce) { T = T_END + .3; setPlay(false); }   // reduced motion: no opening, straight to the empty universe
+show();
+let last = 0, prev = null;
+function loop(now) { requestAnimationFrame(loop); if (reduce || now - last < 33) return; const dt = prev === null ? 0 : Math.min(.1, (now - prev) / 1000); prev = now; last = now;
+  if (playing) T += dt * rate; show(); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

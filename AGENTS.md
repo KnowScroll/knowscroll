@@ -7,10 +7,11 @@ KnowScroll is effortless discovery through Reel and Scroll encounters, with an e
 1. `docs/STATUS.md`: what works, what is missing, and what is next. Verify Git, CI and the deployed revision before acting on it.
 2. Tracker #222 and the sub-issue you are working on.
 3. `docs/v2/architecture/02d-greenfield-blueprint.md` (authoritative architecture and behaviour) and `docs/v2/architecture/02e-future-session-handoff.md` (decisions that must survive context loss).
-4. `docs/v2/decisions.md`, the decisions made during implementation (D-030 sets the current working flow and budgets), and `docs/v2/carried-forward-facts.md`, the still-binding owner rulings from v1.
-5. The README of every package or backend module you change.
+4. `docs/v2/decisions.md`, the decisions made during implementation (D-030 sets the current working flow and budgets; D-060 onward record the v3 rulings and amend rules), and `docs/v2/carried-forward-facts.md`, the still-binding owner rulings from v1.
+5. For Universe, Scroll, room or Talk work: `docs/v2/design/v3/README.md` (the final v3 designs) and `docs/v2/v3-revamp/CHANGE-MAP.md` (a starting map, not proof).
+6. The README of every package or backend module you change.
 
-The blueprint governs architecture and product behaviour. The v2.1 design export (`docs/v2/design/KnowScroll-design-v2.1/`) governs visuals. Its people, messages, content and worlds are authored examples, never product data.
+The blueprint governs architecture and product behaviour, as amended by `docs/v2/decisions.md`. The v3 designs (`docs/v2/design/v3/`) govern the Universe, Scrolls, rooms and Talk (D-060). The v2.1 design export (`docs/v2/design/KnowScroll-design-v2.1/`) governs visuals everywhere else. Their people, messages, content and worlds are authored examples, never product data.
 
 ## Product rules that code must preserve
 
@@ -18,8 +19,9 @@ The blueprint governs architecture and product behaviour. The v2.1 design export
 - Only actual personal Reel/Scroll encounters create consumption evidence. Suggestions, generated supply, shared messages, invitations and another person's activity never do.
 - Reel and Scroll have equal status. Format preference is learned per topic/context. Series step, format variant, related perspective and What-if branch are four distinct relationships.
 - Planet formation needs qualified evidence and conceptual variety. Inactivity changes activity, never existence.
-- Peer playback positions, seen markers and current branches are private. AI participants are always identifiable. Never fabricate social activity.
-- Consumer UI never shows internal prompts, model reasoning, scores, sources panels or operational machinery.
+- Peer playback positions, seen markers and current branches are private. Two exceptions: a coarse part-level place a member shares with a thread they joined (members only, per-person hide switch, D-065) and mutual SEEN receipts in DMs (D-066). AI participants are always identifiable. Never fabricate social activity.
+- Consumer UI never shows internal prompts, model reasoning, internal ranking, model or evidence scores, sources panels or operational machinery. Game points (sparks, landmarks, stars, podium) are play features and may be shown (D-064).
+- Play results (picks, correctness, sparks, tiers) never feed ranking, planning, evidence, formation or the Universe. A landmark is a read-only overlay (D-063).
 - Models propose; deterministic code validates authority, structure and allowed effects before applying anything.
 
 ## Reliability boundaries (enforced in code review)

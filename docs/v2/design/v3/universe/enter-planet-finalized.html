@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entering a Planet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  Animations: entering a planet. FINALIZED 2026-10-29 (copy of enter-planet-04.html). Never change it.
+  Round 04: entering a planet. Round 03 feedback: slow it down a bit more (glide 2.3 s -> 3.0 s).
+  Round 01 (GTA-style snap out and three punches) was dropped: "taking too long, and unnecessary".
+  Round 02 brief: "smooth, fast but not too fast, and looking good" (one glide, about 2 s).
+  Round 02 feedback: too fast, slow it down; the hand-over from the space render to the world render just happens at the end; it should be
+  a smooth change while travelling in, the world becoming clearer and clearer as we near the planet.
+  U02 System (Machine learning) -> U03 planet (Inference & serving), about 4 s. One continuous glide (distance on a log curve, soft landing).
+  The U03 globe rides exactly on the 3D planet the whole way in (same spot, same size, worked out from the camera every frame); it fades in
+  from blurred to sharp as we close in, so the painted planet turns into the world gradually; the U03 starfield comes in at the end.
+  Scene code is copied from universe-above/universe-drafts-finalized.html (utilities, genomes, textures, shaders, makeSun, makePlanet,
+  makeSystem, halo, makeSky, makeStation, makeShip, CAMS) and the globe from world-views/world-views-finalized.html (world builder,
+  surfaceBand, screenPlanet). New code: the glide, the globe tracking and the timeline. Add #t=1.8 to the URL to freeze on a moment.
+  2026-10-30 (asked for): the U03 hint now reads "Drag to rotate · tap to land" (tapping the globe enters the world at planet level).
+-->
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<style>
+:root{
+  --paper:#FFFDF2; --ink:#15302A; --ink2:#566962; --focus:#FFE44D; --fresh:#14C79B;
+  --label:#FFFDF2; --label2:rgba(255,253,242,.72);
+  --f-display:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;
+  --f-text:'Instrument Sans',system-ui,sans-serif;
+  --f-mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --page:#0C0C0E; --page-ink:#F2EEE3; --page-ink2:#A29C8E; --page-edge:rgba(242,238,227,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--page);color:var(--page-ink);font-family:var(--f-text);padding:32px 16px 80px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.intro{max-width:1240px;margin:0 auto 18px}
+.intro .kicker{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.intro h1{font:800 36px/40px var(--f-display);letter-spacing:-.02em;margin-top:6px}
+.intro p{color:var(--page-ink2);font-size:15px;line-height:22px;margin-top:8px;max-width:840px}
+.tools{max-width:1240px;margin:0 auto 26px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tools button{border:1.5px solid var(--page-edge);border-radius:999px;padding:8px 14px;font:600 13px/1 var(--f-text)}
+.tools button.on{background:var(--page-ink);color:var(--page)}
+.tools .sep{width:1px;height:24px;background:var(--page-edge);margin:0 4px}
+.tools input[type=range]{width:260px;accent-color:#FFE44D}
+.tools .tc{font:500 12px/16px var(--f-mono);color:var(--page-ink2);min-width:150px}
+#err{position:fixed;left:12px;bottom:12px;max-width:600px;background:#B23A0B;color:#fff;font:12px/16px var(--f-mono);padding:10px;border-radius:8px;display:none;white-space:pre-wrap;z-index:99}
+
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;max-width:1240px;margin:0 auto}
+.side{width:min(640px,100%);display:flex;flex-direction:column;gap:22px}
+.side h3{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--page-ink2)}
+.side .lead{font:700 20px/26px var(--f-display);margin-top:6px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
+.shot{display:flex;flex-direction:column;gap:6px;cursor:pointer}
+.shot img{width:100%;aspect-ratio:390/844;border-radius:14px;background:#020308;box-shadow:0 0 0 1px var(--page-edge);display:block}
+.shot b{font:500 11px/14px var(--f-mono);color:var(--page-ink2)}
+.shot span{font:600 13px/17px var(--f-text)}
+.beats{width:100%;border-collapse:collapse;font-size:13.5px;line-height:19px}
+.beats td{padding:9px 10px 9px 0;border-top:1px solid var(--page-edge);vertical-align:top}
+.beats td:first-child{font:500 12px/19px var(--f-mono);color:var(--page-ink2);white-space:nowrap;width:94px}
+.beats td b{font-weight:700}
+.beats tr.cur td{color:#FFE44D}
+
+.phone{width:390px;height:844px;position:relative;overflow:hidden;border-radius:38px;background:#020308;flex:none;
+  box-shadow:0 0 0 8px #050505,0 0 0 9px #26272b,0 30px 60px -24px rgba(0,0,0,.8);isolation:isolate}
+.phone canvas{position:absolute;inset:0;width:390px;height:844px;display:block}
+.labels{position:absolute;inset:0;pointer-events:none;z-index:1}
+.lbl{position:absolute;left:0;top:0;font:700 14px/18px var(--f-display);color:var(--label);white-space:nowrap;text-shadow:0 0 6px rgba(0,0,0,.95),0 0 2px #000;will-change:transform}
+.lbl.sm{font-size:12.5px}
+.chrome{position:absolute;inset:0;z-index:3;color:var(--label);pointer-events:none}
+.chrome .layer{position:absolute;inset:0}
+.statusbar{position:absolute;top:0;left:0;right:0;height:47px;display:flex;justify-content:space-between;align-items:center;padding:0 30px 0 34px;font:600 15px/1 var(--f-text);color:var(--label);z-index:5;pointer-events:none}
+.statusbar i{width:26px;height:12px;border:1.5px solid var(--label);border-radius:4px;display:inline-block;position:relative}
+.statusbar i:after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--label);border-radius:1.5px}
+.top{position:absolute;top:0;left:0;right:0;padding:59px 16px 0;display:flex;flex-direction:column;gap:10px}
+.bottom{position:absolute;left:0;right:0;bottom:0;padding:0 16px 104px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.title{font:800 28px/32px var(--f-display);letter-spacing:-.02em;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.eyebrow{font:500 11px/14px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--label2);display:block}
+.avatar{width:40px;height:40px;border-radius:999px;background:var(--focus);color:var(--ink);font:800 16px/1 var(--f-display);display:flex;align-items:center;justify-content:center;flex:none}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;font:600 14px/18px var(--f-text);white-space:nowrap;border:1px solid rgba(255,253,242,.5);background:rgba(2,3,8,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.chip.solid{background:var(--paper);color:var(--ink);border-color:var(--paper)}
+.chip .dot{width:8px;height:8px;border-radius:4px;border:1px solid currentColor}
+.ib{width:48px;height:48px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;flex:none;background:rgba(255,253,242,.94);color:var(--ink)}
+.tap{position:absolute;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border:2px solid var(--paper);border-radius:50%;opacity:0;pointer-events:none}
+.tabbar{position:absolute;z-index:4;left:14px;right:14px;bottom:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px;border:1px solid rgba(255,255,255,.15);border-radius:24px;background:rgba(10,20,28,.42);box-shadow:0 18px 40px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.14);backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35)}
+.tab{display:grid;gap:5px;justify-items:center;padding:9px 4px 8px;color:rgba(255,255,255,.6);border-radius:17px;font:800 11px/1 var(--f-text)}
+.tab svg{width:21px;height:21px;stroke-width:1.9}
+.tab.cur{color:#fff;background:rgba(255,255,255,.13);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16)}
+
+/* ---------- U03 globe, copied from world-views/world-views-finalized.html (scoped to .u03) ---------- */
+.u03{position:absolute;inset:0;z-index:2;color:#fffdf2;opacity:0;pointer-events:none}
+.u03 .starfield{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#0a0d14 0,#000 70%)}
+.u03 .starfield svg{position:absolute;inset:0}
+.u03 .map-top{position:absolute;z-index:30;left:14px;right:14px;top:56px;display:flex;align-items:center;gap:8px}
+.u03 .pill{display:flex;align-items:center;gap:8px;height:42px;padding:0 14px 0 10px;border:1px solid rgba(21,48,42,.2);border-radius:15px;background:rgba(255,253,242,.94);
+  color:#15302a;font:800 14px/1 var(--f-text);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 6px 18px -8px rgba(0,0,0,.5)}
+.u03 .pill svg{width:17px;height:17px}
+.u03 .globe-wrap{position:absolute;z-index:5;left:50%;top:372px;width:292px;height:292px;transform:translate(-50%,-50%)}
+.u03 .atmosphere{position:absolute;inset:-12px;border-radius:50%;border:1px solid var(--atmo-line);box-shadow:0 0 26px var(--atmo-glow),inset 0 0 18px var(--atmo-glow)}
+.u03 .globe{position:absolute;inset:0;overflow:hidden;border-radius:50%;border:2px solid var(--rim);background:var(--globe-bg);
+  box-shadow:0 28px 58px rgba(0,0,0,.52),inset -28px -16px 52px rgba(2,10,20,.45)}
+.u03 .globe .surface{position:absolute;left:0;top:50%;margin-top:-180px;width:960px;height:360px;animation:spin 70s linear infinite}
+@keyframes spin{to{transform:translateX(-480px)}}
+.u03 .cloudband{animation:cloudspin 46s linear infinite}
+@keyframes cloudspin{to{transform:translateX(-480px)}}
+.u03 .globe .caps{position:absolute;inset:0;pointer-events:none}
+.u03 .shade{position:absolute;inset:-1px;border-radius:50%;background:radial-gradient(circle at 31% 24%,transparent 0 42%,rgba(5,15,30,.1) 56%,rgba(3,8,20,.74) 95%);pointer-events:none}
+.u03 .glint{position:absolute;inset:5% 34% 48% 11%;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.3),transparent 72%);transform:rotate(-26deg);filter:blur(8px);pointer-events:none}
+.u03 .caption{position:absolute;z-index:10;left:24px;right:24px;top:556px;display:flex;flex-direction:column;gap:6px}
+.u03 .caption .eyebrow{font:500 11px/14px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(255,253,242,.7)}
+.u03 .caption h1{font:800 32px/36px var(--f-display);letter-spacing:-.02em}
+.u03 .hint{display:flex;align-items:center;gap:8px;margin-top:4px;color:#b8e2e3;font:700 13px/1 var(--f-text)}
+.u03 .hint span{display:grid;width:26px;height:26px;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:50%;font-size:13px}
+.u03 .chips{position:absolute;z-index:30;left:14px;right:14px;bottom:106px;display:flex;flex-wrap:wrap;gap:8px}
+.u03 .chip{display:inline-flex;align-items:center;gap:7px;height:42px;min-height:0;padding:0 15px;border:0;border-radius:999px;font:800 14px/1 var(--f-text);white-space:nowrap;backdrop-filter:none;-webkit-backdrop-filter:none}
+.u03 .chip.light{background:rgba(255,253,242,.94);color:#15302a;box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.u03 .chip.dark{background:rgba(6,20,30,.6);color:#fff;border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.u03 .chip svg{width:16px;height:16px}
+@media (max-width:440px){ .phone{transform:scale(.86);transform-origin:top left;margin-bottom:-118px} }
+</style>
+</head>
+<body>
+<header class="intro">
+  <span class="kicker">KnowScroll · Universe · Animations · Entering a planet · Final</span>
+  <h1>Gliding in</h1>
+  <p>Tap a planet in a system: the camera turns onto it and glides in, unhurried, as the sun and the other worlds slide away.
+     On the way the planet slowly comes into focus as its world: the U03 globe fades in on top of it, blurred at first and sharper the closer we get,
+     until it lands exactly where the globe sits. About four seconds.</p>
+</header>
+<div class="tools"><button id="replay">Replay</button><button id="pause">Pause</button><button id="slow">Slow ×0.25</button>
+  <input type="range" id="scrub" min="0" max="5" step="0.01" value="0"><span class="tc" id="tc">0.00 s</span></div>
+<div class="stage">
+  <div class="phone" id="phone"><canvas id="cS"></canvas><div class="labels" id="lS"></div>
+    <div class="u03" id="u03"></div>
+    <div class="chrome" id="chrome"></div>
+    <div class="statusbar"><span>9:41</span><i></i></div></div>
+  <div class="side">
+    <div><h3>Storyboard · 3D layer only (the globe coming into focus shows on the phone) · click a frame to jump there</h3></div>
+    <div class="shots" id="shots"></div>
+    <div><h3>Beats</h3></div>
+    <table class="beats" id="beats"></table>
+  </div>
+</div>
+<div id="err"></div>
+
+<script>window.addEventListener('error', e => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent += (e.message || 'error') + '\n'; });</script>
+<script>
+/* ===================== copied verbatim from world-views/world-views-finalized.html (the U03 globe) ===================== */
+const TAU = Math.PI * 2;
+const rng = seed => { let h = 2166136261; for (const c of String(seed)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+const f1 = n => n.toFixed(1);
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+
+/* ===================== noise ===================== */
+const perm = new Uint8Array(512);
+(() => { const p = [...Array(256).keys()], r = rng('knowscroll-world'); for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0; [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) perm[i] = p[i & 255]; })();
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10), lerp = (a, b, t) => a + (b - a) * t;
+function grad(h, x, y, z) { h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14) ? x : z; return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+function noise(x, y, z) {
+  let X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); x -= X; y -= Y; z -= Z; X &= 255; Y &= 255; Z &= 255;
+  const u = fade(x), v = fade(y), w = fade(z), A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z, B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+  return lerp(lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u), lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+    lerp(lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u), lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+}
+function fbm(x, y, z, o) { let a = .5, f = 1, s = 0; for (let i = 0; i < o; i++) { s += a * noise(x * f, y * f, z * f); f *= 2.03; a *= .5; } return s; }
+
+/* ===================== contours: marching squares, chained and smoothed ===================== */
+const SEG = { 1: [['L', 'B']], 2: [['B', 'R']], 3: [['L', 'R']], 4: [['T', 'R']], 6: [['T', 'B']], 7: [['T', 'L']], 8: [['T', 'L']], 9: [['T', 'B']], 11: [['T', 'R']], 12: [['L', 'R']], 13: [['R', 'B']], 14: [['L', 'B']] };
+function contours(G, iso = 0, passes = 2) {
+  const { W, H, v, x0, y0, cell } = G, pts = new Map(), adj = new Map();
+  const val = (i, j) => (i <= 0 || j <= 0 || i >= W - 1 || j >= H - 1) ? -1 : v[j * W + i] - iso;
+  const key = (e, i, j) => e === 'T' ? `h${i},${j}` : e === 'B' ? `h${i},${j + 1}` : e === 'L' ? `v${i},${j}` : `v${i + 1},${j}`;
+  const link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); };
+  for (let j = 0; j < H - 1; j++) for (let i = 0; i < W - 1; i++) {
+    const a = val(i, j), b = val(i + 1, j), c = val(i + 1, j + 1), d = val(i, j + 1);
+    const idx = (a > 0 ? 8 : 0) | (b > 0 ? 4 : 0) | (c > 0 ? 2 : 0) | (d > 0 ? 1 : 0); if (idx === 0 || idx === 15) continue;
+    const P = { T: [i + a / (a - b), j], R: [i + 1, j + b / (b - c)], B: [i + d / (d - c), j + 1], L: [i, j + a / (a - d)] };
+    let segs = SEG[idx];
+    if (idx === 5) segs = (a + b + c + d) / 4 > 0 ? [['T', 'L'], ['R', 'B']] : [['T', 'R'], ['L', 'B']];
+    if (idx === 10) segs = (a + b + c + d) / 4 > 0 ? [['T', 'R'], ['L', 'B']] : [['T', 'L'], ['R', 'B']];
+    for (const [e1, e2] of segs) { const k1 = key(e1, i, j), k2 = key(e2, i, j); pts.set(k1, P[e1]); pts.set(k2, P[e2]); link(k1, k2); }
+  }
+  const seen = new Set(), loops = [];
+  for (const start of adj.keys()) { if (seen.has(start)) continue;
+    const loop = []; let prev = null, cur = start;
+    while (cur && !seen.has(cur)) { seen.add(cur); const p = pts.get(cur); loop.push([x0 + p[0] * cell, y0 + p[1] * cell]); const n = adj.get(cur); const next = n.find(k => k !== prev && !seen.has(k)); prev = cur; cur = next; }
+    if (loop.length > 5) loops.push(passes > 1 ? chaikin(chaikin(loop.filter((_, i) => i % 2 === 0))) : chaikin(loop)); }
+  return loops;
+}
+function chaikin(p) { const o = []; for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); } return o; }
+const toD = loops => loops.map(l => 'M' + l.map(q => f1(q[0]) + ' ' + f1(q[1])).join('L') + 'Z').join('');
+function grid(x0, y0, x1, y1, cell, fn) { const W = Math.ceil((x1 - x0) / cell) + 1, H = Math.ceil((y1 - y0) / cell) + 1, v = new Float32Array(W * H);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) v[j * W + i] = fn(x0 + i * cell, y0 + j * cell); return { W, H, v, x0, y0, cell }; }
+const derive = (G, fn) => ({ ...G, v: G.v.map((val, k) => fn(val, G.x0 + (k % G.W) * G.cell, G.y0 + Math.floor(k / G.W) * G.cell, k)) });
+
+/* ===================== the planets ===================== */
+const PLANETS = [
+  { id: 'inference', name: 'Inference & serving', type: 'lush', system: 'Machine learning', regions: ['Batching', 'Deployment', 'Latency', 'Cost'], sel: 1, route: 'Attention',
+    enc: { kind: 'A Reel', title: 'Where should the model run?', sum: 'Close to the people asking, or close to the hardware, and what each one costs.' } },
+  { id: 'attention', name: 'Attention', type: 'barren', system: 'Machine learning', regions: ['Context windows', 'Saliency', 'Heads', 'Memory'], sel: 0, route: 'Inference & serving', moon: true,
+    enc: { kind: 'A Scroll', title: 'Why long prompts get forgetful', sum: 'What happens to the middle of a very long context, and the tricks that help.' } },
+  { id: 'hardware', name: 'Hardware', type: 'scorched', system: 'Machine learning', regions: ['GPUs', 'Memory bandwidth', 'Interconnect', 'Cooling'], sel: 1, route: 'Inference & serving', rings: true, moon: true,
+    enc: { kind: 'A Reel', title: 'Why GPUs wait on memory', sum: 'Compute got fast. Moving the numbers around did not. Where the time really goes.' } },
+  { id: 'queues', name: 'Queues', type: 'gas', system: 'Backend systems', regions: ['Backpressure', 'Retries', 'Ordering', 'Dead letters'], sel: 0, route: 'Storage', rings: true,
+    enc: { kind: 'A Scroll', title: 'When consumers fall behind', sum: 'Buffers fill, latency climbs and something has to give. Backpressure decides what.' } },
+  { id: 'storage', name: 'Storage', type: 'frozen', system: 'Backend systems', regions: ['Replication', 'Indexes', 'Caching', 'Backups'], sel: 0, route: 'Queues', rings: true,
+    enc: { kind: 'A Reel', title: 'Leaders, followers and the lag', sum: 'Why a read can miss a write you just made, and how replicas catch up.' } },
+  { id: 'tactics', name: 'Tactics', type: 'ocean', system: 'Football', regions: ['Pressing', 'Formations', 'Set pieces', 'Counters'], sel: 0, moon: true,
+    enc: { kind: 'A Reel', title: 'Why teams press high', sum: 'Winning the ball near the goal is worth more than winning it anywhere else.' } },
+];
+
+/* ===================== one look per planet type: flat colour, soft edges ===================== */
+const T = {
+  lush:     { label: 'Lush world', sea: ['#1d7d97', '#0f5670', '#052c41'], shallow: '#4fc3c9', globe: ['#7fd9d6', '#3fa8bd', '#1c6f93', '#0d3f5e'],
+              land: ['#6fd27f', '#a6e58a', '#4fb878', '#93d6a8'], hi: '#e9d9a0', lo: '#2f8f5c', coast: '#1e5a4a', cloud: ['#f6fcff', '#9dc0d4'], atmo: '#83f2ea', rim: '#b9fff2',
+              accent: '#33c4b4', mc: '#8edbe0', wave: 'rgba(203,245,255,.26)', current: 'rgba(196,242,255,.32)', grat: 'rgba(190,240,255,.1)', detail: 'waves', cover: .1, shadow: '#04283a' },
+  ocean:    { label: 'Ocean world', sea: ['#33a7ea', '#1667b6', '#0a2f6a'], shallow: '#7fd8f7', globe: ['#8fdcff', '#3d9fe0', '#1a63b4', '#0b3270'],
+              land: ['#7ee08e', '#5fcf7c', '#a5e88a', '#4fc06e'], hi: '#ffe7a8', lo: '#2f9a62', coast: '#1d5a4c', cloud: ['#ffffff', '#a7cbe6'], atmo: '#9fe0ff', rim: '#d4f4ff',
+              accent: '#ffd058', mc: '#ffe39a', wave: 'rgba(225,246,255,.34)', current: 'rgba(225,246,255,.36)', grat: 'rgba(210,240,255,.12)', detail: 'waves', archipelago: true, cover: -.1, shadow: '#082a5e' },
+  frozen:   { label: 'Frozen world', sea: ['#4f8fcf', '#24599a', '#0c2a52'], shallow: '#8fc4ef', globe: ['#bfe3fb', '#7fb2e2', '#3e78b8', '#173f72'],
+              land: ['#f4fbff', '#dcefff', '#c4e2ff', '#e8f6ff'], hi: '#ffffff', lo: '#a9cdee', coast: '#4a77a8', cloud: ['#ffffff', '#b2c8de'], atmo: '#c8ecff', rim: '#f0fbff',
+              accent: '#7fc8ff', mc: '#bfe4ff', wave: 'rgba(235,248,255,.3)', current: 'rgba(225,244,255,.3)', grat: 'rgba(220,240,255,.12)', detail: 'floes', caps: true, cover: .14, shadow: '#08203f' },
+  scorched: { label: 'Scorched world', sea: ['#5c1a2a', '#360b1a', '#17040b'], shallow: '#9a2c2c', globe: ['#c4503f', '#8a2232', '#55122a', '#2a0812'],
+              land: ['#ff8a5b', '#ff6b4d', '#ffa766', '#ea5a43'], hi: '#ffc48a', lo: '#b8402f', coast: '#ff9a4a', border: '#6a1a1f', cloud: ['#efdde0', '#a08088'], atmo: '#ff9a7a', rim: '#ffc2aa',
+              accent: '#ff6a4a', mc: '#ffb49a', wave: 'rgba(255,160,90,.3)', current: '#ff8a3d', grat: 'rgba(255,150,120,.08)', detail: 'lava', glowCoast: true, cover: .12, shadow: '#0b0105' },
+  barren:   { label: 'Barren world', sea: ['#8a7a9c', '#5a4c6c', '#2c2338'], shallow: '#a596b8', globe: ['#b9a6cc', '#8a76a2', '#5c4b76', '#2f2440'],
+              land: ['#f2d49c', '#e4bf80', '#d6aa6c', '#f7e2b6'], hi: '#fff0cf', lo: '#b98c58', coast: '#7a5a3a', cloud: ['#f5edf8', '#bba9cb'], atmo: '#dcc6ff', rim: '#f2e8ff',
+              accent: '#e8b86a', mc: '#f2d4a0', wave: 'rgba(240,226,255,.22)', current: 'rgba(240,226,255,.26)', grat: 'rgba(240,230,255,.08)', detail: 'craters', cover: .16, shadow: '#1c1428' },
+  gas:      { label: 'Gas giant', bands: ['#ffb48c', '#f592b0', '#c294e0', '#ffd8a6', '#ee86a4'], shallow: '#ffd9e6', globe: ['#ffe2c8', '#f6a2b6', '#b884d8', '#5c3a86'],
+              land: ['#fff5ea', '#ffe3d0', '#ffd3df', '#f2e0ff'], hi: '#ffffff', lo: '#f3c6dc', coast: '#c98aa8', cloud: ['#ffffff', '#e0bcd0'], atmo: '#ffb8d6', rim: '#ffe4ef',
+              accent: '#ff7aa8', mc: '#ffc2d8', wave: 'rgba(255,255,255,.3)', current: 'rgba(255,255,255,.34)', grat: 'rgba(255,240,250,.08)', detail: 'bands', soft: true, cover: .08, shadow: '#7a3a6a' },
+};
+
+/* ===================== world builder: several continents, explored ones split into regions, the rest locked ===================== */
+const LOCK = { lush: ['#7b8d97', '#55666f', '#2a3a42'], ocean: ['#8496a6', '#5a6b7c', '#2c3c4c'], frozen: ['#9eacbb', '#76869a', '#3a4a5e'],
+  scorched: ['#6a565c', '#4a383e', '#251a1e'], barren: ['#8e869a', '#686076', '#363044'], gas: ['#cdbccc', '#a8949f', '#6e5a68'] };
+function placeConts(r, sizes, b, periodic) {
+  const dist = (a, c) => { let dx = Math.abs(a.x - c.x); if (periodic) dx = Math.min(dx, periodic - dx); return Math.hypot(dx, a.y - c.y); };
+  for (let loosen = 1; loosen > .4; loosen -= .1) {
+    const out = []; let guard = 0;
+    while (out.length < sizes.length && guard++ < 3000) { const s = sizes[out.length], c = { x: b.x0 + r() * (b.x1 - b.x0), y: b.y0 + r() * (b.y1 - b.y0), s, rot: r() * Math.PI, sx: .7 + r() * .6 };
+      if (out.some(o => dist(o, c) < (o.s + s) * loosen)) continue; out.push(c); }
+    if (out.length === sizes.length) return out;
+  }
+  return sizes.map((s, i) => ({ x: b.x0 + (i + .5) / sizes.length * (b.x1 - b.x0), y: (b.y0 + b.y1) / 2, s, rot: 0, sx: 1 }));
+}
+function buildWorld(P, o) {
+  const th = T[P.type], r = rng(P.id + o.tag), oz = r() * 50, N = o.noise;
+  const conts = placeConts(r, o.sizes, o.bounds, o.period), nExp = o.explored;
+  const dxOf = (x, c) => { let dx = x - c.x; if (o.period) { dx = ((dx % o.period) + o.period * 1.5) % o.period - o.period / 2; } return dx; };
+  const bump = (c, x, y) => { const dx = dxOf(x, c), dy = y - c.y, cs = Math.cos(c.rot), sn = Math.sin(c.rot), u = (dx * cs + dy * sn) / (c.s * c.sx), v = (-dx * sn + dy * cs) / (c.s / c.sx); return 1 - Math.hypot(u, v); };
+  const landFn = (x, y) => {
+    const wx = x + N(x, y, 110, oz + 1.1) * 48, wy = y + N(x, y, 110, oz + 2.3) * 48;
+    const base = Math.max(...conts.map(c => bump(c, wx, wy)));
+    const det = th.soft ? N(wx, wy, 80, oz + 3) * .35 + N(wx, wy, 34, oz + 4) * .14
+      : N(wx, wy, 70, oz + 3) * .42 + N(wx, wy, 30, oz + 4) * .26 + N(wx, wy, 13, oz + 5) * .16 + N(wx, wy, 6, oz + 6) * .09;
+    return base + det - .12;
+  };
+  const G = grid(o.x0, o.y0, o.x1, o.y1, o.cell, landFn);
+  // seeds: explored continents carry the planet's regions; each locked continent is one grey mass
+  const seeds = [], owner = [];
+  const perCont = o.perCont(P.regions.length, nExp);
+  conts.slice(0, nExp).forEach((c, ci) => { const k = perCont[ci], a0 = r() * TAU;
+    for (let q = 0; q < k; q++) { const a = a0 + q * TAU / k, d = k > 1 ? c.s * .45 : 0; seeds.push([c.x + Math.cos(a) * d * c.sx, c.y + Math.sin(a) * d / c.sx]); owner.push('region'); } });
+  conts.slice(nExp).forEach(c => { seeds.push([c.x, c.y]); owner.push('locked'); });
+  const warp = (x, y) => [N(x, y, 60, 9.1 + oz) * o.warp + N(x, y, 22, 5.5 + oz) * o.warp * .35, N(x, y, 60, 4.7 + oz) * o.warp + N(x, y, 22, 6.6 + oz) * o.warp * .35];
+  const D = []; for (let k = 0; k < G.v.length; k++) { const x = G.x0 + (k % G.W) * G.cell, y = G.y0 + Math.floor(k / G.W) * G.cell, [wx, wy] = warp(x, y);
+    D.push(seeds.map(s => { let dx = Math.abs(x + wx - s[0]); if (o.period) dx = Math.min(dx, o.period - dx); return Math.hypot(dx, y + wy - s[1]); })); }
+  const field = idx => derive(G, (val, x, y, k) => { const d = D[k]; let mine = Infinity, other = Infinity;
+    d.forEach((v, j) => { if (idx.includes(j)) mine = Math.min(mine, v); else other = Math.min(other, v); }); return Math.min(val, (other - mine) / 30); });
+  const deepest = F => { // a point well inside the region, close to its middle
+    let mx = -9, sx = 0, sy = 0, n = 0; F.v.forEach((v, k) => { if (v > mx) mx = v; if (v > 0) { sx += (k % F.W); sy += Math.floor(k / F.W); n++; } });
+    if (!n) return [F.x0, F.y0]; const cx = sx / n, cy = sy / n; let bk = 0, bd = Infinity;
+    F.v.forEach((v, k) => { if (v < mx * .35) return; const d = Math.hypot((k % F.W) - cx, Math.floor(k / F.W) - cy); if (d < bd) { bd = d; bk = k; } });
+    return [F.x0 + (bk % F.W) * F.cell, F.y0 + Math.floor(bk / F.W) * F.cell]; };
+  const regions = [], locked = [];
+  seeds.forEach((s, i) => { const F = field([i]); (owner[i] === 'region' ? regions : locked).push({ loops: contours(F, 0, 1), at: deepest(F), seed: s }); });
+  // keep names apart: push overlapping labels vertically, sized by the length of each name
+  for (let pass = 0; pass < 6; pass++) regions.forEach((g, i) => regions.forEach((h, j) => { if (j >= i) return;
+    const half = (P.regions[i].length + P.regions[j].length) * 4.3 + 8, dx = g.at[0] - h.at[0], dy = g.at[1] - h.at[1];
+    if (Math.abs(dx) < half && Math.abs(dy) < 24) { const push = (24 - Math.abs(dy)) / 2 + 1, sgn = dy >= 0 ? 1 : -1; g.at = [g.at[0], g.at[1] + push * sgn]; h.at = [h.at[0], h.at[1] - push * sgn]; } }));
+  const regIdx = owner.map((w, i) => w === 'region' ? i : -1).filter(i => i >= 0);
+  const explored = field(regIdx);
+  const pb = o.patchAll ? G : explored;
+  const hi = derive(pb, (val, x, y) => Math.min(val - .06, N(x, y, 90, 3.3 + oz) - .16)), lo = derive(pb, (val, x, y) => Math.min(val - .04, -N(x, y, 80, 7.9 + oz) - .2));
+  const landAt = (x, y) => { const i = Math.round((x - G.x0) / G.cell), j = Math.round((y - G.y0) / G.cell); return i < 0 || j < 0 || i >= G.W || j >= G.H ? -1 : G.v[j * G.W + i]; };
+  return { landAt, peaks: o.patchAll ? contours(G, .3, 1) : [], land: contours(G, 0, 1), shallow1: contours(G, -.07), shallow2: contours(G, -.15), regions, locked, conts, hi: contours(hi), lo: contours(lo) };
+}
+const MAPC = new Map();
+function mapWorld(P) {
+  if (MAPC.has(P.id)) return MAPC.get(P.id);
+  const th = T[P.type], arch = th.archipelago;
+  const w = buildWorld(P, { tag: 'map', x0: -30, y0: -30, x1: 420, y1: 880, cell: 4, warp: arch ? 14 : 34,
+    noise: (x, y, s, z) => noise(x / s, y / s, z), bounds: { x0: 70, x1: 320, y0: 190, y1: 730 },
+    sizes: arch ? [62, 58, 56, 52, 50, 46, 44] : [118, 86, 84, 72, 64], explored: arch ? 4 : 2,
+    perCont: (n, e) => arch ? Array(e).fill(1) : [n - 1, 1] });
+  MAPC.set(P.id, w); return w;
+}
+const GLOBEC = new Map();
+function globeWorld(P) { // a 480-unit band that wraps: noise is sampled on a cylinder, so the seam is invisible
+  if (GLOBEC.has(P.id)) return GLOBEC.get(P.id);
+  const th = T[P.type], k = 480 / TAU, arch = th.archipelago;
+  const N = (x, y, s, z) => { const u = x / 480 * TAU; return noise(Math.cos(u) * k / s + z * 3, Math.sin(u) * k / s + z, y / s); };
+  const w = buildWorld(P, { tag: 'globe', patchAll: true, x0: -60, y0: 0, x1: 540, y1: 360, cell: 3, warp: 20, period: 480, noise: N, bounds: { x0: 0, x1: 480, y0: 100, y1: 260 },
+    sizes: arch ? [40, 38, 36, 34, 34, 30, 30] : [68, 52, 50, 44, 40], explored: arch ? 4 : 2, perCont: (n, e) => arch ? Array(e).fill(1) : [n - 1, 1] });
+  const r = rng(P.id + 'clouds'), cz = r() * 9;
+  const CG = grid(-60, 0, 540, 360, 4, (x, y) => N(x, y, 50, cz) * .9 + N(x, y, 20, cz + 4) * .35 + N(x, y, 8, cz + 7) * .12 - .32);
+  w.clouds = contours(CG); w.cloudsMid = contours(CG, .1); w.cloudsCore = contours(CG, .2);
+  GLOBEC.set(P.id, w); return w;
+}
+
+/* ===================== chrome ===================== */
+const tabbar = () => `<nav class="worldnav">${[
+  ['Explore', '<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 3l4 4 4-4"/>'],
+  ['Universe', '<circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/>', 1],
+  ['Talk', '<path d="M4 5h16v11H9l-5 4z"/>'], ['Keep', '<path d="M6 3h12v18l-6-4-6 4z"/>']].map(([l, d, on]) =>
+  `<div class="nav-tab${on ? ' is-active' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg><span>${l}</span></div>`).join('')}</nav>`;
+const backIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+const listIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>';
+const fwdIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+function stars(seed) { const r = rng(seed); return `<div class="starfield"><svg viewBox="0 0 390 844">${Array.from({ length: 140 }, () =>
+  `<circle cx="${f1(r() * 390)}" cy="${f1(r() * 844)}" r="${f1(.4 + Math.pow(r(), 3) * 1.4)}" fill="#fffdf2" opacity="${f1(.2 + r() * .7)}"/>`).join('')}</svg></div>`; }
+function cloudPuff(r, x, y, sc, th) {
+  const lobes = 4 + ((r() * 3) | 0); let cx = 0, d = '';
+  for (let j = 0; j < lobes; j++) { const rr = 13 + r() * 13; d += `<circle cx="${f1(cx)}" cy="${f1(-rr * .42 + r() * 4)}" r="${f1(rr)}"/>`; cx += rr * (.75 + r() * .35); }
+  d += `<rect x="-8" y="-12" width="${f1(cx + 16)}" height="24" rx="12"/>`;
+  const flip = r() < .5 ? -1 : 1, anim = r() > .5 ? ` class="cloud" style="--d:${f1(9 + r() * 9)}s;--dx:${f1(4 + r() * 6)}px"` : '';
+  return `<g transform="translate(${f1(x)} ${f1(y)}) scale(${f1(sc * flip)} ${f1(sc)}) translate(${f1(-cx / 2)} 0)"><g${anim}><g fill="${th.cloud[1]}" transform="translate(0 5)">${d}</g><g fill="${th.cloud[0]}">${d}</g></g></g>`;
+}
+const textLabel = (x, y, name, th, size = 15) => `<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="${size}" fill="#15302a" paint-order="stroke" stroke="#fffdf2" stroke-width="5" stroke-linejoin="round">${name}</text>`;
+
+
+/* the planet view: saturated, flat cartoon biomes (every continent in full colour) */
+const BIO = {
+  lush:     { globe: ['#a4f5ee', '#43c9d6', '#178cba', '#0a4f7e'], land: ['#5fd36f', '#8ee25c', '#3fbf6a', '#b5ea6a'], lo: '#2a9a55', hi: '#f2d57e', peak: '#9a8460', ink: '#14402e', foam: '#e9fffb', trees: '#1f8a4a', forms: 'mountains' },
+  ocean:    { globe: ['#b8f4ff', '#3fb4f0', '#1670cc', '#0a3a80'], land: ['#7ee06a', '#5fd07a', '#a6ec6a', '#4fc36e'], lo: '#2f9e55', hi: '#ffe08a', peak: '#8a9a6a', ink: '#12403a', foam: '#f2fdff', trees: '#228a4c', forms: 'mountains' },
+  frozen:   { globe: ['#e6f8ff', '#8fcaf5', '#3c86d0', '#163f80'], land: ['#f6fcff', '#d8efff', '#c2e6ff', '#e9f8ff'], lo: '#9fd2f5', hi: '#ffffff', peak: '#7894bb', ink: '#24497a', foam: '#ffffff', forms: 'mountains' },
+  scorched: { globe: ['#ff9a6a', '#e0483e', '#8e1a36', '#3e0716'], land: ['#ff7a45', '#ff5a3c', '#ffa04a', '#f06a3a'], lo: '#8a2030', hi: '#ffd25a', peak: '#4a141c', ink: '#3a0a14', foam: '#ffd2a0', forms: 'volcanoes' },
+  barren:   { globe: ['#dcc6f2', '#9d82c4', '#60488a', '#2c1f48'], land: ['#f7cf86', '#eeb062', '#e39a52', '#f9dca0'], lo: '#c06a3a', hi: '#fff2cc', peak: '#7a4e2e', ink: '#4a2a18', foam: '#f4eaff', forms: 'mesas' },
+  gas:      { globe: ['#ffe2c0', '#ff9ab8', '#b07ae0', '#4e2a86'], land: ['#fff1e0', '#ffd6c0', '#ffc6da', '#ecd2ff'], lo: '#ff8fb6', hi: '#ffffff', peak: '#c070d0', ink: '#7a3a68', foam: '#ffffff', forms: 'swirls',
+              bands: ['#ffb07a', '#ff7fa6', '#b88aff', '#ffd27a', '#ff6f9a'] },
+};
+/* ===================== U03: the planet from orbit ===================== */
+function surfaceBand(P, th) {
+  const w = globeWorld(P), id = P.id;
+  let body = '';
+  if (th.detail === 'bands') {
+    for (let i = 0; i < 9; i++) { const y = i * 40, c = BIO.gas.bands[i % 5];
+      body += `<path d="M-60 ${y} ${Array.from({ length: 11 }, (_, k) => `Q${-60 + k * 60 + 30} ${y + (k % 2 ? 9 : -9)} ${-60 + k * 60 + 60} ${y}`).join(' ')} V${y + 44} H-60Z" fill="${c}"/>`; }
+    body = `<g filter="url(#soft${id})">${body}</g>`;
+  }
+  const B = BIO[P.type], all = toD(w.land), rf = rng(P.id + 'forms');
+  // soft shallows, then a white foam edge just outside every coast
+  body += `<path d="${toD(w.shallow2)}" fill="${th.shallow}" opacity=".35" fill-rule="evenodd" filter="url(#soft${id})"/><path d="${toD(w.shallow1)}" fill="${B.foam}" opacity=".35" fill-rule="evenodd" filter="url(#soft${id})"/>`;
+  if (th.glowCoast) body += `<path d="${all}" fill="none" stroke="#ffb03a" stroke-width="6" opacity=".8" filter="url(#soft${id})"/>`;
+  body += `<path d="${all}" fill="none" stroke="${B.foam}" stroke-width="3.6" stroke-linejoin="round" opacity=".85"/>`;
+  // every continent in full colour: explored regions and the rest alike
+  body += w.regions.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[i % 4]}" fill-rule="evenodd"/>`).join('');
+  body += w.locked.map((g, i) => `<path d="${toD(g.loops)}" fill="${B.land[(i + 1) % 4]}" fill-rule="evenodd"/>`).join('');
+  // flat cartoon biomes: lowland, bright patches, highlands
+  body += `<path d="${toD(w.lo)}" fill="${B.lo}" opacity=".6" fill-rule="evenodd"/><path d="${toD(w.hi)}" fill="${B.hi}" opacity=".62" fill-rule="evenodd"/>`;
+  body += w.regions.map(g => `<path d="${toD(g.loops)}" fill="none" stroke="${B.ink}" stroke-opacity=".45" stroke-width="1" stroke-dasharray="3 3"/>`).join('');
+  body += `<path d="${all}" fill="none" stroke="${B.ink}" stroke-opacity=".7" stroke-width="1.4" stroke-linejoin="round"/>`;
+  const names = w.regions.map((g, i) => textLabel(g.at[0], g.at[1] + 5, P.regions[i], th, 14)).join('');
+  // cumulus seen from orbit: a cast shadow on the ground, a cool underside, a white body, brighter inner puffs and a sunlit core
+  const cb = toD(w.clouds), cm = toD(w.cloudsMid), cc = toD(w.cloudsCore);
+  const clouds = `<path d="${cb}" fill="#06182a" opacity=".22" fill-rule="evenodd" transform="translate(4 7)" filter="url(#cshadow${id})"/>`
+    + `<path d="${cb}" fill="#a9bcd2" opacity=".9" fill-rule="evenodd" transform="translate(0 2)" filter="url(#csoft${id})"/>`
+    + `<path d="${cb}" fill="#e6eef7" fill-rule="evenodd" filter="url(#csoft${id})"/>`
+    + `<path d="${cm}" fill="#f6f9fd" fill-rule="evenodd" transform="translate(-.6 -1)" filter="url(#csoft${id})"/>`
+    + `<path d="${cc}" fill="#ffffff" fill-rule="evenodd" transform="translate(-1.2 -2)" filter="url(#csoft${id})"/>`;
+  const defs = `<filter id="soft${id}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.6"/></filter>`
+    + `<filter id="csoft${id}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation=".9"/></filter><filter id="cshadow${id}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="3"/></filter>`;
+  return `<svg class="surface" viewBox="0 0 960 360"><defs>${defs}<clipPath id="slice${id}"><rect x="0" y="0" width="480" height="360"/></clipPath>
+    <g id="band${id}"><g clip-path="url(#slice${id})">${body}</g></g><g id="cl${id}"><g clip-path="url(#slice${id})">${clouds}</g></g><g id="nm${id}"><g clip-path="url(#slice${id})">${names}</g></g></defs>
+    <use href="#band${id}" x="0"/><use href="#band${id}" x="480"/><g class="cloudband"><use href="#cl${id}" x="0"/><use href="#cl${id}" x="480"/><use href="#cl${id}" x="960"/></g><use href="#nm${id}" x="0"/><use href="#nm${id}" x="480"/></svg>`;
+}
+function ringSVG(th, front) {
+  const rx = 215, ry = 48, arc = front ? `M${-rx} 0 A${rx} ${ry} 0 0 0 ${rx} 0` : `M${-rx} 0 A${rx} ${ry} 0 0 1 ${rx} 0`;
+  return `<svg class="ring ${front ? 'front' : 'back'}" viewBox="-235 -235 470 470"><g transform="rotate(-14)" fill="none" stroke-linecap="round">
+    <path d="${arc}" stroke="${th.land[2]}" stroke-width="13" opacity=".9"/><path d="${arc}" stroke="${th.land[1]}" stroke-width="4" transform="scale(1.05 1.07)" opacity=".8"/><path d="${arc}" stroke="${th.hi}" stroke-width="2" transform="scale(.95 .93)" opacity=".7"/></g></svg>`;
+}
+const MOON = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15.6" fill="#f1ead6"/><path d="M20 4.4A15.6 15.6 0 0 1 20 35.6 20.5 20.5 0 0 0 20 4.4Z" fill="#cbc3aa"/>
+  <circle cx="14.6" cy="15" r="4.1" fill="#ddd5bd"/><circle cx="24.4" cy="24.6" r="2.7" fill="#ddd5bd"/><circle cx="15.8" cy="26.4" r="2.1" fill="#ddd5bd"/></svg>`;
+function screenPlanet(P) {
+  const th = T[P.type], g = BIO[P.type].globe;
+  const bg = `radial-gradient(circle at 38% 32%, ${g[0]} 0, ${g[1]} 35%, ${g[2]} 72%, ${g[3]} 100%)`;
+  const caps = th.caps ? `<svg class="caps" viewBox="0 0 292 292"><defs><filter id="capb${P.id}"><feGaussianBlur stdDeviation="3"/></filter></defs><g filter="url(#capb${P.id})" fill="#fff">
+    <path d="M30 46 Q90 20 146 30 Q210 18 262 46 Q230 70 190 62 Q160 78 120 66 Q80 76 30 46Z" opacity=".9"/><path d="M40 252 Q100 236 146 246 Q200 232 252 252 Q200 290 146 286 Q90 292 40 252Z" opacity=".85"/></g></svg>` : '';
+  return `<div class="phone" data-anim style="--atmo-line:${th.atmo}aa;--atmo-glow:${th.atmo}66;--rim:${th.rim};--globe-bg:${bg}">
+    ${stars(P.id)}
+    <div class="map-top"><div class="pill">${backIcon}${P.system}</div></div>
+    ${P.rings ? ringSVG(th, false) : ''}
+    <div class="globe-wrap"><div class="atmosphere"></div><div class="globe soft">${surfaceBand(P, th)}${caps}<div class="shade"></div><div class="glint"></div></div></div>
+    ${P.rings ? ringSVG(th, true) : ''}
+    ${P.moon ? `<div class="moon" data-moon>${MOON}</div>` : ''}
+    <div class="caption"><span class="eyebrow">A planet in ${P.system}</span><h1>${P.name}</h1><div class="hint"><span>↔</span>Drag to rotate · tap to land</div></div>
+    <div class="chips">${P.route ? `<span class="chip light">Route to ${P.route}${fwdIcon}</span>` : ''}<span class="chip dark">${listIcon}List view</span></div>
+    ${tabbar()}<div class="statusbar"><span>9:41</span><i></i></div></div>`;
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ===================== copied verbatim from universe-above/universe-drafts-finalized.html ===================== */
+const W = 390, H = 844, PR = Math.min(1.5, window.devicePixelRatio || 1), TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { x = clamp((x - a) / (b - a)); return x * x * (3 - 2 * x); };
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+function rng(seed) { let h = 2166136261; for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hsl(h, s, l) { h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
+  const f = n => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+  return [f(0), f(8), f(4)]; }
+const v3 = c => new THREE.Vector3(c[0] / 255, c[1] / 255, c[2] / 255);
+const hexV = h => v3([parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+function ramp(stops, t) { t = clamp(t) * (stops.length - 1); const i = Math.min(stops.length - 2, t | 0); const k = t - i; return mix3(stops[i], stops[i + 1], k * k * (3 - 2 * k)); }
+
+/* ===================== smooth noise (low frequency only: painted, not photographic) ===================== */
+const perm = new Uint8Array(512);
+(() => { const p = [...Array(256).keys()], r = rng('knowscroll'); for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0; [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) perm[i] = p[i & 255]; })();
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+function grad(h, x, y, z) { h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14) ? x : z; return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+function noise(x, y, z) {
+  let X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); x -= X; y -= Y; z -= Z; X &= 255; Y &= 255; Z &= 255;
+  const u = fade(x), v = fade(y), w = fade(z), A = perm[X] + Y, AA = perm[A] + Z, AB = perm[A + 1] + Z, B = perm[X + 1] + Y, BA = perm[B] + Z, BB = perm[B + 1] + Z;
+  return lerp(lerp(lerp(grad(perm[AA], x, y, z), grad(perm[BA], x - 1, y, z), u), lerp(grad(perm[AB], x, y - 1, z), grad(perm[BB], x - 1, y - 1, z), u), v),
+    lerp(lerp(grad(perm[AA + 1], x, y, z - 1), grad(perm[BA + 1], x - 1, y, z - 1), u), lerp(grad(perm[AB + 1], x, y - 1, z - 1), grad(perm[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+}
+function fbm(x, y, z, o = 3) { let a = .5, f = 1, s = 0; for (let i = 0; i < o; i++) { s += a * noise(x * f, y * f, z * f); f *= 2.03; a *= .5; } return s; }
+
+/* ===================== planet genomes: a type never repeats in a universe ===================== */
+const TYPES = ['lush', 'toxic', 'frozen', 'scorched', 'barren', 'exotic', 'gas', 'ocean'];
+const FAMILY_SHIFT = { teal: 0, cobalt: 18, coral: -18, amber: -10, pink: 25, violet: 30 };
+const used = new Set();
+function genome(id, family) {
+  const r = rng(id), order = [...TYPES]; for (let i = order.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [order[i], order[j]] = [order[j], order[i]]; }
+  const type = order.find(t => !used.has(t)) || order[0]; used.add(type);
+  return { id, type, d: FAMILY_SHIFT[family] + (r() - .5) * 30, size: .8 + r() * .5, tilt: (r() - .5) * .7, spin: .12 + r() * .12, rings: type === 'gas' || (type === 'frozen' && r() < .5), moon: r() < .45 };
+}
+const G = {
+  attention: genome('attention', 'teal'), inference: genome('inference', 'teal'), hardware: genome('hardware', 'teal'),
+  queues: genome('queues', 'cobalt'), storage: genome('storage', 'cobalt'), tactics: genome('tactics', 'coral'),
+};
+G.hardware.rings = true; // the system screen shows one ringed world
+/* ===================== painted textures ===================== */
+const STYLE = d => ({
+  lush:     { ramp: [hsl(200 + d, 70, 34), hsl(185 + d, 75, 48), hsl(120 + d, 55, 46), hsl(95 + d, 65, 56), hsl(70 + d, 70, 68)], sea: .5, atmo: hsl(190 + d, 95, 68), clouds: .8 },
+  toxic:    { ramp: [hsl(290 + d, 45, 32), hsl(80 + d, 70, 38), hsl(68 + d, 85, 52), hsl(55 + d, 95, 66)], atmo: hsl(80 + d, 95, 62), clouds: .4 },
+  frozen:   { ramp: [hsl(215 + d, 50, 52), hsl(205 + d, 55, 70), hsl(195 + d, 50, 84), hsl(190 + d, 40, 95)], atmo: hsl(195 + d, 95, 78), clouds: .5 },
+  scorched: { ramp: [hsl(345 + d, 55, 24), hsl(355 + d, 65, 36), hsl(10 + d, 75, 48), hsl(22 + d, 80, 58)], atmo: hsl(335 + d, 90, 68) },
+  barren:   { ramp: [hsl(275 + d, 25, 34), hsl(30 + d, 35, 46), hsl(28 + d, 40, 60), hsl(35 + d, 45, 74)], atmo: hsl(275 + d, 70, 72) },
+  exotic:   { ramp: [hsl(300 + d, 70, 38), hsl(320 + d, 85, 58), hsl(195 + d, 85, 56), hsl(175 + d, 90, 72)], atmo: hsl(185 + d, 100, 70), clouds: .35 },
+  gas:      { bands: [hsl(20 + d, 80, 62), hsl(345 + d, 70, 66), hsl(285 + d, 50, 56), hsl(38 + d, 85, 76), hsl(10 + d, 70, 52)], atmo: hsl(335 + d, 95, 72) },
+  ocean:    { ramp: [hsl(225 + d, 75, 26), hsl(210 + d, 80, 42), hsl(195 + d, 85, 56), hsl(160 + d, 70, 60)], sea: .8, atmo: hsl(205 + d, 100, 70), clouds: .9 },
+});
+const TEXC = new Map();
+function dataTex(data, w, h) { const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat); t.wrapS = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; }
+function planetTextures(g) {
+  if (TEXC.has(g.id)) return TEXC.get(g.id);
+  const S = STYLE(g.d)[g.type], TW = 192, TH = 96, map = new Uint8Array(TW * TH * 4), cl = S.clouds ? new Uint8Array(TW * TH * 4) : null;
+  const r = rng(g.id + 'tex'), ox = r() * 40, oy = r() * 40, oz = r() * 40;
+  for (let j = 0; j < TH; j++) {
+    const lat = -Math.PI / 2 + (j + .5) / TH * Math.PI, y = Math.sin(lat), c0 = Math.cos(lat);
+    for (let i = 0; i < TW; i++) {
+      const lon = (i + .5) / TW * TAU, x = c0 * Math.cos(lon), z = c0 * Math.sin(lon), k = (j * TW + i) * 4;
+      let c;
+      if (g.type === 'gas') { const w = fbm(x * 1.1 + ox, y * 1.1 + oy, z * 1.1 + oz, 2); const v = y * 2.4 + w * .45; c = ramp(S.bands, .5 + .5 * Math.sin(v * 4.2)); c = mix3(c, ramp(S.bands, .5 + .5 * Math.sin(v * 2.1 + 1.7)), .35);
+        let dl = lon - 1.4; dl = Math.atan2(Math.sin(dl), Math.cos(dl)); const e = Math.pow(dl * c0 / .34, 2) + Math.pow((lat + .3) / .15, 2); if (e < 1) c = mix3(c, hsl(15 + g.d, 90, 82), smooth(1, .4, e)); }
+      else {
+        const w = fbm(x * .9 + ox, y * .9 + oy, z * .9 + oz, 2), v = .5 + fbm(x * 1.3 + ox + w, y * 1.3 + oy + w, z * 1.3 + oz, 3) * 1.1;
+        if (S.sea) { const sea = S.sea * .5 + .2; c = v < sea ? ramp(S.ramp.slice(0, 2), v / sea) : ramp(S.ramp.slice(1), (v - sea) / (1 - sea) * .9 + .1); if (Math.abs(v - sea) < .03) c = mix3(c, S.ramp[1], .5); }
+        else c = ramp(S.ramp, v);
+        const cap = smooth(.82, .9, Math.abs(y) + w * .1); if (g.type !== 'scorched' && cap > 0) c = mix3(c, [244, 248, 255], cap * .9);
+      }
+      map[k] = c[0]; map[k + 1] = c[1]; map[k + 2] = c[2]; map[k + 3] = 255;
+      if (cl) { const cv = fbm(x * 1.6 + oz, y * 3 + ox, z * 1.6 + oy, 3); cl[k] = cl[k + 1] = cl[k + 2] = 255; cl[k + 3] = smooth(.04, .3, cv) * 230 * S.clouds; }
+    }
+  }
+  const out = { map: dataTex(map, TW, TH), cloud: cl ? dataTex(cl, TW, TH) : null, atmo: S.atmo };
+  if (g.rings) { const rw = 128, rd = new Uint8Array(rw * 4), c1 = hsl(30 + g.d, 70, 78), c2 = hsl(330 + g.d, 55, 70);
+    for (let i = 0; i < rw; i++) { const u = i / rw, c = mix3(c1, c2, .5 + .5 * Math.sin(u * 9)), a = (u > .55 && u < .6 ? .15 : 1) * smooth(0, .12, u) * smooth(1, .85, u) * (.55 + .3 * Math.sin(u * 23));
+      rd[i * 4] = c[0]; rd[i * 4 + 1] = c[1]; rd[i * 4 + 2] = c[2]; rd[i * 4 + 3] = a * 255; }
+    out.ring = dataTex(rd, rw, 1); }
+  TEXC.set(g.id, out); return out;
+}
+function glowTexture(stops) {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  stops.forEach(([o, a]) => gr.addColorStop(o, `rgba(255,255,255,${a})`)); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+}
+function puffTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), r = rng('puff');
+  for (let i = 0; i < 9; i++) { const x = 64 + (r() - .5) * 52, y = 64 + (r() - .5) * 30, rad = 18 + r() * 22, gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(.7, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill(); }
+  return new THREE.CanvasTexture(c);
+}
+const PUFF = puffTexture();
+const GLOW = glowTexture([[0, 1], [.2, .55], [.5, .14], [1, 0]]), BLOOM = glowTexture([[0, .9], [.08, .5], [.25, .14], [.6, .03], [1, 0]]);
+
+/* ===================== shaders ===================== */
+const WORLD_VS = `varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const HAZE = `uniform vec3 fogCol; uniform vec2 fogR; uniform float calm;
+vec3 haze(vec3 col, vec3 w){ float g = dot(col, vec3(.3,.59,.11)); col = mix(col, vec3(g) * .7, calm * .85); float f = smoothstep(fogR.x, fogR.y, length(cameraPosition - w)); return mix(col, fogCol, f * .6); }`;
+// No Man's Sky-like: soft day side, coloured night side, warm twilight band, broad atmosphere rim
+const PLANET_FS = `uniform sampler2D map; uniform vec3 sun; uniform vec3 atmo; uniform float cloudLayer;
+varying vec2 vUv; varying vec3 vN; varying vec3 vW; ${HAZE}
+void main(){
+  vec3 N = normalize(vN), L = normalize(sun - vW), V = normalize(cameraPosition - vW);
+  vec4 tx = texture2D(map, vUv); vec3 base = cloudLayer > .5 ? vec3(1.0) : tx.rgb;
+  float nd = dot(N, L), lit = smoothstep(-.14, .06, nd) * .58 + smoothstep(.34, .5, nd) * .42;
+  vec3 col = mix(base * vec3(.2, .18, .42), base * vec3(1.06, 1.0, .94), lit);
+  col += vec3(1.0, .45, .28) * exp(-pow((nd - .02) / .17, 2.0)) * .26;
+  float fr = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+  col = mix(col, atmo, fr * smoothstep(-.35, .45, nd) * .8);
+  col += atmo * fr * fr * .3 * (1.0 - lit);
+  col += vec3(1.0) * smoothstep(.962, .975, dot(N, normalize(L + V))) * (cloudLayer > .5 ? 0.0 : .32);
+  gl_FragColor = vec4(haze(col, vW), cloudLayer > .5 ? tx.a * (.3 + .7 * lit) : 1.0);
+}`;
+const ATMO_FS = `uniform vec3 color; uniform vec3 sun; uniform float strength; uniform float calm; uniform vec3 fogCol; uniform vec2 fogR; varying vec3 vN; varying vec3 vW;
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float x = 1.0 - max(dot(N, V), 0.0);
+  float g = smoothstep(.02, .32, x) * (1.0 - smoothstep(.32, 1.0, x)); float s = .3 + .7 * smoothstep(-.5, .6, dot(N, normalize(sun - vW)));
+  float f = 1.0 - smoothstep(fogR.x, fogR.y, length(cameraPosition - vW)) * .6;
+  gl_FragColor = vec4(color * g * s * strength * (1.0 - calm * .9) * f, 1.0); }`;
+const SUN_FS = `varying vec2 vUv; varying vec3 vN; varying vec3 vW; ${HAZE}
+void main(){ vec3 N = normalize(vN), V = normalize(cameraPosition - vW); float nv = max(dot(N, V), 0.0);
+  vec3 col = mix(vec3(1.0, .42, .08), vec3(1.0, .7, .3), smoothstep(0.0, .5, nv)); col = mix(col, vec3(1.0, .93, .78), smoothstep(.55, .95, nv));
+  gl_FragColor = vec4(haze(col * 1.08, vW), 1.0); }`;
+const HALO_FS = `uniform vec3 c1; uniform vec3 c2; uniform float strength; uniform float calm; uniform float time; varying vec2 vUv;
+void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if (r > 1.0) discard; float a = atan(p.y, p.x);
+  float arms = .5 + .5 * cos(2.0 * (a + log(r + .05) * 2.2) - time * .15);
+  float i = pow(1.0 - r, 2.2) * (.55 + .45 * arms * smoothstep(.1, .6, r));
+  vec3 col = mix(c1, c2, smoothstep(.1, .9, r)); float g = dot(col, vec3(.3,.59,.11)); col = mix(col, vec3(g) * .5, calm);
+  gl_FragColor = vec4(col * i * strength * (1.0 - calm * .7), 1.0); }`;
+const DASH_VS = `attribute float lineDistance; varying float vD; void main(){ vD = lineDistance; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const DASH_FS = `uniform vec3 color; uniform float time; uniform float speed; uniform float dash; uniform float gap; uniform float opacity; varying float vD;
+void main(){ if (mod(vD - time * speed, dash + gap) > dash) discard; gl_FragColor = vec4(color, opacity); }`;
+const RING_VS = `varying vec3 vW; varying vec2 vL; void main(){ vL = position.xy; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const RING_FS = `uniform sampler2D map; uniform vec3 sun; uniform vec3 pc; uniform float pr; uniform float rIn; uniform float rOut; varying vec3 vW; varying vec2 vL; ${HAZE}
+void main(){ float u = (length(vL) - rIn) / (rOut - rIn); if (u < 0.0 || u > 1.0) discard; vec4 t = texture2D(map, vec2(u, .5));
+  vec3 L = normalize(sun - vW), oc = vW - pc; float b = dot(oc, L), c = dot(oc, oc) - pr * pr; float sh = (b * b - c > 0.0 && b < 0.0) ? 1.0 : 0.0;
+  gl_FragColor = vec4(haze(t.rgb * mix(vec3(1.05, 1.0, .95), vec3(.2, .18, .42), sh * .85), vW), t.a); }`;
+const POINTS_VS = `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr; uniform float atten; uniform float wob;
+varying vec3 vC; varying float vA;
+void main(){ vec3 p = position + wob * vec3(sin(time * .13 + aPh * 9.0), cos(time * .11 + aPh * 7.0) * .6, sin(time * .09 + aPh * 5.0) * .4);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = aCol; vA = .72 + .28 * sin(time * (.4 + aPh * 1.4) + aPh * 6.2831);
+  float s = aSize * pr; if (atten > 0.0) s *= atten / -mv.z; gl_PointSize = s; gl_Position = projectionMatrix * mv; }`;
+const POINTS_FS = `uniform float opacity; varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); float a = pow(smoothstep(.5, 0.0, d), 1.6); gl_FragColor = vec4(vC * a * vA * opacity * 1.35, 1.0); }`;
+const DUST_VS = `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; uniform float time; uniform float R; uniform float pr;
+uniform vec3 cIn; uniform vec3 cMid; uniform vec3 cOut; varying vec3 vC; varying float vA;
+void main(){ float rho = .06 + .94 * fract(aRho - time * .014); float a = aArm * 3.14159 + log(rho / .06) * 1.1 + time * .22 + aJit;
+  vec3 p = vec3(cos(a) * rho * R, aH * R * (.25 + rho * .5), sin(a) * rho * R);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0); vC = mix(cIn, cMid, smoothstep(.05, .4, rho)); vC = mix(vC, cOut, smoothstep(.45, 1.0, rho));
+  vA = smoothstep(1.0, .82, rho) * smoothstep(.06, .14, rho) * (.6 + .4 * sin(time * 2.0 + aJit * 20.0));
+  gl_PointSize = aSize * pr * (22.0 / -mv.z); gl_Position = projectionMatrix * mv; }`;
+// Cartoon nebula (U01 Emerging): crisp candy dots with a shine, spiralling inward along arms
+const TOON_DUST_VS = `attribute float aRho; attribute float aArm; attribute float aJit; attribute float aSize; attribute float aH; attribute vec3 aCol;
+uniform float time; uniform float R; uniform float pr; uniform float arms; varying vec3 vC; varying float vA;
+void main(){ float rho = .05 + .95 * fract(aRho - time * .016); float a = aArm * 6.28318 / arms + log(rho / .05) * 1.25 + time * .2 + aJit;
+  vec3 p = vec3(cos(a) * rho * R, aH * R * (.2 + rho * .6), sin(a) * rho * R); vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vC = mix(vec3(1.0, .96, .86), aCol, smoothstep(.04, .32, rho)); vA = smoothstep(1.0, .86, rho) * smoothstep(.05, .1, rho);
+  gl_PointSize = aSize * pr * (24.0 / -mv.z) * (.85 + .15 * sin(time * 3.0 + aJit * 30.0)); gl_Position = projectionMatrix * mv; }`;
+const TOON_DUST_FS = `varying vec3 vC; varying float vA;
+void main(){ float d = length(gl_PointCoord - .5); if (d > .5) discard; float a = smoothstep(.5, .36, d);
+  vec3 c = mix(vC, vec3(1.0), smoothstep(.2, 0.0, length(gl_PointCoord - vec2(.38, .36))) * .55); gl_FragColor = vec4(c, a * vA); }`;
+const DUST_FS = `varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord - .5); gl_FragColor = vec4(vC * smoothstep(.5, 0.0, d) * vA, 1.0); }`;
+
+const FOG = new THREE.Vector3(.012, .016, .045);
+const add = { blending: THREE.AdditiveBlending, transparent: true, depthWrite: false };
+const hazeU = (fogR, calm = 0) => ({ fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...fogR) }, calm: { value: calm } });
+
+/* ===================== builders ===================== */
+function makeSun(radius, ctx) {
+  const g = new THREE.Group(), k = ctx.calm ? .22 : 1;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(radius, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: SUN_FS, uniforms: hazeU(ctx.fogR, ctx.calm) }));
+  const inner = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .72, .38), opacity: .95 * k, ...add }));
+  const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .12), opacity: .85 * k, ...add }));
+  g.add(bloom, inner, core);
+  g.userData.tick = t => { const p = 1 + .05 * Math.sin(t * 1.3); inner.scale.setScalar(radius * 4.2 * p); bloom.scale.setScalar(radius * 22 * (2 - p)); };
+  g.userData.tick(0); return g;
+}
+function makePlanet(gn, radius, sunPos, ctx) {
+  const tx = planetTextures(gn), g = new THREE.Group(), calm = ctx.calm, atmo = v3(tx.atmo);
+  const mat = (cloudLayer, map) => new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS, transparent: cloudLayer > 0, depthWrite: !cloudLayer,
+    uniforms: { map: { value: map }, sun: { value: sunPos }, atmo: { value: atmo }, cloudLayer: { value: cloudLayer }, ...hazeU(ctx.fogR, calm) } });
+  const spinner = new THREE.Group(); spinner.rotation.z = gn.tilt; g.add(spinner);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 24), mat(0, tx.map)); spinner.add(body);
+  let clouds = null; if (tx.cloud) { clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.03, 40, 20), mat(1, tx.cloud)); spinner.add(clouds); }
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(radius * 1.32, 40, 20), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: ATMO_FS, ...add,
+    uniforms: { color: { value: atmo }, sun: { value: sunPos }, strength: { value: 1.15 }, calm: { value: calm }, fogCol: { value: FOG }, fogR: { value: new THREE.Vector2(...ctx.fogR) } } })));
+  const worldPos = new THREE.Vector3();
+  if (tx.ring) { const rIn = radius * 1.4, rOut = radius * 2.4;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 96, 1), new THREE.ShaderMaterial({ vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { map: { value: tx.ring }, sun: { value: sunPos }, pc: { value: worldPos }, pr: { value: radius }, rIn: { value: rIn }, rOut: { value: rOut }, ...hazeU(ctx.fogR, calm) } }));
+    ring.rotation.x = -Math.PI / 2 - .3; ring.rotation.y = gn.tilt * .5; g.add(ring); }
+  let moon = null;
+  if (gn.moon) { const mg = { id: gn.id + '-moon', type: 'barren', d: gn.d, rings: false }; moon = new THREE.Mesh(new THREE.SphereGeometry(radius * .27, 24, 12), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS,
+    uniforms: { map: { value: planetTextures(mg).map }, sun: { value: sunPos }, atmo: { value: new THREE.Vector3(.5, .45, .6) }, cloudLayer: { value: 0 }, ...hazeU(ctx.fogR, calm) } })); g.add(moon); }
+  const ph = rng(gn.id)() * TAU;
+  g.userData.tick = t => { body.rotation.y = t * gn.spin; if (clouds) clouds.rotation.y = t * gn.spin * 1.5 + 1;
+    if (moon) { const a = t * .5 + ph; moon.position.set(Math.cos(a) * radius * 2.4, Math.sin(a) * radius * .4, Math.sin(a) * radius * 2.4); }
+    g.getWorldPosition(worldPos); };
+  return g;
+}
+function dashLine(points, color, ctx, o = {}) {
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.ShaderMaterial({ vertexShader: DASH_VS, fragmentShader: DASH_FS, transparent: true, depthWrite: false,
+    uniforms: { color: { value: color }, time: ctx.time, speed: { value: o.speed ?? .6 }, dash: { value: o.dash ?? .18 }, gap: { value: o.gap ?? .32 }, opacity: { value: o.opacity ?? .85 } } }));
+  line.computeLineDistances(); line.frustumCulled = false; return line;
+}
+const HALO = { teal: ['#3BFFD0', '#2B5BFF'], cobalt: ['#7AD8FF', '#6B3BFF'], coral: ['#FFB03B', '#E02B7F'], amber: ['#FFD84D', '#E0502B'], pink: ['#FF8AE2', '#6B2BFF'], violet: ['#C8A8FF', '#3B2BD0'] };
+function halo(radius, family, ctx, strength = .35) {
+  const [a, b] = HALO[family].map(hexV);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: HALO_FS, ...add, side: THREE.DoubleSide,
+    uniforms: { c1: { value: a }, c2: { value: b }, time: ctx.time, strength: { value: strength }, calm: { value: ctx.calm } } }));
+  m.rotation.x = -Math.PI / 2; m.position.y = -.05; return m;
+}
+// Planets revolve around their sun (inner ones faster); no orbit lines are drawn.
+function makeSystem(def, ctx) {
+  const g = new THREE.Group(); g.position.set(def.x, def.y || 0, def.z); const center = g.position.clone(), c = { ...ctx, calm: def.calm ? 1 : 0 };
+  const outer = Math.max(...def.planets.map(p => p.R));
+  g.add(halo(outer * 1.5, def.family, c, def.glow ?? .55));
+  const sun = makeSun(def.sunR, c); g.add(sun);
+  const planets = def.planets.map(p => { const pl = makePlanet(G[p.id], Math.min(def.planetR * G[p.id].size, def.sunR * .55), center, c), pivot = new THREE.Group();
+    pl.position.set(p.R, 0, 0); pivot.add(pl); g.add(pivot); pl.userData.pivot = pivot; pl.userData.w = def.speed * Math.pow(def.planets[0].R / p.R, def.kepler ?? 1.5); pl.userData.a0 = p.ang; return pl; });
+  g.userData.tick = t => { sun.userData.tick(t); planets.forEach(p => { p.userData.pivot.rotation.y = -(p.userData.a0 + t * p.userData.w); p.userData.tick(t); }); };
+  g.userData.planets = planets; g.userData.tick(0);
+  return g;
+}
+function makeSky(scene, seed, ctx, camPos) {
+  const r = rng(seed), mk = (n, fn, extra = {}) => { const pos = new Float32Array(n * 3), size = new Float32Array(n), col = new Float32Array(n * 3), ph = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const s = fn(i); pos.set(s.p, i * 3); size[i] = s.size; col.set(s.c, i * 3); ph[i] = r(); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aPh', new THREE.BufferAttribute(ph, 1));
+    const m = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: POINTS_VS, fragmentShader: POINTS_FS, ...add,
+      uniforms: { time: ctx.time, pr: { value: PR }, atten: { value: extra.atten || 0 }, wob: { value: extra.wob || 0 }, opacity: { value: extra.opacity ?? 1 } } }));
+    m.frustumCulled = false; scene.add(m); };
+  const dir = () => { const u = r() * 2 - 1, a = r() * TAU, s = Math.sqrt(1 - u * u); return [s * Math.cos(a), u, s * Math.sin(a)]; };
+  const tint = () => { const k = r(); return k < .15 ? [1, .86, .7] : k < .3 ? [.75, .85, 1] : [1, 1, 1]; };
+  [[1600, 900, 1.6, 2.6, 1], [520, 480, 2.1, 3.2, 1.2], [140, 240, 2.8, 4.4, 1.4]].forEach(([n, R, s0, s1, b]) =>
+    mk(n, () => { const d = dir(), br = (.35 + r() * .65) * b; return { p: d.map(v => v * R * (.9 + r() * .2)), size: s0 + Math.pow(r(), 3) * (s1 - s0), c: tint().map(v => v * br) }; }));
+  mk(46, () => ({ p: [camPos.x + (r() - .5) * 26, camPos.y + (r() - .5) * 18 - 2, camPos.z - 6 - r() * 22], size: 3 + r() * 6, c: [.55, .6, .8].map(v => v * (.25 + r() * .3)) }), { atten: 6, wob: .8, opacity: .8 });
+}
+const CANDY = ['#FF7AD9', '#C58BFF', '#EBAAFF'];
+function toonNebula(R, n, seed, ctx, o = {}) {
+  const r = rng(seed), arms = 5, geo = new THREE.BufferGeometry(), F = k => new Float32Array(n * k);
+  const rho = F(1), arm = F(1), jit = F(1), size = F(1), hh = F(1), col = F(3);
+  for (let i = 0; i < n; i++) { rho[i] = r(); arm[i] = (r() * arms) | 0; jit[i] = (r() - .5) * (r() < .88 ? .32 : 1.6); size[i] = .7 + Math.pow(r(), 3) * 3.2; hh[i] = (r() - .5) * .14;
+    col.set(hexV(CANDY[(r() * CANDY.length) | 0]).toArray(), i * 3); }
+  geo.setAttribute('position', new THREE.BufferAttribute(F(3), 3));
+  [['aRho', rho, 1], ['aArm', arm, 1], ['aJit', jit, 1], ['aSize', size, 1], ['aH', hh, 1], ['aCol', col, 3]].forEach(([k, a, w]) => geo.setAttribute(k, new THREE.BufferAttribute(a, w)));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: TOON_DUST_VS, fragmentShader: TOON_DUST_FS, transparent: true, depthWrite: false,
+    uniforms: { time: ctx.time, R: { value: R }, pr: { value: PR }, arms: { value: arms } } }));
+  pts.frustumCulled = false; const g = new THREE.Group(); g.add(halo(R * 1.15, 'pink', ctx, .35), pts);
+  const puffs = Array.from({ length: o.puffs ?? 22 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: PUFF, color: new THREE.Color(CANDY[(r() * 2) | 0]), opacity: .34, ...add }));
+    sp.material.rotation = r() * TAU; g.add(sp); return { sp, rho: .22 + r() * .6, arm: (r() * arms) | 0, jit: (r() - .5) * .12, s: (.12 + r() * .12) * R }; });
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .92, .98), opacity: 1, ...add }));
+  const bloom = new THREE.Sprite(new THREE.SpriteMaterial({ map: BLOOM, color: new THREE.Color(1, .45, .85), opacity: .8, ...add })); g.add(bloom, core);
+  g.userData.tick = t => {
+    const spin = t * .2;
+    for (const p of puffs) { const a = p.arm * TAU / arms + Math.log(p.rho / .05) * 1.25 + spin + p.jit; p.sp.position.set(Math.cos(a) * p.rho * R, 0, Math.sin(a) * p.rho * R); p.sp.scale.setScalar(p.s * (1 + .06 * Math.sin(t + p.rho * 9))); }
+    const b = 1 + .12 * Math.sin(t * 2.2); core.scale.setScalar(R * .24 * b); bloom.scale.setScalar(R * .9 * (2 - b));
+  };
+  g.userData.tick(0); return g;
+}
+function dustDisc(R, n, seed, ctx, pal) {
+  const r = rng(seed), A = () => new THREE.BufferAttribute(new Float32Array(n), 1), geo = new THREE.BufferGeometry();
+  const attrs = { aRho: A(), aArm: A(), aJit: A(), aSize: A(), aH: A() }; geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  for (let i = 0; i < n; i++) { attrs.aRho.array[i] = r(); attrs.aArm.array[i] = (r() * 2) | 0; attrs.aJit.array[i] = (r() - .5) * .9; attrs.aSize.array[i] = .8 + Math.pow(r(), 2) * 2.4; attrs.aH.array[i] = (r() - .5) * .12; }
+  Object.entries(attrs).forEach(([k, v]) => geo.setAttribute(k, v));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({ vertexShader: DUST_VS, fragmentShader: DUST_FS, ...add,
+    uniforms: { time: ctx.time, R: { value: R }, pr: { value: PR }, cIn: { value: hexV(pal[0]) }, cMid: { value: hexV(pal[1]) }, cOut: { value: hexV(pal[2]) } } }));
+  pts.frustumCulled = false; const g = new THREE.Group(); g.add(pts, halo(R * 1.1, 'pink', ctx, .3));
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .7, .92), opacity: .95, ...add })); g.add(core);
+  g.userData.tick = t => core.scale.setScalar(R * .35 * (1 + .1 * Math.sin(t * 2))); g.userData.tick(0);
+  return g;
+}
+function solidMat(hex, ctx, calm = 0) { const c = hexV(hex).toArray().map(v => v * 255); return new THREE.ShaderMaterial({ vertexShader: WORLD_VS, fragmentShader: PLANET_FS,
+  uniforms: { map: { value: dataTex(new Uint8Array([...c, 255]), 1, 1) }, sun: { value: ctx.light }, atmo: { value: new THREE.Vector3(.4, .5, .8) }, cloudLayer: { value: 0 }, ...hazeU(ctx.fogR, calm) } }); }
+function makeStation(ctx, calm) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(.2, 20, 12), solidMat('#EDE6D6', ctx, calm)));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.32, .04, 8, 32), solidMat('#FFB347', ctx, calm)); ring.rotation.x = Math.PI / 2; g.add(ring);
+  for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(.46, .02, .2), solidMat('#3D8BEA', ctx, calm)); p.position.x = s * .58; g.add(p); }
+  const light = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .5, .7), opacity: 1, ...add })); light.position.y = .27; light.scale.setScalar(.26); g.add(light);
+  g.userData.tick = t => { g.rotation.y = t * .15; light.material.opacity = calm ? .1 : Math.sin(t * 2.6) > .4 ? 1 : .12; };
+  return g;
+}
+function makeShip(ctx, scale = 1) {
+  const g = new THREE.Group(), body = new THREE.Mesh(new THREE.ConeGeometry(.09 * scale, .32 * scale, 12), solidMat('#FAF8F0', ctx));
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1, .55, .15), opacity: .95, ...add }));
+  const dir = new THREE.Vector3(.5, .8, -.3).normalize(); body.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); flame.position.copy(dir.clone().multiplyScalar(-.2 * scale));
+  g.add(body, flame);
+  g.userData.tick = t => flame.scale.setScalar(.24 * scale * (1 + .18 * Math.sin(t * 19)));
+  return g;
+}
+
+/* ===================== scenes ===================== */
+const CAMS = {
+  empty: { pos: [0, 4, 30], target: [0, 0, 0], drift: 1.6, fogR: [60, 140] },
+  emerging: { pos: [0, 17, 19], target: [0, -.8, 0], drift: .7, fogR: [60, 140] },
+  overview: { pos: [0, 22, 46], target: [0, 0, 2], drift: .9, fogR: [46, 105] },
+  lately: { pos: [0, 22, 46], target: [0, 0, 2], drift: .9, fogR: [46, 105] },
+  far: { pos: [0, 34, 76], target: [0, 0, -4], drift: 1.2, fogR: [62, 150] },
+  system: { pos: [0, 34, 52], target: [0, -.6, 0], drift: .6, fogR: [70, 150] },
+};
+const OV = [
+  { name: 'Machine learning', x: -2.3, z: -10, family: 'teal', sunR: .78, planetR: .3, speed: .16, planets: [{ id: 'attention', R: 2.1, ang: Math.PI * 1.02 }, { id: 'inference', R: 3.3, ang: .3 }] },
+  { name: 'Backend systems', x: 2.9, z: 10, family: 'cobalt', sunR: .72, planetR: .28, speed: .16, quiet: true, planets: [{ id: 'queues', R: 1.9, ang: -.4 }, { id: 'storage', R: 3, ang: 2.55 }] },
+  { name: 'Football', x: -3.2, z: 15, family: 'coral', sunR: .7, planetR: .28, speed: .16, quiet: true, planets: [{ id: 'tactics', R: 2.1, ang: -.2 }] },
+];
+const FAR = [['Economics', -16, -22, 'amber', 4], ['Machine learning', 7, -30, 'teal', 4.8], ['Astronomy', -21, 0, 'violet', 3.6], ['Backend systems', 18, -8, 'cobalt', 4.4],
+  ['Football', -6, 10, 'coral', 4], ['Climate', 18, 16, 'teal', 3.6], ['Predictive history', -18, 22, 'pink', 3.6]];
+
+/* ===================== entering a planet: GTA-style drop, everything a pure function of time T (so it can be scrubbed) ===================== */
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const $ = id => document.getElementById(id);
+const smoother = x => { x = clamp(x); return x * x * x * (x * (x * 6 - 15) + 10); };
+const easeOut = x => 1 - Math.pow(1 - clamp(x), 3);
+const backOut = (x, c = .8) => { x = clamp(x) - 1; return 1 + (c + 1) * x * x * x + c * x * x; };   // a fast start and a small overshoot that settles
+const driftV = (t, k) => V(Math.sin(t * .11) * .6 * k, Math.sin(t * .07) * .4 * k, Math.sin(t * .05) * .5 * k);   // the Scene3D camera breath
+
+const cS = $('cS'), renderer = new THREE.WebGLRenderer({ canvas: cS, antialias: true, powerPreference: 'low-power' });
+renderer.setPixelRatio(PR); renderer.setSize(W, H, false); renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.setClearColor(0x020308);
+const camera = new THREE.PerspectiveCamera(38, W / H, .1, 3000), scene = new THREE.Scene(), time = { value: 0 }, ticks = [];
+
+/* ---------- U02 System, built exactly as in the drafts ---------- */
+const ctx = { time, fogR: CAMS.system.fogR, calm: 0, light: V(-30, 40, -20) };
+makeSky(scene, 'skysystem', ctx, V(...CAMS.system.pos));
+const sys = makeSystem({ name: 'Machine learning', x: 0, z: 0, family: 'teal', sunR: 1.7, planetR: .55, speed: .07, kepler: .5, glow: .4, calm: false,
+  planets: [{ id: 'attention', R: 3.8, ang: Math.PI * .95 }, { id: 'inference', R: 6.3, ang: .35 }, { id: 'hardware', R: 8.8, ang: -1.75 }] }, { time, fogR: CAMS.system.fogR });
+scene.add(sys); ticks.push(sys.userData.tick);
+const [pA, pB, pC] = sys.userData.planets;
+const st = makeStation({ ...ctx, light: V() }, 0); st.position.set(-3.6, -.5, 6.6); st.scale.setScalar(1.3); scene.add(st); ticks.push(st.userData.tick);
+const ship = makeShip({ ...ctx, light: V() }, 1.3); ship.position.set(.75, .6, 0); pB.add(ship); ticks.push(ship.userData.tick);
+const INF_R = Math.min(.55 * G.inference.size, 1.7 * .55);
+
+/* ---------- names, as in the drafts (screen space) ---------- */
+const labS = (() => { const el = $('lS'), L = [];
+  return { el, add(text, pos, o = {}) { const d = document.createElement('div'); d.className = 'lbl' + (o.sm ? ' sm' : ''); d.textContent = text; el.appendChild(d); L.push({ el: d, pos, dy: o.dy ?? 10 }); },
+    place(cam) { for (const l of L) { const v = (typeof l.pos === 'function' ? l.pos() : l.pos.clone()).project(cam); if (v.z > 1) { l.el.style.display = 'none'; continue; }
+      l.el.style.display = ''; l.el.style.transform = `translate(${(v.x * .5 + .5) * W}px, ${(-v.y * .5 + .5) * H + l.dy}px) translate(-50%, 0)`; } } }; })();
+const live = o => () => o.getWorldPosition(V());
+[['Attention', pA, 24], ['Inference & serving', pB, 24], ['Hardware', pC, 34]].forEach(([n, p, dy]) => labS.add(n, live(p), { dy }));
+labS.add('Model serving room', st.position.clone().add(V(0, -.45, 0)), { sm: true });
+
+// close up, the drafts' wide atmosphere and the sun's bloom would wash the planet out: both ease down as we glide in
+const [sunBloom, sunInner] = sys.children[1].children, infAtmo = pB.children[1].material.uniforms.strength;
+const closeUp = k => { infAtmo.value = 1.15 * (1 - .72 * k); sunBloom.material.opacity = .85 * (1 - .75 * k); sunInner.material.opacity = .95 * (1 - .6 * k); };
+
+/* ===================== the timeline ===================== */
+// End framing = the U03 globe: centre at y 372 of 844, radius 146 px (fov 38), i.e. 8.455 planet radii away, looking a touch low.
+const DIST = INF_R * 8.455, SHIFT = .0408;
+const P = { G0: .15, G1: 3.15, END: 4.0, MAX: 4.4 };
+function endDir(pc) {   // the final view line: mostly sunlit, from a little above
+  const Y = V(0, 1, 0), toSun = pc.clone().negate().normalize(), side = Y.clone().cross(toSun).normalize(); if (side.z < 0) side.negate();
+  const E = toSun.clone().multiplyScalar(.7).addScaledVector(Y, .45).addScaledVector(side, .55).normalize();
+  return { E, upP: Y.clone().addScaledVector(E, -E.y).normalize() };
+}
+// One glide. Distance to the planet shrinks on a log curve (even-feeling speed from far to near), the view line swings from where
+// U02 looks from onto the final one, and the aim turns onto the planet early, so it is centred long before we arrive.
+function cam(T, t) {
+  const pc = pB.getWorldPosition(V()), { E, upP } = endDir(pc), x = clamp((T - P.G0) / (P.G1 - P.G0));
+  const U0 = V(...CAMS.system.pos).add(driftV(t, CAMS.system.drift)), U0t = V(...CAMS.system.target);
+  const e = smoother(Math.pow(x, .82)), turn = smoother(x * 1.6), aim = smoother(x * 1.35);   // a soft landing; turns and aims ahead of the move
+  const from = U0.clone().sub(pc), d0 = from.length(), dir = from.normalize().lerp(E, turn).normalize();
+  const d = d0 * Math.pow(DIST / d0, e), pos = pc.clone().addScaledVector(dir, d);
+  const target = U0t.clone().lerp(pc, aim).addScaledVector(upP, -DIST * SHIFT * smoother((x - .5) * 2));
+  return { pos, target, pc, d, x, fov: 38 + 4 * Math.pow(Math.sin(Math.PI * e), 2) };
+}
+function frame(T) {
+  const t = 4 + T; time.value = t; ticks.forEach(f => f(t)); scene.updateMatrixWorld(true);
+  const c = cam(T, t); camera.position.copy(c.pos); camera.fov = c.fov; camera.updateProjectionMatrix(); camera.lookAt(c.target); camera.updateMatrixWorld();
+  closeUp(smooth(0, 1, Math.log(30 / c.d) / Math.log(30 / DIST)));
+  const sk = 1 - smooth(P.G0, P.G0 + .6, T); ship.visible = sk > 0; ship.scale.setScalar(Math.max(.001, sk));   // the parked U02 ship bows out (it would be a spike up close)
+  renderer.render(scene, camera);
+  const ls = 1 - smooth(.04, .3, T); labS.el.style.opacity = ls; if (ls > 0) labS.place(camera);
+  // where the planet is on screen and how big, so the U03 globe can sit exactly on it (the globe's body is 146 px in radius at rest)
+  const v = c.pc.clone().project(camera), rpx = Math.tan(Math.asin(Math.min(1, INF_R / c.d))) / Math.tan(camera.fov * Math.PI / 360) * H / 2;
+  return { tap: v, gx: (v.x * .5 + .5) * W, gy: (-v.y * .5 + .5) * H, gs: rpx / 146, focus: smooth(.3, .97, c.x), stars: smooth(.72, 1, c.x) };
+}
+
+/* ===================== chrome: U02 System and U03, as finalized ===================== */
+const ICONS = {
+  explore: '<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8 3l4 4 4-4"/>', universe: '<circle cx="12" cy="12" r="3.5"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-20 12 12)"/>',
+  talk: '<path d="M4 5h16v11H9l-5 4z"/>', keep: '<path d="M6 3h12v18l-6-4-6 4z"/>', back: '<path d="M15 5l-7 7 7 7"/>',
+  list: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+};
+const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${s >= 20 ? 2 : 2.4}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const chip = (l, o = {}) => `<span class="chip ${o.solid ? 'solid' : ''}">${o.ic ? icon(o.ic, 16) : ''}${o.dot !== undefined ? `<span class="dot ${o.dot ? 'on' : ''}"></span>` : ''}${l}</span>`;
+const tabbar = `<nav class="tabbar">${[['explore', 'Explore'], ['universe', 'Universe'], ['talk', 'Talk'], ['keep', 'Keep']].map(([k, l]) => `<div class="tab ${k === 'universe' ? 'cur' : ''}">${icon(k, 22)}<span>${l}</span></div>`).join('')}</nav>`;
+$('chrome').innerHTML = `<div class="layer" id="chS"><div class="top"><div class="row">${chip('Universe', { solid: true, ic: 'back' })}${chip('Lately', { dot: false })}</div><div style="padding-top:6px"><h1 class="title" style="font-size:30px;line-height:34px">Machine learning</h1><span class="eyebrow" style="margin-top:4px">A system</span></div></div>
+    <div class="bottom"><div class="actions">${chip('List view', { ic: 'list' })}</div></div></div>
+  <span class="tap" id="tap"></span>${tabbar}`;
+// U03: the approved globe page for Inference & serving, minus its own status bar and tab bar (the phone keeps one of each)
+{ const tmp = document.createElement('div'); tmp.innerHTML = screenPlanet(PLANETS[0]); const ph = tmp.firstElementChild;
+  ph.querySelector('.worldnav').remove(); ph.querySelector('.statusbar').remove(); const u = $('u03'); u.setAttribute('style', ph.getAttribute('style')); u.innerHTML = ph.innerHTML; }
+const U = { star: $('u03').querySelector('.starfield'), globe: $('u03').querySelector('.globe-wrap'), top: $('u03').querySelector('.map-top'), cap: $('u03').querySelector('.caption'), chips: $('u03').querySelector('.chips') };
+const rise = (el, k, dy = 10) => { el.style.opacity = k; el.style.transform = `translateY(${(1 - k) * dy}px)`; };
+function chrome(T, r) {
+  const tp = $('tap'), k = clamp(T / .5), v = (r.tap.x * .5 + .5) * W, h = (-r.tap.y * .5 + .5) * H;   // one ring opens and fades where you touched
+  tp.style.opacity = T < .5 ? .9 * (1 - k) : 0; tp.style.transform = `translate(${v}px, ${h}px) scale(${1 + 2.2 * easeOut(k)})`;
+  $('chS').style.opacity = 1 - smooth(.03, .28, T);
+  // the world comes into focus on top of the painted planet: fading in, blurred at first, sharp on arrival
+  $('u03').style.opacity = r.focus > 0 ? 1 : 0; U.star.style.opacity = r.stars; U.globe.style.opacity = r.focus;
+  U.globe.style.transform = `translate(${r.gx - 195}px, ${r.gy - 372}px) translate(-50%, -50%) scale(${r.gs})`;
+  U.globe.style.filter = r.focus < 1 ? `blur(${(6 * (1 - r.focus)).toFixed(2)}px)` : 'none';
+  rise(U.top, smooth(3.05, 3.5, T), -8); rise(U.cap, smooth(3.15, 3.6, T)); rise(U.chips, smooth(3.25, 3.7, T));
+}
+
+/* ===================== page: beats, storyboard, controls ===================== */
+const f2 = x => x.toFixed(2);
+const gT = x => P.G0 + (P.G1 - P.G0) * x;   // glide progress to time
+const BEATS = [
+  [0, P.G0, 'Tap', 'A tap on Inference & serving. One ring opens where you touched; the system header, chips and names fade away. The tab bar stays.'],
+  [P.G0, gT(.3), 'Set off', 'The camera turns onto the planet and starts to glide in; the sun, the station and the other worlds slide away. The parked ship bows out.'],
+  [gT(.3), gT(.97), 'Coming into focus', 'Still gliding in, at an even-feeling, unhurried speed. The U03 globe fades in exactly on the painted planet (same spot, same size), blurred at first and sharper the closer we get; the glow round the planet and the bloom of the sun ease down. Near the end the U03 starfield comes in.'],
+  [gT(.97), P.G1, 'Land', 'A soft landing with the globe sharp, exactly where U03 has it.'],
+  [P.G1 - .1, P.END, 'U03 Planet', 'The back pill, name, hint and chips rise in. Then it is the live globe.'],
+];
+const SHOTS = [[0, 'Tap'], [.6, 'Setting off'], [1.05, 'Turning onto it'], [1.5, 'Gliding in'], [1.95, 'Closing in'], [2.4, 'Nearly there'], [2.85, 'Landing'], [3.15, 'Landed']];
+const beatsEl = $('beats'), scrub = $('scrub'), tc = $('tc'), pauseB = $('pause');
+beatsEl.innerHTML = BEATS.map(([a, b, n, d]) => `<tr><td>${f2(a)}–${f2(b)} s</td><td><b>${n}</b> · ${d}</td></tr>`).join('');
+$('shots').innerHTML = SHOTS.map(([s, n]) => { frame(s); return `<div class="shot" data-t="${s}"><img alt="${n}" src="${cS.toDataURL('image/jpeg', .82)}"><b>${f2(s)} s</b><span>${n}</span></div>`; }).join('');
+scrub.max = P.MAX;
+let T = 0, playing = true, rate = 1;
+function show() { const r = frame(T); chrome(T, r); scrub.value = Math.min(T, P.MAX);
+  const beat = Math.max(0, BEATS.findLastIndex(([a]) => T >= a));
+  tc.textContent = `${f2(Math.min(T, P.MAX))} s · ${BEATS[beat][2]}`; beatsEl.querySelectorAll('tr').forEach((tr, i) => tr.classList.toggle('cur', i === beat)); }
+const setPlay = p => { playing = p; pauseB.textContent = p ? 'Pause' : 'Play'; };
+$('replay').onclick = () => { T = 0; setPlay(true); };
+pauseB.onclick = () => { if (!playing && T >= P.MAX) T = 0; setPlay(!playing); };
+$('slow').onclick = e => { rate = rate === 1 ? .25 : 1; e.target.classList.toggle('on', rate !== 1); };
+scrub.oninput = () => { T = +scrub.value; setPlay(false); show(); };
+$('shots').onclick = e => { const s = e.target.closest('.shot'); if (s) { T = +s.dataset.t; setPlay(false); show(); } };
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const hashT = /t=([\d.]+)/.exec(location.hash);
+if (hashT) { T = +hashT[1]; setPlay(false); }
+if (reduce) { T = P.END + .2; setPlay(false); }   // reduced motion: no glide, straight to U03
+show();
+let last = 0, prev = null;
+function loop(now) { requestAnimationFrame(loop); if (reduce || now - last < 33) return; const dt = prev === null ? 0 : Math.min(.1, (now - prev) / 1000); prev = now; last = now;
+  if (playing) { T += dt * rate; if (T > P.MAX + 1.2) T = 0; } show(); }   // loops, with a pause on U03
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
