@@ -337,12 +337,12 @@ token; reduced motion stops drift and plays the formation as one still.
 | --- | --- |
 | One three.js scene (orange sun with haze, two painted planets that revolve, no orbit lines, nebula dust, stars) | runtime-verified (web, browser) |
 | Web canvas host: a DOM canvas, WebGL 2 context made by three.js | runtime-verified (web, browser) |
-| Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | see the PR for the emulator run |
-| 30 fps cap (a frame at most every 33 ms), time step clamped to 0.1 s, pixel ratio capped at 1.5 | runtime-verified (web); native: implemented |
-| Loop stops when the route is unfocused, the app is not active, the tab is hidden or the canvas is off screen | runtime-verified (web); native: implemented |
-| Reduced motion: one frame, no loop | runtime-verified (web) |
+| Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | runtime-verified (Android emulator; no phone or iOS yet) |
+| 30 fps cap (a frame at most every 33 ms), time step clamped to 0.1 s, pixel ratio capped at 1.5 | runtime-verified (web, Android emulator) |
+| Loop stops when the route is unfocused, the app is not active, the tab is hidden or the canvas is off screen | runtime-verified (web); native: implemented (unit tests, not driven on a device) |
+| Reduced motion: one frame, no loop | runtime-verified (web, Android emulator) |
 | No WebGL, context creation failure, context loss or a failed frame: the plain lists (`SpaceSimpleLists`) | runtime-verified (web) |
-| Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web) |
+| Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web, Android emulator) |
 | Real Universe data, Overview/Lately/Far/System levels, fly-ins | planned (U-2 onward) |
 
 How it fits together. A platform canvas host (`space-canvas.web.tsx`, `space-canvas.tsx`) hands `SpaceView` a
