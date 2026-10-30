@@ -8,11 +8,14 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import {
+  clockTime,
   dayKey,
   dayLabel,
+  endsRun,
   type ContentThreadController,
   type ContentThreadState,
   type OutgoingThreadMessage,
+  type RunStep,
 } from '@knowscroll/client-core';
 import type { ScenarioCard, ScenarioKind, ThreadEpisode, ThreadMessage } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
@@ -71,6 +74,29 @@ function dividedByDay(entries: readonly Entry[]): Group[] {
     else groups.push({ key: at === undefined ? 'removed' : dayKey(at), at: at ?? new Date(), items: [entry] });
   }
   return groups;
+}
+
+/** A message as the grouping into runs sees it; a branch card or a removed message has none and breaks the run. */
+function runStepOf(entry: Entry | undefined): RunStep | undefined {
+  return entry?.kind === 'message' && entry.message.status === 'available'
+    ? { authorId: entry.message.author.personId, at: new Date(entry.message.recordedAt) }
+    : undefined;
+}
+
+/** The time to show under this entry: only the last message of a run carries one. */
+function runEndTime(entry: Entry, next: Entry | undefined): Date | undefined {
+  const step = runStepOf(entry);
+  return step !== undefined && endsRun(step, runStepOf(next)) ? step.at : undefined;
+}
+
+/** The time under the last message of a run, on the side the bubbles of that run sit. */
+function RunTime({ at, mine }: { readonly at: Date | undefined; readonly mine: boolean }) {
+  if (at === undefined) return null;
+  return (
+    <Text variant="monoXs" color={content.ink2} align={mine ? 'right' : 'left'} testID="message-time">
+      {clockTime(at)}
+    </Text>
+  );
 }
 
 /** Where a branch began, in words: the whole thread, a shared moment or passage, or someone's message. */
@@ -281,7 +307,7 @@ export function ThreadMessages({
             <Text variant="metaS" color={content.ink2} align="center">
               {dayLabel(group.at, now)}
             </Text>
-            {group.items.map((entry) =>
+            {group.items.map((entry, index) =>
               entry.kind === 'branch' ? (
                 <View key={entry.card.nodeId} role="listitem" style={styles.branch}>
                   <BranchCard
@@ -314,6 +340,7 @@ export function ThreadMessages({
                       <MessageMenuButton message={entry.message} onOpen={onMessageMenu} />
                     ) : null}
                   </View>
+                  <RunTime at={runEndTime(entry, group.items[index + 1])} mine={mineOf(entry.message)} />
                 </View>
               ),
             )}

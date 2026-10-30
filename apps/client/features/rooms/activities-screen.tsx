@@ -18,13 +18,7 @@ function OpenActivities({ scope, roomId }: { readonly scope: AccountScope; reado
   const back = () => (router.canGoBack() ? router.back() : router.replace(roomHref(roomId)));
   return (
     <>
-      <ThreadHeader
-        title="Room activity"
-        people="Optional · only in this room"
-        onBack={back}
-        onPeople={undefined}
-        onMenu={undefined}
-      />
+      <ThreadHeader title="Room activity" people="Optional · only in this room" onBack={back} onMenu={undefined} />
       <ScrollView contentContainerStyle={styles.body} testID="activities-screen">
         {state.phase === 'loading' ? <Skeleton rows={3} label="Loading" /> : null}
         {state.phase === 'unavailable' ? (

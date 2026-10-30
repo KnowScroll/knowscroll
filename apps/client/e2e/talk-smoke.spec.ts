@@ -21,17 +21,15 @@ const crossings = [
 const threadAddress = `/threads/${thread.threadId}?m=${thread.membershipId}&r=1`;
 const conversationAddress = `/conversations/${conversation.conversationId}?m=${conversation.membershipId}&r=1`;
 
-test('on a desktop the thread and its conversation sit side by side, with the rail and Talk current', async ({
-  page,
-}) => {
+test('on a desktop the conversation sits beside the thread panel, with the rail and Talk current', async ({ page }) => {
   await talkFixture(page, { width: 1440, height: 900 });
   await page.goto(threadAddress);
   const pane = page.getByRole('region', { name: 'Thread' });
   const talk = page.getByRole('region', { name: 'Conversation' });
-  await expect(pane.getByRole('heading', { level: 1, name: 'CI series' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI series' })).toBeVisible();
   await expect(talk.getByText('That last part surprised me.')).toBeVisible();
-  const left = await pane.boundingBox();
-  const right = await talk.boundingBox();
+  const left = await talk.boundingBox();
+  const right = await pane.boundingBox();
   if (!left || !right) throw new Error('Both panes are measurable');
   expect(left.x + left.width).toBeLessThanOrEqual(right.x + 1);
   expect(Math.abs(left.y - right.y)).toBeLessThanOrEqual(1);
