@@ -23,6 +23,7 @@ import { actOnKey, run, type ReaderCommands } from './reader-actions';
 import { ReaderFocus } from './reader-focus';
 import type { ReaderKey } from './reader-keys';
 import { Spine, type SpineDot } from './spine';
+import { lockOf, useLocalStagePlay, type StagePlay } from './stage-play';
 import { StopList } from './stop-list';
 import { useCallPlay } from './use-call-play';
 import { useReaderScroll } from './use-reader-scroll';
@@ -49,6 +50,11 @@ export interface StageReaderProps {
   readonly commands: ReaderCommands;
   readonly nextPart?: NextPartPeek | undefined;
   readonly onDone?: (() => void) | undefined;
+  /**
+   * Play on this Scroll: what was locked, the sparks, and how to lock another (D-063). The app passes
+   * one backed by its play session; without one the reader keeps it on the device alone.
+   */
+  readonly play?: StagePlay | undefined;
   /** "Part 1 of 3": drawn on the stage where the top bar has no room for it (a phone). */
   readonly partLabel?: string | undefined;
 }
@@ -98,6 +104,7 @@ export function StageReader({
   commands,
   nextPart,
   onDone,
+  play: appPlay,
   partLabel,
 }: StageReaderProps) {
   const { reducedMotion, breakpoint } = useDisplay();
@@ -115,7 +122,15 @@ export function StageReader({
   const { current, jump } = text;
   const activeStopId = current < document.stops.length ? document.stops[current]?.id : undefined;
   const reading = useStopReading(observer, activeStopId, paused);
-  const play = useCallPlay(reading);
+  const ownPlay = useLocalStagePlay(calls);
+  const play = appPlay ?? ownPlay;
+  const played = useCallPlay(reading, play, calls);
+  /** Locks a call and, as its reveal opens below the options, brings the reveal on screen. */
+  const lockCall = (callId: string): boolean => {
+    const locked = played.lock(callId);
+    if (locked) text.revealIn(indexOfStop(document.stops, callId));
+    return locked;
+  };
   const [textVersion, setTextVersion] = useState(false);
   const [opened, setOpened] = useState<ReadonlySet<string>>(
     () => new Set(document.asides.filter((aside) => !aside.collapsed).map((aside) => aside.id)),
@@ -159,8 +174,8 @@ export function StageReader({
       jump,
       heading: text.heading,
       toggleTextVersion: () => setTextVersion((now) => !now),
-      pick: play.pick,
-      lock: play.lock,
+      pick: played.pick,
+      lock: lockCall,
     });
 
   const wide = breakpoint === 'tablet' || breakpoint === 'desktop';
@@ -200,9 +215,12 @@ export function StageReader({
               calls={calls}
               sectionHeight={text.viewport > 0 ? Math.round(text.viewport * 0.8) : 320}
               measureSection={text.measureSection}
-              stateOf={play.stateOf}
-              pick={play.pick}
-              lock={play.lock}
+              stateOf={played.stateOf}
+              lockOf={(callId) => lockOf(play, callId)}
+              onRevealLayout={text.reportReveal}
+              paused={play.paused}
+              pick={played.pick}
+              lock={lockCall}
               opened={opened}
               onToggleAside={toggleAside}
               onSmallPrint={showSmallPrint}

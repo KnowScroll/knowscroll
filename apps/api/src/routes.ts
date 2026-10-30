@@ -7,6 +7,7 @@ import { ConversationsController } from './http/conversations.controller.js';
 import { ThreadsController } from './http/threads.controller.js';
 import { RoomsController } from './http/rooms.controller.js';
 import { FeedbackController } from './http/feedback.controller.js';
+import { PlayController } from './http/play.controller.js';
 import { ScenariosController } from './http/scenarios.controller.js';
 import { ShareLandingController } from './http/share-landing.controller.js';
 import { RecordingController } from './http/recording.controller.js';
@@ -50,6 +51,7 @@ export const apiControllers = [
   ThreadsController,
   RoomsController,
   FeedbackController,
+  PlayController,
   ScenariosController,
   ShareLandingController,
   RegionEncounterController,

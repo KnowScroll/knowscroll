@@ -1,9 +1,10 @@
 import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
+import type { StageKeeping } from './stage-play';
 
 /**
- * A call as the reader has played it on this device. Nothing here is saved or sent: locking in,
- * sparks and the Plot twist's effects are a later slice (S-2). The one thing reported is that the
- * answer was shown, by kind and never by the option picked (D-063).
+ * A call as the reader shows it: the option picked, and whether the answer has been revealed (a lock
+ * in). Keeping a lock, and the sparks it earns, are the play layer's (`stage-play.ts`, D-063); the one
+ * thing the reader reports is that the answer was shown, by kind and never by the option picked.
  */
 export interface CallState {
   readonly picked: number | undefined;
@@ -37,4 +38,19 @@ export function resultOf(call: CallItStop | FinalCallStop, state: CallState): Ca
     correct: state.picked === call.answer,
     guessSource: guess !== undefined && guess.option === state.picked ? guess.source.label : undefined,
   };
+}
+
+/** What the screen says about whether a locked call is kept, or nothing when there is nothing to say. */
+export function keepingNote(keeping: StageKeeping): string | undefined {
+  switch (keeping) {
+    case 'recording_paused':
+      return 'Not saved while recording is paused.';
+    case 'waiting':
+      return "Will save when you're back online.";
+    case 'refused':
+      return "Couldn't save this one.";
+    case 'saved':
+    case 'device_only':
+      return undefined;
+  }
 }

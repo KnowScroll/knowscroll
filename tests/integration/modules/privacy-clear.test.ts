@@ -1182,6 +1182,32 @@ describe('durable selective Clear', () => {
             label: 'Authored erasure-only shared planet',
           })
           .execute();
+        // Authored erasure-only play record: a locked call and its tally, not a claim that anyone played a Scroll.
+        await tx
+          .insertInto('play.calls')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            asset_id: starter.assetId,
+            revision: starter.revision,
+            stop_id: 'ci-erasure-call',
+            option: 0,
+            correct: false,
+            command_id: randomUUID(),
+          })
+          .execute();
+        await tx
+          .insertInto('play.scroll_results')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            asset_id: starter.assetId,
+            revision: starter.revision,
+            calls_locked: 1,
+            sparks: 0,
+            combo: 0,
+          })
+          .execute();
         await tx
           .insertInto('planner.runs')
           .values({
