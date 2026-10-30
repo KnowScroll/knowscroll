@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     padding: spacing[3],
     marginHorizontal: layout.gutter,
-    marginTop: spacing[2],
+    marginVertical: spacing[2],
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
     borderStyle: 'dotted',
