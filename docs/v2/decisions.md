@@ -710,3 +710,17 @@ Explore's Part tabs and dashed Related tabs never appeared on dev because the 54
 - **Series total is not invented.** The context response carries a part number and no total, so the client keeps showing "Part 2".
 - **Verified.** Unit tests of the declarations and the planner; an integration test on real PostgreSQL (admits, skips unpublished, idempotent, republish replaces, and `readContext` then offers previous, next and related); the worker operator command from the built release tree. Local browser check (fixture Scrolls, real API and database): the yellow Part tab and dashed Related tab in "This thread" on a wide window and on the end card on a phone.
 - **Limits.** The order of some series (training, web requests, algorithms) is a reading of the briefs, not something a brief states; a reviewer who disagrees changes the declaration and re-runs the command. The command admits against the revision admitted when it runs, so it must be run again after a Scroll is republished.
+
+## D-140 · 2026-10-30 · A thread is readable on a phone: strip, Series sheet, docked player (T-A, #481)
+
+Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.
+
+- **A 72 px strip, not a card.** A thread opens with Back, a line saying what it is ("A THREAD · 3 PARTS"), the title, Series and options. The fixed series card and the horizontal part strip are gone from the phone.
+- **Series is a sheet pulled down from the strip.** It lists the parts and the people. It is an overlay, never a route: Back, Esc, Close and a tap on the scrim close only the sheet (D-006 k). Choosing a part closes it.
+- **The player starts docked on a phone.** A 56 px bar names the open part. Pressing it opens the player in place; folding docks it again. At 390 x 844 the conversation keeps over 60 % of the screen (65.9 % for the messages alone, 84.6 % with the asks and the message box). With the player open it is 47 %: that is the person's choice.
+- **The person's choice beats the default.** Until they fold or unfold, a phone is docked and a desktop is open. Pressing Watch counts as unfolding, so a resize across 1024 px never docks a playing Reel.
+- **Desktop has a series panel.** From 1024 px the conversation fills the left and a 400 px panel on the right holds the parts, the player and the people. The inbox is not beside a thread yet.
+- **A time under each run.** A run is one author's messages, each within five minutes of the one before and on one day. The last message of a run shows its clock time in the reader's own time zone; the day capsule above shows the date. Both come from `recordedAt`.
+- **No place.** Nothing says where another member is. A coarse place is T-D (D-065).
+
+Confirmed by: `apps/client/e2e/thread-phone-smoke.spec.ts` (the 60 % measure, the sheet and Back, the times, the panel), `episode-list.test.tsx`, `own-place.test.tsx`, `pull-down-sheet.test.tsx`, `talk-format.test.ts`.

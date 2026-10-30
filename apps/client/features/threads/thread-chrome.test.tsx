@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ContentThreadState } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
-import { InvitationView, ThreadHeader, threadTitle } from './thread-chrome';
+import { InvitationView, ThreadHeader, ThreadPeople, ThreadStrip, threadEyebrow, threadTitle } from './thread-chrome';
 
 const asha = {
   kind: 'person' as const,
@@ -95,5 +95,85 @@ describe('the thread header', () => {
     await header(onMap);
     await fireEvent.press(screen.getByRole('button', { name: 'Map' }));
     expect(onMap).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the thread strip', () => {
+  const strip = async (series?: { open: boolean; onPress: () => void }, onMenu = jest.fn()) => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ThreadStrip
+          title="Black holes"
+          eyebrow="A THREAD · 3 PARTS · 2 PEOPLE"
+          onBack={jest.fn()}
+          series={series}
+          onMenu={onMenu}
+        />
+      </DisplayProvider>,
+    );
+    return onMenu;
+  };
+
+  it('says what it is above the title, with the title as the page heading', async () => {
+    await strip();
+    expect(screen.getByText('A THREAD · 3 PARTS · 2 PEOPLE')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Black holes' })).toBeOnTheScreen();
+  });
+
+  it('pulls the parts down from its Series button, and only where the parts are not always shown', async () => {
+    const onPress = jest.fn();
+    await strip({ open: false, onPress });
+    await fireEvent.press(screen.getByRole('button', { name: 'Series' }));
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('has no Series button beside the conversation, and keeps the options', async () => {
+    const onMenu = await strip();
+    expect(screen.queryByRole('button', { name: 'Series' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thread options' }));
+    expect(onMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts parts in a declared series and items in any other thread', () => {
+    const participants = [{}, {}] as never;
+    expect(threadEyebrow({ sequence: 'series', episodes: [{}, {}, {}] as never, participants }, true)).toBe(
+      'A THREAD · 3 PARTS · 2 PEOPLE',
+    );
+    expect(threadEyebrow({ sequence: 'series', episodes: [{}, {}, {}] as never, participants }, false)).toBe(
+      'A THREAD · 3 PARTS',
+    );
+    expect(threadEyebrow({ sequence: 'single', episodes: [{}] as never, participants: [{}] as never }, true)).toBe(
+      'A THREAD · 1 ITEM · 1 PERSON',
+    );
+    expect(threadEyebrow({ sequence: 'single', episodes: [], participants: [] }, true)).toBe('A THREAD');
+  });
+});
+
+describe('the people in a thread', () => {
+  it('lists names only, the starter and the invited marked, and says nobody sees anyone’s place', async () => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ThreadPeople
+          participants={[
+            { person: asha, role: 'starter', joined: true, you: true },
+            {
+              person: {
+                ...asha,
+                personId: '0199a000-0000-7000-8000-00000000000b',
+                displayName: 'Ravi',
+                handle: 'ci.ravi',
+              },
+              role: 'member',
+              joined: false,
+              you: false,
+            },
+          ]}
+        />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('Asha (you)')).toBeOnTheScreen();
+    expect(screen.getByText('Started it')).toBeOnTheScreen();
+    expect(screen.getByText('Invited')).toBeOnTheScreen();
+    expect(screen.getByText(/Nobody sees where anyone else is/)).toBeOnTheScreen();
   });
 });

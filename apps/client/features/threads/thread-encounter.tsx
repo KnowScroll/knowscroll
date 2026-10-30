@@ -1,10 +1,20 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useState, type RefObject } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import type { ReelDocument, ThreadEpisode } from '@knowscroll/contracts';
-import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, IconButton, StateBlock, Tag, Text, type ReelPositionHandle } from '@knowscroll/ui';
+import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
+import {
+  Banner,
+  Button,
+  Icon,
+  IconButton,
+  StateBlock,
+  Tag,
+  Text,
+  useFocusRing,
+  type ReelPositionHandle,
+} from '@knowscroll/ui';
 import { ReelEncounter } from './reel-encounter';
 
 /** The picture of the inline player takes at most this much, so the conversation stays in view. */
@@ -30,6 +40,52 @@ export interface ThreadEncounterProps {
   readonly onOpened?: (document: ReelDocument | undefined) => void;
   /** The episode's summary line from the thread's root, when this is the root. */
   readonly summary?: string | undefined;
+  /**
+   * Folded draws a 56 px bar (T3 "docked player") instead of the small paused strip, so a phone keeps
+   * the screen for the conversation. A Scroll's bar carries Read; pressing the bar opens the encounter.
+   */
+  readonly dock?: boolean;
+}
+
+/** The docked bar: what is open, one press to open it in place. A Scroll's bar also reads it. */
+function Dock({
+  episode,
+  place,
+  onOpen,
+  onRead,
+}: {
+  readonly episode: ThreadEpisode;
+  readonly place: string;
+  readonly onOpen: () => void;
+  readonly onRead: (() => void) | undefined;
+}) {
+  const focus = useFocusRing('onLight');
+  return (
+    <View style={styles.dock} testID="thread-dock">
+      <Pressable
+        {...focus.props}
+        role="button"
+        aria-expanded={false}
+        accessibilityLabel={`Open ${place}, ${episode.title}`}
+        onPress={onOpen}
+        style={[styles.dockOpen, focus.style]}
+      >
+        <View style={styles.dockTile} aria-hidden>
+          <Icon name={episode.kind === 'reel' ? 'reel' : 'scroll'} size={20} color={content.paper} />
+        </View>
+        <View style={styles.grow}>
+          <Text variant="monoXs" color={content.ink2} numberOfLines={1}>
+            {place}
+          </Text>
+          <Text variant="uiS" numberOfLines={1}>
+            {episode.title}
+          </Text>
+        </View>
+        <Icon name="chevronDown" size={20} />
+      </Pressable>
+      {onRead === undefined ? null : <Button label="Read" size="sm" variant="primary" onPress={onRead} />}
+    </View>
+  );
 }
 
 /**
@@ -51,6 +107,7 @@ export function ThreadEncounter({
   positionRef,
   onOpened,
   summary,
+  dock = false,
 }: ThreadEncounterProps) {
   const router = useRouter();
   const [opened, setOpened] = useState<ReelDocument>();
@@ -81,16 +138,24 @@ export function ThreadEncounter({
       <Tag variant="part" label={place} />
       {episode.state === 'corrected' ? <Tag variant="corrected" label="Updated" /> : null}
       <View style={styles.grow} />
-      {episode.kind === 'reel' ? (
+      {episode.kind === 'reel' || dock ? (
         <IconButton
           icon={folded ? 'plus' : 'minus'}
-          label={folded ? 'Unfold the player' : 'Fold the player'}
+          label={`${folded ? 'Unfold' : 'Fold'} ${episode.kind === 'reel' ? 'the player' : 'this part'}`}
           onPress={onToggleFold}
         />
       ) : null}
     </View>
   );
 
+  const docked = dock && folded;
+  const openHere = () => onToggleFold();
+  if (episode.kind === 'scroll' && docked)
+    return (
+      <View style={styles.areaDocked}>
+        <Dock episode={episode} place={place} onOpen={openHere} onRead={() => router.push(readHref(episode.assetId))} />
+      </View>
+    );
   if (episode.kind === 'scroll')
     return (
       <View style={styles.area}>
@@ -117,9 +182,10 @@ export function ThreadEncounter({
 
   // Folded, the player stays mounted but hidden and paused: it keeps its place, and no second player starts.
   return (
-    <View style={styles.area}>
-      {header}
-      {folded ? (
+    <View style={docked ? styles.areaDocked : styles.area}>
+      {docked ? null : header}
+      {docked ? <Dock episode={episode} place={place} onOpen={openHere} onRead={undefined} /> : null}
+      {folded && !dock ? (
         <View style={styles.mini}>
           <Text variant="uiS" color={content.paper} numberOfLines={1} style={styles.grow}>
             {place} · {episode.title}
@@ -185,6 +251,22 @@ const styles = StyleSheet.create({
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
     borderRadius: radius.card,
+  },
+  areaDocked: {
+    paddingHorizontal: layout.gutter,
+    borderBottomWidth: borderWidth.regular,
+    borderBottomColor: content.ink,
+    backgroundColor: content.paper,
+  },
+  dock: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  dockOpen: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  dockTile: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.thumb,
+    backgroundColor: content.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mini: {
     flexDirection: 'row',
