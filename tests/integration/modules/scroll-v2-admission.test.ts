@@ -204,7 +204,7 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
       if (read.kind !== 'document') throw new Error('CI expected the document');
       expect(read.document.schemaVersion).toBe(SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
       expect(read.degradedEssential).toEqual([]);
-      for (const internal of ['claim', 'scroll-provenance', '"production"', 'snapshotSha256'])
+      for (const internal of ['claimId', 'citations', 'scroll-provenance', '"production"', 'snapshotSha256'])
         expect(JSON.stringify(read.document)).not.toContain(internal);
 
       // A client that did not declare the schema is told it cannot render this revision.
