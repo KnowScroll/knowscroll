@@ -5,12 +5,13 @@ KnowScroll is effortless discovery through Reel and Scroll encounters, with an e
 ## Read first, in this order
 
 1. `docs/STATUS.md`: what works, what is missing, and what is next. Verify Git, CI and the deployed revision before acting on it.
-2. Tracker #222 and the sub-issue you are working on.
+2. Tracker #462 (the v3 revamp; #222 is the v2 history) and the sub-issue you are working on.
 3. `docs/v2/architecture/02d-greenfield-blueprint.md` (authoritative architecture and behaviour) and `docs/v2/architecture/02e-future-session-handoff.md` (decisions that must survive context loss).
-4. `docs/v2/decisions.md`, the decisions made during implementation (D-030 sets the current working flow and budgets), and `docs/v2/carried-forward-facts.md`, the still-binding owner rulings from v1.
-5. The README of every package or backend module you change.
+4. `docs/v2/decisions.md`, the decisions made during implementation (D-030 sets the current working flow and budgets; D-060 onward record the v3 rulings and amend rules), and `docs/v2/carried-forward-facts.md`, the still-binding owner rulings from v1.
+5. For Universe, Scroll, room or Talk work: `docs/v2/design/v3/README.md` (the final v3 designs) and `docs/v2/v3-revamp/CHANGE-MAP.md` (a starting map, not proof).
+6. The README of every package or backend module you change.
 
-The blueprint governs architecture and product behaviour. The v2.1 design export (`docs/v2/design/KnowScroll-design-v2.1/`) governs visuals. Its people, messages, content and worlds are authored examples, never product data.
+The blueprint governs architecture and product behaviour, as amended by `docs/v2/decisions.md`. The v3 designs (`docs/v2/design/v3/`) govern the Universe, Scrolls, rooms and Talk (D-060). The v2.1 design export (`docs/v2/design/KnowScroll-design-v2.1/`) governs visuals everywhere else. Their people, messages, content and worlds are authored examples, never product data.
 
 ## Product rules that code must preserve
 
@@ -18,8 +19,9 @@ The blueprint governs architecture and product behaviour. The v2.1 design export
 - Only actual personal Reel/Scroll encounters create consumption evidence. Suggestions, generated supply, shared messages, invitations and another person's activity never do.
 - Reel and Scroll have equal status. Format preference is learned per topic/context. Series step, format variant, related perspective and What-if branch are four distinct relationships.
 - Planet formation needs qualified evidence and conceptual variety. Inactivity changes activity, never existence.
-- Peer playback positions, seen markers and current branches are private. AI participants are always identifiable. Never fabricate social activity.
-- Consumer UI never shows internal prompts, model reasoning, scores, sources panels or operational machinery.
+- Peer playback positions, seen markers and current branches are private. Two exceptions: a coarse part-level place a member shares with a thread they joined (members only, per-person hide switch, D-065) and mutual SEEN receipts in DMs (D-066). AI participants are always identifiable. Never fabricate social activity.
+- Consumer UI never shows internal prompts, model reasoning, internal ranking, model or evidence scores, sources panels or operational machinery. Game points (sparks, landmarks, stars, a podium per Launch) are play features and may be shown; never a leaderboard, karma total or level (D-064).
+- Play results (picks, correctness, sparks, tiers) never feed ranking, planning, evidence, formation or the Universe. A landmark is a read-only overlay (D-063).
 - Models propose; deterministic code validates authority, structure and allowed effects before applying anything.
 
 ## Reliability boundaries (enforced in code review)
@@ -42,7 +44,7 @@ The goal is working product that follows the blueprint, in code a senior enginee
 4. **One review.** A reviewer with fresh context reads the diff against the blueprint sections and this file, and reports blocking findings only: correctness, blueprint conformance, privacy, reliability boundaries, code quality bar. Fix them; re-review only what changed. No multi-round "closure" reviews.
 5. **Merge on green.** Open the PR to the integration branch; the required `checks` workflow runs in about seven minutes. Squash-merge when it is green and the review has no open blocking finding. Never weaken an assertion, skip a check or hide a failing case to get green.
 6. **Promote to dev often.** At least at the end of each phase, open a squash PR from the integration branch to `dev`, merge it on green (the push deploys dev), then immediately merge `dev` back into the integration branch with a plain merge (D-002). Then exercise the slice on `app.dev.knowscroll.space` with disposable accounts and real services.
-7. **Report plainly.** At the end of each phase, update `docs/STATUS.md` and the status table in #222, and comment on #222 with what the owner can try on dev now. Evidence is a link: a PR, an Actions run, a screenshot path or a dev URL.
+7. **Report plainly.** At the end of each phase, update `docs/STATUS.md` and the status table in #462, and comment on #462 with what the owner can try on dev now. Evidence is a link: a PR, an Actions run, a screenshot path or a dev URL.
 
 **Not part of the process:** hashing CI logs or artifacts, receipts or manifests as acceptance, reservation and launch packets for model calls, per-call ledgers outside the product's own attempt ledger, "stop at first failure" on generation, review rounds about earlier reviews, and checkpoint essays. Long dense prose in issues, PRs or docs is a defect: write short sentences a newcomer can follow.
 
@@ -84,4 +86,4 @@ Every package and backend module has a README covering purpose and ownership, pu
 
 ## Status and continuity
 
-The coordinating session keeps `docs/STATUS.md` (one page) and the #222 status table current at the end of each phase and after any material decision or failure. Workers report in their issue or PR and do not edit `docs/STATUS.md`. A fresh or compacted session reads `docs/STATUS.md`, then verifies Git, CI and the deployed revision before acting.
+The coordinating session keeps `docs/STATUS.md` (one page) and the #462 status table current at the end of each phase and after any material decision or failure. Workers report in their issue or PR and do not edit `docs/STATUS.md`. A fresh or compacted session reads `docs/STATUS.md`, then verifies Git, CI and the deployed revision before acting.

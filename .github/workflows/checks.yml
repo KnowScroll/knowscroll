@@ -37,6 +37,13 @@ jobs:
           expected=$(wc -l < ../KnowScroll-design-v2.1.sha256)
           actual=$(find . -type f | wc -l)
           test "$expected" -eq "$actual" || { echo "file count $actual != recorded $expected"; exit 1; }
+      - name: v3 design files match their recorded SHA-256 list
+        working-directory: docs/v2/design/v3
+        run: |
+          sha256sum --check --quiet SHA256SUMS
+          expected=$(wc -l < SHA256SUMS)
+          actual=$(find . -type f ! -name README.md ! -name SHA256SUMS | wc -l)
+          test "$expected" -eq "$actual" || { echo "file count $actual != recorded $expected"; exit 1; }
       - name: Vendored Cutroom wire schema matches its pinned upstream hashes
         working-directory: packages/backend/src/modules/content/adapters/cutroom/wire-v1
         run: |
