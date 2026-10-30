@@ -224,6 +224,16 @@ export interface ContentRegionBindings {
   topic_id: string;
 }
 
+export interface ContentRevisionReviews {
+  asset_id: string;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
+  held_at: Generated<Timestamp>;
+  reason: string | null;
+  revision: number;
+  state: string;
+}
+
 export interface ContentScrollProductionRuns {
   asset_id: string | null;
   asset_revision: number | null;
@@ -638,7 +648,7 @@ export interface GeographyDeltas {
   policy_version: string;
   privacy_epoch: number;
   revision: number;
-  run_id: string;
+  run_id: string | null;
   transition_id: string;
   universe_id: string;
 }
@@ -696,6 +706,7 @@ export interface GeographyState {
   desired_recording_generation: number | null;
   desired_revision: Generated<number>;
   material_revision: Generated<number>;
+  next_quiet_at: Timestamp | null;
   next_run_not_before: Timestamp | null;
   privacy_epoch: number;
   published_revision: Generated<number>;
@@ -1948,6 +1959,7 @@ export interface DB {
   "content.reel_imports": ContentReelImports;
   "content.reel_orders": ContentReelOrders;
   "content.region_bindings": ContentRegionBindings;
+  "content.revision_reviews": ContentRevisionReviews;
   "content.scroll_production_runs": ContentScrollProductionRuns;
   "content.series_units": ContentSeriesUnits;
   "evidence.action_events": EvidenceActionEvents;

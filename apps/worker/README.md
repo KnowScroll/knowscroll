@@ -50,6 +50,16 @@ the export `failed`, best effort: the recovery cron and a retry are the other wa
 only (the operation or export id, never a person), and the logged outcomes carry no account, universe or
 receipt id. The sweep `identity.sweep-sign-in-records` also retires exports.
 
+## Quiet sweep (v3 U-3, #467, D-104, D-105)
+
+The registry holds `geography.sweep-quiet` (every 15 minutes: the oldest 100 universes whose `next_quiet_at` has passed are looked at; each that can be
+settled gets one `geography.settle-quiet` job in the same transaction, any other is parked a day ahead) and `geography.settle-quiet` (one universe: a short transaction under the
+personal root that applies only the activity changes current support implies). Both are rules only: no model call, no ledger run, no network
+wait. Both follow `KS_CARTOGRAPHER_ENABLED`. The settle runs as a system actor and rechecks the account, epoch and recording generation
+itself; it stands aside while recording is paused or a Cartographer run holds the universe. Logs `geography.quiet_swept` (count handed
+over) and `geography.quiet_settled` (outcome code and places changed). Status: implemented, covered by
+`tests/integration/modules/quiet-sweep.test.ts`; not yet runtime-verified on dev.
+
 ## Visit list refresh (#241, D-047)
 
 The `scenes.project` consumer calls Social's `REFRESH_VISIT_PUBLICATION` after it has projected a universe, so
@@ -141,6 +151,11 @@ the production jobs of recipes that need one (a rejected recipe gets its next ta
 database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
+
+`node dist/operator.js content review-list [--all]`, `review-show --asset <id> [--revision <n>] [--sources]`, `release --asset <id> --revision <n>`
+and `reject --asset <id> --revision <n> --reason <text>` (`src/review-operator.ts`, D-138) are the review gate for v2 library Scrolls:
+what is held, the text to read, and the two decisions, each recorded with who and when. They use the shared database only, refuse worlds
+outside dev/stage/ci/local, and call no provider. `review-show` prints the Scroll to the terminal and never to the log.
 
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to

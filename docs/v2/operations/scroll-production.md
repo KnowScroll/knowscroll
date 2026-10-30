@@ -42,10 +42,11 @@ rejection (`retaking`) and the ones with nothing left to do (`skipped`, with `pu
 A recipe whose job is still running is sent again on purpose: that resumes a run a crash or a spent
 budget left open. It is safe to run it again at any time.
 
-`production-status` lists every recipe with its standing: `not_started`, `running`, `published`,
+`production-status` lists every recipe with its standing: `not_started`, `running`, `published`, `held`
+(a v2 Scroll was produced and waits for you to read and release it, see "The review gate"),
 `retryable` (every take so far was rejected and another may start) or `stopped` (an attempt of unknown
 outcome, or all three takes used), the latest job state, how many takes exist, the Scroll's asset and
-revision once admitted, and the paid attempts so far.
+revision once admitted (`heldRevision` while it is held), and the paid attempts so far.
 
 ### Takes
 
@@ -53,7 +54,9 @@ A rejected recipe can be taken again, at most three times in all, because a reje
 take. Take 2 or 3 starts only when every earlier take was rejected: never after a published job or an
 unknown attempt. Each take is a new business run, so nothing an earlier take sent is sent again.
 `produce-library` and Quartermaster send the next take by themselves. Check `reasoning unknown` before
-deciding what to do about a `stopped` recipe: it needs an operator, not another take.
+deciding what to do about a `stopped` recipe: it needs an operator, not another take. A v2 Scroll that an
+operator rejected at the review gate counts as a rejected take; one still held does not, so no new take starts
+until it is released or rejected.
 
 ### Caps and pauses
 
@@ -197,7 +200,7 @@ The twenty topics of the first run, in order (the three Seasons parts first; nin
 seasons,seasons-hemispheres,seasons-limits,tides,tides-spring-neap,greenhouse-radiation,greenhouse-balance,stars-fusion,exoplanet-habitable-zone,cardiac-cycle,blood-pressure,reflex-arc,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
 ```
 
-To measure the Seasons stage again with the v15 prompt (the three Seasons stages, and "Seasons elsewhere" as a plain Scroll to check its Mars and Uranus sources), at most eight requests:
+To measure the Seasons stage again with the v15 prompt (the three Seasons stages, and "Seasons elsewhere" as a plain Scroll to check its Mars and Uranus sources), at most eight requests. Since D-137 the plan marks these four recipes v2, and the spike runs them as the library produces them: the plan's picture choice and misconception, not the spike's own table:
 
 ```sh
 node dist/operator.js content writer-spike-v2 --topics seasons,seasons-hemispheres,seasons-limits,seasons-elsewhere --concurrency 2 --spike-id seasons-v15 --out /var/tmp/ks-v3-spike/seasons-v15.jsonl
@@ -235,22 +238,73 @@ To read a refused answer: `node dist/operator.js reasoning rejected --attempt <a
 
 Each run starts fresh and remembers nothing. Before running again, reconcile every attempt the last run left `unknown` with `reasoning unknown` (or write it off): re-running that topic before then would send a second paid request while the first is unsettled. Then re-run only the topics in `notStarted` plus `stoppedBy.key`, which is not in `notStarted`. Re-running all twenty repeats the finished ones and pays for them again.
 
-## Producing a v2 Scroll (S-1b, D-127 to D-130)
+## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
-A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. A v2 recipe is a job of its own version (`scroll-production.v15`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset.
+A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks four recipes today (D-137): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, and `seasons-elsewhere` without one. A v2 recipe is a job of its own version (`scroll-production.v15`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset.
+
+**A produced v2 library Scroll is held, not published (D-138).** The job stores it with its provenance and coverage and then waits: nobody is served it until you have read it and released it (next section). The commands that start a job are the same for every recipe; the plan decides which writer runs and the gate decides what happens to the result.
 
 ```sh
-# the same commands as for v1; the plan decides which writer runs
-node dist/operator.js content produce-library --dry-run --only <recipe key,…>   # a v1-published v2 recipe is listed as not started
+node dist/operator.js content produce-library --dry-run --only <recipe key,…>   # a recipe with only a v1 Scroll is listed as not started
 node dist/operator.js content produce-library --only <recipe key,…>
-node dist/operator.js content production-status --only <recipe key,…>          # published only once the current revision is a v2 document
+node dist/operator.js content production-status --only <recipe key,…>          # `held` once produced; `published` only after release
 node dist/operator.js content readmit-coverage                                 # after a plan change; picks the rule that matches each revision
-node dist/operator.js content admit-continuity                                 # the series now points at the v2 revisions
 ```
 
-What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a recipe refused with `plan_refused` / `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`): it is `stopped` in `production-status`, no job was reserved and no request was sent. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim.
+What to look at: `reasoning rejected` for the findings of a refused answer (the same catalogue as the spike); a recipe refused with `plan_refused` / `misconception_source_unreviewed` is a recipe problem (review the label or choose `none`): it is `stopped` in `production-status`, no job was reserved and no request was sent. Coverage is `scroll-recipe-coverage.v2` over the read stops (D-127); `coverage_too_few_body_blocks` in the job's outcomes means fewer than three read stops cited a documented claim, and `review-list` then shows `coverage: unmapped`.
 
-Until the reader (S-1c) ships, a client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Run `admit-continuity` only when you want the series to point at the v2 revisions.
+A client that does not declare `scroll-document.v2` is offered the previous v1 revision of a regenerated Scroll (Explore and the Composer), and a direct open of a v2 asset by such a client says it needs an app update. Explore and `/scroll/<id>` of this app declare v2 and draw it with the Stage + Spine reader (D-135).
+
+## The review gate for v2 library Scrolls (S-1e, D-138)
+
+Every wave of v2 Scrolls gets a factual read by a person before anyone is served it (D-123). The gate is that read. It applies to a v2 library recipe however the job was sent: the operator's library run, `produce-scroll`, or a retry. A v1 recipe and a Scroll ordered from a thread publish as they always did.
+
+**What held means.** The revision is stored, with its provenance, topic and coverage. It is not the asset's current revision, so discovery, Explore, series and related moves, the Universe's regions, sharing, saved items and opening a Scroll do not see it. A Scroll that already serves an earlier revision keeps serving it. A brand-new asset stays `held` and cannot be opened. `production-status` shows the recipe as `held` (with `heldRevision`), never `published`. `produce-library` skips a held recipe, and a person's ask never makes Quartermaster write a v2 recipe.
+
+```sh
+node dist/operator.js content review-list [--all]                   # held revisions: recipe, revision, title, words, minutes, picture, coverage. --all adds released and rejected, with who and when
+node dist/operator.js content review-show --asset <asset id> [--revision <n>] [--sources]   # the Scroll as plain text, to read on the server
+node dist/operator.js content release --asset <asset id> --revision <n>                      # serve exactly this revision
+node dist/operator.js content reject  --asset <asset id> --revision <n> --reason "<why>"      # keep it out, free the next take
+```
+
+All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shared database only, and call no provider. `review-list` prints one JSON line with titles and counts, never body text. `review-show` prints the text to the terminal and nowhere else: do not paste it into an issue or a pull request. `--sources` adds, under each stop, aside and the recap, the exact source passages it cites, and the pages at the end, so a statement can be checked against its source. `release` and `reject` record who ran them (`cli:<your user>`) and when, write a `content.review_decided` line to the event log on stderr (recipe key, outcome, revision, a refusal's code; no text), and are safe to repeat: a second `release` answers `already_released`, a second `reject` answers `already_rejected` and keeps the first reason. Exit status is 0 for a decision or a repeat and 2 for a refusal (`not_under_review`, `revision_rejected`, `revision_released`, `not_newer_than_served`, `asset_withdrawn`, `reason_invalid`).
+
+### What to read for
+
+The checks the machine cannot make (D-123): the picture matches each stop's words (the month decides the pins and Ray); no sentence calls Earth's axis sideways; each statement is in the passages it cites (`--sources`); the correct option of each call is correct and the wrong ones are plausible; the Final call is a new case and not a repeat of an earlier call; the Plot twist reads warm; a plain Scroll about other worlds says nothing the pages do not state; nothing is invented (dates, temperatures, season lengths).
+
+### Seasons on dev (S-1e)
+
+The worker environment is the one above. Producing takes at most eight writer requests (four recipes, one repair each) inside the MiniMax window.
+
+```sh
+# 1. What would be queued (nothing is sent). All four show as not started: the library holds v1 Scrolls of the first three, and v1 does not satisfy a v2 recipe.
+node dist/operator.js content produce-library --dry-run --only seasons,seasons-hemispheres,seasons-elsewhere,seasons-limits
+# 2. Queue them. The dev worker writes them and every one ends held.
+node dist/operator.js content produce-library --only seasons,seasons-hemispheres,seasons-elsewhere,seasons-limits
+# 3. Watch. held = waiting for you; retryable = the writer was refused (see "When a Scroll is refused"); running = still at it.
+node dist/operator.js content production-status --only seasons,seasons-hemispheres,seasons-elsewhere,seasons-limits
+# 4. Read each held Scroll against its sources.
+node dist/operator.js content review-list
+node dist/operator.js content review-show --asset <asset id from review-list> --sources
+# 5. Decide, revision by revision.
+node dist/operator.js content release --asset <asset id> --revision <n>
+# 6. When the three series parts are released (seasons, seasons-hemispheres, seasons-elsewhere; seasons-limits is the related move), admit the series and the move.
+node dist/operator.js content admit-continuity --dry-run
+node dist/operator.js content admit-continuity
+# 7. Decide coverage again from the plan (idempotent; the new Scrolls already have theirs and show as unchanged).
+node dist/operator.js content readmit-coverage --dry-run
+node dist/operator.js content readmit-coverage
+```
+
+Release all three parts before step 6. `admit-continuity` binds a series to the Scrolls that are served at that moment, so run it once the parts are served: a series with a part still held is skipped whole and named in `seriesSkipped`. A Part tab shows only after step 6. `seasons-limits` is a related move from `seasons-elsewhere`; when it is released after the others, run `admit-continuity` once more. After it, `seasons-limits` may keep a `previous` link into the old series revision 1 (D-125): decide then whether to retire it.
+
+### If you reject
+
+`reject` keeps the revision stored and unserved for good (it is never released), leaves the earlier revision served if there is one, and spends that take. `production-status` then shows the recipe `retryable` and `produce-library --only <key>` queues the next take, which writes a new revision (the next number). A recipe has three takes in all. If you reject all three, the recipe is `stopped`: the brief or the pages need a change in the plan, which is a code change and a new production version, so stop and say so in the issue. Tell the next person why in the reason (500 characters, plain words); `review-list --all` shows it with who and when.
+
+Nothing in the gate edits a revision: a Scroll is released as it was read. To correct a wording, reject and produce again.
 
 ## Facts about the model
 

@@ -46,7 +46,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
   const setup = (script: () => FixtureScenario, quota?: QuotaScript) =>
     fixtureProductionWorker(database, script, quota ? { quota } : {});
 
-  const runRow = (recipe = 'seasons') =>
+  const runRow = (recipe = 'stars-fusion') =>
     database.db
       .selectFrom('content.scroll_production_runs')
       .select(['state', 'asset_id'])
@@ -55,16 +55,18 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
 
   it('publishes the recipe on a delivery, and a second delivery of the same job does nothing more', async () => {
     const p = setup(answer);
-    const first = await p.run(produceScrollJob('seasons'), delivery());
+    const first = await p.run(produceScrollJob('stars-fusion'), delivery());
     expect(first).toMatchObject({ kind: 'finished', result: { outcome: 'published', revision: 1 } });
-    expect(await p.run(produceScrollJob('seasons'), delivery())).toEqual(first);
+    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toEqual(first);
     expect(p.fixture.calls).toHaveLength(1);
     expect(await runRow()).toMatchObject({ state: 'published' });
   });
 
   it('drops a job for another recipe version or for a recipe the plan does not hold, touching nothing', async () => {
     const p = setup(answer);
-    expect(await p.run({ ...produceScrollJob('seasons'), policyVersion: 'scroll-production.v0' }, delivery())).toEqual({
+    expect(
+      await p.run({ ...produceScrollJob('stars-fusion'), policyVersion: 'scroll-production.v0' }, delivery()),
+    ).toEqual({
       kind: 'skipped',
       reason: 'policy_version',
     });
@@ -78,15 +80,15 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
 
   it('completes a delivery whose job was rejected, and never runs that take again', async () => {
     const p = setup(() => ({ kind: 'malformed' }));
-    const first = await p.run(produceScrollJob('seasons'), delivery());
+    const first = await p.run(produceScrollJob('stars-fusion'), delivery());
     expect(first).toMatchObject({ kind: 'finished', result: { outcome: 'rejected' } });
     const calls = p.fixture.calls.length;
-    expect(await p.run(produceScrollJob('seasons'), delivery())).toMatchObject({
+    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toMatchObject({
       kind: 'finished',
       result: { outcome: 'rejected' },
     });
     expect(p.fixture.calls).toHaveLength(calls);
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({
+    expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({
       state: 'retryable',
       job: 'rejected',
       takes: 1,
@@ -95,11 +97,11 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
 
   it('leaves an attempt of unknown outcome unknown and never resends it, however often it is delivered', async () => {
     const p = setup(() => ({ kind: 'gateway_timeout' }));
-    expect(await p.run(produceScrollJob('seasons'), delivery())).toMatchObject({
+    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toMatchObject({
       kind: 'finished',
       result: { outcome: 'unknown' },
     });
-    expect(await p.run(produceScrollJob('seasons'), delivery())).toMatchObject({
+    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toMatchObject({
       kind: 'finished',
       result: { outcome: 'unknown' },
     });
@@ -109,7 +111,9 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
   it('fails a delivery when the production scope is switched off, so the job retries instead of vanishing', async () => {
     const p = setup(answer);
     await sql`update reasoning.production_scopes set enabled=false where id='scroll-supply'`.execute(database.db);
-    await expect(p.run(produceScrollJob('seasons'), delivery())).rejects.toThrow('SCROLL_PRODUCTION_SCOPE_REFUSED');
+    await expect(p.run(produceScrollJob('stars-fusion'), delivery())).rejects.toThrow(
+      'SCROLL_PRODUCTION_SCOPE_REFUSED',
+    );
     expect(p.fixture.calls).toHaveLength(0);
   });
 
@@ -120,12 +124,15 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       intervalRemainingPercent: null,
       weeklyRemainingPercent: null,
     }));
-    const paused = await p.run(produceScrollJob('seasons'), delivery());
+    const paused = await p.run(produceScrollJob('stars-fusion'), delivery());
     expect(paused).toMatchObject({ kind: 'finished', result: { outcome: 'paused', codes: ['quota_unavailable'] } });
     expect(p.fixture.calls).toHaveLength(0);
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'running', job: 'writer' });
+    expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({
+      state: 'running',
+      job: 'writer',
+    });
     quotaSpent = false;
-    expect(await p.run(produceScrollJob('seasons'), delivery())).toMatchObject({
+    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toMatchObject({
       kind: 'finished',
       result: { outcome: 'published' },
     });
@@ -133,12 +140,12 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     // The attempt that sent nothing before the pause is not part of the lineage: the Scroll is still
     // attributed to its topic and bound to its facets, so a person who asked for it can be served.
     expect(await database.db.selectFrom('content.encounter_topics').select('topic_id').execute()).toEqual([
-      { topic_id: 'earth.seasons' },
+      { topic_id: TOPICS['stars-fusion'].topicId },
     ]);
     const outcomes = await database.db
       .selectFrom('content.scroll_production_runs')
       .select('outcomes')
-      .where('topic', '=', 'seasons')
+      .where('topic', '=', 'stars-fusion')
       .executeTakeFirstOrThrow();
     expect(outcomes.outcomes).not.toContainEqual(expect.objectContaining({ code: 'attribution_unverified' }));
     const bound = await database.db.selectFrom('content.region_bindings').select('facet_id').execute();
@@ -153,11 +160,11 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       proposeProduction: () => Promise.reject(new Error('CI_CRASH_BEFORE_WRITER')),
     };
     await expect(
-      makeRunScrollProduction(p.producer({ harness: crash }))(produceScrollJob('seasons'), delivery()),
+      makeRunScrollProduction(p.producer({ harness: crash }))(produceScrollJob('stars-fusion'), delivery()),
     ).rejects.toThrow('CI_CRASH_BEFORE_WRITER');
     expect(await runRow()).toMatchObject({ state: 'writer' });
-    expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'running' });
-    expect(await p.run(produceScrollJob('seasons'), delivery())).toMatchObject({
+    expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'running' });
+    expect(await p.run(produceScrollJob('stars-fusion'), delivery())).toMatchObject({
       kind: 'finished',
       result: { outcome: 'published' },
     });
@@ -173,19 +180,19 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     it('does not spend a take on a transient failure: the job waits at research and the same take publishes', async () => {
       let failure: Error | undefined = new ResearchRefusal('network_failed');
       const p = fixtureProductionWorker(database, answer, { research: research(() => failure) });
-      await expect(p.run(produceScrollJob('seasons', 1), delivery())).rejects.toThrow(
+      await expect(p.run(produceScrollJob('stars-fusion', 1), delivery())).rejects.toThrow(
         'SCROLL_PRODUCTION_RESEARCH_UNAVAILABLE',
       );
       expect(p.fixture.calls).toHaveLength(0);
       expect(await runRow()).toMatchObject({ state: 'research' });
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'running', takes: 1 });
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'running', takes: 1 });
       // A plain error (not a refusal of the sources) is a blip as well.
       failure = new Error('socket hang up');
-      await expect(p.run(produceScrollJob('seasons', 1), delivery())).rejects.toThrow(
+      await expect(p.run(produceScrollJob('stars-fusion', 1), delivery())).rejects.toThrow(
         'SCROLL_PRODUCTION_RESEARCH_UNAVAILABLE',
       );
       failure = undefined;
-      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 1), delivery())).toMatchObject({
         kind: 'finished',
         result: { outcome: 'published', take: 1 },
       });
@@ -193,7 +200,7 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
         await database.db
           .selectFrom('content.scroll_production_runs')
           .select('take')
-          .where('topic', '=', 'seasons')
+          .where('topic', '=', 'stars-fusion')
           .execute(),
       ).toEqual([{ take: 1 }]);
     });
@@ -202,17 +209,20 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       const p = fixtureProductionWorker(database, answer, {
         research: research(() => new ResearchRefusal('soft_404')),
       });
-      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 1), delivery())).toMatchObject({
         kind: 'finished',
         result: { outcome: 'rejected', codes: ['soft_404'] },
       });
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'retryable', takes: 1 });
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({
+        state: 'retryable',
+        takes: 1,
+      });
     });
   });
 
   describe('takes after a rejection', () => {
     const rejected = () => ({ kind: 'malformed' }) as const;
-    const takes = async (recipe = 'seasons') =>
+    const takes = async (recipe = 'stars-fusion') =>
       (
         await database.db
           .selectFrom('content.scroll_production_runs')
@@ -225,20 +235,23 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     it('publishes take 2 after take 1 was rejected, as a new business run that resends nothing', async () => {
       let answerNow = false;
       const p = setup(() => (answerNow ? answer() : rejected()));
-      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 1), delivery())).toMatchObject({
         kind: 'finished',
         result: { outcome: 'rejected', take: 1 },
       });
       const callsAfterFirst = p.fixture.calls.length;
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'retryable', takes: 1 });
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({
+        state: 'retryable',
+        takes: 1,
+      });
       // The rejected take stays final: asking for it again reports it and sends nothing.
-      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 1), delivery())).toMatchObject({
         result: { outcome: 'rejected' },
       });
       expect(p.fixture.calls).toHaveLength(callsAfterFirst);
 
       answerNow = true;
-      expect(await p.run(produceScrollJob('seasons', 2), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 2), delivery())).toMatchObject({
         kind: 'finished',
         result: { outcome: 'published', take: 2, revision: 1 },
       });
@@ -250,39 +263,44 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
         await database.db
           .selectFrom('content.scroll_production_runs')
           .select('writer_run_id')
-          .where('topic', '=', 'seasons')
+          .where('topic', '=', 'stars-fusion')
           .execute()
       ).map((row) => row.writer_run_id);
       expect(new Set(writerRuns).size).toBe(2);
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'published', takes: 2 });
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({
+        state: 'published',
+        takes: 2,
+      });
       // A published recipe never takes again.
-      expect(await p.run(produceScrollJob('seasons', 3), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 3), delivery())).toMatchObject({
         result: { outcome: 'take_refused' },
       });
     });
 
     it('refuses a take that skips a take, and one after an unknown attempt', async () => {
       const p = setup(() => ({ kind: 'gateway_timeout' }));
-      expect(await p.run(produceScrollJob('seasons', 2), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 2), delivery())).toMatchObject({
         kind: 'finished',
         result: { outcome: 'take_refused', take: 2 },
       });
       expect(await takes()).toEqual([]);
-      expect(await p.run(produceScrollJob('seasons', 1), delivery())).toMatchObject({ result: { outcome: 'unknown' } });
+      expect(await p.run(produceScrollJob('stars-fusion', 1), delivery())).toMatchObject({
+        result: { outcome: 'unknown' },
+      });
       const calls = p.fixture.calls.length;
       // The attempt may have reached the provider: no later take may start, and nothing is resent.
-      expect(await p.run(produceScrollJob('seasons', 2), delivery())).toMatchObject({
+      expect(await p.run(produceScrollJob('stars-fusion', 2), delivery())).toMatchObject({
         result: { outcome: 'take_refused' },
       });
       expect(p.fixture.calls).toHaveLength(calls);
       expect(await takes()).toEqual([[1, 'unknown']]);
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'stopped', takes: 1 });
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'stopped', takes: 1 });
     });
 
     it('allows three takes in all and no fourth', async () => {
       const p = setup(rejected);
       for (const take of [1, 2, 3])
-        expect(await p.run(produceScrollJob('seasons', take), delivery())).toMatchObject({
+        expect(await p.run(produceScrollJob('stars-fusion', take), delivery())).toMatchObject({
           result: { outcome: 'rejected', take },
         });
       expect(await takes()).toEqual([
@@ -290,11 +308,11 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
         [2, 'rejected'],
         [3, 'rejected'],
       ]);
-      expect((await readLibraryStatus(database.db, ['seasons']))[0]).toMatchObject({ state: 'stopped', takes: 3 });
+      expect((await readLibraryStatus(database.db, ['stars-fusion']))[0]).toMatchObject({ state: 'stopped', takes: 3 });
       // The job schema refuses a fourth take, and the database refuses a fourth row.
-      expect(ProduceScrollJobSchema.safeParse({ ...produceScrollJob('seasons'), take: 4 }).success).toBe(false);
+      expect(ProduceScrollJobSchema.safeParse({ ...produceScrollJob('stars-fusion'), take: 4 }).success).toBe(false);
       await expect(
-        sql`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (gen_random_uuid(),'seasons',${SCROLL_PRODUCTION_VERSION},4,1,1,'research',gen_random_uuid())`.execute(
+        sql`insert into content.scroll_production_runs (id,topic,policy_version,take,target_revision,scope_generation,state,writer_run_id) values (gen_random_uuid(),'stars-fusion',${SCROLL_PRODUCTION_VERSION},4,1,1,'research',gen_random_uuid())`.execute(
           database.db,
         ),
       ).rejects.toMatchObject({ constraint: 'scroll_production_runs_take_check' });
@@ -302,14 +320,17 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
 
     it('plans the next take of a rejected recipe and skips one that cannot be taken again', async () => {
       const p = setup(rejected);
-      await p.run(produceScrollJob('seasons', 1), delivery());
+      await p.run(produceScrollJob('stars-fusion', 1), delivery());
       const unknown = setup(() => ({ kind: 'gateway_timeout' }));
       await unknown.run(produceScrollJob('tides', 1), delivery());
-      const plan = planLibraryProduction(await readLibraryStatus(database.db, ['seasons', 'tides', 'greenhouse']), {
-        interactiveFirst: false,
-      });
+      const plan = planLibraryProduction(
+        await readLibraryStatus(database.db, ['stars-fusion', 'tides', 'greenhouse']),
+        {
+          interactiveFirst: false,
+        },
+      );
       expect(plan.queue).toEqual([
-        { recipe: 'seasons', take: 2 },
+        { recipe: 'stars-fusion', take: 2 },
         { recipe: 'greenhouse', take: 1 },
       ]);
       expect(plan.skipped).toEqual([{ recipe: 'tides', reason: 'stopped' }]);
@@ -318,10 +339,10 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
       await boss.start();
       try {
         const enqueue = makeEnqueueScrollProduction(boss);
-        expect(await enqueue('seasons', 2)).toBe('queued');
-        expect(await enqueue('seasons', 2)).toBe('already_queued');
+        expect(await enqueue('stars-fusion', 2)).toBe('queued');
+        expect(await enqueue('stars-fusion', 2)).toBe('already_queued');
         // A different take is a different job.
-        expect(await enqueue('seasons', 3)).toBe('queued');
+        expect(await enqueue('stars-fusion', 3)).toBe('queued');
       } finally {
         await boss.stop({ graceful: false });
       }
@@ -329,13 +350,13 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
 
     it('creates a take once however many senders ask at the same moment', async () => {
       const p = setup(rejected);
-      await p.run(produceScrollJob('seasons', 1), delivery());
+      await p.run(produceScrollJob('stars-fusion', 1), delivery());
       const store = productionStore(database.db);
       const withScope = makeWithProductionScope(database.db, { enabled: true, lockTimeoutMs: 5000 });
       const authority = { scopeId: 'scroll-supply', generation: 1 } as const;
       const ask = () =>
         withScope(authority, (scope) =>
-          store.create(productionTransactionOf(scope), 'seasons', TOPICS.seasons.assetId, 1, 2),
+          store.create(productionTransactionOf(scope), 'stars-fusion', TOPICS['stars-fusion'].assetId, 1, 2),
         );
       const results = await Promise.all([ask(), ask(), ask()]);
       const jobs = results.map((entered) => (entered.kind === 'entered' ? entered.value : undefined));
@@ -358,8 +379,8 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
     await consumerBoss.start();
     try {
       const enqueue = makeEnqueueScrollProduction(producerBoss);
-      expect(await enqueue('seasons', 1)).toBe('queued');
-      expect(await enqueue('seasons', 1)).toBe('already_queued');
+      expect(await enqueue('stars-fusion', 1)).toBe('queued');
+      expect(await enqueue('stars-fusion', 1)).toBe('already_queued');
       const consumers = [
         jobConsumer(produceScrollQueue, async (job: ProduceScrollJob, deliveryOf) => {
           await p.run(job, deliveryOf);
@@ -371,13 +392,13 @@ describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL a
         (
           await sql<{
             state: string;
-          }>`select state from pgboss.job where name=${produceScrollQueue.name} and singleton_key=${produceScrollSingletonKey(produceScrollJob('seasons'))}`.execute(
+          }>`select state from pgboss.job where name=${produceScrollQueue.name} and singleton_key=${produceScrollSingletonKey(produceScrollJob('stars-fusion'))}`.execute(
             database.db,
           )
         ).rows[0]?.state;
       await expect.poll(jobState, { timeout: 30_000, interval: 250 }).toBe('completed');
       // A finished job does not block a new send; the redelivery finds the finished run and sends nothing.
-      expect(await enqueue('seasons', 1)).toBe('queued');
+      expect(await enqueue('stars-fusion', 1)).toBe('queued');
       await expect
         .poll(
           async () =>

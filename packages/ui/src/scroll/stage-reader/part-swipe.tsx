@@ -33,8 +33,6 @@ export function PartSwipe({
 }: {
   readonly children: ReactNode;
   readonly onMove: (move: PartMove) => void;
-  /** Used by the web file; the native pull is reported by the scroll view. */
-  readonly atEnd?: () => boolean;
 }) {
   const { width } = useWindowDimensions();
   // `onMove` should be stable (the reader keeps it so): a new one makes a new responder.

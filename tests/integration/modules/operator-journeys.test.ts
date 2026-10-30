@@ -42,13 +42,13 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
     world = await supplyWorld('operator_journeys');
     asker = await world.seedPerson();
     joiner = await world.seedPerson();
-    requestId = await world.ask(asker, world.catalogueRequest('earth.seasons'));
-    joinerRequestId = await world.ask(joiner, world.catalogueRequest('earth.seasons'));
-    await world.runProduction('seasons');
+    requestId = await world.ask(asker, world.catalogueRequest('machine-learning.transformers'));
+    joinerRequestId = await world.ask(joiner, world.catalogueRequest('machine-learning.transformers'));
+    await world.runProduction('transformer-architecture');
     await world.resolveRequest(asker, requestId);
     await world.resolveRequest(joiner, joinerRequestId);
-    askerExposureId = await world.meet(asker, TOPICS.seasons.assetId);
-    joinerExposureId = await world.meet(joiner, TOPICS.seasons.assetId);
+    askerExposureId = await world.meet(asker, TOPICS['transformer-architecture'].assetId);
+    joinerExposureId = await world.meet(joiner, TOPICS['transformer-architecture'].assetId);
 
     // A recipe whose writer's answer is refused by the validator.
     world.answerWriterWith(() => ({ kind: 'success', text: 'not a Scroll document at all' }));
@@ -99,7 +99,7 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
   });
 
   it('shows a production run as shared records only, with no request or person', async () => {
-    const journey = await journeyOf(await productionRunOf('seasons'));
+    const journey = await journeyOf(await productionRunOf('transformer-architecture'));
     expect(journey.subject).toBe('production_run');
     expect(new Set(journey.steps.map((step) => step.scope))).toEqual(new Set(['shared']));
     expect(stages(journey)).toEqual(
@@ -109,7 +109,7 @@ describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
   });
 
   it('answers an asset ID with its shared steps only, never what people did with it', async () => {
-    const journey = await journeyOf(TOPICS.seasons.assetId);
+    const journey = await journeyOf(TOPICS['transformer-architecture'].assetId);
     expect(journey.subject).toBe('asset');
     expect(stages(journey)).toContain('content.asset_admitted');
     expect(stages(journey).filter((stage) => stage.startsWith('experience.'))).toEqual([]);

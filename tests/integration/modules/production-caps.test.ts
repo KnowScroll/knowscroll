@@ -74,7 +74,7 @@ describe('the production scope has its own daily cap (D-037)', () => {
       research: (url) => Promise.resolve(fixtureResearchFor(url)),
     });
     // The person cap is one request; the production scope gets through two writers.
-    expect(await produce('seasons', false, signal())).toMatchObject({ outcome: 'published' });
+    expect(await produce('stars-fusion', false, signal())).toMatchObject({ outcome: 'published' });
     expect(await produce('tides', false, signal())).toMatchObject({ outcome: 'published' });
     const third = await produce('greenhouse-radiation', false, signal());
     expect(third).toMatchObject({ outcome: 'paused', codes: ['budget_scope_requests'] });

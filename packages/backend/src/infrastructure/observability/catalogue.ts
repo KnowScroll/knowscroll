@@ -186,6 +186,14 @@ export const diagnosticCatalogue = {
     module: 'content',
     fields: ['outcome', 'reasonCode', 'count', 'error'],
   },
+  // An operator's decision on a v2 library Scroll at the review gate (D-138): the recipe key (`context`), what
+  // happened (`outcome`: released, already_released, rejected, already_rejected or refused), the revision and,
+  // for a refusal, its code. Never text of the Scroll or the reason given. Who and when are in `content.revision_reviews`.
+  'content.review_decided': {
+    severity: 'by-call',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'revision'],
+  },
   // One delivery of the production job of a library recipe: the recipe key (`context`), the final
   // outcome and its first code, and how many paid attempts the job holds. Never a draft or research.
   'content.scroll_production_finished': {
@@ -247,6 +255,10 @@ export const diagnosticCatalogue = {
   // The sweep closed personal runs a role left admitted and idle; the role starts a new run when it next needs one.
   'reasoning.idle_runs_closed': { severity: 'info', module: 'reasoning', fields: ['count'] },
   'reasoning.requests_purged': { severity: 'info', module: 'reasoning', fields: ['count'] },
+  // The quiet sweep (D-104): how many universes with a place due to go quiet it handed to a settle.
+  'geography.quiet_swept': { severity: 'info', module: 'geography', fields: ['count'] },
+  // One universe's settle: what it did (a code) and how many places changed activity. No person, no place.
+  'geography.quiet_settled': { severity: 'info', module: 'geography', fields: ['outcome', 'count'] },
   // The daily purge removed reports about deleted accounts whose 90 days were over (D-055).
   'feedback.reports_purged': { severity: 'info', module: 'feedback', fields: ['count'] },
   'reasoning.purge_failed': { severity: 'warn', module: 'reasoning', fields: ['error'] },

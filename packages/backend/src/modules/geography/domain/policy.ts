@@ -112,15 +112,17 @@ export function formationEligible(f: FormationFacts, c: Candidate, subset = supp
     );
   return units >= 1;
 }
-export function activityFor(f: FormationFacts, c: Candidate): 'active' | 'quiet' | undefined {
-  const latest = supportsFor(f, c)
+/** How long a place may go without new support before it is quiet. Inactivity never removes a place. */
+export const QUIET_AFTER_MS = FORMATION.quietAfterDays * 86400000;
+/** When the newest support under a place was activated, as epoch milliseconds; absent when it has none. */
+export function latestSupportAt(f: FormationFacts, c: Candidate): number | undefined {
+  return supportsFor(f, c)
     .map((s) => Date.parse(s.activatedAt))
     .sort((a, b) => b - a)[0];
-  return latest === undefined
-    ? undefined
-    : Date.parse(f.evaluatedAt) - latest > FORMATION.quietAfterDays * 86400000
-      ? 'quiet'
-      : 'active';
+}
+export function activityFor(f: FormationFacts, c: Candidate): 'active' | 'quiet' | undefined {
+  const latest = latestSupportAt(f, c);
+  return latest === undefined ? undefined : Date.parse(f.evaluatedAt) - latest > QUIET_AFTER_MS ? 'quiet' : 'active';
 }
 /**
  * The first operation that makes a proposal invalid, and why. Operations depend on the ones before

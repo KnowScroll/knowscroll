@@ -11,7 +11,9 @@ export type ImportRefusal =
   /** The asset ID already names something that is not a Scroll. */
   | 'asset_is_not_a_scroll'
   /** The asset was withdrawn; admission does not bring it back. */
-  | 'asset_withdrawn';
+  | 'asset_withdrawn'
+  /** The asset's first revision is held by the review gate (D-138); an editorial import does not pass it. */
+  | 'asset_under_review';
 
 export type ImportEditorialScrollResult =
   | {
@@ -62,6 +64,8 @@ export function makeImportEditorialScroll(ports: ImportEditorialScrollPorts) {
         return { kind: 'refused', reason: 'asset_is_not_a_scroll', issues: [] };
       if (asset.kind === 'present' && asset.status === 'withdrawn')
         return { kind: 'refused', reason: 'asset_withdrawn', issues: [] };
+      if (asset.kind === 'present' && asset.status === 'held')
+        return { kind: 'refused', reason: 'asset_under_review', issues: [] };
       const current = asset.kind === 'present' ? asset.revision : 0;
       if (asset.kind === 'present' && asset.documentSha256 !== undefined) {
         const same = ports.compile(parsed.source, current);
@@ -79,7 +83,7 @@ export function makeImportEditorialScroll(ports: ImportEditorialScrollPorts) {
           };
         }
       }
-      const next = current + 1;
+      const next = (asset.kind === 'present' ? asset.latestRevision : 0) + 1;
       const compiled = ports.compile(parsed.source, next);
       if (compiled.kind === 'refused')
         return { kind: 'refused', reason: 'compile_refused', stage: compiled.stage, issues: compiled.issues };

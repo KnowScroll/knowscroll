@@ -61,9 +61,25 @@ describe('the twenty topics of the writer spike', () => {
       if (recipe.misconception.kind === 'myth' && recipe.misconception.source.reviewed) reviewed.push(topic);
     }
     expect(reviewed).toEqual(['seasons']);
+    // The two Seasons parts the plan gives no myth (D-137) and the one narrative recipe.
     expect(SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).misconception.kind === 'none')).toEqual([
+      'seasons-hemispheres',
+      'seasons-limits',
       'industrial-causes',
     ]);
+  });
+
+  it('spike a recipe the plan marks v2 exactly as the library will produce it', () => {
+    for (const topic of SPIKE_TOPICS_V2) {
+      const planned = TOPICS[topic].scrollV2;
+      if (planned === undefined) continue;
+      expect(spikeRecipeV2(topic), topic).toEqual({ ...planned, defaulted: false });
+    }
+    expect(spikeRecipeV2('seasons-elsewhere')).toEqual({
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      defaulted: false,
+    });
   });
 
   it('default to a plain Scroll with no misconception for a recipe the table does not list, and say so', () => {

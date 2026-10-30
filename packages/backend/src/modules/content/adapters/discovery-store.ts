@@ -5,6 +5,7 @@ import { sql, type Kysely } from 'kysely';
 import { SCROLL_DOCUMENT_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { canRenderScroll, isScrollDocumentV2 } from './render-scroll.js';
+import { notUnderReview } from './review-gate-sql.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import {
   validateTopics,
@@ -96,7 +97,9 @@ async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit:
     coalesce((select jsonb_agg(s.value order by s.kind) from (select distinct on (aa.kind) aa.kind,jsonb_build_object('assetId',rr.asset_id,'assetRevision',rr.revision,'kind',aa.kind) as value from content.asset_revisions rr join content.assets aa on aa.id=rr.asset_id and aa.revision=rr.revision and aa.status='admitted' where rr.explanation_unit_id=r.explanation_unit_id and aa.kind<>a.kind order by aa.kind,rr.asset_id limit 2) s),'[]') as siblings,
     (select jsonb_build_object('seriesId',u.series_id,'seriesRevision',u.series_revision,'part',u.part) from content.series_units u where u.asset_id=r.asset_id and u.asset_revision=r.revision order by u.series_revision desc,u.series_id limit 1) as series
     from content.assets a join content.asset_revisions r on r.asset_id=a.id join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision
-    where a.status='admitted' and ${filter} order by r.asset_id,r.revision limit ${limit}`.execute(db);
+    where a.status='admitted' and ${notUnderReview('r.asset_id', 'r.revision')} and ${filter} order by r.asset_id,r.revision limit ${limit}`.execute(
+      db,
+    );
   return result.rows;
 }
 /**
@@ -160,7 +163,7 @@ export const readEncounterTopics: ReadEncounterTopics = async (scope, ref) => {
     topicId: string;
     role: 'primary' | 'supporting' | 'incidental';
     weight: number;
-  }>`select t.topic_id as "topicId",t.role,t.weight from content.encounter_topics t join content.assets a on a.id=t.asset_id and a.status='admitted' where t.asset_id=${ref.assetId}::uuid and t.asset_revision=${ref.assetRevision} order by t.topic_id limit 17`.execute(
+  }>`select t.topic_id as "topicId",t.role,t.weight from content.encounter_topics t join content.assets a on a.id=t.asset_id and a.status='admitted' where t.asset_id=${ref.assetId}::uuid and t.asset_revision=${ref.assetRevision} and ${notUnderReview('t.asset_id', 't.asset_revision')} order by t.topic_id limit 17`.execute(
     transactionOf(scope),
   );
   validateTopics(result.rows);
@@ -217,7 +220,7 @@ async function savedMetadata(scope: Parameters<ReadSavedMetadata>[0], refs: Para
   }>`
     select x."assetId",x."assetRevision",a.status,a.revision as current,a.kind,r.title,d.summary,r.language
     from jsonb_to_recordset(${JSON.stringify(refs)}::jsonb) as x("assetId" uuid,"assetRevision" integer)
-    left join content.assets a on a.id=x."assetId" left join content.asset_revisions r on r.asset_id=x."assetId" and r.revision=x."assetRevision"
+    left join content.assets a on a.id=x."assetId" left join content.asset_revisions r on r.asset_id=x."assetId" and r.revision=x."assetRevision" and ${notUnderReview('r.asset_id', 'r.revision')}
     left join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision`.execute(
     transactionOf(scope),
   );
@@ -271,7 +274,7 @@ export const readEncounterAttribution: ReadEncounterAttribution = async (scope, 
     topics: EncounterSnapshot['topics'];
   }>`select r.explanation_unit_id,r.document_sha256,d.facets,d.attribution_version,
     coalesce((select jsonb_agg(jsonb_build_object('topicId',t.topic_id,'role',t.role,'weight',t.weight) order by t.topic_id) from content.encounter_topics t where t.asset_id=r.asset_id and t.asset_revision=r.revision),'[]') as topics
-    from content.asset_revisions r join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision where r.asset_id=${ref.assetId}::uuid and r.revision=${ref.assetRevision}`.execute(
+    from content.asset_revisions r join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision where r.asset_id=${ref.assetId}::uuid and r.revision=${ref.assetRevision} and ${notUnderReview('r.asset_id', 'r.revision')}`.execute(
     transactionOf(scope),
   );
   const r = result.rows[0];

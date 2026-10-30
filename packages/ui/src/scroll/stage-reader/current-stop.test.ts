@@ -1,4 +1,4 @@
-import { currentSection, READING_LINE, settleTarget, SNAP_PROXIMITY } from './current-stop';
+import { currentSection, END_SLACK, READING_LINE, scrolledToEnd, settleTarget, SNAP_PROXIMITY } from './current-stop';
 
 const tops = [0, 300, 600, 900];
 const view = { viewportHeight: 400, contentHeight: 1100 };
@@ -32,5 +32,19 @@ describe('settling softly on a stop', () => {
 
   it('never pulls the reader back from the very end of the text', () => {
     expect(settleTarget({ tops, scrollTop: 920, atEnd: true })).toBeUndefined();
+  });
+});
+
+describe('whether the text is scrolled to its end', () => {
+  const text = { viewport: 400, content: 1100 };
+
+  it('is true at the end and within the slack of it', () => {
+    expect(scrolledToEnd({ ...text, scrollTop: 700 })).toBe(true);
+    expect(scrolledToEnd({ ...text, scrollTop: 700 - END_SLACK })).toBe(true);
+  });
+
+  it('is false anywhere else, and for text that fits', () => {
+    expect(scrolledToEnd({ ...text, scrollTop: 700 - END_SLACK - 1 })).toBe(false);
+    expect(scrolledToEnd({ viewport: 400, content: 400, scrollTop: 0 })).toBe(false);
   });
 });
