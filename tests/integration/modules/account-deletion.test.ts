@@ -383,8 +383,9 @@ describe('account deletion (real database)', () => {
         );
         unwrap(await ask(rooms, erasedAsFriend, room.roomId, discussionId));
         // They found someone else's words useful, and someone found theirs useful.
-        unwrap(await joinRoom(rooms, buddy, room.roomId));
-        const others = unwrap(await say(rooms, buddy, room.roomId, discussionId, 'words by someone who stays'));
+        const stayer = await seedFriend(rooms.db, rooms.friends);
+        unwrap(await joinRoom(rooms, stayer, room.roomId));
+        const others = unwrap(await say(rooms, stayer, room.roomId, discussionId, 'words by someone who stays'));
         unwrap(await markUseful(rooms, erasedAsFriend, room.roomId, discussionId, others.messageId));
         // A poll the person started as the room's moderator, and their own vote in it.
         await makeModerator(rooms, room.slug, erasedAsFriend);
