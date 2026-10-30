@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cloudPuff, radialGlow, type PixelImage } from '../texture-data';
+import { cloudPuff, radialGlow, type PixelImage, type PlanetPixels } from '../texture-data';
 
 /** A three.js texture over plain pixels (no canvas: Hermes has none). */
 export function pixelTexture(image: PixelImage): THREE.DataTexture {
@@ -10,6 +10,9 @@ export function pixelTexture(image: PixelImage): THREE.DataTexture {
   texture.needsUpdate = true;
   return texture;
 }
+
+/** Painted planet pixels by genome, owned by one renderer. */
+export type PaintCache = Map<string, PlanetPixels>;
 
 /** The soft sprites every scene shares; created once per scene and released with it. */
 export interface SpriteTextures {
@@ -31,6 +34,8 @@ export interface SceneContext {
   readonly sprites: SpriteTextures;
   /** Makes a texture over plain pixels and releases it when the scene is disposed. */
   readonly trackTexture: (image: PixelImage) => THREE.DataTexture;
+  /** Pixels of the planets already painted, kept by the renderer across rebuilds and dropped with it. */
+  readonly paintCache: PaintCache;
 }
 
 /** A built scene object and the function that poses it at scene time `t` (a pure function of `t`). */

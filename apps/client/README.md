@@ -288,8 +288,8 @@ Geography and Scenes path and the CI fixture model; not on dev).
 | Routes between planets: a "Route to ..." chip on a planet, never a line (D-074)               | implemented                      |
 | Desktop outline panel (D02)                                                                  | runtime-verified                 |
 | Native persistence of the camera (memory only today)                                         | planned                          |
-| Room stations in 3D beside their systems, a "Rooms" section in the list view (D-051)         | runtime-verified (web)           |
-| The ship parked at the planet of the last place, "Return to <planet>" (D-080)                | implemented                      |
+| Room stations in 3D beside their systems, a "Rooms" section in the list view (D-051)         | runtime-verified (web: target and list; the 3D drawing is the gallery sample) |
+| The ship parked at the planet of the last place (unit-tested), "Return to <planet>" (D-080)   | implemented (the chip is runtime-verified, web) |
 | Sky regions that merge quiet systems (U08)                                                   | planned (no backend or data yet) |
 
 `/universe` follows artboards U01 to U08 and D02. The map fills the screen; the header and chips
@@ -304,7 +304,7 @@ float over it.
   not backfilled yet) is drawn plainly: a colour set from its palette, teal haze, no rings or moon.
   Positions come from the persisted anchors and the seed; size never from reading.
 - **Labels and targets stay views.** `space-overlay.tsx` places a 48 px button and a label (`placeLabels`) at each
-  projected point; the canvas is hidden from assistive technology. Where 3D cannot run (no WebGL, a lost context, a
+  projected point (a target shrinks, never below 24 px, only where bodies crowd each other: D-107); the canvas is hidden from assistive technology. Where 3D cannot run (no WebGL, a lost context, a
   failed frame, low memory) `SpaceSimpleLists` shows the same names in the same order and every place still opens.
 - **System (U02), planet (U03), region (U04).** Planets sit on orbits in the direction their
   persisted anchors have from the star. A planet is drawn from the scene-core silhouette (family and
@@ -350,7 +350,8 @@ tab's own layout of a labelled sample universe, for the frame numbers).
 | Capability | Status |
 | --- | --- |
 | One three.js scene (orange sun with haze, painted planets that revolve, no lines, nebula dust, stars) | runtime-verified (web, browser) |
-| Systems, stations, the parked ship, dust and quiet (Lately) places from the real Universe data | runtime-verified (web, browser; `e2e/universe-space-smoke.spec.ts`) |
+| Systems, stations, dust and quiet (Lately) places from the real Universe data, as buttons over the canvas | runtime-verified (web, browser; `e2e/universe-space-smoke.spec.ts`) |
+| The parked ship, and the grey drawing of quiet places under Lately | implemented (unit-tested; the gallery's sample universe draws the ship) |
 | Camera rig: Overview, Far and System as distances of one camera; pan, zoom, fly in (2.4 s) and out (0.3 s) | runtime-verified (web); unit-tested maths (`camera-rig.ts`) |
 | Web canvas host: a DOM canvas, WebGL 2 context made by three.js | runtime-verified (web, browser) |
 | Native canvas host: `expo-gl` `GLView`, `gl.endFrameEXP()` each frame | runtime-verified (Android emulator lane; no phone or iOS yet) |

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
+import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 
 /**
@@ -25,8 +25,31 @@ interface Request {
   readonly path: string;
 }
 
-async function openUniverse(page: Page, requests: Request[], size = { width: 390, height: 844 }): Promise<void> {
-  const world = sceneFixture();
+interface Options {
+  readonly size?: { width: number; height: number };
+  /** Dust cues the emerging read answers with, and whether one room station sits beside the first system. */
+  readonly dust?: number;
+  readonly station?: boolean;
+}
+
+/** A room whose topic is the fixture's first system (authored for CI, never product data). */
+const station = {
+  room: {
+    roomId: '0199d000-0000-7000-8000-0000000000a1',
+    name: 'CI room',
+    description: 'A room about the first system.',
+    topic: { kind: 'system', id: 'ci-topic', label: 'CI topic' },
+    joinRule: 'open',
+    status: 'open',
+  },
+  standing: 'none',
+  placement: { systemId: fixtureId(10) },
+} as const;
+
+async function openUniverse(page: Page, requests: Request[], options: Options = {}): Promise<void> {
+  const size = options.size ?? { width: 390, height: 844 };
+  const world = sceneFixture(5, options.dust ?? 0);
+  if (options.station === true) world.stations.push(station);
   await page.setViewportSize(size);
   // Count the frames the renderer draws: three.js clears the canvas once per frame.
   await page.addInitScript(() => {
@@ -56,6 +79,7 @@ async function openUniverse(page: Page, requests: Request[], size = { width: 390
       });
     // The other tabs' inbox reads are not the map's: only the Universe's own reads are counted.
     if (!isInboxPath(path) || path === '/v1/rooms/stations') requests.push({ method: route.request().method(), path });
+    if (path === '/v1/rooms/stations') return route.fulfill({ json: world.reply(path, body) });
     if (isInboxPath(path)) return route.fulfill({ json: emptyInbox(path, body, fixtureAccount.accountId) });
     if (path.endsWith('/formation/read'))
       return route.fulfill({
@@ -135,6 +159,55 @@ test('draws the systems in 3D, flies into one and back, and browsing sends no wr
   ).toBe(false);
 });
 
+test('stations, dust, Lately, search, the ship’s chip and the Far card all work over the 3D map and write nothing', async ({
+  page,
+}) => {
+  const requests: Request[] = [];
+  await openUniverse(page, requests, { dust: 1, station: true });
+  const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+
+  // A room station sits beside its system, and dust is a cue that explains itself and goes nowhere.
+  await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Recent reading is gathering here', exact: true }).click();
+  await expect(page.getByText('Recent explorations are gathering here.')).toBeVisible();
+  await page.getByRole('button', { name: 'Close note', exact: true }).click();
+  await expect(page.getByText('Recent explorations are gathering here.')).toHaveCount(0);
+
+  // Lately is a lens: it changes how places draw and which is listed first, and it is remembered on the device.
+  const lately = page.getByRole('button', { name: 'Lately', exact: true });
+  await lately.click();
+  await expect(lately).toHaveAttribute('aria-pressed', 'true');
+  await lately.click();
+  await expect(lately).toHaveAttribute('aria-pressed', 'false');
+
+  // Search flies to a planet; stepping back up leaves the ship parked there, offered as "Return to <planet>".
+  await page.getByRole('button', { name: 'Search your universe', exact: true }).click();
+  await page.getByLabel('Search your universe').fill('planet 3');
+  await page.getByRole('button', { name: /CI planet 3, planet/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 3', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to CI system 0', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Return to CI planet 3', exact: true })).toBeVisible();
+
+  // Drawn back far enough the map reads as Far: a first tap picks the system and shows its card.
+  await page.getByTestId('universe-map').focus();
+  for (let step = 0; step < 6; step++) await page.keyboard.press('-');
+  await system.click();
+  await expect(page.getByTestId('universe-system-card')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open system', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+
+  // J3 again, over everything the map offers: only reads left the page.
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.every(({ method, path }) => method === 'POST' && READS.has(path))).toBe(true);
+  expect(
+    requests.some(({ path }) => /region\/open|activate|observations|formation\/(claim|acknowledge)/.test(path)),
+  ).toBe(false);
+});
+
 test('holds the 30 fps cap on the real tab, and stops drawing when the tab is hidden', async ({ page }, testInfo) => {
   const requests: Request[] = [];
   await openUniverse(page, requests);
@@ -189,7 +262,7 @@ test('with reduced motion it draws a still map and flies by jumping', async ({ p
 
 test('draws at a desktop size with the outline beside it', async ({ page }, testInfo) => {
   const requests: Request[] = [];
-  await openUniverse(page, requests, { width: 1440, height: 900 });
+  await openUniverse(page, requests, { size: { width: 1440, height: 900 } });
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible({
     timeout: 60_000,
   });

@@ -162,20 +162,20 @@ function Unavailable({
 }
 
 /** The heading and the one plain line for each reason there is no map to draw (the design's Offline, in three voices). */
-function unavailableWords(read: ReturnType<typeof useUniverseSession>['state']['read']): {
+export function unavailableWords(read: ReturnType<typeof useUniverseSession>['state']['read']): {
   heading: string;
   message: string;
 } {
   if (read.status === 'unsupported')
-    return { heading: 'Not on this device yet', message: 'This drawing isn�t supported on this device yet.' };
+    return { heading: 'Not on this device yet', message: 'This drawing isn’t supported on this device yet.' };
   if (read.reason === 'authority')
     return { heading: 'No longer available', message: 'Your map is no longer available.' };
   if (read.reason === 'network')
     return {
-      heading: 'You�re offline',
-      message: 'Your universe is kept. Refresh when you�re connected.',
+      heading: 'You’re offline',
+      message: 'Your universe is kept. Refresh when you’re connected.',
     };
-  return { heading: 'Couldn�t draw your map', message: 'Couldn�t draw your map. Try again in a moment.' };
+  return { heading: 'Couldn’t draw your map', message: 'Couldn’t draw your map. Try again in a moment.' };
 }
 
 export function UniverseScreen() {

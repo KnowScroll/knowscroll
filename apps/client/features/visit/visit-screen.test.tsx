@@ -6,6 +6,7 @@ import { AppState } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
 import { visitServer } from '@knowscroll/client-core/visit-fixture';
 import { DisplayProvider } from '@knowscroll/ui';
+import { fakeGpu, resetFakeGpu } from '../universe/space/fake-space-gpu';
 import { VisitScreen } from './visit-screen';
 
 let mockScope: AccountScope;
@@ -40,6 +41,7 @@ jest.mock('../universe/space/load-space-renderer', () => ({
 }));
 beforeEach(() => {
   jest.clearAllMocks();
+  resetFakeGpu();
   mockCanGoBack = true;
   Object.defineProperty(AppState, 'currentState', { value: 'active', configurable: true });
 });
@@ -63,6 +65,23 @@ describe('friend visit screen (labelled in-memory server)', () => {
     expect(screen.queryByRole('togglebutton', { name: 'Lately' })).toBeNull();
     // The request is the visit read and nothing else of the owner's: no scene, geography or evidence.
     expect(server.requests.map((request) => request.path)).toEqual(['/v1/social/visits/read']);
+    // The 3D layer is given the plain look and nothing personal: no looks, stations, dust, ship or Lately.
+    const definition = fakeGpu.renderers.at(-1)!.definition;
+    expect(definition.systems.length).toBeGreaterThan(0);
+    expect(definition.stations).toEqual([]);
+    expect(definition.dust).toEqual([]);
+    expect(definition.shipPlanetId).toBeUndefined();
+    for (const system of definition.systems) {
+      expect(system.family).toBe('teal');
+      expect(system.calm).toBeUndefined();
+      for (const planet of system.planets)
+        expect([planet.rings, planet.moon, planet.calm, planet.variant]).toEqual([
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+        ]);
+    }
     await rendered.unmount();
     server.scope.end();
   });

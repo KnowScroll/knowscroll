@@ -3,7 +3,7 @@ import type { PixelImage } from '../texture-data';
 import { distanceOf, FIELD_OF_VIEW, type CameraPose } from '../camera-rig';
 import { planetGenome } from '../planet-genome';
 import type { SpaceDefinition, SpaceStationDefinition, SpaceSystemDefinition } from '../space-definition';
-import { createSpriteTextures, pixelTexture, type Built, type SceneContext } from './context';
+import { createSpriteTextures, pixelTexture, type Built, type PaintCache, type SceneContext } from './context';
 import { makeHalo } from './halo';
 import { makeNebula } from './nebula';
 import { makePlanet } from './planet';
@@ -170,7 +170,12 @@ function buildStation(
  * revolving planets, stations, a parked ship and clouds of dust. Nothing here talks to the GPU until
  * a renderer draws it. There are no lines of any kind (D-074).
  */
-export function buildSpace(definition: SpaceDefinition, aspect: number, pixelRatio: number): BuiltSpace {
+export function buildSpace(
+  definition: SpaceDefinition,
+  aspect: number,
+  pixelRatio: number,
+  paintCache: PaintCache = new Map(),
+): BuiltSpace {
   const textures: THREE.Texture[] = [];
   const trackTexture = (image: PixelImage): THREE.DataTexture => {
     const texture = pixelTexture(image);
@@ -184,6 +189,7 @@ export function buildSpace(definition: SpaceDefinition, aspect: number, pixelRat
     calm: false,
     sprites: createSpriteTextures(trackTexture),
     trackTexture,
+    paintCache,
   };
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(FIELD_OF_VIEW, aspect, 0.1, 3000);

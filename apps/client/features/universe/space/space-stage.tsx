@@ -1,4 +1,7 @@
 import { useCallback, useMemo } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { layout } from '@knowscroll/design-tokens';
+import { useDisplay } from '@knowscroll/ui';
 import type { SceneLook } from '@knowscroll/scene-core';
 import type { SceneProps } from '../scene-parts';
 import type { UniverseView } from '../universe-layout';
@@ -9,6 +12,10 @@ import { SpaceSimpleLists } from './space-simple-lists';
 import type { SpaceCameraSpec } from './space-renderer';
 import type { SpaceChoice } from './space-surface';
 import { SpaceView, type SpaceOverlayInfo } from './space-view';
+
+/** Room for the header above the plain lists, and for one row of chips below them. */
+const LIST_TOP = 140;
+const LIST_CHIPS = 72;
 
 const looksOfRead = (state: SceneProps['state']): readonly SceneLook[] | undefined => state.read.snapshot?.read.looks;
 
@@ -80,6 +87,16 @@ export function SpaceStage({
     },
     [session, onStation],
   );
+  // The header floats over the top of the lists; the chip row and the tab bar over the bottom.
+  const safeArea = useSafeAreaInsets();
+  const { breakpoint } = useDisplay();
+  const listInsets = useMemo(
+    () => ({
+      top: LIST_TOP,
+      bottom: breakpoint === 'desktop' ? LIST_CHIPS : layout.tabBarSlot + safeArea.bottom + LIST_CHIPS,
+    }),
+    [breakpoint, safeArea.bottom],
+  );
   const plain = useMemo(
     () =>
       systemId === undefined
@@ -98,7 +115,7 @@ export function SpaceStage({
       camera={camera}
       highlightId={state.selectedId}
       overlay={overlay}
-      fallback={() => <SpaceSimpleLists definition={plain} onChoose={choose} />}
+      fallback={() => <SpaceSimpleLists definition={plain} onChoose={choose} insets={listInsets} />}
       onChoose={choose}
     />
   );

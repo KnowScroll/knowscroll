@@ -4,22 +4,36 @@ import { Text } from '@knowscroll/ui';
 import type { SpaceDefinition } from './space-definition';
 import type { SpaceChoice } from './space-surface';
 
+/** What floats over the lists, in pixels. */
+export interface ListInsets {
+  readonly top: number;
+  readonly bottom: number;
+}
+const DEFAULT_INSETS: ListInsets = { top: spacing[5], bottom: spacing[5] };
+
 /**
  * The Simple view of a space: systems as headings, each with its planets as rows, and the room
  * stations at the end. It shows the same names in the same order as the 3D drawing, with no 3D, glass
  * or motion. It is what the person sees when WebGL is missing, its context is lost or drawing fails,
- * so the screen is never blank. With `onChoose`, a system heading and every row take a tap.
+ * so the screen is never blank. The last row always scrolls clear of the chips and the tab bar (`insets`). With `onChoose`, a system heading and every row take a tap.
  */
 export function SpaceSimpleLists({
   definition,
   onChoose,
+  insets = DEFAULT_INSETS,
 }: {
   readonly definition: SpaceDefinition;
   readonly onChoose?: (choice: SpaceChoice) => void;
+  /** Room kept above and below the rows for what floats over the list: the header, the chips and the tab bar. */
+  readonly insets?: ListInsets;
 }) {
   const stations = definition.stations ?? [];
   return (
-    <ScrollView testID="ks-space-simple" style={styles.fill} contentContainerStyle={styles.content}>
+    <ScrollView
+      testID="ks-space-simple"
+      style={styles.fill}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+    >
       {definition.systems.map((system) => (
         <View key={system.id} style={styles.section}>
           {onChoose === undefined ? (
@@ -79,7 +93,7 @@ export function SpaceSimpleLists({
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#020308' },
-  content: { padding: spacing[5], paddingTop: 140, gap: spacing[5] },
+  content: { paddingHorizontal: spacing[5], gap: spacing[5] },
   section: { gap: spacing[2] },
   row: { minHeight: target.comfortable, justifyContent: 'center' },
 });

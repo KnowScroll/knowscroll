@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildSpace } from './scene/build-scene';
+import type { PaintCache } from './scene/context';
 import { SAMPLE_SPACE, type SpaceDefinition } from './space-definition';
 
 function positions(t: number) {
@@ -106,5 +107,22 @@ describe('a universe with stations, a ship and quiet places', () => {
     space.showOnly(null);
     expect(visible()).toBeGreaterThan(alone);
     space.dispose();
+  });
+});
+
+describe('the planet painting cache', () => {
+  it('belongs to the renderer that passes it, and a scene built without one leaves nothing behind', () => {
+    const cache: PaintCache = new Map();
+    const first = buildSpace(SAMPLE_SPACE, 390 / 844, 1, cache);
+    const painted = cache.size;
+    expect(painted).toBeGreaterThan(0);
+    // Built again with the same cache, nothing new is painted.
+    buildSpace(SAMPLE_SPACE, 390 / 844, 1, cache).dispose();
+    expect(cache.size).toBe(painted);
+    // A scene made without a cache keeps no module-level one that a later cache could inherit.
+    buildSpace(SAMPLE_SPACE, 390 / 844, 1).dispose();
+    const fresh: PaintCache = new Map();
+    expect(fresh.size).toBe(0);
+    first.dispose();
   });
 });

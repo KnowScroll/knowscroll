@@ -3,7 +3,7 @@ import type * as FakeGpu from './space/fake-space-gpu';
 import { type EffectCallback, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState } from 'react-native';
-import { UniverseScreen } from './universe-screen';
+import { UniverseScreen, unavailableWords } from './universe-screen';
 import { fakeGpu, resetFakeGpu } from './space/fake-space-gpu';
 import { fixtureAccount, fixtureId, sceneFixture, universeHarness } from './universe.fixture';
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
@@ -457,4 +457,42 @@ it('draws a station inside its system too, and none where the map holds no syste
   expect(screen.queryByRole('button', { name: 'Elsewhere room, a room station' })).toBeNull();
   await act(() => h.scope.end());
   await v.unmount();
+});
+
+it('says plainly, with its apostrophes, when there is no map to draw: offline, no longer available, or not drawable', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  h.network(true);
+  const offline = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByText('You’re offline')).toBeOnTheScreen());
+  expect(screen.getByText('Your universe is kept. Refresh when you’re connected.')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Refresh map' })).toBeOnTheScreen();
+  expect(screen.getByRole('link', { name: 'Go to Explore' })).toBeOnTheScreen();
+  await offline.unmount();
+  h.scope.end();
+  const gone = universeHarness();
+  mockScope = gone.scope;
+  gone.authority(true);
+  const refused = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByText('Your map is no longer available.')).toBeOnTheScreen());
+  await refused.unmount();
+  gone.scope.end();
+});
+
+it('words every reason there is no map, and none of the words carries a broken character', () => {
+  const words = [
+    unavailableWords({ status: 'unsupported', active: true }),
+    unavailableWords({ status: 'unavailable', active: true, reason: 'authority' }),
+    unavailableWords({ status: 'unavailable', active: true, reason: 'network' }),
+    unavailableWords({ status: 'unavailable', active: true, reason: 'invalid' }),
+  ];
+  expect(words.map((entry) => entry.heading)).toEqual([
+    'Not on this device yet',
+    'No longer available',
+    'You’re offline',
+    'Couldn’t draw your map',
+  ]);
+  expect(words[0]!.message).toBe('This drawing isn’t supported on this device yet.');
+  expect(words[3]!.message).toBe('Couldn’t draw your map. Try again in a moment.');
+  for (const entry of words) expect(entry.heading + entry.message).not.toContain(String.fromCharCode(0xfffd));
 });

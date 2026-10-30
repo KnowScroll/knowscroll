@@ -11,6 +11,7 @@ import {
   type RigSpec,
 } from './camera-rig';
 import { buildSpace, type BuiltSpace } from './scene/build-scene';
+import type { PaintCache } from './scene/context';
 import type { SpaceDefinition } from './space-definition';
 import type { SpaceAnchor, SpaceProbe, SpaceSurface } from './space-surface';
 
@@ -84,7 +85,9 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setClearColor(SKY_CLEAR);
   let size = { width: surface.width, height: surface.height };
-  let space: BuiltSpace = buildSpace(initial, size.width / size.height, surface.pixelRatio);
+  // The painted planets of this renderer; they are dropped with it, so nothing outlives the screen.
+  const paintCache: PaintCache = new Map();
+  let space: BuiltSpace = buildSpace(initial, size.width / size.height, surface.pixelRatio, paintCache);
   let spec: SpaceCameraSpec | null = null;
   let fly: Fly | null = null;
   let highlighted: string | null = null;
@@ -133,7 +136,7 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
     },
     setDefinition(next) {
       const previous = space;
-      space = buildSpace(next, size.width / size.height, surface.pixelRatio);
+      space = buildSpace(next, size.width / size.height, surface.pixelRatio, paintCache);
       previous.dispose();
       definitionCamera = { position: next.camera.position, target: next.camera.target, fov: space.camera.fov };
       space.highlight(highlighted);
@@ -197,6 +200,7 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
     },
     dispose(options) {
       space.dispose();
+      paintCache.clear();
       renderer.dispose();
       if (options?.releaseContext === true && surface.context === undefined) renderer.forceContextLoss();
     },

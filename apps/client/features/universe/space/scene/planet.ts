@@ -2,16 +2,26 @@ import * as THREE from 'three';
 import { seededRandom, TAU } from '../paint';
 import type { PlanetGenome } from '../planet-genome';
 import { paintPlanet, type PlanetPixels } from '../texture-data';
-import { additive, hazeUniforms, SKY_COLOUR, unitColour, type Built, type SceneContext } from './context';
+import {
+  additive,
+  hazeUniforms,
+  SKY_COLOUR,
+  unitColour,
+  type Built,
+  type PaintCache,
+  type SceneContext,
+} from './context';
 import { ATMOSPHERE_FRAGMENT, PLANET_FRAGMENT, RING_FRAGMENT, RING_VERTEX, WORLD_VERTEX } from './shaders';
+
+/** How many painted planets a scene's cache keeps. */
+const PAINTED_LIMIT = 64;
 
 /**
  * Painting a planet takes a few milliseconds; the Lately lens and new places rebuild the scene, so the
- * pixels of a planet already painted are kept (a planet is a pure function of its genome).
+ * pixels of a planet already painted are kept in the renderer's own cache (a planet is a pure function
+ * of its genome). The cache belongs to one renderer and goes with it: nothing outlives the screen.
  */
-const painted = new Map<string, PlanetPixels>();
-const PAINTED_LIMIT = 64;
-function paintOnce(genome: PlanetGenome): PlanetPixels {
+function paintOnce(genome: PlanetGenome, painted: PaintCache): PlanetPixels {
   const key = [genome.id, genome.type, genome.hueShift, genome.rings, genome.moon].join('|');
   const known = painted.get(key);
   if (known !== undefined) return known;
@@ -97,7 +107,10 @@ function ringMesh(
 }
 
 function makeMoon(genome: PlanetGenome, radius: number, sunPosition: THREE.Vector3, context: SceneContext): THREE.Mesh {
-  const moon = paintOnce({ ...genome, id: genome.id + '-moon', type: 'barren', rings: false, moon: false });
+  const moon = paintOnce(
+    { ...genome, id: genome.id + '-moon', type: 'barren', rings: false, moon: false },
+    context.paintCache,
+  );
   return new THREE.Mesh(
     new THREE.SphereGeometry(radius * 0.27, 24, 12),
     surfaceMaterial(context, context.trackTexture(moon.surface), sunPosition, new THREE.Vector3(0.5, 0.45, 0.6), false),
@@ -114,7 +127,7 @@ export function makePlanet(
   sunPosition: THREE.Vector3,
   context: SceneContext,
 ): Built {
-  const pixels = paintOnce(genome);
+  const pixels = paintOnce(genome, context.paintCache);
   const atmosphere = unitColour(pixels.atmosphere);
   const group = new THREE.Group();
   const spinner = new THREE.Group();
