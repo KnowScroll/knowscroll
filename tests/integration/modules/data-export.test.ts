@@ -170,9 +170,16 @@ describe('personal data export (real database)', () => {
 
     // A module with nothing to say is not in the file: the internal ones are never named.
     expect(file.version).toBe('knowscroll-export.v1');
-    expect(Object.keys(file.sections).sort()).toEqual(['experience', 'geography', 'identity', 'social', 'supply']);
+    expect(Object.keys(file.sections).sort()).toEqual([
+      'experience',
+      'geography',
+      'identity',
+      'play',
+      'social',
+      'supply',
+    ]);
     for (const internal of personalStores.map((declaration) => declaration.module))
-      if (!['experience', 'geography', 'identity', 'social', 'supply'].includes(internal))
+      if (!['experience', 'geography', 'identity', 'play', 'social', 'supply'].includes(internal))
         expect(text, `${internal} is internal`).not.toContain(`"${internal}"`);
     expect(file.sections['identity']).toMatchObject({ account: { recordingOn: true } });
     expect(file.sections['social']).toMatchObject({
@@ -243,6 +250,8 @@ describe('personal data export (real database)', () => {
       'at',
       'availability',
       'blocked',
+      'calls',
+      'combo',
       'connections',
       'conversations',
       'count',
@@ -263,29 +272,36 @@ describe('personal data export (real database)', () => {
       'kind',
       'label',
       'lastUsedAt',
+      'lockedAt',
       'messagesWritten',
       'notInterested',
       'on',
       'openedAt',
+      'picked',
       'place',
       'places',
+      'play',
       'position',
       'profile',
       'reactedAt',
+      'question',
       'reactions',
       'recordingOn',
       'requests',
       'requestsReceived',
       'requestsSent',
       'revoked',
+      'right',
       'saved',
       'savedAt',
+      'scrolls',
       'sections',
       'sharedLinks',
       'sharing',
       'signedInAt',
       'signedInDevices',
       'social',
+      'sparks',
       'started',
       'state',
       'supply',

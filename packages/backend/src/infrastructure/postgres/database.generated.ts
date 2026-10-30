@@ -1250,6 +1250,30 @@ export interface PlannerState {
   universe_id: string;
 }
 
+export interface PlayCalls {
+  asset_id: string;
+  command_id: string;
+  correct: boolean;
+  lock_seq: Generated<Int8>;
+  locked_at: Generated<Timestamp>;
+  option: number;
+  privacy_epoch: number;
+  revision: number;
+  stop_id: string;
+  universe_id: string;
+}
+
+export interface PlayScrollResults {
+  asset_id: string;
+  calls_locked: number;
+  combo: number;
+  privacy_epoch: number;
+  revision: number;
+  sparks: number;
+  universe_id: string;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface ReasoningBusinessRuns {
   closed_at: Timestamp | null;
   context_bundle_ref: string | null;
@@ -2046,6 +2070,8 @@ export interface DB {
   "planner.revisions": PlannerRevisions;
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
+  "play.calls": PlayCalls;
+  "play.scroll_results": PlayScrollResults;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;
   "reasoning.production_attempts": ReasoningProductionAttempts;

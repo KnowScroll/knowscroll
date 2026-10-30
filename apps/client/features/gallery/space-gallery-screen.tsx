@@ -6,6 +6,7 @@ import { content, spacing } from '@knowscroll/design-tokens';
 import { DisplayProvider, Text, useDisplay } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { SAMPLE_SPACE } from '../universe/space/space-definition';
+import { sampleUniverse } from './sample-universe';
 import { SpaceSimpleLists } from '../universe/space/space-simple-lists';
 import type { SpaceChoice, SpaceFailure } from '../universe/space/space-surface';
 import { SpaceView } from '../universe/space/space-view';
@@ -35,21 +36,28 @@ function readoutText(stats: SpaceGalleryStats, reducedMotion: boolean): string {
 export function SpaceGalleryScreen() {
   // The Android emulator lane turns system animations off, which reads as reduced motion. `?motion=full`
   // draws the moving scene there anyway (developer gallery only).
-  const { motion } = useLocalSearchParams<{ motion?: string }>();
+  const { motion, scene } = useLocalSearchParams<{ motion?: string; scene?: string }>();
   return (
     <DisplayProvider value={motion === 'full' ? { reducedMotion: false } : {}}>
-      <SpaceGalleryPage />
+      <SpaceGalleryPage universe={scene === 'universe'} />
     </DisplayProvider>
   );
 }
 
-function SpaceGalleryPage() {
+/** `?scene=universe` draws the sample universe through the Universe tab's own layout, to measure the real scene. */
+function SpaceGalleryPage({ universe }: { readonly universe: boolean }) {
   useDocumentTitle('Space renderer · KnowScroll');
   const insets = useSafeAreaInsets();
   const { reducedMotion } = useDisplay();
   const recorder = useMemo(() => new SpaceGalleryRecorder(), []);
   const [stats, setStats] = useState<SpaceGalleryStats>(() => recorder.stats());
   const [chosen, setChosen] = useState<string>('Nothing chosen');
+  const sample = useMemo(() => (universe ? sampleUniverse() : null), [universe]);
+  const definition = sample?.definition ?? SAMPLE_SPACE;
+  const camera = useMemo(
+    () => (sample === null ? undefined : { focus: sample.universeFocus, frame: { x: 0, y: 0, scale: 1 } }),
+    [sample],
+  );
 
   useEffect(() => {
     (globalThis as { __ksSpace?: SpaceGalleryRecorder }).__ksSpace = recorder;
@@ -95,10 +103,11 @@ function SpaceGalleryPage() {
       </Text>
       <View style={styles.stage} testID="ks-space-stage">
         <SpaceView
-          definition={SAMPLE_SPACE}
+          definition={definition}
+          {...(camera === undefined ? {} : { camera })}
           onChoose={onChoose}
           diagnostics={diagnostics}
-          fallback={() => <SpaceSimpleLists definition={SAMPLE_SPACE} onChoose={onChoose} />}
+          fallback={() => <SpaceSimpleLists definition={definition} onChoose={onChoose} />}
         />
       </View>
       <Text variant="body" color={content.ink2}>

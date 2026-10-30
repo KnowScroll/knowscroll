@@ -1094,6 +1094,40 @@ D-077 gave the rule in one line: least-used first, preferring a type not in the 
 
 Amends D-077. Confirmed by: `packages/backend/src/modules/scenes/application/assign-looks.test.ts` (six types, least-used afterwards, system preference, stability across passes and orders, hue gap, rings, sites from the pinned facet order, a facet appended inside the spare sites, a region past them skipped, refusals) and `scenes.test.ts` (the scene stays `ready` in both cases and the event is logged).
 
+## D-106 · 2026-10-30 · The space views draw the server's look, place bodies from anchors and seed, and draw no lines (v3 U-2, #466)
+
+The Overview, Far, a System and the Empty, Emerging and Offline skies are drawn in 3D (D-073). This says what they draw from and what they never do.
+
+- **The look is the server's.** The client declares `scene-look.v1` and the `worldmap.v1` generator on the manifest read (D-102) and draws type, rings, moon, hue turn and variant of each planet and the haze of each system exactly as given. A planet's size, tilt and spin come from its seed and never encode activity or reading (D-006 m). The client never picks a type or a haze.
+- **A place with no look is drawn plainly**, so the map is never blank: a colour set from its palette (sage lush, ochre barren, cobalt ocean), teal haze, no rings, no moon. This is a friend's visit (D-047 keeps its list wire; its own look from public ids is a later slice) and a world not backfilled yet. It is not a second look system: it carries no variety and nothing is stored.
+- **Positions.** A system sits at its persisted anchor (300-unit slots become 3.2 scene units) with a small seeded wander. A planet's orbit radius is its lattice band plus a seeded wobble, and its start angle is the direction its anchor has from the star. A place keeps its spot when others arrive (tested). Planets revolve; inner ones faster.
+- **No lines.** No orbit, route, dashed or yellow line is drawn on these views (D-074). The route line drawing, its 48 px target and its tests are deleted; "Route to <planet>" is a chip on the planet view. The SVG orbit ring of the formation story (U05) goes too; its other beats are unchanged.
+- **Stations** are drawn in the Universe style beside their system (just outside its outermost orbit, or just outside the orbit of the planet they name), at an angle taken from the room's ID, from `/v1/rooms/stations`. A station whose system is not on the map is not drawn. Constellations (D-090) come later.
+- **The ship** is a small mark parked on the planet of the last place (a region's planet; nothing for a system) and is hidden under Lately (D-080). Where it is stays on the device.
+- **Dust** is a toon nebula, never named or counted: one large cloud at the centre when nothing else exists (U01 Emerging), small ones past the systems otherwise.
+- **Lately** (30 days, D-079): quiet systems and planets draw grey with no bloom, and labels dim. Nothing leaves the map.
+- **Labels and targets** stay views (D-100): a 48 px button and a label at each projected point, in the scene's own order. Where bodies crowd each other a target may shrink, as D-107 records. Where 3D cannot run, `SpaceSimpleLists` shows the same names in the same order and every place still opens, with room kept under the last row for the chips and the tab bar.
+- **Browsing writes nothing** (D-063). The web smoke (`e2e/universe-space-smoke.spec.ts`, real WebGL) pans, zooms, flies in and out, toggles Lately, searches, opens the Far card and the dust note, with a station, a dust cue and a visited planet on the map, and checks that only the Universe's reads left the page. The ship itself is drawn in the canvas: the smoke sees it only as the "Return to <planet>" chip, and the renderer and screen tests (`build-scene.test.ts`, `universe-screen.test.tsx`) pin where it is parked.
+
+Amends D-039, "Routes are the Cartographer's … drawn with a 48 px target", and its orbit bands at mid detail (D-074 already supersedes the lines). Confirmed by: `space-model.test.ts` (look used as given, plain look, stability, calm only under Lately, ship, stations, dust), `build-scene.test.ts` (no lines, ship on its planet), `universe-screen.test.tsx` (the capability is sent, the looks reach the renderer, Route chip, plain lists), `universe-space-smoke.spec.ts` (draws, reads only).
+
+## D-107 · 2026-10-30 · The camera is the level: Overview, Far and System are distances of one camera, and a fly is a pure function of time (v3 U-2, #466)
+
+The design has three space levels. They are one scene seen from different places, not three drawings.
+
+- **One scene, one rig** (`camera-rig.ts`, pure maths). The Overview frames every system: the distance fits the widest and deepest extent for the canvas shape, with the depth foreshortened by the camera's elevation (26.6 degrees; 33 for a System). Far is the same universe farther away, past 68 scene units. A System is the camera close over one sun, framed to its outermost orbit and its stations.
+- **Zoom and pan** are the person's frame: pixels panned and a zoom about the centre. The universe zoom is 0.4 to 2.5 times and a System's 0.7 to 2.2; the session stops the frame there, so the next pinch or key press moves the camera at once. A pan may carry the target 0.9 of the framed radius past the middle. The planet view keeps its own range.
+- **Far picks first.** Past the Far distance a first tap on a system picks it (a warm glow and its card, "Open system"); a second tap or Open enters. Nearer, a tap enters.
+- **Fly.** Entering a system flies the camera 2.4 s with the field of view widening by up to 9 degrees; stepping up takes 0.3 s (D-093; not the forward animation reversed). The other systems leave the scene when the fly is 85 % done. The first fly is not the entering rocket of the design (a later slice). Under reduced motion there is no loop and a change of place is a jump with one redrawn frame.
+- **Rebuilding.** A new definition (Lately, a formed place, the ship) rebuilds the scene in place; the camera, the glow and a fly in flight are kept. The pixels of a painted planet are kept (64), so the lens does not repaint every world.
+- **Frame timing, measured in the real scene.** The cap stays at 33 ms. Web, Chromium with software WebGL, 390 x 844, the Universe tab over the authored fixture: 121 frames in 4 s, 33.3 ms apart on average (31.9 ms at the least), and 0.9 ms of CPU per draw on the tab's own layout of three systems, a station and the ship (`?scene=universe`). The Android emulator's number is in the PR; software GL on the emulator cannot reach 30 fps (D-100), and a physical phone is still not measured.
+- **Crowded targets may shrink, to a floor of 24 px.** Bodies orbit and pass close by each other, and a tap target that another one covers is not a target (axe found one). A normal target is 48 px, never below the 44 px of the design. Where two targets would overlap, `separateTargets` shrinks both only as far as needed for them to touch, never below 24 px, the minimum of WCAG 2.2 AA 2.5.8 (Target Size, Minimum). If two bodies are closer than 24 px, the hit areas, not the drawing, move apart: 12 px at most for a pair, and 24 px in the tested crowd of four. A heavier crowd is not bounded. This is an exception to "targets 44 minimum" and to D-100's 44 px. The List view and the plain lists give every place a row of 44 px or more, so nothing is reachable only by a small target.
+- **Not built here** (listed in the PR): the entering rocket, planet views in 3D, the orbit dial, search flying to a place, the friend's own look, landmark markers, constellations.
+
+Confirmed by: `camera-rig.test.ts` (levels, limits, pan reach, pure time, fly endpoints), `universe-session.test.ts` (zoom limits), `separate-targets.test.ts` (targets touch, never below 24 px, how far hit areas move), `universe-space-smoke.spec.ts` (real WebGL: cadence, hidden tab, reduced motion), `universe-screen.test.tsx` (a fly inside one scene, Far picks first).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
 ## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
 
 The V3 Scrolls need stops, calls, asides, a recap and a pinned stage. D-032 found that a model writing long, nested JSON loses count of its brackets, and the V3 block table nests: `stage.states[{stop, changes}]`, a call with its options and common guess, an aside with `anchor_stop`. This entry settles how the model writes a v2 Scroll. It changes nothing in v1: `scroll-document.v1`, `scroll-authoring.v1` and writer `scroll-writer.v13` still publish the library.
@@ -1520,6 +1554,42 @@ Confirmed by: `rooms-residents.test.ts` ("holds back a turn while someone types"
 - **Native** is unchanged: the pull is the scroll view's own `onScrollEndDrag`, which carries live values.
 
 Confirmed by: `current-stop.test.ts` ("whether the text is scrolled to its end"), `stage-reader-smoke.spec.ts` ("a pull that starts at the end is a new topic even when the scroll report is late"; "a pull up past the end is a new topic; the same pull in the middle of the text is reading"). Shown failing with the touch reading the reader's record: the late-report test failed 10 of 10.
+
+## D-180 · 2026-10-30 · Play is its own module, behind a wall in both directions (S-2, #473)
+
+**Builds on** D-063, D-064 and D-082.
+
+- **The module.** `modules/play` owns the calls a person locks and what they earned: `play.calls` (one row per person, Scroll revision and call stop) and `play.scroll_results` (calls locked, sparks, combo). It is in the erasure registry and the export. Sparks and combo belong to one Scroll revision; no schema sums them across Scrolls or ranks people (D-064).
+- **The wall is two allow-lists, not a list of the modules to fear.** `play-wall-only-roots-import-play`: only `play` itself, the apps' composition roots, tests and the erasure registry may import `modules/play/`. `play-wall-play-imports-three-public-surfaces`: `play` may import only the `public.ts` of `identity`, `content` and `experience`, plus infrastructure and contracts. A deny-list of `composer` (with Jev), `planner`, `evidence`, `personal-context`, `geography`, `scenes` and the reasoning engine would miss every other module and every later one, and a path through one that is not named: `planner` imports `supply`, so `planner` to `supply` to `play` would pass. The allow-lists close all of those. A third check, `play/wall.test.ts`, stops any production file outside `modules/play/` naming `play.calls` or `play.scroll_results`, so no module can read a pick straight from the tables either.
+- **What still counts as engagement.** Only that a call was played. Evidence takes the value-free interaction kind it already accepts; no kind, field or table carries the option picked, correctness, sparks or combo.
+- **AGENTS.** The "scores" wording D-064 asked for is already in AGENTS.md (internal ranking, model or evidence scores; game points are play features), so sparks in the dock break no rule.
+- **Not built.** The Final call, landmarks, the Orbit and the Universe overlay are S-3 and S-4. The Final call stays on the device without a spark.
+
+Confirmed by: `tests/integration/modules/play.test.ts` (two people read the same Scroll, one calling right and one wrong: the same qualification, activity, Personal Context contribution and the same places formed; a different reading is not equal, so the comparison can fail), `pnpm boundaries:probe`, which writes one forbidden import from each of the seven walled modules (composer, jev, planner, evidence, personal-context, geography, scenes), the reasoning engine, `supply`, `social` and `rooms` into play, and one from play into each of the same eleven public surfaces (22 probes), then runs the same files again with the wall's rules loosened, and again loosened for `supply` alone: a probe that a loosened rule still rejects fails the run, and loosening one module frees only that module's probe. Shown failing by loosening each side: the run named the freed `supply` importer and the freed `geography` surface. Also `play/wall.test.ts` (the SQL scan finds play's own queries and a planted mention), `erasure.test.ts`.
+
+## D-181 · 2026-10-30 · A lock is judged on the server, once, from the stored revision (S-2, #473)
+
+- **The command.** `call.lock` carries the asset, the revision, the stop, the option and the recording generation. It never carries correctness. The server reads the call from the immutable revision (`content` `READ_SCROLL_CALLS`) and decides.
+- **Who may lock.** Only a person with an activated exposure of that exact revision (`experience` `HAS_ACTIVATED_EXPOSURE`), and only a Call it of it. A revision, call or exposure the person does not have is one `NOT_FOUND`; an option the call does not have is `UNPROCESSABLE_REQUEST`. Nothing is stored for a refusal.
+- **Idempotent, and the first lock stands.** An identical retry answers the stored lock with today's results. Another command locking the same call changes nothing and answers the first lock with `newlyLocked: false`. A row is never updated.
+- **Sparks and combo.** One spark for each right call. The combo is the run of right calls in the order locked; a wrong call ends it and costs nothing. The device works the same rule out at once (`scroll-model` `tallyOf`), the server's answer wins, and a test checks the two agree.
+- **Reading evidence is unchanged.** The reader still reports `revealed` once per call, by kind. The lock and the reveal are one tap and either counts as reading (D-128), so evidence has nothing new to learn.
+- **The reveal.** A right pick shows "Called it!" and "+1 spark" (and "Combo ×n" from two in a row). A wrong pick shows "Plot twist!", what was called, the warm second look and, when it is the common guess, its reviewed source. Once the answer is shown only the option called and the right one stay, and the reader scrolls the reveal into view.
+
+Confirmed by: `play.test.ts` (right and wrong pick, retry, a second lock, forged option, call and exposure refusals, Final call refused), `lock-call.test.ts`, `play.test.tsx`, `play-smoke.spec.ts`.
+
+## D-182 · 2026-10-30 · Paused recording, Clear and export for play (S-2, #473)
+
+**Builds on** D-057, D-082 and D-083.
+
+- **Paused.** The server stores nothing while recording is paused or the client's generation is stale: no row, no receipt, and an answer (`recorded: false`, a reason and the current generation) that says nothing about the call. A client whose policy says paused sends nothing at all. The screen says "Not saved while recording is paused." before the lock and in the reveal. Reading what was saved before the pause still works.
+- **After resuming.** While paused the dock counts what the device just judged. When recording is on again the dock shows the server's numbers: a lock made while paused was never stored and, as D-083 says, does not appear later, so it is left out of the sparks and the combo (a combo of two is never shown over a lock the server did not hold). Its own reveal still says it was not saved.
+- **On the device.** Play lives in memory for the account scope: it survives moving between Parts, not a reload, and sign-out, an account switch, a privacy reset and Clear end it. It is never written to the scope's storage, so a reload while paused starts clean, as "saves nothing" says.
+- **Not reached.** A lock that the network did not carry keeps its command ID and is sent again after 1, 5 and 30 seconds, in the order made, while the app is open. The reveal says "Will save when you're back online." A lock the server refuses says "Couldn't save this one." and is not sent again.
+- **Clear and deletion.** Both tables are universe-keyed and are erased. Play is third in the erasure order (after rooms and feedback), because nothing refers to its rows.
+- **Export.** `play.scrolls`: per Scroll its title (if still reachable), sparks, combo and, for each call, the question, the option picked in words, whether it was right and when. No identifier and not the right answer.
+
+Confirmed by: `play.test.ts` (paused stores nothing and writes no receipt, a stale generation is told to read the policy again, Clear erases, export in words with no identifier), `play-session.test.ts`, `erasure.test.ts`, `privacy-clear.test.ts`, `data-export.test.ts`, and the paused case of `play-smoke.spec.ts`.
 
 ## D-145 · 2026-10-31 · Talk is drawn on the New Universe's own palette, dark by default, with Paper a name away (v3 T-B, #482)
 

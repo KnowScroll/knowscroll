@@ -134,6 +134,31 @@ module.exports = {
       to: { path: '^packages/backend/src/modules/[^/]+/', pathNot: '^packages/backend/src/modules/[^/]+/public\\.ts$' },
     },
     {
+      name: 'play-wall-only-roots-import-play',
+      comment:
+        "The wall of D-063, an allow-list. Which option was picked, whether it was right, sparks and combo are play results, so no module may import `play`, whatever it is called today or tomorrow: only play itself, the apps' composition roots, tests, and the erasure registry (which lists its stores) may. Naming the modules that rank, plan, remember or form places (composer with Jev, planner, evidence, personal-context, geography, scenes) and the reasoning engine would miss every other module, and a path through one that is not on the list (planner imports supply, so planner to supply to play) would go unseen. Only that a call was played counts as engagement, and the client reports it value-free as `revealed` through evidence.",
+      severity: 'error',
+      from: {
+        path: '^packages/',
+        pathNot: ['^packages/backend/src/modules/play/', '^packages/backend/src/erasure-registry\\.ts$'],
+      },
+      to: { path: '^packages/backend/src/modules/play/' },
+    },
+    {
+      name: 'play-wall-play-imports-three-public-surfaces',
+      comment:
+        "The other side of the wall, also an allow-list: play imports only the public surfaces of identity (the personal scope and the recording gate), content (the immutable revision's calls) and experience (the activated exposure), plus infrastructure and contracts. It imports none of the modules that derive from behaviour, the reasoning engine, or any module added later, so it cannot write to them or read their state to decide what a pick is worth.",
+      severity: 'error',
+      from: { path: '^packages/backend/src/modules/play/' },
+      to: {
+        path: '^packages/backend/src/(?:modules|reasoning)/',
+        pathNot: [
+          '^packages/backend/src/modules/play/',
+          '^packages/backend/src/modules/(?:identity|content|experience)/public\\.ts$',
+        ],
+      },
+    },
+    {
       name: 'infrastructure-below-modules',
       comment:
         'Infrastructure adapters never import modules, the reasoning engine or apps (identity public types excepted).',

@@ -107,7 +107,9 @@ export function UniverseSurface({
       </View>
     ) : null;
 
-  // Routes the Cartographer drew between planets of one system, from the planet they touch.
+  // The ship is parked at the planet of the last place (D-080): the chip returns there, naming the planet.
+  const returnTo = returnTarget(index, state.lastPlace);
+  // Routes the Cartographer drew between planets of one system, shown as a chip, never as a line (D-074).
   const planetRoutes =
     view.kind === 'planet' && !view.selectedRegion
       ? index.routes.flatMap((route) => {
@@ -124,13 +126,13 @@ export function UniverseSurface({
   const chips =
     !card && !searching ? (
       <View style={styles.chips}>
-        {view.kind === 'universe' && state.lastPlace && state.lastPlace.id !== state.focusId ? (
+        {view.kind === 'universe' && returnTo && returnTo.id !== state.focusId ? (
           <SpaceChip
             testID="universe-return"
             variant="solid"
             icon="arrowRight"
-            label={`Return to ${state.lastPlace.label}`}
-            onPress={() => session.focusLast()}
+            label={`Return to ${returnTo.label}`}
+            onPress={() => session.focus(returnTo.id)}
           />
         ) : null}
         {planetRoutes.map(({ route, other }) => (
@@ -250,6 +252,17 @@ export function UniverseSurface({
       ) : null}
     </View>
   );
+}
+
+/** Where the ship is parked: the last place, or the planet of a region. A system is its own place. */
+function returnTarget(
+  index: UniverseIndex,
+  lastPlace: UniverseViewState['lastPlace'],
+): { readonly id: string; readonly label: string } | undefined {
+  const place = lastPlace ? index.byId.get(lastPlace.id) : undefined;
+  if (!place) return undefined;
+  const target = place.kind === 'region' ? (index.byId.get(place.parentId) ?? place) : place;
+  return { id: target.objectId, label: target.label };
 }
 
 /** Every planet of the system is quiet: say so kindly and offer a way back in. */

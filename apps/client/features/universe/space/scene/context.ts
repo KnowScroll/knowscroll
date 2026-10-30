@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cloudPuff, radialGlow, type PixelImage } from '../texture-data';
+import { cloudPuff, radialGlow, type PixelImage, type PlanetPixels } from '../texture-data';
 
 /** A three.js texture over plain pixels (no canvas: Hermes has none). */
 export function pixelTexture(image: PixelImage): THREE.DataTexture {
@@ -10,6 +10,9 @@ export function pixelTexture(image: PixelImage): THREE.DataTexture {
   texture.needsUpdate = true;
   return texture;
 }
+
+/** Painted planet pixels by genome, owned by one renderer. */
+export type PaintCache = Map<string, PlanetPixels>;
 
 /** The soft sprites every scene shares; created once per scene and released with it. */
 export interface SpriteTextures {
@@ -24,13 +27,15 @@ export interface SceneContext {
   readonly time: { value: number };
   /** Drawing-buffer pixels per layout pixel (point sizes scale with it). */
   readonly pixelRatio: { value: number };
-  /** Distance range over which things melt into the sky colour. */
-  readonly fogRange: readonly [number, number];
+  /** Distance range over which things melt into the sky colour; the camera rig retunes it as it moves. */
+  readonly fog: THREE.Vector2;
   /** A quiet system draws grey and dim. */
   readonly calm: boolean;
   readonly sprites: SpriteTextures;
   /** Makes a texture over plain pixels and releases it when the scene is disposed. */
   readonly trackTexture: (image: PixelImage) => THREE.DataTexture;
+  /** Pixels of the planets already painted, kept by the renderer across rebuilds and dropped with it. */
+  readonly paintCache: PaintCache;
 }
 
 /** A built scene object and the function that poses it at scene time `t` (a pure function of `t`). */
@@ -46,7 +51,7 @@ export const SKY_COLOUR = new THREE.Vector3(0.012, 0.016, 0.045);
 export function hazeUniforms(context: SceneContext): Record<string, THREE.IUniform> {
   return {
     fogCol: { value: SKY_COLOUR },
-    fogR: { value: new THREE.Vector2(context.fogRange[0], context.fogRange[1]) },
+    fogR: { value: context.fog },
     calm: { value: context.calm ? 1 : 0 },
   };
 }

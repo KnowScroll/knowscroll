@@ -116,6 +116,8 @@ Status: **implemented** for `scroll-document.v2`, unit-tested and smoke-tested o
 
 The stage takes no drag in this version; the swipe is read on the text only (D-071). Soft snap is native `snapToOffsets` and a script on the web.
 
+**Play on the reader (D-063, D-064, D-083, D-180; status: implemented, web smoke-tested, native by unit tests only).** `StageReader` takes an optional `play: StagePlay` from the app: the Call its locked (the option, whether it was right, the run of right calls, and whether it is kept), the sparks and combo, whether recording is paused, and `lock(stopId, option)`. Without one the reader keeps play on the device alone (`useLocalStagePlay`). A pick is only a pick and is reported nowhere; locking a Call it hands the option to `play` and reports the reveal once to the recorder, by kind. A Call it that `play` already holds (read back after a reload) is shown revealed and reports nothing. `CallView` reveals "Called it!" with "+1 spark" (and "Combo ×n" from two in a row) for a right pick, and "Plot twist!" with "You called: …", the warm second look and the sourced common guess for a wrong one, with no spark and no penalty. When a lock is not kept it says so ("Not saved while recording is paused.", "Will save when you're back online.", "Couldn't save this one."), and before the lock while recording is paused. `ReaderDock` takes `sparks` for the yellow star chip, this Scroll's alone. The Final call stays on the device (no spark) until S-3.
+
 ## Platform files
 
 Only where behaviour differs (blueprint §18):

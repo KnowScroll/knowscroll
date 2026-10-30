@@ -50,8 +50,21 @@ jest.mock('./load-space-renderer', () => ({
         return {
           ...created,
           resize: jest.fn(),
+          isFar: () => false,
+          setCamera: jest.fn(),
+          setHighlight: jest.fn(),
+          setDefinition: jest.fn(),
           anchors: () => [
-            { id: 'sample-system', kind: 'system', name: 'Sample system', x: 100, y: 100, visible: true },
+            {
+              id: 'sample-system',
+              kind: 'system',
+              name: 'Sample system',
+              systemId: 'sample-system',
+              x: 100,
+              y: 100,
+              radiusPx: 12,
+              visible: true,
+            },
           ],
           probe: () => ({ litPixels: 1, sampledPixels: 2, signature: 3 }),
         };
@@ -103,6 +116,17 @@ async function mount(options: { reducedMotion?: boolean; strict?: boolean } = {}
 }
 
 describe('the space view', () => {
+  it('unmounts cleanly where the platform has no memory warning to unsubscribe from (the web)', async () => {
+    jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation(((type: string) =>
+        type === 'memoryWarning'
+          ? undefined
+          : { remove: () => undefined }) as unknown as typeof AppState.addEventListener);
+    const { rendered } = await mount();
+    await expect(rendered.unmount()).resolves.not.toThrow();
+  });
+
   it('draws on a 30 fps cadence while the route is focused', async () => {
     await mount();
     await runFrame(1000);

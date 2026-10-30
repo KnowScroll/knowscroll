@@ -432,6 +432,14 @@ exposures, so a member's progress cannot reach another member. Opening a snippet
 Watch or Read the person presses does, through the ordinary open and activate commands. Clear removes the exposures,
 and with them the markers. *Implemented; runtime-verified locally.*
 
+## Exposure authority for play (#473, D-180)
+
+`HAS_ACTIVATED_EXPOSURE` (`hasActivatedExposure(scope, assetId, assetRevision)`) answers one question for the caller only:
+whether they have an exposure of this exact Scroll revision that was **activated** in their current universe and privacy epoch.
+Play asks it before it stores a lock, so a person can only play what they actually opened. It reads the caller's own
+`experience.exposures` rows (the partial index on activated assets serves it), never another person's. *Implemented;
+runtime-verified locally.*
+
 ## Not interested (#250, D-055)
 
 `POST /v1/feedback/not-interested` and `.../undo` (`NOT_INTERESTED_USE_CASES`, `setNotInterested` / `undoNotInterested`) keep one

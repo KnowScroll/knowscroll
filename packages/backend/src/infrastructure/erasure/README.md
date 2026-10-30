@@ -83,6 +83,8 @@ runs it, and every Clear runs it again. It fails when:
 `checkQueuePayloadStores(queues, registry)` fails when a queue whose payload carries `universeId`
 has no `pgboss/<queue>` store declared.
 
+Play (`play.calls`, `play.scroll_results`, D-082) is universe-keyed: Clear and full erasure delete it, the export lists it in words, and no other module reads it (D-063).
+
 Not in the registry: `identity.accounts` and `identity.universes` (the personal roots; account
 deletion removes them after everything else) and shared tables. A shared table has none of the links above, and each
 shared family keeps its own inventory and test that proves it: the Reel order stores
