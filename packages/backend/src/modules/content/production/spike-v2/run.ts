@@ -17,6 +17,7 @@ import {
   publicationV2,
   writerRoleV2,
   WRITER_V2_PROMPT_VERSION,
+  type GeneratedScrollV2,
   type WriterV2Context,
 } from '../writer-v2.js';
 import { spikeRecipeV2 } from './topics.js';
@@ -217,22 +218,20 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
     }
   }
 
-  /** The paid attempts of a run and the run closed behind them, in one short scope. */
-  async function settleRun(
-    runId: string,
-    outcome: SpikeOutcome,
-  ): Promise<readonly ProductionAttemptAccounting[] | undefined> {
-    const settled = await deps.withScope(deps.authority, async (scope) => {
+  /** The run's attempts as the ledger holds them (a short scope; nothing is held open). */
+  async function readAccounting(runId: string): Promise<readonly ProductionAttemptAccounting[] | undefined> {
+    const read = await deps.withScope(deps.authority, async (scope) => {
       const accounting = await deps.harness.readProductionRunAccounting(scope, runId);
-      // An unknown attempt stays open for reconciliation; every other run is finished here.
-      if (outcome !== 'unknown')
-        await deps.harness.closeProductionRun(scope, {
-          runId,
-          state: outcome === 'accepted_first_take' || outcome === 'accepted_after_repair' ? 'completed' : 'cancelled',
-        });
       return accounting.kind === 'accounted' ? accounting.attempts : undefined;
     });
-    return settled.kind === 'entered' ? settled.value : undefined;
+    return read.kind === 'entered' ? read.value : undefined;
+  }
+
+  /** Closes the run once its outcome is final. An unknown attempt keeps its run open for reconciliation. */
+  async function closeRun(runId: string, outcome: SpikeOutcome): Promise<void> {
+    if (outcome === 'unknown') return;
+    const state = outcome === 'accepted_first_take' || outcome === 'accepted_after_repair' ? 'completed' : 'cancelled';
+    await deps.withScope(deps.authority, (scope) => deps.harness.closeProductionRun(scope, { runId, state }));
   }
 
   async function findingsFor(attempts: readonly SpikeAttempt[]): Promise<SpikeFinding[]> {
@@ -252,28 +251,15 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
       return { line: { ...line, outcome: 'model_mismatch', code: 'configured_model_not_allowed' } };
     const pages = await fetchPages(key);
     const researched = now();
+    const beforeWriter = { research: researched - started, writer: 0, total: researched - started };
     if ('code' in pages)
-      return {
-        line: {
-          ...line,
-          outcome: 'research_failed',
-          code: pages.code,
-          wallMs: { research: researched - started, writer: 0, total: researched - started },
-        },
-      };
+      return { line: { ...line, outcome: 'research_failed', code: pages.code, wallMs: beforeWriter } };
     let passages: readonly EvidencePassage[];
     try {
       passages = evidencePassages(pages);
     } catch (error) {
       const code = error instanceof EvidenceRefusal ? error.code : 'evidence_failed';
-      return {
-        line: {
-          ...line,
-          outcome: 'evidence_insufficient',
-          code,
-          wallMs: { research: researched - started, writer: 0, total: researched - started },
-        },
-      };
+      return { line: { ...line, outcome: 'evidence_insufficient', code, wallMs: beforeWriter } };
     }
     const recipe = spikeRecipeV2(key);
     const context: WriterV2Context = { publication: publicationV2(key), recipe, passages, pages };
@@ -299,13 +285,12 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
       signal,
     );
     const written = now();
-    return report({ line, key, started, researched, written, proposed, context });
+    return report({ line, started, researched, written, proposed, context });
   }
 
   /** Reads the accounting, closes the run and builds the line (and the document, when accepted). */
   async function report(input: {
     readonly line: SpikeLine;
-    readonly key: ScrollTopic;
     readonly started: number;
     readonly researched: number;
     readonly written: number;
@@ -314,10 +299,10 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
   }): Promise<SpikeResult> {
     const { line, proposed, context } = input;
     let { outcome, code } = classify(proposed);
-    const accounted = await settleRun(line.runId, outcome);
+    const accounted = await readAccounting(line.runId);
     const paid = (accounted ?? []).filter(isSentAttempt).map(toSpikeAttempt);
     const models = [...new Set((accounted ?? []).filter(isSentAttempt).map((attempt) => attempt.model))];
-    let compiled: ReturnType<typeof compileGeneratedScrollV2> | undefined;
+    let compiled: GeneratedScrollV2 | undefined;
     if (proposed.kind === 'proposed') {
       compiled = compileGeneratedScrollV2(proposed.output, context);
       // The harness validated this answer with the same compile; a disagreement is a defect, not data.
@@ -325,6 +310,7 @@ export function makeWriterSpikeV2(deps: WriterSpikeDeps) {
       else if (models.some((model) => model !== SPIKE_MODEL))
         ({ outcome, code } = { outcome: 'model_mismatch', code: 'attempt_model_differs' });
     }
+    await closeRun(line.runId, outcome);
     const document = compiled?.kind === 'compiled' && outcome.startsWith('accepted') ? compiled : undefined;
     const measured = document?.document;
     // A repaired Scroll's first answer was refused too: its findings are the repair's reason.
