@@ -53,8 +53,8 @@ const room = {
   status: 'open' as const,
 };
 const inhabitants = [
-  { inhabitant: 'explainer' as const, label: 'AI · Explainer', blurb: 'Answers when asked' },
-  { inhabitant: 'skeptic' as const, label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
+  { inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
+  { inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
 ];
 const member = (patch: Partial<Member> = {}): Member => ({
   version: 'rooms.v1',

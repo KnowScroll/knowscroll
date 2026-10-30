@@ -183,6 +183,34 @@ describe('process configuration', () => {
       readWorkerConfig({ DATABASE_URL: secretUrl, KS_WORLD: 'local', KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: '0' }),
     ).toThrow();
   });
+  it('keeps residents off by default, with caps of their own and an ambient share of the global cap (D-162)', () => {
+    const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
+    const settings = readWorkerConfig(env).reasoning;
+    expect(settings).toMatchObject({ roomEnabled: false, roomGeneration: 1, ambientSharePercent: 30 });
+    expect(settings.caps.roomScope).toEqual({ requestsPerDay: 100, tokensPerDay: 1_000_000 });
+    const dev = readWorkerConfig({
+      ...env,
+      KS_REASONING_ROOM_ENABLED: '1',
+      KS_REASONING_ROOM_REQUESTS_PER_DAY: '150',
+      KS_REASONING_ROOM_TOKENS_PER_DAY: '1500000',
+      KS_REASONING_AMBIENT_SHARE_PERCENT: '0',
+    }).reasoning;
+    expect(dev).toMatchObject({ roomEnabled: true, ambientSharePercent: 0 });
+    expect(dev.caps.roomScope).toEqual({ requestsPerDay: 150, tokensPerDay: 1_500_000 });
+    expect(configurationError(() => readWorkerConfig({ ...env, KS_REASONING_ROOM_ENABLED: 'true' })).problems).toEqual([
+      'KS_REASONING_ROOM_ENABLED: not_allowed',
+    ]);
+    for (const bad of ['101', '-1', '12.5', 'lots'])
+      expect(
+        configurationError(() => readWorkerConfig({ ...env, KS_REASONING_AMBIENT_SHARE_PERCENT: bad })).problems,
+      ).toHaveLength(1);
+    // The API reads the same switch, so a world that leaves residents off queues no check for them.
+    const api = (extra: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', KS_WORLD: 'local', ...extra });
+    expect(api({}).roomResidentsEnabled).toBe(false);
+    expect(api({ KS_REASONING_ROOM_ENABLED: '1' }).roomResidentsEnabled).toBe(true);
+  });
+
   it('keeps half of every daily cap for roles a person asks for, and reads the share as whole percent', () => {
     const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
     expect(readWorkerConfig(env).reasoning.backgroundSharePercent).toBe(50);
@@ -463,13 +491,17 @@ describe('process configuration', () => {
     expect(config.reasoning).toEqual({
       provider: 'none',
       productionEnabled: false,
+      roomEnabled: false,
+      roomGeneration: 1,
       caps: {
         global: { requestsPerDay: 300, tokensPerDay: 3_000_000 },
         scope: { requestsPerDay: 60, tokensPerDay: 600_000 },
         productionScope: { requestsPerDay: 200, tokensPerDay: 3_000_000 },
+        roomScope: { requestsPerDay: 100, tokensPerDay: 1_000_000 },
         roleDefault: { requestsPerDay: 200, tokensPerDay: 2_000_000 },
       },
       backgroundSharePercent: 50,
+      ambientSharePercent: 30,
       maxRequestBytes: 262_144,
       requestRetentionSeconds: 48 * 3600,
     });

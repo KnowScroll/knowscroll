@@ -30,6 +30,7 @@ export function reportCases(db: Kysely<Database>, now: () => Date = () => new Da
     withPersonalScope: Symbol('unused'),
     enqueueJob: Symbol('unused'),
     database: Symbol('unused'),
+    apiConfig: Symbol('unused'),
   });
   return reportUseCases({
     withScope: makeWithPersonalScope(db, { lockTimeoutMs: 10_000 }),

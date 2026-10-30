@@ -1,10 +1,17 @@
 import type { Kysely } from 'kysely';
-import type { WorkerConfig } from '../../../infrastructure/config/index.js';
+import type { ApiConfig, WorkerConfig } from '../../../infrastructure/config/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { uuidv7, stableUuid } from '../../../infrastructure/ids/index.js';
 import type { EnqueueJob } from '../../../infrastructure/jobs/index.js';
 import { requestHash, type CanonicalJson } from '../../../infrastructure/receipts/index.js';
-import { REASONING_HARNESS, type ReasoningHarness } from '../../../reasoning/public.js';
+import {
+  REASONING_HARNESS,
+  ROOM_REASONING_HARNESS,
+  WITH_ROOM_SCOPE,
+  type ProductionReasoningHarness,
+  type ReasoningHarness,
+  type WithProductionScope,
+} from '../../../reasoning/public.js';
 import {
   CHECK_ASSET_AUDIENCE,
   READ_CONTENT_SEQUENCE,
@@ -35,6 +42,8 @@ import {
   type ReadPublicPeople,
 } from '../../social/public.js';
 import { makeActivities } from '../application/activities.js';
+import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
+import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
 import { makeDiscussionCommands } from '../application/discussion-commands.js';
 import { makeDiscussionReads } from '../application/discussion-reads.js';
@@ -44,19 +53,27 @@ import type { RoomPorts } from '../application/ports.js';
 import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
 import { makeStationReads } from '../application/stations.js';
-import { contributeQueue } from '../events.js';
+import { castDueQueue, castPassQueue, contributeQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
+  DECIDE_CAST,
+  HOLD_CAST,
   READ_REPORTABLE_ROOM_MESSAGE,
   READ_ROOM_MEMBERSHIP,
   READ_ROOM_REPORTS,
   ROOM_USE_CASES,
+  RUN_CAST_PASS,
   type ContributeAsInhabitant,
+  type DecideCast,
+  type HoldCast,
   type ReadRoomReports,
   type RoomUseCases,
+  type RunCastPass,
 } from '../public.js';
 import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
+import { castStore } from './postgres-cast.js';
+import { holdCast } from './typing-holds.js';
 import { presenceStore } from './postgres-presence.js';
 import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
@@ -83,8 +100,13 @@ export interface RoomsDeps {
   readonly readGeography?: ReadGeographySceneInput;
   /** Which Scrolls the caller may open: one made for a thread is not a room's to quote (D-049). */
   readonly checkAudience: CheckAssetAudience;
-  /** Only the API enqueues the ask job; the worker consumes it and never sends one. */
+  /**
+   * The API enqueues the ask job and the resident checks at send time; the worker enqueues the model call of an allowed
+   * turn, a later look and the Skeptic's reply.
+   */
   readonly enqueue?: EnqueueJob;
+  /** Residents may speak unprompted in this world (`KS_REASONING_ROOM_ENABLED`, D-162). Off queues nothing. */
+  readonly residentsEnabled?: boolean;
   readonly now?: () => Date;
   readonly newId?: () => string;
 }
@@ -98,6 +120,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     discussions: discussionStore,
     presence: presenceStore,
     ai: aiStore,
+    cast: castStore,
     activities: activityStore,
     people: {
       async byAccounts(scope, accountIds) {
@@ -143,6 +166,24 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
         { jobId: stableUuid(`rooms-contribute:${requestId}`), duplicate: 'ignore' },
       );
     },
+    residentsEnabled: deps.residentsEnabled ?? false,
+    enqueueCastDue: async (scope, job, startAfter) => {
+      if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
+      await deps.enqueue(scope, castDueQueue, job, {
+        // One job per message, trigger and look: a redelivery of the send or of a look cannot queue a second.
+        jobId: stableUuid(`rooms-cast-due:${job.causeMessageId}:${job.trigger}:${String(job.round)}`),
+        duplicate: 'ignore',
+        startAfter,
+      });
+    },
+    enqueueCastPass: async (scope, job, startAfter) => {
+      if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
+      await deps.enqueue(scope, castPassQueue, job, {
+        jobId: stableUuid(`rooms-cast-pass:${job.turnId}:${String(job.round)}`),
+        duplicate: 'ignore',
+        ...(startAfter === undefined ? {} : { startAfter }),
+      });
+    },
   };
 }
 
@@ -173,16 +214,49 @@ export function contributeAsInhabitant(
   return makeContribute(ports, deps.harness);
 }
 
+/** The worker's check of whether a resident answers a message: the pure router, no model call. */
+export function decideCast(deps: RoomsDeps & { readonly ownerActive: CheckPersonalOwnerActive }): DecideCast {
+  const ports: CastDuePorts = { ...roomPorts(deps), ownerActive: deps.ownerActive };
+  return makeCastDue(ports);
+}
+
+/** The worker's model call of an allowed unprompted turn, under the room scope. */
+export function runCastPass(
+  deps: RoomsDeps & {
+    readonly harness: ProductionReasoningHarness;
+    readonly withRoomScope: WithProductionScope;
+    readonly ownerActive: CheckPersonalOwnerActive;
+    readonly model: string;
+    readonly generation: number;
+  },
+): RunCastPass {
+  const ports: CastPassPorts = {
+    ...roomPorts(deps),
+    ownerActive: deps.ownerActive,
+    model: deps.model,
+    generation: deps.generation,
+  };
+  return makeCastPass(ports, deps.harness, deps.withRoomScope);
+}
+
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
+export { holdCast } from './typing-holds.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: {
   readonly withPersonalScope: symbol;
   readonly enqueueJob: symbol;
   readonly database: symbol;
+  /** The API's configuration, for `roomResidentsEnabled`. */
+  readonly apiConfig: symbol;
 }) {
   return [
     { provide: READ_REPORTABLE_ROOM_MESSAGE, useValue: readReportableRoomMessage },
+    {
+      provide: HOLD_CAST,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): HoldCast => holdCast(db),
+    },
     {
       provide: READ_ROOM_MEMBERSHIP,
       inject: [tokens.database],
@@ -205,6 +279,7 @@ export function roomsProviders(tokens: {
         CHECK_ASSET_AUDIENCE,
         READ_ROOM_REPORTS,
         tokens.enqueueJob,
+        tokens.apiConfig,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -221,6 +296,7 @@ export function roomsProviders(tokens: {
         checkAudience: CheckAssetAudience,
         readReports: ReadRoomReports,
         enqueue: EnqueueJob,
+        config: ApiConfig,
       ) =>
         roomUseCases({
           withScope,
@@ -237,14 +313,129 @@ export function roomsProviders(tokens: {
           checkAudience,
           readReports,
           enqueue,
+          residentsEnabled: config.roomResidentsEnabled,
         }),
     },
   ];
 }
 
 /** The worker's inhabitant consumer. The harness refuses every call while no model provider is configured. */
-export function roomsWorkerProviders(tokens: { readonly withPersonalScope: symbol; readonly workerConfig: symbol }) {
+export function roomsWorkerProviders(tokens: {
+  readonly withPersonalScope: symbol;
+  readonly workerConfig: symbol;
+  readonly enqueueJob: symbol;
+}) {
   return [
+    {
+      provide: DECIDE_CAST,
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_PUBLIC_PEOPLE,
+        READ_FRIEND_ACCOUNTS,
+        READ_SHAREABLE_CONTENT,
+        READ_CONTENT_SEQUENCE,
+        READ_VISITED_ASSETS,
+        VALIDATE_SNIPPET_ANCHOR,
+        RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
+        READ_BLOCKED_AMONG,
+        CHECK_PERSONAL_OWNER_ACTIVE,
+        tokens.enqueueJob,
+        tokens.workerConfig,
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        readPeople: ReadPublicPeople,
+        readFriends: ReadFriendAccounts,
+        readContent: ReadShareableContent,
+        readSequence: ReadContentSequence,
+        readVisited: ReadVisitedAssets,
+        validateSnippet: ValidateSnippetAnchor,
+        resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
+        readBlocked: ReadBlockedAmong,
+        ownerActive: CheckPersonalOwnerActive,
+        enqueue: EnqueueJob,
+        config: WorkerConfig,
+      ) =>
+        decideCast({
+          withScope,
+          fenceOwn,
+          readPeople,
+          readFriends,
+          readContent,
+          readSequence,
+          readVisited,
+          validateSnippet,
+          resolveSnippet,
+          checkAudience,
+          readBlocked,
+          ownerActive,
+          enqueue,
+          residentsEnabled: config.reasoning.roomEnabled,
+        }),
+    },
+    {
+      provide: RUN_CAST_PASS,
+      inject: [
+        tokens.withPersonalScope,
+        FENCE_OWN_ACCOUNT,
+        READ_PUBLIC_PEOPLE,
+        READ_FRIEND_ACCOUNTS,
+        READ_SHAREABLE_CONTENT,
+        READ_CONTENT_SEQUENCE,
+        READ_VISITED_ASSETS,
+        VALIDATE_SNIPPET_ANCHOR,
+        RESOLVE_SNIPPET_ANCHOR,
+        CHECK_ASSET_AUDIENCE,
+        READ_BLOCKED_AMONG,
+        ROOM_REASONING_HARNESS,
+        WITH_ROOM_SCOPE,
+        CHECK_PERSONAL_OWNER_ACTIVE,
+        tokens.enqueueJob,
+        tokens.workerConfig,
+      ],
+      useFactory: (
+        withScope: WithPersonalScope,
+        fenceOwn: FenceOwnAccount,
+        readPeople: ReadPublicPeople,
+        readFriends: ReadFriendAccounts,
+        readContent: ReadShareableContent,
+        readSequence: ReadContentSequence,
+        readVisited: ReadVisitedAssets,
+        validateSnippet: ValidateSnippetAnchor,
+        resolveSnippet: ResolveSnippetAnchor,
+        checkAudience: CheckAssetAudience,
+        readBlocked: ReadBlockedAmong,
+        harness: ProductionReasoningHarness,
+        withRoomScope: WithProductionScope,
+        ownerActive: CheckPersonalOwnerActive,
+        enqueue: EnqueueJob,
+        config: WorkerConfig,
+      ) =>
+        runCastPass({
+          withScope,
+          fenceOwn,
+          readPeople,
+          readFriends,
+          readContent,
+          readSequence,
+          readVisited,
+          validateSnippet,
+          resolveSnippet,
+          checkAudience,
+          readBlocked,
+          harness,
+          withRoomScope,
+          ownerActive,
+          enqueue,
+          residentsEnabled: config.reasoning.roomEnabled,
+          generation: config.reasoning.roomGeneration,
+          model: config.reasoning.minimax?.model ?? 'unconfigured',
+        }),
+    },
     {
       provide: CONTRIBUTE_AS_INHABITANT,
       inject: [

@@ -4,7 +4,7 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { StoredSnippetAnchor } from '../../content/public.js';
 import type { Counters, DiscussionRow, DiscussionStore, MessageRow, RoomLock } from '../application/ports.js';
-import { contributionKindOf, discussionKindOf, inhabitantOf } from './columns.js';
+import { contributionKindOf, discussionKindOf, inhabitantOf, speechTriggerOf } from './columns.js';
 
 interface DiscussionColumns {
   discussion_id: string;
@@ -67,6 +67,7 @@ interface MessageColumns {
   asset_id: string | null;
   asset_revision: number | null;
   note: string | null;
+  trigger: string | null;
 }
 
 const MESSAGE_COLUMNS = [
@@ -83,6 +84,7 @@ const MESSAGE_COLUMNS = [
   'asset_id',
   'asset_revision',
   'note',
+  'trigger',
 ] as const;
 
 const messageOf = (row: MessageColumns): MessageRow => ({
@@ -101,6 +103,7 @@ const messageOf = (row: MessageColumns): MessageRow => ({
       ? null
       : { assetId: row.asset_id, assetRevision: row.asset_revision },
   note: row.note,
+  trigger: row.trigger === null ? null : speechTriggerOf(row.trigger),
 });
 
 const trxOf = (lock: RoomLock): Transaction<Database> => sharedTransactionOf(lock.shared);
@@ -287,6 +290,7 @@ export const discussionStore: DiscussionStore = {
               inhabitant: message.inhabitant,
               ai_kind: message.aiKind,
               body_text: message.text,
+              trigger: message.trigger ?? null,
             }
           : {
               ...common,
@@ -370,6 +374,7 @@ export const discussionStore: DiscussionStore = {
         'message.asset_id',
         'message.asset_revision',
         'message.note',
+        'message.trigger',
       ])
       .where('discussion.room_id', '=', lock.roomId)
       .where('message.message_id', '=', messageId)

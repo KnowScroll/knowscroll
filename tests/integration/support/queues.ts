@@ -1,10 +1,10 @@
-import { projectSceneQueue } from '@knowscroll/backend/modules/scenes';
+import { backfillLooksQueue, projectSceneQueue } from '@knowscroll/backend/modules/scenes';
 import { cartographyQueue, publishDeltaQueue } from '@knowscroll/backend/modules/geography';
 import { resolveSupplyQueue } from '@knowscroll/backend/modules/supply';
 import { produceScrollQueue } from '@knowscroll/backend/modules/content';
 import { plannerQueue } from '@knowscroll/backend/modules/planner';
 import { prepareBufferQueue } from '@knowscroll/backend/modules/composer';
-import { contributeQueue } from '@knowscroll/backend/modules/rooms';
+import { castDueQueue, castPassQueue, contributeQueue } from '@knowscroll/backend/modules/rooms';
 import { resolveBranchesQueue, suggestDraftQueue } from '@knowscroll/backend/modules/scenarios';
 import { buildDataExportQueue, deleteAccountQueue } from '@knowscroll/backend/modules/identity';
 import { z } from 'zod';
@@ -52,6 +52,7 @@ export const fixtureModelQueue = defineQueue({
 /** Every queue the template database declares: the release's own plus the fixtures above. */
 export const testQueues = queueRegistry([
   projectSceneQueue,
+  backfillLooksQueue,
   cartographyQueue,
   publishDeltaQueue,
   resolveSupplyQueue,
@@ -61,6 +62,8 @@ export const testQueues = queueRegistry([
   plannerQueue,
   prepareBufferQueue,
   contributeQueue,
+  castDueQueue,
+  castPassQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,

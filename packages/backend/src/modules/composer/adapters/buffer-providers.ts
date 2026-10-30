@@ -4,8 +4,10 @@ import type { EnqueueJob } from '../../../infrastructure/jobs/enqueue.js';
 import { requestHash } from '../../../infrastructure/receipts/index.js';
 import { REASONING_HARNESS, type ReasoningHarness } from '../../../reasoning/public.js';
 import {
+  READ_CONTINUATIONS,
   READ_DISCOVERY_CANDIDATES,
   READ_EXACT_ENCOUNTER,
+  type ReadContinuations,
   type ReadDiscoveryCandidates,
   type ReadExactEncounter,
 } from '../../content/public.js';
@@ -80,6 +82,7 @@ export function composerBufferWorkerProviders(t: {
         READ_HIDDEN_ASSETS,
         READ_EXACT_ENCOUNTER,
         READ_DISCOVERY_CANDIDATES,
+        READ_CONTINUATIONS,
         READ_COMPOSER_CONTEXT,
         PERSIST_COMPOSER_DECISION,
         COMPOSE_ENCOUNTER,
@@ -92,6 +95,7 @@ export function composerBufferWorkerProviders(t: {
         readHidden: ReadHiddenAssets,
         readExactEncounter: ReadExactEncounter,
         readDiscoveryCandidates: ReadDiscoveryCandidates,
+        readContinuations: ReadContinuations,
         readPrepared: ReadPreparedEvidenceInput,
         persistDecision: PersistComposerDecision,
         compose: ComposeEncounter,
@@ -102,6 +106,7 @@ export function composerBufferWorkerProviders(t: {
           readHidden,
           readExactEncounter,
           readDiscoveryCandidates,
+          readContinuations,
           readPrepared,
           readBuffer: composerBufferStore.read,
           storeBuffer: composerBufferStore.store,

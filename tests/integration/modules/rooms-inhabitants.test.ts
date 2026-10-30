@@ -71,7 +71,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
   }
 
   const requestState = (requestId: string) =>
-    world.db.selectFrom('rooms.ai_requests').selectAll().where('request_id', '=', requestId).executeTakeFirstOrThrow();
+    world.db.selectFrom('rooms.ai_turns').selectAll().where('turn_id', '=', requestId).executeTakeFirstOrThrow();
 
   const messagesOf = async (person: Friend, roomId: string, discussionId: string) => {
     const view = await readDiscussion(world, person, roomId, discussionId);
@@ -87,8 +87,8 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     );
     expect(view.inhabitants.map((entry) => entry.ask)).toEqual(['available', 'available']);
     const requests = await world.db
-      .selectFrom('rooms.ai_requests')
-      .select('request_id')
+      .selectFrom('rooms.ai_turns')
+      .select('turn_id')
       .where('room_id', '=', roomId)
       .execute();
     expect(requests).toEqual([]);
@@ -255,37 +255,40 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     const open = await ask(world, asha, roomId, discussionId, 'explainer');
     expect(open.kind === 'refused' ? open.code : 'ok').toBe('unavailable');
     const requests = await world.db
-      .selectFrom('rooms.ai_requests')
-      .select('request_id')
+      .selectFrom('rooms.ai_turns')
+      .select('turn_id')
       .where('discussion_id', '=', discussionId)
       .execute();
     expect(requests).toHaveLength(1);
   });
 
-  it('bounds a person per day and a room per day, and starts again the next UTC day', async () => {
+  it('bounds a person per hour and a room per day, and starts again later (D-068)', async () => {
     const { roomId, asha, ravi, discussionId, contribute } = await conversation(() => answer('nothing_to_add', ''));
-    // Four asks settle; the fifth is over the person's daily bound.
-    for (let index = 0; index < 4; index++) await contribute(await askAndTake(ravi, roomId, discussionId));
-    const fifth = await ask(world, ravi, roomId, discussionId);
-    expect(fifth.kind === 'refused' ? fifth.code : 'ok').toBe('rate_limited');
+    // Ten asks settle; the eleventh is over the person's hourly bound.
+    for (let index = 0; index < 10; index++) await contribute(await askAndTake(ravi, roomId, discussionId));
+    const eleventh = await ask(world, ravi, roomId, discussionId);
+    expect(eleventh.kind === 'refused' ? eleventh.code : 'ok').toBe('rate_limited');
     expect((await messagesOf(ravi, roomId, discussionId)).inhabitants.map((entry) => entry.ask)).toEqual([
       'resting',
       'resting',
     ]);
     // Someone else can still ask until the room's own bound.
     await contribute(await askAndTake(asha, roomId, discussionId));
+    // An hour later the same person can ask again.
+    world.clock.now = new Date('2026-10-24T09:05:00Z');
+    await contribute(await askAndTake(ravi, roomId, discussionId));
     // Fill the room's bound with answered asks of other people, as a busy day would.
     const filler = await seedFriend(world.db, world.friends);
     const used = await world.db
-      .selectFrom('rooms.ai_requests')
+      .selectFrom('rooms.ai_turns')
       .select((eb) => eb.fn.countAll<string>().as('n'))
       .where('room_id', '=', roomId)
       .executeTakeFirstOrThrow();
-    for (let index = Number(used.n); index < 12; index++)
+    for (let index = Number(used.n); index < 80; index++)
       await world.db
-        .insertInto('rooms.ai_requests')
+        .insertInto('rooms.ai_turns')
         .values({
-          request_id: randomUUID(),
+          turn_id: randomUUID(),
           room_id: roomId,
           discussion_id: discussionId,
           inhabitant: 'skeptic',
@@ -305,7 +308,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     } finally {
       world.clock.now = new Date('2026-10-24T08:00:00Z');
     }
-  });
+  }, 60_000);
 
   it('does nothing for an asker who has left, a room that was paused, or a universe that is not theirs', async () => {
     const left = await conversation(() => answer('explanation', 'must not be said'));
@@ -379,10 +382,10 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     return { job, calls: model.calls.length };
   }
 
-  it('does not give an ask back when the asker leaves while the model runs: four calls a day, not more', async () => {
+  it('does not give an ask back when the asker leaves while the model runs: ten calls an hour, not more', async () => {
     const { roomId, ravi, discussionId } = await conversation(() => answer('assumption', 'unused'));
     let modelCalls = 0;
-    for (let round = 1; round <= 4; round++) {
+    for (let round = 1; round <= 10; round++) {
       const { job, calls } = await askWhileModelRuns(ravi, roomId, discussionId, async () => {
         unwrap(await world.rooms.leave(ravi.authority, { version, commandId: randomUUID(), roomId }));
       });
@@ -390,10 +393,10 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
       expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
       unwrap(await joinRoom(world, ravi, roomId));
     }
-    expect(modelCalls).toBe(4);
-    const fifth = await ask(world, ravi, roomId, discussionId);
-    expect(fifth.kind === 'refused' ? fifth.code : 'ok').toBe('rate_limited');
-  }, 60_000);
+    expect(modelCalls).toBe(10);
+    const eleventh = await ask(world, ravi, roomId, discussionId);
+    expect(eleventh.kind === 'refused' ? eleventh.code : 'ok').toBe('rate_limited');
+  }, 120_000);
 
   it('counts an ask whose answer was dropped by a pause or a Clear, and refunds one that never reached the provider', async () => {
     const paused = await conversation(() => answer('assumption', 'unused'));
@@ -407,7 +410,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     expect(await requestState(pausedRun.job.requestId)).toMatchObject({ state: 'failed', dispatched: true });
     await world.db.updateTable('rooms.rooms').set({ status: 'open' }).where('room_id', '=', paused.roomId).execute();
     const asked = await world.db
-      .selectFrom('rooms.ai_requests')
+      .selectFrom('rooms.ai_turns')
       .select(['state', 'dispatched'])
       .where('requested_by_account_id', '=', paused.ravi.accountId)
       .execute();
@@ -422,10 +425,10 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     expect(await requestState(job.requestId)).toMatchObject({ state: 'failed', dispatched: false });
   });
 
-  it('caps every ask a person makes in a day, so asks that never reach the provider cannot pile up', async () => {
+  it('caps every ask a person makes in an hour, so asks that never reach the provider cannot pile up', async () => {
     const { roomId, ravi, discussionId, model, contribute } = await conversation(() => answer('assumption', 'unused'));
     // Each ask is made and the asker leaves before the worker starts: nothing is dispatched, nothing is counted.
-    for (let round = 1; round <= 12; round++) {
+    for (let round = 1; round <= 20; round++) {
       const job = await askAndTake(ravi, roomId, discussionId);
       unwrap(await world.rooms.leave(ravi.authority, { version, commandId: randomUUID(), roomId }));
       await contribute(job);
@@ -438,7 +441,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
       'resting',
       'resting',
     ]);
-  }, 60_000);
+  }, 120_000);
 
   it('accepts the same command ID in another room as another ask, not as an error', async () => {
     const first = await conversation(() => answer('assumption', 'unused'));
@@ -464,7 +467,7 @@ describe('AI inhabitants (real PostgreSQL, CI fixture model)', () => {
     });
     expect(second.kind).toBe('ok');
     const rows = await world.db
-      .selectFrom('rooms.ai_requests')
+      .selectFrom('rooms.ai_turns')
       .select('room_id')
       .where('command_id', '=', commandId)
       .execute();

@@ -66,6 +66,10 @@ invented. A Composer member's optional `session` supplies both session ID and th
 server intent revision for catch-up; direct exposures omit it. Mutable action state belongs to
 this read, not an immutable offer or receipt snapshot.
 
+A vertical move may carry optional `format` (`reel` or `scroll`), the format the person is in: the next
+subject stays in it while anything of it is eligible (D-132). Omitting it keeps the ranking with no format
+preference. Series, related, variant and return intents do not carry it.
+
 Only series/related navigation can include optional `expectedContinuation`
 `{linkId, assetId, assetRevision}`. A displayed ready card binds that exact admitted link and
 revision for revalidation; a stale card must not silently change destination. Omission retains
@@ -313,6 +317,14 @@ must verify real queued work; wire declarations cannot prove a job exists.
 Pending targets cannot name uncommitted future input. `unavailable` carries only
 fixed coarse reasons (`temporarily_unavailable` or `limit`), never provider text.
 These states make no promise of formation, coverage, mastery, ETA or progress.
+
+**Looks (U-1, D-102).** `SceneClientCapabilities.looks` is an optional list. A client that sends
+`scene-look.v1` and declares the `worldmap.v1` generator (`supportsSceneLooks`) gets `looks` on
+`empty`, `ready` and `lagging` manifest reads: one `SceneLook` for each object of the returned manifest
+that has one, each object once. The response schema requires `looks` exactly then and refuses it
+otherwise, so a client that predates looks parses the same read as before. A look is a sibling of the
+descriptor, never merged into it, and carries no activity, count, support or time. Status: implemented,
+CI-tested; no client sends the capability yet.
 
 A chunk read binds universe/epoch, selection, exact `manifestSceneRevision`,
 `chunkId`, `chunkSceneRevision` and the capability advertisement. Chunk revisions

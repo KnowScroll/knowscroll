@@ -6,6 +6,7 @@ import type {
   FormationPresentationClaimAcceptance,
   FormationPresentationAcknowledgement,
   SceneDescriptor,
+  SceneLook,
   SceneManifest,
   SceneChunk,
   SceneManifestRead,
@@ -20,7 +21,8 @@ import type {
   CheckPersonalOwnerActive,
 } from '../../identity/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
-import type { ProjectSceneJob } from '../events.js';
+import type { LogEvent } from '../../../infrastructure/observability/index.js';
+import type { BackfillLooksJob, ProjectSceneJob } from '../events.js';
 export interface StoredObject {
   readonly descriptor: SceneDescriptor;
   readonly systemId: string;
@@ -47,6 +49,10 @@ export interface SceneStore {
   state(scope: PersonalScopeTx): Promise<SceneState | undefined>;
   objects(scope: PersonalScopeTx): Promise<readonly StoredObject[]>;
   chunk(scope: PersonalScopeTx, id: string, revision: number): Promise<StoredChunk | undefined>;
+  /** Every look of the universe and epoch; each is assigned once and never rewritten. */
+  looks(scope: PersonalScopeTx): Promise<readonly SceneLook[]>;
+  /** Inserts looks for objects already stored; an existing look is left as it is. */
+  saveLooks(scope: PersonalScopeTx, looks: readonly SceneLook[]): Promise<void>;
   save(
     scope: PersonalScopeTx,
     state: SceneState,
@@ -67,8 +73,12 @@ export interface ScenePorts {
   readonly advance: (scope: PersonalScopeTx) => Promise<number>;
   readonly notify: (scope: PersonalScopeTx, revision: number) => Promise<void>;
   readonly now: () => Date;
+  /** Diagnostics only: a region left without a look, or a plan that disagrees with the stored objects. */
+  readonly logEvent: LogEvent;
 }
 export type ProjectScene = (job: ProjectSceneJob) => Promise<void>;
+/** Gives the looks a world projected before looks existed; returns how many it gave. */
+export type BackfillSceneLooks = (job: BackfillLooksJob) => Promise<{ readonly assigned: number }>;
 export type ReadOwnSceneManifest = (
   authority: PersonalAuthority,
   query: ReadSceneManifest,

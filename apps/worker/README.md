@@ -121,11 +121,19 @@ builds the thread guest, the made-to-order readers and the production sender for
 resolver job for every ask that is still open from before Create existed and prints the counts. It is
 idempotent and calls no provider.
 
+`node dist/operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>]` (`src/scenes-operator.ts`, D-102) gives worlds
+that were projected before looks existed their look. It sends one `scenes.backfill-looks` job for each universe that has
+a projected system, planet or region without one (at most `--limit`, default 100, and it says when more are left), and the
+`scenes.backfill-looks` consumer inserts the missing rows under that universe's lock. No slot, seed, family or anchor
+moves, no provider is called, and running it again assigns nothing. It needs only `KS_WORLD` and `DATABASE_URL`.
+
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,
 no provider call. The `rooms.contribute` consumer answers a member's ask of an AI inhabitant with the personal
-harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`).
+harness (it ends the ask as failed while `KS_REASONING_PROVIDER=none`). The `rooms.cast-due` and `rooms.cast-pass` consumers
+(v3 R-2, D-162) are registered only while `KS_REASONING_ROOM_ENABLED=1`: the first decides, with no model call, whether a resident
+answers a message; the second makes the model call of an allowed turn under the nonpersonal `rooms` reasoning scope.
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and

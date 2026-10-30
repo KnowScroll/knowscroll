@@ -378,6 +378,49 @@ export function ReportsCard({ safety }: { readonly safety: OperatorPanelsRespons
   );
 }
 
+/** 8 · Rooms: how often each room's AI spoke over the last day, against the router's caps. Counts only, never words. */
+export function RoomCallsCard({ rooms }: { readonly rooms: OperatorPanelsResponse['rooms'] }) {
+  return (
+    <Card title="8 · Rooms" source="ops.room_turns" testID="operator-rooms">
+      <Piece piece={rooms.calls} label="last 24 hours, busiest first">
+        {(summary) =>
+          summary.rooms.length === 0 ? (
+            nothing('No AI has spoken in a room today.')
+          ) : (
+            <>
+              <Mono>
+                limits: 1 per {summary.limits.humanMessagesPerTurn} messages · {summary.limits.roomPerHour}/h ·{' '}
+                {summary.limits.roomPerDay}/day
+              </Mono>
+              {summary.rooms.map((room) => (
+                <Line key={room.roomId}>
+                  <Mono size={12} color={operatorColor.ink}>
+                    {room.roomId.slice(0, 8)}
+                  </Mono>
+                  <Mono>asked {room.asked}</Mono>
+                  <Mono>
+                    on its own {room.unprompted} ({room.unpromptedLastHour} this hour)
+                  </Mono>
+                  <Mono>
+                    {room.refused.length === 0
+                      ? 'none refused'
+                      : room.refused.map((r) => `${r.cap} ${r.count}`).join(', ')}
+                  </Mono>
+                  <Mono>{dayAndClockOf(room.lastAt)}</Mono>
+                </Line>
+              ))}
+            </>
+          )
+        }
+      </Piece>
+      <Note>
+        Room ids, counts and codes from the turn ledger. A refused turn posted nothing and showed nothing; no message,
+        person or prompt is shown here.
+      </Note>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   rows: { gap: 2 },
   pair: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

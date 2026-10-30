@@ -6,15 +6,17 @@
  * (`scope`, one universe). A reservation is admitted only when it fits all three. Settlement never
  * refunds an uncertain attempt: until a provider reports usage, the reservation is what it costs.
  *
- * A role is `interactive` (a person asked for it: What-if, a room ask, request matching) or
- * `background` (it runs because the person read or swiped: Jev, Cartographer, Planner). A background
- * reservation must also fit a share of the global and the scope caps, counted over background
- * spend only. Background spend can therefore never exceed its share, so the rest of every cap is
- * always left for what a person asked for.
+ * A role is `interactive` (a person asked for it: What-if, a room ask, request matching),
+ * `background` (it runs because the person read or swiped: Jev, Cartographer, Planner) or `ambient`
+ * (a room's resident speaks on its own, D-162). A background reservation must also fit a share of the
+ * global and the scope caps, counted over background spend only. An ambient reservation must also
+ * fit a share of the global cap, counted over ambient spend only; its own scope's cap bounds it as it
+ * does any role. Background and ambient spend can therefore never exceed their shares, so the rest of
+ * every cap is always left for what a person asked for.
  */
 
-/** Who set a role's work going: a person's explicit ask, or their reading. */
-export type BudgetClass = 'interactive' | 'background';
+/** Who set a role's work going: a person's explicit ask, their reading, or a room's resident on its own. */
+export type BudgetClass = 'interactive' | 'background' | 'ambient';
 
 /** Daily limits for one dimension. */
 export interface BudgetCap {
@@ -28,12 +30,18 @@ export interface BackgroundCaps {
   readonly scope: BudgetCap;
 }
 
-/** The caps a reservation must fit; `background` is present only for a background role. */
+/** The ceiling an ambient reservation must also fit: its share of the global cap. */
+export interface AmbientCaps {
+  readonly global: BudgetCap;
+}
+
+/** The caps a reservation must fit; `background` and `ambient` are present only for a role of that class. */
 export interface BudgetCaps {
   readonly global: BudgetCap;
   readonly role: BudgetCap;
   readonly scope: BudgetCap;
   readonly background?: BackgroundCaps;
+  readonly ambient?: AmbientCaps;
 }
 
 /** What has already been charged today in one dimension. */
@@ -48,10 +56,15 @@ export interface BudgetUsage {
   readonly scope: BudgetSpend;
   /** Spend of background roles only, process-wide and in this scope. */
   readonly background: { readonly global: BudgetSpend; readonly scope: BudgetSpend };
+  /** Spend of ambient roles only, process-wide. */
+  readonly ambient: { readonly global: BudgetSpend };
 }
 
-/** `background_global` and `background_scope` are the background share of `global` and `scope`. */
-export type BudgetDimension = 'global' | 'role' | 'scope' | 'background_global' | 'background_scope';
+/**
+ * `background_global` and `background_scope` are the background share of `global` and `scope`;
+ * `ambient_global` is the ambient share of `global`.
+ */
+export type BudgetDimension = 'global' | 'role' | 'scope' | 'background_global' | 'background_scope' | 'ambient_global';
 
 export type BudgetDecision =
   | { readonly kind: 'within' }
@@ -72,7 +85,8 @@ function limitHit(cap: BudgetCap, spent: BudgetSpend, tokens: number): 'requests
  * anything is reserved or sent. Inputs: caps, today's spend, the reservation's token charge.
  * Output: `within`, or the first exhausted dimension and which limit it hit. The hard caps are
  * checked first, widest first (`global`, `role`, `scope`), then the background share of `global`
- * and of `scope` when the caps carry one, so a refusal keeps the code it had before the split.
+ * and of `scope` and the ambient share of `global` when the caps carry them, so a refusal keeps the
+ * code it had before the split.
  * Invariant: a reservation larger than a cap on its own is always refused.
  */
 export function decideReservation(caps: BudgetCaps, usage: BudgetUsage, tokens: number): BudgetDecision {
@@ -82,6 +96,7 @@ export function decideReservation(caps: BudgetCaps, usage: BudgetUsage, tokens: 
     { dimension: 'scope', cap: caps.scope, spent: usage.scope },
     { dimension: 'background_global', cap: caps.background?.global, spent: usage.background.global },
     { dimension: 'background_scope', cap: caps.background?.scope, spent: usage.background.scope },
+    { dimension: 'ambient_global', cap: caps.ambient?.global, spent: usage.ambient.global },
   ];
   for (const { dimension, cap, spent } of checks) {
     if (cap === undefined) continue;
@@ -92,10 +107,10 @@ export function decideReservation(caps: BudgetCaps, usage: BudgetUsage, tokens: 
 }
 
 /**
- * The part of a daily cap that background roles may use: `sharePercent` of it, rounded down. 100
- * leaves the cap whole (no share is kept back); 0 gives background roles nothing.
+ * The part of a daily cap that background or ambient roles may use: `sharePercent` of it, rounded
+ * down. 100 leaves the cap whole (no share is kept back); 0 gives those roles nothing.
  */
-export function backgroundShareOf(cap: BudgetCap, sharePercent: number): BudgetCap {
+export function shareOf(cap: BudgetCap, sharePercent: number): BudgetCap {
   return {
     requestsPerDay: Math.floor((cap.requestsPerDay * sharePercent) / 100),
     tokensPerDay: Math.floor((cap.tokensPerDay * sharePercent) / 100),

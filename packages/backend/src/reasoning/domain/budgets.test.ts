@@ -2,7 +2,7 @@ import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import {
   NO_USAGE,
-  backgroundShareOf,
+  shareOf,
   chargedTokens,
   decideReservation,
   reservedTokensFor,
@@ -19,6 +19,7 @@ const none = { requests: 0, tokens: 0 };
 const noBackground = { global: none, scope: none };
 const usageOf = (usage: Pick<BudgetUsage, 'global' | 'role' | 'scope'> & Partial<BudgetUsage>): BudgetUsage => ({
   background: noBackground,
+  ambient: { global: none },
   ...usage,
 });
 
@@ -155,7 +156,7 @@ describe('the background share of the global and the personal caps', () => {
     fc.integer({ min: 0, max: 1_000_000_000 }),
     fc.integer({ min: 0, max: 100 }),
   ])('takes a rounded-down percentage of each limit', (requestsPerDay, tokensPerDay, percent) => {
-    const share = backgroundShareOf({ requestsPerDay, tokensPerDay }, percent);
+    const share = shareOf({ requestsPerDay, tokensPerDay }, percent);
     expect(share.requestsPerDay).toBeLessThanOrEqual(requestsPerDay);
     expect(share.tokensPerDay).toBeLessThanOrEqual(tokensPerDay);
     expect(share.requestsPerDay).toBe(Math.floor((requestsPerDay * percent) / 100));
@@ -163,8 +164,70 @@ describe('the background share of the global and the personal caps', () => {
 
   it('keeps the whole cap at 100 percent and gives background roles nothing at 0', () => {
     const cap = { requestsPerDay: 60, tokensPerDay: 600_000 };
-    expect(backgroundShareOf(cap, 100)).toEqual(cap);
-    expect(backgroundShareOf(cap, 0)).toEqual({ requestsPerDay: 0, tokensPerDay: 0 });
-    expect(backgroundShareOf(cap, 50)).toEqual({ requestsPerDay: 30, tokensPerDay: 300_000 });
+    expect(shareOf(cap, 100)).toEqual(cap);
+    expect(shareOf(cap, 0)).toEqual({ requestsPerDay: 0, tokensPerDay: 0 });
+    expect(shareOf(cap, 50)).toEqual({ requestsPerDay: 30, tokensPerDay: 300_000 });
+  });
+});
+
+describe('the ambient share of the global cap (residents speaking on their own)', () => {
+  const ambient = { global: { requestsPerDay: 4, tokensPerDay: 4_000 } };
+  const shared: BudgetCaps = { ...caps, ambient };
+
+  it('does not limit an interactive reservation, which carries no ambient share', () => {
+    const usage = usageOf({
+      global: { requests: 9, tokens: 0 },
+      role: none,
+      scope: none,
+      ambient: { global: { requests: 4, tokens: 4_000 } },
+    });
+    expect(decideReservation(caps, usage, 1)).toEqual({ kind: 'within' });
+  });
+
+  it('stops an ambient reservation at its share of the global cap, in requests and then in tokens', () => {
+    const requestsFull = usageOf({
+      global: { requests: 4, tokens: 0 },
+      role: none,
+      scope: none,
+      ambient: { global: { requests: 4, tokens: 0 } },
+    });
+    expect(decideReservation(shared, requestsFull, 1)).toEqual({
+      kind: 'exhausted',
+      dimension: 'ambient_global',
+      limit: 'requests',
+    });
+    const tokensFull = usageOf({
+      global: none,
+      role: none,
+      scope: none,
+      ambient: { global: { requests: 1, tokens: 3_900 } },
+    });
+    expect(decideReservation(shared, tokensFull, 200)).toEqual({
+      kind: 'exhausted',
+      dimension: 'ambient_global',
+      limit: 'tokens',
+    });
+  });
+
+  it('leaves what is above the share to the roles a person asks for, and keeps the hard cap code when both are full', () => {
+    const atShare = usageOf({
+      global: { requests: 4, tokens: 4_000 },
+      role: none,
+      scope: none,
+      ambient: { global: { requests: 4, tokens: 4_000 } },
+    });
+    expect(decideReservation(shared, atShare, 1).kind).toBe('exhausted');
+    expect(decideReservation(caps, atShare, 1)).toEqual({ kind: 'within' });
+    const bothFull = usageOf({
+      global: { requests: 10, tokens: 0 },
+      role: none,
+      scope: none,
+      ambient: { global: { requests: 4, tokens: 0 } },
+    });
+    expect(decideReservation(shared, bothFull, 1)).toEqual({
+      kind: 'exhausted',
+      dimension: 'global',
+      limit: 'requests',
+    });
   });
 });

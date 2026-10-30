@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 import type { RoomSeed } from '../application/seeds.js';
+import { castProblem } from '../domain/cast.js';
 
 /**
  * Gives a room its General discussion if it has none: the place a member lands, made with the room. It is an
@@ -22,10 +23,28 @@ async function ensureGeneral(db: Kysely<Database>, roomId: string, now: Date): P
     .execute();
 }
 
+/** Gives a room its residents if it has none: the cast of its seed, by role, leaving any name a room already has. */
+async function ensureCast(db: Kysely<Database>, roomId: string, seed: RoomSeed): Promise<void> {
+  const problem = castProblem(seed.cast);
+  if (problem !== undefined) throw new Error(`ROOMS_CAST_INVALID: ${problem}`);
+  await db
+    .insertInto('rooms.room_cast')
+    .values(
+      seed.cast.map((member, index) => ({
+        room_id: roomId,
+        inhabitant: member.inhabitant,
+        name: member.name,
+        position: index + 1,
+      })),
+    )
+    .onConflict((conflict) => conflict.columns(['room_id', 'inhabitant']).doNothing())
+    .execute();
+}
+
 /**
  * Creates the rooms that do not exist yet, by slug, and leaves existing ones as they are, except that a room
- * without a General gets one. It writes only room and General rows: no member, no message and no moderator, so
- * a seeded room is empty until people come.
+ * without a General or a cast gets them. It writes only room, General and cast rows: no member, no message and no
+ * moderator, so a seeded room is empty until people come.
  */
 export async function seedRooms(
   db: Kysely<Database>,
@@ -46,7 +65,6 @@ export async function seedRooms(
         topic_kind: seed.topic.kind,
         topic_id: seed.topic.id,
         join_rule: seed.joinRule,
-        inhabitants: [...seed.inhabitants],
         created_at: now,
       })
       .onConflict((conflict) => conflict.column('slug').doNothing())
@@ -57,6 +75,7 @@ export async function seedRooms(
       (await db.selectFrom('rooms.rooms').select('room_id').where('slug', '=', seed.slug).executeTakeFirstOrThrow())
         .room_id;
     await ensureGeneral(db, roomId, now);
+    await ensureCast(db, roomId, seed);
     (inserted === undefined ? existing : created).push(seed.slug);
   }
   return { created, existing };

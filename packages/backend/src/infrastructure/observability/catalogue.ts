@@ -114,6 +114,7 @@ export const diagnosticCatalogue = {
   'realtime.access_revoked': { severity: 'info', module: 'realtime', fields: ['count'] },
   'realtime.relay_failed': { severity: 'error', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.heartbeat_failed': { severity: 'warn', module: 'realtime', fields: ['reasonCode', 'error'] },
+  'realtime.typing_failed': { severity: 'warn', module: 'realtime', fields: ['reasonCode', 'error'] },
   'realtime.sockets_reauthenticated': { severity: 'info', module: 'realtime', fields: ['reasonCode', 'count'] },
   // Identity (S1.3). Never an address, token, link, cookie or key: outcomes and codes only.
   'identity.sign_in_requested': { severity: 'info', module: 'identity', fields: ['requestId', 'outcome'] },
@@ -206,6 +207,10 @@ export const diagnosticCatalogue = {
   },
   // Branches of content threads settled by the sweep (D-049): a count only, never a thread or a person.
   'scenarios.branches_resolved': { severity: 'info', module: 'scenarios', fields: ['count'] },
+  // Places given their look by the operator's backfill (D-102): a count only.
+  'scenes.looks_backfilled': { severity: 'info', module: 'scenes', fields: ['count'] },
+  // A place left without a look, or a scene refused because the plan and its stored objects disagree (D-102): a code only.
+  'scenes.look_refused': { severity: 'warn', module: 'scenes', fields: ['reasonCode'] },
   'evidence.reading_projected': {
     severity: 'info',
     module: 'evidence',

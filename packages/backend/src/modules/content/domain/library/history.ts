@@ -8,6 +8,7 @@ export const historySystem = {
   id: 'history',
   meaning: 'How past events and ideas shaped the world, told with their uncertainties.',
   sceneFamily: 'ridged.v1',
+  haze: 'pink',
   topics: [
     {
       id: 'history.industrial-revolution',

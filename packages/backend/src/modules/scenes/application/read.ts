@@ -5,7 +5,9 @@ import {
   SceneChunkReadSchema,
   SceneManifestSchema,
   SceneChunkSchema,
+  supportsSceneLooks,
   supportsSceneV1,
+  type SceneLook,
   type SceneManifestRead,
   type SceneChunkRead,
   type ReadSceneManifest,
@@ -42,6 +44,22 @@ async function selected(
     if (q.selection.kind === 'universe' || c.systemId === q.selection.systemId) chunks.push(c);
   }
   return chunks;
+}
+/**
+ * The looks of the objects a manifest read names, for a client that declared the look capability and
+ * only for it. A world projected before looks existed has fewer looks than objects until it is
+ * backfilled, and the client draws such an object as it always did. Looks carry no activity, count,
+ * support or time, so serving them needs nothing from Geography beyond what the read already has.
+ */
+async function looksOf(
+  p: ScenePorts,
+  scope: PersonalScopeTx,
+  q: ReadSceneManifest,
+  chunkRefs: readonly { readonly objectIds: readonly string[] }[],
+): Promise<{ readonly looks: SceneLook[] } | Record<string, never>> {
+  if (!supportsSceneLooks(q.capabilities)) return {};
+  const named = new Set(chunkRefs.flatMap((ref) => ref.objectIds));
+  return { looks: (await p.store.looks(scope)).filter((look) => named.has(look.objectId)) };
 }
 function base(
   p: ScenePorts,
@@ -135,7 +153,7 @@ export function makeReadSceneManifest(p: ScenePorts): ReadOwnSceneManifest {
           },
           chunks: [],
         });
-        return reply({ ...fields, status: 'empty', manifest });
+        return reply({ ...fields, status: 'empty', manifest, ...(await looksOf(p, scope, q, manifest.chunks)) });
       }
       const current = await status(p, scope, input, state);
       if (current.kind === 'unavailable') return reply({ ...fields, status: 'unavailable', reason: current.reason });
@@ -154,6 +172,7 @@ export function makeReadSceneManifest(p: ScenePorts): ReadOwnSceneManifest {
         status: current.kind === 'pending' ? 'lagging' : manifest.chunks.length ? 'ready' : 'empty',
         manifest,
         ...(current.kind === 'pending' ? { pendingProjection: current.pending } : {}),
+        ...(await looksOf(p, scope, q, manifest.chunks)),
       });
       return { kind: 'read', scene } as const;
     });

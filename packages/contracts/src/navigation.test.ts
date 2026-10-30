@@ -114,6 +114,8 @@ describe('Explore prerequisite wire contracts', () => {
     for (const intent of [
       { mode: 'vertical', direction: 'next' },
       { mode: 'vertical', direction: 'previous' },
+      { mode: 'vertical', direction: 'next', format: 'reel' },
+      { mode: 'vertical', direction: 'next', format: 'scroll' },
       { mode: 'series', direction: 'next' },
       { mode: 'series', direction: 'previous' },
       { mode: 'related' },
@@ -130,6 +132,9 @@ describe('Explore prerequisite wire contracts', () => {
       { ...navigate, from: { offerId: id } },
       { ...navigate, from: { exposureId: id } },
       { ...navigate, intent: { mode: 'back' } },
+      { ...navigate, intent: { mode: 'vertical', direction: 'next', format: 'video' } },
+      { ...navigate, intent: { mode: 'vertical', direction: 'next', format: undefined, topic: 'earth' } },
+      { ...navigate, intent: { mode: 'series', direction: 'next', format: 'scroll' } },
       { ...navigate, intent: { mode: 'related', part: 2 } },
       { ...navigate, intent: { mode: 'variant', to: 'scroll', generate: true } },
       { ...navigate, intent: { mode: 'return', target: { assetId: id, assetRevision: 1, playheadMs: 31000 } } },

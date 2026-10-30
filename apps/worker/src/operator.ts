@@ -2,6 +2,7 @@ import { admitContinuityCommand, produceLibraryCommand, productionStatusCommand 
 import { journeyCommand } from './journey-operator.js';
 import { reelCommand } from './reel-operator.js';
 import { roomsCommand } from './rooms-operator.js';
+import { backfillLooksCommand } from './scenes-operator.js';
 import { recoverOpenDemandCommand } from './supply-operator.js';
 import { writerSpikeCommand } from './writer-spike-operator.js';
 import { makeCutroomReelImporter } from '@knowscroll/backend/modules/content/nest-providers';
@@ -42,6 +43,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  *   reel check|order|follow|receive|status|write-off|settle  Reels from Cutroom (reel-operator.ts, docs/v2/operations/cutroom-and-spend.md)
  *   journey <id> | journey --account <accountId> [--json]    one record's journey across modules (journey-operator.ts, docs/v2/operations/looking-at-the-system.md)
  *   rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]   idea rooms, one per library system (rooms-operator.ts)
+ *   scenes backfill-looks [--dry-run] [--limit <n>]       give worlds projected before looks existed their look; moves no slot, seed, family or anchor (scenes-operator.ts, D-102)
  *   content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]   the v15 writer on real recipes; admits and publishes nothing (writer-spike-operator.ts, S-0)
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
@@ -49,7 +51,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -200,6 +202,8 @@ async function main(): Promise<number> {
       print,
       logEvent,
     );
+  if (area === 'scenes' && command === 'backfill-looks' && args.positionals.length === 2)
+    return backfillLooksCommand({ dryRun: args.values['dry-run'], limit: args.values.limit }, print, logEvent);
   if (area === 'supply' && command === 'recover-open-demand' && args.positionals.length === 2)
     return recoverOpenDemandCommand({ dryRun: args.values['dry-run'] }, print, logEvent);
   if (area === 'content' && command === 'production-status' && args.positionals.length === 2)

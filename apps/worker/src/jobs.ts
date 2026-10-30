@@ -5,10 +5,13 @@ import {
 } from '@knowscroll/backend/modules/scenes/nest-providers';
 import {
   PROJECT_SCENE,
+  BACKFILL_SCENE_LOOKS,
   projectSceneQueue,
+  backfillLooksQueue,
   FORMATION_PRESENTATIONS,
   expireFormationQueue,
   recoverFormationQueue,
+  type BackfillSceneLooks,
   type FormationUseCases,
   type ProjectScene,
 } from '@knowscroll/backend/modules/scenes';
@@ -30,8 +33,14 @@ import { socialPeopleProviders, visitRefreshProviders } from '@knowscroll/backen
 import { roomsWorkerProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
   CONTRIBUTE_AS_INHABITANT,
+  DECIDE_CAST,
+  RUN_CAST_PASS,
+  castDueQueue,
+  castPassQueue,
   contributeQueue,
   type ContributeAsInhabitant,
+  type DecideCast,
+  type RunCastPass,
 } from '@knowscroll/backend/modules/rooms';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
 import { threadGuestProviders } from '@knowscroll/backend/modules/social/nest-providers';
@@ -149,13 +158,17 @@ import { ACTIVITY_CONTEXT_EFFECT } from '@knowscroll/backend/modules/personal-co
 const PERSONAL_MATERIAL_CHANGE = Symbol('personal.materialChange');
 export const jobWiring: Provider[] = [
   ...sceneAppliedProviders({ enqueueJob: ENQUEUE_JOB }),
-  ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
+  ...sceneProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, logEvent: LOG_EVENT }),
   ...formationProviders({ database: DATABASE, boss: PG_BOSS, withPersonalScope: WITH_PERSONAL_SCOPE }),
   ...geographyProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, enqueueJob: ENQUEUE_JOB }),
   ...visitRefreshProviders({ withPersonalScope: WITH_PERSONAL_SCOPE }),
   // An AI inhabitant answers a member's ask through the personal harness; it reads people and content only.
   ...socialPeopleProviders(),
-  ...roomsWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
+  ...roomsWorkerProviders({
+    withPersonalScope: WITH_PERSONAL_SCOPE,
+    workerConfig: WORKER_CONFIG,
+    enqueueJob: ENQUEUE_JOB,
+  }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   {
     provide: PERSONAL_MATERIAL_CHANGE,
@@ -213,6 +226,7 @@ export const jobWiring: Provider[] = [
     provide: JOB_CONSUMERS,
     inject: [
       PROJECT_SCENE,
+      BACKFILL_SCENE_LOOKS,
       REFRESH_VISIT_PUBLICATION,
       FORMATION_PRESENTATIONS,
       RUN_CARTOGRAPHER,
@@ -224,6 +238,8 @@ export const jobWiring: Provider[] = [
       RUN_PLANNER,
       PREPARE_COMPOSER_BUFFER,
       CONTRIBUTE_AS_INHABITANT,
+      DECIDE_CAST,
+      RUN_CAST_PASS,
       APPLY_ACTION_EVIDENCE,
       PROJECT_SCROLL_READING,
       PROJECT_ENCOUNTER_ACTIVITY,
@@ -240,6 +256,7 @@ export const jobWiring: Provider[] = [
     ],
     useFactory: (
       projectScene: ProjectScene,
+      backfillLooks: BackfillSceneLooks,
       refreshVisit: RefreshVisitPublication,
       formation: FormationUseCases,
       runCartographer: RunCartographer,
@@ -251,6 +268,8 @@ export const jobWiring: Provider[] = [
       runPlanner: RunPlanner,
       prepareBuffer: PrepareBuffer,
       contributeAsInhabitant: ContributeAsInhabitant,
+      decideCast: DecideCast,
+      runCastPass: RunCastPass,
       applyActionEvidence: ApplyActionEvidence,
       projectScrollReading: ProjectScrollReading,
       projectActivity: ProjectEncounterActivity,
@@ -304,6 +323,11 @@ export const jobWiring: Provider[] = [
         await projectScene(payload);
         await refreshVisit({ universeId: payload.universeId, privacyEpoch: payload.privacyEpoch });
       }),
+      // Worlds projected before looks existed get theirs; nothing already stored moves (D-102).
+      jobConsumer(backfillLooksQueue, async (payload) => {
+        const { assigned } = await backfillLooks(payload);
+        logEvent('scenes.looks_backfilled', { count: assigned });
+      }),
       jobConsumer(cartographyQueue, async (payload, delivery) => {
         await runCartographer(payload, delivery.signal);
       }),
@@ -337,6 +361,18 @@ export const jobWiring: Provider[] = [
       jobConsumer(contributeQueue, async (payload, delivery) => {
         await contributeAsInhabitant(payload, delivery.signal);
       }),
+      // Residents speaking on their own are registered only when this worker holds the rooms grant
+      // (KS_REASONING_ROOM_ENABLED), so a world that leaves them off keeps the jobs for one that has it (D-162).
+      ...(config.reasoning.roomEnabled
+        ? [
+            jobConsumer(castDueQueue, async (payload) => {
+              await decideCast(payload);
+            }),
+            jobConsumer(castPassQueue, async (payload, delivery) => {
+              await runCastPass(payload, delivery.signal);
+            }),
+          ]
+        : []),
       jobConsumer(applyActionEvidenceQueue, async (payload) => {
         const result = await applyActionEvidence(payload);
         if (result.kind === 'skipped')

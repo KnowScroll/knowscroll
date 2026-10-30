@@ -1,8 +1,14 @@
 import {
+  HAZE_FAMILIES,
+  LOOK_LIMITS,
+  PLANET_TYPES,
   SCENE_LIMITS,
+  SCENE_LOOK_VERSION,
+  WORLD_GENERATOR_VERSION,
   type SceneActivity,
   type SceneChunk,
   type SceneDescriptor,
+  type SceneLook,
   type SceneManifest,
   type SceneReturnLocator,
   type SceneRevisions,
@@ -224,6 +230,43 @@ function descriptor(value: unknown): SceneDescriptor {
     fail();
   return result;
 }
+function flag(value: unknown): boolean {
+  if (typeof value !== 'boolean') fail();
+  return value;
+}
+function look(value: unknown): SceneLook {
+  const kind = (value as RecordValue | null)?.kind;
+  const common = ['schemaVersion', 'generatorVersion', 'objectId', 'kind'] as const;
+  const keys =
+    kind === 'system'
+      ? [...common, 'haze']
+      : kind === 'planet'
+        ? [...common, 'type', 'rings', 'moon', 'hueShift', 'variant', 'siteCount']
+        : [...common, 'site'];
+  const r = record(value, keys);
+  const base = {
+    schemaVersion: choice(r.schemaVersion, [SCENE_LOOK_VERSION]),
+    generatorVersion: choice(r.generatorVersion, [WORLD_GENERATOR_VERSION]),
+    objectId: id(r.objectId),
+  };
+  switch (choice(r.kind, ['system', 'planet', 'region'])) {
+    case 'system':
+      return { ...base, kind: 'system', haze: choice(r.haze, HAZE_FAMILIES) };
+    case 'planet':
+      return {
+        ...base,
+        kind: 'planet',
+        type: choice(r.type, PLANET_TYPES),
+        rings: flag(r.rings),
+        moon: flag(r.moon),
+        hueShift: number(r.hueShift, -LOOK_LIMITS.hueShift, LOOK_LIMITS.hueShift, true),
+        variant: number(r.variant, 0, LOOK_LIMITS.variant, true),
+        siteCount: number(r.siteCount, 1, LOOK_LIMITS.sites, true),
+      };
+    case 'region':
+      return { ...base, kind: 'region', site: number(r.site, 0, LOOK_LIMITS.sites - 1, true) };
+  }
+}
 function route(value: unknown): SceneRoute {
   const r = record(value, ['id', 'fromObjectId', 'toObjectId', 'originTransitionId', 'truthStatus']);
   const result = {
@@ -319,3 +362,4 @@ export const SceneDescriptorSchema = schema(descriptor);
 export const SceneChunkSchema = schema(chunk);
 export const SceneManifestSchema = schema(manifest);
 export const SceneReturnLocatorSchema = schema(locator);
+export const SceneLookSchema = schema(look);

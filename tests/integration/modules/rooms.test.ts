@@ -66,7 +66,7 @@ describe('idea rooms (real PostgreSQL)', () => {
         .execute();
       expect(seeded).toHaveLength(seeds.length);
       const roomIds = seeded.map((row) => row.room_id);
-      for (const table of ['members', 'invitations', 'ai_requests'] as const) {
+      for (const table of ['members', 'invitations', 'ai_turns'] as const) {
         const rows = await world.db
           .selectFrom(`rooms.${table}`)
           .select('room_id')
@@ -92,8 +92,8 @@ describe('idea rooms (real PostgreSQL)', () => {
       const view = await readRoom(stranger, roomId);
       if (view.status !== 'preview') throw new Error('expected a preview');
       expect(view.inhabitants).toEqual([
-        { inhabitant: 'explainer', label: 'AI · Explainer', blurb: 'Answers when asked' },
-        { inhabitant: 'skeptic', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
+        { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
+        { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
       ]);
       expect(view.hasModerator).toBe(false);
       expect(JSON.stringify(view)).not.toMatch(/memberCount|"members"|online|activity/i);
