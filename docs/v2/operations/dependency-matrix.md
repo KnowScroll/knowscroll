@@ -95,6 +95,9 @@ published on 2026-10-19 and is not adopted the same day).
 | react-native-screens | 4.30.0 | 2026-10-13 | MIT |
 | react-native-svg | 15.16.0 | 2026-10-15 | MIT (S1.4: icons, illustrations, pending stripe; the version in `bundledNativeModules.json`) |
 | @types/react | 19.3.0 | 2026-09-09 | MIT |
+| three | 0.186.1 | 2026-09-24 | MIT (D-100: the space views; ES modules only, so Metro and Jest take its module build, never the deprecated `three.cjs` shim) |
+| @types/three | 0.186.0 | 2026-09-11 | MIT (dev only) |
+| expo-gl | 58.0.3 | 2026-10-01 | MIT (D-100: the native canvas for three.js; the version in `bundledNativeModules.json`, `~58.0.3`; its `react-native-reanimated` peer is optional and unused) |
 
 Client data (S1.4, #227; not part of Expo's bundled modules):
 

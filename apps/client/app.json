@@ -13,6 +13,7 @@
       "expo-router",
       "./plugins/font-scale-config-changes.js",
       "./plugins/test-api-cleartext.js",
+      "./plugins/keep-expo-gl-views.js",
       "expo-secure-store",
       [
         "expo-video",
