@@ -1908,6 +1908,8 @@ export interface SocialVisibilitySettings {
   audience: Generated<string>;
   presence_preference: Generated<string>;
   presence_revision: Generated<Int8>;
+  read_state_revision: Generated<Int8>;
+  share_read_state: Generated<boolean>;
   visibility_revision: Generated<Int8>;
 }
 

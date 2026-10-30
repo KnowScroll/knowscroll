@@ -185,6 +185,12 @@ export const ReadConversationInboxSchema = z.strictObject({
 const OwnSettings = z.strictObject({ readThroughSequence: Counter, muted: z.boolean() });
 /** Present (true) only after the other person left: history stays readable, nothing more can be sent. */
 const Ended = z.literal(true).optional();
+/**
+ * How far the other person has read: SEEN (D-066, D-150). Present only while the conversation stands and both
+ * people share their read position, so its absence says nothing about who hid theirs or whether anything was
+ * read. A position, never a time: the time under a message is when it was sent.
+ */
+const PeerRead = z.strictObject({ throughSequence: Counter }).optional();
 export const DirectConversationSummarySchema = z
   .strictObject({
     conversation: DirectConversationRefSchema,
@@ -239,6 +245,7 @@ export const DirectConversationSnapshotSchema = z.discriminatedUnion('status', [
       conversation: DirectConversationRefSchema,
       peer: PublicPersonRefSchema,
       own: OwnSettings,
+      peerRead: PeerRead,
       ended: Ended,
       latestMessageSequence: Counter,
       messages: Messages,
@@ -250,6 +257,7 @@ export const DirectConversationSnapshotSchema = z.discriminatedUnion('status', [
       (r) =>
         r.messages.length <= r.limit &&
         r.own.readThroughSequence <= r.latestMessageSequence &&
+        (r.peerRead === undefined || r.peerRead.throughSequence <= r.latestMessageSequence) &&
         // The initial window includes the latest bubble (including a neutral tombstone).
         // Otherwise catch-up could start past a committed message absent from this snapshot.
         (r.latestMessageSequence === 0
@@ -293,7 +301,8 @@ export const ReadConversationChangesSchema = z.strictObject({
 });
 /** Change sequence orders durable visible creation/redaction, NOT peer private preferences.
  * Stable message.sequence keeps original bubble order when a later change replaces it with a
- * neutral tombstone. No socket delivery/ack establishes durable message receipt or seen status. */
+ * neutral tombstone. No socket delivery/ack establishes durable message receipt or seen status:
+ * SEEN is the page's `peerRead`, read from the server, and only while both people share it. */
 export const ConversationChangeSchema = z
   .strictObject({ changeSequence: Revision, message: ConversationMessageSchema })
   .refine((r) => r.message.sequence <= r.changeSequence);
@@ -312,6 +321,7 @@ export const ConversationChangesPageSchema = z.discriminatedUnion('status', [
       limit: Limit,
       requestCursor: ConversationChangesCursorSchema,
       ended: Ended,
+      peerRead: PeerRead,
       fromChangeSequence: Counter,
       throughChangeSequence: Counter,
       changes: z.array(ConversationChangeSchema).max(50),
@@ -335,6 +345,7 @@ export const ConversationChangesPageSchema = z.discriminatedUnion('status', [
       }
       return (
         r.fromChangeSequence <= r.throughChangeSequence &&
+        (r.peerRead === undefined || r.peerRead.throughSequence <= r.throughChangeSequence) &&
         r.changes.length <= r.limit &&
         r.changes.every(
           (x, i) =>

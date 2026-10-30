@@ -61,6 +61,10 @@ export async function eraseVisibilityAccountRows(trx: Transaction<Database>, acc
 }
 
 const AVAILABILITY_WORDS = { hidden: 'not shown', recently_active: 'Recently active', online: 'Online' } as const;
+const SEEN_WORDS = {
+  on: 'on: people you talk with see when you have read their message, and you see when they have read yours',
+  off: 'off: you do not show when you have read a message, and you do not see it for them either',
+} as const;
 const AUDIENCE_WORDS = { nobody: 'nobody', chosen_friends: 'friends you chose', all_friends: 'all friends' } as const;
 
 /**
@@ -72,7 +76,7 @@ const AUDIENCE_WORDS = { nobody: 'nobody', chosen_friends: 'friends you chose', 
 export async function exportVisibility(trx: Transaction<Database>, accountId: string, universeId: string) {
   const settings = await trx
     .selectFrom('social.visibility_settings')
-    .select(['audience', 'presence_preference'])
+    .select(['audience', 'presence_preference', 'share_read_state'])
     .where('account_id', '=', accountId)
     .executeTakeFirst();
   const chosen = await trx
@@ -92,6 +96,7 @@ export async function exportVisibility(trx: Transaction<Database>, accountId: st
     whoMayVisit: AUDIENCE_WORDS[audience as keyof typeof AUDIENCE_WORDS] ?? 'nobody',
     friendsYouChose: Number(chosen.n),
     availability: AVAILABILITY_WORDS[preference as keyof typeof AVAILABILITY_WORDS] ?? 'not shown',
+    seenInDirectConversations: settings?.share_read_state === false ? SEEN_WORDS.off : SEEN_WORDS.on,
     systemsYouShare: systems.map((system) => system.label),
   };
 }

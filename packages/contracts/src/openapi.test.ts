@@ -371,6 +371,7 @@ describe('the API contract', () => {
       '/v1/social/invites/revoke': ['post'],
       '/v1/social/visibility': ['get', 'post'],
       '/v1/social/presence/preference': ['get', 'post'],
+      '/v1/social/read-receipts': ['get', 'post'],
       '/v1/social/visits/read': ['post'],
       '/v1/social/conversations/start': ['post'],
       '/v1/social/conversations/inbox': ['post'],

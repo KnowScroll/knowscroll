@@ -5,6 +5,7 @@ import {
   clockTime,
   dayKey,
   dayLabel,
+  deliveryWord,
   describeMessage,
   endsRun,
   inboxRowView,
@@ -128,5 +129,15 @@ describe('the day capsule', () => {
     expect(capsuleLabel(new Date(2026, 9, 25, 23, 59), now, 'en-GB')).toBe('Yesterday');
     expect(capsuleLabel(new Date(2026, 9, 18, 12, 0), now, 'en-GB')).toBe('Sun 18 Oct');
     expect(capsuleLabel(new Date(2025, 11, 31, 12, 0), now, 'en-GB')).toBe('Wed 31 Dec 2025');
+  });
+});
+
+describe('the word under the person’s latest message', () => {
+  it('is Seen once the other person has read to it, and Sent when they have not or the server says nothing', () => {
+    expect(deliveryWord(4, 4)).toBe('Seen');
+    expect(deliveryWord(4, 7)).toBe('Seen');
+    expect(deliveryWord(4, 3)).toBe('Sent');
+    expect(deliveryWord(4, 0)).toBe('Sent');
+    expect(deliveryWord(4, undefined)).toBe('Sent');
   });
 });

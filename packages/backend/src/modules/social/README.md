@@ -19,6 +19,7 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | Share links | `content_shares` | `CONVERSATION_USE_CASES.shares`: create, revoke, read own, list own, resolve, public preview | Implemented |
 | Content threads | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`) | `THREAD_USE_CASES`: create, read, history, changes, send, react, respond, mark read, leave, inbox, open snippet | Implemented; not runtime-verified on dev |
 | Replies and reactions (T-B, D-146, D-147) | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message) | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react` | Implemented; not runtime-verified on dev |
+| SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision` (migration 0078; the read position itself is `conversation_members.read_through_sequence`, unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead` | Implemented; not runtime-verified on dev |
 | Visibility, availability and visits | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets` | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
@@ -73,8 +74,17 @@ Block end it for both people without saying why.
   command's outcome with `send/read`.
 - **Order.** Each message has a `sequence` (history order) and a `change_sequence` (for catching up). Both
   counters grow by `+1` in SQL, so account deletion can add tombstones without the friendship lock.
-- **Read state is private.** `read_through_sequence` belongs to its member. The other person never sees it, nor
-  a typing signal. Mute is also private.
+- **Read state is the member's own, and SEEN is the one way it is shared** (D-066, D-150). `read_through_sequence`
+  belongs to its member and always moves, for their own unread dot. A direct conversation tells the other person how
+  far it has moved only through `peerRead`, below. Nobody is ever told a person is typing. Mute is private.
+- **SEEN** (`application/seen.ts`, rule in `domain/conversations.ts`: `visiblePeerRead`). A snapshot and a changes page
+  carry `peerRead { throughSequence }` only while both people share their read position (a switch on the person's
+  settings row, on by default) and the conversation stands. In every other case the field is absent: the other person
+  hides theirs, the reader hides their own, either person left, the other account is gone. One shape, so none of
+  them can be told apart; a blocked pair gets `unavailable` as for any read. Both switches are read under the pair
+  lock on each read, so a change shows at the other person's next read. A read writes nothing. A `mark read` that
+  moves the position also bumps the other person's inbox head (a disposable hint) only while SEEN is mutual. It is a
+  position, never a time: the app draws the sent time with the word. Threads and rooms have no such field.
 - **Replies** (D-146). `replyTo` on a send names a message of the same conversation; a message of another
   conversation, an unknown ID and a tombstone are all `unavailable`, and nothing is written. The reply stores the
   original's sequence (a composite foreign key keeps it inside the conversation). A page of messages carries
@@ -110,7 +120,8 @@ by (`social_pair`, pair, actor, operation, command ID). A deleted-counterpart co
 
 ### Live updates
 
-A committed send, read or leave bumps `inbox_heads.revision` for each member and calls
+A committed send or leave bumps `inbox_heads.revision` for each member, and a read that moves bumps it for the reader and,
+while SEEN is mutual, the other person (a person who hides theirs tells nobody). It calls
 `notifyInboxChanged` in the same transaction. The payload is `{ v: 1, scope: { kind: 'inbox', id: <universeId> },
 revision, eventId }`. The socket subscribes with the caller's own universe ID and its ack carries the current
 head. A hint is disposable: the client then reads `conversations/changes` from its cursor, so a missed or
@@ -202,7 +213,8 @@ its 20 second poll, so a lost hint loses nothing.
 ## Visibility, availability and the friend visit
 
 A person decides what friends may see (F02, D-047). Everything starts off: nobody may visit, no system is
-shared and availability is hidden. No row means the defaults, so reading the settings writes nothing.
+shared and availability is hidden; SEEN in direct conversations starts on (D-066). No row means the defaults, so
+reading the settings writes nothing.
 
 - **Who may visit.** The audience is `nobody`, `chosen_friends` or `all_friends`. The chosen friends are rows
   that only mean something while the two are friends: accepting, removing or blocking deletes the rows between
@@ -233,7 +245,11 @@ shared and availability is hidden. No row means the defaults, so reading the set
   choice, with a constant lease (30 s or 60 s) that never reveals the last beat. Hidden, expired and unknown are
   one `unknown` answer. There is no push: friends reread while Friends is open.
 
-Commands (`visibility.set`, `presence.preference.set`) use personal receipts, expect the revision the client
+- **SEEN switch** (`read-receipts.set`, `GET/POST /v1/social/read-receipts`). A wanted state, with its own revision on the
+  same settings row: a repeat is accepted with no change and no new revision, and turning it off or on touches no
+  conversation, read position or other setting. Nobody is told: the other person's screen follows at its next read.
+
+Commands (`visibility.set`, `presence.preference.set`, `read-receipts.set`) use personal receipts, expect the revision the client
 read (`stale_revision` otherwise) and replay the same ID and body. Choosing a friend who is not a friend now
 (or yourself), or a system that is not the caller's own factual system, is `invalid_input` and changes nothing.
 
@@ -251,7 +267,7 @@ and the installed API (`tests/integration/release/visits-http.test.ts`). Not run
 | content_shares | kept | deleted |
 | content_threads | kept | the starter link is cleared; the thread stays for the others |
 | message_snippets | kept | deleted with the author's tombstoned message |
-| visibility_settings, visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too |
+| visibility_settings (audience, availability, SEEN), visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too. The export names the SEEN switch in words (`seenInDirectConversations`) and never the other person's |
 | visit_publications, visit_systems, visit_planets | deleted (friends who visit then see an empty universe) | deleted with the universe |
 
 Clear never removes messages, cards, snippets, reactions, threads or links. `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), tombstone
@@ -259,15 +275,15 @@ their messages, pick the peers, close conversations, delete their membership and
 the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
 invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`; a reply is marked `wasAReply`), their own reactions (kind, when, and whether on their own message or someone else's; newest 2,000, with `reactionsGiven` and `reactionsTruncated`) and
 their shared links without tokens, how many threads they are in and started (with the names they gave), and in
-words who may visit, how many friends they chose, how they show as available and the titles of the systems they
-share (never a heartbeat, a public ID or who the friends are). It names no other person.
+words who may visit, how many friends they chose, how they show as available, whether SEEN is on and the titles of
+the systems they share (never a heartbeat, a public ID or who the friends are). It names no other person.
 
 ## Failure and recovery
 
 - A lost response: retry with the same command ID.
 - A lost hint: the next hint, a focus, or the 30 second poll reads `changes` from the cursor.
 - A stale friendship view: the command is refused as stale and the client rereads the pair.
-- A stale settings page: `visibility.set` and `presence.preference.set` answer `stale_revision`, and the page
+- A stale settings page: `visibility.set`, `presence.preference.set` and `read-receipts.set` answer `stale_revision`, and the page
   rereads and shows what the server holds.
 - A lost heartbeat: availability lapses by itself within a minute; nothing keeps someone "Online".
 - A failed refresh: the job retries; the visitors keep the last copy, and the next successful projection or the
@@ -276,8 +292,8 @@ share (never a heartbeat, a public ID or who the friends are). It names no other
 ## Related
 
 - Blueprint 02d sections 14 and 17; decisions D-049 (what other modules may do in a thread), D-042 (conversations and links), D-043 (deleted accounts), D-046
-  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit).
+  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit), D-066 and D-150 (SEEN).
 - Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`,
   `friend-pages.ts`, `socket.ts` (`presence_heartbeat`).
-- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`),
+- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`; SEEN: `social-seen`),
   `tests/integration/release/conversations-http.test.ts`, `threads-http.test.ts`, `visits-http.test.ts`.

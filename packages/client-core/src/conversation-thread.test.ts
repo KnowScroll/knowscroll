@@ -27,6 +27,30 @@ describe('conversation thread (labelled in-memory server)', () => {
     expect(thread.getState().messages.map((message) => message.sequence)).toEqual([1, 2, 3]);
   });
 
+  it('shows how far the other person has read only while the server says so, from a read and from catch-up', async () => {
+    const { server, thread } = setup();
+    server.peerSays('one');
+    await thread.load();
+    await thread.send(text('two'));
+    expect(thread.getState().peerReadThrough).toBeUndefined();
+    // Both share and the peer read to the person's own message: catch-up carries it, with no new message.
+    server.peerReadsThrough(2);
+    await thread.refresh();
+    expect(thread.getState().peerReadThrough).toBe(2);
+    // Either person hides theirs: the next read says nothing, and the screen forgets it.
+    server.peerReadsThrough(undefined);
+    await thread.refresh();
+    expect(thread.getState().peerReadThrough).toBeUndefined();
+    // A fresh snapshot carries it too.
+    server.peerReadsThrough(1);
+    await thread.load();
+    expect(thread.getState().peerReadThrough).toBe(1);
+    // An ended conversation says nothing.
+    server.peerLeaves();
+    await thread.refresh();
+    expect(thread.getState().peerReadThrough).toBeUndefined();
+  });
+
   it('catches up from its cursor and keeps messages in order, ignoring a repeated refresh', async () => {
     const { server, thread } = setup();
     server.peerSays('before');

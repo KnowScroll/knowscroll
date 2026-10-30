@@ -393,8 +393,8 @@ prefix directory, address-book upload, private activity or fabricated contacts.
 Lookup and invite resolve are authenticated **POST** bodies with one coarse
 unavailable answer for absent/hidden/blocked/inactive identities.
 
-`apiContract.sharing` declares GET own profile, invites, visibility and presence
-preference; POST updates on profile/visibility/presence preference; POST
+`apiContract.sharing` declares GET own profile, invites, visibility, presence
+preference and read receipts (SEEN); POST updates on profile/visibility/presence preference/read receipts; POST
 `/v1/social/people/lookup`, `/pairs/read`, `/friends/read`, `/requests/read`,
 `/friends/request|accept|decline|cancel|remove|block|unblock`,
 `/invites/resolve|create|revoke` and `/visits/read`, all with `/v1/social` prefix.
@@ -962,6 +962,15 @@ the wanted state, so a repeat is accepted with `changed: false`. An available me
 original's author and first words, or `unavailable`) and `reactions` (each kind once: whether the reader is one and the
 people, never a time; people the reader blocked are left out). A reaction advances the message's change number, so
 `changes` sends it again. The thread contract reuses the same shapes.
+
+SEEN (v3 T-C, D-066, D-150): the direct conversation `read` snapshot and `changes` page may carry
+`peerRead { throughSequence }`, how far the other person has read: a position, never a time, a name or a flag.
+It is present only while both people share their read position and the conversation stands, and absent in every
+other case, so its absence says nothing about who hid theirs. The inbox row, the thread contract and rooms have no
+such field (strict schemas refuse one), and a typing signal is never on the wire. The caller's own switch is
+`apiContract.sharing.readReceipts` (GET) and `setReadReceipts` (POST, `/v1/social/read-receipts`): a wanted state
+(`shared`) with its own `readReceiptsRevision`, on until turned off, independent of the audience and the availability
+choice. `sharing.test.ts` and `conversations.test.ts` hold the shapes.
 
 A future backend must enter the current personal root/account/epoch gates, then reuse the
 existing private pair aggregate as its **sole** shared locking authority for direct conversation

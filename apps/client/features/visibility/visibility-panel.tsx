@@ -26,7 +26,7 @@ function SaveNote({ save, onRetry }: { readonly save: VisibilitySave; readonly o
     return (
       <View role="status">
         <Text variant="meta" color={content.ink2}>
-          Saved. This applies to every visit from now on.
+          Saved. This applies from now on.
         </Text>
       </View>
     );
@@ -50,8 +50,9 @@ function SaveNote({ save, onRetry }: { readonly save: VisibilitySave; readonly o
 
 /**
  * F02 "Sharing & visibility" (P02, D-047): who may visit the person's universe, which systems they see,
- * and whether friends see "Online" or "Recently active". Everything starts off: nobody may visit, no
- * system is shared and availability is hidden. A change applies to every later read at once; what a
+ * whether friends see "Online" or "Recently active", and whether the people they talk with see SEEN (D-066).
+ * Everything about visits starts off: nobody may visit, no system is shared and availability is hidden. SEEN
+ * starts on. A change applies to every later read at once; what a
  * friend already saw cannot be taken back, and the page says so. It never shows what anyone watched.
  */
 export function VisibilityPanel({
@@ -66,7 +67,7 @@ export function VisibilityPanel({
   useEffect(() => {
     void session.load();
   }, [session]);
-  const { draft, confirmed, presence } = state;
+  const { draft, confirmed, presence, readReceipts } = state;
   const busy = state.save.status === 'saving';
   return (
     <View style={styles.panel}>
@@ -181,6 +182,29 @@ export function VisibilityPanel({
               <Text variant="meta" color={content.ink2}>
                 {PRESENCE_CHOICES.find((choice) => choice.value === presence.preference)?.description} Never shows what
                 you’re watching, only whether you’re around.
+              </Text>
+            </View>
+          ) : null}
+          {readReceipts ? (
+            <View style={styles.group}>
+              <Text variant="label" color={content.ink2} heading={3}>
+                Read receipts
+              </Text>
+              <SwitchRow
+                testID="read-receipts"
+                label="Show SEEN in direct conversations"
+                description={
+                  readReceipts.shared
+                    ? 'On: people you talk with see SEEN once you’ve read their message, and you see theirs.'
+                    : 'Off: they won’t see when you’ve read their messages, and you won’t see theirs.'
+                }
+                checked={readReceipts.shared}
+                disabled={busy}
+                onPress={() => void session.setReadReceipts(!readReceipts.shared)}
+              />
+              <Text variant="meta" color={content.ink2}>
+                If you hide yours, you won’t see theirs. It shows only in direct conversations, never in threads or
+                rooms, and never says what you’ve watched or read.
               </Text>
             </View>
           ) : null}

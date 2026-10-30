@@ -6,7 +6,9 @@ import { id } from './encounter-fixture';
  * once (no backend). What one page sends the other reads, so replies, reactions and the changes feed can be
  * exercised from both sides. It keeps the real server's rules that the client depends on: gapless sequences,
  * a fresh change number for a changed reaction, one reaction per person and kind, a reply only to a
- * message of this conversation, and per-reader `mine`. Authored names, never product data.
+ * message of this conversation, per-reader `mine`, and SEEN (D-066): each person's read position moves only by
+ * their own mark-read, and the other person is told how far it has moved only while both people's switches are on.
+ * Authored names, never product data.
  */
 export type Who = 'asha' | 'ravi';
 
@@ -50,6 +52,16 @@ const cursorValue = (token: string) => Number(token.replace(/^kcc1_A*/, ''));
 export function pairWorld() {
   const messages: Stored[] = [];
   let changes = 0;
+  /** How far each person has read: moved by their own mark-read only, whether or not they share it. */
+  const readThrough: Record<Who, number> = { asha: 0, ravi: 0 };
+  /** Each person's SEEN switch (on by default) and its revision. */
+  const sharing: Record<Who, { shared: boolean; revision: number }> = {
+    asha: { shared: true, revision: 1 },
+    ravi: { shared: true, revision: 1 },
+  };
+  /** What the server may tell `who` about the other person's reading: only while both share. */
+  const peerReadFor = (who: Who) =>
+    sharing.asha.shared && sharing.ravi.shared ? { peerRead: { throughSequence: readThrough[other(who)] } } : {};
   const find = (sequence: number) => messages.find((message) => message.sequence === sequence)!;
 
   const quoteOf = (sequence: number) => {
@@ -113,6 +125,13 @@ export function pairWorld() {
       message.changeSequence = ++changes;
       return true;
     },
+    /** Turns a person's own SEEN switch on or off, as their Account page would. */
+    setSeen(who: Who, shared: boolean) {
+      if (sharing[who].shared !== shared) sharing[who].revision += 1;
+      sharing[who].shared = shared;
+    },
+    /** How far this person has read. */
+    readThrough: (who: Who) => readThrough[who],
     /** What the reactions on a message are now, as "who:kind". */
     reactionsOn: (sequence: number) => find(sequence).reactions.map((reaction) => `${reaction.by}:${reaction.kind}`),
     replyOf: (sequence: number) => find(sequence).replyTo,
@@ -173,7 +192,8 @@ export function pairWorld() {
                 status: 'ready',
                 conversation: pairConversation(who),
                 peer: people[other(who)],
-                own: { readThroughSequence: newest?.sequence ?? 0, muted: false },
+                own: { readThroughSequence: readThrough[who], muted: false },
+                ...peerReadFor(who),
                 latestMessageSequence: messages.length,
                 messages: page.map((message) => view(message, who)),
                 limit,
@@ -219,6 +239,7 @@ export function pairWorld() {
                 conversation: pairConversation(who),
                 limit: body['limit'],
                 requestCursor: body['cursor'],
+                ...peerReadFor(who),
                 fromChangeSequence: after,
                 throughChangeSequence: changes,
                 changes: page.map((message) => ({
@@ -260,13 +281,24 @@ export function pairWorld() {
               },
             };
           }
-          case '/v1/social/conversations/mark-read':
+          case '/v1/social/conversations/mark-read': {
+            readThrough[who] = Math.max(readThrough[who], Number(body['throughSequence']));
             return {
               json: {
                 ...receipt(body),
                 operation: 'conversation.read',
                 requestedThroughSequence: body['throughSequence'],
-                acceptedThroughSequence: body['throughSequence'],
+                acceptedThroughSequence: readThrough[who],
+              },
+            };
+          }
+          case '/v1/social/read-receipts':
+            return {
+              json: {
+                version: 'sharing.v1',
+                scope,
+                readReceiptsRevision: sharing[who].revision,
+                shared: sharing[who].shared,
               },
             };
           case '/v1/social/threads/inbox':

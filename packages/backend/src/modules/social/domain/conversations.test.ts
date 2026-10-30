@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptedReadThrough, shareState, SHARE_LIFETIME_MS } from './conversations.js';
+import { acceptedReadThrough, shareState, visiblePeerRead, SHARE_LIFETIME_MS } from './conversations.js';
 import { changesCursor, historyCursor, inboxCursor } from './cursors.js';
 
 const conversationId = '0199a000-0000-7000-8000-000000000001';
@@ -24,6 +24,22 @@ describe('read position', () => {
     expect(acceptedReadThrough(7, 5, 9)).toBe(7);
     expect(acceptedReadThrough(3, 9, 9)).toBe(9);
     expect(acceptedReadThrough(3, 10, 9)).toBeUndefined();
+  });
+});
+
+describe('SEEN is mutual', () => {
+  const both = { readerShares: true, peerShares: true, standing: true, peerReadThrough: 4 };
+  it('tells the reader how far the other person has read only while both people share', () => {
+    expect(visiblePeerRead(both)).toBe(4);
+    expect(visiblePeerRead({ ...both, peerReadThrough: 0 })).toBe(0);
+  });
+  it('is hidden from a reader who hides their own, and when the other person hides theirs', () => {
+    expect(visiblePeerRead({ ...both, readerShares: false })).toBeUndefined();
+    expect(visiblePeerRead({ ...both, peerShares: false })).toBeUndefined();
+    expect(visiblePeerRead({ ...both, readerShares: false, peerShares: false })).toBeUndefined();
+  });
+  it('is hidden once the conversation has ended', () => {
+    expect(visiblePeerRead({ ...both, standing: false })).toBeUndefined();
   });
 });
 

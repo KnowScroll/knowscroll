@@ -44,6 +44,12 @@ export interface ThreadState {
   /** The other person left: the history stays, nothing more can be sent. */
   readonly ended: boolean;
   readonly muted: boolean;
+  /**
+   * How far the other person has read, when the server says so: only while both people share their read
+   * position (SEEN, D-066) and the conversation stands. `undefined` shows nothing, and is the one answer for
+   * every reason the server may have to say nothing.
+   */
+  readonly peerReadThrough: number | undefined;
   /** The last read answer did not arrive; what is shown may be out of date. */
   readonly offline: boolean;
   /** After a lost connection returned with new messages: the sequence the "While you were away" divider follows. */
@@ -127,6 +133,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     loadingOlder: false,
     ended: false,
     muted: false,
+    peerReadThrough: undefined,
     offline: false,
     awayAfterSequence: undefined,
   };
@@ -190,6 +197,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         hasOlder: olderCursor !== undefined,
         ended: snapshot.ended === true,
         muted: snapshot.own.muted,
+        peerReadThrough: snapshot.peerRead?.throughSequence,
         offline: false,
         ...returned(snapshot.messages),
       });
@@ -227,6 +235,7 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
           messages,
           outgoing: settle(messages),
           ended: page.ended === true,
+          peerReadThrough: page.peerRead?.throughSequence,
           offline: false,
           ...returned(messages),
         });
