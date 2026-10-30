@@ -1,5 +1,6 @@
 import type { ContinuityLink, EncounterRef, EncounterSnapshot } from '../../content/public.js';
 import type { ComposerSnapshot, PreparedEvidenceInput, SemanticAssessments } from '../domain/types.js';
+import { sourceSeriesId } from '../domain/vertical-rules.js';
 import type { ReadPreparedEvidenceInput } from './ports.js';
 
 /**
@@ -81,6 +82,7 @@ export interface AssembledSnapshot {
 export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
   const { source, candidates, links } = input;
   const assessments = presentAssessments(input);
+  const currentSeriesId = source ? sourceSeriesId(source, candidates) : undefined;
   const full: ComposerSnapshot = {
     universeId: input.universeId,
     privacyEpoch: input.privacyEpoch,
@@ -99,9 +101,7 @@ export function assembleSnapshot(input: SnapshotInput): AssembledSnapshot {
         : {}),
       ...(links[0] ? { continuityLinkId: links[0].linkId } : {}),
       ...(input.mode === 'vertical' && input.stickyFormat ? { stickyFormat: input.stickyFormat } : {}),
-      ...(input.mode === 'vertical' && input.excludeSourceSeries && source?.series
-        ? { currentSeriesId: source.series.seriesId }
-        : {}),
+      ...(input.mode === 'vertical' && input.excludeSourceSeries && currentSeriesId ? { currentSeriesId } : {}),
       ...(input.mode === 'vertical' && input.relatedAssetIds?.length
         ? { relatedAssetIds: [...input.relatedAssetIds] }
         : {}),

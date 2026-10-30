@@ -10,7 +10,7 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | Buffer job `composer.prepare-buffer`, `composer.buffers`, serving from a buffer | implemented (integration-tested; not yet run on dev) |
 | Jev (`composer.jev`, `KS_JEV_ENABLED`) | implemented; four real MiniMax calls succeeded locally (M3 x3, M3.1-Flash x1); not yet run on dev |
 | Stored-assessment use on the HTTP path | implemented |
-| A vertical move leaves the series the person is in (`same_series`, D-131) and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
+| A vertical move leaves the series the person is in (`same_series`, D-131) and its related move (`related_target`, D-136), and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); not yet run on dev |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
 
@@ -136,8 +136,9 @@ Status: implemented, CI-tested against real PostgreSQL; not yet run on dev. Rela
 The V3 grammar is swipe left for Part 2 and pull up for a new topic. Three rules in `domain/vertical-rules.ts`
 make a vertical move say the second.
 
-- **`same_series`.** The snapshot's `intent.currentSeriesId` names the source's series. Any candidate of it, in any
-  series revision, is excluded. With only the series left the move is exhausted. Only vertical moves ask: the
+- **`same_series`.** The snapshot's `intent.currentSeriesId` names the source's series: its own, or for a Reel that of
+  its Scroll twin among the candidates (`sourceSeriesId`). Any candidate of it, in any series revision, and any
+  candidate with the explanation unit of one of its parts (the Reel of Part 2), is excluded. With only the series left the move is exhausted. Only vertical moves ask: the
   Part move still reaches the series through its admitted link. A snapshot that names a series on another move
   is refused, so the rule cannot be silently ignored.
 - **`format_sticky`.** The snapshot's `intent.stickyFormat` is the format the person is in. While any candidate of

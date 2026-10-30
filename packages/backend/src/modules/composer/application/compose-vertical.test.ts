@@ -112,6 +112,24 @@ describe('same_series: a vertical move is a new subject (D-131)', () => {
     expect(decision.selection.map((s) => s.assetId).sort()).toEqual(['other-series', 'tides']);
   });
 
+  it('also excludes the format twin of another part: a Reel of Part 2 is still Part 2', () => {
+    const reelOfPart2 = candidate('reel-part-2', { kind: 'reel', unit: 'unit-part-2' });
+    const reelElsewhere = candidate('reel-stars', { kind: 'reel', topic: 'space.stars' });
+    const snapshot = vertical([parts[0]!, reelOfPart2, reelElsewhere], {
+      currentSeriesId: SERIES,
+      stickyFormat: 'scroll',
+    });
+    const decision = composeEncounter(snapshot);
+    expect(decision.evaluations.find((e) => e.assetId === 'reel-part-2')).toMatchObject({
+      eligible: false,
+      exclusions: ['same_series'],
+    });
+    // No Scroll is eligible, so the format falls back, and only the Reel of another topic is offered.
+    expect(decision.selection.map((s) => s.assetId)).toEqual(['reel-stars']);
+    expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'fell_back' });
+    expect(composeEncounter(vertical([parts[0]!, reelOfPart2], { currentSeriesId: SERIES })).outcome).toBe('exhausted');
+  });
+
   it('applies to vertical moves only: a series move still reaches the next part', () => {
     const next = candidate('part-2', { series: part(2) });
     const source = { assetId: 'source', assetRevision: 1 };
@@ -450,6 +468,36 @@ describe('assembling the vertical rules from the source (labelled CI inputs)', (
     const plain = assembleSnapshot(input()).snapshot.intent;
     expect(plain.currentSeriesId).toBeUndefined();
     expect(plain.stickyFormat).toBeUndefined();
+  });
+
+  it('a Reel takes the series of its Scroll twin, and next leaves that series in the Reel format too', () => {
+    const asReel = (name: string, unit: string, extra: Partial<EncounterSnapshot> = {}): EncounterSnapshot =>
+      encounter(name, {
+        kind: 'reel',
+        explanationUnitId: unit,
+        metadata: { kind: 'reel', title: name, summary: '', language: 'en' },
+        ...extra,
+      });
+    const reelOfPart1 = asReel('reel-part-1', 'unit-part-1');
+    const candidates = [
+      encounter('part-1', { series: part(1), explanationUnitId: 'unit-part-1' }),
+      encounter('part-2', { series: part(2) }),
+      asReel('reel-part-2', 'unit-part-2'),
+      asReel('reel-stars', 'unit-stars', { topics: [{ topicId: 'space.stars', role: 'primary', weight: 1 }] }),
+    ];
+    const { snapshot } = assembleSnapshot(
+      input({ source: reelOfPart1, candidates, excludeSourceSeries: true, stickyFormat: 'reel' }),
+    );
+    expect(snapshot.intent).toMatchObject({ currentSeriesId: SERIES, stickyFormat: 'reel' });
+    const decision = composeEncounter(snapshot);
+    expect(decision.selection.map((selected) => selected.assetId)).toEqual(['reel-stars']);
+    for (const name of ['part-2', 'reel-part-2'])
+      expect(decision.evaluations.find((e) => e.assetId === name)?.exclusions).toContain('same_series');
+    // A Reel whose Scroll twin is not among the candidates names no series.
+    expect(
+      assembleSnapshot(input({ source: reelOfPart1, candidates: candidates.slice(1), excludeSourceSeries: true }))
+        .snapshot.intent.currentSeriesId,
+    ).toBeUndefined();
   });
 
   it('carries the related assets only on a subject move and only when there are some', () => {

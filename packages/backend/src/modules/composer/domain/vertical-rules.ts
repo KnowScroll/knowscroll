@@ -1,4 +1,4 @@
-import type { ComposerSnapshot, RelatedTargetOutcome, StickyFormatOutcome } from './types.js';
+import type { ComposerSnapshot, EncounterSnapshot, RelatedTargetOutcome, StickyFormatOutcome } from './types.js';
 
 type Candidate = ComposerSnapshot['candidates'][number];
 
@@ -9,16 +9,49 @@ export interface Screened {
 }
 
 /**
- * Whether the candidate is another part of the series the person is in, in any revision of that series.
- * Moving to a part is a series move (the Part tab or swipe); a vertical move is a new subject, so it
- * never offers one. Only vertical moves ask: a series move exists to reach exactly these.
+ * The series the person is in: the source's own, or else that of a candidate which is the source's format
+ * twin (same explanation unit). Only a Scroll is a series unit, so a Reel takes the series of its Scroll
+ * twin when the twin is among the candidates. No extra read: it looks at what was retrieved.
  */
-export function inCurrentSeries(snapshot: ComposerSnapshot, candidate: Candidate): boolean {
+export function sourceSeriesId(
+  source: Pick<EncounterSnapshot, 'series' | 'explanationUnitId'>,
+  candidates: readonly Pick<EncounterSnapshot, 'series' | 'explanationUnitId'>[],
+): string | undefined {
+  return (
+    source.series?.seriesId ??
+    candidates.find(
+      (candidate) => candidate.series !== undefined && candidate.explanationUnitId === source.explanationUnitId,
+    )?.series?.seriesId
+  );
+}
+
+/** The explanation units of the series' parts among the candidates, so a part's format twin counts as a part. */
+export function seriesUnitIds(snapshot: ComposerSnapshot): ReadonlySet<string> {
+  const { currentSeriesId } = snapshot.intent;
+  if (snapshot.mode !== 'vertical' || currentSeriesId === undefined) return new Set();
+  return new Set(
+    snapshot.candidates
+      .filter(({ encounter }) => encounter.series?.seriesId === currentSeriesId)
+      .map(({ encounter }) => encounter.explanationUnitId),
+  );
+}
+
+/**
+ * Whether the candidate is another part of the series the person is in, in any revision of that series,
+ * or the format twin of one (a Reel of Part 2 is not a series unit itself but is still Part 2). Moving
+ * to a part is a series move (the Part tab or swipe); a vertical move leaves the series. Only vertical
+ * moves ask: a series move exists to reach exactly these.
+ */
+export function inCurrentSeries(
+  snapshot: ComposerSnapshot,
+  candidate: Candidate,
+  seriesUnits: ReadonlySet<string>,
+): boolean {
   const { currentSeriesId } = snapshot.intent;
   return (
     snapshot.mode === 'vertical' &&
     currentSeriesId !== undefined &&
-    candidate.encounter.series?.seriesId === currentSeriesId
+    (candidate.encounter.series?.seriesId === currentSeriesId || seriesUnits.has(candidate.encounter.explanationUnitId))
   );
 }
 

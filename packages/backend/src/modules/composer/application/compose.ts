@@ -2,7 +2,7 @@ import { validateTopics } from '../../content/public.js';
 import { features, score, similarity } from '../domain/features.js';
 import { planLifts } from '../domain/plan.js';
 import { COMPOSER_POLICY, randomSource, refKey, uniformIndex } from '../domain/policy.js';
-import { applyRelatedExclusion, applyStickyFormat, inCurrentSeries } from '../domain/vertical-rules.js';
+import { applyRelatedExclusion, applyStickyFormat, inCurrentSeries, seriesUnitIds } from '../domain/vertical-rules.js';
 import { ComposerSnapshotSchema } from './snapshot-schema.js';
 import type { ComposerDecision, ComposerSnapshot } from '../domain/types.js';
 function validRef(ref: { readonly assetId: string; readonly assetRevision: number }): boolean {
@@ -146,7 +146,11 @@ export function validateSnapshot(s: ComposerSnapshot): void {
   if (new TextEncoder().encode(JSON.stringify(s)).length > 192_000) fail();
 }
 /** Why a candidate cannot be offered at all, before any scoring. Empty means eligible. */
-function exclusionsOf(s: ComposerSnapshot, c: ComposerSnapshot['candidates'][number]): string[] {
+function exclusionsOf(
+  s: ComposerSnapshot,
+  c: ComposerSnapshot['candidates'][number],
+  seriesUnits: ReadonlySet<string>,
+): string[] {
   const exclusions: string[] = [];
   if (!c.admitted) exclusions.push('not_admitted');
   if (!c.accessible) exclusions.push('inaccessible');
@@ -160,7 +164,7 @@ function exclusionsOf(s: ComposerSnapshot, c: ComposerSnapshot['candidates'][num
   if (s.mode === 'vertical' && c.encounter.explanationUnitId === s.intent.explanationUnitId)
     exclusions.push('current_explanation');
   // Another part of the series the person is in is reached by the Part move, never by a new subject.
-  if (inCurrentSeries(s, c)) exclusions.push('same_series');
+  if (inCurrentSeries(s, c, seriesUnits)) exclusions.push('same_series');
   if (
     s.intent.requiredTopicIds?.some(
       (id) => !c.encounter.topics.some((t) => t.topicId === id && t.role !== 'incidental'),
@@ -177,11 +181,12 @@ export function composeEncounter(snapshot: ComposerSnapshot): ComposerDecision {
   // Clone first: a caller cannot mutate an asynchronous persistence input through shared references.
   const s: ComposerSnapshot = structuredClone(snapshot);
   validateSnapshot(s);
+  const seriesUnits = seriesUnitIds(s);
   const { screened: unrelated, related } = applyRelatedExclusion(
     s,
     s.candidates.map((candidate) => ({
       candidate,
-      exclusions: exclusionsOf(s, candidate),
+      exclusions: exclusionsOf(s, candidate, seriesUnits),
       base: features(s, candidate),
     })),
   );

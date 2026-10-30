@@ -85,8 +85,11 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     return { assetId: imported.assetId, assetRevision: imported.revision };
   }
 
-  /** An admitted Reel row with a valid document and no media: enough for Explore to rank and offer it. */
-  async function admitReel(topicId: string) {
+  /**
+   * An admitted Reel row with a valid document and no media: enough for Explore to rank and offer it. With
+   * `unit` it is the format twin of the Scroll that has that explanation unit.
+   */
+  async function admitReel(topicId: string, unit?: string) {
     const assetId = randomUUID();
     const document = {
       schemaVersion: 'reel-document.v1',
@@ -109,7 +112,7 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
     await sql`insert into content.asset_revisions
         (asset_id, revision, provenance_kind, document_version, document, document_sha256, explanation_unit_id, language, title, reading_facts)
       values (${assetId}::uuid, 1, 'generated', 'reel-document.v1', ${JSON.stringify(document)}::jsonb,
-        ${'0'.repeat(64)}, ${`ci-vertical-reel-${assetId}`}, 'en', ${document.title}, '{}'::jsonb)`.execute(
+        ${'0'.repeat(64)}, ${unit ?? `ci-vertical-reel-${assetId}`}, 'en', ${document.title}, '{}'::jsonb)`.execute(
       database.db,
     );
     await attribute(assetId, topicId);
@@ -374,12 +377,21 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect((await decisionOf(next.decisionId)).stickyFormat).toEqual({ preferred: 'reel', outcome: 'fell_back' });
     });
 
-    it('a client that names no format is ranked as before: the Scrolls of its topic come first', async () => {
+    it('a client that names no format is ranked as before: no format rule, and the Scrolls of its topic lead', async () => {
       const person = await seedPerson(database.db);
       const stand = await standOn(person, reels[0]!);
       const next = ready(await nextSubject(person, stand));
-      expect(next.offer.metadata.kind).toBe('scroll');
-      expect((await decisionOf(next.decisionId)).stickyFormat).toBeUndefined();
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.stickyFormat).toBeUndefined();
+      expect(decision.input.intent.stickyFormat).toBeUndefined();
+      expect(decision.evaluations.some((evaluation) => evaluation.exclusions.includes('format_sticky'))).toBe(false);
+      // Both formats are in play. The first slot is the ranked winner nine times in ten and an exploration pick
+      // otherwise, so the ranking is what this asserts, not the first offer.
+      const kindOf = (assetId: string | undefined) =>
+        decision.input.candidates.find((candidate) => candidate.encounter.assetId === assetId)?.encounter.kind;
+      const eligible = decision.evaluations.filter((evaluation) => evaluation.eligible);
+      expect(new Set(eligible.map((evaluation) => kindOf(evaluation.assetId)))).toEqual(new Set(['scroll', 'reel']));
+      expect(kindOf(decision.exploration.rankedWinner?.assetId)).toBe('scroll');
     });
   });
 
@@ -415,6 +427,51 @@ describe('a vertical move is a new topic in the same format (real PostgreSQL, la
       expect(ids).not.toContain(hemispheres.assetId);
       expect(ids).not.toContain(part3.assetId);
       expect(ids).not.toContain(limits.assetId);
+    });
+  });
+
+  // Last on purpose: these Reels are format twins of Seasons parts, and the groups above would rank them.
+  describe('format twins of the series (D-131)', () => {
+    let reelOfPart1: Awaited<ReturnType<typeof admitReel>>;
+    let reelOfPart2: Awaited<ReturnType<typeof admitReel>>;
+
+    beforeAll(async () => {
+      reelOfPart1 = await admitReel(SEASONS_TOPIC, 'ci-vertical-seasons');
+      reelOfPart2 = await admitReel(SEASONS_TOPIC, 'ci-vertical-seasons-hemispheres');
+    });
+
+    it('from Part 1, the Reel of Part 2 is not offered even when no Scroll is left', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOn(person, seasons);
+      for (const scroll of elsewhere)
+        await cases.applyEncounterAction(person.authority, { commandId: randomUUID(), kind: 'hide', target: scroll });
+      const next = ready(await nextSubject(person, stand, 'scroll'));
+      const ids = offers(next).map((offer) => offer.assetId);
+      expect(ids.length).toBeGreaterThan(0);
+      expect(ids).not.toContain(reelOfPart2.assetId);
+      expect(ids).not.toContain(reelOfPart1.assetId);
+      const decision = await decisionOf(next.decisionId);
+      expect(exclusionsIn(decision, reelOfPart2.assetId)).toContain('same_series');
+      // No Scroll was eligible, so the other format was offered, and only Reels of other topics.
+      expect(decision.stickyFormat).toEqual({ preferred: 'scroll', outcome: 'fell_back' });
+      expect(ids.sort()).toEqual(reels.map((reel) => reel.assetId).sort());
+    });
+
+    it('from the Reel of Part 1, next leaves the series: the series is the one of its Scroll twin', async () => {
+      const person = await seedPerson(database.db);
+      const stand = await standOn(person, reelOfPart1);
+      const next = ready(await nextSubject(person, stand, 'reel'));
+      const ids = offers(next).map((offer) => offer.assetId);
+      expect(ids.sort()).toEqual(reels.map((reel) => reel.assetId).sort());
+      const decision = await decisionOf(next.decisionId);
+      expect(decision.input.intent).toMatchObject({
+        currentSeriesId: 'library.earth.seasons',
+        stickyFormat: 'reel',
+        relatedAssetIds: [limits.assetId],
+      });
+      expect(exclusionsIn(decision, reelOfPart2.assetId)).toContain('same_series');
+      expect(exclusionsIn(decision, hemispheres.assetId)).toContain('same_series');
+      expect(decision.stickyFormat).toEqual({ preferred: 'reel', outcome: 'kept' });
     });
   });
 });

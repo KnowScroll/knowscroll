@@ -8,13 +8,13 @@ const scope = {} as PersonalScopeTx;
 
 function encounter(
   assetId: string,
-  options: { readonly seriesId?: string; readonly twin?: string } = {},
+  options: { readonly seriesId?: string; readonly twin?: string; readonly unit?: string } = {},
 ): EncounterSnapshot {
   return {
     assetId,
     assetRevision: 1,
     kind: options.twin ? 'reel' : 'scroll',
-    explanationUnitId: `unit-${assetId}`,
+    explanationUnitId: options.unit ?? `unit-${assetId}`,
     metadata: { kind: options.twin ? 'reel' : 'scroll', title: assetId, summary: '', language: 'en' },
     topics: [],
     facets: [],
@@ -72,6 +72,17 @@ describe('the assets the Related tab of the thread reaches (labelled CI inputs)'
     expect(await readRelatedAssetIds(storeOf(links), scope, reel, [])).toEqual(['twin-target']);
     const own = encounter('part-3');
     expect(await readRelatedAssetIds(storeOf(links), scope, own, [])).toEqual(['limits']);
+  });
+
+  it('lets a Reel take the series of its Scroll twin among the candidates, and so the related move of Part 3', async () => {
+    const reel = encounter('reel-part-1', { twin: 'part-1', unit: 'unit-part-1' });
+    const candidates = [
+      encounter('part-1', { seriesId: 'thread', unit: 'unit-part-1' }),
+      encounter('part-3', { seriesId: 'thread' }),
+    ];
+    expect(await readRelatedAssetIds(storeOf(links), scope, reel, candidates)).toEqual(['limits']);
+    // Without the twin among the candidates the series is unknown and Part 3 is not read.
+    expect(await readRelatedAssetIds(storeOf(links), scope, reel, candidates.slice(1))).toEqual([]);
   });
 
   it('names nothing for a source with no related move, without reading more than it must', async () => {
