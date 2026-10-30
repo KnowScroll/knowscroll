@@ -584,6 +584,7 @@ The labelled examples are CI fixtures, not product content (`production.kind: "f
 | `attention-slowly` | Drag-to-target diagram, heatmap chart with an anchored caption number, illustrative slider simulation, disclosure with code, table |
 | `weight-other-worlds` | Non-illustrative simulation with a personal input and cards, value bindings for its range and default, anchored fallback-text numbers, bar chart |
 | `spring-neap-tides` | Step-through diagram on the grid layout, illustrative slider simulation with cards and bands, timeline. Its two claims are the real passages from the frozen v1 library pack `1aca9029bc97`. |
+| `seasons-stage-ci` | A `scroll-document.v2` about the seasons: a stage with seven states, two Call its and a Final call, a tangent and a limits aside, a recap. It is the reader's fixture (S-1c): its title and kicker say it is a CI fixture, its measures and hash are checked by `seasons-fixture.test.ts`, and `fixtures/regenerate-v2.mjs` rewrites it after a deliberate change to the v2 rules (`pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-v2.mjs && pnpm format`). |
 
 Layout:
 - `fixtures/documents/<name>.json`: the exported consumer documents.
