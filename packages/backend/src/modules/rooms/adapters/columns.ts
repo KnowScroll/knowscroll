@@ -1,5 +1,5 @@
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
-import type { JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
+import type { AiLevel, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 
 /**
  * The text columns of migration 0062 are closed sets by CHECK constraints, but the generated row types
@@ -22,6 +22,8 @@ export const contributionKindOf = closed<ContributionKind>('ai_kind', [
   'counterexample',
 ]);
 export const roleOf = closed<RoomRole>('role', ['member', 'moderator']);
+export const aiLevelOf = closed<AiLevel>('ai_level', ['lively', 'quieter', 'off']);
+export const discussionKindOf = closed<'general' | 'topic' | 'today'>('kind', ['general', 'topic', 'today']);
 export const joinRuleOf = closed<JoinRule>('join_rule', ['open', 'friends_of_members', 'invite_only']);
 export const statusOf = closed<RoomStatus>('status', ['open', 'paused', 'closed']);
 export const topicKindOf = closed<'system' | 'planet'>('topic_kind', ['system', 'planet']);

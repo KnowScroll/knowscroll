@@ -180,6 +180,7 @@ export function makeDiscussionReads(p: RoomPorts) {
             you,
             discussion: {
               discussionId: discussion.discussionId,
+              kind: discussion.kind,
               title: discussion.title,
               pinned: discussion.pinned,
               ...(starter === undefined ? {} : { startedBy: starter }),

@@ -1,7 +1,14 @@
 /** The installed API and a real PostgreSQL: an idea room over HTTP, from preview to a moderator's pin. */
 import { randomUUID } from 'node:crypto';
+import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SocialProblemSchema } from '@knowscroll/contracts';
+import {
+  ScopeChangedHintSchema,
+  SOCKET_PATH,
+  SocialProblemSchema,
+  socketEvents,
+  type ScopeChangedHint,
+} from '@knowscroll/contracts';
 import { createDatabase, type Database, type DatabaseHandle } from '@knowscroll/backend/infrastructure/postgres';
 import { libraryRoomSeeds } from '@knowscroll/backend/modules/rooms';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
@@ -27,6 +34,7 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
   let roomId: string;
   const slug = 'machine-learning';
   const secrets = new Set<string>();
+  const sockets: Socket[] = [];
 
   beforeAll(async () => {
     database = await createEmptyDatabase('rooms_http');
@@ -75,6 +83,7 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
   });
 
   afterAll(async () => {
+    for (const socket of sockets) socket.close();
     try {
       expect(await api.stop()).toBe(0);
       for (const secret of secrets) expect(api.rawOutput()).not.toContain(secret);
@@ -171,6 +180,86 @@ describe('idea rooms over the installed API (disposable accounts)', () => {
       body: JSON.stringify({ version, commandId: randomUUID(), ...ids, optionId: 'o1' }),
     });
     expect(SocialProblemSchema.parse(await refused.json()).code).toBe('SHARING_UNAVAILABLE');
+  });
+
+  describe('the room as a place, over the API and the socket (v3 R-1)', () => {
+    const connect = async (person: Person): Promise<Socket> => {
+      const socket = io(origin, {
+        path: SOCKET_PATH,
+        transports: ['websocket'],
+        auth: { token: person.tokens.native, scope: `${person.accountId}:1` },
+        reconnection: false,
+      });
+      sockets.push(socket);
+      await new Promise<void>((resolve, reject) => {
+        socket.once('connect', () => resolve());
+        socket.once('connect_error', reject);
+      });
+      return socket;
+    };
+    const nextHint = (socket: Socket) =>
+      new Promise<ScopeChangedHint>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('no room hint within 5s')), 5000);
+        socket.once(socketEvents.scopeChanged, (raw: unknown) => {
+          clearTimeout(timer);
+          resolve(ScopeChangedHintSchema.parse(raw));
+        });
+      });
+
+    it('lands a member in General, shows who has the room open, and keeps their own AI settings', async () => {
+      const room = await clientOf(b).rooms.read({ version, readId: randomUUID(), roomId });
+      if (room.status !== 'member') throw new Error('CI room view');
+      expect(room.general).toMatchObject({ kind: 'general', title: 'General' });
+      expect(room.discussions.map((discussion) => discussion.kind)).not.toContain('general');
+      expect(room.you).toMatchObject({ aiLevel: 'lively', keepOut: false });
+      expect(room.you.noticeSeenAt).toBeUndefined();
+      expect(room.here.faces).toEqual([expect.objectContaining({ you: true })]);
+
+      await clientOf(a).rooms.presence({ version, roomId, state: 'here' });
+      const two = await clientOf(b).rooms.read({ version, readId: randomUUID(), roomId });
+      if (two.status !== 'member') throw new Error('CI room view');
+      expect(two.here.faces).toHaveLength(2);
+      expect(two.here.count).toBeUndefined();
+      expect(two.memberTotal).toBe(2);
+
+      const saved = await clientOf(b).rooms.preferences({
+        version,
+        commandId: randomUUID(),
+        roomId,
+        aiLevel: 'quieter',
+        keepOut: true,
+        noticeSeen: true,
+      });
+      expect(saved.you).toMatchObject({ aiLevel: 'quieter', keepOut: true });
+      expect(saved.you.noticeSeenAt).toEqual(expect.any(String));
+      await clientOf(a).rooms.presence({ version, roomId, state: 'away' });
+    });
+
+    it('sends a room hint within seconds to a member who subscribed, and refuses a stranger the subscription', async () => {
+      const listener = await connect(b);
+      const ack = (await listener.emitWithAck(socketEvents.subscribeScope, {
+        scope: { kind: 'room', id: roomId },
+      })) as {
+        ok: boolean;
+      };
+      expect(ack.ok).toBe(true);
+      const heard = nextHint(listener);
+      await clientOf(a).rooms.presence({ version, roomId, state: 'here' });
+      const hint = await heard;
+      expect(hint.scope).toEqual({ kind: 'room', id: roomId });
+      // A hint names the room and nothing else: no person, no content.
+      expect(JSON.stringify(hint)).not.toMatch(/${a.person.handle}|${b.person.handle}|displayName/);
+
+      const stranger = (await seedFriends(db.db, talkCases(db.db).friends)).a;
+      const strangerPerson: Person = { ...stranger, tokens: await seedKeepSessions(db.db, stranger) };
+      secrets.add(strangerPerson.tokens.native);
+      const outsider = await connect(strangerPerson);
+      expect(await outsider.emitWithAck(socketEvents.subscribeScope, { scope: { kind: 'room', id: roomId } })).toEqual({
+        ok: false,
+        code: 'FORBIDDEN',
+      });
+      await clientOf(a).rooms.presence({ version, roomId, state: 'away' });
+    });
   });
 
   it('answers a stranger in one shape and refuses an unauthenticated caller', async () => {

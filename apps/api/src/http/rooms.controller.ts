@@ -87,6 +87,22 @@ export class RoomsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.preferences)
+  preferencesRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.preferences).handler(async ({ input }) =>
+      value(await this.useCases.setPreferences(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.presence)
+  presenceRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.presence).handler(async ({ input }) =>
+      value(await this.useCases.setPresence(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.rooms.createDiscussion)
   createDiscussionRoute(@Req() request: Request) {
     return implement(apiContract.rooms.createDiscussion).handler(async ({ input }) =>

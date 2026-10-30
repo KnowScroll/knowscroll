@@ -2,8 +2,18 @@ import { AI_INHABITANT_LABELS } from '@knowscroll/contracts';
 import { CONCEPTS } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { CONTEXT_MESSAGES } from '../domain/contribution.js';
+import { KEPT_OUT_MESSAGE } from '../domain/membership.js';
 import type { ContextMessage, ContributionMaterial } from './inhabitant-role.js';
-import type { AiRequestRow, ContentCard, ContentRef, DiscussionRow, RoomLock, RoomPorts, Standing } from './ports.js';
+import type {
+  AiRequestRow,
+  ContentCard,
+  ContentRef,
+  DiscussionRow,
+  MessageRow,
+  RoomLock,
+  RoomPorts,
+  Standing,
+} from './ports.js';
 
 const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`;
 
@@ -24,6 +34,11 @@ const clock = (ms: number): string => {
  * to words. Speakers are numbered in order of first appearance ("Member 1"); no name, handle, ID,
  * reading position or hidden message reaches the model. The material comes from this room's own rows
  * only: a friend conversation or thread, however related the topic, is never read here.
+ *
+ * A member who keeps their messages out (R3 question 6) has each of their messages replaced by
+ * `KEPT_OUT_MESSAGE` here, before any item is built: their words, and the title of what they shared, are
+ * never read into the material, so neither the model nor the stored request bytes carry them. The message
+ * still takes its place and its speaker number, so the conversation keeps its shape.
  */
 export async function assembleMaterial(
   p: RoomPorts,
@@ -37,13 +52,19 @@ export async function assembleMaterial(
     ...(discussion.lastSequence > 0 ? { before: discussion.lastSequence + 1 } : {}),
   });
   const shown = rows.filter((row) => !row.hidden && (row.text !== null || row.content !== null));
+  const keptOut = await p.rooms.keepOutAmong(
+    lock,
+    shown.flatMap((row) => (row.authorAccountId === null ? [] : [row.authorAccountId])),
+  );
+  const isKeptOut = (row: MessageRow): boolean => row.authorAccountId !== null && keptOut.has(row.authorAccountId);
+  const readable = shown.filter((row) => !isKeptOut(row));
   const snippets = await p.discussions.snippetsOf(
     lock,
-    shown.filter((row) => row.content !== null).map((row) => row.messageId),
+    readable.filter((row) => row.content !== null).map((row) => row.messageId),
   );
   const refs = new Map<string, ContentRef>();
   if (discussion.root !== null) refs.set(keyOf(discussion.root), discussion.root);
-  for (const row of shown) if (row.content !== null) refs.set(keyOf(row.content), row.content);
+  for (const row of readable) if (row.content !== null) refs.set(keyOf(row.content), row.content);
   const cards = refs.size === 0 ? [] : await p.readContent(scope, [...refs.values()]);
   const cardOf = new Map(cards.map((card) => [keyOf(card.target), card]));
 
@@ -59,6 +80,7 @@ export async function assembleMaterial(
       row.authorAccountId,
       row.inhabitant === null ? undefined : AI_INHABITANT_LABELS[row.inhabitant],
     );
+    if (isKeptOut(row)) return { speaker, text: KEPT_OUT_MESSAGE };
     if (row.text !== null) return { speaker, text: row.text };
     const about = titleOf(cardOf.get(keyOf(row.content!)))?.title ?? 'content that is no longer available';
     const anchor = snippets.get(row.messageId);

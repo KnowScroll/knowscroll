@@ -18,11 +18,14 @@ import {
   ask,
   joinRoom,
   makeModerator,
+  memberView,
   readActivity,
   readDiscussion,
   roomWorld,
   say,
   seedRoom,
+  setPreferences,
+  setPresence,
   startPoll,
   startTopic,
   unwrap,
@@ -237,6 +240,48 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     view = await readActivity(world, staying, roomId, activityId);
     if (view.status !== 'ready' || view.activity.kind !== 'poll') throw new Error('expected a poll');
     expect(view.activity.options.map((option) => option.votes)).toEqual([0, 1]);
+  });
+
+  it('exports a person’s own room settings and removes them, and the presence lease, with the account', async () => {
+    const { roomId } = await seedRoom(world);
+    const erased = await namedPerson();
+    unwrap(await joinRoom(world, erased, roomId));
+    unwrap(await setPreferences(world, erased, roomId, { aiLevel: 'quieter', keepOut: true, noticeSeen: true }));
+    unwrap(await setPresence(world, erased, roomId));
+    expect(await countOf('rooms.room_presence', 'account_id', erased.accountId)).toBe(1);
+
+    // The export holds the person's own choices about AI and says nothing about where they were.
+    const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(erased.authority, (scope) =>
+      exportCurrentPerson(scope, { accountId: erased.accountId }, openToEveryone),
+    );
+    if (exported.kind !== 'entered') throw new Error('export refused');
+    const section = exported.value.sections['rooms'] as { rooms: Record<string, unknown>[] };
+    expect(section.rooms[0]).toMatchObject({ aiLevel: 'quieter', keepMessagesOutOfAi: true });
+    expect(section.rooms[0]).toHaveProperty('aiNoticeSeenAt');
+    expect(JSON.stringify(section)).not.toMatch(/presence|lastSeen/i);
+
+    const receiptId = randomUUID();
+    const deleting = deleteAccountFor(database.db, boss, {
+      eraseAccountData: eraseCurrentAccount,
+      lockTimeoutMs: 5_000,
+    });
+    expect((await deleting.request(erased.authority, { receiptId })).kind).toBe('accepted');
+    expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+    expect(await countOf('rooms.room_presence', 'account_id', erased.accountId)).toBe(0);
+    expect(await countOf('rooms.members', 'account_id', erased.accountId)).toBe(0);
+  });
+
+  it('leaves a person’s room settings and lease alone through a Clear, as it leaves their membership', async () => {
+    const { roomId } = await seedRoom(world);
+    const person = await namedPerson();
+    unwrap(await joinRoom(world, person, roomId));
+    unwrap(await setPreferences(world, person, roomId, { aiLevel: 'off', keepOut: true }));
+    unwrap(await setPresence(world, person, roomId));
+    await clearRecordingPerson(database, boss, person);
+    const cleared = { ...person, authority: { ...person.authority, privacyEpoch: 2 } };
+    const view = await memberView(world, cleared, roomId);
+    expect(view.you).toMatchObject({ aiLevel: 'off', keepOut: true });
+    expect(await countOf('rooms.room_presence', 'account_id', person.accountId)).toBe(1);
   });
 
   it('keeps the room through a Clear and cancels only the asks that were waiting', async () => {

@@ -3,10 +3,11 @@ import {
   AI_INHABITANT_LABELS,
   type RoomInhabitant,
   type RoomSummary,
+  type RoomYou,
 } from '@knowscroll/contracts';
 import { conceptLabel } from '../../content/public.js';
 import type { InhabitantId } from '../domain/contribution.js';
-import type { RoomRow } from './ports.js';
+import type { MemberRow, RoomRow } from './ports.js';
 
 /** A room as lists and previews name it. No member, activity or online count. */
 export function roomSummary(room: RoomRow): RoomSummary {
@@ -28,3 +29,10 @@ export function inhabitantsOf(inhabitants: readonly InhabitantId[]): RoomInhabit
     blurb: AI_INHABITANT_BLURBS[inhabitant],
   }));
 }
+
+/** The caller's own settings in a room as the contract names them. */
+export const youOf = (member: MemberRow): RoomYou => ({
+  aiLevel: member.aiLevel,
+  keepOut: member.keepOut,
+  ...(member.noticeSeenAt === null ? {} : { noticeSeenAt: member.noticeSeenAt.toISOString() }),
+});

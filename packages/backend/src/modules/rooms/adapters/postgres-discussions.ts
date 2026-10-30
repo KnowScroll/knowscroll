@@ -4,11 +4,12 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { StoredSnippetAnchor } from '../../content/public.js';
 import type { Counters, DiscussionRow, DiscussionStore, MessageRow, RoomLock } from '../application/ports.js';
-import { contributionKindOf, inhabitantOf } from './columns.js';
+import { contributionKindOf, discussionKindOf, inhabitantOf } from './columns.js';
 
 interface DiscussionColumns {
   discussion_id: string;
   room_id: string;
+  kind: string;
   title: string;
   root_asset_id: string | null;
   root_asset_revision: number | null;
@@ -23,6 +24,7 @@ interface DiscussionColumns {
 const DISCUSSION_COLUMNS = [
   'discussion_id',
   'room_id',
+  'kind',
   'title',
   'root_asset_id',
   'root_asset_revision',
@@ -37,6 +39,7 @@ const DISCUSSION_COLUMNS = [
 const discussionOf = (row: DiscussionColumns): DiscussionRow => ({
   discussionId: row.discussion_id,
   roomId: row.room_id,
+  kind: discussionKindOf(row.kind),
   title: row.title,
   root:
     row.root_asset_id === null || row.root_asset_revision === null
@@ -180,12 +183,34 @@ export const discussionStore: DiscussionStore = {
       .selectFrom('rooms.discussions')
       .select(DISCUSSION_COLUMNS)
       .where('room_id', '=', lock.roomId)
+      .where('kind', '<>', 'general')
       .orderBy(sql`pinned_at desc nulls last`)
       .orderBy('last_activity_at', 'desc')
       .orderBy('discussion_id')
       .limit(limit)
       .execute();
     return rows.map(discussionOf);
+  },
+
+  async general(lock) {
+    const row = await trxOf(lock)
+      .selectFrom('rooms.discussions')
+      .select(DISCUSSION_COLUMNS)
+      .where('room_id', '=', lock.roomId)
+      .where('kind', '=', 'general')
+      .executeTakeFirst();
+    return row === undefined ? undefined : discussionOf(row);
+  },
+
+  async lastMessageAt(lock) {
+    const row = await trxOf(lock)
+      .selectFrom('rooms.messages as message')
+      .innerJoin('rooms.discussions as discussion', 'discussion.discussion_id', 'message.discussion_id')
+      .select((builder) => builder.fn.max('message.recorded_at').as('latest'))
+      .where('discussion.room_id', '=', lock.roomId)
+      .where('message.hidden_at', 'is', null)
+      .executeTakeFirst();
+    return row?.latest === undefined || row.latest === null ? undefined : new Date(row.latest);
   },
 
   async pinnedTitle(lock) {

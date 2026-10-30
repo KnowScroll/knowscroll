@@ -1,30 +1,24 @@
 import { useRouter } from 'expo-router';
-import { useContext, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useContext, type ReactNode } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
-import type { RoomDiscussionSummary, RoomInhabitant, RoomJoinBlock, RoomView } from '@knowscroll/contracts';
+import type { RoomJoinBlock, RoomView } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, space, spacing } from '@knowscroll/design-tokens';
-import { Banner, Button, Icon, IconButton, Skeleton, StateBlock, Tag, Text } from '@knowscroll/ui';
-import { afterPendingBack } from '../../platform/after-pending-back';
+import { Banner, Button, IconButton, Skeleton, StateBlock, Tag, Text } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { ActivitiesSection } from './activities-section';
-import { AiLabel, ModeratorLabel } from './ai-label';
-import { discussionHref, isRoomId } from './room-links';
-import { ReportedMessages } from './reported-messages';
-import { ShareIntoRoomSheet } from './share-into-room-sheet';
+import { AiHere } from './ai-here';
+import { GeneralStage, PhoneRoom } from './campfire';
+import { isRoomId } from './room-links';
+import { Guidelines, ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
 import { RoomWorkspaceContext } from './room-workspace-context';
+import { TopicsList } from './topics-list';
 import { useRoom, useRoomActivities } from './use-room';
 
 type Preview = Extract<RoomView, { status: 'preview' }>;
 type Member = Extract<RoomView, { status: 'member' }>;
-
-export const RULE_WORDS = {
-  open: 'Open to everyone',
-  friends_of_members: 'Open to friends of members',
-  invite_only: 'Invite-only',
-} as const;
 
 /** The dark header both the preview and the room share (R01 "rhead"). */
 export function RoomHeader({
@@ -46,64 +40,6 @@ export function RoomHeader({
         {name}
       </Text>
       {children}
-    </View>
-  );
-}
-
-function Guidelines({ text }: { readonly text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={styles.guidelines}>
-      <Pressable role="button" aria-expanded={open} onPress={() => setOpen(!open)} style={styles.guidelinesToggle}>
-        <Text variant="ui">Room guidelines</Text>
-        <Icon name={open ? 'chevronUp' : 'chevronDown'} size={18} color={content.ink} />
-      </Pressable>
-      {open ? (
-        <Text variant="bodyS" color={content.ink2}>
-          {text}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
-/** Who the room has beside people: a moderator when there is one, and the labelled AI inhabitants. */
-function WhoIsHere({
-  hasModerator,
-  inhabitants,
-  stacked,
-}: {
-  readonly hasModerator: boolean;
-  readonly inhabitants: readonly RoomInhabitant[];
-  /** Each label above its words, for a narrow column (D04's left pane). */
-  readonly stacked?: boolean;
-}) {
-  return (
-    <View style={styles.who} role="list" accessibilityLabel="Who is here to help">
-      <Text variant="monoXs" color={content.ink2}>
-        Who’s here to help
-      </Text>
-      {hasModerator ? (
-        <View role="listitem" style={[styles.whoRow, stacked === true ? styles.whoRowStacked : null]}>
-          <ModeratorLabel />
-          <Text variant="bodyS">Keeps the discussion on track</Text>
-        </View>
-      ) : null}
-      {inhabitants.map((entry) => (
-        <View
-          key={entry.inhabitant}
-          role="listitem"
-          style={[styles.whoRow, stacked === true ? styles.whoRowStacked : null]}
-        >
-          <AiLabel label={entry.label} />
-          <Text variant="bodyS">{entry.blurb}</Text>
-        </View>
-      ))}
-      {inhabitants.length === 0 ? null : (
-        <Text variant="meta" color={content.ink2}>
-          AI inhabitants are labelled and never pretend to be people.
-        </Text>
-      )}
     </View>
   );
 }
@@ -205,83 +141,17 @@ export function PreviewBody({
   );
 }
 
-function DiscussionRow({
-  roomId,
-  item,
-  selected,
-}: {
-  readonly roomId: string;
-  readonly item: RoomDiscussionSummary;
-  /** The discussion open beside the list (D04). */
-  readonly selected?: boolean;
-}) {
-  const router = useRouter();
-  const metadata =
-    item.root?.status === 'available'
-      ? item.root.metadata
-      : item.root?.status === 'corrected'
-        ? item.root.current.metadata
-        : undefined;
-  const kind =
-    metadata === undefined
-      ? item.root === undefined
-        ? undefined
-        : 'content'
-      : metadata.kind === 'reel'
-        ? 'Reel'
-        : 'Scroll';
-  const subtitle = [
-    kind ?? 'Discussion',
-    item.startedBy === undefined ? undefined : `started by ${item.startedBy.displayName}`,
-  ]
-    .filter((part): part is string => part !== undefined)
-    .join(' · ');
-  const href = discussionHref(roomId, item.discussionId);
-  return (
-    <Pressable
-      role="link"
-      accessibilityLabel={`${item.pinned ? 'Pinned by the moderator. ' : ''}${item.title}, ${subtitle}`}
-      onPress={() => router.push(href)}
-      aria-current={selected === true ? 'true' : undefined}
-      style={[styles.row, item.pinned ? styles.rowPinned : null, selected === true ? styles.rowSelected : null]}
-      testID={`discussion-${item.discussionId}`}
-    >
-      {item.pinned ? (
-        <View style={styles.pinnedLabel}>
-          <Icon name="shield" size={12} color={content.freshInk} />
-          <Text variant="metaS" color={content.freshInk}>
-            Pinned by the moderator
-          </Text>
-        </View>
-      ) : null}
-      <View style={styles.rowMain}>
-        <View style={styles.tile} aria-hidden>
-          <Icon
-            name={metadata?.kind === 'scroll' ? 'scroll' : metadata?.kind === 'reel' ? 'reel' : 'ask'}
-            size={20}
-            color={content.paper}
-          />
-        </View>
-        <View style={styles.rowText}>
-          <Text variant="ui" numberOfLines={2}>
-            {item.title}
-          </Text>
-          <Text variant="meta" color={content.ink2} numberOfLines={1}>
-            {subtitle}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
 /** R03's way in on a phone: the room's polls and quizzes under its threads. */
 function PageActivities({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
   const { controller, state } = useRoomActivities(scope, roomId);
   return <ActivitiesSection roomId={roomId} state={state} controller={controller} />;
 }
 
-/** R02 "Room · threads": the room's discussions, pinned first, and the ways to start one. */
+/**
+ * The room's details as one page: what it is for, who is here to help, its discussions with the ways to start one,
+ * its polls and quizzes, the guidelines, a moderator's tools and Leave. On a phone these live behind the room's name
+ * (`RoomMenu`); D04's left pane shows them as the rail, with General first and the member's own AI settings.
+ */
 export function MemberBody({
   scope,
   view,
@@ -294,117 +164,66 @@ export function MemberBody({
   readonly view: Member;
   readonly controller: RoomController;
   readonly state: RoomState;
-  /** D04's left pane: no activity here (it has its own pane) and the open discussion is marked. */
+  /** D04's left pane: no activity here (it has its own pane), General leads the list and the open discussion is marked. */
   readonly rail?: boolean;
   readonly selectedDiscussionId?: string;
 }) {
-  const router = useRouter();
-  const [sharing, setSharing] = useState(false);
   const moderator = view.role === 'moderator';
   return (
-    <>
-      <View style={styles.padded}>
-        <Text variant="bodyS" color={content.ink2}>
-          {view.room.description}
-        </Text>
-        <WhoIsHere hasModerator={view.hasModerator} inhabitants={view.inhabitants} stacked={rail === true} />
-        {!view.canPost ? (
-          <Banner
-            kind="info"
-            lead={view.room.status === 'closed' ? 'This room is closed.' : 'Paused by the moderator.'}
-            message="You can read earlier messages. New messages are off for now."
-          />
-        ) : null}
-        <View style={styles.listHeader}>
-          <Text variant="monoXs" color={content.ink2}>
-            Threads
-          </Text>
-          {view.canPost ? (
-            <Button
-              label="Share into room"
-              size="sm"
-              variant="primary"
-              onPress={() => setSharing(true)}
-              testID="share-into-room"
-            />
-          ) : null}
-        </View>
-        {view.discussions.length === 0 ? (
-          <View style={styles.quiet}>
-            <Text variant="ui">Nothing here yet</Text>
-            <Text variant="meta" color={content.ink2}>
-              Be the first to start a discussion. People who join will find it here.
-            </Text>
-          </View>
-        ) : (
-          <View role="list" accessibilityLabel="Discussions in this room" style={styles.rows}>
-            {view.discussions.map((item) => (
-              <View key={item.discussionId} role="listitem">
-                <DiscussionRow
-                  roomId={view.room.roomId}
-                  item={item}
-                  selected={item.discussionId === selectedDiscussionId}
-                />
-              </View>
-            ))}
-          </View>
-        )}
-        {rail === true ? null : <PageActivities scope={scope} roomId={view.room.roomId} />}
-        {view.guidelines === undefined ? null : <Guidelines text={view.guidelines} />}
-        {moderator ? (
-          <View style={styles.moderation}>
-            <Text variant="metaS" color={content.freshInk}>
-              Moderator tools
-            </Text>
-            {view.room.status === 'open' ? (
-              <Button
-                label="Pause the room"
-                size="sm"
-                busy={state.working}
-                onPress={() => void controller.moderate({ kind: 'pause' })}
-              />
-            ) : view.room.status === 'paused' ? (
-              <Button
-                label="Resume the room"
-                size="sm"
-                busy={state.working}
-                onPress={() => void controller.moderate({ kind: 'resume' })}
-              />
-            ) : null}
-            <Text variant="meta" color={content.ink2}>
-              Pinning and removing messages are on each discussion. Nothing here changes anyone’s universe.
-            </Text>
-            <ReportedMessages scope={scope} roomId={view.room.roomId} />
-          </View>
-        ) : null}
-        <Button
-          label="Leave room"
-          variant="ghost"
-          size="sm"
-          busy={state.working}
-          onPress={() => void controller.leave()}
-          testID="leave-room"
+    <View style={styles.padded}>
+      <Text variant="bodyS" color={content.ink2}>
+        {view.room.description}
+      </Text>
+      <WhoIsHere hasModerator={view.hasModerator} inhabitants={view.inhabitants} stacked={rail === true} />
+      {!view.canPost ? (
+        <Banner
+          kind="info"
+          lead={view.room.status === 'closed' ? 'This room is closed.' : 'Paused by the moderator.'}
+          message="You can read earlier messages. New messages are off for now."
         />
-      </View>
-      <ShareIntoRoomSheet
+      ) : null}
+      <TopicsList
         scope={scope}
-        visible={sharing}
-        working={state.working}
-        onClose={() => setSharing(false)}
-        onStart={(start) =>
-          void controller.startDiscussion(start).then((discussionId) => {
-            if (discussionId === undefined) return;
-            // The sheet's close is a Back on the web; navigate once it has landed, or it would undo the push.
-            setSharing(false);
-            afterPendingBack(() => router.push(discussionHref(view.room.roomId, discussionId)));
-          })
-        }
+        view={view}
+        controller={controller}
+        state={state}
+        {...(selectedDiscussionId === undefined ? {} : { selectedDiscussionId })}
+        {...(rail === true ? { general: { selected: selectedDiscussionId === undefined } } : {})}
       />
-    </>
+      {rail === true ? (
+        <>
+          <View style={styles.railSection} testID="rail-ai-here">
+            <Text variant="monoXs" color={content.ink2}>
+              AI here
+            </Text>
+            <AiHere
+              you={view.you}
+              working={state.working}
+              onChange={(change) => void controller.setPreferences(change)}
+            />
+          </View>
+          <Text variant="meta" color={content.ink2} testID="rail-members">
+            {`Members · ${String(view.memberTotal)}`}
+          </Text>
+        </>
+      ) : (
+        <PageActivities scope={scope} roomId={view.room.roomId} />
+      )}
+      {view.guidelines === undefined ? null : <Guidelines text={view.guidelines} />}
+      {moderator ? <ModeratorTools scope={scope} view={view} controller={controller} state={state} /> : null}
+      <Button
+        label="Leave room"
+        variant="ghost"
+        size="sm"
+        busy={state.working}
+        onPress={() => void controller.leave()}
+        testID="leave-room"
+      />
+    </View>
   );
 }
 
-/** One room as a full page: the preview for an outsider, the room's threads for a member. */
+/** One room as a full page: the preview for an outsider, the campfire (General under the room's band) for a member. */
 function RoomPage({
   scope,
   controller,
@@ -447,13 +266,24 @@ function RoomPage({
         ]}
       />
     );
+  if (view.status === 'member')
+    return (
+      <>
+        {state.offline ? (
+          <View style={styles.padded}>
+            <Banner kind="offline" lead="Offline." message="This may be out of date." />
+          </View>
+        ) : null}
+        <PhoneRoom scope={scope} view={view} controller={controller} state={state} onBack={back} />
+      </>
+    );
   return (
     <ScrollView contentContainerStyle={styles.scroll} testID="room-screen">
       <RoomHeader name={view.room.name} onBack={back}>
         <View style={styles.tags}>
           <Tag variant="onDark" label={RULE_WORDS[view.room.joinRule]} />
           {view.hasModerator ? <Tag variant="onDark" label="Moderated" /> : null}
-          {view.status === 'preview' && view.invited ? <Tag variant="part" label="You’re invited" /> : null}
+          {view.invited ? <Tag variant="part" label="You’re invited" /> : null}
         </View>
       </RoomHeader>
       {state.offline ? (
@@ -461,11 +291,7 @@ function RoomPage({
           <Banner kind="offline" lead="Offline." message="This may be out of date." />
         </View>
       ) : null}
-      {view.status === 'preview' ? (
-        <PreviewBody view={view} controller={controller} state={state} />
-      ) : (
-        <MemberBody scope={scope} view={view} controller={controller} state={state} />
-      )}
+      <PreviewBody view={view} controller={controller} state={state} />
     </ScrollView>
   );
 }
@@ -476,20 +302,21 @@ function StandaloneRoom({ scope, roomId }: { readonly scope: AccountScope; reado
   return <RoomPage scope={scope} controller={controller} state={state} />;
 }
 
-/** A room opened beside its own panes (D04): the layout already reads it, and a member's centre is a quiet prompt. */
+/** A room opened beside its own panes (D04): the layout already reads it, and a member's centre is General. */
 function WorkspaceRoom({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
   const workspace = useContext(RoomWorkspaceContext);
   if (workspace === undefined) return <StandaloneRoom scope={scope} roomId={roomId} />;
-  if (workspace.panes)
+  const view = workspace.state.view;
+  if (workspace.panes && view?.status === 'member')
     return (
       <View style={styles.centreHome} testID="room-workspace-home">
-        <Text variant="title" heading={1}>
-          Choose a thread
-        </Text>
-        <Text variant="bodyS" color={content.ink2} style={styles.centreHomeText}>
-          Pick a discussion on the left, or share something into the room to start one. Nobody has to join in, and
-          nothing here changes your universe.
-        </Text>
+        <GeneralStage
+          scope={scope}
+          view={view}
+          controller={workspace.controller}
+          state={workspace.state}
+          header={null}
+        />
       </View>
     );
   return <RoomPage scope={scope} controller={workspace.controller} state={workspace.state} />;
@@ -540,8 +367,8 @@ export function RoomScreen({ roomId }: { readonly roomId: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: content.paper },
   scroll: { flexGrow: 1 },
-  centreHome: { flex: 1, gap: spacing[2], padding: layout.gutter, justifyContent: 'center', alignItems: 'center' },
-  centreHomeText: { maxWidth: 420, textAlign: 'center' },
+  centreHome: { flex: 1 },
+  railSection: { gap: spacing[2], paddingTop: spacing[2] },
   header: {
     gap: spacing[2],
     paddingHorizontal: layout.gutter,
@@ -557,15 +384,6 @@ const styles = StyleSheet.create({
     maxWidth: layout.measureDesktop,
     alignSelf: 'center',
   },
-  who: { gap: spacing[2], paddingTop: spacing[2], borderTopWidth: borderWidth.hairline, borderTopColor: content.rule },
-  whoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], minHeight: 44 },
-  whoRowStacked: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: spacing['0.5'],
-    minHeight: 0,
-    paddingVertical: spacing[1],
-  },
   pinned: {
     gap: spacing[1],
     padding: spacing[3],
@@ -574,8 +392,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: content.paper2,
   },
-  guidelines: { gap: spacing[1] },
-  guidelinesToggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   footer: {
     gap: spacing[2],
     padding: layout.gutter,
@@ -590,36 +406,4 @@ const styles = StyleSheet.create({
     borderColor: content.ink,
     borderRadius: radius.lg,
   },
-  listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rows: { gap: spacing[2] },
-  row: {
-    gap: spacing[2],
-    padding: spacing[3],
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    borderRadius: radius.card,
-    backgroundColor: content.paper,
-  },
-  rowPinned: { backgroundColor: content.paper2 },
-  rowSelected: { backgroundColor: content.continue },
-  pinnedLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
-  rowMain: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  tile: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.thumb,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: content.accent,
-  },
-  rowText: { flex: 1, gap: spacing['0.5'] },
-  quiet: {
-    gap: spacing[1],
-    padding: spacing[4],
-    borderRadius: radius.lg,
-    borderWidth: borderWidth.light,
-    borderColor: content.rule,
-    backgroundColor: content.paper,
-  },
-  moderation: { gap: spacing[2], padding: spacing[3], borderRadius: radius.card, backgroundColor: content.freshTint },
 });

@@ -6,10 +6,13 @@ import { UniverseIdSchema } from './ids.js';
  * hints only: no commands, no private content. A client that gets a hint (or a resync) refetches
  * through authorised HTTP reads.
  *
- * Two scopes exist, both named by the caller's own universe ID. `universe` changes when the
- * person's universe changes. `inbox` changes when a conversation the person belongs to has a new
- * message or the person's own conversation settings change; its revision is the person's inbox
- * revision. A peer's reading, muting or typing never moves it.
+ * Three scopes exist. `universe` and `inbox` are named by the caller's own universe ID. `universe`
+ * changes when the person's universe changes. `inbox` changes when a conversation the person belongs
+ * to has a new message or the person's own conversation settings change; its revision is the person's
+ * inbox revision. A peer's reading, muting or typing never moves it. `room` is named by a room's ID and
+ * only a current member may subscribe: it changes when someone sends a message in the room or when who
+ * has the room open changes. Its revision is the commit time in milliseconds, enough to order hints for
+ * one subscriber, and a hint never says what changed.
  *
  * Client rules:
  * - Revisions only grow, but hints, acks, command responses and reads can arrive in any order and
@@ -49,7 +52,8 @@ export type PresenceHeartbeatAck = z.infer<typeof PresenceHeartbeatAckSchema>;
 /** The socket path on the API origin (proxied by Caddy, D-008). */
 export const SOCKET_PATH = '/socket.io';
 
-export const SCOPE_KINDS = ['universe', 'inbox'] as const;
+export const SCOPE_KINDS = ['universe', 'inbox', 'room'] as const;
+/** `id` is the caller's own universe for `universe` and `inbox`, and a room's ID for `room`. */
 export const ScopeRefSchema = z.object({ kind: z.enum(SCOPE_KINDS), id: UniverseIdSchema });
 
 export const SubscribeScopeRequestSchema = z.object({ scope: ScopeRefSchema });

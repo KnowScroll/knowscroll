@@ -15,8 +15,13 @@ import { ResolvedSnippetAnchorSchema, SnippetAnchorSchema, SnippetCardSchema, Th
  * Idea rooms (blueprint §17, D-051): a room bound to a library topic, the discussions held in it
  * and, in a discussion, the Reel or Scroll it is about. Rooms own their members, messages and
  * moderation. A room message is conversation, never consumption evidence: joining, chatting,
- * pinning and asking an AI inhabitant create no exposure, observation or Keep. No answer counts
- * members, shows who is online, or says what anyone has watched.
+ * pinning and asking an AI inhabitant create no exposure, observation or Keep. No answer says what
+ * anyone has watched.
+ *
+ * Counts and presence follow D-069. The only count or activity fields a room may carry are these, each
+ * on a member's own view of the room: `here.faces` (who has the room open, by public profile, never an AI
+ * inhabitant), `here.count` (only from three people here), `memberTotal` and `lastMessageAt`. A list, a
+ * preview and a station carry none of them, and no field says "online" with a number below three.
  *
  * AI inhabitants are labelled authors of their own kind (`kind: 'ai'`), never a person, and they
  * speak only when a member asks. A moderator's hidden message keeps its place and number.
@@ -25,6 +30,15 @@ const Version = z.literal('rooms.v1');
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const Limit = z.number().int().min(1).max(50);
+
+/** A number of people here is shown from this many; below it the faces speak for themselves (D-069). */
+export const ROOM_HERE_COUNT_FROM = 3;
+/** How long one heartbeat keeps a person's face in the room. */
+export const ROOM_PRESENCE_LEASE_MS = 60_000;
+/** How often an open, visible room renews its lease: two missed beats end it. */
+export const ROOM_PRESENCE_BEAT_MS = 25_000;
+/** The most faces a room view carries; the count may be larger. */
+export const ROOM_FACES_MAX = 12;
 
 function isPublicLabel(value: string): boolean {
   return (
@@ -79,7 +93,7 @@ export const RoomTopicSchema = z.strictObject({
   label: z.string().min(1).max(160),
 });
 
-/** A room as lists and previews name it. No member, activity or online count, by design (R01). */
+/** A room as lists and previews name it. No member, activity or online count: those are on a member's own view only (D-069). */
 export const RoomSummarySchema = z.strictObject({
   roomId: UuidSchema,
   name: RoomName,
@@ -90,9 +104,21 @@ export const RoomSummarySchema = z.strictObject({
 });
 export type RoomSummary = z.infer<typeof RoomSummarySchema>;
 
+/**
+ * What a discussion is for. Every room has one `general`, its place to talk, made with the room. A `topic` is
+ * any other discussion, and `today` is the daily channel (reserved: nothing creates one yet).
+ */
+export const RoomDiscussionKindSchema = z.enum(['general', 'topic', 'today']);
+export type RoomDiscussionKind = z.infer<typeof RoomDiscussionKindSchema>;
+
+/** How much a room's AI inhabitants may speak to one member: Lively, Quieter or Off (R3 question 5). */
+export const RoomAiLevelSchema = z.enum(['lively', 'quieter', 'off']);
+export type RoomAiLevel = z.infer<typeof RoomAiLevelSchema>;
+
 /** A discussion in a room list: a content thread when it has a root, a plain discussion otherwise. */
 export const RoomDiscussionSummarySchema = z.strictObject({
   discussionId: UuidSchema,
+  kind: RoomDiscussionKindSchema,
   title: DiscussionTitle,
   root: ConversationContentProjectionSchema.optional(),
   /** Absent once the starter's account was deleted. */
@@ -149,6 +175,36 @@ export const RoomListSchema = z.strictObject({
   items: z.array(RoomListItemSchema).max(100),
 });
 
+/** The caller's own place in a room: their AI level, whether their messages are kept out of what AI reads, and the notice. */
+export const RoomYouSchema = z.strictObject({
+  aiLevel: RoomAiLevelSchema,
+  /** Their messages are replaced by a placeholder before any model reads the room (R3 question 6). */
+  keepOut: z.boolean(),
+  /** When they acknowledged the AI notice; absent until they do, and then the notice shows only in the room menu. */
+  noticeSeenAt: z.iso.datetime().optional(),
+});
+export type RoomYou = z.infer<typeof RoomYouSchema>;
+
+/** One person who has the room open. `you` marks the caller's own face. */
+export const RoomFaceSchema = z.strictObject({ person: PublicPersonRefSchema, you: z.boolean() });
+export type RoomFace = z.infer<typeof RoomFaceSchema>;
+
+/**
+ * Who is here (D-069). Faces always; `count` only when three or more people are here, so "0 online" and
+ * "1 online" cannot be said. The AI cast is never in either. A blocked person is left out of both for the blocker.
+ */
+export const RoomHereSchema = z
+  .strictObject({
+    faces: z.array(RoomFaceSchema).max(ROOM_FACES_MAX),
+    count: z.number().int().min(ROOM_HERE_COUNT_FROM).max(Number.MAX_SAFE_INTEGER).optional(),
+  })
+  .refine((here) =>
+    here.count === undefined
+      ? here.faces.length < ROOM_HERE_COUNT_FROM
+      : here.faces.length >= ROOM_HERE_COUNT_FROM && here.count >= here.faces.length,
+  );
+export type RoomHere = z.infer<typeof RoomHereSchema>;
+
 export const ReadRoomSchema = z.strictObject({ ...Read, roomId: UuidSchema });
 export const RoomViewSchema = z.discriminatedUnion('status', [
   /** Not a room the caller may see: unknown, closed to outsiders, or an ended account. One shape for all. */
@@ -177,9 +233,19 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     guidelines: z.string().min(1).max(600).optional(),
     hasModerator: z.boolean(),
     inhabitants: z.array(RoomInhabitantSchema).max(2),
-    /** Pinned first, then newest activity. A paused room can still be read. */
+    /** The room's General: where a member lands. It is not in `discussions`. */
+    general: RoomDiscussionSummarySchema,
+    /** The other discussions: pinned first, then newest activity. A paused room can still be read. */
     discussions: z.array(RoomDiscussionSummarySchema).max(50),
     canPost: z.boolean(),
+    /** The caller's own settings in this room. */
+    you: RoomYouSchema,
+    /** Who has the room open now. Never an AI inhabitant, never a person the caller has blocked. */
+    here: RoomHereSchema,
+    /** How many current members the room has, for the room menu. */
+    memberTotal: Counter,
+    /** When the newest visible message was sent, anywhere in the room; absent while nobody has written. */
+    lastMessageAt: z.iso.datetime().optional(),
   }),
 ]);
 export type RoomView = z.infer<typeof RoomViewSchema>;
@@ -225,6 +291,46 @@ export const RoomModerationAcceptanceSchema = z.strictObject({
   operation: z.literal('room.moderate'),
   roomId: UuidSchema,
   action: z.enum(['pause', 'resume', 'remove_member']),
+});
+
+/**
+ * Changes the caller's own settings in a room: the AI level, whether their messages are kept out of what AI
+ * reads, and that they have read the AI notice. Each field is optional and the same value again is accepted, so a
+ * retry or a second tap is harmless. At least one field is required.
+ */
+export const SetRoomPreferencesSchema = z
+  .strictObject({
+    ...Command,
+    roomId: UuidSchema,
+    aiLevel: RoomAiLevelSchema.optional(),
+    keepOut: z.boolean().optional(),
+    /** Only ever `true`: an acknowledged notice is not taken back. */
+    noticeSeen: z.literal(true).optional(),
+  })
+  .refine((command) => command.aiLevel !== undefined || command.keepOut !== undefined || command.noticeSeen === true);
+export const RoomPreferencesAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('room.preferences'),
+  roomId: UuidSchema,
+  you: RoomYouSchema,
+});
+
+/**
+ * Says whether the caller has the room open (`here`) or has left it (`away`). A device sends `here` when it opens a
+ * room and every `ROOM_PRESENCE_BEAT_MS` while the room is visible, and `away` when it closes it; a lease that is
+ * not renewed ends on its own after `ROOM_PRESENCE_LEASE_MS`. Not a command: there is no receipt, a repeat changes
+ * nothing, and a person who is not a member is told the room is unavailable.
+ */
+export const SetRoomPresenceSchema = z.strictObject({
+  version: Version,
+  roomId: UuidSchema,
+  state: z.enum(['here', 'away']),
+});
+export const RoomPresenceAckSchema = z.strictObject({
+  version: Version,
+  scope: ConversationScopeSchema,
+  roomId: UuidSchema,
+  state: z.enum(['here', 'away']),
 });
 
 // --- Discussions and messages ---------------------------------------------------------------
@@ -356,6 +462,7 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
       you: PublicPersonRefSchema,
       discussion: z.strictObject({
         discussionId: UuidSchema,
+        kind: RoomDiscussionKindSchema,
         title: DiscussionTitle,
         pinned: z.boolean(),
         startedBy: PublicPersonRefSchema.optional(),
@@ -745,14 +852,22 @@ export const InhabitantAskAcceptanceSchema = z.strictObject({
   inhabitant: InhabitantIdSchema,
 });
 
-/** Served by the API's rooms controller, with Social's problem family and cache policy. */
-export const roomsContract = {
+/** The room, who is in it and what a member sets for themselves. */
+export const roomsRoomContract = {
   list: roomsPost('/v1/rooms/list', ReadRoomListSchema, RoomListSchema),
   read: roomsPost('/v1/rooms/read', ReadRoomSchema, RoomViewSchema),
   join: roomsPost('/v1/rooms/join', JoinRoomSchema, RoomJoinAcceptanceSchema),
   leave: roomsPost('/v1/rooms/leave', LeaveRoomSchema, RoomLeaveAcceptanceSchema),
   invite: roomsPost('/v1/rooms/invite', InviteToRoomSchema, RoomInviteAcceptanceSchema),
+  preferences: roomsPost('/v1/rooms/preferences', SetRoomPreferencesSchema, RoomPreferencesAcceptanceSchema),
+  presence: roomsPost('/v1/rooms/presence', SetRoomPresenceSchema, RoomPresenceAckSchema),
   moderate: roomsPost('/v1/rooms/moderate', ModerateRoomSchema, RoomModerationAcceptanceSchema),
+  reports: roomsPost('/v1/rooms/reports', ReadRoomReportsSchema, RoomReportsSchema),
+  stations: roomsPost('/v1/rooms/stations', ReadRoomStationsSchema, RoomStationsSchema),
+};
+
+/** Discussions, their messages and the labelled AI inhabitants. */
+export const roomsDiscussionContract = {
   createDiscussion: roomsPost('/v1/rooms/discussions/create', CreateDiscussionSchema, DiscussionCreationSchema),
   readDiscussion: roomsPost('/v1/rooms/discussions/read', ReadDiscussionSchema, DiscussionViewSchema),
   history: roomsPost('/v1/rooms/discussions/history', ReadDiscussionHistorySchema, DiscussionHistoryPageSchema),
@@ -761,9 +876,11 @@ export const roomsContract = {
   openSnippet: roomsPost('/v1/rooms/discussions/snippets/open', OpenRoomSnippetSchema, RoomSnippetOpeningSchema),
   pin: roomsPost('/v1/rooms/discussions/pin', PinDiscussionSchema, DiscussionPinAcceptanceSchema),
   hideMessage: roomsPost('/v1/rooms/discussions/hide', HideRoomMessageSchema, RoomMessageHidingAcceptanceSchema),
-  reports: roomsPost('/v1/rooms/reports', ReadRoomReportsSchema, RoomReportsSchema),
   askInhabitant: roomsPost('/v1/rooms/inhabitants/ask', AskInhabitantSchema, InhabitantAskAcceptanceSchema),
-  stations: roomsPost('/v1/rooms/stations', ReadRoomStationsSchema, RoomStationsSchema),
+};
+
+/** A moderator's polls and quizzes (R03). */
+export const roomsActivityContract = {
   activities: roomsPost('/v1/rooms/activities/list', ReadActivitiesSchema, ActivityListSchema),
   readActivity: roomsPost('/v1/rooms/activities/read', ReadActivitySchema, ActivityViewSchema),
   createActivity: roomsPost('/v1/rooms/activities/create', CreateActivitySchema, ActivityCreationSchema),
@@ -773,4 +890,14 @@ export const roomsContract = {
     ModerateActivitySchema,
     ActivityModerationAcceptanceSchema,
   ),
+};
+
+/**
+ * Served by the API's rooms controller, with Social's problem family and cache policy. The three parts are
+ * named so that the declaration the compiler writes for this object stays bounded.
+ */
+export const roomsContract: typeof roomsRoomContract & typeof roomsDiscussionContract & typeof roomsActivityContract = {
+  ...roomsRoomContract,
+  ...roomsDiscussionContract,
+  ...roomsActivityContract,
 };

@@ -119,9 +119,11 @@ export {
   type ModerateAction,
   type RoomController,
   type RoomOptions,
+  type RoomPreferencesChange,
   type RoomState,
   type StartDiscussion,
 } from './room';
+export { QUIET_AFTER_MS, agoWords, hereView, quietPill, type HereFaceView, type HereView } from './room-presence';
 export {
   createRoomActivities,
   createRoomActivity,
