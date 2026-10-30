@@ -77,6 +77,8 @@ describe('mounted Social serialization boundary before authentication and parsin
     const mounted = [
       ['GET', '/v1/social/profile'],
       ['GET', '/v1/social/invites'],
+      ['GET', '/v1/social/read-receipts'],
+      ['POST', '/v1/social/read-receipts'],
       ...[
         'profile',
         'friends/page',
