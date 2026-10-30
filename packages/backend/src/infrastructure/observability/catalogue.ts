@@ -206,6 +206,8 @@ export const diagnosticCatalogue = {
   },
   // Branches of content threads settled by the sweep (D-049): a count only, never a thread or a person.
   'scenarios.branches_resolved': { severity: 'info', module: 'scenarios', fields: ['count'] },
+  // Places given their look by the operator's backfill (D-102): a count only.
+  'scenes.looks_backfilled': { severity: 'info', module: 'scenes', fields: ['count'] },
   'evidence.reading_projected': {
     severity: 'info',
     module: 'evidence',

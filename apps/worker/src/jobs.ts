@@ -5,10 +5,13 @@ import {
 } from '@knowscroll/backend/modules/scenes/nest-providers';
 import {
   PROJECT_SCENE,
+  BACKFILL_SCENE_LOOKS,
   projectSceneQueue,
+  backfillLooksQueue,
   FORMATION_PRESENTATIONS,
   expireFormationQueue,
   recoverFormationQueue,
+  type BackfillSceneLooks,
   type FormationUseCases,
   type ProjectScene,
 } from '@knowscroll/backend/modules/scenes';
@@ -213,6 +216,7 @@ export const jobWiring: Provider[] = [
     provide: JOB_CONSUMERS,
     inject: [
       PROJECT_SCENE,
+      BACKFILL_SCENE_LOOKS,
       REFRESH_VISIT_PUBLICATION,
       FORMATION_PRESENTATIONS,
       RUN_CARTOGRAPHER,
@@ -240,6 +244,7 @@ export const jobWiring: Provider[] = [
     ],
     useFactory: (
       projectScene: ProjectScene,
+      backfillLooks: BackfillSceneLooks,
       refreshVisit: RefreshVisitPublication,
       formation: FormationUseCases,
       runCartographer: RunCartographer,
@@ -303,6 +308,11 @@ export const jobWiring: Provider[] = [
       jobConsumer(projectSceneQueue, async (payload) => {
         await projectScene(payload);
         await refreshVisit({ universeId: payload.universeId, privacyEpoch: payload.privacyEpoch });
+      }),
+      // Worlds projected before looks existed get theirs; nothing already stored moves (D-102).
+      jobConsumer(backfillLooksQueue, async (payload) => {
+        const { assigned } = await backfillLooks(payload);
+        logEvent('scenes.looks_backfilled', { count: assigned });
       }),
       jobConsumer(cartographyQueue, async (payload, delivery) => {
         await runCartographer(payload, delivery.signal);

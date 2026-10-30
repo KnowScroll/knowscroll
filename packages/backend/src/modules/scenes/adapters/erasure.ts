@@ -4,8 +4,9 @@ import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
 import { exportNothing } from '../../../infrastructure/erasure/registry.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
-import { projectSceneQueue, expireFormationQueue, recoverFormationQueue } from '../events.js';
-const tables = ['formation_presentations', 'manifests', 'chunks', 'objects', 'state'] as const;
+import { projectSceneQueue, expireFormationQueue, recoverFormationQueue, backfillLooksQueue } from '../events.js';
+// Looks reference objects, so they are erased first.
+const tables = ['formation_presentations', 'looks', 'manifests', 'chunks', 'objects', 'state'] as const;
 export const scenesErasure = declareErasure({
   module: 'scenes',
   tables: tables.map((table) => ({ schema: 'scenes', table, ownerColumn: 'universe_id' })),
@@ -24,6 +25,10 @@ export const scenesErasure = declareErasure({
       name: `pgboss/${projectSceneQueue.name}`,
       description: 'All queued, active, settled and dead-lettered private Scene scope IDs.',
     },
+    {
+      name: `pgboss/${backfillLooksQueue.name}`,
+      description: 'All queued, active, settled and dead-lettered look-backfill scope IDs; erased with owner.',
+    },
   ],
   async erase(scope) {
     let removed = 0;
@@ -34,7 +39,11 @@ export const scenesErasure = declareErasure({
         );
       removed += Number(r.numAffectedRows ?? 0);
     }
-    removed += await deleteJobPayloads(scope, [projectSceneQueue.name, expireFormationQueue.name]);
+    removed += await deleteJobPayloads(scope, [
+      projectSceneQueue.name,
+      expireFormationQueue.name,
+      backfillLooksQueue.name,
+    ]);
     return { module: 'scenes', status: 'completed', removed };
   },
   clear: {
@@ -50,10 +59,17 @@ export const scenesErasure = declareErasure({
           );
         removed += Number(r.numAffectedRows ?? 0);
       }
-      removed += await deleteClearJobPayloads(scope, [projectSceneQueue.name, expireFormationQueue.name]);
+      removed += await deleteClearJobPayloads(scope, [
+        projectSceneQueue.name,
+        expireFormationQueue.name,
+        backfillLooksQueue.name,
+      ]);
       return { module: 'scenes', status: 'completed', removed };
     },
   },
   export: (declaration) =>
-    exportNothing(declaration, 'A rendering cache of the universe structure listed under geography.'),
+    exportNothing(
+      declaration,
+      'A rendering cache of the universe structure listed under geography, looks included: assigned appearance derived from it.',
+    ),
 });

@@ -10,6 +10,25 @@ export const SCENE_LIMITS = {
   silhouettePoints: 64,
 } as const;
 
+/** The six painted planet types of the New Universe, in the pinned order the assignment rule uses. */
+export const PLANET_TYPES = ['lush', 'ocean', 'frozen', 'scorched', 'barren', 'gas'] as const;
+export type PlanetType = (typeof PLANET_TYPES)[number];
+/** The haze colours of a system, in the order the library plan names them. */
+export const HAZE_FAMILIES = ['teal', 'cobalt', 'coral', 'amber', 'pink', 'violet'] as const;
+export type HazeFamily = (typeof HAZE_FAMILIES)[number];
+export const SCENE_LOOK_VERSION = 'scene-look.v1' as const;
+/** The generator version a look pins. A client that does not declare it is not given looks. */
+export const WORLD_GENERATOR_VERSION = 'worldmap.v1' as const;
+/** Bounds of the look data, never formation or consumption thresholds. */
+export const LOOK_LIMITS = {
+  /** Largest turn of a planet's hue, in degrees either way. */
+  hueShift: 180,
+  /** Planets of one type a universe can hold (the object ceiling). */
+  variant: 1000,
+  /** Sites on one planet: one per facet. */
+  sites: 32,
+} as const;
+
 export type SceneKind = 'system' | 'star' | 'planet' | 'region';
 export type SceneFamily = 'terraced.v1' | 'ridged.v1' | 'archipelago.v1';
 export type ScenePalette = 'cobalt' | 'ochre' | 'sage';
@@ -46,6 +65,41 @@ export interface SceneDescriptor {
   anchor: SceneAnchor;
   target: SceneTarget;
 }
+interface SceneLookBase {
+  schemaVersion: typeof SCENE_LOOK_VERSION;
+  generatorVersion: typeof WORLD_GENERATOR_VERSION;
+  objectId: string;
+}
+/** A system's haze: the colour around its orange sun. */
+export interface SystemLook extends SceneLookBase {
+  kind: 'system';
+  haze: HazeFamily;
+}
+/**
+ * How a planet is painted and how many sites its world has. `variant` counts the planets of the same
+ * type that were assigned before it, so a repeated type changes hue and layout. `siteCount` is one
+ * site per facet of the planet; the world generator lays all of them out from the planet's seed.
+ */
+export interface PlanetLook extends SceneLookBase {
+  kind: 'planet';
+  type: PlanetType;
+  rings: boolean;
+  moon: boolean;
+  hueShift: number;
+  variant: number;
+  siteCount: number;
+}
+/** The site a region occupies on its planet's world: the ordinal of its facet. */
+export interface RegionLook extends SceneLookBase {
+  kind: 'region';
+  site: number;
+}
+/**
+ * Look data persisted once per object (D-102). Stars have none. It carries no activity, count,
+ * support or time, so it can never encode reading.
+ */
+export type SceneLook = SystemLook | PlanetLook | RegionLook;
+
 export interface SceneRevisions {
   geographyRevision: number;
   structureRevision: number;

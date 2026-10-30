@@ -1271,3 +1271,33 @@ The production job published only v1 Scrolls. A v2 Scroll is now produced, admit
 - `series.total` in the exposure context is the number of `content.series_units` of the series revision the Scroll is in. It is never declared, estimated or taken from the library plan.
 - It appears for any unit that is in an admitted series, Scroll or Reel, and nowhere else. A series with no counted units has no `series` at all. Every other field of the context is unchanged.
 - The Composer's snapshot does not carry it: ranking never reads the total.
+
+## D-102 · 2026-10-30 · The look lives in `scenes.looks` and reaches a client on the manifest read, under a capability (v3 U-1, #465)
+
+D-077 said the look is a sibling table and D-078 said sites ride on the planet and region. This records where the look lives, what it holds and how a client asks for it. The scene descriptor, chunk and manifest stay `scene-descriptor.v1`, `scene-chunk.v1` and `scene-manifest.v1`.
+
+- **A sibling table, not a new descriptor version.** `scenes.looks` has one row per system, planet and region, keyed like `scenes.objects` and referencing it. An update is refused by the database, so a look cannot be recomputed. `scenes.guard_object` and every stored chunk are untouched, so a client that predates looks parses exactly what it parsed. Stars have no look.
+- **What a look holds** (`scene-look.v1`, pinning generator `worldmap.v1`). System: `haze`. Planet: `type`, `rings`, `moon`, `hueShift`, `variant`, `siteCount`. Region: `site`. There is no activity, count, support, time or score in it, and `ReadGeographySceneInput` gained nothing.
+- **Haze is in the library plan.** `LibrarySystem.haze` is one of the six families, different for each system: Earth amber, Space violet, Machine learning teal, Human body coral, Computing cobalt, History pink. Like `sceneFamily`, edit it for new systems only.
+- **Delivered on the manifest read, not the chunk read.** A chunk is immutable for its revision and a backfill adds looks later without a new chunk, so a look in a chunk would go stale in a cache. The manifest is what a client reads again. `looks` lists the looks of the objects in the manifest read, for the selected universe or system.
+- **The capability.** `SceneClientCapabilities.looks` is a new optional list. A client that sends `scene-look.v1` and declares the `worldmap.v1` generator gets `looks` on `empty`, `ready` and `lagging` reads; the response schema requires it exactly then. Any other client gets the read it always got, byte for byte. A world with fewer looks than objects (not yet backfilled) lists only those that exist, and a client draws the rest as it always did.
+- **Assigned in the projection.** The projector gives a look to every system, planet and region that has none, in the transaction that stores the object. Rollback removes both. The rule is D-103.
+- **Backfill.** `scenes backfill-looks [--dry-run] [--limit n]` (operator) sends one `scenes.backfill-looks` job per universe that has a projected place without a look. The worker, under that universe's lock and after its own owner check, inserts the missing rows and nothing else: no slot, seed, family, anchor, chunk or manifest changes. It advances the personal root once and sends the disposable notice, only when it assigned something. A second run assigns nothing.
+- **Clear and erasure** delete `scenes.looks` before `scenes.objects`, and the new queue's payloads with them. A look exports nothing, like the objects it describes.
+- **Limit.** Adding a facet to a planet that already has its look would give a region a site beyond the planet's `siteCount`. The projection refuses that region (`temporarily_unavailable`), as it refuses a changed family. A new facet needs a new planet.
+
+Amends D-077 (it named the table; this adds the delivery and the capability). Confirmed by: `tests/integration/modules/scenes.test.ts` (served only to a declaring client; stored once; backfill moves nothing; rollback; erasure), `packages/contracts/src/scenes.test.ts`, `privacy-clear.test.ts` and `erasure.test.ts` (the new table is in the inventory).
+
+## D-103 · 2026-10-30 · How a planet gets its type, hue, rings, moon and sites (v3 U-1, #465)
+
+D-077 gave the rule in one line: least-used first, preferring a type not in the same system. This is the exact rule, so that every process gives the same answer.
+
+- **Order.** Places that need a look are taken by kind (system, planet, region) and then by object id. For UUIDv7 ids this is creation order, and it does not depend on the order Geography lists them or on a restart.
+- **Type.** The least-used of the six types in the whole universe. Among equals, one the planet's system does not hold yet. Among those, the first in an order that depends only on the planet's seed (a seeded shuffle). Hypothetical planets count like factual ones. The first six planets get six types; after that the counts differ by at most one.
+- **A repeat.** `variant` is the number of planets of that type before it. The first planet of a type leans toward its system's haze (the design's shift per family) with a seeded jitter of 15 degrees either way. A repeat turns its hue 75 degrees one way, then the other, a step further each time, with the same jitter, so it cannot be mistaken for the first. `variant` also tells the generator to lay out a different world.
+- **Rings and moon** come from the planet's seed after its type: a gas world always has rings, a frozen one has them when its seed says so, no other type does. Any type has a moon when its seed says so.
+- **Sites.** A planet's `siteCount` is the number of facets of its catalogue entry. A region's `site` is the position of its facet in that list. Nothing about which other regions have formed is used, so a region never moves when another forms.
+- **One source of numbers.** Every seeded number is `seededUnit(seed, channel)` from `scene-core`, the same integer mixing as `silhouette.v1`. Channels 16 and above belong to looks. Changing a channel, a constant or this order is a new look version, not an edit.
+- **Not guaranteed.** A friend's visit derives its own look on the visitor's device from public ids (D-047) and may repeat a type.
+
+Amends D-077. Confirmed by: `packages/backend/src/modules/scenes/application/assign-looks.test.ts` (six types, least-used afterwards, system preference, stability across passes and orders, hue gap, rings, sites, refusals).

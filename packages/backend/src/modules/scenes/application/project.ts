@@ -1,4 +1,6 @@
 import { ProjectSceneJobSchema } from '../events.js';
+import { LookRefused } from './assign-looks.js';
+import { missingLooks } from './looks.js';
 import { projectBounded, ProjectionUnavailable, SCENE_POLICY } from './projection.js';
 import type { ProjectScene, ScenePorts, StoredChunk } from './ports.js';
 /** Old deliveries coalesce onto latest Geography; persisted stamps make crash-after-commit replay inert. */
@@ -26,6 +28,7 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
           return;
         if (!input.objects.length && !old) return;
         const prior = await p.store.objects(scope),
+          priorLooks = await p.store.looks(scope),
           chunks: StoredChunk[] = [];
         for (const ref of old?.manifest?.chunks ?? []) {
           const c = await p.store.chunk(scope, ref.chunkId, ref.sceneRevision);
@@ -43,6 +46,9 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             p.hash,
             old?.routeChunks,
           );
+          // Looks are given in the same transaction as the places they describe, never from what is in
+          // use now: an object that already has one keeps it (D-102).
+          const looks = missingLooks(projection.objects, input, priorLooks);
           await p.store.save(
             scope,
             {
@@ -54,11 +60,13 @@ export function makeProjectScene(p: ScenePorts): ProjectScene {
             projection.objects,
             projection.changed,
           );
+          await p.store.saveLooks(scope, looks);
         } catch (error) {
           // Canonical parsers never echo input. Bad labels/versions fail closed; bounds remain explicit.
           const reason = error instanceof ProjectionUnavailable ? error.reason : 'temporarily_unavailable';
           if (
             !(error instanceof ProjectionUnavailable) &&
+            !(error instanceof LookRefused) &&
             !(error instanceof Error && error.name === 'SceneParseError')
           )
             throw error;
