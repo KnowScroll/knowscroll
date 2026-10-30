@@ -51,6 +51,7 @@ export type SweepDispatchedAttempts = () => Promise<number>;
 
 export type {
   ProductionAuthority,
+  ProductionScopeId,
   ProductionScopeTx,
   ProductionScopeOutcome,
   WithProductionScope,
@@ -64,6 +65,13 @@ export type {
 /** Worker-only injection tokens. Configuration and the database root default to disabled. */
 export const PRODUCTION_REASONING_HARNESS = Symbol('reasoning.production-harness');
 export const WITH_PRODUCTION_SCOPE = Symbol('reasoning.with-production-scope');
+/**
+ * The room scope (D-162): the harness that pays for residents speaking on their own, and the scope function
+ * that closes their runs. Same engine and ledger as production, bound to the `rooms` root, with its own enable
+ * switch and daily caps. Worker-only.
+ */
+export const ROOM_REASONING_HARNESS = Symbol('reasoning.room-harness');
+export const WITH_ROOM_SCOPE = Symbol('reasoning.with-room-scope');
 
 /** Bounded owner port for selective Clear; global/role receipts and monetary states are untouched. */
 export interface ClearReasoning {

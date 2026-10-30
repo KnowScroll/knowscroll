@@ -7,6 +7,8 @@ import {
 import type { SequenceUnit, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { snippetCard } from '../../social/public.js';
+import { nameOf, type CastMember } from '../domain/cast.js';
+import type { AiLevel } from '../domain/membership.js';
 import type { ContentCard, ContentRef, MessageRow, RoomLock, RoomPorts } from './ports.js';
 
 const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`;
@@ -14,6 +16,16 @@ const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`
 /** A message nobody can read any more: a deleted account's, kept so the numbering stays whole. */
 const isTombstone = (row: MessageRow): boolean =>
   row.authorAccountId === null && row.inhabitant === null && row.text === null && row.content === null;
+
+/** Who is reading, as far as the shape of a message depends on it. */
+export interface Reader {
+  /** A moderator can still review a blocked author's words. */
+  readonly moderator: boolean;
+  /** Their AI level: Off receives no words of a resident that spoke on its own. */
+  readonly aiLevel: AiLevel;
+  /** The room's cast, for the names residents go by. */
+  readonly cast: readonly CastMember[];
+}
 
 /**
  * The wire form of one stored message. A hidden message is a marker with its place and number; a
@@ -23,14 +35,16 @@ const isTombstone = (row: MessageRow): boolean =>
  * A message by someone the reader has blocked is a marker for the reader: D-051 keeps a room open to the
  * blocked person, but the blocker never has to read them. A moderator who blocked the author still gets the
  * words, flagged `blockedByYou`, because moderating needs them: the client keeps them collapsed until asked.
+ * A resident's message carries its name and, when it spoke on its own, why; for a reader whose AI level is Off
+ * it is a `muted` marker with no words, and for Quieter it is `folded` (an asked contribution always shows in full).
  */
 export function viewRoomMessage(
   row: MessageRow,
   authors: ReadonlyMap<string, PublicPersonRef>,
   snippets: ReadonlyMap<string, StoredSnippetAnchor>,
   cards: ReadonlyMap<string, ContentCard>,
-  blocked: ReadonlySet<string> = new Set(),
-  moderator = false,
+  blocked: ReadonlySet<string>,
+  reader: Reader,
 ): RoomMessage {
   const identity = { messageId: row.messageId, sequence: row.sequence };
   if (row.hidden) return { ...identity, status: 'removed' };
@@ -38,20 +52,29 @@ export function viewRoomMessage(
   // A person the reader has blocked: their words are collapsed for this reader and for no one else. A
   // moderator still has to be able to moderate them, so they get the words, flagged for the client to keep collapsed.
   const blockedAuthor = row.authorAccountId !== null && blocked.has(row.authorAccountId);
-  if (blockedAuthor && !moderator) return { ...identity, status: 'blocked' };
+  if (blockedAuthor && !reader.moderator) return { ...identity, status: 'blocked' };
   const base = {
     ...identity,
     status: 'available' as const,
     recordedAt: row.recordedAt.toISOString(),
     ...(blockedAuthor ? { blockedByYou: true as const } : {}),
   };
-  if (row.inhabitant !== null && row.aiKind !== null && row.text !== null)
+  if (row.inhabitant !== null && row.aiKind !== null && row.text !== null) {
+    if (row.trigger !== null && reader.aiLevel === 'off') return { ...identity, status: 'muted' };
     return {
       ...base,
-      author: { kind: 'ai', inhabitant: row.inhabitant, label: AI_INHABITANT_LABELS[row.inhabitant] },
+      author: {
+        kind: 'ai',
+        inhabitant: row.inhabitant,
+        name: nameOf(reader.cast, row.inhabitant),
+        label: AI_INHABITANT_LABELS[row.inhabitant],
+      },
       body: { kind: 'text', text: row.text },
       suggestion: row.aiKind,
+      ...(row.trigger === null ? {} : { trigger: row.trigger }),
+      ...(row.trigger !== null && reader.aiLevel === 'quieter' ? { folded: true as const } : {}),
     };
+  }
   const author = row.authorAccountId === null ? undefined : authors.get(row.authorAccountId);
   if (author === undefined) return { ...identity, status: 'unavailable' };
   if (row.text !== null) return { ...base, author, body: { kind: 'text', text: row.text } };
@@ -70,7 +93,7 @@ export async function viewRoomMessages(
   scope: PersonalScopeTx,
   lock: RoomLock,
   rows: readonly MessageRow[],
-  viewer: { readonly accountId: string; readonly moderator: boolean },
+  viewer: Reader & { readonly accountId: string },
 ): Promise<RoomMessage[]> {
   const shown = rows.filter((row) => !row.hidden);
   const withContent = shown.filter((row) => row.content !== null);
@@ -85,7 +108,7 @@ export async function viewRoomMessages(
     authorIds.length === 0 ? new Map<string, PublicPersonRef>() : await p.people.byAccounts(scope, authorIds);
   const blocked = authorIds.length === 0 ? new Set<string>() : await p.blocked(scope, viewer.accountId, authorIds);
   const byKey = new Map(cards.map((card) => [keyOf(card.target), card]));
-  return rows.map((row) => viewRoomMessage(row, authors, snippets, byKey, blocked, viewer.moderator));
+  return rows.map((row) => viewRoomMessage(row, authors, snippets, byKey, blocked, viewer));
 }
 
 function episodeOf(

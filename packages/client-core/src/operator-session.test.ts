@@ -27,6 +27,7 @@ const panels = {
   },
   universeChange: { cartographer: { status: 'unavailable', reason: 'read_failed' } },
   safety: { reports: { status: 'available', data: { last24Hours: 0, recent: [] } } },
+  rooms: { calls: { status: 'unavailable', reason: 'view_missing' } },
   realtime: { delivery: unavailable },
   privacy: {
     operations: { status: 'available', data: { groups: [], failed: [] } },

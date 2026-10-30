@@ -5,7 +5,7 @@ import { resolveSupplyQueue } from './modules/supply/public.js';
 import { produceScrollQueue } from './modules/content/public.js';
 import { plannerQueue } from './modules/planner/public.js';
 import { purgeReportsQueue } from './modules/feedback/public.js';
-import { contributeQueue } from './modules/rooms/public.js';
+import { castDueQueue, castPassQueue, contributeQueue } from './modules/rooms/public.js';
 import { prepareBufferQueue } from './modules/composer/public.js';
 import { resolveBranchesQueue, suggestDraftQueue } from './modules/scenarios/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
@@ -48,6 +48,8 @@ export const releaseQueues = queueRegistry([
   plannerQueue,
   prepareBufferQueue,
   contributeQueue,
+  castDueQueue,
+  castPassQueue,
   applyActionEvidenceQueue,
   projectScrollReadingQueue,
   projectEncounterActivityQueue,

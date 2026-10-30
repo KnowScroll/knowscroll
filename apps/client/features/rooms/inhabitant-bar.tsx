@@ -13,11 +13,10 @@ const WORDS = {
 } as const;
 
 /**
- * The only way an AI inhabitant speaks: a member asks. One button for each labelled inhabitant, with
- * the honest reason when it cannot be asked (a reply is being prepared, the daily bound is used, the
- * room is paused). The text says what an inhabitant is and is not: a suggestion, never a person, and
- * nothing is made unless someone chooses it. What asking sends is said once, when a member joins, and
- * after that in the room menu under AI here, not on every visit.
+ * Asking a resident: one button for each labelled AI resident, with its name and the honest reason when it cannot be
+ * asked (a reply is being prepared, the bound is used, the room is paused). The text says what a resident is and is
+ * not: a suggestion, never a person, and nothing is made unless someone chooses it. What residents read is said once,
+ * when a member joins, and after that in the room menu under AI here, not on every visit.
  */
 export function InhabitantBar({
   inhabitants,
@@ -38,7 +37,7 @@ export function InhabitantBar({
   return (
     <View style={styles.bar} accessibilityLabel="AI inhabitants">
       <Text variant="metaS" color={content.ink2}>
-        AI inhabitants speak when someone asks. They won’t fill the room on their own.
+        AI residents answer when asked. If a question goes unanswered for a while, one may join in, within limits.
       </Text>
       <View style={compact === true ? styles.compact : styles.list}>
         {inhabitants.map((entry) => {
@@ -46,6 +45,7 @@ export function InhabitantBar({
           return (
             <View key={entry.inhabitant} style={compact === true ? styles.compactRow : styles.row}>
               <View style={compact === true ? styles.compactWho : styles.who}>
+                <Text variant="ui">{entry.name}</Text>
                 <AiLabel label={entry.label} />
                 {compact === true && reason === undefined ? null : (
                   <Text variant="meta" color={content.ink2} numberOfLines={1}>

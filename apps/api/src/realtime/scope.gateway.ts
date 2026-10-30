@@ -9,6 +9,8 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import {
+  ROOM_TYPING_HINT_MS,
+  RoomTypingSchema,
   SOCKET_PATH,
   SubscribeScopeRequestSchema,
   socketEvents,
@@ -23,7 +25,12 @@ import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { ScopeNotice, ScopeNoticeSink } from '@knowscroll/backend/infrastructure/notices';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import { READ_UNIVERSE_ACCESS, type ReadUniverseAccess } from '@knowscroll/backend/modules/identity';
-import { READ_ROOM_MEMBERSHIP, type ReadRoomMembership } from '@knowscroll/backend/modules/rooms';
+import {
+  HOLD_CAST,
+  READ_ROOM_MEMBERSHIP,
+  type HoldCast,
+  type ReadRoomMembership,
+} from '@knowscroll/backend/modules/rooms';
 import {
   READ_INBOX_REVISION,
   RECORD_HEARTBEAT,
@@ -47,6 +54,9 @@ type Authorisation = 'ok' | 'scope_revoked' | 'session_invalid';
 
 /** A socket's heartbeats closer together than this are answered without a write (the client sends one every 20 s). */
 const HEARTBEAT_FLOOR_MS = 10_000;
+
+/** Typing hints closer together than this on one socket are dropped without a write (the client sends one per `ROOM_TYPING_HINT_MS`). */
+const TYPING_FLOOR_MS = ROOM_TYPING_HINT_MS - 1_000;
 
 /** One cache entry per session, scope and epoch; a room's ID cannot collide with a universe's. */
 function cacheKey(caller: Caller, scope: ScopeRef): string {
@@ -87,6 +97,7 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
     @Inject(READ_INBOX_REVISION) private readonly readInboxRevision: ReadInboxRevision,
     @Inject(READ_ROOM_MEMBERSHIP) private readonly readRoomMembership: ReadRoomMembership,
     @Inject(RECORD_HEARTBEAT) private readonly recordHeartbeat: RecordHeartbeat,
+    @Inject(HOLD_CAST) private readonly holdCast: HoldCast,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     @Inject(LOG_EVENT) private readonly logEvent: LogEvent,
   ) {}
@@ -203,6 +214,30 @@ export class ScopeGateway implements OnGatewayInit, ScopeNoticeSink {
       this.logEvent('realtime.heartbeat_failed', { reasonCode: 'UNAVAILABLE', error });
       return { ok: false, code: 'UNAVAILABLE' };
     }
+  }
+
+  /**
+   * A member of a room is typing in a discussion (D-067, D-165). The server uses it for one thing: holding back an AI
+   * turn for a few seconds. It records the discussion and a time, never the person or the text, relays it to no one
+   * and shows it to no one. The answer is `{ ok: true }` whatever happened (a bad body, a non-member, a stale
+   * session), so it cannot be used to learn anything, and hints closer than `TYPING_FLOOR_MS` on one socket are
+   * dropped. A hint is not consumption evidence and grants nothing.
+   */
+  @SubscribeMessage(socketEvents.roomTyping)
+  async typing(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown): Promise<{ ok: true }> {
+    const caller = callerOf(socket);
+    const hint = RoomTypingSchema.safeParse(body);
+    if (caller === undefined || !hint.success) return { ok: true };
+    const data = socket.data as { lastTypingAt?: number };
+    const now = Date.now();
+    if (data.lastTypingAt !== undefined && now - data.lastTypingAt < TYPING_FLOOR_MS) return { ok: true };
+    data.lastTypingAt = now;
+    try {
+      if (await this.callers.sessionValid(caller)) await this.holdCast({ accountId: caller.accountId, ...hint.data });
+    } catch (error) {
+      this.logEvent('realtime.typing_failed', { reasonCode: 'UNAVAILABLE', error });
+    }
+    return { ok: true };
   }
 
   @SubscribeMessage(socketEvents.unsubscribeScope)

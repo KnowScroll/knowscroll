@@ -1,5 +1,7 @@
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
+import type { SpeechTrigger } from '../domain/triggers.js';
+import type { TurnState, TurnTrigger } from '../application/ports.js';
 
 /**
  * The text columns of migration 0062 are closed sets by CHECK constraints, but the generated row types
@@ -28,9 +30,15 @@ export const joinRuleOf = closed<JoinRule>('join_rule', ['open', 'friends_of_mem
 export const statusOf = closed<RoomStatus>('status', ['open', 'paused', 'closed']);
 export const topicKindOf = closed<'system' | 'planet'>('topic_kind', ['system', 'planet']);
 export const endedByOf = closed<'left' | 'removed'>('ended_by', ['left', 'removed']);
-export const askStateOf = closed<'queued' | 'completed' | 'declined' | 'failed'>('state', [
-  'queued',
-  'completed',
-  'declined',
-  'failed',
+export const turnStateOf = closed<TurnState>('state', ['queued', 'completed', 'declined', 'failed', 'refused']);
+export const speechTriggerOf = closed<SpeechTrigger>('trigger', [
+  'unanswered_question',
+  'overstated_claim',
+  'answer_overstated',
+]);
+export const turnTriggerOf = closed<TurnTrigger>('trigger', [
+  'asked',
+  'unanswered_question',
+  'overstated_claim',
+  'answer_overstated',
 ]);

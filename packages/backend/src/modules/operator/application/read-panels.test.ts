@@ -28,6 +28,7 @@ function store(overrides: Partial<PanelStore> = {}): PanelStore {
     cartographer: () => Promise.resolve(available({ counts: [], recent: [] })),
     privacy: () => Promise.resolve(available({ groups: [], failed: [] })),
     reports: () => Promise.resolve(available({ last24Hours: 0, recent: [] })),
+    roomCalls: () => Promise.resolve(available({ rooms: [] })),
     ...overrides,
   };
 }
@@ -77,6 +78,7 @@ describe('the Operator panels', () => {
       cartographer: slow(available({ counts: [], recent: [] })),
       privacy: slow(available({ groups: [], failed: [] })),
       reports: slow(available({ last24Hours: 0, recent: [] })),
+      roomCalls: slow(available({ rooms: [] })),
     };
     expect(Object.keys(bounded)).toEqual(Object.keys(base));
     const panels = await makeReadOperatorPanels({ store: bounded, now })();

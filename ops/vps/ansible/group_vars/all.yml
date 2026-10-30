@@ -71,6 +71,16 @@ ks_v2_jev_enabled_worlds: [dev]
 # a room ask, request matching, Scroll production. A world not listed gets the default of 50. The caps
 # themselves (300 requests a day for the world, 60 per person) stay at their defaults.
 ks_v2_reasoning_background_share_percent: { dev: 50 }
+# Worlds where the AI residents of a room may speak unprompted (KS_REASONING_ROOM_ENABLED=1, v3 R-2, D-162). They are paid
+# by the nonpersonal 'rooms' scope with its own daily caps, and as the 'ambient' class they stay within a share of the
+# world's cap, so they can never take what a person asked for. Dev raises the world's cap first (D-068): a room of three
+# people and a real model make about 20 calls on a busy day, and Jev alone used 200 of the old 300.
+ks_v2_room_residents_worlds: [dev]
+ks_v2_reasoning_room_requests_per_day: { dev: 150 }
+ks_v2_reasoning_room_tokens_per_day: { dev: 1500000 }
+ks_v2_reasoning_ambient_share_percent: { dev: 30 }
+ks_v2_reasoning_global_requests_per_day: { dev: 1000 }
+ks_v2_reasoning_global_tokens_per_day: { dev: 10000000 }
 # Worlds whose worker may run Scroll production (KS_REASONING_PRODUCTION_ENABLED=1, #232/#239). The
 # database root `reasoning.production_scopes` must also be enabled by an operator; both default off.
 ks_v2_production_enabled_worlds: [dev]

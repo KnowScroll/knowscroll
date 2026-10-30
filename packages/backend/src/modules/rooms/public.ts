@@ -26,12 +26,24 @@ import type {
   RoomViewSchema,
 } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx } from '../identity/public.js';
-import type { ContributeJob } from './events.js';
+import type { CastDueJob, CastPassJob, ContributeJob } from './events.js';
 import type { Result } from './application/ports.js';
 
 export type { Result as RoomResult, RoomRefusal, ReadRoomReports, RoomReportRow } from './application/ports.js';
-export { contributeQueue, ContributeJobSchema, type ContributeJob } from './events.js';
+export {
+  CastDueJobSchema,
+  CastPassJobSchema,
+  ContributeJobSchema,
+  castDueQueue,
+  castPassQueue,
+  contributeQueue,
+  type CastDueJob,
+  type CastPassJob,
+  type ContributeJob,
+} from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
+export { DEFAULT_CAST, type CastMember } from './domain/cast.js';
+export { UNPROMPTED_CAPS } from './domain/router.js';
 export type { RoomSeed } from './application/seeds.js';
 
 /**
@@ -119,3 +131,26 @@ export const READ_REPORTABLE_ROOM_MESSAGE = Symbol('rooms.readReportableRoomMess
 
 /** Bound by Feedback: the reports on one room's messages, for that room's moderators. */
 export const READ_ROOM_REPORTS = Symbol('rooms.readRoomReports');
+
+/**
+ * The worker's consumers of `rooms.cast-due` and `rooms.cast-pass` (D-162, D-164): whether a resident answers a
+ * message on its own, and the model call of a turn the router allowed. Registered only when the worker holds the
+ * rooms grant (`KS_REASONING_ROOM_ENABLED`), so a world that leaves residents off leaves the jobs for one that
+ * has it. Each acts as a system actor for the universe of the person whose message set it off and rechecks
+ * everything before it writes.
+ */
+export type DecideCast = (job: CastDueJob) => Promise<void>;
+export const DECIDE_CAST = Symbol('rooms.decideCast');
+export type RunCastPass = (job: CastPassJob, signal: AbortSignal) => Promise<void>;
+export const RUN_CAST_PASS = Symbol('rooms.runCastPass');
+
+/**
+ * Port for the socket gateway: a member of the room is typing in a discussion, which only holds back an AI turn
+ * for a few seconds (D-067, D-165). Writes no person and no text; a non-member writes nothing and cannot tell.
+ */
+export type HoldCast = (hint: {
+  readonly accountId: string;
+  readonly roomId: string;
+  readonly discussionId: string;
+}) => Promise<void>;
+export const HOLD_CAST = Symbol('rooms.holdCast');
