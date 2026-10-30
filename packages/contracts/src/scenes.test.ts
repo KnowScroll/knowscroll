@@ -10,6 +10,7 @@ import {
   SceneManifestWireSchema,
   SceneReturnLocatorWireSchema,
   SCENE_LIMITS,
+  supportsSceneLooks,
   supportsSceneV1,
   type SceneChunk,
   type SceneManifest,
@@ -387,5 +388,84 @@ describe('scene HTTP declaration-only contracts', () => {
     };
     expect(SceneManifestWireSchema.safeParse(oversizedManifest).success).toBe(false);
     expect(SceneChunkWireSchema.safeParse({ ...chunk, objects, routes }).success).toBe(true);
+  });
+});
+
+describe('look data on the manifest read (D-102)', () => {
+  const lookCapabilities = {
+    ...capabilities,
+    generators: ['silhouette.v1', 'worldmap.v1'],
+    looks: ['scene-look.v1'],
+  };
+  const lookBase = { schemaVersion: 'scene-look.v1', generatorVersion: 'worldmap.v1' };
+  const planetLook = {
+    ...lookBase,
+    objectId: id(1),
+    kind: 'planet',
+    type: 'ocean',
+    rings: false,
+    moon: true,
+    hueShift: 12,
+    variant: 0,
+    siteCount: 3,
+  };
+  const withLooks = { ...ready, capabilities: lookCapabilities, looks: [planetLook] };
+
+  it('keeps an old client exactly as it was: no look capability, no looks', () => {
+    expect(supportsSceneLooks(SceneClientCapabilitiesSchema.parse(capabilities))).toBe(false);
+    expect(SceneManifestReadSchema.parse(ready)).toEqual(ready);
+    expect(SceneManifestReadSchema.safeParse({ ...ready, looks: [planetLook] }).success).toBe(false);
+    expect(SceneClientCapabilitiesSchema.parse(capabilities)).not.toHaveProperty('looks');
+  });
+
+  it('carries the looks of the objects in the manifest to a client that declared them', () => {
+    expect(supportsSceneLooks(SceneClientCapabilitiesSchema.parse(lookCapabilities))).toBe(true);
+    expect(SceneManifestReadSchema.parse(withLooks)).toEqual(withLooks);
+    const empty = { ...withLooks, looks: [] };
+    expect(SceneManifestReadSchema.parse(empty)).toEqual(empty);
+    const lagging = {
+      ...withLooks,
+      status: 'lagging',
+      currentGeography: { revision: 10, structureRevision: 10, activityRevision: 9 },
+      pendingProjection: { geographyRevision: 10, personalRevision: 15 },
+    };
+    expect(SceneManifestReadSchema.parse(lagging)).toEqual(lagging);
+  });
+
+  it('requires looks when declared, and refuses a look for an object the manifest does not hold, or twice', () => {
+    const { looks: _omitted, ...without } = withLooks;
+    expect(SceneManifestReadSchema.safeParse(without).success).toBe(false);
+    expect(
+      SceneManifestReadSchema.safeParse({ ...withLooks, looks: [{ ...planetLook, objectId: id(77) }] }).success,
+    ).toBe(false);
+    expect(SceneManifestReadSchema.safeParse({ ...withLooks, looks: [planetLook, planetLook] }).success).toBe(false);
+    expect(SceneManifestReadSchema.safeParse({ ...withLooks, looks: [{ ...planetLook, type: 'toxic' }] }).success).toBe(
+      false,
+    );
+  });
+
+  it('needs both the look version and the pinned generator to count as supporting looks', () => {
+    for (const patch of [
+      { looks: ['scene-look.v2'] },
+      { looks: [] },
+      { generators: ['silhouette.v1'] },
+      { looks: undefined },
+    ])
+      expect(supportsSceneLooks(SceneClientCapabilitiesSchema.parse({ ...lookCapabilities, ...patch }))).toBe(false);
+    // A client that declares looks but is otherwise unsupported still gets the explicit fallback.
+    const unsupported = { ...lookCapabilities, descriptors: ['scene-descriptor.v2'] };
+    expect(supportsSceneLooks(SceneClientCapabilitiesSchema.parse(unsupported))).toBe(false);
+  });
+
+  it('does not allow looks on a status that carries no manifest', () => {
+    const loading = {
+      version: ready.version,
+      ...common,
+      capabilities: lookCapabilities,
+      status: 'loading',
+      pendingProjection: { geographyRevision: 9, personalRevision: 12 },
+    };
+    expect(SceneManifestReadSchema.parse(loading)).toEqual(loading);
+    expect(SceneManifestReadSchema.safeParse({ ...loading, looks: [planetLook] }).success).toBe(false);
   });
 });

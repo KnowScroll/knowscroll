@@ -5,14 +5,19 @@ import {
   SceneChunkSchema,
   SceneManifestSchema,
   SceneReturnLocatorSchema,
+  SceneLookSchema,
   SceneDescriptorJsonSchema,
   SceneChunkJsonSchema,
   SceneManifestJsonSchema,
   SceneReturnLocatorJsonSchema,
+  SceneLookJsonSchema,
+  SCENE_LOOK_VERSION,
+  WORLD_GENERATOR_VERSION,
   type SceneDescriptor,
   type SceneChunk,
   type SceneManifest,
   type SceneReturnLocator,
+  type SceneLook,
   type SceneRevisions,
 } from '@knowscroll/scene-core';
 import { GeographyRevisionsSchema } from './geography.js';
@@ -20,20 +25,34 @@ import { UniverseIdSchema, UuidSchema } from './ids.js';
 
 export {
   SCENE_LIMITS,
+  LOOK_LIMITS,
+  PLANET_TYPES,
+  HAZE_FAMILIES,
+  SCENE_LOOK_VERSION,
+  WORLD_GENERATOR_VERSION,
+  seededUnit,
   SceneDescriptorSchema,
   SceneChunkSchema,
   SceneManifestSchema,
   SceneReturnLocatorSchema,
+  SceneLookSchema,
   SceneDescriptorJsonSchema,
   SceneChunkJsonSchema,
   SceneManifestJsonSchema,
   SceneReturnLocatorJsonSchema,
+  SceneLookJsonSchema,
 } from '@knowscroll/scene-core';
 export type {
   SceneDescriptor,
   SceneChunk,
   SceneManifest,
   SceneReturnLocator,
+  SceneLook,
+  SystemLook,
+  PlanetLook,
+  RegionLook,
+  PlanetType,
+  HazeFamily,
   SceneRevisions,
 } from '@knowscroll/scene-core';
 
@@ -45,6 +64,7 @@ export const SceneManifestWireSchema = z.custom<SceneManifest>((v) => SceneManif
 export const SceneReturnLocatorWireSchema = z.custom<SceneReturnLocator>(
   (v) => SceneReturnLocatorSchema.safeParse(v).success,
 );
+export const SceneLookWireSchema = z.custom<SceneLook>((v) => SceneLookSchema.safeParse(v).success);
 
 /** Exact wrapper identity -> owning structural metadata, for a dev/server OpenAPI converter.
  * Shared runtime imports neither OpenAPI machinery nor its registries. */
@@ -53,6 +73,7 @@ export const sceneWireJsonSchemas = [
   { schema: SceneChunkWireSchema, jsonSchema: SceneChunkJsonSchema },
   { schema: SceneManifestWireSchema, jsonSchema: SceneManifestJsonSchema },
   { schema: SceneReturnLocatorWireSchema, jsonSchema: SceneReturnLocatorJsonSchema },
+  { schema: SceneLookWireSchema, jsonSchema: SceneLookJsonSchema },
 ];
 
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -76,6 +97,8 @@ export const SceneClientCapabilitiesSchema = z.strictObject({
   manifests: Versions,
   generators: Versions,
   families: Versions,
+  /** Look data a client can draw (D-102). Absent for a client that predates it. */
+  looks: Versions.optional(),
   detail: z.enum(['full', 'low']),
   reducedMotion: z.boolean(),
 });
@@ -89,6 +112,18 @@ export function supportsSceneV1(capabilities: SceneClientCapabilities): boolean 
     capabilities.manifests.includes('scene-manifest.v1') &&
     capabilities.generators.includes('silhouette.v1') &&
     ['terraced.v1', 'ridged.v1', 'archipelago.v1'].every((family) => capabilities.families.includes(family))
+  );
+}
+
+/**
+ * A client that declares `scene-look.v1` and the generator the looks pin is given the look data of
+ * the objects it reads. One that does not is given the same reads as before, byte for byte.
+ */
+export function supportsSceneLooks(capabilities: SceneClientCapabilities): boolean {
+  return (
+    supportsSceneV1(capabilities) &&
+    capabilities.looks?.includes(SCENE_LOOK_VERSION) === true &&
+    capabilities.generators.includes(WORLD_GENERATOR_VERSION)
   );
 }
 
@@ -127,7 +162,8 @@ const ResponseFields = {
   sceneRevision: Counter,
 };
 const ManifestFields = { version: z.literal('scene-manifest-read.v1'), ...ResponseFields };
-const ManifestData = { manifest: SceneManifestWireSchema };
+/** `looks` is present exactly when the client declared the look capability (D-102). */
+const ManifestData = { manifest: SceneManifestWireSchema, looks: z.array(SceneLookWireSchema).max(1000).optional() };
 export const SceneManifestReadSchema = z
   .discriminatedUnion('status', [
     z.strictObject({ ...ManifestFields, status: z.literal('empty'), ...ManifestData }),
@@ -151,6 +187,7 @@ export const SceneManifestReadSchema = z
     if ('pendingProjection' in s) checkPending(s.pendingProjection, s, ctx);
     if (!('manifest' in s)) return;
     checkProjection(s.manifest.revisions, s, ctx);
+    checkLooks(s, ctx);
     if (
       s.manifest.revisions.sceneRevision !== s.sceneRevision ||
       s.manifest.chunks.some((chunk) => chunk.sceneRevision > s.sceneRevision) ||
@@ -207,6 +244,23 @@ export const SceneChunkReadSchema = z
 function checkCapabilities(s: { capabilities: SceneClientCapabilities; status: string }, ctx: z.RefinementCtx): void {
   if (supportsSceneV1(s.capabilities) === (s.status === 'unsupported_version'))
     ctx.addIssue({ code: 'custom', message: 'Unsupported capabilities require an explicit fallback.' });
+}
+function checkLooks(
+  s: { capabilities: SceneClientCapabilities; manifest: SceneManifest; looks?: SceneLook[] | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if ((s.looks !== undefined) !== supportsSceneLooks(s.capabilities)) {
+    ctx.addIssue({ code: 'custom', message: 'Looks are present exactly when the client declared them.' });
+    return;
+  }
+  if (s.looks === undefined) return;
+  const inManifest = new Set(s.manifest.chunks.flatMap((chunk) => chunk.objectIds));
+  const seen = new Set<string>();
+  for (const look of s.looks) {
+    if (!inManifest.has(look.objectId) || seen.has(look.objectId))
+      ctx.addIssue({ code: 'custom', message: 'A look must belong to one object of the manifest, once.' });
+    seen.add(look.objectId);
+  }
 }
 function checkPending(
   p: z.infer<typeof PendingProjection>,

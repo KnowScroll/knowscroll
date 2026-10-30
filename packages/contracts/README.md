@@ -318,6 +318,14 @@ Pending targets cannot name uncommitted future input. `unavailable` carries only
 fixed coarse reasons (`temporarily_unavailable` or `limit`), never provider text.
 These states make no promise of formation, coverage, mastery, ETA or progress.
 
+**Looks (U-1, D-102).** `SceneClientCapabilities.looks` is an optional list. A client that sends
+`scene-look.v1` and declares the `worldmap.v1` generator (`supportsSceneLooks`) gets `looks` on
+`empty`, `ready` and `lagging` manifest reads: one `SceneLook` for each object of the returned manifest
+that has one, each object once. The response schema requires `looks` exactly then and refuses it
+otherwise, so a client that predates looks parses the same read as before. A look is a sibling of the
+descriptor, never merged into it, and carries no activity, count, support or time. Status: implemented,
+CI-tested; no client sends the capability yet.
+
 A chunk read binds universe/epoch, selection, exact `manifestSceneRevision`,
 `chunkId`, `chunkSceneRevision` and the capability advertisement. Chunk revisions
 may be older than the current manifest revision when that immutable chunk is

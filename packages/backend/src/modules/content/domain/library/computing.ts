@@ -5,6 +5,7 @@ export const computingSystem = {
   id: 'computing',
   meaning: 'How the web, browsers and everyday algorithms work.',
   sceneFamily: 'terraced.v1',
+  haze: 'cobalt',
   topics: [
     {
       id: 'computing.web-requests',
