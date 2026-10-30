@@ -202,6 +202,15 @@ kept out, the AI notice unread) and `rooms.room_presence` (one lease row per mem
 only while under a minute old). Additive with defaults; an older writer leaves `kind` as `topic` and the settings at their defaults.
 Apply with the new binary; the generated database types change by the same columns and table.
 
+0071 is residents who speak on their own (v3 R-2, #488, D-162 to D-165): a second nonpersonal reasoning root (`rooms`, enabled by the
+migration; the worker's environment switch is the gate), `reasoning.usage_receipts.ambient`, `rooms.room_cast` (every room gets the
+residents its old `inhabitants` array named, as Nova and Halley), `rooms.ai_requests` renamed `rooms.ai_turns` with `request_id`
+renamed `turn_id` and new columns (`trigger`, `cause_message_id`, `decided_by`, `caps`) and checks that keep a refusal quiet and an
+unprompted turn unique per message and trigger, `rooms.messages.trigger`, the unlogged `rooms.typing_holds` (a discussion and a
+time, no account) and the `ops.room_turns` view. The rename means a process from before this migration cannot ask or answer until it
+restarts; every other change is additive. `rooms.rooms.inhabitants` is no longer read and is dropped by a later migration. Apply with
+the new binary; the generated database types change by the same tables, columns and view.
+
 0072 is the review gate for library v2 Scrolls (v3 S-1e, #472, D-138): `content.assets.status` may also be `held` (an asset whose first
 revision waits for an operator; every existing read already treats it as not admitted) and `content.revision_reviews` records, for each
 held v2 library revision, its state (`held`, `released`, `rejected`), who decided and when, and why a rejection. Additive: old writers never

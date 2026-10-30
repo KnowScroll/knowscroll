@@ -148,6 +148,31 @@ const panels = {
       },
     },
   },
+  rooms: {
+    calls: {
+      status: 'available',
+      data: {
+        limits: {
+          humanMessagesPerTurn: 3,
+          roomPerHour: 8,
+          roomPerDay: 40,
+          explainerPerHour: 4,
+          skepticPerHour: 3,
+          skepticPerPersonPerHour: 1,
+        },
+        rooms: [
+          {
+            roomId: '0199a000-0000-7000-8000-0000000000f1',
+            asked: 2,
+            unprompted: 3,
+            unpromptedLastHour: 1,
+            refused: [{ cap: 'ratio', count: 4 }],
+            lastAt: '2026-10-24T09:45:00.000Z',
+          },
+        ],
+      },
+    },
+  },
   realtime: { delivery: unavailable },
   privacy: {
     operations: { status: 'available', data: { groups: [], failed: [] } },
@@ -284,6 +309,16 @@ describe('the Operator screen', () => {
     expect(screen.getByText('out_of_date')).toBeOnTheScreen();
     expect(screen.getByText('Reel or Scroll')).toBeOnTheScreen();
     expect(screen.getByText('no note')).toBeOnTheScreen();
+  });
+
+  it('counts each room’s AI calls against the caps, with ids and counts only', async () => {
+    await mount(operatorAnswers);
+    expect(await screen.findByRole('heading', { name: '8 · Rooms' })).toBeOnTheScreen();
+    expect(screen.getByText('0199a000')).toBeOnTheScreen();
+    expect(screen.getByText('asked 2')).toBeOnTheScreen();
+    expect(screen.getByText('on its own 3 (1 this hour)')).toBeOnTheScreen();
+    expect(screen.getByText('ratio 4')).toBeOnTheScreen();
+    expect(screen.getByText(/limits: 1 per 3 messages · 8\/h · 40\/day/)).toBeOnTheScreen();
   });
 
   it('looks up a journey and shows its steps and the gap an unknown outcome leaves', async () => {

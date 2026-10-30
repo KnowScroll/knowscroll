@@ -1,4 +1,4 @@
-import type { InhabitantId } from '../domain/contribution.js';
+import type { CastMember } from '../domain/cast.js';
 import type { JoinRule } from '../domain/membership.js';
 
 /** A room as the operator defines it. The slug is its stable name; seeding twice changes nothing. */
@@ -9,5 +9,6 @@ export interface RoomSeed {
   readonly guidelines: string;
   readonly topic: { readonly kind: 'system' | 'planet'; readonly id: string };
   readonly joinRule: JoinRule;
-  readonly inhabitants: readonly InhabitantId[];
+  /** The residents that live in the room (D-163): an Explainer and a Skeptic always. */
+  readonly cast: readonly CastMember[];
 }

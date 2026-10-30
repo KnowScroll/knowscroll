@@ -127,9 +127,20 @@ export const OpenRevisitRequestSchema = z
  * whose qualification/separation is decided by evidence policy. Restoring a parked Back entry is
  * local AccountScope state, sends no command/activation and earns no new return contribution.
  * Exact block offsets, playheads and play state stay private in that local scope, never this wire.
+ * A vertical move is a new subject: it never offers another part of the series the person is in
+ * (that is the `series` move) and keeps the person in `format`.
  */
 export const NavigationIntentSchema = z.discriminatedUnion('mode', [
-  z.strictObject({ mode: z.literal('vertical'), direction: z.enum(['next', 'previous']) }),
+  z.strictObject({
+    mode: z.literal('vertical'),
+    direction: z.enum(['next', 'previous']),
+    /**
+     * The format the person is in. A subject move stays in it while anything of it is eligible and
+     * offers the other format only when nothing is. Optional: a request without it is ranked with no
+     * format preference. It steers ranking only; it grants nothing and is not a stored preference.
+     */
+    format: Format.optional(),
+  }),
   z.strictObject({
     mode: z.literal('series'),
     direction: z.enum(['next', 'previous']),

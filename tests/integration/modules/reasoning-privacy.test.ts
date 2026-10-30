@@ -328,6 +328,7 @@ describe('personal Reasoning payload erasure cannot rewrite financial truth or r
         scope: { requests: 1, tokens: 150 },
         // An interactive role, so none of this counts against the background share.
         background: { global: { requests: 0, tokens: 0 }, scope: { requests: 0, tokens: 0 } },
+        ambient: { global: { requests: 0, tokens: 0 } },
       },
     });
   });

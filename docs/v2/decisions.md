@@ -1383,3 +1383,99 @@ R3 question 6 (keep my messages out of what AI reads) and question 5 (default le
 - **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
 - **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
 - **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
+
+## D-131 · 2026-10-30 · A vertical move never offers another part of the series the person is in (S-1d, #472)
+
+In the V3 grammar swipe left is Part 2 and pull up is a new topic. Until now the best "next subject" after Seasons Part 1 was Part 2 or Part 3, because they share the planet and rank first. That made the two moves say the same thing.
+
+**Amends** D-034 (the list of hard exclusions on a subject move).
+
+- **Rule.** A vertical move excludes every candidate of the source's series, in any revision of that series (`same_series`). The series is compared by its id only. With nothing else to offer the move is exhausted (`no_eligible_content`), never Part 2.
+- **A Reel is not a series unit, but it is still a part.** Only Scrolls have a `series_units` row. So the series comes from the source, or else from a candidate that shares the source's explanation unit (its Scroll twin), and a candidate whose explanation unit is that of a part is excluded too. The Reel of Part 2 is Part 2, from a Scroll and from a Reel. This looks only at the candidates already retrieved, so it adds no read.
+- **Where.** Composer's pure policy decides, in `domain/vertical-rules.ts`. Experience names the source's series in the snapshot (`intent.currentSeriesId`) for a fresh ranking, and the worker does the same for a buffer. The reason is stored in `composer.decisions` beside the other exclusions.
+- **Unchanged.** Series, related, variant and return moves. The Part move is how a series is reached.
+- **A move inside a region is left alone.** A person who opened a place to browse it can reach its parts there. Only the open-ended "next subject" leaves the series.
+- **Not done.** The related move of the thread is left to D-136. If the Scroll twin of a Reel is not among the candidates (a catalogue past the retrieval cap), the series is not known.
+- **The policy label stays `composer-policy.v0`.** Migration 0017 allows only that label, and the rule applies only when the snapshot names a series, so every stored decision replays as before. S-5 changes the weights and moves the label with a migration.
+- **Verified.** Pure and property tests (a ranked-first Part 2 is never returned, for any seed, order or format) and integration tests on real PostgreSQL from Seasons Part 1, with the Reel of Part 2 as the only other format, and from the Reel of Part 1. Each fails when the rule is removed.
+
+## D-132 · 2026-10-30 · Next stays in the format the person is in, and falls back only when none is left (S-1d, #472)
+
+A person reading a Scroll who pulls up for a new topic expects a Scroll; a person watching a Reel expects a Reel. Today a vertical move carries no format, so a Scroll can be followed by a Reel.
+
+**Amends** D-034 (what a buffer is ranked for).
+
+- **Contract.** The vertical navigation intent has an optional `format` (`reel` or `scroll`). The client fills it with the format of the encounter in front of the person. A request without it is ranked with no format preference, as before.
+- **Rule.** Composer reads that format first. While anything of it is eligible, every candidate of the other format is excluded (`format_sticky`). Eligible means after every other exclusion, so a hidden item or another part of the series does not keep the format alive. When none is eligible nothing is excluded and the other format is offered.
+- **Recorded.** The decision stores `stickyFormat: { preferred, outcome }`, with `outcome` either `kept` or `fell_back`.
+- **Equal status.** The rule follows the format the person is in now. It is the same for Reel and Scroll and stores nothing. The per-topic format learning (`format` feature) is unchanged.
+- **Retrieval.** With a format, up to 100 candidates of that format are read first and the other format fills what is left, so a large catalogue of one format cannot crowd the person's format out of the cap.
+- **Buffers.** The worker ranks a buffer for the source's own format. Experience serves it only to a move that names that format. A move that names another format, or none, is ranked fresh and the buffer waits for its own end of life.
+- **Not here.** Anything finer than the format. Play level is S-5 (#476).
+- **Verified.** Pure and property tests (stay in the format exactly when something of it is eligible; the same inputs give the same decision), an integration test on real PostgreSQL from a Scroll and from a Reel, with and without an eligible candidate of the format, and the buffer cases. Each fails when the rule is removed.
+
+## D-136 · 2026-10-30 · A vertical move does not offer what the thread's Related tab reaches (S-1d, #472)
+
+After D-131 the Seasons thread still led to "Seasons limits": it shares the planet, so it ranks first. It is the related move of Part 3 (D-125), another perspective on the thread, and a related perspective is one of the four distinct relationships. It is reached from its own tab, not by pulling up.
+
+**Amends** D-131 (which left the related target out).
+
+- **Rule.** A vertical move excludes the assets the thread's Related tab reaches (`related_target`), by asset id in any revision, and the format twin of each. These are the related targets of the source, of its format twins and of every other part of the source's series found among the candidates. The tab sits on one part (Part 3 for Seasons), but the thread owns it, so Part 1 leaves it too.
+- **A Reel.** The continuity of the Reel and of its Scroll twin counts, and the Reel takes the series of its twin among the candidates (D-131), so the related move of any part of that series is left too.
+- **Steps aside rather than leave nothing.** If excluding would leave nothing eligible in either format, none are excluded and the move offers what is there, as it did before. The series rule stays hard (D-131). The decision stores `relatedTarget: { outcome, matched }`, with `outcome` either `applied` or `fell_back`.
+- **Before sticky format.** When a new topic and the person's format cannot both be had, the new topic wins: the related target in the same format is passed over and the other format is offered (D-132 records `fell_back`).
+- **Where.** The pure policy decides (`applyRelatedExclusion`). `readRelatedAssetIds` reads the admitted links, a few small reads of shared data inside the transaction already open; Experience and the buffer worker both use it. A move inside a region takes no part in it.
+- **Unchanged.** The Related tab and the `related` move still open the target.
+- **Verified.** Pure and property tests, a unit test of the reads, and an integration test on real PostgreSQL from Seasons Part 1 and Part 3, with the fall back and the Related tab. Each fails when the rule or the read of the other parts is removed.
+
+## D-162 · 2026-10-30 · Residents are paid by a room scope and an `ambient` budget class (R-2, #488)
+
+**Amends** D-051, "every inhabitant call runs as the person who asked", and the reasoning README, "the nonpersonal scope is Scroll supply". **Builds on** D-058 and D-068.
+
+- **A second nonpersonal root.** `reasoning.production_scopes` gains `rooms` beside `scroll-supply`. It is the same engine, tables and attempt ledger; a harness is bound to one root and refuses the other's authority. It has no account, no universe and no epoch.
+- **Its own switch and caps.** `KS_REASONING_ROOM_ENABLED` (default 0), `KS_REASONING_ROOM_GENERATION` and the daily caps `KS_REASONING_ROOM_REQUESTS_PER_DAY` / `KS_REASONING_ROOM_TOKENS_PER_DAY` (defaults 100 and 1,000,000). The root row is enabled by the migration; the environment switch is the gate, and an operator can still disable the row or raise its generation to fence queued work.
+- **A third budget class.** A role may be `ambient`: it speaks because a room's resident chose to, not because anyone asked or read. An ambient reservation must fit the room scope's cap and also `KS_REASONING_AMBIENT_SHARE_PERCENT` (default 30) of the global cap, counted over ambient receipts only (`usage_receipts.ambient`). It can never take what a person asked for. The resident roles have their own ids (`rooms.ambient-explainer`, `rooms.ambient-skeptic`), so the role cap and the failure brake of asked turns are not shared with them.
+- **Asked turns do not change.** They stay `interactive` on the asker's personal scope. When the room scope or the ambient share is spent, an ask still works.
+- **What it keeps.** The model call's request bytes are kept 48 hours in `production_requests`, like every request. They hold the room's recent messages after keep-out, with no names. They belong to no person, so no one's Clear or deletion erases them; they expire.
+
+Confirmed by: `budgets.test.ts` (the share), `reasoning-ambient-share.test.ts` (exactly the share is admitted, also under concurrency; the next is refused as `ambient_global`; a person's ask is still admitted; the test fails if either ledger's ambient sum is broken), `rooms-residents.test.ts` ("lets asked turns work when the room scope is spent").
+
+## D-163 · 2026-10-30 · A room's cast is a table of named residents (R-2, #488)
+
+**Amends** D-051, where a room has `inhabitants text[]` of at most two, and the contract's `max(2)`. **Builds on** D-068 and T3 question 10 (2 or 3 residents per room), which wins over R3's four.
+
+- **The table.** `rooms.room_cast(room_id, inhabitant, name, position)`: one row per resident, positions 1 to 4, one row per role. A room has an Explainer and a Skeptic always, so two rows at least. The migration gives every existing room the residents its old array named. The old column is no longer read; a later migration drops it.
+- **Names.** From a fixed catalogue, never from a model: Nova (Explainer) and Halley (Skeptic), the names T3 gives them. Every room has the same pair until a room gets a face of its own (R-4), which changes rows, not code.
+- **Always labelled.** The contract's AI author carries the resident's `name` beside the label that cannot be removed (`AI · Explainer`). A resident never has a person ID, handle or profile, and is never counted among the people here.
+- **Not yet.** The Quizmaster (Pixel) comes with the Launch in R-6, with its behaviour. The role enum and the table's check stay at two roles until then; the table's shape already holds four.
+
+Confirmed by: `cast.test.ts`, `rooms-residents.test.ts` ("gives every seeded room a named Explainer and Skeptic"), `rooms-residents-migration.test.ts` (existing rooms get their residents).
+
+## D-164 · 2026-10-30 · The router decides who speaks, and every turn is a ledger row (R-2, #488)
+
+**Implements** D-081. **Amends** D-051, "AI inhabitants speak only when asked", and the migration 0062 rule that an AI message always has an asker. **Replaces** D-051's 4 asks per person and 12 per room a day with D-068's 10 per person an hour and 80 per room a day.
+
+- **Triggers.** A person's text that reads as a question (a `?` at the end, or an opening interrogative of five words or more) asks the Explainer. A text with a strong-claim word (proven, always, obviously, 100%, ...) asks the Skeptic. Both are lexical pre-filters in `rooms/domain/triggers.ts`; the resident's own `nothing_to_add` is the real judgement. An Explainer answer that itself reads as overstated may draw one Skeptic reply, then nothing until a person speaks.
+- **Waits.** People answer first: 4 minutes for a question, 2 for a claim, 90 seconds when only the author has the room open, 1 minute for the one reply. The wait is measured from the message and checked again at fire time against who is here then. A trigger older than 30 minutes is let go.
+- **Let go without a record.** A person other than the author, or an AI, posted after the message. The room is paused, the author left, the author keeps messages out of what AI reads (checked again just before the call), every member has the AI Off, or the message is a newcomer's first and would draw the Skeptic.
+- **Caps** (D-068; start here, tune after two weeks of ledger data). One unprompted turn per 3 human messages since the last one (not counted for the Skeptic's one reply), 8 an hour and 40 a day per room, the Explainer 4 an hour, the Skeptic 3 an hour and 1 per person an hour. A `nothing_to_add` and a call that failed after it reached the provider count for the hour and day, never for the ratio. A call that failed before it reached the provider is handed back. Once a call has reached the provider the turn stays counted whatever happens next: `dispatched` is only ever raised, never lowered, and a redelivery that finds its request changed (a person answered, the author followed up) counts as sent.
+- **A refusal is a row, not a message.** Every decision is an `ai_turns` row, written under the room lock: allowed (`queued`, `caps_clear`) or refused (`refused`, naming the cap), with the counts it compared. A refusal posts nothing, shows nothing and queues no call. Each message and trigger gets at most one row (a unique index).
+- **Who it runs as.** `rooms.cast-due` and `rooms.cast-pass` act as a system actor for the universe of the person whose message set them off, only to take the room lock in the blueprint's order and to stop when that person is gone (a deletion or a privacy reset ends the check). The model call is paid by the room scope (D-162).
+- **What a reader sees.** Lively shows a resident's unprompted message, Quieter marks it `folded` (one line, the words on request), Off receives a `muted` marker with no words. The one-line why is a fixed phrase for the trigger the server names, never model text. An asked contribution always shows in full.
+- **Asks are not blocked by residents.** A resident preparing an unprompted answer is not "an ask in progress": the gate that shows an inhabitant as preparing, and refuses a second ask, counts queued asks only.
+- **Idle.** A message that is neither a question nor a strong claim queues nothing. An idle room makes no call.
+
+Confirmed by: `router.test.ts`, `triggers.test.ts`, `rooms-residents.test.ts` (idle, the wait, a human answer, the Skeptic and the newcomer, the reply chain, the ratio and hour and day caps, levels, kept-out bytes, a quiet refusal, the room scope spent, a paid answer that stays counted, keep-out turned on before the call, an ask accepted while a resident prepares).
+
+## D-165 · 2026-10-30 · Typing is a ten-second hold on a discussion, with no person in it (R-2, #488)
+
+**Amends** D-067: the typing signal is held ten seconds in an unlogged row with no account. D-067 says it is never stored; this keeps a discussion and a time for ten seconds and nothing else. Taken for the owner; listed under Waiting for owner on #462.
+
+- **What the client says.** While a member types in a discussion, the device sends `room_typing {roomId, discussionId}` over the hint socket at most every 4 seconds. Nothing is sent when the draft is empty.
+- **What the server keeps.** One row in `rooms.typing_holds (discussion_id, held_until)`, rewritten in place to ten seconds ahead. The table is unlogged, holds no account and no text, is read by no API route and is never sent to anyone. A hint from a non-member, with a bad body or a stale session writes nothing, and the answer is the same `{ ok: true }` in every case, so it tells no one anything.
+- **What it does.** `cast-due` looks again after the hold lapses instead of deciding (at most 24 times). `cast-pass` puts posting off until the hold lapses (at most 3 times), then posts. A person's new message while a model call runs already ends the turn without posting.
+- **A paid answer is kept, not asked for again.** When posting is put off, the answer is stored on the turn (`held_kind`, `held_text`) and the turn is marked as having reached the provider in the same transaction. The next delivery posts the held words after the usual checks, without building the context or calling the model, so a person's answer or the author's follow-up in between cannot make the ledger refuse a changed request. If the words are dropped (someone answered, the author keeps messages out), the turn ends `failed` and still counts. The held words are cleared when the turn settles.
+- **Deletion and Clear.** A queued unprompted turn whose job is erased with a universe is settled `failed` and counted in the same transaction, so it neither blocks a discussion nor waits for a call nobody will make.
+- **What stays.** D-042: no one is ever shown that someone is typing.
+
+Confirmed by: `rooms-residents.test.ts` ("holds back a turn while someone types", "stores a discussion and a time, never a person", "an answer that was paid for"), `rooms-erasure.test.ts` (Clear and account deletion end a queued resident turn), `account-scope-socket.test.ts`.

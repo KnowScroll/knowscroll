@@ -6,7 +6,7 @@ import {
   type RoomYou,
 } from '@knowscroll/contracts';
 import { conceptLabel } from '../../content/public.js';
-import type { InhabitantId } from '../domain/contribution.js';
+import type { CastMember } from '../domain/cast.js';
 import type { MemberRow, RoomRow } from './ports.js';
 
 /** A room as lists and previews name it. No member, activity or online count. */
@@ -21,10 +21,11 @@ export function roomSummary(room: RoomRow): RoomSummary {
   };
 }
 
-/** The labelled AI inhabitants a room has. The label comes from the role, never from a message. */
-export function inhabitantsOf(inhabitants: readonly InhabitantId[]): RoomInhabitant[] {
-  return inhabitants.map((inhabitant) => ({
+/** The labelled AI inhabitants a room has, with the names they go by. The label comes from the role, never from a message. */
+export function inhabitantsOf(cast: readonly CastMember[]): RoomInhabitant[] {
+  return cast.map(({ inhabitant, name }) => ({
     inhabitant,
+    name,
     label: AI_INHABITANT_LABELS[inhabitant],
     blurb: AI_INHABITANT_BLURBS[inhabitant],
   }));

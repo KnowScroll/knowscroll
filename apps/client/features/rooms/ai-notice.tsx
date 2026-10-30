@@ -2,10 +2,13 @@ import { StyleSheet, View } from 'react-native';
 import { borderWidth, content, layout, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 
-/** What a member is told about AI in a room. True of what the room does today: an inhabitant reads only when someone asks. */
+/**
+ * What a member is told about AI in a room. True of what the room does today: residents are always labelled, answer when
+ * someone asks, and may join in on their own, reading only this room's recent messages without names.
+ */
 export const AI_NOTICE = {
   title: 'AI lives in this room',
-  body: 'AI inhabitants are always labelled AI and never pretend to be people. When someone asks one, it reads this room’s recent messages, without names.',
+  body: 'AI residents are always labelled AI and never pretend to be people. They answer when someone asks, and now and then join in when a question goes unanswered. To do that they read this room’s recent messages, without names.',
   control: 'You can change what AI reads at any time: room menu, AI here.',
 } as const;
 

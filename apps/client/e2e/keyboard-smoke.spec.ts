@@ -77,7 +77,7 @@ test('Explore by keyboard: the stage moves between subjects and parts, the switc
   await expect(page.getByTestId('reel-navigation-stage')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(caption).toContainText('CI encounter fixture 2');
-  expect(navigations().at(-1)?.body['intent']).toEqual({ mode: 'vertical', direction: 'next' });
+  expect(navigations().at(-1)?.body['intent']).toEqual({ mode: 'vertical', direction: 'next', format: 'reel' });
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => navigations().at(-1)?.body['intent']).toMatchObject({ mode: 'series', direction: 'next' });
 

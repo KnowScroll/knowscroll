@@ -48,6 +48,8 @@ export interface ScopeConnection {
   close(): void;
   /** The rooms whose hints this connection should receive; a connection opened later is told again by the scope. */
   watchRooms?(roomIds: readonly string[]): void;
+  /** Tells the server this member is typing in a discussion: it only holds back an AI turn (D-067, D-165). */
+  noteTyping?(roomId: string, discussionId: string): void;
 }
 
 /** Opens the scope's hint socket (`account-scope-socket.ts`; a test double in tests). */
@@ -82,6 +84,12 @@ export interface AccountScope {
    * A hint only marks the room's queries stale; the screen rereads through HTTP. Without a socket it does nothing.
    */
   watchRoom(roomId: string): () => void;
+  /**
+   * Says the person is typing in a discussion of a room, so a resident does not answer over them. The hint is
+   * ephemeral: it is sent over the hint socket at most every few seconds, is never stored on the device, never
+   * shown to anyone and does nothing but hold back an AI turn (D-165). Without a socket it does nothing.
+   */
+  noteTyping(roomId: string, discussionId: string): void;
   /** Closes and reopens the hint socket (after the server dropped it and the session still holds). */
   reconnect(): void;
   /**
@@ -263,6 +271,9 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
         else watchedRooms.set(roomId, left);
         if (!ended.signal.aborted) connection?.watchRooms?.([...watchedRooms.keys()]);
       };
+    },
+    noteTyping(roomId, discussionId) {
+      if (!ended.signal.aborted) connection?.noteTyping?.(roomId, discussionId);
     },
     reconnect() {
       if (ended.signal.aborted) return;

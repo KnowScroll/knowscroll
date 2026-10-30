@@ -28,8 +28,8 @@ export const room = {
 };
 export const generalId = id(501);
 const inhabitants = [
-  { inhabitant: 'explainer' as const, label: 'AI · Explainer', blurb: 'Answers when asked' },
-  { inhabitant: 'skeptic' as const, label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
+  { inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
+  { inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
 ];
 const cursor = (n: number) => `krc1_${'A'.repeat(25)}${String(n)}`;
 const text = (sequence: number, author: typeof asha, value: string, minutesAgo: number) => ({
@@ -48,6 +48,11 @@ export interface RoomFixtureOptions {
   readonly lastMessageMinutesAgo: number;
   /** Whether the AI notice was already read. */
   readonly noticeSeen: boolean;
+  /**
+   * A resident (Nova) answered a question on its own, as this reader's AI level shows it: in full (`lively`), folded
+   * to one line (`quieter`) or as a marker with no words (`off`). Omitted means no resident has spoken.
+   */
+  readonly resident?: 'lively' | 'quieter' | 'off';
 }
 
 /** Every request the fixture answered, in order, so a test can see what the screen asked for. */
@@ -68,11 +73,35 @@ export async function roomFixture(
   const calls: RoomCall[] = [];
   const others = [asha, kenji, person(3, 'Lena')].slice(0, options.others);
   const faces = [{ person: ravi, you: true }, ...others.map((other) => ({ person: other, you: false }))];
-  const messages = [
+  const spoken = [
     text(1, asha, 'Wait, is dark matter just black holes we can’t see?', options.lastMessageMinutesAgo + 6),
     text(2, kenji, 'Lensing says it’s spread out, not clumped.', options.lastMessageMinutesAgo + 3),
     text(3, asha, 'Huh. Then what is it?', options.lastMessageMinutesAgo),
   ];
+  // A resident that answered the last question on its own, as this reader's AI level receives it (R-2).
+  const resident =
+    options.resident === undefined
+      ? []
+      : options.resident === 'off'
+        ? [{ messageId: id(604), sequence: 4, status: 'muted' as const }]
+        : [
+            {
+              messageId: id(604),
+              sequence: 4,
+              status: 'available' as const,
+              author: { kind: 'ai' as const, inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer' },
+              recordedAt: new Date(Date.now() - Math.max(options.lastMessageMinutesAgo - 4, 0) * 60_000).toISOString(),
+              body: {
+                kind: 'text' as const,
+                text: 'Lensing maps show the missing mass spread out like a halo around a galaxy, not packed into dark stars.',
+              },
+              suggestion: 'explanation' as const,
+              trigger: 'unanswered_question' as const,
+              ...(options.resident === 'quieter' ? { folded: true as const } : {}),
+            },
+          ];
+  const messages = [...spoken, ...resident];
+  const lastAt = spoken.at(-1)!.recordedAt;
   const state: { you: RoomYou } = {
     you: {
       aiLevel: 'lively',
@@ -105,7 +134,7 @@ export async function roomFixture(
             kind: 'general',
             title: 'General',
             pinned: false,
-            lastActivityAt: messages.at(-1)!.recordedAt,
+            lastActivityAt: lastAt,
           },
           discussions: [
             {
@@ -121,7 +150,7 @@ export async function roomFixture(
           you: state.you,
           here: { faces, ...(faces.length >= 3 ? { count: faces.length } : {}) },
           memberTotal: 24,
-          lastMessageAt: messages.at(-1)!.recordedAt,
+          lastMessageAt: lastAt,
         },
       });
     if (path === '/v1/rooms/discussions/read')

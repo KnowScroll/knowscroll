@@ -11,7 +11,9 @@ database and in a browser (D-044). Not yet running on dev.
 
 - Open `/operator` (an operator account only) and see six panels: system overview, journey search,
   content production, universe change, realtime delivery, privacy and diagnostics health, and a list of the
-  newest reports to the safety team (7 · Reports: kind, reason, what it is about, whether a note exists, when).
+  newest reports to the safety team (7 · Reports: kind, reason, what it is about, whether a note exists, when),
+  and each room's AI calls over the last day against the router's caps (8 · Rooms: asked, on its own, refused by which cap;
+  room ids and counts only, never a message; v3 R-2).
 - Paste the ID of a request, production run, Reel order, model attempt, reasoning run, exposure or asset
   and read what the records say, oldest first, with the gaps they leave.
 - From a server shell: `node dist/operator.js journey <id>` or `journey --account <accountId>` (worker tree).
@@ -40,6 +42,7 @@ private text in every table that holds some.
 | `ops.rejected_answers` | `reasoning.production_rejected_answers` | Refused writer answers: verdict, finding codes, size. Never the text. |
 | `ops.reel_orders`, `ops.reel_attempts` | `content.reel_orders`, `content.reel_attempts` | Reel orders and attempts: state, outcome, pool claim, cents. No script, request body, note or remote detail. |
 | `ops.geography_runs` | `geography.runs` | Cartographer runs: state, outcome code, times. No universe or proposal. |
+| `ops.room_turns` | `rooms.ai_turns` | AI turns of rooms, asked or unprompted: ids, trigger, state, the cap that decided it, time. No message text, no person, no prompt. The limits shown beside the counts are the rooms router's own, added by the API. |
 | `ops.feedback_reports` | `feedback.reports` | Reports to the safety team: kind, reason, target kind (`deleted_account` once the person deleted theirs) and IDs, whether a note exists, time. No note, no sender, no person reported (D-055). |
 | `ops.privacy_operations` | `identity.clear_operations`, `identity.account_deletions`, `identity.data_exports` | Operation kind, state, failure code, attempts, times. No account. |
 | `ops.jobs`, `ops.queue_backlog`, `ops.recent_errors` | `pgboss.job` and the views above | Queue, state, retries, age, code-only failure record; backlog per queue; failures and unknown outcomes. Never a payload. |

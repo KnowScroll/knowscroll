@@ -93,6 +93,7 @@ test('the full Reel stage commits vertical and related swipes; dragging an actio
   expect(commands.filter((call) => call.path.endsWith('/navigate'))[0]?.body.intent).toEqual({
     mode: 'vertical',
     direction: 'next',
+    format: 'reel',
   });
   await expect.poll(() => commands.filter((call) => call.path.endsWith('/activate')).length).toBe(2);
   // Activation arriving at the fixture server precedes context/grant loading and the next surface commit.

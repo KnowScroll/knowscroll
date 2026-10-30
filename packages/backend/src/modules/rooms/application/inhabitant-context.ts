@@ -5,14 +5,14 @@ import { CONTEXT_MESSAGES } from '../domain/contribution.js';
 import { KEPT_OUT_MESSAGE, KEPT_OUT_TOPIC } from '../domain/membership.js';
 import type { ContextMessage, ContributionMaterial } from './inhabitant-role.js';
 import type {
-  AiRequestRow,
+  AiTurnRow,
   ContentCard,
   ContentRef,
   DiscussionRow,
   MessageRow,
   RoomLock,
   RoomPorts,
-  Standing,
+  RoomRow,
 } from './ports.js';
 
 const keyOf = (ref: ContentRef) => `${ref.assetId}:${String(ref.assetRevision)}`;
@@ -29,7 +29,7 @@ const clock = (ms: number): string => {
 };
 
 /**
- * What an inhabitant may read to answer one ask: the room's name, topic and guidelines, the
+ * What an inhabitant may read to answer one turn, asked or unprompted: the room's name, topic and guidelines, the
  * discussion's title, the content it is about (title and summary) and its newest messages, reduced
  * to words. Speakers are numbered in order of first appearance ("Member 1"); no name, handle, ID,
  * reading position or hidden message reaches the model. The material comes from this room's own rows
@@ -42,14 +42,22 @@ const clock = (ms: number): string => {
  * is the starter's own typing (or a card's title they chose), so it is replaced by `KEPT_OUT_TOPIC` when the
  * starter keeps out. Nothing else a member types reaches a context item: the room's name, topic and guidelines
  * are the operator's, the content's title and summary are the library's, and polls, pins and reports are never read.
+ *
+ * Every context path goes through here, so keep-out holds for them all (D-161). `focus` is the message an
+ * unprompted turn answers; `material.focus` is its number in the window, or none when it is no longer in it.
  */
 export async function assembleMaterial(
   p: RoomPorts,
   scope: PersonalScopeTx,
   lock: RoomLock,
-  parts: { readonly request: AiRequestRow; readonly standing: Standing; readonly discussion: DiscussionRow },
+  parts: {
+    readonly turn: AiTurnRow;
+    readonly room: RoomRow;
+    readonly discussion: DiscussionRow;
+    readonly focus?: string;
+  },
 ): Promise<ContributionMaterial> {
-  const { request, standing, discussion } = parts;
+  const { turn, room, discussion } = parts;
   const rows = await p.discussions.messages(lock, discussion.discussionId, {
     limit: CONTEXT_MESSAGES,
     ...(discussion.lastSequence > 0 ? { before: discussion.lastSequence + 1 } : {}),
@@ -98,12 +106,14 @@ export async function assembleMaterial(
     return { speaker, text: row.note === null ? shared : `${shared}. ${row.note}` };
   });
   const root = discussion.root === null ? undefined : titleOf(cardOf.get(keyOf(discussion.root)));
-  const topic = CONCEPTS.find((concept) => concept.id === standing.room.topic.id);
+  const topic = CONCEPTS.find((concept) => concept.id === room.topic.id);
+  const focusAt = parts.focus === undefined ? -1 : shown.findIndex((row) => row.messageId === parts.focus);
   return {
-    requestId: request.requestId,
-    roomName: standing.room.name,
+    turnId: turn.turnId,
+    ...(focusAt < 0 ? {} : { focus: focusAt + 1 }),
+    roomName: room.name,
     topicMeaning: topic?.meaning,
-    guidelines: standing.room.guidelines ?? undefined,
+    guidelines: room.guidelines ?? undefined,
     discussionTitle:
       discussion.startedByAccountId !== null && keptOut.has(discussion.startedByAccountId)
         ? KEPT_OUT_TOPIC

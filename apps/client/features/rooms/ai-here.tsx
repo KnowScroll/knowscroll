@@ -9,26 +9,25 @@ const LEVELS: readonly { readonly level: RoomAiLevel; readonly label: string; re
   {
     level: 'lively',
     label: 'Lively',
-    hint: 'AI answers when someone asks. When it starts joining in, you will see it.',
+    hint: 'AI answers when someone asks, and joins in when a question goes unanswered or something is said very strongly.',
   },
   {
     level: 'quieter',
     label: 'Quieter',
-    hint: 'AI answers when someone asks. When it starts joining in, you will see less of it.',
+    hint: 'What AI adds on its own is folded into one line, and you open it if you want it. Answers you ask for show in full.',
   },
   {
     level: 'off',
     label: 'Off',
-    hint: 'AI answers when someone asks. When it starts joining in, you will not see what you did not ask for.',
+    hint: 'You see nothing AI adds on its own. Answers you ask for still show.',
   },
 ];
 
 /**
  * "AI here" (R3 C5): how much the room's AI inhabitants may speak to this member, whether this member's
  * messages are kept out of what AI reads, and the notice they were given on joining. Both settings are the
- * member's own and are saved as soon as they are changed. The words under the level say only what is true today:
- * an inhabitant answers when someone asks, and the level will decide what a member sees once inhabitants join in on
- * their own (v3 R-2). The level is stored now and nothing reads it yet.
+ * member's own and are saved as soon as they are changed. The level decides what this member sees of a resident that
+ * speaks on its own (v3 R-2): Lively shows it, Quieter folds it, Off hides it. An answer the member asked for always shows.
  */
 export function AiHere({
   you,

@@ -40,6 +40,14 @@ share of the global cap and of each person's cap that background roles (Jev, Car
 together; the rest is kept for roles a person asks for. 0 switches background roles off, 100 keeps nothing
 back. It is a reasoning variable: the worker and the Scroll production operator read it with the caps.
 
+`KS_REASONING_ROOM_ENABLED` (v3 R-2, D-162) accepts 0/1 and defaults 0. On, the AI residents of a room may speak
+without being asked, under the nonpersonal `rooms` reasoning scope: its own daily caps
+(`KS_REASONING_ROOM_REQUESTS_PER_DAY`, `KS_REASONING_ROOM_TOKENS_PER_DAY`) and the `ambient` share of the global cap
+(`KS_REASONING_AMBIENT_SHARE_PERCENT`, default 30). The API reads it to queue the resident check when a message reads as a
+question or a strong claim, and the worker reads it to run the check and the model call. Off, no job is queued and no
+resident speaks unprompted; asked turns are unchanged. The router's own caps (one turn per three human messages, 8 an
+hour, 40 a day, per resident, per person) are code, not configuration (D-164).
+
 `KS_CARTOGRAPHER_ENABLED` (#237) accepts 0/1 and defaults 0. Set it to 1 on the worker to let
 reading form places (D-038). It is the only switch of the role: spend is bounded by the shared
 reasoning budgets and the role's failure brake, not by a second permit. The role needs
