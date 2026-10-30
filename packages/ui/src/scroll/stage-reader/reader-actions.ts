@@ -6,7 +6,8 @@ export interface ReaderCommands {
   readonly universe?: () => void;
   readonly ask?: () => void;
   readonly format?: () => void;
-  readonly nextPart?: () => void;
+  /** Continue: the next Part, or another angle when there is no next Part (D-184). */
+  readonly wayOn?: () => void;
   readonly previousPart?: () => void;
   readonly nextTopic?: () => void;
 }
@@ -47,7 +48,7 @@ export function actOnKey(key: ReaderKey, at: KeyTargets): boolean {
       at.jump(at.heading() - 1, true);
       return true;
     case 'next-part':
-      return run(at.commands.nextPart);
+      return run(at.commands.wayOn);
     case 'previous-part':
       return run(at.commands.previousPart);
     case 'next-topic':

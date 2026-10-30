@@ -27,6 +27,19 @@ describe('the keyboard map', () => {
     expect(screen.getByLabelText('Slash: Search places')).toBeOnTheScreen();
   });
 
+  it('says what right and left arrow mean along a thread: the way on may be another angle', async () => {
+    await show();
+    expect(
+      screen.getByLabelText(
+        'Left and right arrow: Along the thread: the part before, and the next part or another angle when there is none',
+      ),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Right arrow: Continue: the next Part, or another angle when there is no next Part'),
+    ).toBeOnTheScreen();
+    expect(screen.getByLabelText('Left arrow: Back to the Part before')).toBeOnTheScreen();
+  });
+
   it('lists every key the Scroll reader listens to, so a new key cannot go unlisted', () => {
     const group = KEYBOARD_MAP.find((entry) => entry.title === 'Scroll reader');
     const listed = new Set(group?.shortcuts.flatMap((shortcut) => shortcut.keys));

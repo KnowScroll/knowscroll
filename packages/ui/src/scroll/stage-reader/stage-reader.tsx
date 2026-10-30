@@ -49,14 +49,14 @@ export interface StageReaderProps {
   readonly dock?: ReactNode;
   readonly commands: ReaderCommands;
   readonly nextPart?: NextPartPeek | undefined;
+  /** Another angle on the same idea, offered at the end beside the next Part (D-184). */
+  readonly related?: NextPartPeek | undefined;
   readonly onDone?: (() => void) | undefined;
   /**
    * Play on this Scroll: what was locked, the sparks, and how to lock another (D-063). The app passes
    * one backed by its play session; without one the reader keeps it on the device alone.
    */
   readonly play?: StagePlay | undefined;
-  /** "Part 1 of 3": drawn on the stage where the top bar has no room for it (a phone). */
-  readonly partLabel?: string | undefined;
 }
 
 const MIN_STAGE = 176;
@@ -103,9 +103,9 @@ export function StageReader({
   dock,
   commands,
   nextPart,
+  related,
   onDone,
   play: appPlay,
-  partLabel,
 }: StageReaderProps) {
   const { reducedMotion, breakpoint } = useDisplay();
   const { height: windowHeight } = useWindowDimensions();
@@ -164,7 +164,7 @@ export function StageReader({
   });
   const move = useCallback((part: PartMove) => {
     const at = latestCommands.current;
-    run(part === 'next-part' ? at.nextPart : part === 'previous-part' ? at.previousPart : at.nextTopic);
+    run(part === 'next-part' ? at.wayOn : part === 'previous-part' ? at.previousPart : at.nextTopic);
   }, []);
   const onKey = (key: ReaderKey): boolean =>
     actOnKey(key, {
@@ -192,11 +192,6 @@ export function StageReader({
             textVersion={textVersion}
             height={stageHeightFor(windowHeight, wide)}
           />
-          {partLabel === undefined || wide ? null : (
-            <View style={styles.partChip}>
-              <Text variant="monoXs">{partLabel}</Text>
-            </View>
-          )}
           <TextVersionSwitch on={textVersion} onPress={() => setTextVersion((now) => !now)} />
         </View>
       )}
@@ -225,6 +220,7 @@ export function StageReader({
               onToggleAside={toggleAside}
               onSmallPrint={showSmallPrint}
               nextPart={nextPart}
+              related={related}
               onDone={onDone}
               onNextTopic={commands.nextTopic}
             />
@@ -273,15 +269,4 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   textChipOn: { backgroundColor: content.ink },
-  partChip: {
-    position: 'absolute',
-    left: spacing[2],
-    top: spacing[2],
-    paddingHorizontal: spacing[2],
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: borderWidth.regular,
-    borderColor: content.ink,
-    backgroundColor: content.continue,
-  },
 });

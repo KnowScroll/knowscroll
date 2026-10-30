@@ -112,6 +112,8 @@ export interface ButtonProps {
   readonly fullWidth?: boolean;
   /** A two-state button (Like, Save in the large-text grid): announced as pressed or not. */
   readonly toggled?: boolean;
+  /** A dashed outline: the look of another angle on the same idea (the related move), against the solid Part. */
+  readonly dashed?: boolean;
   /** The surface the button sits on decides the focus-ring colour (D-006 n). */
   readonly surface?: 'light' | 'dark';
   readonly testID?: string;
@@ -139,6 +141,7 @@ export function Button({
   fullWidth = false,
   toggled,
   surface,
+  dashed = false,
   testID,
 }: ButtonProps) {
   const look = variants[variant];
@@ -178,6 +181,7 @@ export function Button({
           { backgroundColor: look.background, borderColor: look.border },
         ];
         if (fullWidth) frame.push(styles.fullWidth);
+        if (dashed) frame.push(styles.dashed);
         if (look.shadow && !pressedNow && !disabled) frame.push(styles.shadow);
         if (pressedNow && look.shadow && !reducedMotion) frame.push(styles.travelled);
         if (disabled) frame.push(styles.disabled);
@@ -209,6 +213,7 @@ const styles = StyleSheet.create({
   md: { minHeight: target.comfortable, paddingHorizontal: spacing[5] },
   sm: { minHeight: target.minimum, paddingHorizontal: spacing['3.5'] },
   fullWidth: { alignSelf: 'stretch' },
+  dashed: { borderStyle: 'dashed' },
   shadow: { boxShadow: elevation.press },
   travelled: { transform: [{ translateX: pressOffset }, { translateY: pressOffset }] },
   disabled: { opacity: opacity.disabled, cursor: 'auto' as const },
