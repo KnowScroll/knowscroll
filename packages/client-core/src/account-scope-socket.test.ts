@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PRESENCE_HEARTBEAT_MS, socketEvents } from '@knowscroll/contracts';
+import { PRESENCE_HEARTBEAT_MS, ROOM_TYPING_HINT_MS, socketEvents } from '@knowscroll/contracts';
 import { connectScopeSocket } from './account-scope-socket';
 import { id, visitServer } from './test-support/visit-fixture';
 
@@ -152,6 +152,34 @@ describe('the scope socket and a room’s hints', () => {
     expect(invalidate).toHaveBeenCalledTimes(2);
     hint(roomOne, 1001);
     expect(invalidate).toHaveBeenCalledTimes(4);
+    connection.close();
+  });
+});
+
+describe('the scope socket’s typing hint (D-165)', () => {
+  const typing = () => fake.sent.filter((entry) => entry.event === socketEvents.roomTyping);
+  const room = '0199a000-0000-7000-8000-0000000000a1';
+  const discussion = '0199a000-0000-7000-8000-0000000000a2';
+
+  it('says only the room and the discussion, and at most once every interval however fast the person types', () => {
+    const { connection } = connect();
+    for (let key = 0; key < 20; key++) connection.noteTyping?.(room, discussion);
+    expect(typing()).toHaveLength(1);
+    expect(typing()[0]!.args[0]).toEqual({ roomId: room, discussionId: discussion });
+    vi.advanceTimersByTime(ROOM_TYPING_HINT_MS - 1);
+    connection.noteTyping?.(room, discussion);
+    expect(typing()).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    connection.noteTyping?.(room, discussion);
+    expect(typing()).toHaveLength(2);
+    connection.close();
+  });
+
+  it('sends nothing while the socket is not connected', () => {
+    const { connection } = connect();
+    fake.socket.connected = false;
+    connection.noteTyping?.(room, discussion);
+    expect(typing()).toHaveLength(0);
     connection.close();
   });
 });

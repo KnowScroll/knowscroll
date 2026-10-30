@@ -14,7 +14,7 @@ import {
 import type { z } from 'zod';
 import type { SnippetResolution, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { askDecision, utcDayStart, type InhabitantId } from '../domain/contribution.js';
+import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
@@ -22,10 +22,15 @@ import { enterRoom, type EnteredRoom } from './gate.js';
 import { ok, refuse, roomEnvelope, type ContentRef, type Result, type RoomLock, type RoomPorts } from './ports.js';
 import { roomSummary } from './view.js';
 
-/** Who is reading: their account, and whether they moderate (a moderator can still review a blocked author's words). */
+/**
+ * Who is reading: their account, whether they moderate (a moderator can still review a blocked author's words),
+ * their AI level (Off hides what residents say on their own) and the room's cast.
+ */
 const viewerOf = (entered: EnteredRoom) => ({
   accountId: entered.owner.accountId,
   moderator: entered.member?.role === 'moderator',
+  aiLevel: entered.member?.aiLevel ?? 'lively',
+  cast: entered.standing.room.cast,
 });
 
 /** How long the reader is told about an ask that ended without a contribution. */
@@ -72,16 +77,15 @@ async function inhabitantStatuses(
   yourAsk: { inhabitant: InhabitantId; outcome: 'nothing_to_add' | 'could_not_answer' } | undefined;
 }> {
   const { lock, owner, standing } = entered;
-  const since = utcDayStart(now);
   const [counts, open, last] = await Promise.all([
-    p.ai.countAsks(lock, { accountId: owner.accountId, since }),
+    p.ai.countAsks(lock, { accountId: owner.accountId, dayStart: utcDayStart(now), hourStart: hourBefore(now) }),
     p.ai.openAsks(lock, discussionId, now),
     p.ai.lastUnansweredAsk(lock, discussionId, owner.accountId, new Date(now.getTime() - UNANSWERED_ASK_MEMORY_MS)),
   ]);
   const decision = askDecision({
     roomAsksToday: counts.room,
-    personAsksToday: counts.person,
-    personRequestsToday: counts.personRequests,
+    personAsksLastHour: counts.person,
+    personRequestsLastHour: counts.personRequests,
     openAsk: open.length > 0,
   });
   const ask: InhabitantStatus['ask'] = !roomAcceptsPosts(standing.room.status)
@@ -92,8 +96,9 @@ async function inhabitantStatuses(
         ? 'preparing'
         : 'resting';
   return {
-    inhabitants: standing.room.inhabitants.map((inhabitant) => ({
+    inhabitants: standing.room.cast.map(({ inhabitant, name }) => ({
       inhabitant,
+      name,
       label: AI_INHABITANT_LABELS[inhabitant],
       blurb: AI_INHABITANT_BLURBS[inhabitant],
       ask,

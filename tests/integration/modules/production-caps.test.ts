@@ -30,8 +30,11 @@ const cap = (requestsPerDay: number) => ({ requestsPerDay, tokensPerDay: 1_000_0
 const reasoning: ReasoningSettings = {
   provider: 'none',
   productionEnabled: true,
-  caps: { global: cap(10_000), scope: cap(1), productionScope: cap(2), roleDefault: cap(10_000) },
+  roomEnabled: false,
+  roomGeneration: 1,
+  caps: { global: cap(10_000), scope: cap(1), productionScope: cap(2), roomScope: cap(2), roleDefault: cap(10_000) },
   backgroundSharePercent: 100,
+  ambientSharePercent: 100,
   maxRequestBytes: 262_144,
   requestRetentionSeconds: 3_600,
 };

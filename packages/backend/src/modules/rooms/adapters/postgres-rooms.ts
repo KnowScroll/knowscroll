@@ -11,7 +11,7 @@ import {
   sharedTransactionOf,
   transactionOf,
 } from '../../../infrastructure/postgres/personal-scope.js';
-import type { MemberRow, RoomRow, RoomStore, Standing } from '../application/ports.js';
+import type { MemberRow, RoomLock, RoomRow, RoomStore, Standing } from '../application/ports.js';
 import { aiLevelOf, endedByOf, inhabitantOf, joinRuleOf, roleOf, statusOf, topicKindOf } from './columns.js';
 import { uuidv7 } from '../../../infrastructure/ids/index.js';
 
@@ -27,7 +27,8 @@ interface RoomColumns {
   topic_id: string;
   join_rule: string;
   status: string;
-  inhabitants: string[];
+  /** The room's cast as JSON, in the order it is shown (`CAST_JSON`). */
+  residents: { inhabitant: string; name: string }[];
 }
 
 const ROOM_COLUMNS = [
@@ -39,8 +40,13 @@ const ROOM_COLUMNS = [
   'topic_id',
   'join_rule',
   'status',
-  'inhabitants',
 ] as const;
+
+/** The room's cast as one JSON value for the query's `room` row (migration 0071: `rooms.room_cast`). */
+const CAST_JSON = sql<RoomColumns['residents']>`(
+  select coalesce(json_agg(json_build_object('inhabitant', resident.inhabitant, 'name', resident.name)
+    order by resident.position), '[]'::json)
+  from rooms.room_cast resident where resident.room_id = room.room_id)`;
 
 /** A room row as the use cases read it; the row type stays inside this adapter. */
 export const roomOf = (row: RoomColumns): RoomRow => ({
@@ -51,7 +57,7 @@ export const roomOf = (row: RoomColumns): RoomRow => ({
   topic: { kind: topicKindOf(row.topic_kind), id: row.topic_id },
   joinRule: joinRuleOf(row.join_rule),
   status: statusOf(row.status),
-  inhabitants: row.inhabitants.map(inhabitantOf),
+  cast: row.residents.map((resident) => ({ inhabitant: inhabitantOf(resident.inhabitant), name: resident.name })),
 });
 
 interface MemberColumns {
@@ -74,6 +80,17 @@ const memberOf = (row: MemberColumns): MemberRow => ({
   noticeSeenAt: row.notice_seen_at === null ? null : new Date(row.notice_seen_at),
 });
 
+/** The locked room's row with its cast. */
+async function readRoomRow(lock: RoomLock): Promise<RoomRow> {
+  const room = await sharedTransactionOf(lock.shared)
+    .selectFrom('rooms.rooms as room')
+    .select(ROOM_COLUMNS)
+    .select(CAST_JSON.as('residents'))
+    .where('room.room_id', '=', lock.roomId)
+    .executeTakeFirstOrThrow();
+  return roomOf(room);
+}
+
 /** Postgres room rows (migration 0062). The use cases decide who may read or write; this only runs queries. */
 export const roomStore: RoomStore = {
   async lock(scope, roomId, mode) {
@@ -89,13 +106,11 @@ export const roomStore: RoomStore = {
     return shared === undefined ? undefined : { shared, roomId };
   },
 
+  roomRow: readRoomRow,
+
   async standing(lock, accountId): Promise<Standing> {
     const trx = sharedTransactionOf(lock.shared);
-    const room = await trx
-      .selectFrom('rooms.rooms')
-      .select(ROOM_COLUMNS)
-      .where('room_id', '=', lock.roomId)
-      .executeTakeFirstOrThrow();
+    const room = await readRoomRow(lock);
     const own = await trx
       .selectFrom('rooms.members')
       .select(MEMBER_COLUMNS)
@@ -119,7 +134,7 @@ export const roomStore: RoomStore = {
       .limit(1)
       .executeTakeFirst();
     return {
-      room: roomOf(room),
+      room,
       own: own === undefined ? undefined : memberOf(own),
       invited: invitation.rows[0]?.invited === true,
       hasModerator: moderator !== undefined,
@@ -152,14 +167,14 @@ export const roomStore: RoomStore = {
   async listFor(scope, accountId) {
     const rows = await sql<RoomColumns & { standing: 'member' | 'moderator' | 'invited' }>`
       select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
-        room.join_rule, room.status, room.inhabitants,
+        room.join_rule, room.status, ${CAST_JSON} as residents,
         case when member.role = 'moderator' then 'moderator' else 'member' end as standing, member.joined_at as at
       from rooms.members member
       join rooms.rooms room on room.room_id = member.room_id
       where member.account_id = ${accountId}::uuid and member.ended_at is null
       union all
       select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
-        room.join_rule, room.status, room.inhabitants, 'invited' as standing, invitation.created_at as at
+        room.join_rule, room.status, ${CAST_JSON} as residents, 'invited' as standing, invitation.created_at as at
       from rooms.invitations invitation
       join rooms.rooms room on room.room_id = invitation.room_id
       where invitation.invitee_account_id = ${accountId}::uuid
@@ -182,7 +197,7 @@ export const roomStore: RoomStore = {
     const ids = [...new Set(topics.map((topic) => topic.id))];
     const rows = await sql<RoomColumns & { standing: 'member' | 'moderator' | 'invited' | 'none' }>`
       select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
-        room.join_rule, room.status, room.inhabitants,
+        room.join_rule, room.status, ${CAST_JSON} as residents,
         case
           when member.role = 'moderator' then 'moderator'
           when member.account_id is not null then 'member'

@@ -12,6 +12,7 @@ import {
   ProductionCard,
   RealtimeCard,
   ReportsCard,
+  RoomCallsCard,
   UniverseChangeCard,
 } from './operator-panels';
 import { Chip, Mono, Note, TextButton } from './operator-parts';
@@ -110,6 +111,7 @@ export function OperatorPanels({ scope }: { readonly scope: AccountScope }) {
           {slot(<RealtimeCard realtime={panels.realtime} />)}
           {slot(<PrivacyCard privacy={panels.privacy} />)}
           {slot(<ReportsCard safety={panels.safety} />)}
+          {slot(<RoomCallsCard rooms={panels.rooms} />)}
         </View>
       )}
     </ScrollView>

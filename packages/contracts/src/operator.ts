@@ -130,6 +130,32 @@ const ReportRow = z.strictObject({
 
 const ReportsSummary = z.strictObject({ last24Hours: Count, recent: z.array(ReportRow).max(50) });
 
+/**
+ * A room's AI calls over the last 24 hours, from the turn ledger (v3 R-2, D-164): counts of asked turns, of turns a
+ * resident took on its own, and of the unprompted turns a cap refused, by cap. The limits are the router's own. Never
+ * a message, a person or a prompt.
+ */
+const RoomCallsRow = z.strictObject({
+  roomId: UuidSchema,
+  asked: Count,
+  unprompted: Count,
+  unpromptedLastHour: Count,
+  refused: z.array(z.strictObject({ cap: Code, count: Count })).max(8),
+  lastAt: Time,
+});
+
+const RoomCallsSummary = z.strictObject({
+  limits: z.strictObject({
+    humanMessagesPerTurn: Count,
+    roomPerHour: Count,
+    roomPerDay: Count,
+    explainerPerHour: Count,
+    skepticPerHour: Count,
+    skepticPerPersonPerHour: Count,
+  }),
+  rooms: z.array(RoomCallsRow).max(50),
+});
+
 /** The six panels of the Operator artboard and the list of reports, read at one moment. */
 export const OperatorPanelsSchema = z.strictObject({
   generatedAt: Time,
@@ -149,6 +175,7 @@ export const OperatorPanelsSchema = z.strictObject({
   }),
   universeChange: z.strictObject({ cartographer: piece(CartographerSummary) }),
   safety: z.strictObject({ reports: piece(ReportsSummary) }),
+  rooms: z.strictObject({ calls: piece(RoomCallsSummary) }),
   realtime: z.strictObject({ delivery: OperatorUnavailableSchema }),
   privacy: z.strictObject({
     operations: piece(PrivacySummary),

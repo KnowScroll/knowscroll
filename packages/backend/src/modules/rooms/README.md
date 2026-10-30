@@ -5,8 +5,10 @@ its own discussions; where its station sits on a map is each person's own. Peopl
 write in discussions, share a Reel or Scroll into the room to start a content thread, and a moderator
 keeps the room in order. A member lands in the room's **General**, sees the faces of who has the room open,
 and sets how much the AI inhabitants may speak to them. AI inhabitants answer when a member asks, are always
-labelled as AI, and make nothing. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160, D-161.
+labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
+when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
+stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -27,31 +29,39 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | The desktop room (D04): the room, the open discussion and the room extras in three panes | Implemented (client); runtime-verified |
 | Land in the room's General (one per room, backfilled for rooms that existed); topics and pins stay in the room menu (v3 R-1) | Implemented (CI-verified) |
 | See the faces of who has the room open (a number only from three, never an AI, a blocked person left out) and an honest "Quiet right now · last message 3 h ago" (v3 R-1, D-069) | Implemented (CI-verified) |
-| Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified). Keep-out already changes what AI reads; the level is stored and read by nothing until inhabitants speak on their own (R-2) |
+| Read the AI notice once on first opening, then only in the room menu; set AI level Lively / Quieter / Off and "Keep my messages out of what AI reads" (v3 R-1) | Implemented (CI-verified). Keep-out changes what AI reads in every context path; the level decides what a member sees of a resident that spoke on its own (R-2) |
 | The room menu: About, Guidelines, AI here, Members with the total, Pins, Topics (v3 R-1) | Implemented (CI-verified) |
 | Room hints on the socket: a message or a face appearing is read within seconds (v3 R-1) | Implemented (CI-verified) |
-| Inhabitants that speak unprompted, honour the AI level, and a "while you were away" summary that excludes kept-out messages (v3 R-2, R-3) | Planned (not built); the level and keep-out are stored and the substitution already holds for asked turns. Until R-2 the level changes nothing a member sees, and the screen says so: inhabitants only answer when asked |
+| A named Explainer (Nova) and Skeptic (Halley) in every room, always labelled AI (v3 R-2, D-163) | Implemented (CI-verified) |
+| A resident answers a question nobody answered, after the wait, with a one-line why; a strong claim draws one Skeptic rebuttal; nothing else speaks until a person does (v3 R-2, D-164) | Implemented (CI-verified; fixture model). Off until `KS_REASONING_ROOM_ENABLED`; not yet runtime-verified |
+| Unprompted caps (1 per 3 human messages, 8 an hour, 40 a day, per resident, per person), quiet refusals, the AI level (Lively shows, Quieter folds, Off hides), keep-out on every context path (v3 R-2) | Implemented (CI-verified) |
+| A typing hold: a resident does not speak over a member who is typing (v3 R-2, D-165) | Implemented (CI-verified) |
+| A "while you were away" summary that excludes kept-out messages (v3 R-3) | Planned (not built); the builder it must use already substitutes kept-out messages |
 | What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
 
 | Table (schema `rooms`) | Holds |
 | --- | --- |
-| `rooms` | A room: slug, name, topic (a library system or planet), join rule, status, guidelines, which inhabitants it has |
+| `rooms` | A room: slug, name, topic (a library system or planet), join rule, status, guidelines. Its old `inhabitants` array is no longer read (D-163) |
+| `room_cast` | The residents that live in a room: role, name (from a fixed catalogue) and position; two to four per room, an Explainer and a Skeptic always (D-163) |
 | `members` | One row per person per room: role (`member`, `moderator`), joined, ended (`left`, `removed`), and the member's own settings: `ai_level` (`lively`, `quieter`, `off`), `keep_out` and `notice_seen_at` |
 | `room_presence` | One lease row per member who has the room open: `last_seen_at`, renewed by their own device and read only while it is under a minute old |
 | `invitations` | A member's invitation of a friend; valid while the inviter is still a member |
 | `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional root (an exact asset revision), origin message, starter, pin, counters |
-| `messages` | A person's text or card, an AI inhabitant's contribution, or a tombstone; `hidden_at` is a moderator's removal |
+| `messages` | A person's text or card, an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
 | `message_snippets` | The anchor of a snippet message, copied from the exact revision when sent |
-| `ai_requests` | One row per ask of an inhabitant: the rate-bound ledger and the provenance of the contribution |
+| `ai_turns` | One row per AI turn, asked or unprompted: the trigger (`asked`, or why a resident spoke), the message it answers, the cap that decided it (`caps_clear`, or the cap that refused it), the counts it compared, an answer held back for someone typing, and the provenance of the contribution. The rate-bound ledger; an AI message never exists without a row |
+| `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
 | `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
 
 Use cases (`public.ts`, `RoomUseCases`): `list`, `read`, `join`, `leave`, `invite`, `moderate`,
 `setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
-`readDiscussion`, `history`, `changes`, `send`, `openSnippet`, `pin`, `hideMessage`, `ask`, `stations`, `activities`,
-`readActivity`, `createActivity`, `votePoll`, `moderateActivity`. The worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue.
+`readDiscussion`, `history`, `changes`, `send` (which also queues the resident check for a question or a strong claim), `openSnippet`, `pin`,
+`hideMessage`, `ask`, `stations`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. The worker's
+`ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue and `RunCastPass` the
+`rooms.cast-pass` queue (the last two only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
 Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`.
 
 Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribution text rules,
@@ -80,17 +90,29 @@ conversations or threads.
 - **The AI notice.** Shown once (`notice_seen_at`, first acknowledgement kept), then only in the room menu. Its words
   describe what is true now.
 - **AI inhabitants are always labelled.** A message's author is either a person (a public profile) or
-  `{ kind: 'ai', inhabitant, label }` with a label fixed by the role. The contract has no way to
-  show an AI as a person. The client draws the label, a dotted outline and a square corner, and the
+  `{ kind: 'ai', inhabitant, name, label }` with a name from the cast and a label fixed by the role. The contract has no way to
+  show an AI as a person. The client draws the name, the label, a dotted outline and a square corner, and the
   screen reader says "AI, Skeptic" before the words.
-- **An inhabitant speaks only because a member asked.** `ask` is the only way a contribution begins. The
-  room is locked FOR UPDATE so the bounds are exact: one ask prepared per discussion at a time, at
-  most 12 asks per room and 4 per person per UTC day, and at most 12 asks of any outcome per person and
-  day. An ask is counted unless it never reached the provider (`dispatched`): the worker rechecks that
-  the asker is still a member of an open room before it stores anything, so a member who left, a pause or a
+- **A turn begins in one of two ways, and each has a row.** A member asks (`ask`), or the router decides a resident
+  may answer a message (`cast-due`). The room is locked FOR UPDATE for both, so the bounds are exact. Asks: one ask
+  prepared per discussion at a time (a resident preparing an answer of its own does not count), at most 80 asks per room per UTC day, 10 per person per hour and 20 of any outcome
+  per person per hour (D-068). An ask is counted unless it never reached the provider (`dispatched`): the worker
+  rechecks that the asker is still a member of an open room before it stores anything, so a member who left, a pause or a
   Clear drops the contribution even if the model finished, but the call was made, so the ask stays counted and
   leaving and rejoining buys no extra call. Only an ask that ended before any call (the asker had already gone,
   no provider configured) is handed back, and the any-outcome bound keeps those from piling up.
+- **The router is pure and runs under the room lock (D-081, D-164).** `domain/router.ts` takes facts read under the lock
+  and answers: let go, look again later, refuse (a cap), or speak. Its caps are code, not configuration. A message that
+  reads as a question (or, for the Skeptic, as a claim stated very strongly) queues `rooms.cast-due` for after the wait
+  people are owed; at fire time the router re-reads who is here, whether a person answered and whether anyone is typing. A
+  refusal is a `refused` turn row that names the cap and posts and shows nothing. An idle room, and a world with residents
+  off, queues nothing and makes no call.
+- **What a reader sees depends on their AI level.** Lively sees a resident's unprompted message; Quieter receives it
+  `folded` (one line, the words on request); Off receives a `muted` marker with no words. An answer the member asked for
+  always shows. The one-line why is a fixed phrase for the trigger, never model text. If every member is Off, nothing is asked of a model.
+- **Residents are paid by the room, not by a person (D-162).** The model call runs under the nonpersonal `rooms`
+  reasoning scope as an `ambient` role; the worker acts as a system actor for the trigger author's universe only to take
+  the lock in order and to stop when that person is gone.
 - **An inhabitant never starts production.** A contribution is a message. Nothing it says creates a
   demand, a job or a branch; a person who likes a suggestion asks for it themselves.
 - **Private friend context never flows in.** The context an inhabitant reads is this room's own
@@ -101,7 +123,10 @@ conversations or threads.
   create no exposure, observation or Keep. Reading a Reel or Scroll from a room is an ordinary encounter
   with its own recorder, started by the person.
 - **Provenance.** A stored contribution names its inhabitant, kind, role version, prompt version, the
-  model the worker is configured for and the reasoning attempt it came from (`ai_requests`).
+  model the worker is configured for and the reasoning attempt it came from (`ai_turns`).
+- **Rooms never write to the personal universe.** No code here names a table of `experience`, `geography`, `composer`,
+  `planner`, `evidence` or `personal_context` as a write target (`write-boundary.test.ts`), and a resident's turn
+  changes no row there (`rooms-residents.test.ts`).
 
 ## Stations on a personal map (U01, U02)
 
@@ -144,14 +169,27 @@ command and body replay the first acceptance, another body is `command_key_reuse
 no receipt.
 
 Lock order: personal root (`withPersonalScope`), the caller's own account gate (`fenceOwn`), then
-the room's own root (`rooms.rooms` row: FOR UPDATE for join, leave, invite, moderate and ask; FOR
-SHARE for sends, pins, hides, reads, a member's settings and presence beats), then the room's discussion, message and request rows. A
+the room's own root (`rooms.rooms` row: FOR UPDATE for join, leave, invite, moderate, ask, `cast-due` and `cast-pass`; FOR
+SHARE for sends, pins, hides, reads, a member's settings and presence beats), then the room's discussion, message and turn rows. A
 discussion's counters are atomic increments on its row, so sends are gapless; reads take the counters
 before the messages, so a message that commits meanwhile is read again by catch-up, never missed.
 Account deletion locks the discussions the person wrote in or started, in id order, before it touches
 anything else.
 
-## The worker job
+## The worker jobs
+
+`rooms.cast-due` (IDs only: universe, epoch, room, discussion, message, trigger, round) decides, with no model call, whether a
+resident answers one message (see "Rules that matter"). `rooms.cast-pass` (IDs only) is the model call of a turn the router
+allowed: (1) one transaction rechecks authority and that the turn is still wanted (open room, resident in the cast, message
+not removed, nobody has answered) and builds the bounded context with keep-out applied; (2) the room-scope harness makes
+one call (plus at most one repair) outside any transaction, on a run whose ID is the turn ID, so a redelivery never pays
+twice; (3) one transaction stores the message and settles the turn, or settles it without a message (`declined` for a
+resident's own "nothing to add", `failed` otherwise, handed back when nothing reached the provider), and the run is closed.
+Step 1 also lets the turn go if its author has since asked that their messages be kept out. Posting is put off while someone
+is typing: the paid answer is stored on the turn (`held_kind`, `held_text`), which counts as having reached the provider,
+and the next delivery posts it, or drops it with the turn still counted, without building a context or calling the model
+again. `dispatched` is only ever raised. After an Explainer that overstated, the same transaction queues the Skeptic's one
+reply.
 
 `rooms.contribute` (IDs only: universe, epoch, request). Steps: (1) one transaction rechecks the
 asker's authority and reads the room's own discussion into the bounded context; (2) the harness makes
@@ -185,14 +223,15 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | discussions | kept | the starter link is cleared; the discussion stays for the others |
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
-| ai_requests | kept; asks still queued end as failed (and stay counted against the day) | the asker link is cleared and queued asks end as failed; an AI contribution a deleted person asked for stays with the room |
+| ai_turns | kept; asks and unprompted turns still queued under the universe end as failed (and stay counted) | the asker link is cleared and queued asks end as failed, as do queued unprompted turns whose job the universe owned; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
+| room_cast, typing_holds | kept: no account | kept: no account (a hold lapses in seconds) |
 | activities | kept | the creator link is cleared; the poll or quiz stays with the room |
 | poll_votes | kept | the person's votes are deleted |
-| pg-boss `rooms.contribute` | the universe's job payloads are deleted | the same (universe erasure runs first) |
+| pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
 The export holds the person's rooms (with their AI level, keep-out choice and when they read the AI notice; never where they were), the discussions they started and their own words (newest 2,000, with
-`truncated`), how many times they asked an inhabitant, their poll votes (with the option's words) and the activities they started; it names no other person and no AI text, and a
+`truncated`), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words) and the activities they started; it names no other person and no AI text, and a
 person who never took part in a room has no section.
 
 ## Failure and recovery
@@ -209,7 +248,8 @@ person who never took part in a room has no section.
 
 - Contracts: `packages/contracts/src/rooms.ts` (routes under `/v1/rooms/*`, sharing Social's problem
   family and private cache policy).
-- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
+- Tests: `tests/integration/modules/rooms.test.ts`, `rooms-residents.test.ts` and `rooms-residents-migration.test.ts` (residents, the router's caps,
+  keep-out bytes, levels, typing, the room scope), `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
   `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
   `rooms-stations.test.ts`, `rooms-activities.test.ts`, and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.

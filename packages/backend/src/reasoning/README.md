@@ -14,6 +14,7 @@ owns admission, budgets, transport, parsing, limits and attempt tracking. No too
 | Background share: background roles stop at a share of the global and personal daily caps (D-058) | Implemented. CI exercises it, including 32 proposals racing, against real PostgreSQL with the fixture model. Not yet run on dev. |
 | MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Real calls have been made from the production operator command; no generated Scroll has been accepted yet. |
 | Nonpersonal Scroll production scope | Implemented and operator-triggered only: no worker job is registered and both enable switches default off. |
+| Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model (`reasoning-ambient-share.test.ts`, which fails if either ledger's ambient sum is broken). Off until `KS_REASONING_ROOM_ENABLED`; not yet run on dev. |
 | Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
 | Selective Clear accounting and erasure of a person's attempts | Implemented and CI-tested. |
 | Crash sweep and request purge jobs | Implemented, scheduled in the worker and CI-tested. |
@@ -30,7 +31,8 @@ const outcome = await harness.propose({ run, role, context, limits }, signal);
 - `run`: `{ id (stable across deliveries), authority (PersonalAuthority), ownerModule, purpose, policyVersion }`.
 - `role`: `{ id '<module>.<role>', version, instructions, outputSchema (zod), maxOutputTokens, minContextItems?, budget?, budgetClass? }`.
   `budgetClass: 'background'` marks a role that runs because the person read or swiped, not because they
-  asked (Jev, Cartographer, Planner); everything else is `interactive` by default and is never squeezed.
+  asked (Jev, Cartographer, Planner); `'ambient'` marks a role that runs because a room's resident chose to speak
+  (only on the rooms scope, D-162); everything else is `interactive` by default and is never squeezed.
 - Optional `role.safeCustomIssues` is a static, code-owned semantic code → fixed hint catalogue.
   Never construct it from user/provider values, retrieved text or context. Admission allows at most
   128 own entries, lowercase codes of at most 64 characters (`[a-z][a-z0-9_]*`, no prototype names)
@@ -145,7 +147,7 @@ Production storage is separate (`0013_reasoning_production_scope`):
 
 | Table                                | Key / ownership                                                                                               | Retention                                                                         |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `production_scopes`                  | Fixed `scroll-supply` root; enabled + generation                                                              | Retained, operator controlled                                                     |
+| `production_scopes`                  | Two roots, `scroll-supply` and `rooms` (0071); enabled + generation                                          | Retained, operator controlled                                                     |
 | `production_runs`                    | `(scope_id, id)`, root FK, admitted generation and monotonic run fence                                        | Audit retained; no automatic run retention job yet                                |
 | `production_attempts`                | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks                           | Audit retained, including unknown liabilities                                     |
 | `production_requests`                | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
@@ -159,6 +161,27 @@ settlement + receipt commit atomically even after the root is disabled/replaced.
 revocation is accounted but never returned as applicable output. Sweep, purge, unknown-list and
 write-off include both personal and production tables, independent of production enablement.
 Unknown/write-off never authorises another send, and late usage only updates the kept receipt.
+
+### The rooms scope (D-162)
+
+A second nonpersonal root, `rooms`, is one more row of `reasoning.production_scopes` and uses the same tables, the same
+engine and the same attempt ledger as `scroll-supply`. A harness and its scope function are bound to one root
+(`makeWithProductionScope(…, { scopeId })`, `postgresProductionHarnessPorts({ scopeId })`), so a rooms harness refuses Scroll
+supply's authority and the reverse. Injected as `ROOM_REASONING_HARNESS` and `WITH_ROOM_SCOPE` (worker only).
+
+- **Switch and caps.** `KS_REASONING_ROOM_ENABLED` (default 0) and the generation `KS_REASONING_ROOM_GENERATION`; the scope's
+  own daily caps `KS_REASONING_ROOM_REQUESTS_PER_DAY` / `KS_REASONING_ROOM_TOKENS_PER_DAY` (defaults 100 and 1,000,000) take the
+  place of the per-person caps. The database row is enabled by migration `0071`; the environment switch is the gate.
+- **Class `ambient`.** An ambient role must also fit `KS_REASONING_AMBIENT_SHARE_PERCENT` (default 30) of the **global** cap, in
+  requests and tokens, counted over `usage_receipts.ambient` only, under the same advisory lock, so it is exact under
+  concurrency. Its refusal is `budget_exhausted` with dimension `ambient_global` (or the scope's own `scope`); a resident
+  treats either as "nothing to say now", and posts nothing.
+- **Never a person's allowance.** Asked turns stay `interactive` on the asker's personal scope, so a spent rooms scope or ambient
+  share never stops an ask. The resident roles have their own ids (`rooms.ambient-explainer`, `rooms.ambient-skeptic`), so
+  the role cap and the failure brake of asked roles are separate.
+- **What it admits.** Public/sanitised room material: a room's recent messages without names, with keep-out applied by the
+  rooms module before the context is built. The request bytes are kept 48 hours like any request and belong to no
+  person, so no Clear or deletion erases them; they expire.
 
 ### Refused answers of production attempts
 
@@ -395,6 +418,11 @@ handles as "no assessment now" (Jev falls back to the deterministic ranking, the
 alone, the Planner ends the run `insufficient` and tries again with the next evidence). A person's own allowance
 is therefore not spent by their reading alone, whatever the roles do. 0 switches background roles off; 100
 keeps nothing back.
+
+**Ambient share (D-162).** A role that declares `budgetClass: 'ambient'` (a room's resident speaking on its own) must also fit
+`KS_REASONING_AMBIENT_SHARE_PERCENT` (default 30) of the global cap, counted over `usage_receipts.ambient` (migration `0071`),
+beside the rooms scope's own daily cap. The class is separate from background: background spend and ambient spend are
+each held to their own share, and both sit inside the global cap, so what a person asks for is never taken.
 
 Erasing a universe deletes its attempts, which are what the **scope** cap counts, so a person who
 repeatedly clears their history gets a fresh per-scope allowance each time; the role and global caps

@@ -161,6 +161,11 @@ function ReadyDiscussion({
   const view = state.view!;
   const place = useOwnPlace(scope, discussionId);
   const [draft, keepDraft] = useDraft(scope, discussionId);
+  // Typing is announced so a resident does not answer over a person; the scope sends it at most every few seconds.
+  const typeDraft = (text: string) => {
+    keepDraft(text);
+    if (text.trim() !== '') scope.noteTyping(roomId, discussionId);
+  };
   const [moment, setMoment] = useState<ShareableMoment>();
   const [moderating, setModerating] = useState(false);
   const [options, setOptions] = useState<RoomMessage>();
@@ -271,7 +276,7 @@ function ReadyDiscussion({
           <Composer
             name={view.discussion.kind === 'general' ? 'General' : 'this discussion'}
             value={draft}
-            onChange={keepDraft}
+            onChange={typeDraft}
             onSend={(text) => {
               keepDraft('');
               follow();
@@ -409,7 +414,7 @@ export function OpenDiscussion({
  * R02: one discussion of a room. The same thread as a friend's (episodes, the encounter, messages,
  * snippets), with room membership instead of invitations. Messages are conversation, never evidence;
  * what is selected, folded or played is this person's own and stays on this device. AI inhabitants are
- * labelled, speak only when asked, and make nothing.
+ * labelled, answer when asked, may join in on their own within limits, and make nothing.
  */
 export function RoomDiscussionScreen(params: { readonly roomId: string; readonly discussionId: string }) {
   const { state, manager } = useAccountScope();

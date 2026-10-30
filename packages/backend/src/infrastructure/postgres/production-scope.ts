@@ -1,5 +1,10 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
-import type { ProductionAuthority, ProductionScopeTx, WithProductionScope } from '../../reasoning/public.js';
+import type {
+  ProductionAuthority,
+  ProductionScopeId,
+  ProductionScopeTx,
+  WithProductionScope,
+} from '../../reasoning/public.js';
 import type { Database } from './database.js';
 import { ScopeClosedError, withTransaction } from './personal-scope.js';
 
@@ -7,16 +12,18 @@ const openScopes = new WeakMap<ProductionScopeTx, Transaction<Database>>();
 
 /**
  * Production's shared-only protocol (blueprint §19): root first, never a personal root later.
+ * Each root (`scroll-supply`, `rooms`) has its own scope function, bound to that one root id.
  * Configuration and the database kill switch must both be enabled. Authority is frozen before
  * waiting, and generation/enabled are rechecked after FOR NO KEY UPDATE. No network spans it.
  */
 export function makeWithProductionScope(
   db: Kysely<Database>,
-  options: { readonly enabled: boolean; readonly lockTimeoutMs: number },
+  options: { readonly enabled: boolean; readonly lockTimeoutMs: number; readonly scopeId?: ProductionScopeId },
 ): WithProductionScope {
+  const scopeId = options.scopeId ?? 'scroll-supply';
   return async (claimed, work) => {
     const authority = Object.freeze({ scopeId: claimed.scopeId, generation: claimed.generation });
-    if (!options.enabled || !validAuthority(authority)) return disabled();
+    if (!options.enabled || !validAuthority(authority, scopeId)) return disabled();
     return withTransaction(db, 'production-scope', async (trx) => {
       await sql`select set_config('lock_timeout', ${`${options.lockTimeoutMs}ms`}, true)`.execute(trx);
       const root = await trx
@@ -43,14 +50,19 @@ function disabled() {
   return { kind: 'refused', refusal: { kind: 'production_disabled' } } as const;
 }
 
-function validAuthority(authority: ProductionAuthority): boolean {
-  return authority.scopeId === 'scroll-supply' && Number.isInteger(authority.generation) && authority.generation > 0;
+/** A scope is bound to one root: a harness for the rooms scope refuses Scroll supply's authority, and the reverse. */
+function validAuthority(authority: ProductionAuthority, scopeId: ProductionScopeId): boolean {
+  return authority.scopeId === scopeId && Number.isInteger(authority.generation) && authority.generation > 0;
 }
 
 /** Lock-free output eligibility, repeated under the root lock by the result applier. */
-export function makeProductionAuthorityHolds(db: Kysely<Database>, enabled: boolean) {
+export function makeProductionAuthorityHolds(
+  db: Kysely<Database>,
+  enabled: boolean,
+  scopeId: ProductionScopeId = 'scroll-supply',
+) {
   return async (authority: ProductionAuthority): Promise<boolean> => {
-    if (!enabled || !validAuthority(authority)) return false;
+    if (!enabled || !validAuthority(authority, scopeId)) return false;
     const row = await db
       .selectFrom('reasoning.production_scopes')
       .select(['enabled', 'generation'])

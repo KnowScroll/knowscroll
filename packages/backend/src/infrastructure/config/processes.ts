@@ -100,6 +100,11 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly supplyScenarioDailyCap: number;
   /** Branches one thread may have ordered over its life. */
   readonly supplyScenarioThreadCap: number;
+  /**
+   * `KS_REASONING_ROOM_ENABLED`: residents may speak unprompted (D-162). The API schedules their checks only when it
+   * is on, so a world that leaves it off queues nothing. The worker reads the same variable.
+   */
+  readonly roomResidentsEnabled: boolean;
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -160,6 +165,13 @@ export interface ReasoningSettings {
   readonly provider: 'none' | 'minimax';
   /** Worker-only nonpersonal production grant; root enabled/generation are checked separately. */
   readonly productionEnabled: boolean;
+  /**
+   * Residents may speak unprompted (D-162): the rooms scope's switch. Off by default; the `rooms` root in the
+   * database (`reasoning.production_scopes`) must be enabled at `roomGeneration` too.
+   */
+  readonly roomEnabled: boolean;
+  /** The generation of the `rooms` root this worker's resident jobs run under. */
+  readonly roomGeneration: number;
   readonly minimax?: {
     readonly apiKey: string;
     readonly model: (typeof MINIMAX_MODELS)[number];
@@ -172,6 +184,8 @@ export interface ReasoningSettings {
     readonly scope: ReasoningCap;
     /** The nonpersonal production scope (`scroll-supply`), which seeds and extends the library. */
     readonly productionScope: ReasoningCap;
+    /** The nonpersonal rooms scope (`rooms`), which pays for residents speaking on their own (D-162). */
+    readonly roomScope: ReasoningCap;
     readonly roleDefault: ReasoningCap;
   };
   /**
@@ -179,6 +193,11 @@ export interface ReasoningSettings {
    * (Jev, Cartographer, Planner) may use together; the rest is kept for roles a person asks for.
    */
   readonly backgroundSharePercent: number;
+  /**
+   * Whole percent (0 to 100) of the global cap that ambient roles (a room's residents speaking on their own)
+   * may use together; the rest is kept for roles a person asks for.
+   */
+  readonly ambientSharePercent: number;
   readonly maxRequestBytes: number;
   readonly requestRetentionSeconds: number;
 }
@@ -280,6 +299,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
       KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
       KS_SUPPLY_SCENARIO_THREAD_CAP: supplyScenarioThreadCapVariable,
+      KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
     }),
     pick(env, [
       'DATABASE_URL',
@@ -297,6 +317,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_THREAD_CAP',
+      'KS_REASONING_ROOM_ENABLED',
     ]),
   );
   const [release, parsed, identity, operatorAccounts] = combineChecks(
@@ -335,6 +356,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
     supplyScenarioThreadCap: parsed.KS_SUPPLY_SCENARIO_THREAD_CAP,
+    roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }
@@ -527,6 +549,8 @@ export function readOperatorConfig(env: Environment): OperatorConfig {
 
 const reasoningVariables = z.object({
   KS_REASONING_PRODUCTION_ENABLED: z.enum(['0', '1']).default('0'),
+  KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
+  KS_REASONING_ROOM_GENERATION: positiveInteger(1, 2_147_483_647),
   KS_REASONING_PROVIDER: z.enum(['none', 'minimax']).default('none'),
   MINIMAX_API_KEY: z.string().optional(),
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
@@ -543,12 +567,19 @@ const reasoningVariables = z.object({
   // Create job after it, so it has its own, larger cap. The global and role caps still bound it.
   KS_REASONING_PRODUCTION_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
   KS_REASONING_PRODUCTION_TOKENS_PER_DAY: positiveInteger(3_000_000, 1_000_000_000),
+  // The rooms scope pays for residents answering on their own. Its own caps keep a busy room from reaching the
+  // whole world's allowance; the global, role and ambient-share caps still bound it.
+  KS_REASONING_ROOM_REQUESTS_PER_DAY: positiveInteger(100, 1_000_000),
+  KS_REASONING_ROOM_TOKENS_PER_DAY: positiveInteger(1_000_000, 1_000_000_000),
   KS_REASONING_ROLE_REQUESTS_PER_DAY: positiveInteger(200, 1_000_000),
   KS_REASONING_ROLE_TOKENS_PER_DAY: positiveInteger(2_000_000, 1_000_000_000),
   // Background roles run because a person read or swiped, so they stop at half of the global and the
   // personal caps and the other half is always there for what the person asks for. 0 switches them
   // off; 100 keeps nothing back.
   KS_REASONING_BACKGROUND_SHARE_PERCENT: z.coerce.number().int().min(0).max(100).default(50),
+  // Ambient roles (residents speaking on their own) stop at this share of the global cap, so the rest is always
+  // there for what a person asks for. 0 switches them off; 100 keeps nothing back.
+  KS_REASONING_AMBIENT_SHARE_PERCENT: z.coerce.number().int().min(0).max(100).default(30),
   KS_REASONING_MAX_REQUEST_BYTES: positiveInteger(262_144, 262_144),
   KS_REASONING_REQUEST_RETENTION_HOURS: positiveInteger(48, 720),
 });
@@ -576,6 +607,8 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
   return {
     provider: parsed.KS_REASONING_PROVIDER,
     productionEnabled: parsed.KS_REASONING_PRODUCTION_ENABLED === '1',
+    roomEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
+    roomGeneration: parsed.KS_REASONING_ROOM_GENERATION,
     ...(parsed.KS_REASONING_PROVIDER === 'minimax' && key !== undefined
       ? {
           minimax: {
@@ -599,12 +632,17 @@ function reasoningSettings(parsed: z.infer<typeof reasoningVariables>): Reasonin
         requestsPerDay: parsed.KS_REASONING_PRODUCTION_REQUESTS_PER_DAY,
         tokensPerDay: parsed.KS_REASONING_PRODUCTION_TOKENS_PER_DAY,
       },
+      roomScope: {
+        requestsPerDay: parsed.KS_REASONING_ROOM_REQUESTS_PER_DAY,
+        tokensPerDay: parsed.KS_REASONING_ROOM_TOKENS_PER_DAY,
+      },
       roleDefault: {
         requestsPerDay: parsed.KS_REASONING_ROLE_REQUESTS_PER_DAY,
         tokensPerDay: parsed.KS_REASONING_ROLE_TOKENS_PER_DAY,
       },
     },
     backgroundSharePercent: parsed.KS_REASONING_BACKGROUND_SHARE_PERCENT,
+    ambientSharePercent: parsed.KS_REASONING_AMBIENT_SHARE_PERCENT,
     maxRequestBytes: parsed.KS_REASONING_MAX_REQUEST_BYTES,
     requestRetentionSeconds: parsed.KS_REASONING_REQUEST_RETENTION_HOURS * 3600,
   };
