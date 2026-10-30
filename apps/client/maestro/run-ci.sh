@@ -112,6 +112,7 @@ run_flow() {
 
 run_flow shell "$here/shell.yaml"
 run_flow tabs-and-back "$here/tabs-and-back.yaml"
+run_flow universe "$here/universe.yaml"
 if [ "$gallery" = "true" ]; then
   run_flow gallery "$here/gallery.yaml"
   run_flow scroll-blocks "$here/scroll-blocks.yaml"

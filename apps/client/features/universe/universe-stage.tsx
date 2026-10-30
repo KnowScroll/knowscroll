@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
-import { OverviewScene } from './overview-scene';
 import { PlanetScene } from './planet-scene';
-import { SystemScene } from './system-scene';
+import { SpaceStage } from './space/space-stage';
 import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
@@ -132,8 +131,7 @@ export function UniverseStage({
       {...responder.panHandlers}
     >
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        {view.kind === 'universe' ? <OverviewScene {...sceneProps} /> : null}
-        {view.kind === 'system' ? <SystemScene {...sceneProps} system={view.system} /> : null}
+        {view.kind !== 'planet' ? <SpaceStage {...sceneProps} view={view} /> : null}
         {view.kind === 'planet' ? (
           <PlanetScene {...sceneProps} planet={view.planet} selectedRegion={view.selectedRegion} />
         ) : null}

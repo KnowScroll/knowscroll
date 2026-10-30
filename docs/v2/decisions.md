@@ -1094,6 +1094,40 @@ D-077 gave the rule in one line: least-used first, preferring a type not in the 
 
 Amends D-077. Confirmed by: `packages/backend/src/modules/scenes/application/assign-looks.test.ts` (six types, least-used afterwards, system preference, stability across passes and orders, hue gap, rings, sites from the pinned facet order, a facet appended inside the spare sites, a region past them skipped, refusals) and `scenes.test.ts` (the scene stays `ready` in both cases and the event is logged).
 
+## D-106 · 2026-10-30 · The space views draw the server's look, place bodies from anchors and seed, and draw no lines (v3 U-2, #466)
+
+The Overview, Far, a System and the Empty, Emerging and Offline skies are drawn in 3D (D-073). This says what they draw from and what they never do.
+
+- **The look is the server's.** The client declares `scene-look.v1` and the `worldmap.v1` generator on the manifest read (D-102) and draws type, rings, moon, hue turn and variant of each planet and the haze of each system exactly as given. A planet's size, tilt and spin come from its seed and never encode activity or reading (D-006 m). The client never picks a type or a haze.
+- **A place with no look is drawn plainly**, so the map is never blank: a colour set from its palette (sage lush, ochre barren, cobalt ocean), teal haze, no rings, no moon. This is a friend's visit (D-047 keeps its list wire; its own look from public ids is a later slice) and a world not backfilled yet. It is not a second look system: it carries no variety and nothing is stored.
+- **Positions.** A system sits at its persisted anchor (300-unit slots become 3.2 scene units) with a small seeded wander. A planet's orbit radius is its lattice band plus a seeded wobble, and its start angle is the direction its anchor has from the star. A place keeps its spot when others arrive (tested). Planets revolve; inner ones faster.
+- **No lines.** No orbit, route, dashed or yellow line is drawn on these views (D-074). The route line drawing, its 48 px target and its tests are deleted; "Route to <planet>" is a chip on the planet view. The SVG orbit ring of the formation story (U05) goes too; its other beats are unchanged.
+- **Stations** are drawn in the Universe style beside their system (just outside its outermost orbit, or just outside the orbit of the planet they name), at an angle taken from the room's ID, from `/v1/rooms/stations`. A station whose system is not on the map is not drawn. Constellations (D-090) come later.
+- **The ship** is a small mark parked on the planet of the last place (a region's planet; nothing for a system) and is hidden under Lately (D-080). Where it is stays on the device.
+- **Dust** is a toon nebula, never named or counted: one large cloud at the centre when nothing else exists (U01 Emerging), small ones past the systems otherwise.
+- **Lately** (30 days, D-079): quiet systems and planets draw grey with no bloom, and labels dim. Nothing leaves the map.
+- **Labels and targets** stay views (D-100): a 48 px button and a label at each projected point, in the scene's own order. Where bodies crowd each other a target may shrink, as D-107 records. Where 3D cannot run, `SpaceSimpleLists` shows the same names in the same order and every place still opens, with room kept under the last row for the chips and the tab bar.
+- **Browsing writes nothing** (D-063). The web smoke (`e2e/universe-space-smoke.spec.ts`, real WebGL) pans, zooms, flies in and out, toggles Lately, searches, opens the Far card and the dust note, with a station, a dust cue and a visited planet on the map, and checks that only the Universe's reads left the page. The ship itself is drawn in the canvas: the smoke sees it only as the "Return to <planet>" chip, and the renderer and screen tests (`build-scene.test.ts`, `universe-screen.test.tsx`) pin where it is parked.
+
+Amends D-039, "Routes are the Cartographer's … drawn with a 48 px target", and its orbit bands at mid detail (D-074 already supersedes the lines). Confirmed by: `space-model.test.ts` (look used as given, plain look, stability, calm only under Lately, ship, stations, dust), `build-scene.test.ts` (no lines, ship on its planet), `universe-screen.test.tsx` (the capability is sent, the looks reach the renderer, Route chip, plain lists), `universe-space-smoke.spec.ts` (draws, reads only).
+
+## D-107 · 2026-10-30 · The camera is the level: Overview, Far and System are distances of one camera, and a fly is a pure function of time (v3 U-2, #466)
+
+The design has three space levels. They are one scene seen from different places, not three drawings.
+
+- **One scene, one rig** (`camera-rig.ts`, pure maths). The Overview frames every system: the distance fits the widest and deepest extent for the canvas shape, with the depth foreshortened by the camera's elevation (26.6 degrees; 33 for a System). Far is the same universe farther away, past 68 scene units. A System is the camera close over one sun, framed to its outermost orbit and its stations.
+- **Zoom and pan** are the person's frame: pixels panned and a zoom about the centre. The universe zoom is 0.4 to 2.5 times and a System's 0.7 to 2.2; the session stops the frame there, so the next pinch or key press moves the camera at once. A pan may carry the target 0.9 of the framed radius past the middle. The planet view keeps its own range.
+- **Far picks first.** Past the Far distance a first tap on a system picks it (a warm glow and its card, "Open system"); a second tap or Open enters. Nearer, a tap enters.
+- **Fly.** Entering a system flies the camera 2.4 s with the field of view widening by up to 9 degrees; stepping up takes 0.3 s (D-093; not the forward animation reversed). The other systems leave the scene when the fly is 85 % done. The first fly is not the entering rocket of the design (a later slice). Under reduced motion there is no loop and a change of place is a jump with one redrawn frame.
+- **Rebuilding.** A new definition (Lately, a formed place, the ship) rebuilds the scene in place; the camera, the glow and a fly in flight are kept. The pixels of a painted planet are kept (64), so the lens does not repaint every world.
+- **Frame timing, measured in the real scene.** The cap stays at 33 ms. Web, Chromium with software WebGL, 390 x 844, the Universe tab over the authored fixture: 121 frames in 4 s, 33.3 ms apart on average (31.9 ms at the least), and 0.9 ms of CPU per draw on the tab's own layout of three systems, a station and the ship (`?scene=universe`). The Android emulator's number is in the PR; software GL on the emulator cannot reach 30 fps (D-100), and a physical phone is still not measured.
+- **Crowded targets may shrink, to a floor of 24 px.** Bodies orbit and pass close by each other, and a tap target that another one covers is not a target (axe found one). A normal target is 48 px, never below the 44 px of the design. Where two targets would overlap, `separateTargets` shrinks both only as far as needed for them to touch, never below 24 px, the minimum of WCAG 2.2 AA 2.5.8 (Target Size, Minimum). If two bodies are closer than 24 px, the hit areas, not the drawing, move apart: 12 px at most for a pair, and 24 px in the tested crowd of four. A heavier crowd is not bounded. This is an exception to "targets 44 minimum" and to D-100's 44 px. The List view and the plain lists give every place a row of 44 px or more, so nothing is reachable only by a small target.
+- **Not built here** (listed in the PR): the entering rocket, planet views in 3D, the orbit dial, search flying to a place, the friend's own look, landmark markers, constellations.
+
+Confirmed by: `camera-rig.test.ts` (levels, limits, pan reach, pure time, fly endpoints), `universe-session.test.ts` (zoom limits), `separate-targets.test.ts` (targets touch, never below 24 px, how far hit areas move), `universe-space-smoke.spec.ts` (real WebGL: cadence, hidden tab, reduced motion), `universe-screen.test.tsx` (a fly inside one scene, Far picks first).
+
+Taken for the owner; listed under Waiting for owner on #462.
+
 ## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
 
 The V3 Scrolls need stops, calls, asides, a recap and a pinned stage. D-032 found that a model writing long, nested JSON loses count of its brackets, and the V3 block table nests: `stage.states[{stop, changes}]`, a call with its options and common guess, an aside with `anchor_stop`. This entry settles how the model writes a v2 Scroll. It changes nothing in v1: `scroll-document.v1`, `scroll-authoring.v1` and writer `scroll-writer.v13` still publish the library.
@@ -1556,3 +1590,39 @@ Confirmed by: `play.test.ts` (right and wrong pick, retry, a second lock, forged
 - **Export.** `play.scrolls`: per Scroll its title (if still reachable), sparks, combo and, for each call, the question, the option picked in words, whether it was right and when. No identifier and not the right answer.
 
 Confirmed by: `play.test.ts` (paused stores nothing and writes no receipt, a stale generation is told to read the policy again, Clear erases, export in words with no identifier), `play-session.test.ts`, `erasure.test.ts`, `privacy-clear.test.ts`, `data-export.test.ts`, and the paused case of `play-smoke.spec.ts`.
+
+## D-184 · 2026-10-31 · A v2 Scroll offers its Part and related moves wherever the server admitted them (S-1 follow-up, #472)
+
+**Amends** D-134 ("One move, one path": a related move is now the way on when no next Part was admitted) and D-135 (`/scroll/<id>` had no moves).
+
+- **The defect.** Opened at `/scroll/<id>`, the reader had no Part button, key or swipe, although the context read said the next Part was ready. The route drew no moves at all.
+- **One source.** Both entry paths turn the exposure context into the same moves (`readerContinuations`): next Part, previous Part and related. Only a ready, admitted continuation is a move. Where none was admitted there is no button, the key and the swipe do nothing.
+- **In Explore** a move is the encounter session's navigation with the displayed link, as before. **On `/scroll/<id>`** there is no encounter, so a move opens the address of the target the server named (its own exposure, like any address). The Part label is the context's count ("Part 1 of 3"); until the context arrives it is the Scroll's own number.
+- **The way on.** The dock's primary button, the → key and a swipe left take the next Part. With none, they take the related move: the same `seriesNext ?? related` the Reel's edge tab and swipe use. The dock names the destination ("Part 2: <title>", "Related: <title>") and draws the related move dashed, as the Reel's tab does. The keyboard map says so. The end of the Scroll shows both, the related one as a dashed row.
+- **Ask is Explore's.** "Ask about this" opens the request sheet, which belongs to the encounter. `/scroll/<id>` has no encounter, so it has no Ask. It keeps the sparks and •••.
+- **v1 Scrolls** keep the article and its own end card.
+
+Confirmed by: `continuation-moves.test.ts`, `stage-reader.test.tsx` (the related row), `reader-nav-smoke.spec.ts` (Part n → by button, key and finger from the address and from Explore; absent on the last Part and on a single Scroll; the related move alone and beside a Part). Shown failing before the fix: every address-route case failed with no Part button, no key move and no swipe.
+
+## D-185 · 2026-10-31 · The reader's top bar wraps instead of hiding the title, and the end card follows the stage (S-1 follow-up, #472)
+
+**Amends** D-133 (the top bar: "a phone has no room for the title") and D-134 (the end card's "The picture you built").
+
+- **The defect.** At 390 px the title and "Part n" were drawn in one pixel and the Reel/Scroll switch was clipped ("Scro"). A Scroll with no stage said "The picture you built" over no picture.
+- **The top bar.** Your Universe, then the title with its kicker and Part ("SEASONS · PART 1 OF 3", V3 A1 and G1), then the switch and Next ↑. Below tablet width Next is its arrow alone ("Next topic" for a screen reader), so at 390 px the bar is one line and the text keeps its height (a taller bar left no room to show a call's answer whole). When the title would be left under 84 px (320 to 360 px), the switch and Next wrap under the title, right aligned. The title is cut to two lines; its whole text stays in the heading for a screen reader. Nothing is clipped down to 320 px.
+- **The switch.** Below tablet width it draws only "Reel" and "Scroll". "· unavailable" and "· preparing" stay in each option's name, and an unavailable one stays dimmed.
+- **The Part chip** on the stage is gone: the top bar says it on every width.
+- **The end card.** "The picture you built" is said only when the Scroll has a stage. A plain Scroll says "The short version" over the same recap.
+- **A tap after a swipe is not changed.** A tap on a call option right after a synthetic touch swipe was often ignored in a hands-on run. It is the browser's: after a drag made of synthesised touch events, Chromium reports the next tap (pointer and touch events) but makes no click, on a page with no app code too. A swipe on the stage, outside the reader's responder and its scroll-settle, loses it equally. Nothing in the reader is changed for it.
+
+Confirmed by: `stage-reader.test.tsx` (the end card with and without a stage), `reader-nav-smoke.spec.ts` (the bar at 320, 360 and 390 px: title, kicker and Part visible, no control leaves the screen or is cut off, axe clean; the end card both ways; a tap after a finger swipe, with a throwaway tap first for the browser's dropped one). Shown failing with the bar unable to wrap (the switch and Next left the screen at 320 px) and on the old bar (no title, a clipped switch).
+
+## D-186 · 2026-10-31 · A Scroll that another screen covers is not being read (S-1 follow-up, #472)
+
+**Builds on** D-135 (what the reader reports; activity is the article's own rule) and the product law that only an actual encounter creates consumption evidence.
+
+- **The defect.** Moving to Part 2 on `/scroll/<id>` pushes a new screen, and the web and native stacks keep Part 1 mounted under it. Part 1's reader stayed active, so its recorder went on reporting active reading (`scroll.active_dwell`) for a Scroll the person had left. Two exposures were counted for the same minutes. The Scroll to Reel switch pushes the same way and had the same flaw.
+- **The rule.** A Scroll route that is not focused is paused: the reader reports no activity, so its reading time stops. When the screen is focused again (Back) the time picks up from there. This is the Reel's rule, now the Scroll's, for both the Stage + Spine reader and the v1 article.
+- **Unchanged.** Explore pauses a reader its overlays cover, as before.
+
+Confirmed by: `reader-nav-smoke.spec.ts` ("stops when the next Part is opened over it, and picks up again on Back": Part 1 reports no reading past the moment it was left, resumes on Back, and Part 2 stops counting under it). Shown failing without the pause: Part 1 reported reading up to 16.7 s after it was left at 6 s.

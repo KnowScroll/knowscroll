@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
 import type { OpenedScroll, OpenedStageScroll } from './scroll-session';
 import { StageReaderSurface } from './stage-reader-surface';
+import { useAddressMoves } from './use-address-moves';
 import { useScrollSession } from './use-scroll-session';
 import { ActivatedScrollView } from './activated-scroll-view';
 import { readResume, writeResume } from '../encounter/encounter-history';
@@ -144,6 +145,8 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
       newId: newCommandId,
     }),
   );
+  // A Scroll that another screen covers (a Part, the Reel) is not being read: its time stops until it is back.
+  const focused = useIsFocused();
   const positionRef = useRef<ScrollPositionHandle>(null);
   const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
   const capture = useCallback(() => {
@@ -209,6 +212,7 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
         scroll={scroll}
         key={`${scroll.assetId}:${String(scroll.assetRevision)}:${anchorBlockId ?? ''}`}
         observer={observer}
+        paused={!focused}
         positionRef={positionRef}
         initialPosition={firstOf(params.anchor) === undefined && resume?.kind === 'scroll' ? resume.value : undefined}
         onPositionChange={(value) =>
@@ -229,8 +233,9 @@ function ReadyScroll({ scope, scroll }: { readonly scope: AccountScope; readonly
 
 /**
  * A v2 Scroll on its own address: the Stage + Spine reader with the same recorder and the same
- * remembered place as the article, by stop (a stop id is the position's block id). There is no
- * thread here, so no Part moves; Next ↑ goes to Explore for a new topic.
+ * remembered place as the article, by stop (a stop id is the position's block id). The Parts and the
+ * related move are the ones the server admitted for this Scroll, opened by address (D-184); there is
+ * no encounter, so no Ask. Next ↑ goes to Explore for a new topic.
  */
 function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; readonly scroll: OpenedStageScroll }) {
   const insets = useSafeAreaInsets();
@@ -238,7 +243,8 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   const back = useBack();
   const siblings = useFormatSiblings(scope, scroll.exposureId, 'scroll');
   const params = useLocalSearchParams<{ anchor?: string | string[] }>();
-  const compact = useDisplay().breakpoint === 'compact';
+  const { breakpoint } = useDisplay();
+  const narrow = breakpoint === 'compact' || breakpoint === 'phone';
   useDocumentTitle(scroll.document.title);
   const [recorder] = useState(() =>
     createScrollRecorder({
@@ -253,6 +259,8 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       newId: newCommandId,
     }),
   );
+  // A Scroll that another screen covers (a Part, the Reel) is not being read: its time stops until it is back.
+  const focused = useIsFocused();
   const reader = useRef<StageReaderHandle>(null);
   const target = useMemo(() => ({ assetId: scroll.assetId, assetRevision: scroll.assetRevision }), [scroll]);
   const remember = useCallback(
@@ -276,26 +284,34 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
     return () => recorder.end();
   }, [recorder]);
   const initialStopId = firstOf(params.anchor) ?? (resume?.kind === 'scroll' ? resume.value.blockId : undefined);
-  const part = scroll.document.series?.part;
+  const moves = useAddressMoves(scope, scroll.exposureId);
+  // The count is the server's; the Scroll's own Part number stands in until the context arrives.
+  const ownPart = scroll.document.series?.part;
+  const partLabel = moves.partLabel ?? (ownPart === undefined ? undefined : `Part ${String(ownPart)}`);
   return (
     <>
       <StageReaderSurface
         scroll={scroll}
         observer={recorder.observer}
+        paused={!focused}
         initialStopId={initialStopId}
         handleRef={reader}
         onStopChange={(stopId) => {
           if (stopId !== undefined) remember(stopId);
         }}
-        partLabel={part === undefined ? undefined : `Part ${String(part)}`}
+        partLabel={partLabel}
         moves={{
           universe: () => router.navigate('/universe'),
           nextTopic: () => router.navigate('/explore'),
+          nextPart: moves.nextPart,
+          related: moves.related,
+          previousPart: moves.previousPart,
           formatSwitch: (
             <FormatSwitch
               selected="scroll"
               availability={siblings.availability}
-              showIcons={!compact}
+              showIcons={!narrow}
+              terse={narrow}
               onSelect={siblings.select}
             />
           ),
@@ -323,7 +339,7 @@ function SignedInScroll({ scope, assetId }: { readonly scope: AccountScope; read
     case 'ready':
       return <ReadyScroll scope={scope} scroll={state.scroll} />;
     case 'ready_stage':
-      return <ReadyStageScroll scope={scope} scroll={state.scroll} />;
+      return <ReadyStageScroll key={state.scroll.exposureId} scope={scope} scroll={state.scroll} />;
     case 'opening':
     case 'loading':
     case 'activating':

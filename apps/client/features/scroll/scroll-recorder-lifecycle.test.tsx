@@ -41,6 +41,7 @@ jest.mock('../../platform/command-id', () => {
 jest.mock('expo-router', () => ({
   useFocusEffect: (effect: () => void | (() => void)) =>
     jest.requireActual<{ useEffect: typeof useEffect }>('react').useEffect(effect, [effect]),
+  useIsFocused: () => true,
   useLocalSearchParams: () => ({ assetId: '0199a000-0000-7000-8000-0000000000a1' }),
   useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),
 }));

@@ -1,8 +1,10 @@
 import type * as React from 'react';
+import type * as FakeGpu from './space/fake-space-gpu';
 import { type EffectCallback, StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState } from 'react-native';
-import { UniverseScreen } from './universe-screen';
+import { UniverseScreen, unavailableWords } from './universe-screen';
+import { fakeGpu, resetFakeGpu } from './space/fake-space-gpu';
 import { fixtureAccount, fixtureId, sceneFixture, universeHarness } from './universe.fixture';
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { encounterSessionFor } from '../encounter/use-encounter-session';
@@ -15,6 +17,13 @@ jest.mock('../../platform/command-id', () => {
 });
 /** The Universe reads the map, and the room stations beside it: reads both, and nothing else. */
 const universeRead = (path: string) => path.startsWith('/v1/universe/') || path === '/v1/rooms/stations';
+// The real stage, loop and overlay over a stand-in for the GPU (no WebGL claimed; e2e/universe-smoke.spec.ts draws for real).
+jest.mock('./space/space-canvas', () => ({
+  SpaceCanvas: jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.Canvas,
+}));
+jest.mock('./space/load-space-renderer', () => ({
+  loadSpaceRenderer: () => jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.load(),
+}));
 const mockNavigate = jest.fn();
 const mockPush = jest.fn();
 let mockParams: Record<string, string> = {};
@@ -26,12 +35,14 @@ jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return {
     useFocusEffect: (effect: EffectCallback) => useEffect(effect, [effect]),
+    useIsFocused: () => true,
     useRouter: () => ({ navigate: mockNavigate, push: mockPush, canGoBack: () => false }),
     useLocalSearchParams: () => mockParams,
   };
 });
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
 beforeEach(() => {
+  resetFakeGpu();
   mockNavigate.mockReset();
   mockPush.mockReset();
   mockParams = {};
@@ -149,17 +160,109 @@ it('flies to the last place on ?focus=last, from the whole map', async () => {
   await second.unmount();
 });
 
-it('follows a drawn route from the system and from either planet', async () => {
+it('follows a route by its chip from either planet, and draws no route line', async () => {
   const h = universeHarness();
   mockScope = h.scope;
   const v = await render(<UniverseScreen />);
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
-  await fireEvent.press(screen.getByRole('button', { name: 'Route from CI planet 2 to CI planet 3' }));
+  // A route is a relation, not a line (D-074): the system view has no route target at all.
+  expect(screen.queryByRole('button', { name: /^Route (from|to) / })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Route to CI planet 3' }));
   expect(screen.getByRole('header', { name: 'CI planet 3' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'Route to CI planet 2' }));
   expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
   expect(h.calls.every(universeRead)).toBe(true);
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('asks for the looks and draws the types, rings, moon and haze the server gave, nothing of its own', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  const manifest = h.requests.find((request) => request.path.endsWith('/manifest/read'))!;
+  expect(manifest.body.capabilities).toMatchObject({ looks: ['scene-look.v1'] });
+  expect((manifest.body.capabilities as { generators: string[] }).generators).toContain('worldmap.v1');
+  const [system] = fakeGpu.renderers.at(-1)!.definition.systems;
+  const served = new Map(h.world.looks.map((look) => [look.objectId, look]));
+  expect(system!.family).toBe((served.get(system!.id) as { haze: string }).haze);
+  expect(system!.planets.length).toBeGreaterThan(0);
+  for (const planet of system!.planets) {
+    const look = served.get(planet.id) as { type: string; rings: boolean; moon: boolean; hueShift: number };
+    expect(planet).toMatchObject({ type: look.type, rings: look.rings, moon: look.moon, hueShift: look.hueShift });
+  }
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('flies the camera into a system and back out inside one scene', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  const renderer = fakeGpu.renderers.at(-1)!;
+  expect(renderer.cameras.at(-1)!.spec.focus.kind).toBe('universe');
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  await waitFor(() => expect(renderer.cameras.at(-1)!.spec.focus.kind).toBe('system'));
+  // The same scene is kept, so the renderer flies: it was told to animate.
+  expect(fakeGpu.renderers.at(-1)).toBe(renderer);
+  expect(renderer.cameras.at(-1)!.animate).toBe(true);
+  // Only the planets of the system are reached, and none of them is a route.
+  expect(screen.getByRole('button', { name: 'CI planet 2, a planet' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
+  await waitFor(() => expect(renderer.cameras.at(-1)!.spec.focus.kind).toBe('universe'));
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('picks a system on the Far level before it enters, then enters on the next tap', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  fakeGpu.far = true;
+  const v = await render(<UniverseScreen />);
+  const system = await screen.findByRole('button', { name: 'CI system 0, a system' });
+  await fireEvent.press(system);
+  expect(screen.getByTestId('universe-system-card')).toBeOnTheScreen();
+  expect(fakeGpu.renderers.at(-1)!.highlighted).toBe(fixtureId(10));
+  expect(screen.queryByRole('button', { name: 'Back to Universe' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Open system' }));
+  expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('shows the same places as plain lists when 3D cannot be made, and every one still opens', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  fakeGpu.failToCreate = true;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByTestId('ks-space-simple')).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  expect(screen.getByRole('button', { name: 'Back to Universe' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' })).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' }));
+  expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+  expect(h.calls.every(universeRead)).toBe(true);
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
+it('parks the ship at the planet of the last place, and hides it under Lately', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to CI system 0' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
+  const renderer = fakeGpu.renderers.at(-1)!;
+  await waitFor(() => expect(renderer.definition.shipPlanetId).toBe(fixtureId(12)));
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Lately' }));
+  await waitFor(() => expect(renderer.definition.shipPlanetId).toBeUndefined());
   await act(() => h.scope.end());
   await v.unmount();
 });
@@ -354,4 +457,42 @@ it('draws a station inside its system too, and none where the map holds no syste
   expect(screen.queryByRole('button', { name: 'Elsewhere room, a room station' })).toBeNull();
   await act(() => h.scope.end());
   await v.unmount();
+});
+
+it('says plainly, with its apostrophes, when there is no map to draw: offline, no longer available, or not drawable', async () => {
+  const h = universeHarness();
+  mockScope = h.scope;
+  h.network(true);
+  const offline = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByText('You’re offline')).toBeOnTheScreen());
+  expect(screen.getByText('Your universe is kept. Refresh when you’re connected.')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Refresh map' })).toBeOnTheScreen();
+  expect(screen.getByRole('link', { name: 'Go to Explore' })).toBeOnTheScreen();
+  await offline.unmount();
+  h.scope.end();
+  const gone = universeHarness();
+  mockScope = gone.scope;
+  gone.authority(true);
+  const refused = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByText('Your map is no longer available.')).toBeOnTheScreen());
+  await refused.unmount();
+  gone.scope.end();
+});
+
+it('words every reason there is no map, and none of the words carries a broken character', () => {
+  const words = [
+    unavailableWords({ status: 'unsupported', active: true }),
+    unavailableWords({ status: 'unavailable', active: true, reason: 'authority' }),
+    unavailableWords({ status: 'unavailable', active: true, reason: 'network' }),
+    unavailableWords({ status: 'unavailable', active: true, reason: 'invalid' }),
+  ];
+  expect(words.map((entry) => entry.heading)).toEqual([
+    'Not on this device yet',
+    'No longer available',
+    'You’re offline',
+    'Couldn’t draw your map',
+  ]);
+  expect(words[0]!.message).toBe('This drawing isn’t supported on this device yet.');
+  expect(words[3]!.message).toBe('Couldn’t draw your map. Try again in a moment.');
+  for (const entry of words) expect(entry.heading + entry.message).not.toContain(String.fromCharCode(0xfffd));
 });

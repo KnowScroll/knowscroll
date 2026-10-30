@@ -20,16 +20,20 @@ export function EncounterFormatSwitch({
   entry,
   session,
   showIcons = true,
+  terse = false,
 }: {
   readonly entry: EncounterEntry;
   readonly session: EncounterSession;
   readonly showIcons?: boolean;
+  /** Only "Reel" and "Scroll" are drawn, for a bar with no room for their state (the reader's, on a phone). */
+  readonly terse?: boolean;
 }) {
   return (
     <FormatSwitch
       selected={entry.kind}
       availability={formatAvailability(entry)}
       showIcons={showIcons}
+      terse={terse}
       onSelect={(to) => {
         const sibling = entry.context.variants.find((variant) => variant.kind === to);
         if (sibling?.status === 'ready') session.navigate({ mode: 'variant', to });

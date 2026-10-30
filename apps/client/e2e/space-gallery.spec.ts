@@ -28,8 +28,8 @@ declare global {
 
 const stats = (page: Page): Promise<Stats> => page.evaluate(() => window.__ksSpace!.stats());
 
-async function openScene(page: Page): Promise<void> {
-  await page.goto('/gallery-space');
+async function openScene(page: Page, query = ''): Promise<void> {
+  await page.goto(`/gallery-space${query}`);
   await expect(page.getByTestId('ks-space-gallery')).toBeVisible();
   await page.waitForFunction(() => (window.__ksSpace?.stats().frames ?? 0) >= 3, undefined, { timeout: 30_000 });
 }
@@ -59,6 +59,25 @@ test('draws the scene and holds the 30 fps cap', async ({ page }, testInfo) => {
   console.log(line);
   await testInfo.attach('space-gate-numbers', { body: line, contentType: 'text/plain' });
   await page.screenshot({ path: testInfo.outputPath('space-390x844.png') });
+});
+
+test('draws the Universe composition (systems, a station, the ship) and holds the cap', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openScene(page, '?scene=universe');
+  await page.evaluate(() => window.__ksSpace!.reset());
+  await page.waitForTimeout(4000);
+  const measured = await stats(page);
+  expect(measured.failure).toBeNull();
+  expect(measured.lastProbe!.litPixels).toBeGreaterThan(20);
+  expect(measured.meanIntervalMs!).toBeGreaterThanOrEqual(30);
+  expect(measured.minIntervalMs!).toBeGreaterThanOrEqual(31);
+  // The labels of the sample systems are views over the canvas, reachable by name.
+  await expect(page.getByRole('button', { name: 'Sample system one, a system', exact: true })).toBeVisible();
+  const line = `universe scene (web, 390x844): mean interval ${measured.meanIntervalMs!.toFixed(1)} ms, min ${measured.minIntervalMs!.toFixed(1)} ms, mean draw ${measured.meanDrawMs!.toFixed(1)} ms over ${measured.frames} frames`;
+  // eslint-disable-next-line no-console -- the numbers go in the PR description
+  console.log(line);
+  await testInfo.attach('universe-scene-numbers', { body: line, contentType: 'text/plain' });
+  await page.screenshot({ path: testInfo.outputPath('universe-scene-390x844.png') });
 });
 
 test('draws at a desktop size too', async ({ page }, testInfo) => {

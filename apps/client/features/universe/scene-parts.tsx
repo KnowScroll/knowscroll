@@ -21,9 +21,6 @@ export interface SceneProps {
   readonly onStation?: (roomId: string) => void;
 }
 
-/** The accessible name of a station: the room's name and what it is, as the artboards name it. */
-export const stationName = (station: RoomStation) => `${station.room.name}, a room station`;
-
 /**
  * A place's silhouette, or `undefined` when it cannot be built. A descriptor that fails the drawing
  * rules must not take the screen down: its target and its row in the list stay, only the drawing goes.
@@ -60,6 +57,7 @@ export function BodyTarget({
   kind,
   hypothetical,
   selected,
+  floor = target.comfortable,
   onPress,
   testID,
 }: {
@@ -72,11 +70,13 @@ export function BodyTarget({
   readonly kind?: keyof typeof KIND_PHRASE;
   readonly hypothetical?: boolean;
   readonly selected?: boolean;
+  /** The smallest side, when crowded bodies make the usual 48 px impossible (see `separateTargets`). */
+  readonly floor?: number;
   readonly onPress: () => void;
   readonly testID: string;
 }) {
   const focus = useFocusRing('onDark');
-  const side = Math.max(size, target.comfortable);
+  const side = Math.max(size, floor);
   return (
     <Pressable
       testID={testID}

@@ -11,6 +11,12 @@ export interface EncounterFixtureOptions {
   readonly series?: boolean;
   /** A different Scroll document to serve for every Scroll offer (the labelled v2 fixture); the default is the v1 fixture. */
   readonly scrollDocument?: Record<string, unknown>;
+  /**
+   * Serves a Scroll opened by its address (`/scroll/<id>`): a direct open and activation with no session, and a
+   * series of `parts` Scrolls that the context counts and links (each Part has the Part before and the Part after
+   * it). `related` adds a related move on every Part. One part is no series.
+   */
+  readonly direct?: { readonly parts: number; readonly related?: boolean };
   /** Play on the served v2 Scroll: what the play routes already hold (a reload), and whether recording is paused (D-083). */
   readonly play?: {
     readonly kept?: readonly { readonly stopId: string; readonly option: number }[];
@@ -32,7 +38,7 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   let saved = true;
   const commands: { path: string; body: Record<string, unknown> }[] = [];
   /** Every observation event the page sent, in order. */
-  const observed: { kind: string; payload: Record<string, unknown> }[] = [];
+  const observed: { kind: string; exposureId: string; payload: Record<string, unknown> }[] = [];
   const served = options.scrollDocument ?? document;
   // Only a v2 document has stops; the v1 fixtures have no call to play.
   const callIts =
@@ -64,6 +70,47 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     relation: { kind: 'discovery' },
     variants: variantsOf(n),
   });
+  const directContext = (
+    n: number,
+    direct: NonNullable<EncounterFixtureOptions['direct']>,
+  ): ExposureContextResponse => {
+    const link = (target: number, base: number) => ({
+      status: 'ready' as const,
+      linkId: id(base + target),
+      target: { assetId: id(300 + target), assetRevision: document.revision },
+      metadata: {
+        kind: 'scroll' as const,
+        title: `CI encounter fixture ${String(target + 1)}`,
+        summary: 'CI series link',
+        language: 'en',
+      },
+    });
+    const none = { status: 'unavailable' as const, reason: 'series_boundary' as const };
+    const seriesId = 'ci-series';
+    return {
+      exposureId: id(400 + n),
+      assetId: id(300 + n),
+      assetRevision: document.revision,
+      revision: 1,
+      actions: { saved: false, liked: false, hidden: false },
+      ...(direct.parts > 1 ? { series: { seriesId, seriesRevision: 1, part: n + 1, total: direct.parts } } : {}),
+      variants: [{ kind: 'reel', status: 'unavailable' }],
+      continuations: {
+        seriesPrevious:
+          n > 0
+            ? { ...link(n - 1, 700), relation: { kind: 'series_step', seriesId, seriesRevision: 1, part: n } }
+            : none,
+        seriesNext:
+          n + 1 < direct.parts
+            ? { ...link(n + 1, 700), relation: { kind: 'series_step', seriesId, seriesRevision: 1, part: n + 2 } }
+            : none,
+        related:
+          direct.related === true
+            ? { ...link(n + 5, 800), relation: { kind: 'related_move', label: 'CI related angle' } }
+            : { status: 'unavailable', reason: 'no_related_ready' },
+      },
+    };
+  };
   await page.route('**/auth/session', (route) =>
     route.fulfill({
       json: {
@@ -123,6 +170,37 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       });
       return;
     }
+    if (options.direct !== undefined && path === '/v1/experience/open') {
+      commands.push({ path, body });
+      // The asset ids of the fixture count up from 300: the position in the series is the last digits.
+      const n = Number(String((body.target as { assetId: string }).assetId).slice(-12)) - 300;
+      await route.fulfill({
+        json: {
+          commandId: body.commandId,
+          exposureId: id(400 + n),
+          assetId: id(300 + n),
+          assetRevision: document.revision,
+          kind: 'scroll',
+          openedAt: '2026-10-20T10:00:00.000Z',
+          replayed: false,
+          revision: 1,
+        },
+      });
+      return;
+    }
+    if (options.direct !== undefined && path === '/v1/experience/activate') {
+      commands.push({ path, body });
+      await route.fulfill({
+        json: {
+          commandId: body.commandId,
+          exposureId: body.exposureId,
+          activatedAt: '2026-10-20T10:00:00.000Z',
+          revision: 1,
+          replayed: false,
+        },
+      });
+      return;
+    }
     if (path === '/v1/experience/open' || path === '/v1/experience/navigate') {
       commands.push({ path, body });
       if (path.endsWith('/navigate')) {
@@ -165,6 +243,10 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
     }
     if (path.endsWith('/context')) {
       const n = Number(path.split('/').at(-2)!.slice(-12)) - 400;
+      if (options.direct !== undefined) {
+        await route.fulfill({ json: directContext(n, options.direct) });
+        return;
+      }
       const context: ExposureContextResponse = {
         exposureId: id(400 + n),
         assetId: offer(n).assetId,
@@ -301,8 +383,14 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       return;
     }
     if (path === '/v1/observations/recording-batch') {
-      const events = body.events as { eventId: string; kind: string; payload: Record<string, unknown> }[];
-      for (const event of events) observed.push({ kind: event.kind, payload: event.payload });
+      const events = body.events as {
+        eventId: string;
+        exposureId: string;
+        kind: string;
+        payload: Record<string, unknown>;
+      }[];
+      for (const event of events)
+        observed.push({ kind: event.kind, exposureId: event.exposureId, payload: event.payload });
       await route.fulfill({
         json: {
           version: 'observation-batch.v2',
