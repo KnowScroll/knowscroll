@@ -84,8 +84,39 @@ activity, count or time can ride on a look. `SceneLookJsonSchema` documents its 
 `seededUnit(seed, channel)` is the one pinned source of seeded numbers: the same integer mixing as
 `silhouette.v1`, shared by the server (which stores what it decides) and by a client generator (which
 derives layout from the planet's seed and the look). Channels 0 and 1 are the silhouette's; look rules
-use 16 and above. The world generator itself (continents, regions, the globe and the landed map) is not
-here yet.
+use 16 and above.
+
+## World generator (U-4, `worldmap.v1`)
+
+Status: implemented and unit-tested; drawn by the Universe's planet globe (U03) and landed map (U04).
+Not run on Hermes or a phone. Related: #468, D-108, D-109.
+
+`buildGlobe(spec)` and `buildMap(spec)` lay out one planet's world from `{ seed, type, variant, siteCount }`
+(a planet look, D-102) and nothing else: **which regions have formed is not an input**, so a cell keeps its
+shape, and its name's place, when a region forms. The globe is a 480-unit band that wraps without a seam;
+the map is 390 by 844 units. Both cut the same sites in the same order: one cell for each site, in site
+order, plus one to three decorative continents that belong to no site.
+
+`chartWorld(world, regions)` says which land is a formed region. A formed region gets its cell and a place
+for its name (`charted`). Everything else is `unreached`: outlines and a cloud, with no id, site, name or
+count, mixed so that its pieces are never as many as the unformed sites (D-109). A region whose site is out
+of range or already held has no cell.
+
+**Pinned maths.** Only exact arithmetic (add, subtract, multiply, divide), `Math.floor`, `Math.round`,
+`Math.sqrt` and `Math.imul`: no `Math.sin`, `Math.cos`, `Math.pow`, `Math.hypot`, `**`, clock or random
+state. Streams are FNV and Mulberry32 (`random.ts`), noise is gradient noise on a seeded permutation that
+wraps by whole lattice cells (`noise.ts`), turning uses the 64-sample unit circle of `silhouette.v1`
+(`unit-circle.ts`), outlines are marching squares (`contours.ts`) rounded to a tenth of a unit. A test
+refuses banned maths in these sources and pins the output of three planets by digest and by literal
+coordinates. A change to any constant, size, channel or draw order is a new generator version.
+
+| Capability                                                        | Status                               |
+| ----------------------------------------------------------------- | ------------------------------------ |
+| Globe and map worlds from a look; same sites in both              | implemented                          |
+| Adding a region leaves every other border and name bit-identical  | implemented (unit test, many seeds)  |
+| Unreached land as outlines only; never the unformed count         | implemented                          |
+| The same numbers on Hermes as in V8                               | planned (pure arithmetic; no device run) |
+| Worlds of more than eight sites (the cap is 32)                   | implemented, cells may be small      |
 
 ## Bounds and verification
 

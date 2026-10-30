@@ -16,8 +16,11 @@ export const fixtureAccount = {
   email: 'universe@fixture.test',
 };
 const recordedAt = '2026-10-21T00:00:00.000Z';
-/** `dust` is the number of unlabelled dust cues the emerging read returns. */
-export function sceneFixture(count = 5, dust = 0) {
+/**
+ * `dust` is the number of unlabelled dust cues the emerging read returns. `moreRegions` adds regions
+ * to the same planet as the first one (planet 2), each on the next site of that planet's world.
+ */
+export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
   const geography = { revision: count ? 3 : 0, structureRevision: count ? 3 : 0, activityRevision: 0 };
   const objects: GeographyObject[] = Array.from({ length: count }, (_, n) => {
     const kind =
@@ -34,6 +37,18 @@ export function sceneFixture(count = 5, dust = 0) {
     if (kind === 'region') return { ...fields, kind, parent: { kind: 'planet', id: fixtureId(12) } };
     return { ...fields, kind, parent: { kind: 'system', id: fixtureId(10) } };
   });
+  if (count > 4)
+    for (let more = 0; more < moreRegions; more++)
+      objects.push({
+        id: fixtureId(100 + more),
+        objectRevision: 1,
+        label: `CI region ${count + more}`,
+        truthStatus: 'factual',
+        activity: { availability: 'available', state: 'active' },
+        originTransitionId: fixtureId(9000),
+        kind: 'region',
+        parent: { kind: 'planet', id: fixtureId(12) },
+      });
   const descriptors: SceneDescriptor[] = objects.map((o, n) => ({
     schemaVersion: 'scene-descriptor.v1',
     generatorVersion: 'silhouette.v1',
@@ -53,7 +68,7 @@ export function sceneFixture(count = 5, dust = 0) {
     anchor: {
       x: n < 5 ? n * 300 : (n % 32) * 300,
       y: n < 5 ? 0 : Math.floor(n / 32) * 300,
-      layer: n === 0 ? 0 : n === 1 ? 1 : n === 4 ? 3 : 2,
+      layer: n === 0 ? 0 : n === 1 ? 1 : o.kind === 'region' ? 3 : 2,
     },
     target: { kind: o.kind, objectId: o.id },
   }));
@@ -61,7 +76,8 @@ export function sceneFixture(count = 5, dust = 0) {
   const looks: SceneLook[] = descriptors.flatMap((d, n): SceneLook[] => {
     const base = { schemaVersion: 'scene-look.v1', generatorVersion: 'worldmap.v1', objectId: d.objectId } as const;
     if (d.kind === 'system') return [{ ...base, kind: 'system', haze: 'teal' }];
-    if (d.kind === 'region') return [{ ...base, kind: 'region', site: 0 }];
+    if (d.kind === 'region')
+      return [{ ...base, kind: 'region', site: descriptors.slice(0, n).filter((o) => o.kind === 'region').length }];
     if (d.kind === 'star') return [];
     return [
       {
@@ -236,8 +252,8 @@ export function sceneFixture(count = 5, dust = 0) {
     },
   };
 }
-export function universeHarness(count = 5, dust = 0) {
-  const world = sceneFixture(count, dust),
+export function universeHarness(count = 5, dust = 0, moreRegions = 0) {
+  const world = sceneFixture(count, dust, moreRegions),
     calls: string[] = [],
     requests: { path: string; body: Record<string, unknown> }[] = [],
     store = memoryStore();

@@ -15,6 +15,7 @@ it('Back closes the panel before restoring a camera and unregisters; history car
     read: { status: 'ready', active: true },
     frame: { x: 10, y: 20, scale: 0.5 },
     focusId: 'private-fixture-id',
+    landed: false,
     overlay: null,
     detail: 'full',
     reducedMotion: true,
