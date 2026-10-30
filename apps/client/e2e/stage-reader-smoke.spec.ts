@@ -143,7 +143,7 @@ test('a tap on a dot jumps to that stop, and the dot says where you are', async 
 
 test('Part 2 is a button and a key, and the Scroll that follows has its own stage', async ({ page }) => {
   const { commands } = await open(page);
-  await page.getByRole('button', { name: 'Part 2', exact: true }).click();
+  await page.getByRole('button', { name: /^Part 2: / }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'CI encounter fixture 2' })).toBeVisible();
   await expect(stage(page)).toHaveAttribute('data-ks-stage-state', 'the-lean');
   expect(navigations(commands).at(-1)).toMatchObject({ mode: 'series', direction: 'next' });
