@@ -113,10 +113,11 @@ leaves it), and nothing here records who read what.
 
 | Table                                                   | Migration                                        | Holds                                                                                                                                                                                                                                                                             | Erasure                    |
 | ------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `content.assets`                                        | `0003_content_assets`                            | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`withdrawn`) and the **current** revision                                                                                                                                                                          | None: shared content       |
+| `content.assets`                                        | `0003_content_assets`, status `held` in `0072`   | Asset identity, `kind` (`reel`/`scroll`), `status` (`admitted`/`held`/`withdrawn`) and the **current** revision. `held`: no revision has been served yet, because the first one waits at the review gate (D-138)                                                                  | None: shared content       |
 | `content.asset_revisions`                               | `0010_content_asset_revisions`                   | One immutable row per admitted revision: `provenance_kind` (`authored_editorial` · `generated` · `cutroom_import`, D-005), the consumer document (`document_version`, `document`, `document_sha256`), `explanation_unit_id`, `language`, `title`, and the derived `reading_facts` | None: shared content       |
 | `content.asset_provenance`                              | `0010_content_asset_revisions`                   | The internal provenance of a revision (claims, sources, bindings, checks, production record). Written by admission, **read by no API route**: the consumer document and its provenance are separate tables, so no read of the document can return them                            | None: shared content       |
 | `content.scroll_production_runs`                        | `0015_scroll_production`, key shape `0045`       | Private nonpersonal recipe-key/version jobs, frozen research/passages, accepted claims, code-only outcomes, draft and publication pointer; no consumer read port                                                                                                                  | None: shared public supply |
+| `content.revision_reviews`                              | `0072_content_review_gate`                       | The review gate (D-138): one row for each v2 library revision that was stored held, its state `held` / `released` / `rejected`, and for a decision who (`cli:<operator>`), when and (rejection) why                                                                            | None: shared content       |
 | `content.coverage_revisions` / `content.coverage_heads` | `0022_content_coverage`                          | One immutable facet-to-block mapping per correction or retraction, and one monotonic head per asset revision. `content.region_bindings` (`0037`) is the derived lookup by planet and facet                                                                                        | None: shared content       |
 | `content.reel_orders` / `content.reel_attempts`         | `0053_reel_orders`                               | The business run "make a Reel of this script" and the ledger of every request sent to Cutroom for it (request bytes, state, pool claim, cost). See "Reels from Cutroom"                                                                                                           | None: shared public        |
 | `content.media_objects` / `content.reel_imports`        | `0014_media_reels`, name check relaxed in `0053` | Content-addressed Reel bytes and which Cutroom run became which Reel revision                                                                                                                                                                                                     | None: shared content       |
@@ -205,9 +206,48 @@ stores the immutable admitted revision in the same production-root transaction. 
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
 job after a crash. The operator's `content writer-spike-v2` runs the v2 writer (`scroll-authoring.v2`) on library recipes and reports; it admits and publishes nothing
 (S-0, D-120 to D-122). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
-(D-129, implemented; no recipe is marked yet). See [production/README.md](production/README.md) and the
+(D-129, implemented). The plan marks the four Seasons recipes (D-137), and a v2 library Scroll is stored **held** until an operator releases it (D-138, "The review gate" below). See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
+
+## The review gate for library v2 Scrolls (D-138)
+
+Status: **implemented**, runtime-verified on real PostgreSQL with labelled fixtures, not yet on dev.
+
+No state existed between "admitted" and "served": an asset's `status` was `admitted` or `withdrawn`, and every
+read follows its **current revision** (`assets.revision`). The gate uses that pointer, so it adds almost no
+machinery.
+
+- **Hold.** Production of a v2 library recipe (`ProductionSubject.scrollV2`, however the job was sent) stores the
+  revision, its provenance, its topic and its coverage as usual, but does not advance the current revision. A new
+  asset is created with status `held`. A `content.revision_reviews` row says `held`. The production job is
+  `published` and records the code `held_for_review`. v1 recipes and made-to-order Scrolls publish as before.
+- **Invisible.** Pointer reads (discovery, navigation, series and related moves, region candidates, the
+  Universe, opening a Scroll, `production-status`) never see a revision newer than the pointer or an asset that
+  is `held`. Reads that take an exact asset and revision from their caller (exact encounters, the stored
+  document for rendering, shareable and saved metadata, topics and attribution, the source pages a what-if may
+  draw on, the check that a report names a revision a person could have met, and the coverage mapping that
+  formation reads) also refuse a revision whose review state is not `released` (`adapters/review-gate-sql.ts`).
+  The coverage write path (publication and `readmit-coverage`) still reaches held revisions.
+- **Standing.** `readLibraryStatus` reports `held` (with `heldRevision`), not `published`. `produce-library`
+  skips it, a second take is refused while the first is held, and Quartermaster's `chooseScrollRecipe` never
+  picks a v2 recipe, because no person's ask could be answered by a Scroll that waits for a read. A group that
+  named a recipe before the plan made it v2 reads as stopped (`readScrollProduction`), so a join never sends its
+  job again. Once every recipe is v2, Create commissions nothing; S-6 (waves) and S-7 (ask orders) own what fills
+  the library and answers a question (D-138).
+- **Decide.** `adapters/review-gate.ts` (`makeReviewGate`): `list`, `show` (the Scroll as plain text, with
+  the cited passages on request), `release` (the revision becomes the asset's current revision and a `held`
+  asset becomes `admitted`; never backwards; idempotent) and `reject` (final; the take is spent and the next
+  take writes the next revision). The rules are pure in `domain/review.ts`. Each decision is one short
+  transaction under the asset's admission lock. Operator commands: `content review-list`, `review-show`,
+  `release`, `reject` (`apps/worker/src/review-operator.ts`, the runbook). Each decision also writes one
+  `content.review_decided` event-log line (recipe key, outcome, revision, a refusal's code; no text).
+- **Lock order.** Production root, job row, asset advisory lock, asset row, review row. Release and reject take
+  the asset lock, then the asset row, then the review row, and no personal root.
+- **Erasure.** None: shared content. `decided_by` is the operator's shell user, never a person of the product.
+- **Not guarded** (they take coordinates only from rows made for a served revision): snippet anchors, Keep position
+  targets (also checked against the current revision), reading facts of an exposure, and series admission
+  (which reads the current revisions).
 
 ## Reading facts v3 and v2 delivery (D-128, D-129, D-130)
 

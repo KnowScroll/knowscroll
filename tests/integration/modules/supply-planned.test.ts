@@ -128,9 +128,9 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
   });
 
   it('reuses admitted content the person has not met, and defers when they have met all of it', async () => {
-    const unread = await admit('earth.seasons');
+    const unread = await admit('machine-learning.transformers');
     const person = await seedPerson(database.db);
-    expect(await record(person, demandInput(['earth.seasons']))).toMatchObject({ kind: 'ready' });
+    expect(await record(person, demandInput(['machine-learning.transformers']))).toMatchObject({ kind: 'ready' });
     expect((await rows(person.universeId))[0]).toMatchObject({
       origin: 'planner',
       state: 'ready',
@@ -138,7 +138,9 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
       content: { assetId: unread.assetId },
     });
     const met = await seedPerson(database.db);
-    expect(await record(met, demandInput(['earth.seasons'], { alreadyMet: [unread.unit] }))).toMatchObject({
+    expect(
+      await record(met, demandInput(['machine-learning.transformers'], { alreadyMet: [unread.unit] })),
+    ).toMatchObject({
       kind: 'deferred',
     });
     // The first catalogue topic that the brief admits names it; later topics do not matter.
@@ -201,6 +203,6 @@ describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
     const person = await seedPerson(database.db);
     const input = demandInput(['earth.tides']);
     await record(person, input);
-    await expect(record(person, { ...input, topicIds: ['earth.seasons'] })).rejects.toThrow();
+    await expect(record(person, { ...input, topicIds: ['machine-learning.transformers'] })).rejects.toThrow();
   });
 });

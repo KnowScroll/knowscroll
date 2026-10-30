@@ -32,6 +32,7 @@ import {
 } from '../domain/coverage.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
 import { coverageTargetOfV2 } from './coverage-target-v2.js';
+import { notUnderReview } from './review-gate-sql.js';
 import { readingFactsOf } from './scroll-compiler.js';
 
 export const coverageCatalogue = {
@@ -48,7 +49,21 @@ const SOURCE_REVIEWED_COMMANDS: readonly {
   readonly semanticReviewReference: string;
 }[] = [];
 
-async function readTarget(db: Transaction<Database>, ref: CoverageRef): Promise<CoverageTarget | undefined> {
+/**
+ * `served`: the revision a reader may be given (admitted and not under review). `stored`: also a
+ * revision the review gate holds, for deciding its coverage at publication and again after a plan change.
+ */
+type TargetScope = 'served' | 'stored';
+
+async function readTarget(
+  db: Transaction<Database>,
+  ref: CoverageRef,
+  scope: TargetScope,
+): Promise<CoverageTarget | undefined> {
+  const reachable =
+    scope === 'served'
+      ? sql`a.status='admitted' and ${notUnderReview('r.asset_id', 'r.revision')}`
+      : sql`a.status in ('admitted','held')`;
   const result = await sql<{
     document: unknown;
     document_sha256: string;
@@ -60,7 +75,7 @@ async function readTarget(db: Transaction<Database>, ref: CoverageRef): Promise<
   }>`select r.document,r.document_sha256,r.explanation_unit_id,r.document_version,r.provenance_kind,p.provenance_version,p.provenance
     from content.assets a join content.asset_revisions r on r.asset_id=a.id
     join content.asset_provenance p on p.asset_id=r.asset_id and p.revision=r.revision
-    where a.id=${ref.assetId}::uuid and a.kind='scroll' and a.status='admitted'
+    where a.id=${ref.assetId}::uuid and a.kind='scroll' and ${reachable}
       and r.revision=${ref.assetRevision}`.execute(db);
   const row = result.rows[0];
   if (!row) return undefined;
@@ -154,7 +169,7 @@ export const coverageHeadPorts: CoverageHeadPorts = {
     await sql`select revision from content.coverage_heads where asset_id=${ref.assetId}::uuid and asset_revision=${ref.assetRevision} for update`.execute(
       trx,
     );
-    return readTarget(trx, ref);
+    return readTarget(trx, ref, 'stored');
   },
   readHead: (tx, ref) => readHead(admissionTransaction(tx), ref),
   async append(tx, command, head) {
@@ -208,7 +223,7 @@ export function makeReadAdmittedCoverageMapping(
   return async (scope, input) => {
     const ref = CoverageRefSchema.parse(input);
     const trx = transactionOf(scope);
-    const target = await readTarget(trx, ref);
+    const target = await readTarget(trx, ref, 'served');
     if (!target) return { kind: 'unavailable' };
     const head = await readHead(trx, ref);
     if (!head) return { kind: 'unmapped' };

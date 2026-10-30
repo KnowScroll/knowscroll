@@ -191,6 +191,8 @@ export { parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';
 export { readLibraryStatus } from './production-state.js';
+/** The operator's review gate for library v2 Scrolls: list, show, release, reject (D-138). */
+export { makeReviewGate, recipeKeyOfAsset, type ReviewGate } from './review-gate.js';
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {
   readEncounterAttribution,

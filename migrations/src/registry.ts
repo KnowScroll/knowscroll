@@ -104,5 +104,6 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0069_room_campfire', sha256: '514c1d258dc1936c5037cb94180b8ec168e61a65c10cc9bd04e765ee2efeeb87' },
   { name: '0070_scene_looks', sha256: '4bb98137d14e5c7c44494235219ed5427c5e74aa7f922cb6de64c020aaa4a73c' },
   { name: '0071_room_residents', sha256: '9d9bb9f5ef1cbec18c07932d934b60a191ce8d3151eadc189d65413acb80b7dd' },
-  { name: '0073_play', sha256: '88b8d3c24fa2713b1d030c7f1699310bb228f2f9493d601d7b2cafbb9139bf29' },
+  { name: '0072_content_review_gate', sha256: '8c60ec1f4a8d0c1cf45fec7eb5748b956d1719b5878ce0dfaaf9f72e77eb6145' },
+  { name: '0074_play', sha256: '88b8d3c24fa2713b1d030c7f1699310bb228f2f9493d601d7b2cafbb9139bf29' },
 ];

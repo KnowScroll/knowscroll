@@ -44,6 +44,8 @@ const compositionRoots = [
   '^apps/worker/src/scenes-operator\\.ts$',
   // The writer spike composes the production harness and the v2 writer for one operator command (S-0, D-120).
   '^apps/worker/src/writer-spike-operator\\.ts$',
+  // The review gate commands compose the shared-content review gate, one operator command each (S-1e, D-138).
+  '^apps/worker/src/review-operator\\.ts$',
 ];
 const testFile = '\\.test\\.tsx?$';
 

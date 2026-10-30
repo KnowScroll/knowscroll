@@ -36,10 +36,22 @@ export {
 export interface AssetForAction {
   readonly revision: number;
   readonly admitted: boolean;
+  /**
+   * Present when the caller named a revision: whether that revision exists and the review gate has not
+   * held or rejected it (D-138). A revision the gate withheld was never served, so nobody has met it.
+   */
+  readonly revisionReleased?: boolean;
 }
 
-/** Port: read one asset inside the caller's personal transaction (no lock). */
-export type FindAssetForAction = (scope: PersonalScopeTx, assetId: string) => Promise<AssetForAction | undefined>;
+/**
+ * Port: read one asset inside the caller's personal transaction (no lock). With `revision`, also whether
+ * that exact revision may be named by a caller (`revisionReleased`).
+ */
+export type FindAssetForAction = (
+  scope: PersonalScopeTx,
+  assetId: string,
+  revision?: number,
+) => Promise<AssetForAction | undefined>;
 
 export const FIND_ASSET_FOR_ACTION = Symbol('content.findAssetForAction');
 
