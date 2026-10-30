@@ -26,7 +26,11 @@ function provided<T>(providers: readonly { provide: unknown; useValue?: unknown 
 export function reportCases(db: Kysely<Database>, now: () => Date = () => new Date()) {
   const access = accountAccessUseCases({ db, lockTimeoutMs: 10_000 });
   const people = socialPeopleProviders();
-  const rooms = roomsProviders({ withPersonalScope: Symbol('unused'), enqueueJob: Symbol('unused') });
+  const rooms = roomsProviders({
+    withPersonalScope: Symbol('unused'),
+    enqueueJob: Symbol('unused'),
+    database: Symbol('unused'),
+  });
   return reportUseCases({
     withScope: makeWithPersonalScope(db, { lockTimeoutMs: 10_000 }),
     fenceOwn: access.fenceOwnAccount,

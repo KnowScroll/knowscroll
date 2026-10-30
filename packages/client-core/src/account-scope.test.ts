@@ -166,6 +166,38 @@ describe('an account scope', () => {
     expect(order).toEqual(['socket closed, active=true']);
     expect(store.keys()).toEqual(['unrelated']);
   });
+
+  it('counts the screens that watch a room, tells a new connection about them and drops them when it ends', () => {
+    const told: (readonly string[])[] = [];
+    const connect = () => ({
+      close: () => undefined,
+      watchRooms: (roomIds: readonly string[]) => void told.push(roomIds),
+    });
+    const scope = createAccountScope({
+      account: accountA,
+      baseUrl: 'https://app.scope.test',
+      fetch: deferredApi().fetch,
+      authorization: () => undefined,
+      store: memoryStore(),
+      connect,
+    });
+    const first = scope.watchRoom('room-1');
+    const second = scope.watchRoom('room-1');
+    expect(told.at(-1)).toEqual(['room-1']);
+    first();
+    first();
+    // One screen still watches: the room stays subscribed.
+    expect(told.at(-1)).toEqual(['room-1']);
+    second();
+    expect(told.at(-1)).toEqual([]);
+    const third = scope.watchRoom('room-2');
+    scope.reconnect();
+    expect(told.at(-1)).toEqual(['room-2']);
+    scope.end();
+    third();
+    expect(told.at(-1)).toEqual(['room-2']);
+    expect(() => scope.watchRoom('room-3')).not.toThrow();
+  });
 });
 
 function fakeAuth(sessions: { current: typeof accountA | undefined }) {

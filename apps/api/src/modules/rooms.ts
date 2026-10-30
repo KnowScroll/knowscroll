@@ -1,6 +1,6 @@
 import type { Provider } from '@nestjs/common';
 import { roomsProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
-import { ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
+import { DATABASE, ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
 
 /**
  * Rooms for the API composition root. The room use cases read people, friends, content and the
@@ -10,4 +10,5 @@ import { ENQUEUE_JOB, WITH_PERSONAL_SCOPE } from '../tokens.js';
 export const roomsWiring: Provider[] = roomsProviders({
   withPersonalScope: WITH_PERSONAL_SCOPE,
   enqueueJob: ENQUEUE_JOB,
+  database: DATABASE,
 });

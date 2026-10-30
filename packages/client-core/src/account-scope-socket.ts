@@ -24,6 +24,9 @@ export interface SocketContext {
   readonly visible?: () => boolean;
 }
 
+/** How long after a room refresh further hints for it are held and then answered by one more refresh. */
+const ROOM_HINT_QUIET_MS = 300;
+
 /** The query-key prefix under which Talk's queries live; an inbox hint refreshes only these. */
 export const TALK_QUERY_KEY = 'talk';
 
@@ -38,6 +41,10 @@ export const TALK_QUERY_KEY = 'talk';
  * session. Closing it (the scope's first step when it ends) removes every handler first, so no hint
  * of an ended scope reaches anything.
  *
+ * A room is subscribed only while a screen watches it (`AccountScope.watchRoom`): its hint marks that room's
+ * queries and every open room discussion stale, so a message or a face appearing is read within seconds without
+ * waiting for the slow poll.
+ *
  * It also says "I'm around" every `PRESENCE_HEARTBEAT_MS` while connected and visible. The server
  * stores that only for a person who chose to show availability, and answers the same either way, so the
  * socket never learns the choice. A beat is not consumption evidence.
@@ -50,8 +57,62 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
     transports: ['websocket'],
     auth: token === undefined ? { scope: scope.id } : { scope: scope.id, token },
   });
-  const highest: Record<ScopeRef['kind'], number> = { universe: -1, inbox: -1 };
-  const refresh = (kind: ScopeRef['kind'] | 'all') => {
+  const highest: Record<Exclude<ScopeRef['kind'], 'room'>, number> = { universe: -1, inbox: -1 };
+  /** Rooms whose last refresh is still inside the quiet window: a hint meanwhile asks for one more refresh after it. */
+  const cooling = new Map<string, { again: boolean; timer: ReturnType<typeof setTimeout> }>();
+  const desiredRooms = new Set<string>();
+  const subscribedRooms = new Set<string>();
+  const refreshRoom = (roomId: string) => {
+    if (!scope.active) return;
+    void scope.queryClient.invalidateQueries({ queryKey: scope.queryKey(TALK_QUERY_KEY, 'room', roomId) });
+    void scope.queryClient.invalidateQueries({ queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-discussion') });
+  };
+  /**
+   * A room hint carries nothing to catch up from (its revision is a time, not a position), so a burst of them is
+   * coalesced rather than deduplicated: the first refreshes at once, any others inside `ROOM_HINT_QUIET_MS` ask for
+   * exactly one more when it ends. A message sent right after another is therefore never skipped.
+   */
+  const onRoomHint = (roomId: string) => {
+    const waiting = cooling.get(roomId);
+    if (waiting !== undefined) {
+      waiting.again = true;
+      return;
+    }
+    refreshRoom(roomId);
+    const entry = {
+      again: false,
+      timer: setTimeout(() => {
+        cooling.delete(roomId);
+        if (entry.again) onRoomHint(roomId);
+      }, ROOM_HINT_QUIET_MS),
+    };
+    cooling.set(roomId, entry);
+  };
+  const forgetCooling = (roomId: string) => {
+    const entry = cooling.get(roomId);
+    if (entry !== undefined) clearTimeout(entry.timer);
+    cooling.delete(roomId);
+  };
+  /** Brings the server's subscriptions in line with the rooms screens are watching. */
+  const syncRooms = () => {
+    if (!socket.connected) return;
+    for (const roomId of subscribedRooms)
+      if (!desiredRooms.has(roomId)) {
+        subscribedRooms.delete(roomId);
+        forgetCooling(roomId);
+        socket.emit(socketEvents.unsubscribeScope, { scope: { kind: 'room', id: roomId } });
+      }
+    for (const roomId of desiredRooms)
+      if (!subscribedRooms.has(roomId)) {
+        subscribedRooms.add(roomId);
+        socket.emit(socketEvents.subscribeScope, { scope: { kind: 'room', id: roomId } }, (ack: { ok: boolean }) => {
+          // Whatever happened while this subscription was not there is only visible by reading again.
+          if (ack.ok) refreshRoom(roomId);
+          else subscribedRooms.delete(roomId);
+        });
+      }
+  };
+  const refresh = (kind: Exclude<ScopeRef['kind'], 'room'> | 'all') => {
     if (!scope.active) return;
     void scope.queryClient.invalidateQueries({
       queryKey: kind === 'inbox' ? scope.queryKey(TALK_QUERY_KEY) : scope.queryKey(),
@@ -70,6 +131,9 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
     stopHeartbeat();
     beat();
     heartbeat = setInterval(beat, PRESENCE_HEARTBEAT_MS);
+    // A new connection has no subscriptions: ask for the rooms again.
+    subscribedRooms.clear();
+    syncRooms();
     for (const kind of ['universe', 'inbox'] as const)
       socket.emit(
         socketEvents.subscribeScope,
@@ -83,13 +147,21 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
   });
   socket.on(socketEvents.scopeChanged, (raw: unknown) => {
     const hint = ScopeChangedHintSchema.safeParse(raw);
-    if (!hint.success || hint.data.scope.id !== scope.account.universeId) return;
-    const kind = hint.data.scope.kind;
-    if (hint.data.revision <= highest[kind]) return;
-    highest[kind] = hint.data.revision;
-    refresh(kind);
+    if (!hint.success) return;
+    const named = hint.data.scope;
+    if (named.kind === 'room') {
+      if (desiredRooms.has(named.id)) onRoomHint(named.id);
+      return;
+    }
+    if (named.id !== scope.account.universeId) return;
+    if (hint.data.revision <= highest[named.kind]) return;
+    highest[named.kind] = hint.data.revision;
+    refresh(named.kind);
   });
-  socket.on(socketEvents.scopeResync, () => refresh('all'));
+  socket.on(socketEvents.scopeResync, () => {
+    refresh('all');
+    for (const roomId of desiredRooms) refreshRoom(roomId);
+  });
   socket.on('disconnect', (reason) => {
     stopHeartbeat();
     if (reason === 'io server disconnect' && scope.active) context.onRevoked();
@@ -98,7 +170,13 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
     if (error.message === 'SCOPE_MISMATCH' && scope.active) context.onMismatch();
   });
   return {
+    watchRooms(roomIds) {
+      desiredRooms.clear();
+      for (const roomId of roomIds) desiredRooms.add(roomId);
+      syncRooms();
+    },
     close() {
+      for (const roomId of [...cooling.keys()]) forgetCooling(roomId);
       stopHeartbeat();
       socket.removeAllListeners();
       socket.close();
