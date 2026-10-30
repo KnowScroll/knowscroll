@@ -202,7 +202,7 @@ kept out, the AI notice unread) and `rooms.room_presence` (one lease row per mem
 only while under a minute old). Additive with defaults; an older writer leaves `kind` as `topic` and the settings at their defaults.
 Apply with the new binary; the generated database types change by the same columns and table.
 
-0070 is residents who speak on their own (v3 R-2, #488, D-162 to D-165): a second nonpersonal reasoning root (`rooms`, enabled by the
+0071 is residents who speak on their own (v3 R-2, #488, D-162 to D-165): a second nonpersonal reasoning root (`rooms`, enabled by the
 migration; the worker's environment switch is the gate), `reasoning.usage_receipts.ambient`, `rooms.room_cast` (every room gets the
 residents its old `inhabitants` array named, as Nova and Halley), `rooms.ai_requests` renamed `rooms.ai_turns` with `request_id`
 renamed `turn_id` and new columns (`trigger`, `cause_message_id`, `decided_by`, `caps`) and checks that keep a refusal quiet and an

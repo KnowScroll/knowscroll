@@ -51,7 +51,7 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional root (an exact asset revision), origin message, starter, pin, counters |
 | `messages` | A person's text or card, an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
 | `message_snippets` | The anchor of a snippet message, copied from the exact revision when sent |
-| `ai_turns` | One row per AI turn, asked or unprompted: the trigger (`asked`, or why a resident spoke), the message it answers, the cap that decided it (`caps_clear`, or the cap that refused it), the counts it compared, and the provenance of the contribution. The rate-bound ledger; an AI message never exists without a row |
+| `ai_turns` | One row per AI turn, asked or unprompted: the trigger (`asked`, or why a resident spoke), the message it answers, the cap that decided it (`caps_clear`, or the cap that refused it), the counts it compared, an answer held back for someone typing, and the provenance of the contribution. The rate-bound ledger; an AI message never exists without a row |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
 | `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
@@ -94,8 +94,8 @@ conversations or threads.
   show an AI as a person. The client draws the name, the label, a dotted outline and a square corner, and the
   screen reader says "AI, Skeptic" before the words.
 - **A turn begins in one of two ways, and each has a row.** A member asks (`ask`), or the router decides a resident
-  may answer a message (`cast-due`). The room is locked FOR UPDATE for both, so the bounds are exact. Asks: one turn
-  prepared per discussion at a time, at most 80 asks per room per UTC day, 10 per person per hour and 20 of any outcome
+  may answer a message (`cast-due`). The room is locked FOR UPDATE for both, so the bounds are exact. Asks: one ask
+  prepared per discussion at a time (a resident preparing an answer of its own does not count), at most 80 asks per room per UTC day, 10 per person per hour and 20 of any outcome
   per person per hour (D-068). An ask is counted unless it never reached the provider (`dispatched`): the worker
   rechecks that the asker is still a member of an open room before it stores anything, so a member who left, a pause or a
   Clear drops the contribution even if the model finished, but the call was made, so the ask stays counted and
@@ -185,7 +185,10 @@ not removed, nobody has answered) and builds the bounded context with keep-out a
 one call (plus at most one repair) outside any transaction, on a run whose ID is the turn ID, so a redelivery never pays
 twice; (3) one transaction stores the message and settles the turn, or settles it without a message (`declined` for a
 resident's own "nothing to add", `failed` otherwise, handed back when nothing reached the provider), and the run is closed.
-Posting is put off while someone is typing. After an Explainer that overstated, the same transaction queues the Skeptic's one
+Step 1 also lets the turn go if its author has since asked that their messages be kept out. Posting is put off while someone
+is typing: the paid answer is stored on the turn (`held_kind`, `held_text`), which counts as having reached the provider,
+and the next delivery posts it, or drops it with the turn still counted, without building a context or calling the model
+again. `dispatched` is only ever raised. After an Explainer that overstated, the same transaction queues the Skeptic's one
 reply.
 
 `rooms.contribute` (IDs only: universe, epoch, request). Steps: (1) one transaction rechecks the
@@ -220,11 +223,11 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | discussions | kept | the starter link is cleared; the discussion stays for the others |
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
-| ai_turns | kept; asks still queued end as failed (and stay counted against the day) | the asker link is cleared and queued asks end as failed; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
+| ai_turns | kept; asks and unprompted turns still queued under the universe end as failed (and stay counted) | the asker link is cleared and queued asks end as failed, as do queued unprompted turns whose job the universe owned; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
 | room_cast, typing_holds | kept: no account | kept: no account (a hold lapses in seconds) |
 | activities | kept | the creator link is cleared; the poll or quiz stays with the room |
 | poll_votes | kept | the person's votes are deleted |
-| pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass` | the universe's job payloads are deleted (a queued unprompted turn lapses after 15 minutes) | the same (universe erasure runs first) |
+| pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
 The export holds the person's rooms (with their AI level, keep-out choice and when they read the AI notice; never where they were), the discussions they started and their own words (newest 2,000, with

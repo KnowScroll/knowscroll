@@ -176,7 +176,7 @@
       # (#231, D-058).
       KS_REASONING_BACKGROUND_SHARE_PERCENT={{ ks_v2_reasoning_background_share_percent[item.name] | default(50) }}
       # API and worker: residents may speak unprompted in rooms (v3 R-2, D-162). Off unless the world is listed.
-      # The database root reasoning.production_scopes 'rooms' is enabled by migration 0070.
+      # The database root reasoning.production_scopes 'rooms' is enabled by migration 0071.
       KS_REASONING_ROOM_ENABLED={{ '1' if item.name in ks_v2_room_residents_worlds else '0' }}
       # Worker only: the rooms scope's own daily caps and the ambient share of the global cap (D-162).
       KS_REASONING_ROOM_REQUESTS_PER_DAY={{ ks_v2_reasoning_room_requests_per_day[item.name] | default(100) }}

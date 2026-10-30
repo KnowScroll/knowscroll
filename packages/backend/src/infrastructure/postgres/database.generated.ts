@@ -1461,6 +1461,8 @@ export interface RoomsAiTurns {
   decided_by: Generated<string>;
   discussion_id: string;
   dispatched: Generated<boolean>;
+  held_kind: string | null;
+  held_text: string | null;
   inhabitant: string;
   message_id: string | null;
   model: string | null;

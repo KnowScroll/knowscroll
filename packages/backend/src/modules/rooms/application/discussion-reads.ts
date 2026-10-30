@@ -79,7 +79,7 @@ async function inhabitantStatuses(
   const { lock, owner, standing } = entered;
   const [counts, open, last] = await Promise.all([
     p.ai.countAsks(lock, { accountId: owner.accountId, dayStart: utcDayStart(now), hourStart: hourBefore(now) }),
-    p.ai.openTurns(lock, discussionId, now),
+    p.ai.openAsks(lock, discussionId, now),
     p.ai.lastUnansweredAsk(lock, discussionId, owner.accountId, new Date(now.getTime() - UNANSWERED_ASK_MEMORY_MS)),
   ]);
   const decision = askDecision({

@@ -3,7 +3,7 @@ import { sharedTransactionOf } from '../../../infrastructure/postgres/personal-s
 import type { CastStore } from '../application/ports.js';
 
 /**
- * What the router reads about a room that no other store holds (migrations 0062, 0069 and 0070). Every method is
+ * What the router reads about a room that no other store holds (migrations 0062, 0069 and 0071). Every method is
  * one explicit query inside the room's lock; none decides anything.
  */
 export const castStore: CastStore = {

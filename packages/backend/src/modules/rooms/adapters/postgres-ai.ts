@@ -3,7 +3,7 @@ import { sharedTransactionOf, transactionOf } from '../../../infrastructure/post
 import { QUEUED_ASK_LAPSES_MS } from '../domain/contribution.js';
 import type { CapCounts } from '../domain/router.js';
 import type { AiStore, AiTurnRow } from '../application/ports.js';
-import { inhabitantOf, turnStateOf, turnTriggerOf } from './columns.js';
+import { contributionKindOf, inhabitantOf, turnStateOf, turnTriggerOf } from './columns.js';
 
 interface TurnColumns {
   turn_id: string;
@@ -15,7 +15,26 @@ interface TurnColumns {
   created_at: Date | string;
   trigger: string;
   cause_message_id: string | null;
+  attempt_id: string | null;
+  held_kind: string | null;
+  held_text: string | null;
 }
+
+/** The columns of a turn as `turnOf` reads them. */
+const TURN_COLUMNS = [
+  'turn_id',
+  'room_id',
+  'discussion_id',
+  'inhabitant',
+  'requested_by_account_id',
+  'state',
+  'created_at',
+  'trigger',
+  'cause_message_id',
+  'attempt_id',
+  'held_kind',
+  'held_text',
+] as const;
 
 const turnOf = (row: TurnColumns): AiTurnRow => ({
   turnId: row.turn_id,
@@ -27,6 +46,10 @@ const turnOf = (row: TurnColumns): AiTurnRow => ({
   createdAt: new Date(row.created_at),
   trigger: turnTriggerOf(row.trigger),
   causeMessageId: row.cause_message_id,
+  held:
+    row.held_kind === null || row.held_text === null || row.attempt_id === null
+      ? null
+      : { kind: contributionKindOf(row.held_kind), text: row.held_text, attemptId: row.attempt_id },
 });
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -35,7 +58,7 @@ const DAY_MS = 24 * HOUR_MS;
 const RATIO_LOOKBACK_MS = 7 * DAY_MS;
 
 /**
- * Postgres AI turns (migrations 0062 and 0070): the rate-bound ledger and the provenance of every AI message, asked
+ * Postgres AI turns (migrations 0062 and 0071): the rate-bound ledger and the provenance of every AI message, asked
  * or unprompted. Every count here is read under the room lock, so a cap is exact.
  */
 export const aiStore: AiStore = {
@@ -61,11 +84,12 @@ export const aiStore: AiStore = {
     };
   },
 
-  async openTurns(lock, discussionId, now) {
+  async openAsks(lock, discussionId, now) {
     const rows = await sharedTransactionOf(lock.shared)
       .selectFrom('rooms.ai_turns')
       .select('inhabitant')
       .where('discussion_id', '=', discussionId)
+      .where('trigger', '=', 'asked')
       .where('state', '=', 'queued')
       .where('created_at', '>', new Date(now.getTime() - QUEUED_ASK_LAPSES_MS))
       .execute();
@@ -106,17 +130,7 @@ export const aiStore: AiStore = {
   async read(lock, turnId) {
     const row = await sharedTransactionOf(lock.shared)
       .selectFrom('rooms.ai_turns')
-      .select([
-        'turn_id',
-        'room_id',
-        'discussion_id',
-        'inhabitant',
-        'requested_by_account_id',
-        'state',
-        'created_at',
-        'trigger',
-        'cause_message_id',
-      ])
+      .select(TURN_COLUMNS)
       .where('turn_id', '=', turnId)
       .where('room_id', '=', lock.roomId)
       .executeTakeFirst();
@@ -140,11 +154,32 @@ export const aiStore: AiStore = {
           model: outcome.provenance.model,
           attempt_id: outcome.provenance.attemptId ?? null,
           dispatched: true,
+          held_kind: null,
+          held_text: null,
         })
         .execute();
       return;
     }
-    await base.set({ state: outcome.state, settled_at: outcome.at, dispatched: outcome.dispatched }).execute();
+    // A turn that reached the provider stays counted whatever a later step believes: `dispatched` is never lowered.
+    await base
+      .set({
+        state: outcome.state,
+        settled_at: outcome.at,
+        dispatched: sql<boolean>`dispatched or ${outcome.dispatched}`,
+        held_kind: null,
+        held_text: null,
+      })
+      .execute();
+  },
+
+  async hold(lock, turnId, held) {
+    await sharedTransactionOf(lock.shared)
+      .updateTable('rooms.ai_turns')
+      .set({ held_kind: held.kind, held_text: held.text, attempt_id: held.attemptId, dispatched: true })
+      .where('turn_id', '=', turnId)
+      .where('room_id', '=', lock.roomId)
+      .where('state', '=', 'queued')
+      .execute();
   },
 
   async forJob(scope, turnId) {
@@ -161,6 +196,9 @@ export const aiStore: AiStore = {
         'turn.created_at',
         'turn.trigger',
         'turn.cause_message_id',
+        'turn.attempt_id',
+        'turn.held_kind',
+        'turn.held_text',
       ])
       .where('turn.turn_id', '=', turnId)
       .where('turn.trigger', '=', 'asked')

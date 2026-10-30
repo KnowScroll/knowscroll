@@ -555,6 +555,130 @@ describe('residents speak on their own (real PostgreSQL, CI fixture model)', () 
     });
   });
 
+  describe('an answer that was paid for', () => {
+    /** The model has answered a question and someone is typing: posting is put off. Returns the job that will post it. */
+    async function putOff(room: Gathering) {
+      at(1);
+      unwrap(await say(world, room.ravi, room.roomId, room.general, 'Why do we have seasons at all?'));
+      world.clock.now = lastCheck().startAfter!;
+      await decide(lastCheck().job);
+      const passJob = world.castPasses.at(-1)!.job;
+      let release: (scenario: FixtureScenario) => void = () => undefined;
+      const held = new Promise<FixtureScenario>((resolve) => (release = resolve));
+      const slow = fixtureModel(() => ({ kind: 'hold', until: held }), { label: 'rooms-held' });
+      const first = roomScope(world.db, slow);
+      const running = world.pass(first.harness, first.withScope)(passJob);
+      await expect.poll(() => slow.calls.length).toBe(1);
+      await holdCast(
+        world.db,
+        () => world.clock.now,
+      )({
+        accountId: room.kenji.accountId,
+        roomId: room.roomId,
+        discussionId: room.general,
+      });
+      release(explains());
+      await running;
+      return world.castPasses.at(-1)!;
+    }
+
+    /** Delivers the put-off job again once the hold has lapsed; the model must not be asked, and is not. */
+    async function redeliver(delivery: {
+      readonly job: Parameters<ReturnType<RoomWorld['pass']>>[0];
+      readonly startAfter: Date | undefined;
+    }) {
+      world.clock.now = delivery.startAfter!;
+      const idle = fixtureModel(() => explains('must not be asked'), { label: 'rooms-held' });
+      const scope = roomScope(world.db, idle);
+      await world.pass(scope.harness, scope.withScope)(delivery.job);
+      expect(idle.calls).toHaveLength(0);
+    }
+
+    it('counts as a call that reached the provider once posting is put off, whatever becomes of the words', async () => {
+      const room = await gathering();
+      const delivery = await putOff(room);
+      expect(await turnsOf(room.roomId)).toMatchObject([
+        { state: 'queued', dispatched: true, held_kind: 'explanation' },
+      ]);
+      // A person answers while the words are held: they are dropped, and the call is still counted.
+      unwrap(await say(world, room.kenji, room.roomId, room.general, 'The tilt of the Earth does it'));
+      await redeliver(delivery);
+      expect(await turnsOf(room.roomId)).toMatchObject([
+        { state: 'failed', dispatched: true, held_kind: null, held_text: null },
+      ]);
+      expect(spokenBy((await view(room.asha, room)).messages)).toEqual([]);
+      // The next decision of the room sees it in every count.
+      at(40);
+      unwrap(await say(world, room.asha, room.roomId, room.general, 'How do tides work exactly?'));
+      world.clock.now = lastCheck().startAfter!;
+      await decide(lastCheck().job);
+      const next = (await turnsOf(room.roomId)).at(-1)!;
+      expect(next).toMatchObject({ state: 'queued', trigger: 'unanswered_question' });
+      expect(next.caps).toMatchObject({ roomLastHour: 1, roomToday: 1, residentLastHour: 1 });
+    });
+
+    it('posts the held words as they are when only the author follows up, without building the context again', async () => {
+      const room = await gathering();
+      const delivery = await putOff(room);
+      // The author's own follow-up changes the room's recent messages, and so the context a rebuilt request would carry.
+      unwrap(await say(world, room.ravi, room.roomId, room.general, 'I mean around the equinox'));
+      await redeliver(delivery);
+      expect(await turnsOf(room.roomId)).toMatchObject([
+        { state: 'completed', dispatched: true, held_kind: null, held_text: null },
+      ]);
+      expect(spokenBy((await view(room.asha, room)).messages)).toEqual(['Nova']);
+    });
+
+    it('never lowers dispatched when a later step hands the turn back', async () => {
+      const room = await gathering();
+      at(1);
+      unwrap(await say(world, room.ravi, room.roomId, room.general, 'Why do we have seasons at all?'));
+      world.clock.now = lastCheck().startAfter!;
+      await decide(lastCheck().job);
+      // The turn is already counted as sent (a first delivery paid and crashed before it could store anything)...
+      await world.db
+        .updateTable('rooms.ai_turns')
+        .set({ dispatched: true })
+        .where('room_id', '=', room.roomId)
+        .execute();
+      // ...and a person has answered since, so the redelivery hands it back without a call.
+      unwrap(await say(world, room.kenji, room.roomId, room.general, 'The tilt of the Earth does it'));
+      const idle = fixtureModel(() => explains('must not be asked'), { label: 'rooms-handback' });
+      const scope = roomScope(world.db, idle);
+      await world.pass(scope.harness, scope.withScope)(world.castPasses.at(-1)!.job);
+      expect(idle.calls).toHaveLength(0);
+      expect(await turnsOf(room.roomId)).toMatchObject([{ state: 'failed', dispatched: true }]);
+    });
+
+    it('is not read for an author who turned keep-out on after the turn was allowed', async () => {
+      const room = await gathering();
+      at(1);
+      unwrap(await say(world, room.ravi, room.roomId, room.general, 'Why do we have seasons at all?'));
+      world.clock.now = lastCheck().startAfter!;
+      await decide(lastCheck().job);
+      expect(await turnsOf(room.roomId)).toMatchObject([{ state: 'queued' }]);
+      unwrap(await setPreferences(world, room.ravi, room.roomId, { keepOut: true }));
+      const model = fixtureModel(() => explains('must not be asked'), { label: 'rooms-kept-out' });
+      const scope = roomScope(world.db, model);
+      await world.pass(scope.harness, scope.withScope)(world.castPasses.at(-1)!.job);
+      expect(model.calls).toHaveLength(0);
+      expect(await turnsOf(room.roomId)).toMatchObject([{ state: 'failed', dispatched: false }]);
+    });
+
+    it('never stops a member from asking while a resident is preparing an answer of its own', async () => {
+      const room = await gathering();
+      at(1);
+      unwrap(await say(world, room.ravi, room.roomId, room.general, 'Why do we have seasons at all?'));
+      world.clock.now = lastCheck().startAfter!;
+      await decide(lastCheck().job);
+      expect(await turnsOf(room.roomId)).toMatchObject([{ state: 'queued', trigger: 'unanswered_question' }]);
+      expect((await view(room.kenji, room)).inhabitants.map((entry) => entry.ask)).toEqual(['available', 'available']);
+      const asked = await ask(world, room.kenji, room.roomId, room.general, 'skeptic');
+      expect(asked.kind).toBe('ok');
+      expect((await view(room.kenji, room)).inhabitants.map((entry) => entry.ask)).toEqual(['preparing', 'preparing']);
+    });
+  });
+
   describe('levels', () => {
     it('shows an unprompted turn folded for Quieter, hides it for Off, and shows asked turns to everyone', async () => {
       const room = await gathering();

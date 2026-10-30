@@ -38,7 +38,7 @@ export function makeInhabitantCommands(p: RoomPorts) {
               dayStart: utcDayStart(now),
               hourStart: hourBefore(now),
             }),
-            p.ai.openTurns(lock, command.discussionId, now),
+            p.ai.openAsks(lock, command.discussionId, now),
           ]);
           const decision = askDecision({
             roomAsksToday: counts.room,
@@ -54,6 +54,7 @@ export function makeInhabitantCommands(p: RoomPorts) {
               turnId,
               trigger: 'asked',
               causeMessageId: null,
+              held: null,
               roomId: command.roomId,
               discussionId: command.discussionId,
               inhabitant: command.inhabitant,

@@ -42,7 +42,7 @@ const ROOM_COLUMNS = [
   'status',
 ] as const;
 
-/** The room's cast as one JSON value for the query's `room` row (migration 0070: `rooms.room_cast`). */
+/** The room's cast as one JSON value for the query's `room` row (migration 0071: `rooms.room_cast`). */
 const CAST_JSON = sql<RoomColumns['residents']>`(
   select coalesce(json_agg(json_build_object('inhabitant', resident.inhabitant, 'name', resident.name)
     order by resident.position), '[]'::json)

@@ -177,6 +177,14 @@ export function contributionVerdict(outcome: ProposeOutcome<InhabitantAnswer>): 
     case 'unknown':
       return { kind: 'failed', dispatched: true };
     case 'refused':
-      return { kind: 'failed', dispatched: outcome.attemptId !== undefined };
+      // A refusal that names an attempt, or says the run was already sent (a changed request for a run that has an attempt,
+      // a send whose outcome was lost), is a call that was made, so the turn stays counted.
+      return {
+        kind: 'failed',
+        dispatched:
+          outcome.attemptId !== undefined ||
+          outcome.reason === 'request_mismatch' ||
+          outcome.reason === 'dispatch_lost',
+      };
   }
 }

@@ -2,6 +2,7 @@ import { sql } from 'kysely';
 import { declareErasure } from '../../../infrastructure/erasure/declaration.js';
 import { exportReading, type ModuleErasure, type ModuleExport } from '../../../infrastructure/erasure/registry.js';
 import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
+import { JOB_SCHEMA, deadLetterQueueName } from '../../../infrastructure/jobs/index.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 import { castDueQueue, castPassQueue, contributeQueue } from '../events.js';
@@ -37,17 +38,25 @@ const LIFECYCLE = {
 } as const;
 
 /**
- * Ends the asks of this universe's account that are still queued: their job is being erased. A queued ask may
- * already have its model call running, so it stays counted against the daily bounds (`dispatched`): a Clear does
- * not hand an ask back.
+ * Ends the turns that are still queued and whose job is being erased with this universe: the asks of its account, and
+ * the unprompted turns whose model call (`rooms.cast-pass`) was queued under its universe. Without this the row would stay
+ * queued, keep a discussion looking busy for fifteen minutes and count toward the caps for a call nobody will make. A
+ * queued turn may already have its model call running, so it stays counted (`dispatched`): a Clear does not hand a turn
+ * back. A held answer is dropped with it.
  */
-async function failQueuedAsks(trx: ReturnType<typeof transactionOf>, universeId: string): Promise<number> {
-  const failed = await sql`
-    update rooms.ai_turns set state = 'failed', settled_at = now(), dispatched = true
+async function failQueuedTurns(trx: ReturnType<typeof transactionOf>, universeId: string): Promise<number> {
+  const asks = await sql`
+    update rooms.ai_turns set state = 'failed', settled_at = now(), dispatched = true, held_kind = null, held_text = null
     where state = 'queued' and requested_by_account_id = (select account_id from identity.universes where id = ${universeId}::uuid)`.execute(
     trx,
   );
-  return Number(failed.numAffectedRows ?? 0);
+  const names = [castPassQueue.name, deadLetterQueueName(castPassQueue.name)];
+  const residents = await sql`
+    update rooms.ai_turns set state = 'failed', settled_at = now(), dispatched = true, held_kind = null, held_text = null
+    where state = 'queued' and trigger <> 'asked' and turn_id in (
+      select (job.data ->> 'turnId')::uuid from ${sql.table(`${JOB_SCHEMA}.job`)} as job
+      where job.name = any(${names}::text[]) and job.data ->> 'universeId' = ${universeId})`.execute(trx);
+  return Number(asks.numAffectedRows ?? 0) + Number(residents.numAffectedRows ?? 0);
 }
 
 /**
@@ -108,7 +117,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
   async erase(scope) {
     const trx = transactionOf(scope);
-    const asks = await failQueuedAsks(trx, scope.authority.universeId);
+    const asks = await failQueuedTurns(trx, scope.authority.universeId);
     const jobs = await deleteJobPayloads(scope, QUEUES);
     return { module: 'rooms', status: 'completed', removed: asks + jobs };
   },
@@ -177,7 +186,7 @@ export const roomsErasure: ModuleErasure = declareErasure({
       ...Object.fromEntries(QUEUES.map((name) => [`store:pgboss/${name}`, 'erase' as const])),
     },
     async erase(scope) {
-      const asks = await failQueuedAsks(clearCoreTransactionOf(scope), scope.binding.universeId);
+      const asks = await failQueuedTurns(clearCoreTransactionOf(scope), scope.binding.universeId);
       const jobs = await deleteClearJobPayloads(scope, QUEUES);
       return { module: 'rooms', status: 'completed', removed: asks + jobs };
     },

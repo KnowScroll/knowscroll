@@ -1,5 +1,5 @@
 /**
- * Migration 0070 over rooms that already exist (v3 R-2): a database that stops at schema 0069 gets a room, a member, a
+ * Migration 0071 over rooms that already exist (v3 R-2): a database that stops at schema 0069 gets a room, a member, a
  * discussion with an asked AI contribution and a usage receipt, then takes every pending migration as `migrate` does on
  * dev. Every old room gets the residents its old array named, the old ask becomes an `asked` turn that keeps its
  * provenance, the rooms scope exists, and the checks refuse the shapes the router must never write.
@@ -11,16 +11,16 @@ import { createDatabase, migrateToLatest, type Database } from '@knowscroll/back
 import { loadMigrations } from '@knowscroll/migrations';
 import { createEmptyDatabase } from '../support/empty-database.js';
 
-describe('migration 0070 over existing rooms (real PostgreSQL)', () => {
+describe('migration 0071 over existing rooms (real PostgreSQL)', () => {
   let empty: Awaited<ReturnType<typeof createEmptyDatabase>>;
   let handle: ReturnType<typeof createDatabase<Database>>;
   let migrator: ReturnType<typeof createDatabase<unknown>>;
 
   beforeAll(async () => {
-    empty = await createEmptyDatabase('migration_0070');
+    empty = await createEmptyDatabase('migration_0071');
     const settings = {
       url: empty.url,
-      applicationName: 'knowscroll-it-migration-0070',
+      applicationName: 'knowscroll-it-migration-0071',
       poolMax: 3,
       statementTimeoutMs: 30_000,
     };
@@ -37,7 +37,7 @@ describe('migration 0070 over existing rooms (real PostgreSQL)', () => {
     const migrations = loadMigrations();
     const before = migrations.slice(
       0,
-      migrations.findIndex((migration) => migration.name.startsWith('0070_')),
+      migrations.findIndex((migration) => migration.name.startsWith('0071_')),
     );
     expect(await migrateToLatest(migrator.db, before)).toMatchObject({ kind: 'migrated' });
 
@@ -103,7 +103,7 @@ describe('migration 0070 over existing rooms (real PostgreSQL)', () => {
 
     const rest = await migrateToLatest(migrator.db, migrations);
     expect(rest).toMatchObject({ kind: 'migrated' });
-    expect(rest.kind === 'migrated' && rest.applied).toContain('0070_room_residents');
+    expect(rest.kind === 'migrated' && rest.applied).toContain('0071_room_residents');
 
     const cast = await handle.db
       .selectFrom('rooms.room_cast')

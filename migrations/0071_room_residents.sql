@@ -60,7 +60,10 @@ cross join lateral unnest(room.inhabitants) as resident(inhabitant);
 -- resident spoke on its own. `cause_message_id` is the message it answers (none for an ask). An unprompted turn
 -- is decided by the router under the room lock: `allowed` (state `queued` until the worker posts it) or `refused`
 -- (state `refused`, nothing posted), and `decided_by` names the cap that refused it, or `caps_clear`. `caps` is the
--- count of each cap at that moment, for the Operator view and for debugging.
+-- count of each cap at that moment, for the Operator view and for debugging. `held_kind` and `held_text` keep an answer the
+-- model already gave (and was paid for) while posting is put off for someone who is typing: the redelivered job posts them
+-- as they are, and never builds the context or calls the model again. They are cleared when the turn settles, whether the words
+-- were posted or dropped.
 -- squawk-ignore renaming-table
 alter table rooms.ai_requests rename to ai_turns;
 -- squawk-ignore renaming-column
@@ -72,7 +75,9 @@ alter table rooms.ai_turns
     check (trigger in ('asked', 'unanswered_question', 'overstated_claim', 'answer_overstated')),
   add column decided_by text not null default 'asked_bounds'
     check (decided_by in ('asked_bounds', 'caps_clear', 'ratio', 'room_hour', 'room_day', 'resident_hour', 'person_hour')),
-  add column caps jsonb not null default '{}' check (jsonb_typeof(caps) = 'object' and octet_length(caps::text) <= 512);
+  add column caps jsonb not null default '{}' check (jsonb_typeof(caps) = 'object' and octet_length(caps::text) <= 512),
+  add column held_kind text check (held_kind in ('explanation', 'assumption', 'perspective', 'counterexample')),
+  add column held_text text check (char_length(held_text) between 1 and 2000);
 -- squawk-ignore adding-foreign-key-constraint
 alter table rooms.ai_turns add column cause_message_id uuid references rooms.messages(message_id) on delete restrict;
 -- An unprompted turn has no command.
@@ -100,6 +105,8 @@ alter table rooms.ai_turns
     and (trigger = 'asked' or decided_by <> 'asked_bounds')
     and ((state = 'refused') = (decided_by in ('ratio', 'room_hour', 'room_day', 'resident_hour', 'person_hour')))
     and (state <> 'refused' or not dispatched)
+    and ((held_kind is null) = (held_text is null))
+    and (held_text is null or (dispatched and attempt_id is not null))
   ) not valid;
 -- squawk-ignore constraint-missing-not-valid
 alter table rooms.ai_turns validate constraint ai_turns_decision_check;

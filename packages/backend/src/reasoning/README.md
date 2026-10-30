@@ -14,7 +14,7 @@ owns admission, budgets, transport, parsing, limits and attempt tracking. No too
 | Background share: background roles stop at a share of the global and personal daily caps (D-058) | Implemented. CI exercises it, including 32 proposals racing, against real PostgreSQL with the fixture model. Not yet run on dev. |
 | MiniMax transport (`MiniMax-M3.1-Flash`) | Implemented. Real calls have been made from the production operator command; no generated Scroll has been accepted yet. |
 | Nonpersonal Scroll production scope | Implemented and operator-triggered only: no worker job is registered and both enable switches default off. |
-| Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model. Off until `KS_REASONING_ROOM_ENABLED`; not yet run on dev. |
+| Nonpersonal rooms scope and the `ambient` budget class: a room's residents speaking on their own (v3 R-2, D-162) | Implemented. CI exercises the share and the scope's cap against real PostgreSQL with the fixture model (`reasoning-ambient-share.test.ts`, which fails if either ledger's ambient sum is broken). Off until `KS_REASONING_ROOM_ENABLED`; not yet run on dev. |
 | Recording-aware personal roles (Planner, Cartographer) | Implemented in source and CI. The roles are off by default and the path has not run on a live system. |
 | Selective Clear accounting and erasure of a person's attempts | Implemented and CI-tested. |
 | Crash sweep and request purge jobs | Implemented, scheduled in the worker and CI-tested. |
@@ -147,7 +147,7 @@ Production storage is separate (`0013_reasoning_production_scope`):
 
 | Table                                | Key / ownership                                                                                               | Retention                                                                         |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `production_scopes`                  | Two roots, `scroll-supply` and `rooms` (0070); enabled + generation                                          | Retained, operator controlled                                                     |
+| `production_scopes`                  | Two roots, `scroll-supply` and `rooms` (0071); enabled + generation                                          | Retained, operator controlled                                                     |
 | `production_runs`                    | `(scope_id, id)`, root FK, admitted generation and monotonic run fence                                        | Audit retained; no automatic run retention job yet                                |
 | `production_attempts`                | `(scope_id, id)`, composite production run FK; same state/dispatch/write-off checks                           | Audit retained, including unknown liabilities                                     |
 | `production_requests`                | `(scope_id, attempt_id)`, composite production attempt FK, exact hash-checked bytes; `nonpersonal_production` | Same configured request expiry/purge and database backup policy as personal bytes |
@@ -171,7 +171,7 @@ supply's authority and the reverse. Injected as `ROOM_REASONING_HARNESS` and `WI
 
 - **Switch and caps.** `KS_REASONING_ROOM_ENABLED` (default 0) and the generation `KS_REASONING_ROOM_GENERATION`; the scope's
   own daily caps `KS_REASONING_ROOM_REQUESTS_PER_DAY` / `KS_REASONING_ROOM_TOKENS_PER_DAY` (defaults 100 and 1,000,000) take the
-  place of the per-person caps. The database row is enabled by migration `0070`; the environment switch is the gate.
+  place of the per-person caps. The database row is enabled by migration `0071`; the environment switch is the gate.
 - **Class `ambient`.** An ambient role must also fit `KS_REASONING_AMBIENT_SHARE_PERCENT` (default 30) of the **global** cap, in
   requests and tokens, counted over `usage_receipts.ambient` only, under the same advisory lock, so it is exact under
   concurrency. Its refusal is `budget_exhausted` with dimension `ambient_global` (or the scope's own `scope`); a resident
@@ -420,7 +420,7 @@ is therefore not spent by their reading alone, whatever the roles do. 0 switches
 keeps nothing back.
 
 **Ambient share (D-162).** A role that declares `budgetClass: 'ambient'` (a room's resident speaking on its own) must also fit
-`KS_REASONING_AMBIENT_SHARE_PERCENT` (default 30) of the global cap, counted over `usage_receipts.ambient` (migration `0070`),
+`KS_REASONING_AMBIENT_SHARE_PERCENT` (default 30) of the global cap, counted over `usage_receipts.ambient` (migration `0071`),
 beside the rooms scope's own daily cap. The class is separate from background: background spend and ambient spend are
 each held to their own share, and both sit inside the global cap, so what a person asks for is never taken.
 

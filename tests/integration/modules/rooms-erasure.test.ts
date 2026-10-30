@@ -319,6 +319,75 @@ describe('idea rooms and erasure (real PostgreSQL)', () => {
     expect(view.inhabitants.map((entry) => entry.ask)).toEqual(['available', 'available']);
   });
 
+  /**
+   * A person whose question a resident has been cleared to answer: the turn is queued and its model call is a real
+   * pg-boss job under the person's universe. A second member is in the room; the clock is the resident world's own.
+   */
+  async function queuedResidentTurn() {
+    const residents = await roomWorld(database, { now: new Date('2026-10-30T10:00:00Z') }, { residentsEnabled: true });
+    const { roomId } = await seedRoom(residents);
+    const person = await namedPerson();
+    const other = await seedFriend(residents.db, residents.friends);
+    unwrap(await joinRoom(residents, person, roomId));
+    unwrap(await joinRoom(residents, other, roomId));
+    const general = (await memberView(residents, person, roomId)).general.discussionId;
+    unwrap(await say(residents, person, roomId, general, 'Why do we have seasons at all?'));
+    const check = residents.castChecks.at(-1)!;
+    residents.clock.now = check.startAfter!;
+    await residents.decide()(check.job);
+    const turn = () =>
+      residents.db
+        .selectFrom('rooms.ai_turns')
+        .select(['state', 'dispatched', 'trigger'])
+        .where('room_id', '=', roomId)
+        .executeTakeFirstOrThrow();
+    expect(await turn()).toEqual({ state: 'queued', dispatched: false, trigger: 'unanswered_question' });
+    expect(await castJobsOf(person.universeId)).toBe(1);
+    return { residents, roomId, general, person, other, turn };
+  }
+
+  it('ends a resident’s queued turn with the job that Clear erases, so no turn waits for a call nobody will make', async () => {
+    const { residents, roomId, general, person, other, turn } = await queuedResidentTurn();
+    try {
+      await clearRecordingPerson(database, boss, person);
+      expect(await castJobsOf(person.universeId)).toBe(0);
+      // The call may already have been running, so the turn stays counted, but it is no longer queued.
+      expect(await turn()).toEqual({ state: 'failed', dispatched: true, trigger: 'unanswered_question' });
+      // Nothing was posted, and the other member can still ask.
+      const view = await readDiscussion(residents, other, roomId, general);
+      if (view.status !== 'ready') throw new Error('expected ready');
+      expect(view.messages.every((message) => message.status !== 'available' || message.author.kind === 'person')).toBe(
+        true,
+      );
+      expect((await ask(residents, other, roomId, general, 'skeptic')).kind).toBe('ok');
+    } finally {
+      await residents.close();
+    }
+  });
+
+  it('ends a resident’s queued turn when the account behind its job is deleted', async () => {
+    const { residents, person, turn } = await queuedResidentTurn();
+    try {
+      const receiptId = randomUUID();
+      const deleting = deleteAccountFor(database.db, boss, {
+        eraseAccountData: eraseCurrentAccount,
+        lockTimeoutMs: 5_000,
+      });
+      expect((await deleting.request(person.authority, { receiptId })).kind).toBe('accepted');
+      expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+      expect(await castJobsOf(person.universeId)).toBe(0);
+      expect(await turn()).toEqual({ state: 'failed', dispatched: true, trigger: 'unanswered_question' });
+    } finally {
+      await residents.close();
+    }
+  });
+
+  async function castJobsOf(universeId: string): Promise<number> {
+    const row = await sql<{ n: string }>`select count(*)::text as n from pgboss.job
+      where name = 'rooms.cast-pass' and data ->> 'universeId' = ${universeId}`.execute(database.db);
+    return Number(row.rows[0]?.n ?? 0);
+  }
+
   async function jobsOf(universeId: string): Promise<number> {
     const row = await sql<{ n: string }>`select count(*)::text as n from pgboss.job
       where name = 'rooms.contribute' and data ->> 'universeId' = ${universeId}`.execute(database.db);

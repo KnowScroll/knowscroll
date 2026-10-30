@@ -305,6 +305,13 @@ export type TurnTrigger = 'asked' | SpeechTrigger;
 
 export type TurnState = 'queued' | 'completed' | 'declined' | 'failed' | 'refused';
 
+/** An answer the model already gave and the room paid for, kept on its turn while posting is put off for someone typing. */
+export interface HeldAnswer {
+  readonly kind: ContributionKind;
+  readonly text: string;
+  readonly attemptId: string;
+}
+
 export interface AiTurnRow {
   readonly turnId: string;
   readonly roomId: string;
@@ -317,6 +324,8 @@ export interface AiTurnRow {
   readonly trigger: TurnTrigger;
   /** The message an unprompted turn answers; none for an ask. */
   readonly causeMessageId: string | null;
+  /** The answer held back while someone types; none otherwise. */
+  readonly held: HeldAnswer | null;
 }
 
 export interface AiProvenance {
@@ -363,8 +372,11 @@ export interface AiStore {
     lock: RoomLock,
     query: { readonly accountId: string; readonly dayStart: Date; readonly hourStart: Date },
   ): Promise<{ readonly room: number; readonly person: number; readonly personRequests: number }>;
-  /** Turns of this discussion still queued and not lapsed at `now`, asked or not, by inhabitant. */
-  openTurns(lock: RoomLock, discussionId: string, now: Date): Promise<readonly InhabitantId[]>;
+  /**
+   * Asks of this discussion still queued and not lapsed at `now`, by inhabitant. A resident preparing an unprompted answer
+   * is not one: it never stops a member from asking.
+   */
+  openAsks(lock: RoomLock, discussionId: string, now: Date): Promise<readonly InhabitantId[]>;
   /** The caller's newest ask of this discussion that ended without a contribution since `since`. */
   lastUnansweredAsk(
     lock: RoomLock,
@@ -376,7 +388,16 @@ export interface AiStore {
   insertAsk(lock: RoomLock, ask: AiTurnRow & { readonly commandId: string }): Promise<void>;
   /** The turn by ID inside the room's lock, for the worker's apply step. */
   read(lock: RoomLock, turnId: string): Promise<AiTurnRow | undefined>;
+  /**
+   * Settles a queued turn and clears any held answer. A turn that reached the provider stays counted: settling never
+   * lowers `dispatched`, so a later "nothing was sent" cannot take back a call that was paid for.
+   */
   settle(lock: RoomLock, turnId: string, outcome: TurnOutcome): Promise<void>;
+  /**
+   * Keeps the answer the model gave while posting is put off. The turn is marked as having reached the provider in the same
+   * statement, so it counts against the caps whatever becomes of the words.
+   */
+  hold(lock: RoomLock, turnId: string, held: HeldAnswer): Promise<void>;
   /**
    * The ask a job names, found without a room lock from the job's own universe, with the asker only if that
    * universe belongs to them. The worker uses it to learn which room to lock.
