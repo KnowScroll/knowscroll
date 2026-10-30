@@ -102,7 +102,8 @@ describe('content admit-continuity over the library plan (real PostgreSQL, CI fi
     const read = await cases.readContext(person.authority, activated.outcome.exposureId);
     if (read.kind !== 'read') throw new Error('expected a context');
     const { series, continuations } = read.context;
-    expect(series).toMatchObject({ seriesId: 'library.earth.seasons', part: 2 });
+    // The total is counted from the admitted series units (D-072), here the three Seasons parts.
+    expect(series).toMatchObject({ seriesId: 'library.earth.seasons', part: 2, total: 3 });
     expect(continuations.seriesPrevious).toMatchObject({
       status: 'ready',
       target: seasons,
@@ -113,9 +114,9 @@ describe('content admit-continuity over the library plan (real PostgreSQL, CI fi
       target: elsewhere,
       relation: { kind: 'series_step', part: 3 },
     });
-    // seasons-hemispheres declares no related move, and the response carries no total number of parts.
+    // seasons-hemispheres declares no related move, and the response carries no count but the series total.
     expect(continuations.related).toMatchObject({ status: 'unavailable' });
-    expect(JSON.stringify(read.context)).not.toMatch(/"(total|count|partCount)/u);
+    expect(JSON.stringify(read.context)).not.toMatch(/"(count|partCount)/u);
   });
 
   it('replaces a link when a Scroll is republished, keeping the old rows as history', async () => {

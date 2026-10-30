@@ -14,4 +14,5 @@ export {
   Source,
   TRUTH_STATES,
 } from './provenance.js';
+export { PROVENANCE_V2_LIMITS, SCROLL_PROVENANCE_V2_SCHEMA_VERSION, ScrollProvenanceV2 } from './provenance-v2.js';
 export { bindingIssues, honestyIssues, STRUCTURAL_LITERALS, type HonestyDocument } from './honesty.js';

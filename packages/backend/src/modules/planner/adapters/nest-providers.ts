@@ -56,7 +56,10 @@ import { makeReadCurrentPlan } from '../application/read-plan.js';
 const REQUEST_PORTS = Symbol('planner.request-ports');
 const PLANNER_PORTS = Symbol('planner.ports');
 const hash = (value: unknown) => requestHash('personal-planner.v0', value as Parameters<typeof requestHash>[1]);
-const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
+const capabilities = {
+  ...FULL_V1_CAPABILITIES,
+  documentSchemas: ['scroll-document.v1', 'scroll-document.v2', 'reel-document.v1'],
+};
 const now = () => new Date();
 const key = (commandId: string, requestHash: string) => ({
   commandId,

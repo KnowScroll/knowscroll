@@ -1,8 +1,20 @@
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
-import type { ReadContentSequence, SequenceUnit } from '../public.js';
+import type { ReadContentSequence, ReadSeriesTotal, SequenceUnit } from '../public.js';
 
 /** Most units one declared series can hold (`content.series_units.part` is 1 to 99). */
 const MAX_UNITS = 99;
+
+/** See `ReadSeriesTotal`: the count of the series revision's admitted units, read in the caller's transaction. */
+export const readSeriesTotal: ReadSeriesTotal = async (scope, series) => {
+  const row = await transactionOf(scope)
+    .selectFrom('content.series_units')
+    .select((builder) => builder.fn.countAll<string>().as('total'))
+    .where('series_id', '=', series.seriesId)
+    .where('series_revision', '=', series.seriesRevision)
+    .executeTakeFirst();
+  const total = Number(row?.total ?? 0);
+  return total > 0 ? total : undefined;
+};
 
 const isFormat = (kind: string): kind is SequenceUnit['kind'] => kind === 'reel' || kind === 'scroll';
 

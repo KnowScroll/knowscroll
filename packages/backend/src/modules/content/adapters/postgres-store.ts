@@ -1,4 +1,4 @@
-import { parseDocument } from '@knowscroll/scroll-model';
+import { parseDocument, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
@@ -6,6 +6,7 @@ import { transactionOf, withTransaction } from '../../../infrastructure/postgres
 import { readingFactsOf } from './scroll-compiler.js';
 import type { AssetKind } from '../domain/provenance.js';
 import { ReadingFactsUnavailableError, type ReadingFacts } from '../domain/reading-facts.js';
+import { readingFactsOfV2 } from './reading-facts-v2.js';
 import { ReadingFactsSchema } from './reading-facts-schema.js';
 import type { AdmissionTx, ImportEditorialScrollPorts, LockedAsset } from '../application/ports.js';
 import type { AssetForAction, OpenableAsset } from '../public.js';
@@ -68,6 +69,12 @@ export async function readScrollReadingFacts(
   if (parsed.success) return parsed.data;
   // A facts-version rollout must not strand existing exposures. The immutable admitted document
   // contains everything needed to derive the current view; operators can persist it on re-import.
+  const stored = row.document as { schemaVersion?: unknown } | null;
+  if (stored?.schemaVersion === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
+    const v2 = parseDocumentV2(row.document);
+    if (v2.kind !== 'valid') throw new ReadingFactsUnavailableError();
+    return readingFactsOfV2(v2.document);
+  }
   const document = parseDocument(row.document);
   if (document.kind !== 'valid') throw new ReadingFactsUnavailableError();
   return readingFactsOf(document.document);

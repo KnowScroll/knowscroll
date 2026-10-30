@@ -534,6 +534,11 @@ export function makeActivateOffer(p: NavigationPorts): ActivateOffer {
     return entered.kind === 'entered' ? entered.value : { kind: 'refused', code: scopeCode(entered.refusal.kind) };
   };
 }
+/** The series position with its total counted from the admitted series revision; a series with no counted units has no position. */
+async function withTotal(p: NavigationPorts, scope: PersonalScopeTx, series: NonNullable<EncounterSnapshot['series']>) {
+  const total = await p.readSeriesTotal(scope, series);
+  return total === undefined ? undefined : { ...series, total };
+}
 export function makeReadExposureContext(p: NavigationPorts): ReadExposureContext {
   return async (authority, id) => {
     const entered = await p.withPersonalScope(authority, async (scope) => {
@@ -567,7 +572,7 @@ export function makeReadExposureContext(p: NavigationPorts): ReadExposureContext
           revision: scope.revisionAtEntry,
           ...(base.session ? { session: base.session } : {}),
           actions: base.actions,
-          ...(exact.series ? { series: exact.series } : {}),
+          ...(exact.series ? { series: await withTotal(p, scope, exact.series) } : {}),
           variants: await variants(p, scope, exact, base.capabilities),
           continuations,
         },

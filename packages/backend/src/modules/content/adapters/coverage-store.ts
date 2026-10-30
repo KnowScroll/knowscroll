@@ -1,6 +1,13 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { z } from 'zod';
-import { admitDocument, canonicalJson, canonicalSha256, utf8ByteLength, walkBlocks } from '@knowscroll/scroll-model';
+import {
+  admitDocument,
+  canonicalJson,
+  canonicalSha256,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  utf8ByteLength,
+  walkBlocks,
+} from '@knowscroll/scroll-model';
 import { ScrollProvenance } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
@@ -24,6 +31,7 @@ import {
   type CoverageTarget,
 } from '../domain/coverage.js';
 import { admissionTransaction, makeAdmissionStore } from './postgres-store.js';
+import { coverageTargetOfV2 } from './coverage-target-v2.js';
 import { readingFactsOf } from './scroll-compiler.js';
 
 export const coverageCatalogue = {
@@ -56,6 +64,7 @@ async function readTarget(db: Transaction<Database>, ref: CoverageRef): Promise<
       and r.revision=${ref.assetRevision}`.execute(db);
   const row = result.rows[0];
   if (!row) return undefined;
+  if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) return coverageTargetOfV2(row, ref);
   const parsed = admitDocument(row.document);
   const provenance = ScrollProvenance.safeParse(row.provenance);
   if (parsed.kind !== 'valid' || !provenance.success || provenance.data.production.kind === 'fixture') return undefined;

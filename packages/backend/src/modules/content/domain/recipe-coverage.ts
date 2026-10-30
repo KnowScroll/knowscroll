@@ -1,6 +1,6 @@
 import { CONCEPT_CATALOGUE_VERSION } from './concepts.js';
 import {
-  COVERAGE_LOCATOR_TYPES,
+  coverageLocatorTypes,
   COVERAGE_POLICY,
   type CoverageCatalogue,
   type CoverageMapping,
@@ -14,13 +14,20 @@ import type { LibraryRecipe } from './library/plan.js';
  */
 export const RECIPE_COVERAGE_RULE = 'scroll-recipe-coverage.v1' as const;
 
+/**
+ * The same rule over the units of a `scroll-document.v2` (D-127): the eligible units are its read
+ * stops with documented claims, and the primary facet needs the first, middle and last of them.
+ * Calls bind nothing, so how a person played never decides whether a place forms (D-063).
+ */
+export const RECIPE_COVERAGE_RULE_V2 = 'scroll-recipe-coverage.v2' as const;
+
 /** Fewer eligible blocks cannot show a reader met the lesson, so no coverage is claimed. */
 export const MIN_BODY_BLOCKS = 3;
 /** How many of the closing body blocks the supporting facet needs. */
 const SUPPORTING_ANCHORS = 2;
 
 export type RecipeCoveragePlan =
-  | { readonly kind: 'planned'; readonly mapping: CoverageMapping }
+  | { readonly kind: 'planned'; readonly mapping: CoverageMapping; readonly rule: string }
   | { readonly kind: 'refused'; readonly code: 'too_few_body_blocks' | 'facet_not_in_catalogue' };
 
 type RecipeFacets = Pick<LibraryRecipe, 'topicId' | 'facetId' | 'supportingFacetId'>;
@@ -43,8 +50,9 @@ export function planRecipeCoverage(
   target: CoverageTarget,
   catalogue: CoverageCatalogue,
 ): RecipeCoveragePlan {
+  const locatorTypes = coverageLocatorTypes(target.readingFactsVersion);
   const eligible = target.blocks
-    .filter((block) => !block.nested && block.truthSupported && COVERAGE_LOCATOR_TYPES.includes(block.type))
+    .filter((block) => !block.nested && block.truthSupported && locatorTypes.includes(block.type))
     .map((block) => block.id);
   if (eligible.length < MIN_BODY_BLOCKS) return { kind: 'refused', code: 'too_few_body_blocks' };
 
@@ -60,6 +68,7 @@ export function planRecipeCoverage(
   }
   return {
     kind: 'planned',
+    rule: target.readingFactsVersion === 3 ? RECIPE_COVERAGE_RULE_V2 : RECIPE_COVERAGE_RULE,
     mapping: {
       version: COVERAGE_POLICY,
       documentSha256: target.documentSha256,
@@ -67,7 +76,7 @@ export function planRecipeCoverage(
       explanationUnitId: target.explanationUnitId,
       framing: 'factual',
       framingSha256: target.framingSha256,
-      readingFactsVersion: 2,
+      readingFactsVersion: target.readingFactsVersion === 3 ? 3 : 2,
       readingFactsSha256: target.readingFactsSha256,
       catalogueVersion: CONCEPT_CATALOGUE_VERSION,
       catalogueSha256: catalogue.sha256,

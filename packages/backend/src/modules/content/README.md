@@ -46,6 +46,16 @@ the recipe's declared facets to blocks of the stored document:
   nothing. The Scroll still publishes and keeps its planet, stays unmapped, and the job's outcomes
   record `coverage_too_few_body_blocks` or `coverage_target_unavailable`.
 
+**Coverage v2 (D-127), implemented, runtime-verified on real PostgreSQL with a labelled fixture.** A
+`scroll-document.v2` has no paragraphs, so its rule is `scroll-recipe-coverage.v2` over its units
+(reading facts v3, D-128): the eligible units are the **read stops** that cite at least one documented
+claim, with the same first-middle-last and last-two shape and the same bar of three. **Calls bind
+nothing** (play does not form places, D-063), and admission refuses a mapping that names one. The stored
+mapping keeps the policy `scroll-static-coverage.v1` so region bindings still read it; its
+`readingFactsVersion` is 3 and its review reference says `scroll-recipe-coverage.v2:<unit>`. The rule is
+chosen by the revision's facts version, so v1 revisions are decided exactly as before, including by
+`content readmit-coverage`.
+
 The rule is structural, not semantic. It says which blocks a reader must have seen for a facet to
 count, and cannot judge whether the prose teaches the facet. The recipe brief and the writer checks
 govern that. The mapping's basis is stored as `scroll-recipe-coverage.v1:<explanation unit>`.
@@ -193,9 +203,35 @@ requests per recipe**; uncertain attempts are never resent. Publication closes t
 stores the immutable admitted revision in the same production-root transaction. Research and model
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
 job after a crash. The operator's `content writer-spike-v2` runs the v2 writer (`scroll-authoring.v2`) on library recipes and reports; it admits and publishes nothing
-(S-0, D-120 to D-122). See [production/README.md](production/README.md) and the
+(S-0, D-120 to D-122). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
+(D-129, implemented; no recipe is marked yet). See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
+
+## Reading facts v3 and v2 delivery (D-128, D-129, D-130)
+
+Status: **implemented**; runtime-verified on real PostgreSQL with labelled fixtures, not yet on dev.
+
+- **Reading facts v3** (`adapters/reading-facts-v2.ts`, stored as `reading_facts` with `v: 3`): one unit
+  per stop and call, each with a rule for when it counts. Only read stops weigh (the weight the
+  document's own measures give them); a call weighs 0, so playing never stands in for reading and not
+  playing never blocks it. A read stop counts after 40 % of the time its words take at 230 words a minute
+  (never under the policy's half second). A call is seen when reported `locked` or `revealed`, never by
+  being on screen and never by the option picked, and is stored as engagement only; its ten seconds stay
+  in the reading estimate. The recap is not a unit. v1 facts (`v: 2`) and Reels are unchanged;
+  `ReadingFactsSchema` validates either on read.
+- **Provenance** (`scroll-provenance.v2`, `asset_provenance`): the claims a Scroll cites, their sources,
+  the production record and, for every stop, aside and the recap, the claims it cites. No new table.
+- **Delivery.** `renderScroll` parses a stored revision on the client path by its schema and serves a
+  v2 document whole to a client that declares `scroll-document.v2` (`cannot_render` otherwise).
+  Discovery (`readDiscoveryCandidates`) offers a client that cannot render a v2 current revision the
+  latest earlier v1 revision of the asset, or nothing. Exact reads, offers and links are never swapped.
+  Direct open of a v2 asset by an old client ends in the document read's `cannot_render`.
+  `renderableFormats`, region candidates and the Planner's capabilities accept either schema.
+  Keep position targets use a v2 Scroll's stop ids.
+- **Series total** (`readSeriesTotal`): the exposure context's `series.total` is the count of
+  `series_units` of the series revision (D-130).
+- **Planned.** Snippet anchors for v2 passages (`snippet-anchors.ts` is v1 only), the reader (S-1c).
 
 ## Discovery candidates and continuity
 

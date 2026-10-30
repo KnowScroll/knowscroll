@@ -104,6 +104,25 @@ describe('validateDocumentV2: the rules of scroll-limits.v2', () => {
     ).toContain('schema_too_big@stops');
   });
 
+  it('needs three read stops, because a facet binds to them and a Scroll of calls could never form a place', () => {
+    const withReads = (reads: number) =>
+      broken((document) => {
+        const reading = document.stops.filter((stop): stop is ReadStop => stop.kind === 'read').slice(0, reads);
+        const calls = document.stops.filter((stop) => stop.kind !== 'read');
+        // Six stops in all, so only the number of read stops varies; the calls are the fixture's, plus copies.
+        const extra = Array.from({ length: 6 - reads - calls.length }, (_, index) => ({
+          ...callIt(document, 1),
+          id: `c${index + 1}`,
+          commonGuess: undefined,
+        }));
+        document.stops = [...reading, ...extra, ...calls];
+        document.asides = [];
+        document.recap = { captions: document.recap.captions };
+      }, 'plain');
+    expect(withReads(2)).toContain('read_stops_too_few@stops');
+    expect(withReads(3)).not.toContain('read_stops_too_few@stops');
+  });
+
   it('holds stops to 60 words, lines to 12 and a heading to the top of the stop', () => {
     const result = broken((document) => {
       read(document, 0).blocks = [
