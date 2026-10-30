@@ -47,7 +47,7 @@ function documentLine(spikeId: string, result: SpikeResult): string | undefined 
 
 /**
  * `content writer-spike-v2 --topics <k1,k2,…> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]`:
- * runs the v14 writer (`scroll-authoring.v2`) on real library recipes through the production
+ * runs the v15 writer (`scroll-authoring.v2`) on real library recipes through the production
  * reasoning harness and reports what it cost and what was refused (S-0, D-120). It admits and
  * publishes nothing and creates no table: the only records are the harness's own run, attempts and
  * kept refused answers (`reasoning rejected`).

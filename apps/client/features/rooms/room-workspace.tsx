@@ -2,12 +2,15 @@ import { useGlobalSearchParams, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
+import type { RoomHere } from '@knowscroll/contracts';
 import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
 import { Tag, Text } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { ActivitiesSection } from './activities-section';
 import { PollCard } from './poll-card';
-import { MemberBody, RoomHeader, RULE_WORDS } from './room-screen';
+import { HereNow, HereStrip } from './here-strip';
+import { RULE_WORDS } from './room-parts';
+import { MemberBody, RoomHeader } from './room-screen';
 import { isRoomId } from './room-links';
 import { RoomWorkspaceContext } from './room-workspace-context';
 import { useRoom, useRoomActivities, useRoomActivity } from './use-room';
@@ -32,11 +35,20 @@ function InlinePoll({
 }
 
 /** D04's right pane: the room's optional activity, never more than a poll in place and a list. */
-function RoomExtras({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+function RoomExtras({
+  scope,
+  roomId,
+  here,
+}: {
+  readonly scope: AccountScope;
+  readonly roomId: string;
+  readonly here: RoomHere;
+}) {
   const { controller, state } = useRoomActivities(scope, roomId);
   const poll = state.activities.find((item) => item.kind === 'poll' && item.state === 'open');
   return (
     <View style={styles.extras} testID="room-extras">
+      <HereNow here={here} />
       <Text variant="monoXs" color={content.ink2}>
         Room extras
       </Text>
@@ -80,6 +92,7 @@ function Panes({
                 <Tag variant="onDark" label={RULE_WORDS[member.room.joinRule]} />
                 {member.hasModerator ? <Tag variant="onDark" label="Moderated" /> : null}
               </View>
+              <HereStrip here={member.here} lastMessageAt={member.lastMessageAt} />
             </RoomHeader>
             <MemberBody
               scope={scope}
@@ -92,7 +105,7 @@ function Panes({
           </ScrollView>
           <View style={styles.centre}>{children}</View>
           <ScrollView style={styles.right} contentContainerStyle={styles.rightContent}>
-            <RoomExtras scope={scope} roomId={roomId} />
+            {member === undefined ? null : <RoomExtras scope={scope} roomId={roomId} here={member.here} />}
           </ScrollView>
         </View>
       )}

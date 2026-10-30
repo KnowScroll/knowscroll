@@ -523,13 +523,23 @@ direct conversations and threads together; a thread row shows its people, the la
 
 ## Idea rooms (#245, D-051)
 
-Routes: `/rooms/<id>` (R01 preview before joining, R02 room list after) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
+Routes: `/rooms/<id>` (R01 preview before joining; for a member, the campfire: General under the room's band, v3 R-1) and `/rooms/<id>/t/<discussionId>` (R02 discussion).
 Talk (`/conversations`) lists the person's rooms and invitations under the conversations (D-006 o); a room has no tab.
 
-- `features/rooms/room-screen.tsx`: the dark room header, then either `PreviewBody` (who is here to help, the labelled
-  AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join) or `MemberBody`
-  (the discussions, pinned first; "Share into room" in `share-into-room-sheet.tsx`; moderator Pause and Resume; Leave).
-  No member, activity or online count is drawn anywhere.
+- `features/rooms/room-screen.tsx`: for an outsider, the dark room header and `PreviewBody` (who is here to help, the labelled
+  AI inhabitants, the pinned question, guidelines and Join, or the plain reason the person cannot join); no member, activity
+  or online count is drawn there. For a member on a phone it is `campfire.tsx` (v3 R-1, D-062, D-069, D-160, D-161): the dark
+  band (`CampfireHeader`: Back, the room's name that opens the room menu, "A room · 4 here" only from three people, the
+  faces of who has the room open in `here-strip.tsx`, and an honest "Quiet right now · last message 3 h ago" worked out on
+  the device), the AI notice (`ai-notice.tsx`) until the member taps "Got it", and General (`OpenDiscussion` of
+  `discussion-screen.tsx` with the band as its header). Everything else is behind the name in `room-menu.tsx`: About,
+  Guidelines, AI here (`ai-here.tsx`: Lively / Quieter / Off and "Keep my messages out of what AI reads"), Members with the
+  total, Pins, Topics, share into the room, polls and quizzes, a moderator's tools and Leave. `MemberBody` (topics list in
+  `topics-list.tsx`, with "Share into room" in `share-into-room-sheet.tsx`; moderator Pause and Resume in `room-parts.tsx`;
+  Leave) is D04's left rail, with General first, the member's AI settings and the member total. `useRoom` keeps the lease
+  (`setPresence` every 25 s while the room is open and visible, `away` when it closes) and listens for the room's hints
+  (`AccountScope.watchRoom`). The T3 paper, ink and glass tokens are not in `design-tokens` yet, so the band uses the
+  existing space tokens.
 - `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
   composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square

@@ -1,4 +1,4 @@
-import type { RoomListItem, RoomReports, RoomStation, RoomView } from '@knowscroll/contracts';
+import type { RoomAiLevel, RoomListItem, RoomReports, RoomStation, RoomView } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { talkFailure } from './talk-failure';
 
@@ -40,6 +40,14 @@ export type StartDiscussion =
 
 export type ModerateAction = { readonly kind: 'pause' } | { readonly kind: 'resume' };
 
+/** What a member changes about themselves in a room; each field on its own. */
+export interface RoomPreferencesChange {
+  readonly aiLevel?: RoomAiLevel;
+  readonly keepOut?: boolean;
+  /** The AI notice was read. */
+  readonly noticeSeen?: true;
+}
+
 export interface RoomState {
   /**
    * `preview`: the person is not a member (the view says what holds them back, if anything).
@@ -70,6 +78,16 @@ export interface RoomController {
   readonly startDiscussion: (start: StartDiscussion) => Promise<string | undefined>;
   /** A member invites a friend by their public person ID. */
   readonly invite: (friendPersonId: string) => Promise<boolean>;
+  /**
+   * Changes the member's own AI level, keep-out choice or notice mark. The room's own settings in the view change
+   * as soon as the server accepts it. Returns whether it was accepted.
+   */
+  readonly setPreferences: (change: RoomPreferencesChange) => Promise<boolean>;
+  /**
+   * Tells the room this device has it open (renews the lease that shows the member's face) or has closed it. Never
+   * changes what the screen shows and never reports a failure: a missed beat only lets the lease lapse.
+   */
+  readonly setPresence: (state: 'here' | 'away') => Promise<void>;
 }
 
 export interface RoomOptions {
@@ -180,6 +198,21 @@ export function createRoom(options: RoomOptions): RoomController {
         scope.api.rooms.invite({ version: VERSION, commandId, roomId, friendPersonId }),
       );
       return accepted !== undefined;
+    },
+    async setPreferences(change) {
+      const accepted = await command(`preferences:${JSON.stringify(change)}`, (commandId) =>
+        scope.api.rooms.preferences({ version: VERSION, commandId, roomId, ...change }),
+      );
+      if (accepted === undefined) return false;
+      if (state.view?.status === 'member') publish({ view: { ...state.view, you: accepted.you } });
+      return true;
+    },
+    async setPresence(presence) {
+      try {
+        await scope.api.rooms.presence({ version: VERSION, roomId, state: presence });
+      } catch {
+        // A beat that did not arrive costs nothing: the lease lapses by itself and the next beat renews it.
+      }
     },
   };
 }

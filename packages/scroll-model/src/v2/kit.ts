@@ -6,35 +6,36 @@ import { z } from '../zod.js';
  * can neither be malformed nor state a fact (D-120). One kit exists in this version, "Earth & sky":
  * the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, pins on the two hemispheres and
  * the Moon. Adding a kit means a new kit id, not a change to this one.
+ *
+ * The writer chooses only what a teacher would point at: the view, the month (where Earth is on
+ * its orbit), the Moon's phase and the part to look at. Everything physical follows from those by
+ * code (D-124): the tilt, which half leans toward the Sun, the pins and the angle of Ray. A stored
+ * state has no field in which a contradiction could be written.
  */
 export const EARTH_SKY_KIT = 'earth-sky.v1';
 
-/** Every key of a stage state and the values it may take. */
+/** The tilt of Earth's axis in every picture of the kit: fixed, and the same all year. */
+export const AXIAL_TILT_DEGREES = 23.4;
+
+/** Every key of a stage state and the values the writer may give it. */
 export const STAGE_ENUMS = {
-  /** What the picture is of. */
-  view: ['sun-earth', 'orbit', 'earth-close', 'moon-orbit', 'night-sky'],
-  /** Where Earth is on its orbit, by month. */
+  /**
+   * What the picture is of. `orbit` draws the orbit to scale (nearly a circle); `orbit-stretched`
+   * stretches it so that the nearest and farthest points show.
+   */
+  view: ['sun-earth', 'orbit', 'orbit-stretched', 'earth-close', 'moon-orbit'],
+  /** Where Earth is on its orbit, by month. March and September are the equinoxes, June and December the solstices. */
   earthAt: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
-  /** The lean of Earth's axis: as Earth's really is, straight up, or tipped right over on its side. */
-  axis: ['earth', 'upright', 'sideways'],
-  /** Ray the sunbeam: hidden, or striking the ground straight on, from high, or from low. */
-  ray: ['off', 'overhead', 'high', 'low'],
-  /** The orbit: hidden, drawn to scale (nearly a circle) or stretched so the nearest and farthest points show. */
-  orbit: ['hidden', 'to-scale', 'exaggerated'],
-  /** A pin in the northern half of Earth. */
-  northPin: ['off', 'warm', 'cool'],
-  /** A pin in the southern half of Earth. */
-  southPin: ['off', 'warm', 'cool'],
-  /** The Moon's phase as seen from Earth, or hidden. */
+  /** The Moon's phase, drawn only in `moon-orbit`; `off` draws the Moon without marking a phase. */
   moonAt: ['off', 'new', 'first-quarter', 'full', 'last-quarter'],
-  /** The part the picture draws the eye to. */
+  /** The part the picture draws the eye to, if the view draws it. */
   focus: ['none', 'sun', 'earth', 'moon', 'axis', 'ray', 'orbit', 'north-pin', 'south-pin'],
 } as const;
 
 export type StageKey = keyof typeof STAGE_ENUMS;
 export const STAGE_KEYS = Object.keys(STAGE_ENUMS) as readonly StageKey[];
 
-/** One complete stage state: every key has a value. */
+/** One complete stage state: every key has a value. What a stored document holds is always settled. */
 export type StageState = { readonly [Key in StageKey]: (typeof STAGE_ENUMS)[Key][number] };
 /** What a stop changes: the keys it names. The rest carry over from the previous state. */
 export type StagePatch = { readonly [Key in StageKey]?: (typeof STAGE_ENUMS)[Key][number] };
@@ -43,11 +44,6 @@ export type StagePatch = { readonly [Key in StageKey]?: (typeof STAGE_ENUMS)[Key
 export const INITIAL_STAGE_STATE: StageState = {
   view: 'sun-earth',
   earthAt: 'jun',
-  axis: 'earth',
-  ray: 'off',
-  orbit: 'hidden',
-  northPin: 'off',
-  southPin: 'off',
   moonAt: 'off',
   focus: 'none',
 };
@@ -55,11 +51,6 @@ export const INITIAL_STAGE_STATE: StageState = {
 export const StageStateSchema = z.strictObject({
   view: z.enum(STAGE_ENUMS.view),
   earthAt: z.enum(STAGE_ENUMS.earthAt),
-  axis: z.enum(STAGE_ENUMS.axis),
-  ray: z.enum(STAGE_ENUMS.ray),
-  orbit: z.enum(STAGE_ENUMS.orbit),
-  northPin: z.enum(STAGE_ENUMS.northPin),
-  southPin: z.enum(STAGE_ENUMS.southPin),
   moonAt: z.enum(STAGE_ENUMS.moonAt),
   focus: z.enum(STAGE_ENUMS.focus),
 });
@@ -75,12 +66,127 @@ export function applyStagePatch(previous: StageState, patch: StagePatch | undefi
   return next as StageState;
 }
 
-/** True when a patch changes at least one value of the previous state. */
-export function changesStage(previous: StageState, patch: StagePatch | undefined): boolean {
-  return patch !== undefined && STAGE_KEYS.some((key) => patch[key] !== undefined && patch[key] !== previous[key]);
+type StageView = StageState['view'];
+type StageMonth = StageState['earthAt'];
+
+/** The parts of the kit a picture may be made of. `season` stands for "the month matters here". */
+export type StagePart = 'sun' | 'earth' | 'axis' | 'orbit' | 'ray' | 'pins' | 'moon' | 'season';
+
+/** What each view draws. Anything else is never drawn, never described and never a focus. */
+const VIEW_PARTS: Readonly<Record<StageView, readonly StagePart[]>> = {
+  'sun-earth': ['sun', 'earth', 'axis', 'ray', 'pins', 'season'],
+  orbit: ['sun', 'earth', 'axis', 'orbit', 'pins', 'season'],
+  'orbit-stretched': ['sun', 'earth', 'axis', 'orbit', 'pins', 'season'],
+  'earth-close': ['earth', 'axis', 'ray', 'pins', 'season'],
+  'moon-orbit': ['sun', 'earth', 'moon'],
+};
+
+/** The parts a view draws. */
+export function stageParts(view: StageView): readonly StagePart[] {
+  return VIEW_PARTS[view];
 }
 
-const MONTH_NAMES: Readonly<Record<StageState['earthAt'], string>> = {
+const FOCUS_PART: Readonly<Record<StageState['focus'], StagePart | null>> = {
+  none: null,
+  sun: 'sun',
+  earth: 'earth',
+  moon: 'moon',
+  axis: 'axis',
+  ray: 'ray',
+  orbit: 'orbit',
+  'north-pin': 'pins',
+  'south-pin': 'pins',
+};
+
+/** The month a picture shows when the month does not matter to it, so that unseen differences are not counted as change. */
+const NEUTRAL_MONTH: StageMonth = 'mar';
+
+/**
+ * The state a view can really show. Values for parts the view does not draw are set aside: the
+ * month where the view has no seasons, the Moon's phase where it has no Moon, a focus on a part
+ * that is not there. Settling is idempotent, and code does it before a state is stored; a stored
+ * state that is not settled is refused.
+ */
+export function settleStageState(state: StageState): StageState {
+  const parts = stageParts(state.view);
+  const focusPart = FOCUS_PART[state.focus];
+  return {
+    view: state.view,
+    earthAt: parts.includes('season') ? state.earthAt : NEUTRAL_MONTH,
+    moonAt: parts.includes('moon') ? state.moonAt : 'off',
+    focus: focusPart === null || parts.includes(focusPart) ? state.focus : 'none',
+  };
+}
+
+/** How high the Sun stands for a hemisphere at noon, which sets both Ray's angle and the pin there. */
+export type SunHeight = 'high' | 'middle' | 'low';
+/** What a pin is marked: warm under a high Sun, cool under a low one. */
+export type PinMark = 'warm' | 'neutral' | 'cool';
+
+export interface HemispherePhysics {
+  readonly sunHeight: SunHeight;
+  readonly pin: PinMark;
+}
+
+/** What follows from a state by physics. Derived, never stored and never written by the model. */
+export interface StagePhysics {
+  readonly tiltDegrees: typeof AXIAL_TILT_DEGREES;
+  /** Which half of Earth leans toward the Sun in this month. */
+  readonly leansToward: 'north' | 'south' | 'neither';
+  readonly north: HemispherePhysics;
+  readonly south: HemispherePhysics;
+}
+
+/**
+ * How far the northern half leans toward the Sun in each month, in percent of the full tilt: the
+ * sine of the year, nil at the equinoxes (March, September) and greatest at the solstices (June,
+ * December). The southern half leans by the same amount the other way.
+ */
+export const NORTH_LEAN_PERCENT: Readonly<Record<StageMonth, number>> = {
+  jan: -87,
+  feb: -50,
+  mar: 0,
+  apr: 50,
+  may: 87,
+  jun: 100,
+  jul: 87,
+  aug: 50,
+  sep: 0,
+  oct: -50,
+  nov: -87,
+  dec: -100,
+};
+
+/** A half whose lean toward the Sun is at least this many percent of the full tilt has a high Sun (and a low one the other way). */
+const LEAN_THRESHOLD_PERCENT = 50;
+
+const PIN_FOR: Readonly<Record<SunHeight, PinMark>> = { high: 'warm', middle: 'neutral', low: 'cool' };
+const OPPOSITE: Readonly<Record<SunHeight, SunHeight>> = { high: 'low', middle: 'middle', low: 'high' };
+
+function sunHeightOfNorth(month: StageMonth): SunHeight {
+  const lean = NORTH_LEAN_PERCENT[month];
+  if (lean >= LEAN_THRESHOLD_PERCENT) return 'high';
+  if (lean <= -LEAN_THRESHOLD_PERCENT) return 'low';
+  return 'middle';
+}
+
+/**
+ * The physics of a state, from its month alone: Earth's tilt is always 23.4 degrees, the half that
+ * leans toward the Sun has a high Sun, a warm pin and a steep Ray, the other half the opposite, and
+ * at the equinoxes neither leans. Pure and total.
+ */
+export function stagePhysics(state: Pick<StageState, 'earthAt'>): StagePhysics {
+  const north = sunHeightOfNorth(state.earthAt);
+  const south = OPPOSITE[north];
+  return {
+    tiltDegrees: AXIAL_TILT_DEGREES,
+    leansToward: north === 'high' ? 'north' : north === 'low' ? 'south' : 'neither',
+    north: { sunHeight: north, pin: PIN_FOR[north] },
+    south: { sunHeight: south, pin: PIN_FOR[south] },
+  };
+}
+
+const MONTH_NAMES: Readonly<Record<StageMonth, string>> = {
   jan: 'January',
   feb: 'February',
   mar: 'March',
@@ -95,38 +201,20 @@ const MONTH_NAMES: Readonly<Record<StageState['earthAt'], string>> = {
   dec: 'December',
 };
 
-const VIEW_SENTENCE: Readonly<Record<StageState['view'], string>> = {
+const VIEW_SENTENCE: Readonly<Record<StageView, string>> = {
   'sun-earth': 'The Sun is on the left and Earth is on the right.',
-  orbit: 'Earth circles the Sun, seen from above.',
+  orbit: 'Earth circles the Sun, seen from above, on an orbit drawn to scale that looks almost like a circle.',
+  'orbit-stretched':
+    'Earth circles the Sun, seen from above, on an orbit stretched so that the nearest and farthest points show.',
   'earth-close': 'A close view of Earth.',
-  'moon-orbit': 'The Moon circles Earth.',
-  'night-sky': 'A view of the night sky.',
-};
-
-const AXIS_SENTENCE: Readonly<Record<StageState['axis'], string>> = {
-  earth: 'Earth’s axis leans, as it really does.',
-  upright: 'Earth’s axis stands straight up.',
-  sideways: 'Earth’s axis is tipped right over on its side.',
-};
-
-const RAY_SENTENCE: Readonly<Record<StageState['ray'], string>> = {
-  off: '',
-  overhead: 'Ray the sunbeam strikes the ground straight on.',
-  high: 'Ray the sunbeam arrives from high in the sky and covers a small patch of ground.',
-  low: 'Ray the sunbeam arrives at a low angle and spreads over a wide patch of ground.',
-};
-
-const ORBIT_SENTENCE: Readonly<Record<StageState['orbit'], string>> = {
-  hidden: '',
-  'to-scale': 'The orbit is drawn to scale, and looks almost like a circle.',
-  exaggerated: 'The orbit is stretched so that the nearest and farthest points show.',
+  'moon-orbit': 'The Moon circles Earth, lit by the distant Sun.',
 };
 
 const MOON_SENTENCE: Readonly<Record<StageState['moonAt'], string>> = {
   off: '',
   new: 'The Moon is new, between Earth and the Sun.',
   'first-quarter': 'The Moon is at first quarter, at right angles to the Sun.',
-  full: 'The Moon is full, on the far side of Earth from the Sun.',
+  full: 'The Moon is full, with Earth between it and the Sun.',
   'last-quarter': 'The Moon is at last quarter, at right angles to the Sun.',
 };
 
@@ -142,26 +230,49 @@ const FOCUS_SENTENCE: Readonly<Record<StageState['focus'], string>> = {
   'south-pin': 'The picture draws the eye to the pin in the south.',
 };
 
-const pinSentence = (side: 'north' | 'south', mark: StageState['northPin']): string =>
-  mark === 'off' ? '' : `A pin in the ${side} is marked ${mark}.`;
+const LEAN_SENTENCE: Readonly<Record<StagePhysics['leansToward'], string>> = {
+  north: 'The northern half leans toward the Sun and the southern half leans away from it.',
+  south: 'The southern half leans toward the Sun and the northern half leans away from it.',
+  neither: 'Neither half leans toward the Sun or away from it.',
+};
+
+const PIN_WORDS: Readonly<Record<PinMark, string>> = {
+  warm: 'marked warm',
+  neutral: 'marked neither warm nor cool',
+  cool: 'marked cool',
+};
+
+const pinSentence = (physics: StagePhysics): string =>
+  `A pin in the north is ${PIN_WORDS[physics.north.pin]}, and a pin in the south is ${PIN_WORDS[physics.south.pin]}.`;
+
+const RAY_WORDS: Readonly<Record<SunHeight, string>> = {
+  high: 'arrives from high in the sky and lands on a small patch of ground',
+  middle: 'arrives at a middling angle',
+  low: 'arrives at a low angle and spreads over a wide patch of ground',
+};
+
+const raySentence = (physics: StagePhysics): string =>
+  `In the north, Ray the sunbeam ${RAY_WORDS[physics.north.sunHeight]}. In the south, Ray ${RAY_WORDS[physics.south.sunHeight]}.`;
 
 /**
  * What a stage state shows, as sentences: the text version of a stage and its accessible name.
- * It is derived from the state alone and written by code, never by the model: the kit knows what
- * it draws, so the description cannot disagree with the picture or state a fact.
+ * It is derived by code from the state and the physics of its month, never written by the model,
+ * and it settles the state first, so it mentions only what the view draws and cannot disagree with
+ * the picture, state a fact the kit does not hold or describe a picture that is physically impossible.
  */
-export function describeStageState(state: StageState): string {
-  const orbitShown = state.view === 'orbit' || state.view === 'sun-earth';
-  const earthShown = state.view !== 'night-sky' && state.view !== 'moon-orbit';
+export function describeStageState(chosen: StageState): string {
+  const state = settleStageState(chosen);
+  const parts = stageParts(state.view);
+  const physics = stagePhysics(state);
+  const has = (part: StagePart): boolean => parts.includes(part);
   return [
     VIEW_SENTENCE[state.view],
-    orbitShown ? `Earth is where it is in ${MONTH_NAMES[state.earthAt]}.` : '',
-    earthShown ? AXIS_SENTENCE[state.axis] : '',
-    orbitShown ? ORBIT_SENTENCE[state.orbit] : '',
-    RAY_SENTENCE[state.ray],
-    pinSentence('north', state.northPin),
-    pinSentence('south', state.southPin),
-    MOON_SENTENCE[state.moonAt],
+    has('season') ? `The time of year is ${MONTH_NAMES[state.earthAt]}.` : '',
+    has('axis') ? `Earth’s axis is tilted by ${AXIAL_TILT_DEGREES} degrees and points the same way all year.` : '',
+    has('season') ? LEAN_SENTENCE[physics.leansToward] : '',
+    has('pins') ? pinSentence(physics) : '',
+    has('ray') ? raySentence(physics) : '',
+    has('moon') ? MOON_SENTENCE[state.moonAt] : '',
     FOCUS_SENTENCE[state.focus],
   ]
     .filter((sentence) => sentence !== '')

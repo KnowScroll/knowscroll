@@ -144,4 +144,60 @@ describe('a room on the client', () => {
     expect(await first).toBe(true);
     expect(scope.calls.filter((call) => call.name === 'leave')).toHaveLength(0);
   });
+  it('changes a member’s own settings and shows the new ones at once, without reading the room again', async () => {
+    const you = { aiLevel: 'quieter' as const, keepOut: true };
+    const scope = scopeOf({
+      read: () => Promise.resolve({ ...member, you: { aiLevel: 'lively', keepOut: false } }),
+      preferences: () => Promise.resolve({ you }),
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    expect(await controller.setPreferences({ aiLevel: 'quieter', keepOut: true })).toBe(true);
+    expect(controller.getState().view).toMatchObject({ you });
+    expect(scope.calls.filter((call) => call.name === 'read')).toHaveLength(1);
+    expect(scope.calls.find((call) => call.name === 'preferences')?.input).toMatchObject({
+      roomId,
+      aiLevel: 'quieter',
+      keepOut: true,
+    });
+  });
+
+  it('retries an unconfirmed settings change with the same command', async () => {
+    let attempts = 0;
+    const scope = scopeOf({
+      read: () => Promise.resolve(member),
+      preferences: () => {
+        attempts += 1;
+        return attempts === 1
+          ? Promise.reject(new TypeError('network'))
+          : Promise.resolve({ you: { aiLevel: 'off', keepOut: false } });
+      },
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    expect(await controller.setPreferences({ aiLevel: 'off' })).toBe(false);
+    expect(await controller.setPreferences({ aiLevel: 'off' })).toBe(true);
+    const commands = scope.calls
+      .filter((call) => call.name === 'preferences')
+      .map((call) => (call.input as { commandId: string }).commandId);
+    expect(commands[0]).toBe(commands[1]);
+  });
+
+  it('keeps the lease with plain here and away calls, and a missed beat changes nothing on screen', async () => {
+    let fail = false;
+    const scope = scopeOf({
+      read: () => Promise.resolve(member),
+      presence: () => (fail ? Promise.reject(unavailable()) : Promise.resolve({})),
+    });
+    const controller = createRoom({ scope, roomId, newId });
+    await controller.load();
+    await controller.setPresence('here');
+    fail = true;
+    await controller.setPresence('away');
+    expect(
+      scope.calls.filter((call) => call.name === 'presence').map((call) => (call.input as { state: string }).state),
+    ).toEqual(['here', 'away']);
+    // A refusal of a beat is not an answer about the room: the screen still shows it.
+    expect(controller.getState()).toMatchObject({ phase: 'member', offline: false, refused: false });
+  });
 });

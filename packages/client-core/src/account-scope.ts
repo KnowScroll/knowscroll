@@ -46,6 +46,8 @@ export interface ScopedStorage {
 /** A live connection the scope owns (the hint socket); closed first when the scope ends. */
 export interface ScopeConnection {
   close(): void;
+  /** The rooms whose hints this connection should receive; a connection opened later is told again by the scope. */
+  watchRooms?(roomIds: readonly string[]): void;
 }
 
 /** Opens the scope's hint socket (`account-scope-socket.ts`; a test double in tests). */
@@ -74,6 +76,12 @@ export interface AccountScope {
   onEnd?(listener: () => void): () => void;
   /** Query keys of this scope start with `['scope', id]`. */
   queryKey(...parts: readonly (string | number)[]): readonly (string | number)[];
+  /**
+   * Asks the hint socket for this room's hints (a message sent, someone arriving or leaving) until the returned
+   * function is called. Counted, so two screens of one room share one subscription, and kept across a reconnect.
+   * A hint only marks the room's queries stale; the screen rereads through HTTP. Without a socket it does nothing.
+   */
+  watchRoom(roomId: string): () => void;
   /** Closes and reopens the hint socket (after the server dropped it and the session still holds). */
   reconnect(): void;
   /**
@@ -208,6 +216,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
   const queryClient = options.queryClient ?? createQueryClient();
   let connection: ScopeConnection | undefined;
   const endListeners = new Set<() => void>();
+  const watchedRooms = new Map<string, number>();
   const api = createApiClient({
     baseUrl: options.baseUrl,
     fetch: fencedFetch({
@@ -242,12 +251,26 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
       };
     },
     queryKey: (...parts) => ['scope', id, ...parts],
+    watchRoom(roomId) {
+      watchedRooms.set(roomId, (watchedRooms.get(roomId) ?? 0) + 1);
+      connection?.watchRooms?.([...watchedRooms.keys()]);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        const left = (watchedRooms.get(roomId) ?? 1) - 1;
+        if (left <= 0) watchedRooms.delete(roomId);
+        else watchedRooms.set(roomId, left);
+        if (!ended.signal.aborted) connection?.watchRooms?.([...watchedRooms.keys()]);
+      };
+    },
     reconnect() {
       if (ended.signal.aborted) return;
       void scope.recording?.refresh();
       if (options.connect === undefined) return;
       connection?.close();
       connection = options.connect(scope);
+      connection.watchRooms?.([...watchedRooms.keys()]);
     },
     end() {
       if (ended.signal.aborted) return;
@@ -261,6 +284,7 @@ export function createAccountScope(options: AccountScopeOptions): AccountScope {
       endListeners.clear();
       connection?.close();
       connection = undefined;
+      watchedRooms.clear();
       ended.abort(new ScopeEndedError());
       void queryClient.cancelQueries();
       queryClient.clear();

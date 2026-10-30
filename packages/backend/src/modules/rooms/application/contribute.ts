@@ -156,5 +156,7 @@ async function applyVerdict(
         attemptId: verdict.attemptId,
       },
     });
+    // The room's members read the new message within seconds, not at the next poll.
+    await p.rooms.announce(found.lock, at);
   });
 }

@@ -66,7 +66,7 @@ describe('idea rooms (real PostgreSQL)', () => {
         .execute();
       expect(seeded).toHaveLength(seeds.length);
       const roomIds = seeded.map((row) => row.room_id);
-      for (const table of ['members', 'invitations', 'discussions', 'ai_requests'] as const) {
+      for (const table of ['members', 'invitations', 'ai_requests'] as const) {
         const rows = await world.db
           .selectFrom(`rooms.${table}`)
           .select('room_id')
@@ -74,6 +74,16 @@ describe('idea rooms (real PostgreSQL)', () => {
           .execute();
         expect(rows, table).toEqual([]);
       }
+      // The only thing a seeded room holds besides itself is an empty General with no starter.
+      const discussions = await world.db
+        .selectFrom('rooms.discussions')
+        .select(['discussion_id', 'kind', 'title', 'started_by_account_id', 'last_sequence'])
+        .where('room_id', 'in', roomIds)
+        .execute();
+      expect(discussions).toHaveLength(seeds.length);
+      for (const discussion of discussions)
+        expect(discussion).toMatchObject({ kind: 'general', title: 'General', started_by_account_id: null });
+      expect(discussions.map((discussion) => Number(discussion.last_sequence))).toEqual(discussions.map(() => 0));
     });
 
     it('label their AI inhabitants and give a visitor no member, activity or online count', async () => {

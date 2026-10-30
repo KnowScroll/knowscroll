@@ -485,7 +485,7 @@ A header like v1's (`assetId`, `revision`, `language`, `explanationUnitId`, `ser
 | Field | Set by | Meaning |
 |---|---|---|
 | `misconception` | the recipe, by code | `{kind: 'myth', claim, source: {label, reviewed}}` or `{kind: 'none'}`. The source is a human-reviewed label, never model text. |
-| `stage` (optional) | the model's words, built by code | `{kit: 'earth-sky.v1', states[{stop, state, alt}]}`: the stops that change the picture. `alt` is derived from the state by code. A plain Scroll has none. |
+| `stage` (optional) | the model's choices, settled by code | `{kit: 'earth-sky.v1', states[{stop, state, alt}]}`: the read stops that change the picture. `state` is `{view, earthAt, moonAt, focus}`, settled to what the view draws. Tilt, pins and Ray are derived from it and never stored. `alt` is derived by code. A plain Scroll has none. |
 | `stops[]` | the model | `read` (optional heading, paragraph, optional line; `simple`), `call_it` (prompt, 2 or 3 options, `answer`, `explain`, `twist`, optional `commonGuess`, `simple`) and `final_call` (the same without a common guess). Ids `s1`, `s2`, … by code. |
 | `asides[]` | the model | `tangent`, `limits` or `definition`, with `anchorStop` (the stop it opens next to) and `collapsed`. |
 | `recap` | the model | Up to 3 captions and `smallPrintAside`, the limits aside the "Small print" chip links to. |
@@ -503,7 +503,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `paragraph` | kept | implemented, inside a stop |
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
-| `stage` | new | model implemented (Earth & sky kit); stage engine and drawing kit planned (S-1) |
+| `stage` | new | model implemented (Earth & sky kit; the physics is derived by code, D-124); stage engine and drawing planned (S-1b) |
 | `call_it` | new | implemented as a stop; locking in, sparks and the Plot twist reveal are play, planned (S-2) |
 | `final_call` | new | implemented as the last stop; `binding` to a simulation, `bonus` and `landmark` planned (S-3) |
 | `recap` | new | implemented |
@@ -520,8 +520,8 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | Stops and calls | 6 to 14 | `stops_too_few`, `schema_too_big` |
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
-| Stage | at most 1; at least 3 states, the first on the first stop, in stop order | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered` |
-| Calls, Final call included | at most 4; at least one Call it; exactly one Final call, the last stop | `call_budget_exceeded`, `call_it_missing`, `final_call_missing`, `final_call_misplaced` |
+| Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
+| Calls, Final call included | at most 4; at least one Call it; exactly one Final call, the last stop, whose question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `call_it_missing`, `final_call_missing`, `final_call_misplaced`, `final_call_restates_call` |
 | Other interactives | at most 2 (none is built; a constant only) | n/a |
 | Limits aside | at least one, anchored before the Final call, linked from the recap | `limits_aside_missing`, `limits_aside_last`, `recap_small_print_unknown` |
 | Common guess | only the first Call it of a myth Scroll; a wrong option; the recipe's source | `common_guess_missing`, `common_guess_invalid`, `common_guess_unexpected` |
@@ -532,14 +532,30 @@ What counts as a word, and what does not (`simple` texts), is in D-121. `validat
 
 ### The kit
 
-`EARTH_SKY_KIT` (`earth-sky.v1`) is the closed set of words a writer may use for a stage: `view`, `earthAt` (a month), `axis`, `ray`, `orbit`, `northPin`, `southPin`, `moonAt` and `focus`. `describeStageState` writes the text version of any state; a property test checks that it is plain and bounded for every state.
+`EARTH_SKY_KIT` (`earth-sky.v1`) is the one kit: the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in each hemisphere and the Moon. A writer chooses only four things, from closed word lists (D-124):
+
+| Key | Words |
+|---|---|
+| `view` | `sun-earth`, `orbit` (to scale), `orbit-stretched`, `earth-close`, `moon-orbit` |
+| `earthAt` | the month, `jan` to `dec` (March and September are the equinoxes, June and December the solstices) |
+| `moonAt` | `off`, `new`, `first-quarter`, `full`, `last-quarter`; only the Moon view has a Moon |
+| `focus` | `none`, or a part the view draws |
+
+Code derives the rest, by `stagePhysics` and `settleStageState`:
+
+- Earth's tilt is 23.4 degrees in every picture. There is no word for a different one.
+- A table of the lean toward the Sun by month (the sine of the year) says which half leans toward it. That half has a high Sun, a warm pin and a steep Ray; the other half the opposite; at the equinoxes neither leans and both pins are neutral.
+- `settleStageState` sets aside what the view does not draw: the month where the view has no seasons, a Moon phase where there is no Moon, a focus on a part that is not there. `stageParts(view)` lists what each view draws.
+- `describeStageState` writes the text version and accessible name from the settled state, so it cannot contradict the picture.
+
+Properties tested for every month and view: the pins and Ray agree with the season of each hemisphere (against the noon Sun height computed in the test), the halves mirror six months apart, and no description says the axis is on its side. A call never carries a stage state. Which recipes get a stage is recipe data, not the kit's: see `stageKit` in the content module's library plan (D-125).
 
 ### The writer's shape (`./producer`)
 
-`scroll-authoring.v2` is one flat list of `items` (`stop`, `call_it`, `final_call`, `aside`) plus `recap` and `askSuggestions`: no ids, no indexes, the correct option first, an aside after the item it belongs to, and a stage patch of enum words.
+`scroll-authoring.v2` is one flat list of `items` (`stop`, `call_it`, `final_call`, `aside`) plus `recap` and `askSuggestions`: no ids, no indexes, the correct option first (and, in the first `call_it` of a myth Scroll, the wrong option that states the myth second: code marks it as the common guess, so there is no number to count, D-126), an aside after the item it belongs to, and a stage patch of the four choices above on stops only.
 
 - `assembleScrollV2` turns it into the document, deterministically.
-- `compileAuthoredV2` runs the authoring rules (citations and figures, copying, where an aside sits, the common guess against the recipe's myth, the stage against the recipe's variant), assembles, runs `validateDocumentV2`, and returns the document with the claims each part cites, or merged findings located at the writer's items.
+- `compileAuthoredV2` runs the authoring rules (citations and figures, copying, where an aside sits, the stage against the recipe's variant, and that a stage Scroll never calls Earth's axis sideways: `earth_axis_sideways`), assembles, runs `validateDocumentV2`, and returns the document with the claims each part cites, or merged findings located at the writer's items.
 - `REPAIR_HINTS_V2` is the repair catalogue. It is its own because the v1 catalogue is near the harness's limit of 128 codes.
 - `authoringReferenceV2(variant)` is the prompt's description of the shape, built from the same tables as the schema.
 
@@ -576,7 +592,7 @@ Vitest with fast-check property tests, run in GitHub Actions only (D-010). They 
 - **Completeness of the text enumeration (`text-fields.test.ts`):** built from the block schema itself, it plants a marker in every free-text property of every block type and union branch and requires `textFields` to return it, so no text escapes the visible-text limit, the numeric check or the copy check.
 - **Locale (`locale.test.ts`):** formatting and every fixture's integrity hash are unchanged when the runtime's locale-sensitive built-ins are replaced, and the package's own code uses none.
 - **Display scale (`display.test.ts`):** the stored scale equals a brute-force scale over every grid point (fixtures, and generated simulations of every view); it is refused in a draft; admission refuses a scale that is not the one the grid gives and the hash covers it; the client path refuses a missing, non-finite, non-positive, inverted or wrong-kind display and reads the stored value; the public entry exports no scale, range or sweep function.
-- **`scroll-document.v2` (`v2/*.test.ts`, `producer/v2/*.test.ts`):** every rule of the limits, the structure and the authoring checks has a case that breaks it and expects its code at the writer's item; a property test on the stage descriptions over every state; property tests on the option shuffle (the correct option is found where it went, the common guess follows it, the order is stable and not always the same); compile is deterministic; the measures hold 230 words a minute plus ten seconds a call.
+- **`scroll-document.v2` (`v2/*.test.ts`, `producer/v2/*.test.ts`):** every rule of the limits, the structure and the authoring checks has a case that breaks it and expects its code at the writer's item; a property test on the stage descriptions over every state; property tests on the option shuffle (the correct option is found where it went, the common guess follows it, the order is stable and not always the same); compile is deterministic; the measures hold 230 words a minute plus ten seconds a call. **Stage physics (`v2/kit.test.ts`):** every state of every view and month is settled, described and bounded; June and December are opposite seasons and March and September neutral; the lean table is the sine of the year; pins and Ray follow an independent noon-Sun calculation; the halves mirror; no description says the axis is on its side. **Earth's axis (`producer/v2/compile.test.ts`):** a sentence of a stage Scroll that joins "sideways" or "on its side" to the axis, lean or tilt is refused at the writer's item; the same words in a plain Scroll, or in another sentence, are not. **Restatement (`v2/similarity.test.ts`, `v2/validate.test.ts`):** a near-copy of an earlier call's question or answer is refused, a different question passes. **Common guess (`producer/v2/compile.test.ts`):** a two-option myth call whose second option states the myth passes, and the old numeric key is refused by the schema.
 - **Rulings (`rulings.test.ts`):** no chart "inspect" interaction or glyph, one `explanationUnitId` with an optional series reference, no stored fallback text on text blocks.
 
 `csp.test.ts` checks cold schema construction and the first parse with dynamic code generation refused, including the code-generation probe itself. The existing admission/client timing budgets run with the same jitless configuration.

@@ -194,3 +194,10 @@ replaced so Undo of a second tap restores it), `feedback.reports` (account-keyed
 a deleted account loses its pointer to the person and carries `retain_until`, 90 days after the deletion, for the
 `feedback.purge-reports` job) and the `ops.feedback_reports` view.
 Additive; no earlier writer. The queue `feedback.purge-reports` is registered by the migrate command with the others.
+
+0069 is the room as a place (v3 R-1, #487, D-062, D-069, D-160, D-161): `rooms.discussions.kind` (`general`, `topic`, `today`; one `general`
+per room by a partial unique index; every existing room gets an empty General, every existing discussion is a `topic`),
+`rooms.members.ai_level` / `keep_out` / `notice_seen_at` (existing members get Lively in an open room and Quieter in any other, nothing
+kept out, the AI notice unread) and `rooms.room_presence` (one lease row per member who has the room open, account-keyed, read
+only while under a minute old). Additive with defaults; an older writer leaves `kind` as `topic` and the settings at their defaults.
+Apply with the new binary; the generated database types change by the same columns and table.

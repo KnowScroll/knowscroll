@@ -31,6 +31,7 @@ import {
   roomWorld,
   say,
   seedRoom,
+  setPresence,
   startPoll,
   startTopic,
   unwrap,
@@ -367,6 +368,8 @@ describe('account deletion (real database)', () => {
       try {
         const room = await seedRoom(rooms);
         unwrap(await joinRoom(rooms, erasedAsFriend, room.roomId));
+        // They have the room open: a presence lease.
+        unwrap(await setPresence(rooms, erasedAsFriend, room.roomId));
         const discussionId = await startTopic(rooms, erasedAsFriend, room.roomId, 'A discussion the person started');
         unwrap(await say(rooms, erasedAsFriend, room.roomId, discussionId, 'words in a room by the deleted person'));
         unwrap(

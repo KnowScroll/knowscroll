@@ -75,8 +75,18 @@ const member = (patch: Partial<Member> = {}): Member => ({
   role: 'member',
   hasModerator: false,
   inhabitants,
+  general: {
+    discussionId: id(5),
+    kind: 'general',
+    title: 'General',
+    pinned: false,
+    lastActivityAt: '2026-10-24T08:00:00.000Z',
+  },
   discussions: [],
   canPost: true,
+  you: { aiLevel: 'lively', keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' },
+  here: { faces: [] },
+  memberTotal: 3,
   ...patch,
 });
 const roomState = (patch: Partial<RoomState> = {}): RoomState => ({
@@ -158,9 +168,16 @@ describe('a room as a member (R02)', () => {
   const scope = {} as AccountScope;
   beforeEach(() => mockActivities.mockReturnValue(activitiesState()));
   const discussions = [
-    { discussionId: id(10), title: 'Offline inference', pinned: false, lastActivityAt: '2026-10-24T08:00:00.000Z' },
+    {
+      discussionId: id(10),
+      kind: 'topic' as const,
+      title: 'Offline inference',
+      pinned: false,
+      lastActivityAt: '2026-10-24T08:00:00.000Z',
+    },
     {
       discussionId: id(11),
+      kind: 'topic' as const,
       title: 'What one answer costs to serve',
       pinned: true,
       lastActivityAt: '2026-10-24T07:00:00.000Z',

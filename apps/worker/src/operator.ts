@@ -42,7 +42,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  *   reel check|order|follow|receive|status|write-off|settle  Reels from Cutroom (reel-operator.ts, docs/v2/operations/cutroom-and-spend.md)
  *   journey <id> | journey --account <accountId> [--json]    one record's journey across modules (journey-operator.ts, docs/v2/operations/looking-at-the-system.md)
  *   rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]   idea rooms, one per library system (rooms-operator.ts)
- *   content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]   the v14 writer on real recipes; admits and publishes nothing (writer-spike-operator.ts, S-0)
+ *   content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]   the v15 writer on real recipes; admits and publishes nothing (writer-spike-operator.ts, S-0)
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
  * MiniMax offers no request lookup: an `unknown` attempt is never resent; a write-off records the

@@ -22,10 +22,8 @@ describe('the inhabitant bar', () => {
   it('shows each inhabitant with its label and asks only when the person presses Ask', async () => {
     const { onAsk } = await show(status('available'));
     expect(screen.getByText(/speak when someone asks/)).toBeOnTheScreen();
-    // What asking does is said before it is done.
-    expect(
-      screen.getByText('Asking sends this discussion’s recent messages, without names, to an AI model.'),
-    ).toBeOnTheScreen();
+    // What asking sends is said once, on joining, and then in the room menu: not on every visit.
+    expect(screen.queryByText(/without names/)).not.toBeOnTheScreen();
     expect(screen.getByRole('text', { name: 'AI, Explainer' })).toBeOnTheScreen();
     expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Ask AI, Skeptic' }));
