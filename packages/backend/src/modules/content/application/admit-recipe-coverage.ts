@@ -1,6 +1,6 @@
 import type { CoverageCommand, CoverageRef } from '../domain/coverage.js';
 import type { LibraryRecipe } from '../domain/library/plan.js';
-import { planRecipeCoverage, RECIPE_COVERAGE_RULE, type RecipeCoveragePlan } from '../domain/recipe-coverage.js';
+import { planRecipeCoverage, type RecipeCoveragePlan } from '../domain/recipe-coverage.js';
 import { appendCoverageHead } from './admit-coverage.js';
 import type { CoverageHead, CoverageHeadPorts } from './coverage-ports.js';
 import type { AdmissionTx } from './ports.js';
@@ -45,7 +45,7 @@ export async function admitRecipeCoverage(
     assetId: ref.assetId,
     assetRevision: ref.assetRevision,
     expectedHeadRevision: previous?.authority.headRevision ?? 0,
-    semanticReviewReference: `${RECIPE_COVERAGE_RULE}:${recipe.explanationUnitId}`,
+    semanticReviewReference: `${plan.rule}:${recipe.explanationUnitId}`,
     change: { kind: 'admit', mapping: plan.mapping },
   };
   const head = await appendCoverageHead(p, tx, command, target, previous);

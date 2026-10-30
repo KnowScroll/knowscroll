@@ -347,3 +347,4 @@ export {
   type ReportStep,
   type ReportedPerson,
 } from './feedback-flow';
+export { parseDocumentV2, parseScrollDocument, type ParsedScrollDocument } from './scroll-document';

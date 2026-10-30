@@ -1,4 +1,5 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
+import { SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
@@ -14,7 +15,7 @@ import {
   type ScrollProductionReading,
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
-import { SCROLL_PRODUCTION_VERSION } from '../production/topics.js';
+import { productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
 
 type Queryable = Kysely<Database> | Transaction<Database>;
 
@@ -27,7 +28,9 @@ interface RunRow {
 /**
  * Every named recipe's production standing: its Scroll is admitted, its jobs at the current recipe
  * version are running, rejected (and may be taken again) or ended for good, or nothing has happened.
- * Reads shared, nonpersonal tables only.
+ * A recipe the plan marks `scrollV2` is published only once its current revision is a v2 document: a
+ * v1 Scroll admitted earlier does not satisfy it, so the recipe is produced again as a new revision
+ * (D-129). Reads shared, nonpersonal tables only.
  */
 export async function readLibraryStatus(
   db: Queryable,
@@ -36,19 +39,24 @@ export async function readLibraryStatus(
   if (recipes.length === 0) return [];
   const runs = (
     await sql<RunRow>`select topic, state, outcomes from content.scroll_production_runs
-      where policy_version = ${SCROLL_PRODUCTION_VERSION} and topic in (${sql.join(recipes)})
+      where (topic, policy_version) in (${sql.join(recipes.map((recipe) => sql`(${recipe}, ${productionVersionOf(recipe)})`))})
       order by topic, take`.execute(db)
   ).rows;
   const assetIds = recipes.map((recipe) => RECIPES[recipe].assetId);
   const assets = await db
-    .selectFrom('content.assets')
-    .select(['id', 'status', 'revision'])
-    .where('id', 'in', assetIds)
+    .selectFrom('content.assets as asset')
+    .leftJoin('content.asset_revisions as current', (join) =>
+      join.onRef('current.asset_id', '=', 'asset.id').onRef('current.revision', '=', 'asset.revision'),
+    )
+    .select(['asset.id', 'asset.status', 'asset.revision', 'current.document_version'])
+    .where('asset.id', 'in', assetIds)
     .execute();
   return recipes.map((recipe) => {
     const jobs = runs.filter((run) => run.topic === recipe);
     const asset = assets.find((row) => row.id === RECIPES[recipe].assetId);
-    const admitted = asset?.status === 'admitted';
+    const admitted =
+      asset?.status === 'admitted' &&
+      (scrollV2PlanOf(recipe) === undefined || asset.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
     const latest = jobs.at(-1);
     return {
       recipe,

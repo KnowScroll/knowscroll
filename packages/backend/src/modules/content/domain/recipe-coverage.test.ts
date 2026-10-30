@@ -119,3 +119,64 @@ describe('recipe coverage rule (synthetic targets, no stored data)', () => {
     expect(() => validateCoverageMapping(plan.mapping, target, catalogue)).not.toThrow();
   });
 });
+
+describe('recipe coverage rule v2 (the units of a scroll-document.v2)', () => {
+  const unit = (id: string, type: string, overrides: Partial<Block> = {}) => body(id, { type, ...overrides });
+  /** Eight stops with a call after the second, the fourth and the last, as a v2 Scroll is laid out. */
+  const units = [
+    unit('s1', 'stop'),
+    unit('s2', 'call_it'),
+    unit('s3', 'stop'),
+    unit('s4', 'stop'),
+    unit('s5', 'call_it'),
+    unit('s6', 'stop'),
+    unit('s7', 'stop'),
+    unit('s8', 'stop'),
+    unit('s9', 'final_call'),
+  ];
+  const v2Target = (blocks: readonly Block[]): CoverageTarget => ({
+    ...targetOf(blocks),
+    readingFactsVersion: 3,
+  });
+
+  it('binds the first, middle and last read stop, and never a call', () => {
+    const plan = planRecipeCoverage(recipe, v2Target(units), catalogue);
+    if (plan.kind !== 'planned') throw new Error('expected a plan');
+    expect(plan.rule).toBe('scroll-recipe-coverage.v2');
+    expect(plan.mapping.readingFactsVersion).toBe(3);
+    // Eligible stops are s1, s3, s4, s6, s7 and s8: first s1, middle s4, last s8.
+    expect(plannedBindings(plan)[0]?.requiredBlockIds).toEqual(['s1', 's4', 's8']);
+  });
+
+  it('keeps the v1 rule and label for a v1 target', () => {
+    const plan = planRecipeCoverage(recipe, targetOf(sixBodyBlocks), catalogue);
+    if (plan.kind !== 'planned') throw new Error('expected a plan');
+    expect(plan.rule).toBe('scroll-recipe-coverage.v1');
+    expect(plan.mapping.readingFactsVersion).toBe(2);
+  });
+
+  it('needs the same three bound units, counted over stops that have documented claims', () => {
+    const fewStops = [unit('s1', 'stop'), unit('s2', 'call_it'), unit('s3', 'stop'), unit('s4', 'final_call')];
+    expect(planRecipeCoverage(recipe, v2Target(fewStops), catalogue)).toEqual({
+      kind: 'refused',
+      code: 'too_few_body_blocks',
+    });
+    const unsupported = units.map((block) => (block.type === 'stop' ? { ...block, truthSupported: false } : block));
+    expect(planRecipeCoverage(recipe, v2Target(unsupported), catalogue)).toEqual({
+      kind: 'refused',
+      code: 'too_few_body_blocks',
+    });
+  });
+
+  it('admits only mappings that name stops: a binding to a call is refused', () => {
+    const target = v2Target(units);
+    const plan = planRecipeCoverage(recipe, target, catalogue);
+    if (plan.kind !== 'planned') throw new Error('expected a plan');
+    expect(() => validateCoverageMapping(plan.mapping, target, catalogue)).not.toThrow();
+    const onCall = {
+      ...plan.mapping,
+      bindings: [{ ...plan.mapping.bindings[0]!, requiredBlockIds: ['s2', 's4', 's8'] }],
+    };
+    expect(() => validateCoverageMapping(onCall, target, catalogue)).toThrow('CONTENT_COVERAGE_LOCATOR_INVALID');
+  });
+});

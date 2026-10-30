@@ -1,7 +1,7 @@
 import { sql, type Transaction } from 'kysely';
 import { z } from 'zod';
-import { parseDocument } from '@knowscroll/scroll-model';
-import { ScrollProvenance } from '@knowscroll/scroll-model/internal';
+import { parseDocument, parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION } from '@knowscroll/scroll-model';
+import { ScrollProvenance, ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import { MINIMAX_MODELS } from '../../../infrastructure/config/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { productionTransactionOf } from '../../../infrastructure/postgres/index.js';
@@ -15,7 +15,15 @@ import { inAdmissionTransaction } from '../adapters/postgres-store.js';
 import { admitRecipeCoverage } from '../application/admit-recipe-coverage.js';
 import { validateTopics } from '../domain/discovery.js';
 import { WRITER_PROMPT_VERSION } from './writer.js';
-import { explanationUnitFor, parseScrollTopic, SCROLL_PRODUCTION_VERSION, TOPICS, type ScrollTopic } from './topics.js';
+import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
+import {
+  explanationUnitFor,
+  parseScrollTopic,
+  PRODUCTION_VERSIONS,
+  productionVersionOf,
+  TOPICS,
+  type ScrollTopic,
+} from './topics.js';
 
 const ATTRIBUTION_VERSION = 'published-scroll-brief-taxonomy.v1';
 const SENT_STEP = /^(primary|repair)(\.[1-9])?$/;
@@ -73,6 +81,7 @@ async function readPublishedRevision(
     )
     .select([
       'job.topic',
+      'job.policy_version',
       'job.target_revision',
       sql<boolean>`job.claims is not null`.as('claims_present'),
       sql<boolean>`job.writer_output is not null`.as('writer_output_present'),
@@ -88,7 +97,7 @@ async function readPublishedRevision(
     ])
     .where('job.id', '=', jobId)
     .where('job.state', '=', 'published')
-    .where('job.policy_version', '=', SCROLL_PRODUCTION_VERSION)
+    .where('job.policy_version', 'in', PRODUCTION_VERSIONS)
     .where('job.writer_run_id', '=', writerRunId)
     .where('job.scope_generation', '=', generation)
     .where('revision.provenance_kind', '=', 'generated')
@@ -108,26 +117,72 @@ function matchesRecipe(row: PublishedRevisionRow, writerRunId: string) {
     row.explanation_unit_id !== explanationUnitFor(topic)
   )
     return undefined;
-  const document = parseDocument(row.document);
-  const provenance = ScrollProvenance.safeParse(row.provenance);
-  if (document.kind !== 'valid' || !provenance.success) return undefined;
-  const production = provenance.data.production;
+  const stored = storedLineage(row);
+  if (stored === undefined) return undefined;
+  const { production } = stored;
   if (
-    document.document.schemaVersion !== row.document_version ||
-    provenance.data.schemaVersion !== row.provenance_version ||
-    document.document.assetId !== row.asset_id ||
-    document.document.revision !== row.revision ||
-    document.document.explanationUnitId !== row.explanation_unit_id ||
-    document.document.integrity.sha256 !== row.document_sha256 ||
-    provenance.data.assetId !== row.asset_id ||
-    provenance.data.revision !== row.revision ||
-    provenance.data.documentSha256 !== row.document_sha256 ||
+    row.policy_version !== productionVersionOf(topic) ||
+    stored.schemaVersion !== row.document_version ||
+    stored.provenanceVersion !== row.provenance_version ||
+    stored.assetId !== row.asset_id ||
+    stored.revision !== row.revision ||
+    stored.explanationUnitId !== row.explanation_unit_id ||
+    stored.documentSha256 !== row.document_sha256 ||
+    stored.provenanceAssetId !== row.asset_id ||
+    stored.provenanceRevision !== row.revision ||
+    stored.provenanceDocumentSha256 !== row.document_sha256 ||
     production.kind !== 'model' ||
     production.runId !== writerRunId ||
-    production.promptVersion !== WRITER_PROMPT_VERSION
+    production.promptVersion !== (stored.v2 ? WRITER_V2_PROMPT_VERSION : WRITER_PROMPT_VERSION)
   )
     return undefined;
   return { topic, production };
+}
+
+/** The identity a stored document and its provenance state, whichever schema the revision has. */
+function storedLineage(row: PublishedRevisionRow) {
+  if (row.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION) {
+    const document = parseDocumentV2(row.document);
+    const provenance = ScrollProvenanceV2.safeParse(row.provenance);
+    if (document.kind !== 'valid' || !provenance.success) return undefined;
+    return lineageOf(document.document, provenance.data, true);
+  }
+  const document = parseDocument(row.document);
+  const provenance = ScrollProvenance.safeParse(row.provenance);
+  if (document.kind !== 'valid' || !provenance.success) return undefined;
+  return lineageOf(document.document, provenance.data, false);
+}
+
+function lineageOf(
+  document: {
+    schemaVersion: string;
+    assetId: string;
+    revision: number;
+    explanationUnitId: string;
+    integrity: { sha256: string };
+  },
+  provenance: {
+    schemaVersion: string;
+    assetId: string;
+    revision: number;
+    documentSha256: string;
+    production: z.infer<typeof ScrollProvenance>['production'];
+  },
+  v2: boolean,
+) {
+  return {
+    v2,
+    schemaVersion: document.schemaVersion,
+    assetId: document.assetId,
+    revision: document.revision,
+    explanationUnitId: document.explanationUnitId,
+    documentSha256: document.integrity.sha256,
+    provenanceVersion: provenance.schemaVersion,
+    provenanceAssetId: provenance.assetId,
+    provenanceRevision: provenance.revision,
+    provenanceDocumentSha256: provenance.documentSha256,
+    production: provenance.production,
+  };
 }
 
 /** The job's single writer receipt names exactly the sent attempts the harness accounted. */
@@ -294,7 +349,7 @@ export async function completeWriterPublication(
     .select('id')
     .where('id', '=', jobId)
     .where('state', '=', 'writer')
-    .where('policy_version', '=', SCROLL_PRODUCTION_VERSION)
+    .where('policy_version', 'in', PRODUCTION_VERSIONS)
     .where('scope_generation', '=', scope.authority.generation)
     .where('writer_run_id', '=', writerRunId)
     .forUpdate()

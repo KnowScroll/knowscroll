@@ -2,6 +2,15 @@ import { intersectIntervals, intervalsLength, mergeIntervals, type Interval } fr
 import type { ScrollQualificationPolicy } from './policy.js';
 
 /**
+ * How one block counts as seen (content's `SeenRule`, structurally): visible for at least its own
+ * minimum while the article was active, or reported with one of a few value-free interactions (a
+ * call locked in or revealed). The option a reader picked is not among them.
+ */
+export type SeenRule =
+  | { readonly kind: 'visible'; readonly minVisibleMs: number }
+  | { readonly kind: 'interaction'; readonly interactions: readonly string[] };
+
+/**
  * The reading facts of one Scroll revision as qualification needs them (provided by content,
  * derived from the document's code-set measures): the weight of each top-level block, which
  * top-level block owns each nested block, and the reading estimate. A plain structural copy of
@@ -10,8 +19,13 @@ import type { ScrollQualificationPolicy } from './policy.js';
 export interface ReadingFacts {
   readonly totalWeight: number;
   readonly estimatedReadingMs: number;
-  /** Top-level blocks in document order. */
-  readonly blocks: readonly { readonly id: string; readonly weight: number }[];
+  /** Top-level blocks in document order (for a v2 document, its stops and calls). */
+  readonly blocks: readonly {
+    readonly id: string;
+    readonly weight: number;
+    /** How the block comes to count as seen; absent means the policy's own visibility minimum. */
+    readonly seen?: SeenRule;
+  }[];
   /** Blocks nested in a disclosure, with their owning top-level block. */
   readonly nested: readonly { readonly id: string; readonly owner: string }[];
 }
@@ -68,6 +82,25 @@ export interface ReadingSummary {
   readonly instrumentationVersion: number;
   /** Missing device sequence numbers within recorder sessions: events were lost. */
   readonly sequenceGaps: number;
+}
+
+/** One distinct interaction: a block and a kind, however often it was reported. */
+const interactionKey = (blockId: string, kind: string): string => `${blockId}\u0000${kind}`;
+
+/**
+ * Whether a unit was visible, while the article was active, for long enough and at enough of its
+ * area. The policy's minimum is a floor: a unit's own minimum (a stop that takes longer to read)
+ * can only raise it.
+ */
+function isVisibleLongEnough(
+  entry: { readonly intervals: Interval[]; readonly peak: number } | undefined,
+  activeUnion: readonly Interval[],
+  policy: ScrollQualificationPolicy,
+  ownMinimumMs: number | undefined,
+): boolean {
+  if (entry === undefined || entry.peak < policy.minPeakFraction) return false;
+  const visibleWhileActive = intersectIntervals(mergeIntervals(entry.intervals), activeUnion);
+  return intervalsLength(visibleWhileActive) >= Math.max(policy.minBlockVisibleMs, ownMinimumMs ?? 0);
 }
 
 /**
@@ -132,7 +165,7 @@ export function summariseReading(
         break;
       case 'scroll.block_interaction':
         if (owner.has(body.blockId))
-          interactions.set(`${body.blockId}\u0000${body.interaction}`, {
+          interactions.set(interactionKey(body.blockId, body.interaction), {
             blockId: body.blockId,
             interaction: body.interaction,
           });
@@ -144,10 +177,17 @@ export function summariseReading(
   const seenBlocks: string[] = [];
   let seenWeight = 0;
   for (const block of facts.blocks) {
-    const entry = visibleByBlock.get(block.id);
-    if (entry === undefined || entry.peak < policy.minPeakFraction) continue;
-    const visibleWhileActive = intersectIntervals(mergeIntervals(entry.intervals), activeUnion);
-    if (intervalsLength(visibleWhileActive) >= policy.minBlockVisibleMs) {
+    const own = block.seen;
+    const counts =
+      own?.kind === 'interaction'
+        ? own.interactions.some((kind) => interactions.has(interactionKey(block.id, kind)))
+        : isVisibleLongEnough(
+            visibleByBlock.get(block.id),
+            activeUnion,
+            policy,
+            own?.kind === 'visible' ? own.minVisibleMs : undefined,
+          );
+    if (counts) {
       seenBlocks.push(block.id);
       seenWeight += block.weight;
     }

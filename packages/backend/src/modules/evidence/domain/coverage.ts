@@ -50,7 +50,7 @@ export const ObservedCoverageSchema = z
         explanationUnitId: Ref,
         framing: z.literal('factual'),
         framingSha256: Hash,
-        readingFactsVersion: z.literal(2),
+        readingFactsVersion: z.union([z.literal(2), z.literal(3)]),
         readingFactsSha256: Hash,
         catalogueVersion: z.literal('content-concepts.v1'),
         catalogueSha256: Hash,
@@ -127,6 +127,14 @@ interface CoverageHeadInput {
     }[];
   };
 }
+/**
+ * The unit kinds a coverage locator may name, by reading-facts version: prose blocks of a v1 document,
+ * read stops of a v2 document. Content's `coverageLocatorTypes` is the rule; a test keeps the two equal.
+ */
+export const ELIGIBLE_BY_FACTS_VERSION: Readonly<Record<number, readonly string[]>> = {
+  2: ['paragraph', 'quote', 'callout'],
+  3: ['stop'],
+};
 export function observedBindings(
   evidence: CoverageEvidence,
   facts: CoverageFacts,
@@ -152,7 +160,7 @@ export function observedBindings(
     summary.data.seenBlocks.some((id) => !facts.blocks.some((b) => b.id === id)) ||
     summary.data.totalWeight !== facts.totalWeight ||
     evidence.estimatedReadingMs !== facts.estimatedReadingMs ||
-    facts.v !== 2 ||
+    ELIGIBLE_BY_FACTS_VERSION[facts.v] === undefined ||
     facts.reelDurationMs !== undefined ||
     hash(facts) !== head.mapping.readingFactsSha256
   )
@@ -164,7 +172,7 @@ export function observedBindings(
       return (
         seen.has(id) &&
         block !== undefined &&
-        ['paragraph', 'quote', 'callout'].includes(block.type) &&
+        ELIGIBLE_BY_FACTS_VERSION[facts.v]?.includes(block.type) === true &&
         !facts.nested.some((b) => b.id === id)
       );
     }),

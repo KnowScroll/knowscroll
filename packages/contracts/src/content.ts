@@ -6,4 +6,11 @@
  * `ClientCapabilities` is what a client says it can render when it opens an exposure
  * (`POST /v1/experience/open`); the server negotiates the document for it (D-012).
  */
-export { ClientCapabilities, LocalId, SCROLL_DOCUMENT_SCHEMA_VERSION, ScrollDocument } from '@knowscroll/scroll-model';
+export {
+  ClientCapabilities,
+  LocalId,
+  SCROLL_DOCUMENT_SCHEMA_VERSION,
+  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  ScrollDocument,
+  ScrollDocumentV2,
+} from '@knowscroll/scroll-model';

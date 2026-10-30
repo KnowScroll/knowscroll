@@ -1,5 +1,5 @@
 import { oc } from '@orpc/contract';
-import { INTERACTION_KINDS, LocalId } from '@knowscroll/scroll-model';
+import { INTERACTION_KINDS, INTERACTION_KINDS_V2, LocalId } from '@knowscroll/scroll-model';
 import { z } from 'zod';
 import { AssetIdSchema, UuidSchema } from './ids.js';
 import { RecordingGenerationSchema, RecordingScopeSchema, recordingPost } from './recording.js';
@@ -35,7 +35,10 @@ export const OBSERVATION_KINDS = [
  * a control changed or reset, a step moved, a disclosure opened or closed, a drag finished, text
  * copied, the text version opened, a failed block retried.
  */
-export const SCROLL_INTERACTION_KINDS = Object.values(INTERACTION_KINDS).flat();
+export const SCROLL_INTERACTION_KINDS = [
+  ...Object.values(INTERACTION_KINDS).flat(),
+  ...Object.values(INTERACTION_KINDS_V2).flat(),
+];
 export type ScrollInteractionKind = (typeof SCROLL_INTERACTION_KINDS)[number];
 
 /**

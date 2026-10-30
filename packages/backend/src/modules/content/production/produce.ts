@@ -14,20 +14,14 @@ import type {
   WithProductionScope,
 } from '../../../reasoning/public.js';
 import { inAdmissionTransaction, makeAdmissionStore } from '../adapters/postgres-store.js';
+import type { CompileOutcome } from '../application/ports.js';
 import { EvidenceRefusal, evidencePassages, evidenceText, type EvidencePassage } from './evidence.js';
 import { completeWriterPublication, isSentAttempt } from './publication-topic.js';
 import { subjectOf, type ProductionKey, type ProductionSubject } from './subject.js';
-import type { AuthoredScroll, DraftProvenance } from '@knowscroll/scroll-model/producer';
 import { productionStore, type ProductionRow, type ProductionStage } from './store.js';
 import type { ProduceScrollResult, RoleReceipt } from './types.js';
-import { REQUEST_BOUND_PER_TOPIC, SCROLL_PRODUCTION_VERSION } from './topics.js';
-import {
-  compileGeneratedScroll,
-  generatedProvenance,
-  promptVersionOf,
-  writerRole,
-  type WriterFormat,
-} from './writer.js';
+import { productionVersionOf, REQUEST_BOUND_PER_TOPIC } from './topics.js';
+import { writerPlanFor, type WriterPlan } from './writer-plan.js';
 
 export interface ProduceScrollDependencies {
   readonly db: Kysely<Database>;
@@ -192,7 +186,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     row: ProductionRow,
     receipts: readonly RoleReceipt[],
     authored: unknown,
-    compiled: Extract<ReturnType<typeof compileGeneratedScroll>, { kind: 'compiled' }>,
+    compiled: Extract<CompileOutcome, { kind: 'compiled' }>,
   ): Promise<ProduceScrollResult> {
     const applied = await deps.withScope(deps.authority, async (scope) => {
       const tx = productionTransactionOf(scope);
@@ -255,12 +249,8 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
   async function settleWriterAnswer(
     subject: ProductionSubject,
     row: ProductionRow,
-    writer: Extract<ProposeOutcome<AuthoredScroll>, { kind: 'proposed' }>,
-    context: {
-      readonly provenance: DraftProvenance;
-      readonly passages: readonly EvidencePassage[];
-      readonly format: WriterFormat;
-    },
+    writer: Extract<ProposeOutcome<unknown>, { kind: 'proposed' }>,
+    plan: WriterPlan,
   ): Promise<ProduceScrollResult> {
     const receipt = writerReceipt(writer);
     const accounting = await deps.withScope(deps.authority, (scope) =>
@@ -274,21 +264,11 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
       return end(row, 'writer', 'rejected', ['attempt_bound_exceeded'], [receipt], row.writer_run_id);
     const recorded = [withAccounting(receipt, attempts)];
 
-    const compiled = compileGeneratedScroll(
-      writer.output,
-      {
-        ...context.provenance,
-        production: {
-          kind: 'model',
-          runId: row.writer_run_id,
-          attemptIds: paidAttemptIds,
-          model: deps.model,
-          promptVersion: promptVersionOf(subject.mode),
-        },
-      },
-      context.passages,
-      context.format,
-    );
+    const compiled = plan.compile(writer.output, {
+      runId: row.writer_run_id,
+      attemptIds: paidAttemptIds,
+      model: deps.model,
+    });
     if (compiled.kind === 'refused')
       return end(
         row,
@@ -314,14 +294,10 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
     } catch (error) {
       return end(row, 'writer', 'rejected', [error instanceof EvidenceRefusal ? error.code : 'evidence_failed'], []);
     }
-    const format = subject.format;
-    // The validation identity is fixed before dispatch; the final provenance substitutes the actual attempts.
-    const provenance = generatedProvenance({
-      identity: subject.identity,
-      mode: subject.mode,
+    const plan = writerPlanFor({
+      subject,
       revision: row.target_revision,
       runId: row.writer_run_id,
-      attemptIds: [row.writer_run_id],
       model: deps.model,
       passages,
       pages,
@@ -333,9 +309,9 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           authority: deps.authority,
           ownerModule: 'content',
           purpose: 'scroll-writer',
-          policyVersion: SCROLL_PRODUCTION_VERSION,
+          policyVersion: productionVersionOf(subject.key),
         },
-        role: writerRole({ provenance, passages, format, mode: subject.mode }),
+        role: plan.role,
         context: {
           bundleRef: `scroll:${row.id}:research`,
           items: [
@@ -365,7 +341,7 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
         [writerReceipt(writer)],
         row.writer_run_id,
       );
-    return settleWriterAnswer(subject, row, writer, { provenance, passages, format });
+    return settleWriterAnswer(subject, row, writer, plan);
   }
 
   return async (
