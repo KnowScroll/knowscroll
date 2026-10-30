@@ -732,10 +732,10 @@ The session that builds v3 works for the owner with GitHub Write on `KnowScroll/
 
 ## D-062 · 2026-10-30 · Owner: the 26 Oct rulings still bind, Scrolls are game-like and rooms are alive (#463)
 
-The owner gave two rulings on 26 Oct that this log never recorded. D-051 and D-006 o were written on 24 Oct and are older. They still bind, and the final designs build on them.
+The owner gave two rulings on 26 Oct that this log never recorded. D-051 (24 Oct) and D-006 o (19 Oct) are older. They still bind, and the final designs build on them.
 
 - **Scrolls are game-like.** Streaks, scores and progress are allowed for Scrolls. Any new block must be fillable by the LLM writer from JSON. Nothing is model-written HTML. Blueprint line 43 stands: no streak is required for growth.
-- **Rooms are alive.** The Explainer and Skeptic speak unprompted. The data notice shows once. General is the default channel. Each room has its own art. Game feel is allowed. AI is always labelled and never poses as a person.
+- **Rooms are alive.** The Explainer and Skeptic speak unprompted. The data notice shows once. General is the default channel. Each room has its own art. Game feel is allowed. AI is always labelled and never poses as a person. The ban on counts and presence in rooms (D-051, D-006 o) is lifted, within the honesty rules of D-069.
 
 Consequence: they change D-051 and the E08 note, which D-068, D-069 and D-072 amend.
 
@@ -755,7 +755,7 @@ Owner ruling (29 Oct): the final designs show sparks, combos, "3 calls", the Fin
 **Amends** AGENTS, "Consumer UI never shows internal prompts, model reasoning, scores, sources panels or operational machinery". It now bans internal ranking and model or evidence scores. Sparks, landmarks, stars and the podium are play-layer features and may be shown.
 
 - **Why.** The rule keeps inference and ranking machinery out of sight. A game point is something the person earned in a visible game.
-- **Limits that stay.** Blueprint line 34 (no compulsory tests, no scoring of learning, no announcing what a person believes) and line 1257 (no topic scores or mastery levels). A point belongs to one Scroll, thread or room act and is never summed into a level for a topic.
+- **Limits that stay.** Blueprint line 34 (no compulsory tests, no scoring of learning, no announcing what a person believes) and line 1257 (no topic scores or mastery levels). A point belongs to one Scroll, thread or room act and is never summed into a level for a topic. A podium is per Launch only. There is no weekly leaderboard, karma total or level anywhere, and agents cannot vote or earn flair (R3 Q9, T3 Q13).
 - **Wording.** "You learned" and mastery words stay out of the UI (D-072).
 
 ## D-065 · 2026-10-30 · A thread shows a coarse part-level place to its own members (#463)
@@ -769,6 +769,7 @@ Owner ruling (T3 Q6: "Yes inside a thread you joined on purpose, with a per-pers
 - **Members only.** Only people who joined that thread can read it. Each person has a "hide where I am" switch. Places are shown by default.
 - **Removed** on leave, block, Clear and account deletion. Exported as the person's own data.
 - **Wording.** "On Part 2" or "finished", never "watching".
+- **No clock times.** T3 draws party lines with a time ("Ravi finished Part 1 · 13:02"). They are not built: a place carries a day, so the line shows at most the day. Taken for the owner; listed under Waiting for owner on #462.
 - **Unchanged.** Availability (D-047) still carries no place. Branches, playheads and seen markers stay private. The J2 check holds for everything outside places.
 
 ## D-066 · 2026-10-30 · SEEN receipts in direct conversations are mutual and on by default (#463)
@@ -778,15 +779,15 @@ Owner ruling (T3 Q16: "On, with a privacy switch that works both ways: if you hi
 **Amends** D-042, "Read state stays private: each person's `read_through_sequence` is theirs, and the other person sees only 'Sent'".
 
 - **Rule.** In a direct conversation the sender sees SEEN under their last message once the other person has read it. The switch is per person. A person who hides theirs does not see the other's.
-- **Only direct conversations.** Rooms and content threads show no SEEN.
+- **Built for direct conversations only** (T3 Q16 asks about DMs). T3's thread and room screens also draw SEEN under your last message. It is not built there: a group has no single reader, and a per-member list would show each member's read state. Taken for the owner; listed under Waiting for owner on #462.
 - **Meaning.** AGENTS "seen markers" means what a person has seen of content. SEEN here is message read state in a DM. Content seen markers stay private.
 - **Consequence.** A `social` change with a stored per-person setting, included in the export.
 
 ## D-067 · 2026-10-30 · Typing is an ephemeral signal that only holds back AI (#463)
 
-T3 and R3 say a resident never answers while someone is typing.
+R3 says a resident never answers while someone is typing.
 
-**Amends** D-042, "No typing indicator". The indicator stays banned: no person is ever shown that someone is typing. The blueprint allows ephemeral typing signals (line 1180).
+**Amends** D-042, "No typing indicator". The indicator stays banned: no person is ever shown that someone is typing. The blueprint allows ephemeral typing signals (lines 269 and 1180). R3 and the T3 kit also draw a typing indicator between people; it is not built, because D-042 still holds for display. Taken for the owner; listed under Waiting for owner on #462.
 
 - **Rule.** The client sends a typing signal over the socket. The server uses it only to hold back an AI turn. It is never stored, never shown and never sent to another person.
 - **Re-check at fire time.** Before an AI turn posts, the room checks again that no new human message or typing signal has arrived.
@@ -814,6 +815,7 @@ The owner lifted the ban on counts on 26 Oct (D-062).
 
 - **Faces** of people who have the room open, from room presence on a room-scoped lease. It is separate from friends' availability, which stays off by default (D-047).
 - **A number shows only at 3 or more.** Never "0 online" or "1 online". The AI cast is never counted.
+- **The member total** shows in the room menu (R3 Q7).
 - **An explicit allow-list** in the contract names every count and activity field a room may carry.
 - **Never fabricated** (AGENTS).
 
@@ -836,7 +838,7 @@ V3 Scrolls: swipe left is Part 2 of the same topic.
 
 - **Rule.** Swipe left or right moves between Parts from text and stop surfaces only. The stage and any block that takes a drag (a slider, code, a wide table, a sort) keep their drags. Native edge zones stay platform Back.
 - **Equivalents.** Every swipe has a button and a key (blueprint line 1293).
-- **Unchanged.** Vertical reading never navigates (blueprint line 1293). Reels keep their edge tabs.
+- **Unchanged.** Vertical reading never navigates (blueprint line 1293). Pulling up past the end and the top "Next ↑" are explicit commands for the next topic (V3 Q3, Q16), not reading. Reels keep their edge tabs.
 
 ## D-072 · 2026-10-30 · Counts, minutes and progress are allowed for Scrolls (#463)
 
@@ -907,9 +909,9 @@ Taken for the owner; listed under Waiting for owner on #462.
 
 ## D-078 · 2026-10-30 · "Not yet reached" land uses the exact facet sites plus decorative grey (#463)
 
-The globe and the landed map show grey land that is not reached yet. Here, "a site" is one planet's room for one region, one per facet.
+The landed map (U04) shows grey land that is not reached yet. The globe (U03) shows every continent in full colour under clouds and never grey land (New Universe rules: "uncharted land uses its own greys on the map only"). Here, "a site" is one planet's room for one region, one per facet.
 
-- **Decision.** Each planet has a fixed table of sites, one per facet. The planet descriptor carries `siteCount` and each region carries its `site`. The client lays out every site from the planet seed, so a cell keeps its shape when a region forms. Unformed sites are grey. Decorative grey continents are added so the visible grey count never equals the unformed count.
+- **Decision.** Each planet has a fixed table of sites, one per facet. The planet descriptor carries `siteCount` and each region carries its `site`. The client lays out every site from the planet seed, so a cell keeps its shape when a region forms. On the map, unformed sites are grey, and decorative grey continents are added so the visible grey count never equals the unformed count.
 - **Never** labelled, counted, interactive, or present in lists, search or the accessibility tree. Grey cells are not offers (D-026).
 - **Maths.** The generators live in `scene-core` with pinned maths and a generator version on the descriptor. The design's `buildWorld` is not copied: it seeds from the region count, which would move every border when a region forms.
 
@@ -1031,7 +1033,7 @@ Taken for the owner; listed under Waiting for owner on #462.
 
 The first-open animation plays once in the lifetime of the account and is drawn ending on U01 Empty. The design does not say what happens when the account already has places.
 
-- **Decision.** It plays to its drawn end, then a 0.3 s cross-fade shows the real map. It never claims the account is empty.
+- **Decision.** It plays up to the moment the empty-state title, line and "Go to Explore" would rise in, then a 0.3 s cross-fade shows the real overview. It never claims the account is empty.
 - **Unchanged.** The seen flag lives on the account and is set when the animation starts. Skip and finishing both count as seen.
 
 Taken for the owner; listed under Waiting for owner on #462.

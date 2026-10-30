@@ -20,7 +20,7 @@ The blueprint governs architecture and product behaviour, as amended by `docs/v2
 - Reel and Scroll have equal status. Format preference is learned per topic/context. Series step, format variant, related perspective and What-if branch are four distinct relationships.
 - Planet formation needs qualified evidence and conceptual variety. Inactivity changes activity, never existence.
 - Peer playback positions, seen markers and current branches are private. Two exceptions: a coarse part-level place a member shares with a thread they joined (members only, per-person hide switch, D-065) and mutual SEEN receipts in DMs (D-066). AI participants are always identifiable. Never fabricate social activity.
-- Consumer UI never shows internal prompts, model reasoning, internal ranking, model or evidence scores, sources panels or operational machinery. Game points (sparks, landmarks, stars, podium) are play features and may be shown (D-064).
+- Consumer UI never shows internal prompts, model reasoning, internal ranking, model or evidence scores, sources panels or operational machinery. Game points (sparks, landmarks, stars, a podium per Launch) are play features and may be shown; never a leaderboard, karma total or level (D-064).
 - Play results (picks, correctness, sparks, tiers) never feed ranking, planning, evidence, formation or the Universe. A landmark is a read-only overlay (D-063).
 - Models propose; deterministic code validates authority, structure and allowed effects before applying anything.
 
@@ -44,7 +44,7 @@ The goal is working product that follows the blueprint, in code a senior enginee
 4. **One review.** A reviewer with fresh context reads the diff against the blueprint sections and this file, and reports blocking findings only: correctness, blueprint conformance, privacy, reliability boundaries, code quality bar. Fix them; re-review only what changed. No multi-round "closure" reviews.
 5. **Merge on green.** Open the PR to the integration branch; the required `checks` workflow runs in about seven minutes. Squash-merge when it is green and the review has no open blocking finding. Never weaken an assertion, skip a check or hide a failing case to get green.
 6. **Promote to dev often.** At least at the end of each phase, open a squash PR from the integration branch to `dev`, merge it on green (the push deploys dev), then immediately merge `dev` back into the integration branch with a plain merge (D-002). Then exercise the slice on `app.dev.knowscroll.space` with disposable accounts and real services.
-7. **Report plainly.** At the end of each phase, update `docs/STATUS.md` and the status table in #222, and comment on #222 with what the owner can try on dev now. Evidence is a link: a PR, an Actions run, a screenshot path or a dev URL.
+7. **Report plainly.** At the end of each phase, update `docs/STATUS.md` and the status table in #462, and comment on #462 with what the owner can try on dev now. Evidence is a link: a PR, an Actions run, a screenshot path or a dev URL.
 
 **Not part of the process:** hashing CI logs or artifacts, receipts or manifests as acceptance, reservation and launch packets for model calls, per-call ledgers outside the product's own attempt ledger, "stop at first failure" on generation, review rounds about earlier reviews, and checkpoint essays. Long dense prose in issues, PRs or docs is a defect: write short sentences a newcomer can follow.
 
@@ -86,4 +86,4 @@ Every package and backend module has a README covering purpose and ownership, pu
 
 ## Status and continuity
 
-The coordinating session keeps `docs/STATUS.md` (one page) and the #222 status table current at the end of each phase and after any material decision or failure. Workers report in their issue or PR and do not edit `docs/STATUS.md`. A fresh or compacted session reads `docs/STATUS.md`, then verifies Git, CI and the deployed revision before acting.
+The coordinating session keeps `docs/STATUS.md` (one page) and the #462 status table current at the end of each phase and after any material decision or failure. Workers report in their issue or PR and do not edit `docs/STATUS.md`. A fresh or compacted session reads `docs/STATUS.md`, then verifies Git, CI and the deployed revision before acting.
