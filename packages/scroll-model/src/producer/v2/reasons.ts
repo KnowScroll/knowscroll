@@ -19,12 +19,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   final_call_misplaced: 'The final_call is the last stop: put it after every other stop and call, and use exactly one.',
   call_answer_invalid: 'Give two or three options for each call, the correct one first.',
   call_options_duplicate: 'Every option of a call must be different.',
-  common_guess_invalid:
-    'commonGuess must be 1 or 2 and name a wrong option that exists. The correct option is always the first.',
-  common_guess_missing:
-    'The first call_it must test the misconception named in the brief: set commonGuess to the option that states it.',
-  common_guess_unexpected:
-    'Only the first call_it of a Scroll with a named misconception has a commonGuess. Remove it here.',
+  final_call_restates_call:
+    'The final_call asks again what an earlier call asked. Make it a new case that uses the whole idea, with a new question and a new correct answer.',
   aside_before_stop: 'An aside belongs to the stop before it. Put it after the stop it comments on.',
   aside_after_final_call: 'Put asides before the final_call, never after it.',
   aside_anchor_unknown: 'An aside must follow a stop or a call.',
@@ -34,6 +30,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   recap_small_print_unknown: 'The recap links to the limits aside; add one.',
   stage_unexpected: 'This Scroll has no stage: remove the stage object from this item.',
   stage_missing: 'This Scroll has a stage: give the first stop a stage object that sets the starting picture.',
+  stage_state_on_call:
+    'A call never changes the picture, or it would show the answer before the reader has chosen. Remove stage here and change the picture on the stop after the call.',
   stage_first_state_missing:
     'The first stop must set the starting picture: give it a stage object with at least a view.',
   stage_too_static: `The stage must change at least ${LIMITS_V2.minStageStates} times as the stops go by. Add stage changes that follow the explanation.`,
@@ -53,6 +51,10 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   schema_invalid_value: 'A value is not one of the allowed words.',
   document_too_large: 'The Scroll is too big; shorten it.',
   // Checks that only a defect in the assembler can fail; kept so a finding is never silent.
+  common_guess_invalid: 'The common guess is the second option of the first call_it of a myth Scroll; code sets it.',
+  common_guess_missing: 'The common guess is the second option of the first call_it of a myth Scroll; code sets it.',
+  common_guess_unexpected: 'Only the first call_it of a myth Scroll has a common guess; code sets it.',
+  stage_state_unsettled: 'A stage state holds only what its view draws; code settles it.',
   measures_mismatch: 'The reading measures are computed by code.',
   integrity_mismatch: 'The integrity hash is computed by code.',
   stage_alt_mismatch: 'The description of a stage state is derived by code.',

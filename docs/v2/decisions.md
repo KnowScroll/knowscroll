@@ -1097,6 +1097,40 @@ A read of six documents found errors the validator cannot see. These change the 
 3. **Every wave gets a factual read, and the validator refuses a Final call that restates an earlier call.** Two correct options were wrong or evasive, and one Final call repeated a call (S-6).
 4. **The common-guess rule and the prompt are brought into line** before the waves; two recipes were refused twice on it (S-1).
 
+## D-124 · 2026-10-30 · A stage state holds four choices; code derives the physics, and a call never shows its answer (S-1a, #472)
+
+D-123 found two stage errors the validator could not see: Earth's axis set "sideways" in every Seasons state, and hemisphere pins that contradicted the month. This entry amends D-120 so that such errors cannot be written. It also settles where a call's picture shows.
+
+- **The writer chooses four things.** `view`, `earthAt` (the month), `moonAt` (the phase, only in the Moon view) and `focus`. The old `axis`, `ray`, `orbit`, `northPin` and `southPin` words are gone. The orbit is two views: `orbit` (to scale) and `orbit-stretched`. `night-sky` is gone: the kit draws no stars.
+- **Code derives everything physical.** Earth's tilt is 23.4 degrees in every picture. A lookup of the lean toward the Sun by month (the sine of the year) says which half leans toward the Sun. That half has a high Sun, a warm pin and a steep Ray; the other half the opposite; at the March and September equinoxes neither leans and both are neutral. The two halves can never both be warm or both be cool.
+- **Only what a view draws is stored.** A view lists its parts. A month where the view has no seasons, a phase where it has no Moon, and a focus on a part that is not drawn are set aside by `settleStageState` before a state is stored. Settling is idempotent. `validateDocumentV2` refuses a stored state that is not settled (`stage_state_unsettled`).
+- **The text version is derived from the state.** `describeStageState` settles first and mentions only drawn parts. It states the fixed tilt, which half leans toward the Sun, the pins and Ray for each half. It never says the axis is on its side. A stored `alt` must equal it.
+- **Properties tested.** For every month and every view: the pins and Ray agree with the season of each hemisphere, checked against the noon Sun height at 40 degrees north and south computed in the test from the declination; the halves mirror six months apart; no description of any state says the axis is on its side.
+- **A call never changes the picture.** A stage state sits on a read stop, never on a `call_it` or the `final_call` (`stage_state_on_call`). While a call is open the picture is the one the stop before it set up. The answer's picture belongs on the stop after the call, where the reader has already locked in. The Final call is the last stop, so no picture shows its answer; the recap keeps the last picture the stops set. The prompt and the validator say the same thing.
+- **Not decided here.** The stage engine, the drawing itself and the stage's text-version UI (S-1b).
+
+## D-125 · 2026-10-30 · A stage needs a kit that draws the subject, and "Seasons elsewhere" is Part 3 (S-1a, #472)
+
+D-123 found that tides and stars-fusion got Sun, Earth and orbit pictures that show neither a bulge nor a star. This entry amends D-120 and D-059.
+
+- **Recipe data, not a system default.** A library recipe may name a `stageKit`. Only a recipe with one gets a pinned picture; every other recipe is a plain Scroll with calls and no picture. Today one kit exists, Earth & sky (`earth-sky.v1`). The spike's own variant table is gone: it reads the recipe.
+- **Four recipes have a stage:** `seasons`, `seasons-hemispheres`, `seasons-limits` and the new `seasons-elsewhere`. Tides, stars, exoplanets and the greenhouse recipes become plain until a kit draws them. A new kit is a new id and a new decision.
+- **New recipe `seasons-elsewhere` and facet `earth.seasons.elsewhere`.** "Seasons elsewhere" is seasons on other planets (Mars, Uranus, a world with no tilt). The earth.seasons planet now has four facets. `seasons-limits` and its facet `earth.seasons.limits` are unchanged, because coverage pins the facet's meaning.
+- **The picture is Earth, for comparison.** The kit draws only Earth. The v2 writer prompt tells the writer that a picture of another world is Earth for comparison: say in words what differs there, and never claim the picture draws that world. The brief stays free of the picture, because the v1 writer reads it too.
+- **Series.** `library.earth.seasons` is now seasons, seasons-hemispheres, seasons-elsewhere (a new series revision, admitted by `content admit-continuity`). `seasons-limits` is in no series, so a related move `seasons-elsewhere` to `seasons-limits` ("Where the simple tilt picture breaks down") keeps it reachable. All series rules still hold: two to four parts, one planet, a recipe in one series, one related move per source.
+- **After deploy.** The new facet changes the catalogue digest. Stored coverage stays readable. Run `content admit-continuity` for the new series revision, and `content readmit-coverage` once Scrolls of the new recipe are published. Nothing is produced or published by this change.
+- **Facts still to be settled by a person.** The misconception for `seasons-elsewhere` in the spike table is a placeholder with an unreviewed source, like every one except the seasons myth.
+
+## D-126 · 2026-10-30 · The common guess is a place in the options, and the Final call may not restate a call (S-1a, #472)
+
+D-123 found two Scrolls refused twice on `common_guess_invalid` and `common_guess_missing`. This entry amends D-120 and D-121.
+
+- **Why it failed.** The v14 prompt asked for `"commonGuess"`: a number, "1 or 2", counted from the correct option at 0. A call may have only two options, so 2 was out of range. The same mistake raised both codes: the authoring rule said `common_guess_invalid`, and the assembler then had no guess to set, so the document said `common_guess_missing`. The repair hint repeated "1 or 2". The refused answers stay on the dev server and were not read for this entry; the cause follows from the two rules.
+- **The fix is the shape, not a better hint.** The writer writes no number. In the first `call_it` of a myth Scroll the correct option is first and the wrong option that states the myth is second. Code marks the second option as the common guess before it shuffles. There is nothing to count and nothing to forget. The key `commonGuess` is no longer part of `scroll-authoring.v2`. The document's own rules (a wrong option, the recipe's source, only the first call of a myth) are unchanged and still checked on stored documents.
+- **Tested with an answer that follows the prompt literally:** a two-option myth call passes, and the prompt text names the second option and no number.
+- **A Final call may not restate a call.** `final_call_restates_call` refuses a Final call whose prompt, or whose correct option, is near-identical to an earlier call's. The measure is the share of content words two texts have in common (letters and digits, lower case, filler words dropped, plurals cut back), compared as sets. The pinned threshold is 0.6. A text with fewer than three content words is not judged. The tests use a near-copy (0.83) and different questions on the same subject (0.1 at most). Heavy paraphrase is not caught; a person's read of each wave (D-123) still is needed.
+- **Prompt `scroll-writer.v15`** carries all of this: the second-option rule, the four stage choices, no stage on calls, and a Final call that is a new case.
+
 ## D-140 · 2026-10-30 · A thread's header is a 72 px strip and the conversation keeps over 60 % of a phone (T-A, #481)
 
 Amends D-046 and D-053 (the thread pane of D03). Client only: no contract, SQL or server change.

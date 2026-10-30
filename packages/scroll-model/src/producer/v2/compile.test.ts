@@ -166,43 +166,57 @@ describe('compileAuthoredV2: calls', () => {
     expect(new Set(positions).size).toBeGreaterThan(1);
   });
 
-  it('keeps the common guess to the first Call it of a myth Scroll', () => {
-    const missing = changed((draft) => {
-      const index = itemIndex(draft, 'call_it', 0);
-      const { commonGuess: _removed, ...rest } = draft.items[index] as Record<string, unknown>;
-      draft.items[index] = rest;
-    });
-    expect(codes(missing)).toContain('common_guess_missing@items.1');
-
-    const second = changed((draft) => {
-      draft.items[itemIndex(draft, 'call_it', 1)] = { ...draft.items[itemIndex(draft, 'call_it', 1)], commonGuess: 1 };
-    });
-    expect(codes(second)).toContain(
-      `common_guess_unexpected@items.${itemIndex(JSON.parse(JSON.stringify({ items: authoredV2().items })) as Mutable, 'call_it', 1)}.commonGuess`,
-    );
-
-    const outOfRange = changed((draft) => {
-      const index = itemIndex(draft, 'call_it', 0);
-      draft.items[index] = {
-        ...draft.items[index],
-        options: ['correct option here', 'only a wrong option'],
-        commonGuess: 2,
-      };
-    });
-    expect(codes(outOfRange)).toContain('common_guess_invalid@items.1.commonGuess');
+  it('makes the second option of the first Call it the common guess, however many options the call has', () => {
+    for (const options of [
+      ['The correct option', 'The wrong option that states the myth'],
+      ['The correct option', 'The wrong option that states the myth', 'Another wrong option'],
+    ]) {
+      const outcome = compileAuthoredV2(
+        changed((draft) => {
+          const index = itemIndex(draft, 'call_it', 0);
+          draft.items[index] = { ...draft.items[index], options };
+        }),
+        compileInputV2(),
+      );
+      if (outcome.kind !== 'compiled') throw new Error(`expected a compiled Scroll for ${options.length} options`);
+      const first = outcome.document.stops.find((stop) => stop.kind === 'call_it');
+      if (first?.kind !== 'call_it') throw new Error('expected a Call it');
+      expect(first.options[first.answer]).toBe('The correct option');
+      expect(first.commonGuess).toEqual({
+        option: first.options.indexOf('The wrong option that states the myth'),
+        source: MYTH_V2.source,
+      });
+    }
   });
 
-  it('refuses a common guess when the recipe names no myth', () => {
-    const outcome = compileAuthoredV2(authoredV2(), compileInputV2('stage', { kind: 'none' }));
-    expect(refusedWith(outcome).map((issue) => `${issue.code}@${issue.path}`)).toContain(
-      'common_guess_unexpected@items.1.commonGuess',
-    );
-    const withoutGuess = changed((draft) => {
-      const index = itemIndex(draft, 'call_it', 0);
-      const { commonGuess: _removed, ...rest } = draft.items[index] as Record<string, unknown>;
-      draft.items[index] = rest;
+  it('gives the common guess to the first Call it of a myth Scroll only', () => {
+    const outcome = compileAuthoredV2(authoredV2(), compileInputV2());
+    if (outcome.kind !== 'compiled') throw new Error('expected a compiled Scroll');
+    const guesses = outcome.document.stops.map((stop) => stop.kind === 'call_it' && stop.commonGuess !== undefined);
+    expect(guesses).toEqual([false, true, false, false, false, false, false, false, false]);
+    const none = compileAuthoredV2(authoredV2(), compileInputV2('stage', { kind: 'none' }));
+    if (none.kind !== 'compiled') throw new Error('expected a compiled Scroll');
+    expect(none.document.stops.some((stop) => stop.kind === 'call_it' && stop.commonGuess !== undefined)).toBe(false);
+  });
+
+  it('has no number for the writer to count: a commonGuess key is not part of the shape', () => {
+    const parsed = AuthoredScrollV2.safeParse({
+      ...authoredV2(),
+      items: authoredV2().items.map((item, index) => (index === 1 ? { ...item, commonGuess: 1 } : item)),
     });
-    expect(compileAuthoredV2(withoutGuess, compileInputV2('stage', { kind: 'none' })).kind).toBe('compiled');
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.path.join('.')).toBe('items.1');
+  });
+
+  it('refuses nothing about the common guess, whatever the writer does with the options of a call', () => {
+    const result = codes(
+      changed((draft) => {
+        const index = itemIndex(draft, 'call_it', 0);
+        draft.items[index] = { ...draft.items[index], options: ['The correct option', 'Only a wrong option'] };
+      }),
+    );
+    expect(result.filter((entry) => entry.startsWith('common_guess'))).toEqual([]);
+    expect(result).toEqual([]);
   });
 });
 
@@ -270,11 +284,95 @@ describe('compileAuthoredV2: the stage', () => {
     });
     expect(parsed.success).toBe(false);
     expect(parsed.error?.issues[0]?.path.join('.')).toBe('items.0.stage.view');
+    for (const oldWord of [{ axis: 'sideways' }, { northPin: 'warm' }, { ray: 'low' }, { orbit: 'exaggerated' }]) {
+      const old = AuthoredScrollV2.safeParse({
+        ...authoredV2(),
+        items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: oldWord } : item)),
+      });
+      expect(old.success, JSON.stringify(oldWord)).toBe(false);
+    }
     const unknownKey = AuthoredScrollV2.safeParse({
       ...authoredV2(),
       items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: { x: 4 } } : item)),
     });
     expect(unknownKey.success).toBe(false);
+  });
+});
+
+describe('compileAuthoredV2: a call never shows its answer in the picture', () => {
+  it('refuses a picture change on a Call it or the Final call, at the writer’s item', () => {
+    const onCall = changed((draft) => {
+      draft.items[1] = { ...draft.items[1], stage: { earthAt: 'dec' } };
+    });
+    expect(codes(onCall)).toContain('stage_state_on_call@items.1.stage');
+    const onFinal = changed((draft) => {
+      draft.items[itemIndex(draft, 'final_call')] = {
+        ...draft.items[itemIndex(draft, 'final_call')],
+        stage: { view: 'earth-close' },
+      };
+    });
+    expect(codes(onFinal)).toContain('stage_state_on_call@items.9.stage');
+  });
+
+  it('allows the picture to change on the stop right after the call, which is where the answer shows', () => {
+    const afterCall = changed((draft) => {
+      draft.items[2] = { ...draft.items[2], stage: { earthAt: 'dec', focus: 'earth' } };
+    });
+    expect(codes(afterCall)).toEqual([]);
+  });
+
+  it('records nothing for a call that leaves the picture as it is', () => {
+    const same = changed((draft) => {
+      draft.items[1] = { ...draft.items[1], stage: {} };
+    });
+    expect(codes(same)).toEqual([]);
+  });
+});
+
+describe('compileAuthoredV2: the Final call asks something new', () => {
+  const finalOf = (draft: Mutable) => draft.items[itemIndex(draft, 'final_call')] as Record<string, unknown>;
+  const callOf = (draft: Mutable, nth: number) =>
+    draft.items[itemIndex(draft, 'call_it', nth)] as Record<string, unknown>;
+
+  it('refuses a Final call that repeats an earlier question word for word, or with a few words added', () => {
+    for (const edit of [(prompt: string) => prompt, (prompt: string) => prompt.replace('?', ' really?')]) {
+      const result = codes(
+        changed((draft) => {
+          draft.items[itemIndex(draft, 'final_call')] = {
+            ...finalOf(draft),
+            prompt: edit(String(callOf(draft, 0)['prompt'])),
+          };
+        }),
+      );
+      expect(result).toContain('final_call_restates_call@items.9');
+    }
+  });
+
+  it('refuses a Final call whose correct answer is an earlier call’s answer, whatever it asks', () => {
+    const result = codes(
+      changed((draft) => {
+        const final = finalOf(draft);
+        const earlier = callOf(draft, 1)['options'] as string[];
+        draft.items[itemIndex(draft, 'final_call')] = {
+          ...final,
+          options: [earlier[0], ...(final['options'] as string[]).slice(1)],
+        };
+      }),
+    );
+    expect(result).toContain('final_call_restates_call@items.9');
+  });
+
+  it('allows a Final call with a genuinely different question and answer on the same subject', () => {
+    const result = codes(
+      changed((draft) => {
+        draft.items[itemIndex(draft, 'final_call')] = {
+          ...finalOf(draft),
+          prompt: 'Imagine Orrin stood perfectly upright. What would happen to its seasons?',
+          options: ['Day length would stay much the same', 'Winters would grow longer', 'Summers would grow hotter'],
+        };
+      }),
+    );
+    expect(result).not.toContain('final_call_restates_call@items.9');
   });
 });
 

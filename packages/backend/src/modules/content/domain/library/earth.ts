@@ -19,6 +19,10 @@ export const earthSystem = {
           id: 'earth.seasons.limits',
           meaning: 'Limits of simplified seasonal geometry, including the distance misconception.',
         },
+        {
+          id: 'earth.seasons.elsewhere',
+          meaning: 'Other planets have seasons too, set by their own tilt and orbit.',
+        },
       ],
     },
     {
@@ -61,6 +65,7 @@ export const earthRecipes = {
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.axial-tilt',
     supportingFacetId: 'earth.seasons.limits',
+    stageKit: 'earth-sky.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -73,6 +78,7 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.hemispheres',
+    stageKit: 'earth-sky.v1',
     interactive: true,
     interactiveKind: 'sequence',
     brief:
@@ -85,11 +91,25 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.seasons',
     facetId: 'earth.seasons.limits',
+    stageKit: 'earth-sky.v1',
     interactive: false,
     interactiveKind: null,
     brief:
       'Why the tilt explanation needs care. Earth is nearest the Sun in early January and farthest in early July, yet the Northern Hemisphere is coldest when Earth is nearest, which is why tilt and not distance explains the seasons. Explain that the four seasons are marked by the solstices and equinoxes and say what the simple picture leaves out. Give no invented temperatures or dates beyond those in the supplied passages.',
     pages: ['https://en.wikipedia.org/wiki/Earth%27s_orbit'],
+  },
+  'seasons-elsewhere': {
+    explanationUnitId: 'earth-seasons-elsewhere-v1',
+    assetId: '226ced46-c82a-44a3-97ac-06d2d9369a30',
+    systemId: system,
+    topicId: 'earth.seasons',
+    facetId: 'earth.seasons.elsewhere',
+    stageKit: 'earth-sky.v1',
+    interactive: false,
+    interactiveKind: null,
+    brief:
+      'Seasons on other planets, and why Earth is not the template. Explain that seasons come from an axis tilted against the orbit, and say what the supplied passages state about Mars and about Uranus, whose axis lies far over so that each pole faces the Sun in turn. A planet with no tilt would have almost no seasons. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
+    pages: ['https://en.wikipedia.org/wiki/Axial_tilt', 'https://science.nasa.gov/uranus/facts/'],
   },
   tides: {
     explanationUnitId: 'legacy-cutroom-tides-v4',

@@ -24,8 +24,9 @@ export interface LibraryRelatedLink {
  * The series of the library. Each comment names what in the briefs supports the order.
  */
 export const LIBRARY_SERIES: readonly LibrarySeries[] = [
-  // The tilt comes first; the hemispheres and the limits of the picture both start from it.
-  { id: 'library.earth.seasons', parts: ['seasons', 'seasons-hemispheres', 'seasons-limits'] },
+  // The tilt comes first, then why the hemispheres take turns, then the same idea on other worlds
+  // ("Seasons elsewhere", D-125). seasons-limits keeps its facet and is reached as a related move.
+  { id: 'library.earth.seasons', parts: ['seasons', 'seasons-hemispheres', 'seasons-elsewhere'] },
   // Forcing first; alignment and coastlines each change what the same forcing does.
   { id: 'library.earth.tides', parts: ['tides', 'tides-spring-neap', 'tides-coasts'] },
   // The briefs say it themselves: balance keeps radiation paths "to brief context", and the analogy
@@ -69,6 +70,7 @@ export const LIBRARY_SERIES: readonly LibrarySeries[] = [
  * The model has one related slot per source revision, so a recipe appears as `from` at most once.
  */
 export const LIBRARY_RELATED: readonly LibraryRelatedLink[] = [
+  { from: 'seasons-elsewhere', to: 'seasons-limits', label: 'Where the simple tilt picture breaks down' },
   { from: 'greenhouse', to: 'greenhouse-limits', label: 'Where the blanket picture breaks down' },
   { from: 'stars-colour-brightness', to: 'stars-lifecycle', label: 'How stars age and end' },
   { from: 'stars-lifecycle', to: 'black-hole-formation', label: 'How the heaviest stars end' },
