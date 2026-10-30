@@ -6,6 +6,7 @@ import {
 } from '@knowscroll/client-core';
 import type { KeepAssetRef, KeepEntrySnapshot, KeepPosition } from '@knowscroll/contracts';
 import type { EncounterEntry, PrivatePosition } from '../encounter/encounter-history';
+import { positionIds } from '../scroll/scroll-session';
 import { newCommandId } from '../../platform/command-id';
 
 export type AvailableKeep = Extract<KeepEntrySnapshot, { status: 'available' }>;
@@ -187,14 +188,14 @@ export function sameKeep(a: AvailableKeep, b: AvailableKeep): boolean {
 export function keepPositionFor(entry: EncounterEntry, snapshot?: AvailableKeep): PrivatePosition | undefined {
   if (!snapshot) {
     if (entry.kind === 'reel') return { kind: 'reel', positionMs: 0, playing: false, muted: false };
-    const block = entry.scroll.document.sections[0]?.blocks[0];
-    return block
+    const first = positionIds(entry.scroll)[0];
+    return first !== undefined
       ? {
           kind: 'scroll',
           value: {
             assetId: entry.offer.assetId,
             revision: entry.offer.assetRevision,
-            blockId: block.id,
+            blockId: first,
             offsetWithinBlock: 0,
           },
         }
@@ -214,11 +215,7 @@ export function keepPositionFor(entry: EncounterEntry, snapshot?: AvailableKeep)
       playing: false,
       muted: false,
     };
-  if (
-    entry.kind === 'scroll' &&
-    p.kind === 'scroll' &&
-    entry.scroll.document.sections.some((s) => s.blocks.some((b) => b.id === p.blockId))
-  )
+  if (entry.kind === 'scroll' && p.kind === 'scroll' && positionIds(entry.scroll).includes(p.blockId))
     return {
       kind: 'scroll',
       value: {
@@ -246,7 +243,7 @@ export function checkpointPosition(entry: EncounterEntry, capture: PrivatePositi
     capture.value.revision === entry.offer.assetRevision &&
     Number.isFinite(capture.value.offsetWithinBlock) &&
     capture.value.offsetWithinBlock >= 0 &&
-    entry.scroll.document.sections.some((s) => s.blocks.some((b) => b.id === capture.value.blockId))
+    positionIds(entry.scroll).includes(capture.value.blockId)
   )
     return { kind: 'scroll', blockId: capture.value.blockId, offsetWithinBlock: capture.value.offsetWithinBlock };
   return undefined;

@@ -94,6 +94,10 @@ describe('the renderer on the device', () => {
       'parseBlock',
       'parseDocument',
       'walkBlocks',
+      // The v2 reader's own: pure lookups over a parsed document, nothing that proves it.
+      'callsOf',
+      'stageParts',
+      'stagePhysics',
     ]);
     const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
     const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>

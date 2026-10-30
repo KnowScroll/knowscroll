@@ -63,6 +63,7 @@ export function OpenScroll({
           <StateBlock title="This Scroll isn’t available" body="It may have been removed, or it isn’t yours to open." />
         </Frame>
       );
+    case 'ready_stage':
     case 'needs_update':
       return (
         <Frame onBack={onBack}>

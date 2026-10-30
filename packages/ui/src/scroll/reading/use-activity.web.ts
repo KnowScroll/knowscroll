@@ -3,7 +3,10 @@ import type { ScrollReadingObserver } from '../observer';
 import { monotonicNow } from './visibility';
 
 /** Web: the tab is visible (`visibilitychange`) and no overlay holds the reader (`paused`). */
-export function useArticleActivity(observer: ScrollReadingObserver | undefined, paused: boolean): void {
+export function useArticleActivity(
+  observer: Pick<ScrollReadingObserver, 'onActivity'> | undefined,
+  paused: boolean,
+): void {
   const observerRef = useRef(observer);
   const pausedRef = useRef(paused);
   const lastRef = useRef<boolean | null>(null);

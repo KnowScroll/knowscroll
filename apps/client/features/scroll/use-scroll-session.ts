@@ -11,8 +11,12 @@ import { createScrollSession, type ScrollSession, type ScrollSessionState } from
 export function useScrollSession(
   scope: AccountScope,
   assetId: string,
+  options: { readonly stage?: boolean } = {},
 ): { readonly session: ScrollSession; readonly state: ScrollSessionState } {
-  const session = useMemo(() => createScrollSession({ scope, assetId, newId: newCommandId }), [scope, assetId]);
+  const session = useMemo(
+    () => createScrollSession({ scope, assetId, newId: newCommandId, stage: options.stage === true }),
+    [scope, assetId, options.stage],
+  );
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   return { session, state };
 }
