@@ -57,6 +57,7 @@ export function makeReadOperatorPanels(deps: {
       cartographer,
       operations,
       reports,
+      roomCalls,
     ] = await Promise.all([
       run(() => store.queues()),
       run(() => store.providerOutcomes(PROVIDER_WINDOW_HOURS)),
@@ -68,6 +69,7 @@ export function makeReadOperatorPanels(deps: {
       run(() => store.cartographer(LIST_LIMIT)),
       run(() => store.privacy(LIST_LIMIT)),
       run(() => store.reports(LIST_LIMIT)),
+      run(() => store.roomCalls(LIST_LIMIT)),
     ]);
     return {
       generatedAt: deps.now(),
@@ -82,6 +84,7 @@ export function makeReadOperatorPanels(deps: {
       production: { runs, refusedAnswers, reelOrders, usage },
       universeChange: { cartographer },
       safety: { reports },
+      rooms: { calls: roomCalls },
       realtime: { delivery: NO_TIER0_SOURCE },
       privacy: {
         operations,

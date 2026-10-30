@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 import {
   PRESENCE_HEARTBEAT_MS,
+  ROOM_TYPING_HINT_MS,
   SOCKET_PATH,
   ScopeChangedHintSchema,
   socketEvents,
@@ -45,7 +46,8 @@ export const TALK_QUERY_KEY = 'talk';
  * queries and every open room discussion stale, so a message or a face appearing is read within seconds without
  * waiting for the slow poll.
  *
- * It also says "I'm around" every `PRESENCE_HEARTBEAT_MS` while connected and visible. The server
+ * It also carries one more thing the client says: `room_typing` while a member types in a room, which only holds back an AI
+ * turn and is never shown or stored (D-165). And it says "I'm around" every `PRESENCE_HEARTBEAT_MS` while connected and visible. The server
  * stores that only for a person who chose to show availability, and answers the same either way, so the
  * socket never learns the choice. A beat is not consumption evidence.
  */
@@ -169,7 +171,16 @@ export function connectScopeSocket(scope: AccountScope, context: SocketContext):
   socket.on('connect_error', (error: Error) => {
     if (error.message === 'SCOPE_MISMATCH' && scope.active) context.onMismatch();
   });
+  /** When each discussion was last announced, so a person typing sends one hint every few seconds, not one per key. */
+  const lastTyping = new Map<string, number>();
   return {
+    noteTyping(roomId, discussionId) {
+      if (!scope.active || !socket.connected) return;
+      const now = Date.now();
+      if (now - (lastTyping.get(discussionId) ?? 0) < ROOM_TYPING_HINT_MS) return;
+      lastTyping.set(discussionId, now);
+      socket.emit(socketEvents.roomTyping, { roomId, discussionId }, () => undefined);
+    },
     watchRooms(roomIds) {
       desiredRooms.clear();
       for (const roomId of roomIds) desiredRooms.add(roomId);

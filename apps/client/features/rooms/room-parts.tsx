@@ -63,7 +63,7 @@ export function WhoIsHere({
           style={[styles.whoRow, stacked === true ? styles.whoRowStacked : null]}
         >
           <AiLabel label={entry.label} />
-          <Text variant="bodyS">{entry.blurb}</Text>
+          <Text variant="bodyS">{`${entry.name}: ${entry.blurb.charAt(0).toLowerCase()}${entry.blurb.slice(1)}`}</Text>
         </View>
       ))}
       {inhabitants.length === 0 ? null : (

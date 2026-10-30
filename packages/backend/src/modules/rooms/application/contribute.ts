@@ -12,7 +12,8 @@ import {
   inhabitantRole,
   type ContributionVerdict,
 } from './inhabitant-role.js';
-import type { AiRequestRow, RoomPorts } from './ports.js';
+import { hasResident, type AiTurnRow, type RoomPorts } from './ports.js';
+import { unpostedOutcome } from './turn-outcome.js';
 
 /** The harness refuses with this fixed message when a run can no longer be closed legitimately. */
 const HARNESS_REFUSAL = 'PERSONAL_REASONING_AUTHORITY_REFUSED';
@@ -40,7 +41,7 @@ async function standingAsk(p: ContributePorts, scope: PersonalScopeTx, requestId
   const allowed =
     standing.own?.endedBy === null &&
     roomAcceptsPosts(standing.room.status) &&
-    standing.room.inhabitants.includes(request.inhabitant) &&
+    hasResident(standing.room, request.inhabitant) &&
     discussion !== undefined;
   return { request, lock, standing, discussion, allowed };
 }
@@ -78,8 +79,8 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
         return undefined;
       }
       const material = await assembleMaterial(p, scope, found.lock, {
-        request: found.request,
-        standing: found.standing,
+        turn: found.request,
+        room: found.standing.room,
         discussion: found.discussion,
       });
       return { request: found.request, context: contributionContext(material) };
@@ -90,7 +91,7 @@ export function makeContribute(p: ContributePorts, harness: ReasoningHarness): C
     const outcome = await harness.propose(
       {
         run: {
-          id: request.requestId,
+          id: request.turnId,
           authority,
           ownerModule: 'rooms',
           purpose: 'inhabitant-contribution',
@@ -111,29 +112,25 @@ async function applyVerdict(
   p: ContributePorts,
   harness: ReasoningHarness,
   authority: PersonalAuthority,
-  request: AiRequestRow,
+  request: AiTurnRow,
   verdict: ContributionVerdict,
 ): Promise<void> {
   await p.withScope(authority, async (scope) => {
     if (verdict.end) {
       try {
-        await harness.closeRun(scope, { runId: request.requestId, state: verdict.end });
+        await harness.closeRun(scope, { runId: request.turnId, state: verdict.end });
       } catch (error) {
         if (!(error instanceof Error) || error.message !== HARNESS_REFUSAL) throw error;
       }
     }
     if (!(await p.ownerActive(scope))) return;
-    const found = await standingAsk(p, scope, request.requestId);
+    const found = await standingAsk(p, scope, request.turnId);
     if (found === undefined) return;
     const at = p.now();
     if (verdict.kind !== 'contribution' || !found.allowed) {
       // An answer the asker is no longer allowed to have (they left, the room paused) is dropped, but the
       // model was called: the ask stays counted. Only an ask that never reached the provider is refunded.
-      await p.ai.settle(found.lock, request.requestId, {
-        state: verdict.kind === 'nothing_to_add' && found.allowed ? 'declined' : 'failed',
-        at,
-        dispatched: verdict.kind === 'failed' ? verdict.dispatched : true,
-      });
+      await p.ai.settle(found.lock, request.turnId, unpostedOutcome(verdict, found.allowed, at));
       return;
     }
     const messageId = p.newId();
@@ -145,7 +142,7 @@ async function applyVerdict(
       text: verdict.answer.text,
       recordedAt: at,
     });
-    await p.ai.settle(found.lock, request.requestId, {
+    await p.ai.settle(found.lock, request.turnId, {
       state: 'completed',
       at,
       messageId,

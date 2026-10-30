@@ -411,8 +411,8 @@ export interface AttemptLedger<S = PersonalScopeTx> {
   /** The latest attempt of a logical run step, read under the personal lock. */
   readonly findLocked: (scope: S, runId: string, step: string) => Promise<AttemptRow | undefined>;
   /**
-   * Today's spend in the three budget dimensions, and the part of the global and the scope spend
-   * that background roles made. Takes the budget lock (a transaction advisory lock after the
+   * Today's spend in the three budget dimensions, the part of the global and the scope spend
+   * that background roles made, and the part of the global spend that ambient roles made. Takes the budget lock (a transaction advisory lock after the
    * personal root, always in that order) so concurrent reservations in different universes
    * serialise on all of these counts until this transaction ends.
    */
@@ -519,6 +519,11 @@ export interface HarnessSettings {
    * roles may use together. 100 keeps nothing back for roles a person asks for.
    */
   readonly backgroundSharePercent: number;
+  /**
+   * The part of the global cap, in whole percent (0 to 100), that ambient roles (a room's residents
+   * speaking on their own) may use together. 100 keeps nothing back for roles a person asks for.
+   */
+  readonly ambientSharePercent: number;
   /** Largest request body, in bytes (the protected store's limit). */
   readonly maxRequestBytes: number;
   /** How long protected request bytes are kept. */

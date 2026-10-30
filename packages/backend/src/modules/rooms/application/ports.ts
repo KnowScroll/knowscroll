@@ -10,8 +10,12 @@ import type { ReadVisitedAssets } from '../../experience/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
 import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
+import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
+import type { CapCounts, RefusalCap } from '../domain/router.js';
+import type { SpeechTrigger } from '../domain/triggers.js';
+import type { CastDueJob, CastPassJob } from '../events.js';
 
 export type RoomRefusal = 'invalid_input' | 'unavailable' | 'command_key_reused' | 'rate_limited';
 export type Result<T> =
@@ -44,8 +48,13 @@ export interface RoomRow {
   readonly topic: { readonly kind: 'system' | 'planet'; readonly id: string };
   readonly joinRule: JoinRule;
   readonly status: RoomStatus;
-  readonly inhabitants: readonly InhabitantId[];
+  /** The residents that live here, in the order they are shown (D-163). */
+  readonly cast: readonly CastMember[];
 }
+
+/** Whether the room has this resident. */
+export const hasResident = (room: RoomRow, inhabitant: InhabitantId): boolean =>
+  room.cast.some((member) => member.inhabitant === inhabitant);
 
 export interface MemberRow {
   readonly accountId: string;
@@ -114,6 +123,8 @@ export interface RoomStore {
   /** Takes the room's root lock: FOR UPDATE for commands that change who is in, the status or roles, FOR SHARE otherwise. */
   lock(scope: PersonalScopeTx, roomId: string, mode: 'read' | 'write'): Promise<RoomLock | undefined>;
   standing(lock: RoomLock, accountId: string): Promise<Standing>;
+  /** The locked room's own row, for work that has no caller (a resident's check). */
+  roomRow(lock: RoomLock): Promise<RoomRow>;
   /** Whether any of these accounts is a current member. */
   anyMember(lock: RoomLock, accountIds: readonly string[]): Promise<boolean>;
   memberOf(lock: RoomLock, accountId: string): Promise<MemberRow | undefined>;
@@ -193,6 +204,8 @@ export interface MessageRow {
   readonly text: string | null;
   readonly content: ContentRef | null;
   readonly note: string | null;
+  /** Why a resident spoke on its own; none for a person's message and for an asked contribution. */
+  readonly trigger: SpeechTrigger | null;
 }
 
 export type NewMessage =
@@ -213,6 +226,8 @@ export type NewMessage =
       readonly aiKind: ContributionKind;
       readonly text: string;
       readonly recordedAt: Date;
+      /** Why the resident spoke on its own; absent for an asked contribution. */
+      readonly trigger?: SpeechTrigger;
     };
 
 export interface Counters {
@@ -283,16 +298,34 @@ export interface PresenceStore {
   fresh(lock: RoomLock, since: Date, limit: number): Promise<readonly string[]>;
 }
 
-// --- AI inhabitants -----------------------------------------------------------------------
+// --- AI turns -----------------------------------------------------------------------------
 
-export interface AiRequestRow {
-  readonly requestId: string;
+/** What set an AI turn going: a member's ask, or the reason a resident spoke on its own. */
+export type TurnTrigger = 'asked' | SpeechTrigger;
+
+export type TurnState = 'queued' | 'completed' | 'declined' | 'failed' | 'refused';
+
+/** An answer the model already gave and the room paid for, kept on its turn while posting is put off for someone typing. */
+export interface HeldAnswer {
+  readonly kind: ContributionKind;
+  readonly text: string;
+  readonly attemptId: string;
+}
+
+export interface AiTurnRow {
+  readonly turnId: string;
   readonly roomId: string;
   readonly discussionId: string;
   readonly inhabitant: InhabitantId;
+  /** The member who asked; none for an unprompted turn, and none once the asker's account is deleted. */
   readonly requestedByAccountId: string | null;
-  readonly state: 'queued' | 'completed' | 'declined' | 'failed';
+  readonly state: TurnState;
   readonly createdAt: Date;
+  readonly trigger: TurnTrigger;
+  /** The message an unprompted turn answers; none for an ask. */
+  readonly causeMessageId: string | null;
+  /** The answer held back while someone types; none otherwise. */
+  readonly held: HeldAnswer | null;
 }
 
 export interface AiProvenance {
@@ -302,21 +335,47 @@ export interface AiProvenance {
   readonly attemptId: string | undefined;
 }
 
+/** The result of settling a queued turn. */
+export type TurnOutcome =
+  | { readonly state: 'declined' | 'failed'; readonly at: Date; readonly dispatched: boolean }
+  | {
+      readonly state: 'completed';
+      readonly at: Date;
+      readonly messageId: string;
+      readonly provenance: AiProvenance;
+    };
+
+/** An unprompted turn the router decided: allowed (queued for the worker) or refused (settled at once, posts nothing). */
+export interface NewDecision {
+  readonly turnId: string;
+  readonly discussionId: string;
+  readonly inhabitant: InhabitantId;
+  readonly trigger: SpeechTrigger;
+  readonly causeMessageId: string;
+  readonly decision: { readonly kind: 'allowed' } | { readonly kind: 'refused'; readonly cap: RefusalCap };
+  readonly counts: CapCounts;
+  readonly now: Date;
+}
+
 /**
- * The AI inhabitants' requests: the rate-bound ledger and the provenance of every contribution.
- * An inhabitant cannot write a message without a request row that a member created.
+ * The room's AI turns, asked or unprompted: the rate-bound ledger and the provenance of every AI message. An AI
+ * message cannot exist without a row here that names what set it going (D-068, D-164).
  */
 export interface AiStore {
   /**
-   * Asks counted against the bounds since `since`, in the room and by the person: queued, answered and
-   * declined ones, and failed ones that reached the provider (`dispatched`); only an ask that never reached
-   * the provider is not counted. `personRequests` is every ask the person made, whatever became of it.
+   * Asks counted against the bounds: the room's over the UTC day and the person's over the last hour.
+   * Queued, answered and declined asks count, and failed ones that reached the provider (`dispatched`); only an
+   * ask that never reached the provider is not counted. `personRequests` is every ask of the person, whatever
+   * became of it.
    */
   countAsks(
     lock: RoomLock,
-    query: { readonly accountId: string; readonly since: Date },
+    query: { readonly accountId: string; readonly dayStart: Date; readonly hourStart: Date },
   ): Promise<{ readonly room: number; readonly person: number; readonly personRequests: number }>;
-  /** Requests of this discussion still queued and not lapsed at `now`, by inhabitant. */
+  /**
+   * Asks of this discussion still queued and not lapsed at `now`, by inhabitant. A resident preparing an unprompted answer
+   * is not one: it never stops a member from asking.
+   */
   openAsks(lock: RoomLock, discussionId: string, now: Date): Promise<readonly InhabitantId[]>;
   /** The caller's newest ask of this discussion that ended without a contribution since `since`. */
   lastUnansweredAsk(
@@ -325,26 +384,51 @@ export interface AiStore {
     accountId: string,
     since: Date,
   ): Promise<{ readonly inhabitant: InhabitantId; readonly state: 'declined' | 'failed' } | undefined>;
-  insert(lock: RoomLock, request: AiRequestRow & { readonly commandId: string }): Promise<void>;
-  /** The request by ID inside the room's lock, for the worker's apply step. */
-  read(lock: RoomLock, requestId: string): Promise<AiRequestRow | undefined>;
-  settle(
-    lock: RoomLock,
-    requestId: string,
-    outcome:
-      | { readonly state: 'declined' | 'failed'; readonly at: Date; readonly dispatched: boolean }
-      | {
-          readonly state: 'completed';
-          readonly at: Date;
-          readonly messageId: string;
-          readonly provenance: AiProvenance;
-        },
-  ): Promise<void>;
+  /** Writes a member's ask as a queued turn. */
+  insertAsk(lock: RoomLock, ask: AiTurnRow & { readonly commandId: string }): Promise<void>;
+  /** The turn by ID inside the room's lock, for the worker's apply step. */
+  read(lock: RoomLock, turnId: string): Promise<AiTurnRow | undefined>;
   /**
-   * The request a job names, found without a room lock from the job's own universe, with the asker
-   * only if that universe belongs to them. The worker uses it to learn which room to lock.
+   * Settles a queued turn and clears any held answer. A turn that reached the provider stays counted: settling never
+   * lowers `dispatched`, so a later "nothing was sent" cannot take back a call that was paid for.
    */
-  forJob(scope: PersonalScopeTx, requestId: string): Promise<AiRequestRow | undefined>;
+  settle(lock: RoomLock, turnId: string, outcome: TurnOutcome): Promise<void>;
+  /**
+   * Keeps the answer the model gave while posting is put off. The turn is marked as having reached the provider in the same
+   * statement, so it counts against the caps whatever becomes of the words.
+   */
+  hold(lock: RoomLock, turnId: string, held: HeldAnswer): Promise<void>;
+  /**
+   * The ask a job names, found without a room lock from the job's own universe, with the asker only if that
+   * universe belongs to them. The worker uses it to learn which room to lock.
+   */
+  forJob(scope: PersonalScopeTx, turnId: string): Promise<AiTurnRow | undefined>;
+  /** Whether a turn, allowed or refused, already exists for this message and trigger. */
+  decidedFor(lock: RoomLock, causeMessageId: string, trigger: SpeechTrigger): Promise<boolean>;
+  /** The counts the unprompted caps compare at `now`, for the resident that would speak and the message's author. */
+  capCounts(
+    lock: RoomLock,
+    query: { readonly now: Date; readonly inhabitant: InhabitantId; readonly authorAccountId: string | null },
+  ): Promise<CapCounts>;
+  /** Writes the router's decision as a turn row, in the same transaction as what follows from it. */
+  insertDecision(lock: RoomLock, decision: NewDecision): Promise<void>;
+}
+
+/** What the router reads about a room that no other store holds. */
+export interface CastStore {
+  /** Current members whose AI level is not Off. */
+  listeners(lock: RoomLock): Promise<number>;
+  /** Person messages after `sequence` in a discussion by anyone but the author, and AI messages after it. */
+  activityAfter(
+    lock: RoomLock,
+    discussionId: string,
+    sequence: number,
+    authorAccountId: string | null,
+  ): Promise<{ readonly byOthers: number; readonly byAi: number }>;
+  /** How many messages (of any kind but a tombstone) the account has written in the room. */
+  messagesBy(lock: RoomLock, accountId: string): Promise<number>;
+  /** Until when someone is typing in the discussion, if anyone is (D-165). Never says who. */
+  typingUntil(lock: RoomLock, discussionId: string, now: Date): Promise<Date | undefined>;
 }
 
 // --- Optional room activity (R03) ---------------------------------------------------------
@@ -455,6 +539,7 @@ export interface RoomPorts {
   readonly discussions: DiscussionStore;
   readonly presence: PresenceStore;
   readonly ai: AiStore;
+  readonly cast: CastStore;
   readonly activities: ActivityStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
@@ -472,5 +557,14 @@ export interface RoomPorts {
   hash(operation: string, input: unknown): string;
   now(): Date;
   /** Queues the contribution job in the caller's open transaction. */
-  enqueueContribution(scope: PersonalScopeTx, requestId: string): Promise<void>;
+  enqueueContribution(scope: PersonalScopeTx, turnId: string): Promise<void>;
+  /**
+   * Whether residents may speak unprompted in this world (D-162). Off, a message schedules nothing, so a world that
+   * leaves residents off queues no job.
+   */
+  readonly residentsEnabled: boolean;
+  /** Queues the check that decides whether a resident answers a message, to run at `startAfter`. */
+  enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
+  /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */
+  enqueueCastPass(scope: PersonalScopeTx, job: CastPassJob, startAfter?: Date): Promise<void>;
 }

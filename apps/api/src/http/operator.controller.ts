@@ -15,6 +15,7 @@ import {
   type ReadJourney,
   type ReadOperatorPanels,
 } from '@knowscroll/backend/modules/operator';
+import { UNPROMPTED_CAPS } from '@knowscroll/backend/modules/rooms';
 import { LOG_EVENT } from '../tokens.js';
 import { problem } from './problems.js';
 import { admittedCaller } from './scope-guard.js';
@@ -28,7 +29,7 @@ function mapPiece<From, To>(source: Piece<From>, map: (data: From) => To): Piece
 }
 
 function wirePanels(panels: OperatorPanels): OperatorPanelsResponse {
-  const { overview, production, universeChange, safety, privacy } = panels;
+  const { overview, production, universeChange, safety, privacy, rooms } = panels;
   const queueRows = (rows: readonly QueueRow[]) =>
     rows.map((row) => ({ ...row, lastCompletedAt: isoOrNull(row.lastCompletedAt) }));
   return {
@@ -65,6 +66,23 @@ function wirePanels(panels: OperatorPanels): OperatorPanelsResponse {
       reports: mapPiece(safety.reports, (summary) => ({
         last24Hours: summary.last24Hours,
         recent: summary.recent.map((row) => ({ ...row, createdAt: iso(row.createdAt) })),
+      })),
+    },
+    rooms: {
+      calls: mapPiece(rooms.calls, (summary) => ({
+        limits: {
+          humanMessagesPerTurn: UNPROMPTED_CAPS.humanMessagesPerTurn,
+          roomPerHour: UNPROMPTED_CAPS.roomPerHour,
+          roomPerDay: UNPROMPTED_CAPS.roomPerDay,
+          explainerPerHour: UNPROMPTED_CAPS.residentPerHour.explainer,
+          skepticPerHour: UNPROMPTED_CAPS.residentPerHour.skeptic,
+          skepticPerPersonPerHour: UNPROMPTED_CAPS.skepticPerPersonPerHour,
+        },
+        rooms: summary.rooms.map((row) => ({
+          ...row,
+          refused: row.refused.map((refusal) => ({ ...refusal })),
+          lastAt: iso(row.lastAt),
+        })),
       })),
     },
     realtime: panels.realtime,

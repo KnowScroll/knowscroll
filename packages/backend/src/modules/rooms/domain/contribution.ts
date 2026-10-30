@@ -11,15 +11,15 @@ export const KINDS_OF: Readonly<Record<InhabitantId, readonly ContributionKind[]
 
 /** The longest contribution, in characters: a suggestion in a few sentences, never an essay. */
 export const CONTRIBUTION_MAX_CHARS = 600;
-/** How many contributions one room may ask for in a UTC day, whoever asks. */
-export const ROOM_ASKS_PER_DAY = 12;
-/** How many one person may ask for in a UTC day, across rooms. */
-export const PERSON_ASKS_PER_DAY = 4;
+/** How many contributions one room may ask for in a UTC day, whoever asks (D-068: replaces D-051's 12). */
+export const ROOM_ASKS_PER_DAY = 80;
+/** How many one person may ask for in an hour, across rooms (D-068: replaces D-051's 4 a day). */
+export const PERSON_ASKS_PER_HOUR = 10;
 /**
- * How many asks of any outcome one person may make in a UTC day, across rooms: also those that failed
+ * How many asks of any outcome one person may make in an hour, across rooms: also those that failed
  * before reaching the provider. The bound above never counts those, so this one keeps them from piling up.
  */
-export const PERSON_REQUESTS_PER_DAY = 12;
+export const PERSON_REQUESTS_PER_HOUR = 20;
 /** An ask still queued after this long no longer holds its discussion (the job was lost or erased). */
 export const QUEUED_ASK_LAPSES_MS = 15 * 60 * 1000;
 /** The newest messages of a discussion an inhabitant reads, and the most characters of each. */
@@ -32,10 +32,10 @@ export interface AskFacts {
    * failed ones that reached the provider. Only an ask that never reached the provider is not counted.
    */
   readonly roomAsksToday: number;
-  /** The same, for the person across rooms. */
-  readonly personAsksToday: number;
-  /** Every ask of the person since the UTC day began, whatever became of it. */
-  readonly personRequestsToday: number;
+  /** The same, for the person across rooms, over the last hour. */
+  readonly personAsksLastHour: number;
+  /** Every ask of the person over the last hour, whatever became of it. */
+  readonly personRequestsLastHour: number;
   /** An ask of this discussion is still being prepared. */
   readonly openAsk: boolean;
 }
@@ -43,14 +43,14 @@ export interface AskFacts {
 export type AskDecision = 'allowed' | 'preparing' | 'room_resting' | 'person_resting';
 
 /**
- * Whether a member may ask an inhabitant now. One ask is prepared per discussion at a time, and a
- * room and a person each have a daily bound, so inhabitants can never fill a room: they answer a
- * person who asked, a few times a day.
+ * Whether a member may ask an inhabitant now. One turn is prepared per discussion at a time, and a
+ * room has a daily bound and a person an hourly one, so asks can never fill a room. Asked turns have
+ * their own bounds apart from the unprompted caps (`router.ts`).
  */
 export function askDecision(facts: AskFacts): AskDecision {
   if (facts.openAsk) return 'preparing';
   if (facts.roomAsksToday >= ROOM_ASKS_PER_DAY) return 'room_resting';
-  if (facts.personAsksToday >= PERSON_ASKS_PER_DAY || facts.personRequestsToday >= PERSON_REQUESTS_PER_DAY)
+  if (facts.personAsksLastHour >= PERSON_ASKS_PER_HOUR || facts.personRequestsLastHour >= PERSON_REQUESTS_PER_HOUR)
     return 'person_resting';
   return 'allowed';
 }
@@ -58,6 +58,11 @@ export function askDecision(facts: AskFacts): AskDecision {
 /** The start of the UTC day containing `now`: the bound counts asks from here. */
 export function utcDayStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** The start of the hour that ended at `now`: the person's bound counts asks from here. */
+export function hourBefore(now: Date): Date {
+  return new Date(now.getTime() - 60 * 60 * 1000);
 }
 
 export type ContributionProblem = 'empty' | 'too_long' | 'has_link' | 'claims_to_be_a_person';

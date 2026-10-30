@@ -4,8 +4,8 @@ import { DisplayProvider } from '@knowscroll/ui';
 import { InhabitantBar } from './inhabitant-bar';
 
 const status = (ask: InhabitantStatus['ask']): InhabitantStatus[] => [
-  { inhabitant: 'explainer', label: 'AI · Explainer', blurb: 'Answers when asked', ask },
-  { inhabitant: 'skeptic', label: 'AI · Skeptic', blurb: 'Pushes back on claims', ask },
+  { inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked', ask },
+  { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims', ask },
 ];
 
 async function show(inhabitants: InhabitantStatus[], outcome?: string) {
@@ -21,7 +21,7 @@ async function show(inhabitants: InhabitantStatus[], outcome?: string) {
 describe('the inhabitant bar', () => {
   it('shows each inhabitant with its label and asks only when the person presses Ask', async () => {
     const { onAsk } = await show(status('available'));
-    expect(screen.getByText(/speak when someone asks/)).toBeOnTheScreen();
+    expect(screen.getByText(/answer when asked/)).toBeOnTheScreen();
     // What asking sends is said once, on joining, and then in the room menu: not on every visit.
     expect(screen.queryByText(/without names/)).not.toBeOnTheScreen();
     expect(screen.getByRole('text', { name: 'AI, Explainer' })).toBeOnTheScreen();

@@ -134,7 +134,27 @@ export interface ReportsSummary {
   readonly recent: readonly ReportRow[];
 }
 
-/** The six panels of the artboard and the reports list. Pieces with no Tier 0 source are `unavailable`. */
+/**
+ * One room's AI calls over the last 24 hours, from the turn ledger: counts only, never a message or a person.
+ * `refused` counts the unprompted turns a cap refused, by the cap; they posted nothing and showed nothing.
+ */
+export interface RoomCallsRow {
+  readonly roomId: string;
+  /** Turns a member asked for. */
+  readonly asked: number;
+  /** Turns a resident took on its own (the router allowed them). */
+  readonly unprompted: number;
+  readonly unpromptedLastHour: number;
+  readonly refused: readonly { readonly cap: string; readonly count: number }[];
+  readonly lastAt: Date;
+}
+
+export interface RoomCallsSummary {
+  /** Busiest rooms first. */
+  readonly rooms: readonly RoomCallsRow[];
+}
+
+/** The six panels of the artboard, the reports list and the rooms' AI calls. Pieces with no Tier 0 source are `unavailable`. */
 export interface OperatorPanels {
   readonly generatedAt: Date;
   readonly overview: {
@@ -153,6 +173,7 @@ export interface OperatorPanels {
   };
   readonly universeChange: { readonly cartographer: Piece<CartographerSummary> };
   readonly safety: { readonly reports: Piece<ReportsSummary> };
+  readonly rooms: { readonly calls: Piece<RoomCallsSummary> };
   readonly realtime: { readonly delivery: Unavailable };
   readonly privacy: {
     readonly operations: Piece<PrivacySummary>;

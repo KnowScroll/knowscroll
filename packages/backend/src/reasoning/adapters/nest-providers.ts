@@ -26,7 +26,9 @@ import {
   CHECK_PLANNER_RECORDING_RUN,
   CHECK_GEOGRAPHY_RECORDING_RUN,
   PRODUCTION_REASONING_HARNESS,
+  ROOM_REASONING_HARNESS,
   WITH_PRODUCTION_SCOPE,
+  WITH_ROOM_SCOPE,
   REASONING_HARNESS,
   SWEEP_DISPATCHED_ATTEMPTS,
   type PurgeExpiredRequests,
@@ -42,6 +44,7 @@ import type {
   ReadProductionRunAccounting,
   ProductionAuthority,
   ProductionReasoningHarness,
+  ProductionScopeId,
   ProductionScopeTx,
   WithProductionScope,
 } from '../application/production.js';
@@ -84,6 +87,7 @@ export function harnessSettings(settings: ReasoningSettings, dispatchedBy: strin
   return {
     caps: { global: settings.caps.global, scope: settings.caps.scope, roleDefault: settings.caps.roleDefault },
     backgroundSharePercent: settings.backgroundSharePercent,
+    ambientSharePercent: settings.ambientSharePercent,
     maxRequestBytes: settings.maxRequestBytes,
     requestRetentionSeconds: settings.requestRetentionSeconds,
     purgeIntervalMs: PURGE_INTERVAL_MS,
@@ -99,6 +103,16 @@ export function harnessSettings(settings: ReasoningSettings, dispatchedBy: strin
 export function productionHarnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
   const personal = harnessSettings(settings, dispatchedBy);
   return { ...personal, caps: { ...personal.caps, scope: settings.caps.productionScope } };
+}
+
+/**
+ * Harness settings for the nonpersonal rooms scope (D-162). Residents speak for a room, not for a person, so the
+ * scope's cap is the room cap; the global and role caps are the same as for personal roles and still bound it, and
+ * the ambient share keeps what a person asks for.
+ */
+export function roomHarnessSettings(settings: ReasoningSettings, dispatchedBy: string): HarnessSettings {
+  const personal = harnessSettings(settings, dispatchedBy);
+  return { ...personal, caps: { ...personal.caps, scope: settings.caps.roomScope } };
 }
 
 /**
@@ -238,6 +252,8 @@ export function postgresProductionHarnessPorts(options: {
   readonly db: Kysely<Database>;
   readonly withProductionScope: WithProductionScope;
   readonly enabled: boolean;
+  /** The one root this harness works under; Scroll supply when omitted. */
+  readonly scopeId?: ProductionScopeId;
   readonly model: ModelPort | undefined;
   readonly logEvent: LogEvent;
   readonly settings: HarnessSettings;
@@ -246,7 +262,7 @@ export function postgresProductionHarnessPorts(options: {
   return {
     readProductionRunAccounting,
     withScope: options.withProductionScope,
-    authorityHolds: makeProductionAuthorityHolds(options.db, options.enabled),
+    authorityHolds: makeProductionAuthorityHolds(options.db, options.enabled, options.scopeId),
     scopeId: (authority) => authority.scopeId,
     generation: (authority) => authority.generation,
     model: options.model === undefined ? undefined : guardedModelPort(options.model),
@@ -410,6 +426,32 @@ export function reasoningProviders(
             model: configuredModelPort(settings),
             logEvent,
             settings: productionHarnessSettings(settings, `worker:${process.pid}`),
+          }),
+        ),
+    },
+    {
+      provide: WITH_ROOM_SCOPE,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): WithProductionScope =>
+        makeWithProductionScope(db, {
+          enabled: settings.roomEnabled,
+          lockTimeoutMs: scopeLockTimeoutMs,
+          scopeId: 'rooms',
+        }),
+    },
+    {
+      provide: ROOM_REASONING_HARNESS,
+      inject: [tokens.database, WITH_ROOM_SCOPE, tokens.logEvent],
+      useFactory: (db: Kysely<Database>, withRoomScope: WithProductionScope, logEvent: LogEvent) =>
+        makeProductionReasoningHarness(
+          postgresProductionHarnessPorts({
+            db,
+            withProductionScope: withRoomScope,
+            enabled: settings.roomEnabled,
+            scopeId: 'rooms',
+            model: configuredModelPort(settings),
+            logEvent,
+            settings: roomHarnessSettings(settings, `worker:${process.pid}`),
           }),
         ),
     },

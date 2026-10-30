@@ -19,7 +19,7 @@ import type { ConversationContentProjection, RoomMessage, ThreadEpisode } from '
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { SnippetCard } from '../threads/snippet-card';
-import { AiLabel } from './ai-label';
+import { FoldedResident, ResidentHeader } from './resident-message';
 
 type Available = Extract<RoomMessage, { status: 'available' }>;
 
@@ -41,14 +41,6 @@ function dividedByDay(messages: readonly RoomMessage[]): Group[] {
   }
   return groups;
 }
-
-/** What an AI contribution is, in words: "Counterexample", never a score. */
-const KIND_WORDS = {
-  explanation: 'Explanation',
-  assumption: 'An assumption to check',
-  perspective: 'Another perspective',
-  counterexample: 'A counterexample',
-} as const;
 
 const titleOf = (card: ConversationContentProjection): string | undefined =>
   card.status === 'available'
@@ -337,6 +329,9 @@ export function RoomMessages({
     });
   const collapsedOf = (message: RoomMessage) =>
     message.status === 'available' && message.blockedByYou === true && !shown.has(message.messageId);
+  // A Quieter reader sees a resident's unprompted message as one line until they ask for the words.
+  const foldedOf = (message: RoomMessage) =>
+    message.status === 'available' && message.folded === true && !shown.has(message.messageId);
   return (
     <ScrollView
       ref={scrollRef}
@@ -362,7 +357,8 @@ export function RoomMessages({
             It’s quiet here right now
           </Text>
           <Text variant="meta" color={content.ink2} align="center">
-            Say something, or ask an AI inhabitant. Inhabitants speak only when someone asks.
+            Say something, or ask an AI inhabitant. They answer when asked, and may join in when a question goes
+            unanswered.
           </Text>
         </View>
       ) : null}
@@ -373,75 +369,80 @@ export function RoomMessages({
               {dayLabel(group.at, now)}
             </Text>
             {group.items.map((message) => {
+              // A resident spoke on its own and this reader's AI level is Off: nothing is drawn, not even a marker.
+              if (message.status === 'muted') return null;
               const actions = actionsFor(message, role, ownPersonId);
               const mine = mineOf(message);
+              const folded = foldedOf(message);
               return (
                 <View key={message.sequence} role="listitem" style={styles.item}>
-                  {message.status === 'available' && !collapsedOf(message) ? (
+                  {message.status === 'available' && folded && message.author.kind === 'ai' ? (
+                    <FoldedResident name={message.author.name} onShow={() => toggleShown(message.messageId)} />
+                  ) : message.status === 'available' && !collapsedOf(message) ? (
                     message.author.kind === 'ai' ? (
-                      <View style={styles.aiHeader}>
-                        <AiLabel label={message.author.label} />
-                        {message.suggestion === undefined ? null : (
-                          <Text variant="metaS" color={content.ink2}>
-                            {KIND_WORDS[message.suggestion]}
-                          </Text>
-                        )}
-                      </View>
+                      <ResidentHeader
+                        name={message.author.name}
+                        label={message.author.label}
+                        suggestion={message.suggestion}
+                        trigger={message.trigger}
+                      />
                     ) : mine ? null : (
                       <Text variant="metaS" color={content.ink2}>
                         {message.author.displayName}
                       </Text>
                     )
                   ) : null}
-                  <MessageLine
-                    sequence={message.sequence}
-                    hasActions={actions.canStartThread || actions.canModerate || actions.canReport}
-                    onActions={() => onActions(message)}
-                  >
-                    {message.status === 'available' && collapsedOf(message) ? (
-                      <View style={styles.collapsed} testID="blocked-collapsed">
+                  {folded ? null : (
+                    <MessageLine
+                      sequence={message.sequence}
+                      hasActions={actions.canStartThread || actions.canModerate || actions.canReport}
+                      onActions={() => onActions(message)}
+                    >
+                      {message.status === 'available' && collapsedOf(message) ? (
+                        <View style={styles.collapsed} testID="blocked-collapsed">
+                          <Marker words="A message from someone you blocked" mine={false} />
+                          <Button
+                            label="Show for moderation"
+                            size="sm"
+                            variant="ghost"
+                            onPress={() => toggleShown(message.messageId)}
+                            testID={`show-blocked-${message.messageId}`}
+                          />
+                        </View>
+                      ) : message.status === 'available' ? (
+                        <>
+                          <Bubble
+                            message={message}
+                            mine={mine}
+                            partOf={partOf}
+                            actions={actions}
+                            onOpenSnippet={onOpenSnippet}
+                            onStartThread={onStartThread}
+                          />
+                          {message.blockedByYou === true ? (
+                            <View style={styles.revealed}>
+                              <Text variant="metaS" color={content.ink2}>
+                                You blocked this person. Shown for moderation.
+                              </Text>
+                              <Button
+                                label="Hide again"
+                                size="sm"
+                                variant="ghost"
+                                onPress={() => toggleShown(message.messageId)}
+                              />
+                            </View>
+                          ) : null}
+                        </>
+                      ) : message.status === 'removed' ? (
+                        <Marker words="Message removed by the moderator" mine={false} />
+                      ) : message.status === 'blocked' ? (
                         <Marker words="A message from someone you blocked" mine={false} />
-                        <Button
-                          label="Show for moderation"
-                          size="sm"
-                          variant="ghost"
-                          onPress={() => toggleShown(message.messageId)}
-                          testID={`show-blocked-${message.messageId}`}
-                        />
-                      </View>
-                    ) : message.status === 'available' ? (
-                      <>
-                        <Bubble
-                          message={message}
-                          mine={mine}
-                          partOf={partOf}
-                          actions={actions}
-                          onOpenSnippet={onOpenSnippet}
-                          onStartThread={onStartThread}
-                        />
-                        {message.blockedByYou === true ? (
-                          <View style={styles.revealed}>
-                            <Text variant="metaS" color={content.ink2}>
-                              You blocked this person. Shown for moderation.
-                            </Text>
-                            <Button
-                              label="Hide again"
-                              size="sm"
-                              variant="ghost"
-                              onPress={() => toggleShown(message.messageId)}
-                            />
-                          </View>
-                        ) : null}
-                      </>
-                    ) : message.status === 'removed' ? (
-                      <Marker words="Message removed by the moderator" mine={false} />
-                    ) : message.status === 'blocked' ? (
-                      <Marker words="A message from someone you blocked" mine={false} />
-                    ) : (
-                      <Marker words="Message removed" mine={false} />
-                    )}
-                  </MessageLine>
-                  {message.status === 'available' && message.author.kind === 'ai' ? (
+                      ) : (
+                        <Marker words="Message removed" mine={false} />
+                      )}
+                    </MessageLine>
+                  )}
+                  {message.status === 'available' && message.author.kind === 'ai' && !folded ? (
                     <Text variant="metaS" color={content.ink2}>
                       A suggestion. Nothing is made unless someone chooses it.
                     </Text>
@@ -500,7 +501,6 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   collapsed: { gap: spacing[1], alignItems: 'flex-start' },
   revealed: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
-  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   bubble: { maxWidth: '82%', borderRadius: radius.panel, paddingHorizontal: spacing[4], paddingVertical: spacing[3] },
   snippet: { gap: spacing[2], maxWidth: '100%' },
   card: {

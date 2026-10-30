@@ -1,10 +1,14 @@
 /** Labelled fixtures for idea-room tests: the real use cases over the test database, no HTTP. */
 import { randomUUID } from 'node:crypto';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  makeWithPersonalScope,
+  makeWithProductionScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import {
   readContentSequence,
   readShareableContent,
@@ -18,14 +22,21 @@ import {
 } from '@knowscroll/backend/modules/identity/nest-providers';
 import type { CheckPersonalOwnerActive } from '@knowscroll/backend/modules/identity';
 import {
+  castDueQueue,
+  DEFAULT_CAST,
+  castPassQueue,
   contributeQueue,
   libraryRoomSeeds,
+  type CastDueJob,
+  type CastPassJob,
   type ContributeJob,
   type RoomSeed,
 } from '@knowscroll/backend/modules/rooms';
 import {
   contributeAsInhabitant,
+  decideCast,
   roomUseCases,
+  runCastPass,
   seedRooms,
   setRoomModerator,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
@@ -35,13 +46,22 @@ import {
   readPublicPeople,
 } from '@knowscroll/backend/modules/social/nest-providers';
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
-import type { ReasoningHarness } from '@knowscroll/backend/reasoning';
+import type { ProductionReasoningHarness, ReasoningHarness, WithProductionScope } from '@knowscroll/backend/reasoning';
+import {
+  makeProductionReasoningHarness,
+  postgresProductionHarnessPorts,
+  type HarnessSettings,
+  type ModelPort,
+} from '@knowscroll/backend/reasoning/nest-providers';
 import type { TestDatabase } from './database.js';
+import { fixtureSettings, silent } from './fixture-model.js';
 import { roomReportsReader } from './feedback.js';
 import { befriend, seedFriend, talkCases, type Friend } from './talk.js';
 import { geographyReader } from './visit-world.js';
 
 export type Rooms = ReturnType<typeof roomUseCases>;
+
+export { DEFAULT_CAST };
 
 /** Everything a rooms test needs over one database; `clock.now` can be moved to test the daily bound. */
 export interface RoomWorld {
@@ -52,23 +72,46 @@ export interface RoomWorld {
   readonly threads: ReturnType<typeof talkCases>['threads'];
   /** The ask jobs the use cases queued, in order. */
   readonly queued: ContributeJob[];
+  /** The checks of whether a resident answers, as queued (with when they were asked to run), in order. */
+  readonly castChecks: { readonly job: CastDueJob; readonly startAfter: Date | undefined }[];
+  /** The model calls of allowed unprompted turns, as queued, in order. */
+  readonly castPasses: { readonly job: CastPassJob; readonly startAfter: Date | undefined }[];
   readonly boss: PgBoss;
   /** The worker's consumer over a harness (a fixture model in tests). */
   contribute(harness: ReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
+  /** The worker's check of whether a resident answers a message (no model, no harness). */
+  decide(): (job: CastDueJob) => Promise<void>;
+  /** The worker's model call of an allowed unprompted turn, over a rooms-scope harness. */
+  pass(
+    harness: ProductionReasoningHarness,
+    withRoomScope: WithProductionScope,
+  ): (job: CastPassJob, signal?: AbortSignal) => Promise<void>;
   close(): Promise<void>;
+}
+
+export interface RoomWorldOptions {
+  /** Residents may speak unprompted (`KS_REASONING_ROOM_ENABLED`). Off by default, as in a world that has not turned them on. */
+  readonly residentsEnabled?: boolean;
 }
 
 export async function roomWorld(
   database: TestDatabase<Database>,
   clock: { now: Date } = { now: new Date('2026-10-24T08:00:00Z') },
+  options: RoomWorldOptions = {},
 ): Promise<RoomWorld> {
   const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
   await boss.start();
   const forwarding = makeEnqueueJob(boss);
   const queued: ContributeJob[] = [];
-  const enqueue: EnqueueJob = async (scope, queue, payload, options) => {
+  const castChecks: RoomWorld['castChecks'] = [];
+  const castPasses: RoomWorld['castPasses'] = [];
+  const enqueue: EnqueueJob = async (scope, queue, payload, enqueueOptions) => {
     if (queue.name === contributeQueue.name) queued.push(payload as ContributeJob);
-    await forwarding(scope, queue, payload, options);
+    if (queue.name === castDueQueue.name)
+      castChecks.push({ job: payload as CastDueJob, startAfter: enqueueOptions?.startAfter });
+    if (queue.name === castPassQueue.name)
+      castPasses.push({ job: payload as CastPassJob, startAfter: enqueueOptions?.startAfter });
+    await forwarding(scope, queue, payload, enqueueOptions);
   };
   const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 10_000 });
   const deps = {
@@ -87,6 +130,7 @@ export async function roomWorld(
     // No Scroll in these tests is made for a thread, so the audience of an order is nobody's.
     checkAudience: makeCheckAssetAudience(database.db, () => Promise.resolve(new Set())),
     now: () => clock.now,
+    residentsEnabled: options.residentsEnabled ?? false,
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
   const cases = talkCases(database.db, clock);
@@ -97,7 +141,26 @@ export async function roomWorld(
     friends: cases.friends,
     threads: cases.threads,
     queued,
+    castChecks,
+    castPasses,
     boss,
+    decide() {
+      const decision = decideCast({ ...deps, enqueue, ownerActive, residentsEnabled: true });
+      return (job) => decision(job);
+    },
+    pass(harness, withRoomScope) {
+      const consume = runCastPass({
+        ...deps,
+        enqueue,
+        harness,
+        withRoomScope,
+        ownerActive,
+        model: 'fixture-model-v1',
+        generation: 1,
+        residentsEnabled: true,
+      });
+      return (job, signal = new AbortController().signal) => consume(job, signal);
+    },
     contribute(harness) {
       const consume = contributeAsInhabitant({ ...deps, harness, ownerActive, model: 'fixture-model-v1' });
       return (job, signal = new AbortController().signal) => consume(job, signal);
@@ -121,7 +184,7 @@ export async function seedRoom(
     guidelines: 'Be kind.',
     topic: { kind: 'system', id: 'machine-learning' },
     joinRule: 'open',
-    inhabitants: ['explainer', 'skeptic'],
+    cast: DEFAULT_CAST,
     ...overrides,
   };
   await seedRooms(world.db, [seed], world.clock.now);
@@ -237,4 +300,38 @@ export async function memberView(world: RoomWorld, person: Friend, roomId: strin
   const view = unwrap(await world.rooms.read(person.authority, { version, readId: randomUUID(), roomId }));
   if (view.status !== 'member') throw new Error(`expected a member view, got ${view.status}`);
   return view;
+}
+
+/**
+ * A harness for the nonpersonal `rooms` scope (D-162) over a model, and the scope function that closes its runs: what the
+ * worker builds when residents are on. `settings` set the caps the room scope and the ambient share are held to.
+ */
+export function roomScope(db: Kysely<Database>, model: ModelPort, settings: HarnessSettings = fixtureSettings) {
+  const withScope = makeWithProductionScope(db, { enabled: true, lockTimeoutMs: 5_000, scopeId: 'rooms' });
+  const harness = makeProductionReasoningHarness(
+    postgresProductionHarnessPorts({
+      db,
+      withProductionScope: withScope,
+      enabled: true,
+      scopeId: 'rooms',
+      model,
+      logEvent: silent,
+      settings,
+    }),
+  );
+  return { harness, withScope };
+}
+
+/** How many rows the given schemas hold in all, for proving that a feature wrote nothing there. */
+export async function rowsIn(db: Kysely<Database>, schemas: readonly string[]): Promise<number> {
+  const tables = await sql<{ table_schema: string; table_name: string }>`
+    select table_schema, table_name from information_schema.tables
+    where table_type = 'BASE TABLE' and table_schema = any(${[...schemas]})`.execute(db);
+  let total = 0;
+  for (const table of tables.rows) {
+    const row = await sql<{ n: string }>`
+      select count(*)::text as n from ${sql.table(`${table.table_schema}.${table.table_name}`)}`.execute(db);
+    total += Number(row.rows[0]?.n ?? 0);
+  }
+  return total;
 }
