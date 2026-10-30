@@ -67,7 +67,11 @@ const callShape = {
   prompt: plainText(1, F.promptChars),
   options: z.array(plainText(1, F.optionChars)).min(L.optionsPerCall.min).max(L.optionsPerCall.max),
   /** Index of the correct option. */
-  answer: z.number().int().min(0).max(L.optionsPerCall.max - 1),
+  answer: z
+    .number()
+    .int()
+    .min(0)
+    .max(L.optionsPerCall.max - 1),
   /** Shown after locking in, to everyone: why the answer is what it is. */
   explain: plainText(1, F.explainChars),
   /** Shown after a wrong pick, in addition: warm, no blame ("Plot twist!"). */
@@ -80,7 +84,16 @@ export const CallItStop = z.strictObject({
   kind: z.literal('call_it'),
   ...callShape,
   /** The option that is the common wrong guess, with the reviewed source that says so. Set by code from the recipe. */
-  commonGuess: z.strictObject({ option: z.number().int().min(0).max(L.optionsPerCall.max - 1), source: SourceLabel }).optional(),
+  commonGuess: z
+    .strictObject({
+      option: z
+        .number()
+        .int()
+        .min(0)
+        .max(L.optionsPerCall.max - 1),
+      source: SourceLabel,
+    })
+    .optional(),
 });
 export type CallItStop = z.infer<typeof CallItStop>;
 

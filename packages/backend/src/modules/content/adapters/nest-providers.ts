@@ -171,6 +171,17 @@ export { makeMediaAccess } from './media-access.js';
 
 /** Composition-only factory for the worker's bounded, nonpersonal Scroll operator. */
 export { makeProduceScroll as produceScrollUseCase } from '../production/produce.js';
+/** The operator's writer spike for `scroll-authoring.v2` (S-0, D-120): nothing is admitted or published. */
+export {
+  makeWriterSpikeV2,
+  runSpikeBatch,
+  SPIKE_MAX_CONCURRENCY,
+  SPIKE_MODEL,
+  type SpikeBatchSummary,
+  type SpikeLine,
+  type SpikeResult,
+} from '../production/spike-v2/run.js';
+export { parseSpikeTopics, SPIKE_TOPICS_V2 } from '../production/spike-v2/topics.js';
 /** The job one `content.produce-scroll` delivery runs, and the operator's enqueue and status reads. */
 export { makeRunScrollProduction } from '../production/job.js';
 export { makeEnqueueScrollProduction } from './enqueue-production.js';

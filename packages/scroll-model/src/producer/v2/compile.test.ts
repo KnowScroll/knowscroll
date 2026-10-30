@@ -47,7 +47,9 @@ describe('compileAuthoredV2: a valid Scroll', () => {
     const firstCall = outcome.document.stops.find((stop) => stop.kind === 'call_it');
     expect(firstCall?.kind === 'call_it' && firstCall.commonGuess?.source).toEqual(MYTH_V2.source);
     // The guess is a wrong option, and the answer is the option the writer put first.
-    expect(firstCall?.kind === 'call_it' && firstCall.commonGuess?.option).not.toBe(firstCall?.kind === 'call_it' ? firstCall.answer : -1);
+    expect(firstCall?.kind === 'call_it' && firstCall.commonGuess?.option).not.toBe(
+      firstCall?.kind === 'call_it' ? firstCall.answer : -1,
+    );
   });
 
   it('records which claims every part rests on, by the document’s own ids', () => {
@@ -56,12 +58,19 @@ describe('compileAuthoredV2: a valid Scroll', () => {
     expect(outcome.citations['s1']).toEqual(['claim-v2-1', 'claim-v2-2']);
     expect(outcome.citations['a1']).toEqual(['claim-v2-6']);
     expect(outcome.citations['recap']).toEqual(['claim-v2-1', 'claim-v2-5']);
-    expect(Object.keys(outcome.citations)).toHaveLength(outcome.document.stops.length + outcome.document.asides.length + 1);
+    expect(Object.keys(outcome.citations)).toHaveLength(
+      outcome.document.stops.length + outcome.document.asides.length + 1,
+    );
   });
 
   it('reports an unreviewed source as a notice, not a refusal', () => {
-    const outcome = compileAuthoredV2(authoredV2(), compileInputV2('stage', { ...MYTH_V2, source: { ...MYTH_V2.source, reviewed: false } }));
-    expect(outcome.kind === 'compiled' && outcome.notices).toEqual([{ code: 'misconception_source_unreviewed', path: 'misconception.source' }]);
+    const outcome = compileAuthoredV2(
+      authoredV2(),
+      compileInputV2('stage', { ...MYTH_V2, source: { ...MYTH_V2.source, reviewed: false } }),
+    );
+    expect(outcome.kind === 'compiled' && outcome.notices).toEqual([
+      { code: 'misconception_source_unreviewed', path: 'misconception.source' },
+    ]);
   });
 });
 
@@ -70,7 +79,10 @@ describe('compileAuthoredV2: stops and lines', () => {
     const result = codes(
       changed((draft) => {
         draft.items[2] = { ...draft.items[2], text: filler(61, 90) };
-        draft.items[3] = { ...draft.items[3], line: 'one two three four five six seven eight nine ten eleven twelve thirteen' };
+        draft.items[3] = {
+          ...draft.items[3],
+          line: 'one two three four five six seven eight nine ten eleven twelve thirteen',
+        };
         draft.items[4] = { ...draft.items[4], simple: filler(61, 92) };
       }),
     );
@@ -108,7 +120,9 @@ describe('compileAuthoredV2: calls', () => {
   });
 
   it('needs a Final call that is the only one and ends the spine', () => {
-    expect(codes(changed((draft) => draft.items.splice(itemIndex(draft, 'final_call'), 1)))).toContain('final_call_missing@items');
+    expect(codes(changed((draft) => draft.items.splice(itemIndex(draft, 'final_call'), 1)))).toContain(
+      'final_call_missing@items',
+    );
     expect(
       codes(
         changed((draft) => {
@@ -128,7 +142,9 @@ describe('compileAuthoredV2: calls', () => {
   });
 
   it('needs at least one Call it besides the Final call', () => {
-    expect(codes(changed((draft) => (draft.items = draft.items.filter((item) => item['type'] !== 'call_it'))))).toContain('call_it_missing@items');
+    expect(
+      codes(changed((draft) => (draft.items = draft.items.filter((item) => item['type'] !== 'call_it')))),
+    ).toContain('call_it_missing@items');
   });
 
   it('refuses duplicate options', () => {
@@ -161,18 +177,26 @@ describe('compileAuthoredV2: calls', () => {
     const second = changed((draft) => {
       draft.items[itemIndex(draft, 'call_it', 1)] = { ...draft.items[itemIndex(draft, 'call_it', 1)], commonGuess: 1 };
     });
-    expect(codes(second)).toContain(`common_guess_unexpected@items.${itemIndex(JSON.parse(JSON.stringify({ items: authoredV2().items })) as Mutable, 'call_it', 1)}.commonGuess`);
+    expect(codes(second)).toContain(
+      `common_guess_unexpected@items.${itemIndex(JSON.parse(JSON.stringify({ items: authoredV2().items })) as Mutable, 'call_it', 1)}.commonGuess`,
+    );
 
     const outOfRange = changed((draft) => {
       const index = itemIndex(draft, 'call_it', 0);
-      draft.items[index] = { ...draft.items[index], options: ['correct option here', 'only a wrong option'], commonGuess: 2 };
+      draft.items[index] = {
+        ...draft.items[index],
+        options: ['correct option here', 'only a wrong option'],
+        commonGuess: 2,
+      };
     });
     expect(codes(outOfRange)).toContain('common_guess_invalid@items.1.commonGuess');
   });
 
   it('refuses a common guess when the recipe names no myth', () => {
     const outcome = compileAuthoredV2(authoredV2(), compileInputV2('stage', { kind: 'none' }));
-    expect(refusedWith(outcome).map((issue) => `${issue.code}@${issue.path}`)).toContain('common_guess_unexpected@items.1.commonGuess');
+    expect(refusedWith(outcome).map((issue) => `${issue.code}@${issue.path}`)).toContain(
+      'common_guess_unexpected@items.1.commonGuess',
+    );
     const withoutGuess = changed((draft) => {
       const index = itemIndex(draft, 'call_it', 0);
       const { commonGuess: _removed, ...rest } = draft.items[index] as Record<string, unknown>;
@@ -184,7 +208,9 @@ describe('compileAuthoredV2: calls', () => {
 
 describe('compileAuthoredV2: asides', () => {
   it('needs a limits aside, next to the claim it limits and never after the Final call', () => {
-    expect(codes(changed((draft) => draft.items.splice(itemIndex(draft, 'aside'), 1)))).toContain('limits_aside_missing@items');
+    expect(codes(changed((draft) => draft.items.splice(itemIndex(draft, 'aside'), 1)))).toContain(
+      'limits_aside_missing@items',
+    );
     const last = changed((draft) => {
       const [aside] = draft.items.splice(itemIndex(draft, 'aside'), 1);
       draft.items.push(aside as Record<string, unknown>);
@@ -254,7 +280,9 @@ describe('compileAuthoredV2: the stage', () => {
 
 describe('compileAuthoredV2: claims cite like any other claim', () => {
   it('refuses a handle that was not offered and a Scroll that cites too few passages', () => {
-    expect(codes(changed((draft) => (draft.items[2] = { ...draft.items[2], cites: ['e1', 'e99'] })))).toContain('authoring_cite_unknown@items.2');
+    expect(codes(changed((draft) => (draft.items[2] = { ...draft.items[2], cites: ['e1', 'e99'] })))).toContain(
+      'authoring_cite_unknown@items.2',
+    );
     const narrow = changed((draft) => {
       for (const item of draft.items) item['cites'] = ['e1'];
       (draft['recap'] as { cites: string[] }).cites = ['e1'];
@@ -270,7 +298,10 @@ describe('compileAuthoredV2: claims cite like any other claim', () => {
     expect(codes(inExplain)).toContain(`authoring_number_not_in_evidence@items.4`);
     const inOption = changed((draft) => {
       const index = itemIndex(draft, 'final_call');
-      draft.items[index] = { ...draft.items[index], options: ['It leans by 31 degrees', 'It does not lean', 'It leans by 12 degrees'] };
+      draft.items[index] = {
+        ...draft.items[index],
+        options: ['It leans by 31 degrees', 'It does not lean', 'It leans by 12 degrees'],
+      };
     });
     // The final call cites e1, which states 31 but not 12.
     expect(codes(inOption)).toContain('authoring_number_not_in_evidence@items.9');
@@ -298,7 +329,9 @@ describe('compileAuthoredV2: claims cite like any other claim', () => {
         draft.items[itemIndex(draft, 'aside')] = { ...draft.items[itemIndex(draft, 'aside')], text: copyOf };
       }),
     );
-    expect(result).toEqual(expect.arrayContaining(['copied_passage@items.2', 'copied_passage@items.4', 'copied_passage@items.8']));
+    expect(result).toEqual(
+      expect.arrayContaining(['copied_passage@items.2', 'copied_passage@items.4', 'copied_passage@items.8']),
+    );
   });
 });
 
@@ -312,11 +345,25 @@ describe('compileAuthoredV2: reading time and text', () => {
       const stopTemplate = draft.items[0] as Record<string, unknown>;
       for (const item of draft.items) {
         if (item['type'] === 'stop') item['text'] = filler(60, 74);
-        else if (item['type'] !== 'aside') Object.assign(item, { prompt: filler(20, 75), explain: filler(60, 75), twist: filler(60, 76) });
+        else if (item['type'] !== 'aside')
+          Object.assign(item, { prompt: filler(20, 75), explain: filler(60, 75), twist: filler(60, 76) });
       }
-      const asides = [1, 2, 3].map((tag) => ({ type: 'aside', cites: ['e2'], kind: 'tangent', title: 'Tangent', text: filler(60, 80 + tag) }));
+      const asides = [1, 2, 3].map((tag) => ({
+        type: 'aside',
+        cites: ['e2'],
+        kind: 'tangent',
+        title: 'Tangent',
+        text: filler(60, 80 + tag),
+      }));
       const extraStops = [1, 2, 3, 4].map((tag) => ({ ...stopTemplate, text: filler(60, 90 + tag), stage: {} }));
-      draft.items.splice(8, 1, ...extraStops, ...asides.slice(0, 1), draft.items[8] as Record<string, unknown>, ...asides.slice(1));
+      draft.items.splice(
+        8,
+        1,
+        ...extraStops,
+        ...asides.slice(0, 1),
+        draft.items[8] as Record<string, unknown>,
+        ...asides.slice(1),
+      );
     });
     expect(codes(long)).toContain('reading_length_out_of_brief@$');
     expect(codes(long)).not.toContain('call_budget_exceeded@items');
@@ -352,8 +399,12 @@ describe('compileAuthoredV2: reading time and text', () => {
   it('cuts a title or heading a little over its limit instead of refusing it', () => {
     const outcome = compileAuthoredV2(
       changed((draft) => {
-        draft['title'] = `Why Orrin has summers and winters and the reason is not the one most people give at first glance`;
-        draft.items[0] = { ...draft.items[0], heading: 'A heading that runs quite a bit longer than the spine is able to show' };
+        draft['title'] =
+          `Why Orrin has summers and winters and the reason is not the one most people give at first glance`;
+        draft.items[0] = {
+          ...draft.items[0],
+          heading: 'A heading that runs quite a bit longer than the spine is able to show',
+        };
       }),
       compileInputV2(),
     );
@@ -361,6 +412,8 @@ describe('compileAuthoredV2: reading time and text', () => {
     if (outcome.kind !== 'compiled') throw new Error('expected a compiled Scroll');
     expect(outcome.document.title.length).toBeLessThanOrEqual(90);
     const first = outcome.document.stops[0];
-    expect(first?.kind === 'read' && first.blocks[0]?.type === 'heading' && first.blocks[0].text.length).toBeLessThanOrEqual(60);
+    expect(
+      first?.kind === 'read' && first.blocks[0]?.type === 'heading' && first.blocks[0].text.length,
+    ).toBeLessThanOrEqual(60);
   });
 });

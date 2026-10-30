@@ -182,6 +182,47 @@ Usual findings and what they mean:
 | `reading_length_out_of_brief` | Under two or over eight minutes of reading. |
 | `MODEL_MISMATCH` (attempt code) | The route answered with another model than the configured one. |
 
+## The v2 writer spike (S-0)
+
+Before any V3 engine is built, the team measures whether the writer can produce `scroll-document.v2` Scrolls reliably, and what a library wave costs (issue #471, decisions D-120 to D-122). The command runs the v14 writer on real library recipes, validates and assembles what it writes, and **admits and publishes nothing**. It needs no migration, so a branch with it can be deployed to dev by manual dispatch.
+
+```sh
+# worker environment as above: KS_REASONING_PRODUCTION_ENABLED=1, KS_MINIMAX_MODEL=MiniMax-M3.1-Flash (the only model it accepts)
+node dist/operator.js content writer-spike-v2 --topics <recipe key,…> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]
+```
+
+The twenty topics of the first run, in order (the three Seasons parts first; nine Earth & sky and Space recipes with a stage, four of the human body, seven of computing, machine learning and history without one):
+
+```text
+seasons,seasons-hemispheres,seasons-limits,tides,tides-spring-neap,greenhouse-radiation,greenhouse-balance,stars-fusion,exoplanet-habitable-zone,cardiac-cycle,blood-pressure,reflex-arc,immune-memory,dns-lookup,hash-tables,event-loop,gradient-descent,attention-mechanism,overfitting,industrial-causes
+```
+
+Each run is two requests at most per topic (the writer and one repair), at most 40 for the twenty, inside the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) and the MiniMax window. `--concurrency` (default 1, at most 4) runs topics side by side. `--out` appends the assembled documents of accepted topics to a file, one JSON line each; the file holds the model's own text about public sources, so read it on the server and do not paste it into an issue. A recipe key that is not one of the twenty runs as a plain Scroll with no misconception, and the line says `recipeDefaulted: true`.
+
+### Reading the output
+
+One JSON line on stdout for the start (`result: "starting"`), one for each topic as it finishes (`result: "topic"`), and one for the end (`done` or `stopped`). The exit status is 0 when every topic was accepted or rejected on its merits, 2 when the command was refused or stopped early, 1 on a failure.
+
+A topic line has these fields (never any text of the Scroll):
+
+| Field | Meaning |
+|---|---|
+| `key`, `variant`, `misconception` | The recipe, `stage` or `plain`, `myth` or `none`. |
+| `outcome` | `accepted_first_take`, `accepted_after_repair`, `rejected` (the writer and its repair were both refused), or why nothing was judged: `research_failed`, `evidence_insufficient`, `provider_failed`, `model_mismatch`, `paused` (a cap or the quota stopped it; nothing sent), `unknown` (never resent; see `reasoning unknown`), `refused`, `scope_refused`. |
+| `requests` | Paid requests sent: 1 for a first take, 2 after a repair. |
+| `findings` | For each refused answer, `{attempt, code, path}`: the validator's fixed code and the writer's item (`items[4]`, `recap`). A repaired Scroll lists the findings that caused the repair. Count the codes over all topics for the top findings. |
+| `words`, `readingMinutes` | Reader words (stops, calls, asides, recap) and the measured minutes at 230 words a minute plus 10 seconds a call. |
+| `stops`, `calls`, `stageStates`, `asides` | Counts in the accepted document. |
+| `tokens` | `input`, `output` (thinking included), `thinking`, and `complete: false` when the provider did not report every count. |
+| `attempts`, `models` | Each paid attempt's id, step, state and usage, and the model they report. The transport fails an attempt whose reply names another model (D-031), so a line with `models` other than `MiniMax-M3.1-Flash` is `model_mismatch`. |
+| `notices` | `misconception_source_unreviewed`: the placeholder source label of a spike recipe (only the seasons myth has a reviewed one). |
+| `wallMs` | `research`, `writer` and `total` milliseconds. |
+| `runId`, `spikeId`, `code` | Identity of the run and of this spike run; `code` is the reason for a non-accepted outcome. |
+
+The end line has `requested`, `completed`, `notStarted` (topics never started because an earlier outcome stopped the batch) and, if it stopped, `stoppedBy {key, outcome}`.
+
+To read a refused answer: `node dist/operator.js reasoning rejected --attempt <attemptId>` (kept 30 days, redacted). To size a wave: sum `tokens` and `wallMs.total` over the lines, and note how much of the five-hour MiniMax window the run used.
+
 ## Facts about the model
 
 `MiniMax-M3.1-Flash` thinks before it answers and refuses `thinking: disabled`; thinking tokens

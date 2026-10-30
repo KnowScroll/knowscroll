@@ -65,7 +65,7 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         type: 'stop',
         cites: ['e4'],
         emphasis: 'turn',
-        text: 'Drawn to scale, the orbit of Orrin is almost a perfect circle. Its nearest and farthest distances differ by only a few percent, far too little to explain months of heat or frost. Distance was never the lever.',
+        text: 'Drawn to scale, the orbit of Orrin is almost a perfect circle. The gap between its nearest and farthest points is only a few percent, far too little to explain months of heat or frost. Distance was never the lever.',
         line: 'Distance is not it.',
         simple: 'The orbit is nearly a circle, so distance cannot explain the seasons.',
         stage: { orbit: 'to-scale', focus: 'none' },
@@ -74,7 +74,8 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
         type: 'stop',
         cites: ['e1', 'e3'],
         text: 'What matters is the lean of the axis. It tips by 31 degrees and keeps pointing the same direction all year. So for part of the orbit the northern half faces toward Vael, and half an orbit later it faces away.',
-        simple: 'The axis tips and keeps pointing the same way. The north faces Vael for half the year and away for half.',
+        simple:
+          'The axis tips and keeps pointing the same way. The north faces Vael for half the year and away for half.',
         stage: { view: 'orbit', earthAt: 'dec', axis: 'earth', northPin: 'cool', southPin: 'warm', focus: 'axis' },
       },
       {
@@ -138,7 +139,11 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
     ],
     recap: {
       cites: ['e1', 'e5'],
-      captions: ['The axis leans and points the same way all year.', 'A lean changes the angle of sunlight.', 'A low angle spreads the warmth thin.'],
+      captions: [
+        'The axis leans and points the same way all year.',
+        'A lean changes the angle of sunlight.',
+        'A low angle spreads the warmth thin.',
+      ],
     },
     askSuggestions: [
       'What would seasons look like on a planet tipped on its side?',
@@ -147,10 +152,3 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
     ],
   });
 }
-
-/** The myth this fixture's recipe decides, with a source label a person has not reviewed. */
-export const fixtureMythV2 = {
-  kind: 'myth',
-  claim: 'Orrin is warm in midsummer because it is closer to Vael.',
-  source: { label: 'CI fixture label, not a real source', reviewed: false },
-} as const;

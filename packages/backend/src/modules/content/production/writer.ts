@@ -276,7 +276,9 @@ const codeFor = (label: string): string =>
  * on a `science.nasa.gov` page may still write "science". Each entry has its own code, so the repair
  * hint can name the word to remove without echoing anything the model wrote.
  */
-export function bannedNames(provenance: Pick<DraftProvenance, 'sources'>): readonly BannedName[] {
+export function bannedNames(provenance: {
+  readonly sources: readonly { readonly url: string }[];
+}): readonly BannedName[] {
   const hostnames = [...new Set(provenance.sources.map((source) => new URL(source.url).hostname))];
   const organisations = PUBLISHER_NAMES.filter((name) =>
     hostnames.some((hostname) => name.hosts.some((suffix) => hostMatches(hostname, suffix))),

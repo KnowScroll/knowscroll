@@ -19,18 +19,23 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   final_call_misplaced: 'The final_call is the last stop: put it after every other stop and call, and use exactly one.',
   call_answer_invalid: 'Give two or three options for each call, the correct one first.',
   call_options_duplicate: 'Every option of a call must be different.',
-  common_guess_invalid: 'commonGuess must be 1 or 2 and name a wrong option that exists. The correct option is always the first.',
-  common_guess_missing: 'The first call_it must test the misconception named in the brief: set commonGuess to the option that states it.',
-  common_guess_unexpected: 'Only the first call_it of a Scroll with a named misconception has a commonGuess. Remove it here.',
+  common_guess_invalid:
+    'commonGuess must be 1 or 2 and name a wrong option that exists. The correct option is always the first.',
+  common_guess_missing:
+    'The first call_it must test the misconception named in the brief: set commonGuess to the option that states it.',
+  common_guess_unexpected:
+    'Only the first call_it of a Scroll with a named misconception has a commonGuess. Remove it here.',
   aside_before_stop: 'An aside belongs to the stop before it. Put it after the stop it comments on.',
   aside_after_final_call: 'Put asides before the final_call, never after it.',
   aside_anchor_unknown: 'An aside must follow a stop or a call.',
   limits_aside_missing: 'Add one aside of kind "limits" next to the claim it limits: what this picture leaves out.',
-  limits_aside_last: 'The limits aside belongs next to the claim it limits, well before the final_call, not at the end.',
+  limits_aside_last:
+    'The limits aside belongs next to the claim it limits, well before the final_call, not at the end.',
   recap_small_print_unknown: 'The recap links to the limits aside; add one.',
   stage_unexpected: 'This Scroll has no stage: remove the stage object from this item.',
   stage_missing: 'This Scroll has a stage: give the first stop a stage object that sets the starting picture.',
-  stage_first_state_missing: 'The first stop must set the starting picture: give it a stage object with at least a view.',
+  stage_first_state_missing:
+    'The first stop must set the starting picture: give it a stage object with at least a view.',
   stage_too_static: `The stage must change at least ${LIMITS_V2.minStageStates} times as the stops go by. Add stage changes that follow the explanation.`,
   stage_states_unordered: 'Stage changes follow the order of the stops.',
   reading_length_out_of_brief: `The Scroll must take ${READING_SECONDS_V2.min / 60} to ${READING_SECONDS_V2.max / 60} minutes to read: about 650 to 900 words in all, plus ten seconds for every call.`,

@@ -63,7 +63,12 @@ const callItem = z.strictObject({
   type: z.literal('call_it'),
   ...callFields,
   /** Which option (counting from 0, never 0 itself) is the common wrong guess. Only the first call of a myth Scroll has one. */
-  commonGuess: z.number().int().min(1).max(LIMITS_V2.optionsPerCall.max - 1).optional(),
+  commonGuess: z
+    .number()
+    .int()
+    .min(1)
+    .max(LIMITS_V2.optionsPerCall.max - 1)
+    .optional(),
 });
 
 const finalCallItem = z.strictObject({ type: z.literal('final_call'), ...callFields });
@@ -85,8 +90,14 @@ export const AuthoredScrollV2 = z.strictObject({
   /** Up to twice its limit is cut at a word boundary. */
   title: prose(4, 180),
   dek: prose(10, 400),
-  items: z.array(AuthoredItemV2).min(LIMITS_V2.minStops).max(LIMITS_V2.maxStops + LIMITS_V2.asides),
-  recap: z.strictObject({ cites, captions: z.array(prose(1, 100)).min(LIMITS_V2.recapCaptions.min).max(LIMITS_V2.recapCaptions.max) }),
+  items: z
+    .array(AuthoredItemV2)
+    .min(LIMITS_V2.minStops)
+    .max(LIMITS_V2.maxStops + LIMITS_V2.asides),
+  recap: z.strictObject({
+    cites,
+    captions: z.array(prose(1, 100)).min(LIMITS_V2.recapCaptions.min).max(LIMITS_V2.recapCaptions.max),
+  }),
   askSuggestions: z.array(prose(8, 140)).min(1).max(LIMITS_V2.askSuggestions),
 });
 export type AuthoredScrollV2 = z.infer<typeof AuthoredScrollV2>;

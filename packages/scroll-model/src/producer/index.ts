@@ -36,11 +36,7 @@ export { DRAFT_STAGES, REPAIR_HINTS, repairItems, stageOf, type DraftStage } fro
  * `scroll-authoring.v2` (D-120): the flat shape the v2 writer returns, its assembler into a
  * `scroll-document.v2`, the authoring rules and the writer-facing reference.
  */
-export {
-  AuthoredItemV2,
-  AuthoredScrollV2,
-  SCROLL_AUTHORING_V2_VERSION,
-} from './v2/authoring-schema.js';
+export { AuthoredItemV2, AuthoredScrollV2, SCROLL_AUTHORING_V2_VERSION } from './v2/authoring-schema.js';
 export {
   assembleScrollV2,
   shuffleOptions,

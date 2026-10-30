@@ -52,7 +52,9 @@ export function computeMeasuresV2(parts: MeasuredParts): MeasuresV2 {
     stopId: stop.id,
     weight:
       stopWeight(stop) +
-      parts.asides.filter((aside) => aside.anchorStop === stop.id).reduce((total, aside) => total + asideWords(aside), 0),
+      parts.asides
+        .filter((aside) => aside.anchorStop === stop.id)
+        .reduce((total, aside) => total + asideWords(aside), 0),
   }));
   const recapWeight = parts.recap.captions.reduce((total, caption) => total + countWords(caption), 0);
   const totalWeight = stops.reduce((total, stop) => total + stop.weight, 0) + recapWeight;

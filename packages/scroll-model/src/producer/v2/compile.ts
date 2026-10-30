@@ -82,11 +82,18 @@ export function compileAuthoredV2(authored: AuthoredScrollV2, input: CompileV2In
   const own = authoringIssuesV2(authored, input);
   const assembly = assembleScrollV2(authored, input.publication, input.recipe);
   if (assembly.kind === 'unassemblable')
-    return { kind: 'refused', stage: 'authoring', issues: uniqueIssuesV2([...own, { code: 'stops_too_few', path: 'items' }]) };
+    return {
+      kind: 'refused',
+      stage: 'authoring',
+      issues: uniqueIssuesV2([...own, { code: 'stops_too_few', path: 'items' }]),
+    };
   const checked = validateDocumentV2(assembly.document);
   const fromDocument =
     checked.kind === 'invalid'
-      ? checked.issues.map((issue): IssueV2 => ({ code: issue.code, path: authoredPath(issue.path, assembly.document, assembly.map) }))
+      ? checked.issues.map((issue): IssueV2 => ({
+          code: issue.code,
+          path: authoredPath(issue.path, assembly.document, assembly.map),
+        }))
       : [];
   const issues = uniqueIssuesV2([...own, ...fromDocument]);
   if (issues.length > 0 || checked.kind !== 'valid')

@@ -12,7 +12,14 @@ import {
   type Stage,
   type Stop,
 } from '../../v2/document.js';
-import { applyStagePatch, changesStage, describeStageState, EARTH_SKY_KIT, INITIAL_STAGE_STATE, type StagePatch } from '../../v2/kit.js';
+import {
+  applyStagePatch,
+  changesStage,
+  describeStageState,
+  EARTH_SKY_KIT,
+  INITIAL_STAGE_STATE,
+  type StagePatch,
+} from '../../v2/kit.js';
 import { FIELD_LIMITS_V2 as F, SCROLL_LIMITS_V2_VERSION } from '../../v2/limits.js';
 import { computeMeasuresV2 } from '../../v2/measures.js';
 import { computeIntegrityV2 } from '../../v2/validate.js';
@@ -104,7 +111,11 @@ function callStop(
   recipe: RecipeDataV2,
   isFirstCall: boolean,
 ): CallItStop | FinalCallStop {
-  const shuffled = shuffleOptions(item.options.map(oneLine), item.type === 'call_it' ? item.commonGuess : undefined, seed);
+  const shuffled = shuffleOptions(
+    item.options.map(oneLine),
+    item.type === 'call_it' ? item.commonGuess : undefined,
+    seed,
+  );
   const shared = {
     id,
     prompt: oneLine(item.prompt),
@@ -129,7 +140,9 @@ function readStop(item: Extract<AuthoredItemV2, { type: 'stop' }>, id: string): 
     kind: 'read',
     id,
     blocks: [
-      ...(item.heading === undefined ? [] : [{ type: 'heading' as const, level: 2 as const, text: fit(item.heading, F.headingChars) }]),
+      ...(item.heading === undefined
+        ? []
+        : [{ type: 'heading' as const, level: 2 as const, text: fit(item.heading, F.headingChars) }]),
       { type: 'paragraph' as const, text: oneLine(item.text) },
       ...(item.line === undefined ? [] : [{ type: 'line' as const, text: oneLine(item.line) }]),
     ],
@@ -187,7 +200,15 @@ export function assembleScrollV2(
     const id = `s${stops.length + 1}`;
     if (item.type === 'stop') stops.push(readStop(item, id));
     else {
-      stops.push(callStop(item, id, `${publication.assetId}:${publication.revision}:${id}`, recipe, firstCall && item.type === 'call_it'));
+      stops.push(
+        callStop(
+          item,
+          id,
+          `${publication.assetId}:${publication.revision}:${id}`,
+          recipe,
+          firstCall && item.type === 'call_it',
+        ),
+      );
       if (item.type === 'call_it') firstCall = false;
     }
     patches.push(item.stage);

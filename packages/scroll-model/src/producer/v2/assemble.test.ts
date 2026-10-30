@@ -28,7 +28,10 @@ describe('shuffleOptions', () => {
 
   it('does not always put the correct option first', () => {
     const options = ['correct', 'wrong one', 'wrong two'];
-    const answers = Array.from({ length: 60 }, (_, index) => shuffleOptions(options, undefined, `seed-${index}`).answer);
+    const answers = Array.from(
+      { length: 60 },
+      (_, index) => shuffleOptions(options, undefined, `seed-${index}`).answer,
+    );
     expect(new Set(answers)).toEqual(new Set([0, 1, 2]));
   });
 });
@@ -58,14 +61,21 @@ describe('assembleScrollV2', () => {
     const { document } = assemble(authored);
     expect(document.stage?.states.map((state) => state.stop)).toEqual(['s1', 's3']);
     expect(document.stage?.states[0]?.state).toEqual({ ...INITIAL_STAGE_STATE, view: 'orbit', ray: 'low' });
-    expect(document.stage?.states[1]?.state).toEqual({ ...INITIAL_STAGE_STATE, view: 'orbit', ray: 'low', northPin: 'warm' });
+    expect(document.stage?.states[1]?.state).toEqual({
+      ...INITIAL_STAGE_STATE,
+      view: 'orbit',
+      ray: 'low',
+      northPin: 'warm',
+    });
     expect(document.stage?.states[0]?.alt).toContain('Earth circles the Sun');
   });
 
   it('writes the description of every state itself: the writer cannot supply one', () => {
     const parsed = AuthoredScrollV2.safeParse({
       ...authoredV2(),
-      items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: { view: 'orbit', alt: 'Anything' } } : item)),
+      items: authoredV2().items.map((item, index) =>
+        index === 0 ? { ...item, stage: { view: 'orbit', alt: 'Anything' } } : item,
+      ),
     });
     expect(parsed.success).toBe(false);
   });
@@ -104,16 +114,27 @@ describe('assembleScrollV2', () => {
   it('cleans whitespace and is unaffected by line breaks inside a text', () => {
     const authored = AuthoredScrollV2.parse({
       ...authoredV2(),
-      items: authoredV2().items.map((item, index) => (index === 2 && item.type === 'stop' ? { ...item, text: `First\n\n  sentence.\tSecond sentence.` } : item)),
+      items: authoredV2().items.map((item, index) =>
+        index === 2 && item.type === 'stop' ? { ...item, text: `First\n\n  sentence.\tSecond sentence.` } : item,
+      ),
     });
     const stop = assemble(authored).document.stops[2];
-    expect(stop?.kind === 'read' && stop.blocks[0]).toEqual({ type: 'paragraph', text: 'First sentence. Second sentence.' });
+    expect(stop?.kind === 'read' && stop.blocks[0]).toEqual({
+      type: 'paragraph',
+      text: 'First sentence. Second sentence.',
+    });
   });
 
   it('gives an authored list with no stop nothing to assemble', () => {
     const onlyAsides = AuthoredScrollV2.parse({
       ...authoredV2(),
-      items: Array.from({ length: 6 }, () => ({ type: 'aside', cites: ['e2'], kind: 'tangent', title: 'T', text: 'Text.' })),
+      items: Array.from({ length: 6 }, () => ({
+        type: 'aside',
+        cites: ['e2'],
+        kind: 'tangent',
+        title: 'T',
+        text: 'Text.',
+      })),
     });
     expect(assembleScrollV2(onlyAsides, PUBLICATION_V2, recipeV2('plain')).kind).toBe('unassemblable');
   });

@@ -43,7 +43,8 @@ function stopTextIssues(stop: Stop, index: number): IssueV2[] {
   if (countWords(stop.simple) > LIMITS_V2.stopWords) issues.push({ code: 'simple_too_long', path: `${path}.simple` });
   if (stop.kind !== 'read') {
     for (const field of ['explain', 'twist'] as const)
-      if (countWords(stop[field]) > LIMITS_V2.stopWords) issues.push({ code: 'stop_too_long', path: `${path}.${field}` });
+      if (countWords(stop[field]) > LIMITS_V2.stopWords)
+        issues.push({ code: 'stop_too_long', path: `${path}.${field}` });
     return issues;
   }
   let spoken = 0;
@@ -76,7 +77,8 @@ function callIssues(document: ScrollDocumentV2): IssueV2[] {
     const path = `stops.${index}`;
     if (stop.answer >= stop.options.length) issues.push({ code: 'call_answer_invalid', path: `${path}.answer` });
     const lowered = stop.options.map((option) => option.trim().toLowerCase());
-    if (new Set(lowered).size !== lowered.length) issues.push({ code: 'call_options_duplicate', path: `${path}.options` });
+    if (new Set(lowered).size !== lowered.length)
+      issues.push({ code: 'call_options_duplicate', path: `${path}.options` });
     if (stop.kind === 'final_call') return;
     const guess = stop.commonGuess;
     // Only the first Call it of a myth Scroll carries the common guess: it is the misconception's own question.
@@ -90,7 +92,8 @@ function callIssues(document: ScrollDocumentV2): IssueV2[] {
     else if (
       guess.option >= stop.options.length ||
       guess.option === stop.answer ||
-      canonicalJson(guess.source) !== canonicalJson(document.misconception.kind === 'myth' ? document.misconception.source : null)
+      canonicalJson(guess.source) !==
+        canonicalJson(document.misconception.kind === 'myth' ? document.misconception.source : null)
     )
       issues.push({ code: 'common_guess_invalid', path: `${path}.commonGuess` });
   });
@@ -102,8 +105,10 @@ function asideIssues(document: ScrollDocumentV2): IssueV2[] {
   const issues: IssueV2[] = [];
   const stopIndex = new Map(document.stops.map((stop, index) => [stop.id, index]));
   document.asides.forEach((aside, index) => {
-    if (!stopIndex.has(aside.anchorStop)) issues.push({ code: 'aside_anchor_unknown', path: `asides.${index}.anchorStop` });
-    if (countWords(aside.text) > LIMITS_V2.stopWords) issues.push({ code: 'stop_too_long', path: `asides.${index}.text` });
+    if (!stopIndex.has(aside.anchorStop))
+      issues.push({ code: 'aside_anchor_unknown', path: `asides.${index}.anchorStop` });
+    if (countWords(aside.text) > LIMITS_V2.stopWords)
+      issues.push({ code: 'stop_too_long', path: `asides.${index}.text` });
   });
   const limits = document.asides.filter((aside) => aside.kind === 'limits');
   if (limits.length === 0) issues.push({ code: 'limits_aside_missing', path: 'asides' });
@@ -140,7 +145,8 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
     if (before !== undefined && canonicalJson(before.state) === canonicalJson(entry.state))
       issues.push({ code: 'stage_state_repeated', path });
   });
-  if (stage.states[0]?.stop !== document.stops[0]?.id) issues.push({ code: 'stage_first_state_missing', path: 'stage.states' });
+  if (stage.states[0]?.stop !== document.stops[0]?.id)
+    issues.push({ code: 'stage_first_state_missing', path: 'stage.states' });
   if (stage.states.length < LIMITS_V2.minStageStates) issues.push({ code: 'stage_too_static', path: 'stage.states' });
   return issues;
 }
@@ -149,7 +155,8 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
 function storedIssues(document: ScrollDocumentV2): IssueV2[] {
   const issues: IssueV2[] = [];
   const measures = computeMeasuresV2(document);
-  if (canonicalJson(measures) !== canonicalJson(document.measures)) issues.push({ code: 'measures_mismatch', path: 'measures' });
+  if (canonicalJson(measures) !== canonicalJson(document.measures))
+    issues.push({ code: 'measures_mismatch', path: 'measures' });
   if (measures.readingSeconds < READING_SECONDS_V2.min || measures.readingSeconds > READING_SECONDS_V2.max)
     issues.push({ code: 'reading_length_out_of_brief', path: 'measures.readingSeconds' });
   if (document.integrity.method !== INTEGRITY_METHOD || computeIntegrityV2(document) !== document.integrity.sha256)
@@ -168,13 +175,13 @@ function storedIssues(document: ScrollDocumentV2): IssueV2[] {
  */
 export function validateDocumentV2(input: unknown): DocumentV2Outcome {
   try {
-    if (canonicalSize(input) > LIMITS_V2.documentBytes) return { kind: 'invalid', issues: [{ code: 'document_too_large', path: '$' }] };
+    if (canonicalSize(input) > LIMITS_V2.documentBytes)
+      return { kind: 'invalid', issues: [{ code: 'document_too_large', path: '$' }] };
   } catch {
     return { kind: 'invalid', issues: [{ code: 'document_not_object', path: '$' }] };
   }
   const parsed = ScrollDocumentV2.safeParse(input);
-  if (!parsed.success)
-    return { kind: 'invalid', issues: uniqueIssuesV2(parsed.error.issues.map(issueFromSchema)) };
+  if (!parsed.success) return { kind: 'invalid', issues: uniqueIssuesV2(parsed.error.issues.map(issueFromSchema)) };
   const document = parsed.data;
   const issues: IssueV2[] = [
     ...idIssues(document),

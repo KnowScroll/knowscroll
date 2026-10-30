@@ -42,7 +42,8 @@ function placementIssues(authored: AuthoredScrollV2): IssueV2[] {
     const path = `items.${index}`;
     if (item.type === 'aside') {
       if (!seenStop) issues.push({ code: 'aside_before_stop', path });
-      else if (seenFinal) issues.push({ code: item.kind === 'limits' ? 'limits_aside_last' : 'aside_after_final_call', path });
+      else if (seenFinal)
+        issues.push({ code: item.kind === 'limits' ? 'limits_aside_last' : 'aside_after_final_call', path });
       return;
     }
     seenStop = true;
@@ -66,7 +67,8 @@ function commonGuessIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): Is
     if (item.commonGuess === undefined) {
       if (expected) issues.push({ code: 'common_guess_missing', path });
     } else if (!expected) issues.push({ code: 'common_guess_unexpected', path: `${path}.commonGuess` });
-    else if (item.commonGuess >= item.options.length) issues.push({ code: 'common_guess_invalid', path: `${path}.commonGuess` });
+    else if (item.commonGuess >= item.options.length)
+      issues.push({ code: 'common_guess_invalid', path: `${path}.commonGuess` });
   });
   return issues;
 }
@@ -80,7 +82,12 @@ function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[
       issues.push({ code: 'stage_unexpected', path: `items.${index}.stage` });
   });
   const opening = authored.items[first];
-  if (recipe.variant === 'stage' && opening !== undefined && opening.type !== 'aside' && opening.stage?.view === undefined)
+  if (
+    recipe.variant === 'stage' &&
+    opening !== undefined &&
+    opening.type !== 'aside' &&
+    opening.stage?.view === undefined
+  )
     issues.push({ code: 'stage_first_state_missing', path: `items.${first}.stage` });
   return issues;
 }
@@ -96,7 +103,11 @@ function unitsOf(authored: AuthoredScrollV2): Unit[] {
   return [
     { path: 'title', texts: [authored.title], cites: undefined },
     { path: 'dek', texts: [authored.dek], cites: undefined },
-    ...authored.items.map((item, index): Unit => ({ path: `items.${index}`, texts: readerTexts(item), cites: item.cites })),
+    ...authored.items.map((item, index): Unit => ({
+      path: `items.${index}`,
+      texts: readerTexts(item),
+      cites: item.cites,
+    })),
     { path: 'recap', texts: authored.recap.captions, cites: authored.recap.cites },
     { path: 'askSuggestions', texts: authored.askSuggestions, cites: undefined },
   ];

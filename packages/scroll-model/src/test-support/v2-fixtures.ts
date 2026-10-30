@@ -47,9 +47,36 @@ export const recipeV2 = (variant: 'stage' | 'plain', misconception: Misconceptio
 });
 
 const WORDS = [
-  'amber', 'harbour', 'lantern', 'copper', 'meadow', 'quarry', 'beacon', 'willow', 'ferry', 'granite',
-  'orchard', 'saddle', 'thistle', 'anchor', 'bramble', 'cinder', 'drizzle', 'ember', 'fennel', 'gable',
-  'hollow', 'ivory', 'juniper', 'kettle', 'linen', 'mantle', 'nettle', 'oakum', 'pewter', 'quilt',
+  'amber',
+  'harbour',
+  'lantern',
+  'copper',
+  'meadow',
+  'quarry',
+  'beacon',
+  'willow',
+  'ferry',
+  'granite',
+  'orchard',
+  'saddle',
+  'thistle',
+  'anchor',
+  'bramble',
+  'cinder',
+  'drizzle',
+  'ember',
+  'fennel',
+  'gable',
+  'hollow',
+  'ivory',
+  'juniper',
+  'kettle',
+  'linen',
+  'mantle',
+  'nettle',
+  'oakum',
+  'pewter',
+  'quilt',
 ];
 
 /** `count` invented words in sentences of nine to eleven words; `tag` makes each text different. */
@@ -76,9 +103,7 @@ const patch = (tag: number) => ({ earthAt: (['jan', 'mar', 'jun', 'sep', 'dec', 
  */
 export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScrollV2 {
   const stageFor = (tag: number, first = false) =>
-    variant === 'stage'
-      ? { stage: first ? { view: 'sun-earth' as const, ...patch(tag) } : patch(tag) }
-      : {};
+    variant === 'stage' ? { stage: first ? { view: 'sun-earth' as const, ...patch(tag) } : patch(tag) } : {};
   const stop = (tag: number, cites: string[], first = false) => ({
     type: 'stop' as const,
     cites,
@@ -124,7 +149,10 @@ export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScroll
 }
 
 /** The compile input for the fixtures above. */
-export function compileInputV2(variant: 'stage' | 'plain' = 'stage', misconception: Misconception = MYTH_V2): CompileV2Input {
+export function compileInputV2(
+  variant: 'stage' | 'plain' = 'stage',
+  misconception: Misconception = MYTH_V2,
+): CompileV2Input {
   return {
     publication: PUBLICATION_V2,
     recipe: recipeV2(variant, misconception),
