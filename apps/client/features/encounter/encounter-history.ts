@@ -1,7 +1,7 @@
 import type { AccountScope, ReelRecorder, ScrollRecorder } from '@knowscroll/client-core';
 import type { EncounterOffer, ExposureContextResponse, ReelDocument } from '@knowscroll/contracts';
 import type { ReelLocalPosition, ScrollLocalPosition } from '@knowscroll/ui';
-import type { OpenedScroll } from '../scroll/scroll-session';
+import type { AnyOpenedScroll } from '../scroll/scroll-session';
 
 export type PrivatePosition = { kind: 'scroll'; value: ScrollLocalPosition } | ({ kind: 'reel' } & ReelLocalPosition);
 export type EncounterEntry = {
@@ -24,7 +24,7 @@ export type EncounterEntry = {
   /** Bound only while the actual renderer is mounted. Capture happens before pause/unmount. */
   surface?: { capture(): PrivatePosition | undefined; pause(): void };
 } & (
-  | { kind: 'scroll'; scroll: OpenedScroll; recorder: ScrollRecorder }
+  | { kind: 'scroll'; scroll: AnyOpenedScroll; recorder: ScrollRecorder }
   | {
       kind: 'reel';
       document: ReelDocument;

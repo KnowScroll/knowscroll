@@ -1247,3 +1247,49 @@ R3 question 6 (keep my messages out of what AI reads) and question 5 (default le
 - **Defaults.** A new member starts at Lively in an open room and Quieter in a room that is not open to everyone. A person who comes back keeps their own level, keep-out choice and notice mark. The level is stored now and matters once residents speak on their own; until then asked turns are unchanged.
 - **The notice.** It is shown once, in General, until the member taps "Got it" (`notice_seen_at` keeps the first time). Afterwards the same words live in the room menu under AI here. Its words describe today: an inhabitant reads recent messages, without names, only when someone asks. The per-visit line in the inhabitant bar is gone. The wording changes when residents speak unprompted.
 - **General.** Every room has one General (`discussions.kind = 'general'`, one per room by a partial unique index), made with the room and backfilled for rooms that exist. Seeding makes one for a room that has none. It cannot be pinned and is not in the topics list; `today` is reserved and nothing creates it yet.
+
+## D-133 · 2026-10-30 · The stage engine and the Earth & sky kit: what is drawn, how it moves, where it sits (S-1c, #472)
+
+D-120 and D-124 fixed what a stage state may say and what code derives from it. This entry decides how the reader draws it.
+
+**Builds on** D-124. The physics stays in `scroll-model` (`stagePhysics`); the drawing only places things.
+
+- **One scene, from the derived state.** `sceneOf(state)` turns a settled state and its physics into positions and angles. It decides no physics: which half leans, how high the Sun stands and each pin's mark come from `stagePhysics`.
+- **Where Earth is.** June is at the right, September at the top, December at the left, March at the bottom. The orbit views show the four of them as pale Earths with the same axis, so the one fixed lean can be seen. A pale Earth that would sit on the real one is not drawn.
+- **Two orbits.** `orbit` is nearly a circle with the Sun in the middle. `orbit-stretched` is flatter with the Sun off-centre toward the near side. It is an illustration and says so in its words.
+- **Side views.** The Sun is at the left and its light arrives in parallel. Each hemisphere's pin sits at a distance from the point that faces the Sun that follows its Sun height (22, 50 or 76 degrees), so Ray's angle and the size of the patch the beam covers come out of the geometry: a low Sun spreads over more ground. The axis leans toward the Sun for a leaning north, away for a leaning south, and is upright when neither leans (a lean toward the viewer cannot be drawn flat).
+- **Drawing agrees with physics, by test.** For every month, the half that leans in the orbit picture is the half `stagePhysics` names; the side-view lean matches; the higher Sun covers less ground and has the warmer pin. Shown failing when the orbit's axis turn was changed.
+- **The stage at a stop** is the last state set at or before it. A call sets none, so a call never shows its own answer.
+- **How it moves.** A move inside one view, or between the two orbits, glides over the subject motion token's 320 ms (Earth by the short way round, the axis and the pins blended). A move to a different view fades one picture into the other. Under reduced motion every move is a 160 ms cross-fade and nothing between two states is drawn. A move that starts while another is under way starts from the picture on screen.
+- **Its name.** The picture is one image whose accessible name is the state's description from the document. "Text" (key T) swaps the picture for those sentences.
+- **Where it sits.** On a phone the stage is a third of the screen (at least 176, at most 300 px) pinned above the text, with the part label on it. From a tablet the top bar carries the title and the part. There is no V3 frame for a Scroll on a desktop, so a desktop is a centred column about 750 px wide with the stage pinned at its top and the thread beside it, as for any Scroll.
+- **Calls are played on the device.** Pick, lock in, then the answer and why; a wrong pick adds the Plot twist, and the reviewed source of the common guess shows when that was the pick. Nothing is saved or sent but the reveal (D-135); locking, sparks and the Plot twist's effects are S-2.
+- **Not decided here.** Parallax, an animated Ray, other kits, the stage's own drags (the stage takes none in this version).
+
+Confirmed by: `earth-sky-scene.test.ts`, `use-stage-pictures.test.tsx`, `stage-reader.test.tsx`, `stage-reader-smoke.spec.ts` (picture follows stops, tween and cross-fade, axe at 390 and 1440).
+
+## D-134 · 2026-10-30 · Gestures and keys of the Stage + Spine reader (S-1c, #472)
+
+**Builds on** D-071 (swipe between Parts from text and stop surfaces only) and D-053 (keys act on the focused part, never the page).
+
+- **Swipe.** A sideways drag of at least 64 px that is clearly more sideways than vertical moves between Parts: left is the next Part, right the one before. It is read only on the text. The stage, the spine and the dock are outside it, so the stage keeps its own drags. A drag that starts in the 24 px edge zone of a phone is the platform's Back. A drag that starts on a field or slider is that control's.
+- **Vertical reading never navigates.** Only a pull up from the very end of the text, at least 96 px, asks for a new topic. A fling that ends at the end is not that: the pull must start at the end. On iOS the scroll view's overscroll past the end (72 px) is the same ask; Android uses the button.
+- **One move, one path.** Swipe, key and button call the same thing. A Part is the series continuation the server admitted for this Scroll, sent with its displayed link. A new topic is the vertical move in the same format. Where there is no admitted Part the button is absent and the swipe and key do nothing.
+- **Keys.** They work while the reader itself has focus (Tab to it or click it) and nowhere else: down or Space the next stop, up the one before, right the next Part, left the one before, N a new topic, U your Universe, A Ask, T the text version, F the other format, 1 to 4 pick in a call, Enter lock in. A control inside keeps its own keys. The keyboard map lists them, and a test fails when a key is added without a row.
+- **Quick presses add up.** A key pressed while the last is still scrolling continues from where that one was heading.
+- **Soft snap.** Native uses the scroll view's snap offsets. The web settles on a stop's top when scrolling has been still for 140 ms and the text is within 48 px of it, and never at the very end. CSS scroll snapping pulled a long last section back to the first stop, so it is not used.
+- **Not decided here.** The Part 2 entry animation and a swipe that works at once mid-read (S-5; this reader does not credit it).
+
+Confirmed by: `part-gesture.test.ts`, `reader-keys.test.ts`, `keyboard-map.test.tsx`, `stage-reader-smoke.spec.ts` (swipe left, a short nudge and a stage drag move nothing, N, a pull up in the middle and at the end). Shown failing when the swipe distance was 8 px (the nudge swiped) and when an unlisted key was added to the reader.
+
+## D-135 · 2026-10-30 · What the stage reader reports, and which screens read a v2 Scroll (S-1c, #472)
+
+**Builds on** D-063 and D-128.
+
+- **The stop on screen is the one visible stop.** The reader tells the recorder that stop is wholly visible and every other is not. The stage, the spine, an aside and the end tray are not units. Going to another stop, leaving the screen or replacing the observer closes the stop. Activity is the article's own rule, so time with a sheet over the reader never counts.
+- **A jump gives only the time it was on screen.** A dot tap or key scrolls without animation, so the stops passed on the way get no time. Reading every stop for 50 % of its own words' time plus 0.3 s reports above the 40 % rule for each; tapping through every dot reports none.
+- **A call is reported once, as revealed.** The event has no field for the option picked. `locked` is not reported until locking exists (S-2).
+- **A place is a stop.** Keep and resume store the stop id as the block id with offset 0. Opening at a place scrolls to that stop.
+- **Who reads v2.** Explore and `/scroll/<id>` declare `scroll-document.v2` and draw it. Threads, snippets and everything else still declare v1 only, so the server sends them an earlier v1 revision or nothing. A v2 document reaching a screen that did not declare it shows the update state and is not activated.
+
+Confirmed by: `stage-reader.test.tsx`, `scroll-session.test.ts`, and the two reading tests of `stage-reader-smoke.spec.ts`, which check every observation against the intake schema. Shown failing when the stop on screen was reported as not visible.

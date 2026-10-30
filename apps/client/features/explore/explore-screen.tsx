@@ -9,6 +9,7 @@ import { Skeleton } from '@knowscroll/ui';
 import { useAccountScope } from '../../providers/account-scope';
 import { useDocumentTitle } from '../../platform/document-title';
 import type { EncounterEntry } from '../encounter/encounter-history';
+import { isStageScroll } from '../scroll/scroll-session';
 import { DirectionPicker } from '../encounter/direction-picker';
 import { EncounterEnding } from '../encounter/encounter-ending';
 import { EncounterSheets } from '../encounter/encounter-sheets';
@@ -54,7 +55,19 @@ const HINTS = {
     ],
     footnote: 'Prefer buttons? The ⋯ menu has every move.',
   },
+  stage: {
+    lines: [
+      { icon: 'arrowDown', text: 'Read down: the picture changes' },
+      { icon: 'arrowLeft', text: 'Swipe left for the next Part' },
+    ],
+    footnote: 'Prefer buttons? Every move has one, and a key.',
+  },
 } as const;
+
+/** What the first-arrival note says for the encounter on screen: a Stage + Spine Scroll moves differently from an article. */
+function hintsFor(entry: EncounterEntry) {
+  return entry.kind === 'scroll' && isStageScroll(entry.scroll) ? HINTS.stage : HINTS[entry.kind];
+}
 
 export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const { session, state } = useEncounterSession(scope);
@@ -111,8 +124,8 @@ export function SignedInExplore({ scope }: { readonly scope: AccountScope }) {
   const hint =
     hintOpen && showSurface && !framedReel ? (
       <FirstArrivalHint
-        {...HINTS[entry.kind]}
-        lines={HINTS[entry.kind].lines}
+        {...hintsFor(entry)}
+        lines={hintsFor(entry).lines}
         onDismiss={() => {
           if (scope.active) scope.storage.set('explore.hint.dismissed', '1');
           setHintOpen(false);

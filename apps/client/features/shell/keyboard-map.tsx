@@ -47,6 +47,23 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
     ],
   },
   {
+    title: 'Scroll reader',
+    where: 'While the Scroll is focused (Tab to it, or click it)',
+    shortcuts: [
+      { keys: ['↓', 'Space'], spoken: 'Down arrow or Space', action: 'Next stop' },
+      { keys: ['↑'], spoken: 'Up arrow', action: 'Previous stop' },
+      { keys: ['→'], spoken: 'Right arrow', action: 'Continue to the next Part' },
+      { keys: ['←'], spoken: 'Left arrow', action: 'Back to the Part before' },
+      { keys: ['N'], spoken: 'N', action: 'A new topic in the same format' },
+      { keys: ['U'], spoken: 'U', action: 'Your Universe' },
+      { keys: ['A'], spoken: 'A', action: 'Ask about this' },
+      { keys: ['T'], spoken: 'T', action: 'Text version of the picture' },
+      { keys: ['F'], spoken: 'F', action: 'Switch between Reel and Scroll' },
+      { keys: ['1', '2', '3', '4'], spoken: 'Number keys one to four', action: 'Pick an option in a call' },
+      { keys: ['Enter'], spoken: 'Enter', action: 'Lock in the pick in a call' },
+    ],
+  },
+  {
     title: 'Reel and Scroll switch',
     where: 'While the switch is focused',
     shortcuts: [{ keys: ['←', '→'], spoken: 'Left and right arrow', action: 'Choose Reel or Scroll' }],
