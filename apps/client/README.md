@@ -387,10 +387,11 @@ smokes are `e2e/space-gallery.spec.ts` and `e2e/universe-space-smoke.spec.ts`; t
 `maestro/space.yaml` and `maestro/universe.yaml`.
 
 Files (`features/universe/`): `universe-session.ts` (state, history, memory, dust), `universe-layout.ts`
-(pure placement of regions and labels), `space/` (the 3D views, above), `planet-scene.tsx` (the SVG planet),
-`universe-bodies.tsx` (the SVG kit), `universe-surface.tsx` (phone and desktop layout),
+(pure placement of labels and the outline), `space/` (the 3D views, above), `planet/` (the SVG globe and landed
+map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the formation story's star and planet),
+`universe-surface.tsx` (phone and desktop layout),
 `universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
-`formation-presentation.tsx`. Choices are in D-039.
+`formation-presentation.tsx`. Choices are in D-039, D-108 to D-110.
 
 ## Mounted Keep lifecycle
 

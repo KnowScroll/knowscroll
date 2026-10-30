@@ -299,8 +299,11 @@ export interface PlanetGlobeProps {
   /** The names of the formed regions, by id. */
   readonly labels: ReadonlyMap<string, string>;
   readonly size: { readonly width: number; readonly height: number };
-  /** How far the person has dragged the globe, in pixels: the camera's pan. */
-  readonly dragX: number;
+  /**
+   * The camera: its horizontal pan turns the globe, in pixels. A drag may also move it vertically or zoom, and
+   * any of those means a finger has just been dragged, not tapped.
+   */
+  readonly frame: { readonly x: number; readonly y: number; readonly scale: number };
   readonly reducedMotion: boolean;
   readonly rings: boolean;
   readonly moon: boolean;
@@ -316,15 +319,15 @@ export interface PlanetGlobeProps {
  * technology; the one control is the "Land on" button.
  */
 export function PlanetGlobe(props: PlanetGlobeProps) {
-  const { world, chart, palette, labels, size, dragX, reducedMotion, rings, moon, onLand, landLabel } = props;
+  const { world, chart, palette, labels, size, frame, reducedMotion, rings, moon, onLand, landLabel } = props;
   const diameter = Math.round(Math.min(size.width * 0.75, size.height * 0.36, 420));
   const unit = diameter / BAND_HEIGHT;
   const scale = diameter / DESIGN_GLOBE;
   const centre = { x: size.width / 2, y: size.height * 0.44 };
-  const motion = useGlobeMotion({ reducedMotion, spin: dragX / unit, unit, radius: diameter / 2 });
+  const motion = useGlobeMotion({ reducedMotion, spin: frame.x / unit, unit, radius: diameter / 2 });
   const focus = useFocusRing('onDark');
   const bandWidth = BAND * 2 * unit;
-  const justDragged = useJustDragged(dragX);
+  const justDragged = useJustDragged(frame.x, frame.y, frame.scale);
   const land = () => {
     if (!justDragged()) onLand?.();
   };

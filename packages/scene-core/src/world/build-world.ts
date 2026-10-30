@@ -1,7 +1,8 @@
 import { SceneParseError } from '../parse.js';
 import { LOOK_LIMITS, WORLD_GENERATOR_VERSION, type Point } from '../types.js';
 import { bump, distanceOf, placeContinents, seedsOf, wrapDelta, type Bounds, type Continent } from './continents.js';
-import { contours, deriveGrid, makeGrid, type Grid, type Loop } from './contours.js';
+import { areaOf, contours, deriveGrid, makeGrid, type Grid, type Loop } from './contours.js';
+import { MIN_CELL_AREA, stampIsland, type Island } from './island.js';
 import { createNoise, type Noise } from './noise.js';
 import { worldStream, type Stream } from './random.js';
 import { makePuff } from './puff.js';
@@ -308,9 +309,10 @@ function deepest(field: Grid): Point {
 /**
  * Keeps names apart by moving them up or down. It looks only at where the cells are, assuming the
  * widest name, so a name sits in the same place whatever the other regions are called and whichever
- * have formed.
+ * have formed. A name on a small island of its own stays put and the other name of a pair moves
+ * twice as far, so a name is never left floating away from its island.
  */
-function separateLabels(points: readonly Point[], period: number | undefined): Point[] {
+function separateLabels(points: readonly Point[], period: number | undefined, pinned: readonly boolean[]): Point[] {
   const moved = points.map((point) => ({ ...point }));
   for (let pass = 0; pass < 6; pass++)
     moved.forEach((first, i) =>
@@ -321,11 +323,15 @@ function separateLabels(points: readonly Point[], period: number | undefined): P
         if (Math.abs(across) >= LABEL_REACH || Math.abs(down) >= LABEL_GAP) return;
         const push = (LABEL_GAP - Math.abs(down)) / 2 + 1;
         const sign = down >= 0 ? 1 : -1;
-        first.y += push * sign;
-        second.y -= push * sign;
+        const firstStays = pinned[i] === true && pinned[j] !== true;
+        const secondStays = pinned[j] === true && pinned[i] !== true;
+        first.y += firstStays ? 0 : push * sign * (secondStays ? 2 : 1);
+        second.y -= secondStays ? 0 : push * sign * (firstStays ? 2 : 1);
       }),
     );
-  return moved.map((point) => ({ x: tenth(point.x), y: tenth(point.y) }));
+  // On a wrapping band a name sits inside the band, where it can be seen, never in the overlap past its edge.
+  const inBand = (x: number): number => (period === undefined ? x : ((x % period) + period) % period);
+  return moved.map((point) => ({ x: tenth(inBand(point.x)), y: tenth(point.y) }));
 }
 
 function veilOf(stream: Stream, centre: Point, rx: number, ry: number): Veil {
@@ -344,32 +350,48 @@ interface Shape {
   readonly loops: readonly Loop[];
   readonly label: Point;
   readonly reach: { readonly rx: number; readonly ry: number };
+  /** Set when noise left this seed too little land: the island it was given instead. */
+  readonly island?: Island;
+}
+
+/** A seed whose cell has less than `MIN_CELL_AREA` of land gets a small island on the seed, from its own stream. */
+function withLandAtSeed(terrain: Terrain, spec: WorldSpec, seed: Point, index: number, shape: Shape): Shape {
+  if (areaOf(shape.loops) >= MIN_CELL_AREA) return shape;
+  const stream = worldStream(spec.seed, `${terrain.layout.kind}-island-${index}`, spec.variant);
+  const island = stampIsland(stream, seed, terrain.layout.period);
+  const label = { x: tenth(seed.x), y: tenth(seed.y) };
+  return { loops: island.land, label, reach: { rx: 24, ry: 24 }, island };
 }
 
 /** The outline, label point and extent of every seed's region, in seed order. */
-function shapesOf(terrain: Terrain): Shape[] {
+function shapesOf(terrain: Terrain, spec: WorldSpec): Shape[] {
   return terrain.seeds.map((seed, index) => {
     const built = cellField(terrain, index);
-    if (!built) return { loops: [], label: { x: tenth(seed.x), y: tenth(seed.y) }, reach: { rx: 24, ry: 24 } };
-    return {
-      loops: contours(built.field, 0, 1),
-      label: deepest(built.field),
-      reach: { rx: Math.max(24, (built.width / 2) * 1.1), ry: Math.max(24, (built.height / 2) * 1.1) },
-    };
+    const cut: Shape = built
+      ? {
+          loops: contours(built.field, 0, 1),
+          label: deepest(built.field),
+          reach: { rx: Math.max(24, (built.width / 2) * 1.1), ry: Math.max(24, (built.height / 2) * 1.1) },
+        }
+      : { loops: [], label: { x: tenth(seed.x), y: tenth(seed.y) }, reach: { rx: 24, ry: 24 } };
+    return withLandAtSeed(terrain, spec, seed, index, cut);
   });
 }
 
 interface Cut {
   readonly cells: WorldCell[];
   readonly decor: WorldDecor[];
+  /** The islands that were stamped, for the coasts to include. */
+  readonly islands: Island[];
 }
 
 function cutCells(terrain: Terrain, spec: WorldSpec, veils: boolean): Cut {
-  const shapes = shapesOf(terrain);
+  const shapes = shapesOf(terrain, spec);
   const sites = shapes.slice(0, spec.siteCount);
   const labels = separateLabels(
     sites.map((shape) => shape.label),
     terrain.layout.period,
+    sites.map((shape) => shape.island !== undefined),
   );
   const stream = worldStream(spec.seed, `${terrain.layout.kind}-veils`, spec.variant);
   const veilFor = (centre: Point, reach: Shape['reach']): { veil?: Veil } =>
@@ -382,18 +404,18 @@ function cutCells(terrain: Terrain, spec: WorldSpec, veils: boolean): Cut {
     loops: shape.loops,
     ...veilFor(shape.label, shape.reach),
   }));
-  return { cells, decor };
+  return { cells, decor, islands: shapes.flatMap((shape) => (shape.island ? [shape.island] : [])) };
 }
 
 /** Coasts, shallows and the cartoon patches of land: the same whichever regions have formed. */
-function coastsOf(terrain: Terrain, spec: WorldSpec) {
+function coastsOf(terrain: Terrain, spec: WorldSpec, islands: readonly Island[]) {
   const { land, noise, grain } = terrain;
   const highland = deriveGrid(land, (value, x, y) => Math.min(value - 0.06, noise.at(x, y, 90, 3.3 + grain) - 0.16));
   const lowland = deriveGrid(land, (value, x, y) => Math.min(value - 0.04, -noise.at(x, y, 80, 7.9 + grain) - 0.2));
   return {
-    land: contours(land, 0, 1),
-    shallow: contours(land, -0.07),
-    shallowWide: contours(land, -0.15),
+    land: [...contours(land, 0, 1), ...islands.flatMap((island) => island.land)],
+    shallow: [...contours(land, -0.07), ...islands.flatMap((island) => island.shallow)],
+    shallowWide: [...contours(land, -0.15), ...islands.flatMap((island) => island.shallowWide)],
     highland: contours(highland),
     lowland: contours(lowland),
     generator: WORLD_GENERATOR_VERSION,
@@ -479,12 +501,12 @@ function globeClouds(terrain: Terrain, spec: WorldSpec) {
 export function buildGlobe(spec: WorldSpec): GlobeWorld {
   refuseUnlessValid(spec);
   const terrain = createTerrain(GLOBE, spec);
-  const { cells, decor } = cutCells(terrain, spec, false);
+  const { cells, decor, islands } = cutCells(terrain, spec, false);
   return {
     kind: 'globe',
     width: GLOBE_PERIOD,
     height: 360,
-    ...coastsOf(terrain, spec),
+    ...coastsOf(terrain, spec, islands),
     cells,
     decor,
     clouds: globeClouds(terrain, spec),
@@ -500,12 +522,12 @@ export function buildGlobe(spec: WorldSpec): GlobeWorld {
 export function buildMap(spec: WorldSpec): MapWorld {
   refuseUnlessValid(spec);
   const terrain = createTerrain(MAP, spec);
-  const { cells, decor } = cutCells(terrain, spec, true);
+  const { cells, decor, islands } = cutCells(terrain, spec, true);
   return {
     kind: 'map',
     width: 390,
     height: 844,
-    ...coastsOf(terrain, spec),
+    ...coastsOf(terrain, spec, islands),
     cells,
     decor,
     marks: seaMarks(terrain, spec),

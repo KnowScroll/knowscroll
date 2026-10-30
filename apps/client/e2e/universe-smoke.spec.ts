@@ -93,7 +93,7 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
   expect(calls.every((path) => reads.has(path))).toBe(true);
 });
 
-test('canonical region card opens displayed A through actual activation, then Back restores exact private map/focus and parks real Scroll place', async ({
+test('canonical region card opens displayed A through actual activation, then Back lands on the planet map with the region marked and focused, and parks real Scroll place', async ({
   page,
 }) => {
   const world = sceneFixture(),
@@ -276,7 +276,7 @@ test('canonical region card opens displayed A through actual activation, then Ba
   await expect(page.getByRole('button', { name: 'Back to CI system 0', exact: true })).toBeVisible();
   await expect(card).toHaveCount(0);
   const here = page.getByRole('button', { name: 'CI region 4 · you were here, a region', exact: true });
-  await expect(here).toBeVisible();
+  await expect(here).toBeFocused();
   await expect(page.getByTestId('universe-level')).toHaveText('PLANET');
   expect(calls.filter((c) => c.path.endsWith('/region/open'))).toHaveLength(1);
   expect(calls.filter((c) => c.path.endsWith('/activate'))).toHaveLength(1);

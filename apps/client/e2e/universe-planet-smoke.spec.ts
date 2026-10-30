@@ -127,6 +127,20 @@ for (const size of [
     await expect(land).toBeVisible();
     await expect(page.getByTestId('universe-level')).toHaveCount(0);
     await shot(page, `u03-after-drag-${size.label}`);
+    // The same for a drag up or down, and for one that goes both ways: the camera moves in y as well as x.
+    for (const [across, down] of [
+      [0, 80],
+      [0, -80],
+      [60, 60],
+    ] as const) {
+      await page.waitForTimeout(500);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + across, box.y + box.height / 2 + down, { steps: 8 });
+      await page.mouse.up();
+      await expect(land).toBeVisible();
+      await expect(page.getByTestId('universe-level')).toHaveCount(0);
+    }
     await page.waitForTimeout(500);
     // Tapping lands on the map at planet level, nothing chosen.
     await land.click();

@@ -99,6 +99,27 @@ function chaikin(points: readonly number[]): number[] {
 
 const tenth = (value: number): number => Math.round(value * 10) / 10;
 
+/** Rounds off a closed shape given as x, y pairs: `passes` rounds of corner-cutting, then a tenth of a unit. */
+export function roundOff(points: readonly number[], passes: number): Loop {
+  let shape = [...points];
+  for (let pass = 0; pass < passes; pass++) shape = chaikin(shape);
+  return shape.map(tenth);
+}
+
+/** The area inside a set of loops, each counted once, whichever way it runs. A loop inside another is not taken off. */
+export function areaOf(loops: readonly Loop[]): number {
+  let total = 0;
+  for (const loop of loops) {
+    let twice = 0;
+    for (let at = 0; at < loop.length; at += 2) {
+      const next = (at + 2) % loop.length;
+      twice += (loop[at] ?? 0) * (loop[next + 1] ?? 0) - (loop[next] ?? 0) * (loop[at + 1] ?? 0);
+    }
+    total += Math.abs(twice) / 2;
+  }
+  return total;
+}
+
 /**
  * Closed outlines of the area where the field is above `level`. The grid's own border counts as
  * below it, so every shape closes. `passes` 2 keeps every other point first, for a rounder shape.

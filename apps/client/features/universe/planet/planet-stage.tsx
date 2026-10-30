@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { chartWorld, type Chart, type SceneDescriptor } from '@knowscroll/scene-core';
 import type { SceneProps } from '../scene-parts';
 import { looksById } from '../space/space-model';
@@ -51,6 +51,8 @@ export function PlanetStage({
   const world = globe.status === 'ready' ? globe.world : map.status === 'ready' ? map.world : undefined;
   const chart: Chart | undefined = useMemo(() => (world ? chartWorld(world, plan.sites) : undefined), [world, plan]);
   const hereId = state.youWereHere;
+  // One function for the life of the session, so the map's memoised land does not draw again on every pan.
+  const choose = useCallback((objectId: string) => void session.focus(objectId), [session]);
   const names = useMemo(
     () => new Map(plan.regions.map(({ descriptor }) => [descriptor.objectId, descriptor.label])),
     [plan],
@@ -77,7 +79,7 @@ export function PlanetStage({
         palette={palette}
         labels={names}
         size={size}
-        dragX={state.frame.x}
+        frame={state.frame}
         reducedMotion={state.reducedMotion}
         rings={plan.look?.rings ?? false}
         moon={plan.look?.moon ?? false}
@@ -98,7 +100,7 @@ export function PlanetStage({
       hereId={hereId ?? undefined}
       reducedMotion={state.reducedMotion}
       hypothetical={hypothetical}
-      onChoose={(objectId) => void session.focus(objectId)}
+      onChoose={choose}
     />
   );
 }

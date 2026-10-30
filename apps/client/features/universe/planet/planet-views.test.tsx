@@ -1,3 +1,5 @@
+import type * as React from 'react';
+import type * as MapGroundModule from './map-ground';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { buildGlobe, buildMap, chartWorld, type WorldSpec } from '@knowscroll/scene-core';
 import { paletteOf } from './planet-palette';
@@ -5,6 +7,19 @@ import { PlanetGlobe } from './planet-globe';
 import { PlanetMap } from './planet-map';
 
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
+// The land is memoised so a pan only moves the camera: this stand-in counts how often it is asked to draw.
+const mockLandRenders = jest.fn();
+jest.mock('./map-ground', () => {
+  const actual = jest.requireActual<typeof MapGroundModule>('./map-ground');
+  const { memo } = jest.requireActual<typeof React>('react');
+  return {
+    ...actual,
+    MapLand: memo(function MapLandStub() {
+      mockLandRenders();
+      return null;
+    }),
+  };
+});
 
 const spec: WorldSpec = { seed: '0123456789abcdef0123456789abcdef', type: 'lush', variant: 0, siteCount: 7 };
 const regions = [
@@ -74,6 +89,23 @@ describe('the landed map (U04)', () => {
     expect(onChoose).toHaveBeenCalledWith('region-a');
   });
 
+  it('draws the land once while the camera pans, and again only when what it draws changes', async () => {
+    mockLandRenders.mockClear();
+    const onChoose = jest.fn();
+    const chart = chartWorld(map, regions);
+    const view = await render(<PlanetMap {...mapProps({ onChoose, chart })} />);
+    for (const x of [10, 20, 30, 40])
+      await view.rerender(<PlanetMap {...mapProps({ onChoose, chart, frame: { x, y: 0, scale: 1 } })} />);
+    expect(mockLandRenders).toHaveBeenCalledTimes(1);
+    // A new function for choosing is new input, which is why the stage keeps one for the life of the session.
+    await view.rerender(<PlanetMap {...mapProps({ onChoose: jest.fn(), chart })} />);
+    expect(mockLandRenders).toHaveBeenCalledTimes(2);
+    await view.rerender(
+      <PlanetMap {...mapProps({ onChoose: jest.fn(), chart: chartWorld(map, regions.slice(0, 2)) })} />,
+    );
+    expect(mockLandRenders).toHaveBeenCalledTimes(3);
+  });
+
   it('marks the chosen region as selected and the region left through its card as where the person was', async () => {
     await render(<PlanetMap {...mapProps({ selectedId: 'region-c' })} />);
     expect(screen.getByRole('button', { name: 'Gamma, a region' }).props.accessibilityState).toMatchObject({
@@ -102,7 +134,7 @@ describe('the globe (U03)', () => {
     palette,
     labels: names,
     size,
-    dragX: 0,
+    frame: { x: 0, y: 0, scale: 1 },
     reducedMotion: true,
     rings: true,
     moon: true,
@@ -118,14 +150,23 @@ describe('the globe (U03)', () => {
     expect(screen.queryAllByText(/./)).toHaveLength(0);
   });
 
-  it('lands on a tap and not on the end of a drag', async () => {
+  it('lands on a tap', async () => {
+    const onLand = jest.fn();
+    await render(<PlanetGlobe {...globeProps({ onLand })} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Land on Test planet' }));
+    expect(onLand).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['across', { x: -60, y: 0, scale: 1 }],
+    ['up or down', { x: 0, y: 70, scale: 1 }],
+    ['a zoom', { x: 0, y: 0, scale: 1.6 }],
+  ])('does not land on the end of a drag %s: the camera moved a moment ago', async (_how, frame) => {
     const onLand = jest.fn();
     const view = await render(<PlanetGlobe {...globeProps({ onLand })} />);
+    await view.rerender(<PlanetGlobe {...globeProps({ onLand, frame })} />);
     await fireEvent.press(screen.getByRole('button', { name: 'Land on Test planet' }));
-    expect(onLand).toHaveBeenCalledTimes(1);
-    await view.rerender(<PlanetGlobe {...globeProps({ onLand, dragX: -60 })} />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Land on Test planet' }));
-    expect(onLand).toHaveBeenCalledTimes(1);
+    expect(onLand).not.toHaveBeenCalled();
   });
 
   it('offers no way to land where landing is not offered, and draws without a ring or a moon', async () => {

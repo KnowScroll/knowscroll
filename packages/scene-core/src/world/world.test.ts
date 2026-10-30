@@ -15,7 +15,8 @@ import {
   type WorldSpec,
 } from '../index.js';
 import { cosineSample, sineSample } from '../unit-circle.js';
-import { contours, makeGrid } from './contours.js';
+import { areaOf, contours, makeGrid } from './contours.js';
+import { MIN_CELL_AREA, stampIsland } from './island.js';
 import { createNoise } from './noise.js';
 import { worldStream } from './random.js';
 
@@ -68,6 +69,12 @@ describe('the world generator is pinned (worldmap.v1)', () => {
         '7fbc2af5:100107',
         '1a8fef04:135852',
       ],
+      // The planet whose site 1 had no land on the globe: its island is stamped, and pinned with the rest.
+      [
+        { seed: 'eb957a5642872ae16bfd0c5647ed8331', type: 'lush', variant: 2, siteCount: 7 },
+        'f195e69a:106086',
+        '1ff01ac4:103748',
+      ],
     ];
     for (const [spec, map, globe] of pins) {
       expect(digest(buildMap(spec))).toBe(map);
@@ -84,6 +91,9 @@ describe('the world generator is pinned (worldmap.v1)', () => {
     const globe = buildGlobe(spec);
     expect(globe.cells[0]?.label).toEqual({ x: 372, y: 159.1 });
     expect(globe.cells[0]?.loops[0]?.slice(0, 6)).toEqual([395.2, 127.6, 395.7, 126.8, 396.4, 126.8]);
+    const stamped = buildGlobe({ seed: 'eb957a5642872ae16bfd0c5647ed8331', type: 'lush', variant: 2, siteCount: 7 });
+    expect(stamped.cells[1]?.label).toEqual({ x: 266.3, y: 173.9 });
+    expect(stamped.cells[1]?.loops[0]?.slice(0, 6)).toEqual([278.7, 175.6, 278.1, 176.7, 277.4, 177.8]);
   });
 
   it('uses no engine-dependent maths: no trigonometry, power, logarithm, hypotenuse or randomness', () => {
@@ -202,8 +212,12 @@ describe('a planet', () => {
       }
       const globe = buildGlobe(spec);
       expect(globe.cells).toHaveLength(spec.siteCount);
-      // The globe is a narrow band, so noise can swallow the odd small cell; a planet keeps nearly all of them.
-      expect(globe.cells.filter((cell) => area(cell.loops) > 100).length).toBeGreaterThanOrEqual(spec.siteCount - 1);
+      for (const cell of globe.cells)
+        expect(area(cell.loops), `globe site ${cell.site}`).toBeGreaterThan(MIN_CELL_AREA);
+      for (const cell of globe.cells) {
+        expect(cell.label.x).toBeGreaterThanOrEqual(0);
+        expect(cell.label.x).toBeLessThan(480);
+      }
       for (const loop of [...globe.land, ...globe.clouds.body]) {
         expect(loop.length % 2).toBe(0);
         expect(loop.every((value) => Number.isFinite(value))).toBe(true);
@@ -232,6 +246,62 @@ describe('a planet', () => {
       expect(map.land.length).toBeGreaterThan(0);
       expect(map.cells.every((cell) => Number.isFinite(cell.label.x))).toBe(true);
     }
+  });
+});
+
+describe('land at every site', () => {
+  it('gives a formed region land even where noise left it none: the planet that had an empty cell', () => {
+    const spec: WorldSpec = { seed: 'eb957a5642872ae16bfd0c5647ed8331', type: 'lush', variant: 2, siteCount: 7 };
+    const globe = buildGlobe(spec);
+    for (const cell of globe.cells) expect(area(cell.loops), `site ${cell.site}`).toBeGreaterThan(MIN_CELL_AREA);
+    // The island of a site that had no land is part of the coast, so it has a shore and is drawn with the rest.
+    const stamped = globe.cells[1]!;
+    expect(stamped.loops.length).toBeGreaterThan(0);
+    expect(
+      stamped.loops.every((loop) => globe.land.some((coast) => JSON.stringify(coast) === JSON.stringify(loop))),
+    ).toBe(true);
+    expect(areaOf(globe.shallowWide)).toBeGreaterThan(areaOf(globe.shallow));
+    expect(areaOf(globe.shallow)).toBeGreaterThan(areaOf(globe.land) - 1);
+  });
+
+  it('is stamped from the planet alone: the same island every time, and none depends on another cell', () => {
+    const spec: WorldSpec = { seed: 'eb957a5642872ae16bfd0c5647ed8331', type: 'lush', variant: 2, siteCount: 7 };
+    expect(JSON.stringify(buildGlobe(spec).cells[1])).toBe(JSON.stringify(buildGlobe(spec).cells[1]));
+    const chart = chartWorld(buildGlobe(spec), regionsAt([1]));
+    expect(chart.charted[0]?.loops).toEqual(buildGlobe(spec).cells[1]?.loops);
+  });
+
+  it('makes an island of more than the floor from any stream, round a point on the band, and repeats it over the seam', () => {
+    for (let n = 0; n < 200; n++) {
+      const stream = worldStream(seedFor(n), 'island', 0);
+      const centre = { x: (n * 37) % 480, y: 100 + ((n * 11) % 160) };
+      const island = stampIsland(stream, centre, 480);
+      expect(areaOf(island.land.slice(0, 1))).toBeGreaterThan(MIN_CELL_AREA);
+      expect(areaOf(island.shallowWide.slice(0, 1))).toBeGreaterThan(areaOf(island.shallow.slice(0, 1)));
+      expect(areaOf(island.shallow.slice(0, 1))).toBeGreaterThan(areaOf(island.land.slice(0, 1)));
+      const reach = island.land.flatMap((loop) => loop.filter((_, at) => at % 2 === 0));
+      // Past an edge of the band, another copy a turn away puts the rest of the island at the other edge.
+      const flat = stampIsland(worldStream(seedFor(n), 'island', 0), centre, undefined).land[0]!.filter(
+        (_, at) => at % 2 === 0,
+      );
+      const crosses = Math.min(...flat) < 0 || Math.max(...flat) > 480;
+      expect(island.land).toHaveLength(crosses ? 2 : 1);
+      expect(Math.max(...reach)).toBeGreaterThan(0);
+      expect(Math.min(...reach)).toBeLessThan(480);
+    }
+    // Without a band it is one island, wherever it is.
+    expect(stampIsland(worldStream('f'.repeat(32), 'island', 0), { x: 3, y: 4 }, undefined).land).toHaveLength(1);
+  });
+
+  it('is the same on every call and different for different streams', () => {
+    const at = { x: 200, y: 200 };
+    const one = stampIsland(worldStream('a'.repeat(32), 'island', 0), at, undefined);
+    expect(JSON.stringify(stampIsland(worldStream('a'.repeat(32), 'island', 0), at, undefined))).toBe(
+      JSON.stringify(one),
+    );
+    expect(JSON.stringify(stampIsland(worldStream('b'.repeat(32), 'island', 0), at, undefined))).not.toBe(
+      JSON.stringify(one),
+    );
   });
 });
 

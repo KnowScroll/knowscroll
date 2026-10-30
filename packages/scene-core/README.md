@@ -100,7 +100,9 @@ order, plus one to three decorative continents that belong to no site.
 `chartWorld(world, regions)` says which land is a formed region. A formed region gets its cell and a place
 for its name (`charted`). Everything else is `unreached`: outlines and a cloud, with no id, site, name or
 count, mixed so that its pieces are never as many as the unformed sites (D-109). A region whose site is out
-of range or already held has no cell.
+of range or already held has no cell. Every cell and every decorative continent has more than `MIN_CELL_AREA`
+(150 square units) of land: where noise left less, `island.ts` stamps a small round island on the seed point,
+from the pinned unit circle, and the island joins the coast (D-108).
 
 **Pinned maths.** Only exact arithmetic (add, subtract, multiply, divide), `Math.floor`, `Math.round`,
 `Math.sqrt` and `Math.imul`: no `Math.sin`, `Math.cos`, `Math.pow`, `Math.hypot`, `**`, clock or random
@@ -116,7 +118,7 @@ coordinates. A change to any constant, size, channel or draw order is a new gene
 | Adding a region leaves every other border and name bit-identical  | implemented (unit test, many seeds)  |
 | Unreached land as outlines only; never the unformed count         | implemented                          |
 | The same numbers on Hermes as in V8                               | planned (pure arithmetic; no device run) |
-| Worlds of more than eight sites (the cap is 32)                   | implemented, cells may be small      |
+| Land at every site, up to the cap of 32 sites                      | implemented (unit test, 2,400 planets) |
 
 ## Bounds and verification
 
