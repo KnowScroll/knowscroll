@@ -279,11 +279,7 @@ describe('the Final call (D-187, D-188)', () => {
     const { landmark: _landmark, ...withoutLandmark } = bare;
     await render(
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <StageReader
-          document={{ ...withoutLandmark, stops, stage }}
-          commands={{}}
-          play={playing().play}
-        />
+        <StageReader document={{ ...withoutLandmark, stops, stage }} commands={{}} play={playing().play} />
       </DisplayProvider>,
     );
     expect(screen.queryByTestId('tilt-control')).not.toBeOnTheScreen();
