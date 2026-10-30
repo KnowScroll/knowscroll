@@ -116,12 +116,18 @@ export async function chooseScrollRecipe(scope: PersonalScopeTx, brief: Catalogu
 /**
  * The standing of one recipe's production and the take a send for it should name, for a waiter
  * deciding whether to keep waiting and for a request that joins work already under way.
+ *
+ * Nothing a person's ask waits on is coming from a v2 library recipe (D-138): the operator's library run
+ * makes those, and its Scroll waits for a read. So a group that names one, from before the plan marked it
+ * v2, reads as stopped until the Scroll is served: a join never sends its job again, and its waiters
+ * close honestly instead of waiting on work Create does not own.
  */
 export async function readScrollProduction(scope: PersonalScopeTx, recipe: string): Promise<ScrollProductionReading> {
   const key = Object.hasOwn(RECIPES, recipe) ? (recipe as RecipeKey) : undefined;
   if (key === undefined) return { state: 'stopped' };
   const [standing] = await readLibraryStatus(transactionOf(scope), [key]);
   if (standing === undefined) return { state: 'stopped' };
+  if (scrollV2PlanOf(key) !== undefined && standing.state !== 'published') return { state: 'stopped' };
   const take = takeToSend(standing.state, standing.takes);
   return { state: standing.state, ...(take === undefined ? {} : { take }) };
 }

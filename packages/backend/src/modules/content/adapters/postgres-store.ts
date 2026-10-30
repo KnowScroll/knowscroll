@@ -14,15 +14,32 @@ import type { AssetForAction, OpenableAsset } from '../public.js';
 
 /**
  * Reads one asset inside the caller's personal transaction (no lock: assets are shared and
- * withdrawal does not need to wait for personal commands). Returns `undefined` when missing.
+ * withdrawal does not need to wait for personal commands). Returns `undefined` when missing. With
+ * `revision`, also says whether that exact revision exists and was not held or rejected by the review
+ * gate (D-138), for a caller that names a revision (a report).
  */
-export async function findAssetForAction(scope: PersonalScopeTx, assetId: string): Promise<AssetForAction | undefined> {
-  const row = await transactionOf(scope)
+export async function findAssetForAction(
+  scope: PersonalScopeTx,
+  assetId: string,
+  revision?: number,
+): Promise<AssetForAction | undefined> {
+  const tx = transactionOf(scope);
+  const row = await tx
     .selectFrom('content.assets')
     .select(['revision', 'status'])
     .where('id', '=', assetId)
     .executeTakeFirst();
-  return row === undefined ? undefined : { revision: row.revision, admitted: row.status === 'admitted' };
+  if (row === undefined) return undefined;
+  const asset = { revision: row.revision, admitted: row.status === 'admitted' };
+  if (revision === undefined) return asset;
+  const named = await tx
+    .selectFrom('content.asset_revisions as r')
+    .select('r.revision')
+    .where('r.asset_id', '=', assetId)
+    .where('r.revision', '=', revision)
+    .where(sql<boolean>`${notUnderReview('r.asset_id', 'r.revision')}`)
+    .executeTakeFirst();
+  return { ...asset, revisionReleased: named !== undefined };
 }
 
 /**

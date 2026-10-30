@@ -167,6 +167,33 @@ describe('reports to the safety team (real PostgreSQL)', () => {
         });
       expect(await rowsBy(person.accountId)).toEqual([]);
     });
+
+    it('refuses a revision the review gate rejected, which no one was ever served, and accepts the others', async () => {
+      const gated = await seedContent(database.db, { kind: 'scroll', title: 'Gated Scroll', revisions: 3 });
+      await database.db
+        .insertInto('content.revision_reviews')
+        .values({
+          asset_id: gated.assetId,
+          revision: 2,
+          state: 'rejected',
+          decided_at: new Date(),
+          decided_by: 'cli:ci-reviewer',
+          reason: 'CI fixture rejection',
+        })
+        .execute();
+      const person = await seedFriend(database.db, world.friends);
+      const target = (assetRevision: number) => contentError({ target: { assetId: gated.assetId, assetRevision } });
+      expect(await reports.reportContentError(person.authority, target(2))).toEqual({
+        kind: 'refused',
+        reason: 'target_unavailable',
+      });
+      expect(await rowsBy(person.accountId)).toEqual([]);
+      for (const revision of [1, 3])
+        expect(await reports.reportContentError(person.authority, target(revision))).toMatchObject({
+          kind: 'received',
+        });
+      expect(await rowsBy(person.accountId)).toHaveLength(2);
+    });
   });
 
   describe('abuse', () => {

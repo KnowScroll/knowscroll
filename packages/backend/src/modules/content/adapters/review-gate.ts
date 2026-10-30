@@ -72,6 +72,11 @@ interface ListingRow {
 
 const recipeOfAsset = new Map<string, RecipeKey>(RECIPE_KEYS.map((key) => [RECIPES[key].assetId, key]));
 
+/** The library recipe whose Scroll an asset is, or `null` for an asset the plan does not name. */
+export function recipeKeyOfAsset(assetId: string): RecipeKey | null {
+  return recipeOfAsset.get(assetId.toLowerCase()) ?? null;
+}
+
 function listingOf(row: ListingRow): ReviewListing | undefined {
   const parsed = parseDocumentV2(row.document);
   if (parsed.kind !== 'valid') return undefined;

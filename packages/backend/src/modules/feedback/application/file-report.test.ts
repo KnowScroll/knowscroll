@@ -19,7 +19,9 @@ interface Options {
   readonly lookup?: ReceiptLookup;
   readonly fenced?: boolean;
   readonly sentToday?: number;
-  readonly asset?: { revision: number; admitted: boolean } | undefined;
+  readonly asset?: { revision: number; admitted: boolean; revisionReleased?: boolean } | undefined;
+  /** Collects what the asset read was asked for: the asset and the revision named. */
+  readonly asked?: unknown[][];
   readonly message?: { authorAccountId: string } | undefined;
   readonly roomMessage?: { roomId: string; authorAccountId: string | null } | undefined;
   readonly person?: string | undefined;
@@ -57,7 +59,10 @@ function fixture(options: Options = {}) {
       receipts.get(commandId)!.outcome = { ...outcome };
       return Promise.resolve();
     },
-    findAsset: () => Promise.resolve('asset' in options ? options.asset : { revision: 3, admitted: true }),
+    findAsset: (_scope, assetId, revision) => {
+      options.asked?.push([assetId, revision]);
+      return Promise.resolve('asset' in options ? options.asset : { revision: 3, admitted: true });
+    },
     readMessage: () => Promise.resolve('message' in options ? options.message : { authorAccountId: otherPerson }),
     readRoomMessage: () =>
       Promise.resolve(
@@ -129,6 +134,19 @@ describe('a content error report', () => {
       expect(inserted).toEqual([]);
       expect(receipts.size).toBe(0);
     }
+  });
+
+  it('refuses a revision the review gate held or rejected, which no one was ever served, and asks for the one named', async () => {
+    const { cases, inserted } = fixture({ asset: { revision: 3, admitted: true, revisionReleased: false } });
+    expect(await cases.reportContentError(authority, command)).toEqual({
+      kind: 'refused',
+      reason: 'target_unavailable',
+    });
+    expect(inserted).toEqual([]);
+    const asked: unknown[][] = [];
+    const { cases: released } = fixture({ asset: { revision: 3, admitted: true, revisionReleased: true }, asked });
+    expect(await released.reportContentError(authority, command)).toMatchObject({ kind: 'received' });
+    expect(asked).toEqual([[command.target.assetId, command.target.assetRevision]]);
   });
 });
 

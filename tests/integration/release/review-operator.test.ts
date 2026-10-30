@@ -65,6 +65,12 @@ describe('the review gate commands from the built release', () => {
     const code = await new Promise<number | null>((resolve) => child.once('exit', resolve));
     return { code, stdout, stderr };
   }
+  /** The diagnostic records on stderr (one JSON object a line). */
+  const records = (stderr: string) =>
+    stderr
+      .split('\n')
+      .filter((line) => line.startsWith('{'))
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
   const lastLine = (stdout: string) => JSON.parse(stdout.trim().split('\n').at(-1) ?? '') as Record<string, unknown>;
 
   it('lists the held Scroll with its counts and none of its text', async () => {
@@ -127,6 +133,15 @@ describe('the review gate commands from the built release', () => {
     const released = await operator(['release', '--asset', recipe.assetId, '--revision', '1']);
     expect(released.code).toBe(0);
     expect(lastLine(released.stdout)).toMatchObject({ command: 'content release', result: 'released', revision: 1 });
+    expect(records(released.stderr)).toContainEqual(
+      expect.objectContaining({
+        event: 'content.review_decided',
+        level: 'info',
+        context: 'seasons-hemispheres',
+        outcome: 'released',
+        revision: 1,
+      }),
+    );
     const row = await handle.db
       .selectFrom('content.revision_reviews')
       .select(['state', 'decided_by', 'decided_at'])
@@ -148,6 +163,16 @@ describe('the review gate commands from the built release', () => {
     const late = await operator(['reject', '--asset', recipe.assetId, '--revision', '1', '--reason', 'too late']);
     expect(late.code).toBe(2);
     expect(lastLine(late.stdout)).toMatchObject({ result: 'refused', reason: 'revision_released' });
+    expect(records(late.stderr)).toContainEqual(
+      expect.objectContaining({
+        event: 'content.review_decided',
+        level: 'warn',
+        outcome: 'refused',
+        reasonCode: 'revision_released',
+      }),
+    );
+    // The reason given is kept in the review row and is not written to the log.
+    expect(late.stderr).not.toContain('too late');
     const audit = await operator(['review-list', '--all']);
     expect(lastLine(audit.stdout)).toMatchObject({
       count: 1,

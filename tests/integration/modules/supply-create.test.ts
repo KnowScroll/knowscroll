@@ -41,6 +41,7 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
 
 const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
 const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -686,6 +687,41 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
       await ask(await seedPerson(database.db), catalogue('earth.tides'));
       expect(await queuedProduceJobs()).toEqual([expect.objectContaining({ recipe: 'tides', take: 1 })]);
       expect((await status(fourth, c)).status).toBe('preparing');
+    });
+
+    it('does not send a v2 recipe job again when someone joins a group that named it before the plan marked it v2', async () => {
+      await build();
+      const first = await seedPerson(database.db),
+        second = await seedPerson(database.db);
+      const a = await ask(first, catalogue('machine-learning.transformers'));
+      const old = await workOf(a);
+      expect(old).toMatchObject({ production_recipe: 'transformer-architecture', decision: 'create', active: true });
+      await sql`delete from pgboss.job where name=${produceScrollQueue.name}`.execute(database.db);
+
+      // The plan now makes the recipe v2: Create does not own its production (D-138).
+      const undo = markScrollV2('transformer-architecture', ORRIN_PLAN);
+      try {
+        const b = await ask(second, catalogue('machine-learning.transformers'));
+        const joined = await workOf(b);
+        // The old group is closed, not joined, and the ask starts afresh on a recipe Create may write.
+        expect(joined.id).not.toBe(old.id);
+        expect(joined).toMatchObject({ production_recipe: 'token-embeddings', decision: 'create' });
+        expect(
+          await database.db
+            .selectFrom('supply.work')
+            .select('active')
+            .where('id', '=', old.id)
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ active: false });
+        const queued = await queuedProduceJobs();
+        expect(queued).toContainEqual(expect.objectContaining({ recipe: 'token-embeddings', take: 1 }));
+        expect(queued.map((job) => job.recipe)).not.toContain('transformer-architecture');
+        // The first person's wait ends honestly too, rather than waiting on work nobody will send.
+        await resolve(job(first, a));
+        expect(await status(first, a)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      } finally {
+        undo();
+      }
     });
 
     it('advances open demand that was left from before Create: one recovery job per ask, then it is commissioned', async () => {

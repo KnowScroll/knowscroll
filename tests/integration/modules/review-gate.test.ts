@@ -8,6 +8,8 @@ import {
   makeReviewGate,
   readAdmittedCoverageMapping,
   readDiscoveryCandidates,
+  readEncounterAttribution,
+  readEncounterTopics,
   readExactEncounter,
   readLibraryStatus,
   readRegionEncounterCandidates,
@@ -16,6 +18,8 @@ import {
 } from '@knowscroll/backend/modules/content/nest-providers';
 import { planLibraryProduction } from '@knowscroll/backend/modules/content';
 import { extractResearch } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
+import { readScrollSourcePages } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
+import { findAssetForAction } from '../../../packages/backend/src/modules/content/adapters/postgres-store.js';
 import { makeRenderScroll } from '../../../packages/backend/src/modules/content/adapters/render-scroll.js';
 import { chooseScrollRecipe } from '../../../packages/backend/src/modules/content/adapters/production-state.js';
 import {
@@ -134,6 +138,10 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
       ),
       shared: (await inScope((scope) => readShareableContent(scope, [ref])))[0]?.status,
       saved: (await inScope((scope) => readSavedMetadata(scope, [ref])))[0]?.availability,
+      topics: (await inScope((scope) => readEncounterTopics(scope, ref))).map((topic) => topic.topicId),
+      attributed: (await inScope((scope) => readEncounterAttribution(scope, ref)))?.explanationUnitId,
+      sourcePages: (await inScope((scope) => readScrollSourcePages(scope, ref))).length > 0,
+      reportable: (await inScope((scope) => findAssetForAction(scope, recipe.assetId, revision)))?.revisionReleased,
     };
   }
 
@@ -146,6 +154,10 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
     locked: false,
     shared: 'unavailable',
     saved: 'withdrawn',
+    topics: [],
+    attributed: undefined,
+    sourcePages: false,
+    reportable: false,
   } as const;
 
   describe('a v2 recipe with no Scroll yet (seasons-hemispheres)', () => {
@@ -346,6 +358,10 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         locked: true,
         shared: 'available',
         saved: 'available',
+        topics: [TOPICS[key].topicId],
+        attributed: TOPICS[key].explanationUnitId,
+        sourcePages: true,
+        reportable: true,
       });
       expect(await statusOf(key)).toMatchObject({ state: 'published', assetId, revision: 1 });
       expect(await gate().list({ all: false })).toEqual([]);
@@ -398,7 +414,15 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
 
       expect(await reachable(key, 2)).toEqual({ ...invisible, offered: [1], regionCandidates: [1] });
       const v1 = await reachable(key, 1);
-      expect(v1).toMatchObject({ offered: [1], exact: 1, rendered: true, mapping: 'mapped' });
+      expect(v1).toMatchObject({
+        offered: [1],
+        exact: 1,
+        rendered: true,
+        mapping: 'mapped',
+        topics: [TOPICS[key].topicId],
+        sourcePages: true,
+        reportable: true,
+      });
       // A person who opens it is given the v1 revision, never the held one.
       const useCases = await scrollUseCases(database);
       try {
@@ -413,6 +437,47 @@ describe('The review gate for library v2 Scrolls (labelled CI fixtures, real Pos
         expect(opened.outcome.assetRevision).toBe(1);
       } finally {
         await useCases.close();
+      }
+    });
+
+    it('takes no source pages from the held revision, even when the served one names none', async () => {
+      const ref = { assetId, assetRevision: 1 };
+      const pagesOf = async () => {
+        const person = await seedPerson(database.db);
+        const entered = await withScope()(person.authority, (scope) => readScrollSourcePages(scope, ref));
+        if (entered.kind !== 'entered') throw new Error('CI scope refused');
+        return entered.value;
+      };
+      const provenanceOf = (revision: number) =>
+        database.db
+          .selectFrom('content.asset_provenance')
+          .select('provenance')
+          .where('asset_id', '=', assetId)
+          .where('revision', '=', revision)
+          .executeTakeFirstOrThrow();
+      const served = await provenanceOf(1);
+      const held = await provenanceOf(2);
+      // A fixture state: the served revision names no source and the held one names a page of its own.
+      await sql`update content.asset_provenance set provenance = jsonb_set(provenance, '{sources}', '[]'::jsonb) where asset_id = ${assetId}::uuid and revision = 1`.execute(
+        database.db,
+      );
+      await sql`update content.asset_provenance set provenance = jsonb_set(provenance, '{sources,0,url}', '"https://held-only.example.invalid/page"'::jsonb) where asset_id = ${assetId}::uuid and revision = 2`.execute(
+        database.db,
+      );
+      try {
+        // Only the recipe's own pages remain: nothing of the held revision.
+        expect(await pagesOf()).toEqual(TOPICS[key].pages);
+      } finally {
+        for (const [revision, record] of [
+          [1, served],
+          [2, held],
+        ] as const)
+          await database.db
+            .updateTable('content.asset_provenance')
+            .set({ provenance: JSON.stringify(record.provenance) })
+            .where('asset_id', '=', assetId)
+            .where('revision', '=', revision)
+            .execute();
       }
     });
 

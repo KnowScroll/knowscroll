@@ -224,18 +224,23 @@ machinery.
 - **Invisible.** Pointer reads (discovery, navigation, series and related moves, region candidates, the
   Universe, opening a Scroll, `production-status`) never see a revision newer than the pointer or an asset that
   is `held`. Reads that take an exact asset and revision from their caller (exact encounters, the stored
-  document for rendering, shareable and saved metadata, topics and attribution, and the coverage mapping that
+  document for rendering, shareable and saved metadata, topics and attribution, the source pages a what-if may
+  draw on, the check that a report names a revision a person could have met, and the coverage mapping that
   formation reads) also refuse a revision whose review state is not `released` (`adapters/review-gate-sql.ts`).
   The coverage write path (publication and `readmit-coverage`) still reaches held revisions.
 - **Standing.** `readLibraryStatus` reports `held` (with `heldRevision`), not `published`. `produce-library`
   skips it, a second take is refused while the first is held, and Quartermaster's `chooseScrollRecipe` never
-  picks a v2 recipe, because no person's ask could be answered by a Scroll that waits for a read.
+  picks a v2 recipe, because no person's ask could be answered by a Scroll that waits for a read. A group that
+  named a recipe before the plan made it v2 reads as stopped (`readScrollProduction`), so a join never sends its
+  job again. Once every recipe is v2, Create commissions nothing; S-6 (waves) and S-7 (ask orders) own what fills
+  the library and answers a question (D-138).
 - **Decide.** `adapters/review-gate.ts` (`makeReviewGate`): `list`, `show` (the Scroll as plain text, with
   the cited passages on request), `release` (the revision becomes the asset's current revision and a `held`
   asset becomes `admitted`; never backwards; idempotent) and `reject` (final; the take is spent and the next
   take writes the next revision). The rules are pure in `domain/review.ts`. Each decision is one short
   transaction under the asset's admission lock. Operator commands: `content review-list`, `review-show`,
-  `release`, `reject` (`apps/worker/src/review-operator.ts`, the runbook).
+  `release`, `reject` (`apps/worker/src/review-operator.ts`, the runbook). Each decision also writes one
+  `content.review_decided` event-log line (recipe key, outcome, revision, a refusal's code; no text).
 - **Lock order.** Production root, job row, asset advisory lock, asset row, review row. Release and reject take
   the asset lock, then the asset row, then the review row, and no personal root.
 - **Erasure.** None: shared content. `decided_by` is the operator's shell user, never a person of the product.

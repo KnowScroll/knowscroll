@@ -185,6 +185,14 @@ export const diagnosticCatalogue = {
     module: 'content',
     fields: ['outcome', 'reasonCode', 'count', 'error'],
   },
+  // An operator's decision on a v2 library Scroll at the review gate (D-138): the recipe key (`context`), what
+  // happened (`outcome`: released, already_released, rejected, already_rejected or refused), the revision and,
+  // for a refusal, its code. Never text of the Scroll or the reason given. Who and when are in `content.revision_reviews`.
+  'content.review_decided': {
+    severity: 'by-call',
+    module: 'content',
+    fields: ['context', 'outcome', 'reasonCode', 'revision'],
+  },
   // One delivery of the production job of a library recipe: the recipe key (`context`), the final
   // outcome and its first code, and how many paid attempts the job holds. Never a draft or research.
   'content.scroll_production_finished': {
