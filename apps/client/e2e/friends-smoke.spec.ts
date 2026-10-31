@@ -67,6 +67,13 @@ test('Friends keeps empty scans explicit, resolves a fragment privately and neve
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
   await page.getByRole('button', { name: `Options for ${peer.displayName}`, exact: true }).click();
   await expect(page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true })).toBeVisible();
+  // Visit opens the friend's universe: the address changes and the Friends screen is no longer the one shown.
+  await page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true }).click();
+  await expect(page).toHaveURL(/\/visit\/fixture\.peer$/);
+  await expect(page.getByRole('button', { name: 'Add a friend', exact: true })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: `Options for ${peer.displayName}`, exact: true }).click();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: `Visit ${peer.displayName}’s universe`, exact: true })).toHaveCount(0);
   await expect(page.getByText(/Online|Recently active|availability/)).toHaveCount(0);

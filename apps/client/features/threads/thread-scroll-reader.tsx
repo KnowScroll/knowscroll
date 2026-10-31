@@ -13,7 +13,7 @@ import { Banner, Button, StateBlock, Text } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import { ShareFromScrollSheet } from './share-from-scroll-sheet';
-import { OpenScroll, ThreadScrollArticle } from './scroll-open';
+import { OpenScroll, ThreadScrollArticle, ThreadStageScroll } from './scroll-open';
 import { partFromParam, threadHref, threadRefFromParams } from './thread-links';
 import { useSnippetSend } from './use-snippet-send';
 
@@ -54,6 +54,19 @@ function FinishedPart({ places, part }: { readonly places: ThreadPlacesControlle
   );
 }
 
+/**
+ * Renders nothing; mounted only once the Scroll has opened. It tells the thread this person is on the part, and
+ * so only a part that really opened is ever told: a Read that failed (offline, an error, nothing to show) tells
+ * nothing, and a place never moves back to undo a wrong one (D-153, D-235). The controller sends nothing while
+ * recording is paused.
+ */
+function StartedPart({ places, part }: { readonly places: ThreadPlacesController; readonly part: number }) {
+  useEffect(() => {
+    void places.report(part, 'on');
+  }, [places, part]);
+  return null;
+}
+
 function ReaderBody({
   scope,
   thread,
@@ -75,15 +88,30 @@ function ReaderBody({
   const send = useSnippetSend(scope, thread);
   const store = useMemo(() => createScopedBlockStateStore(scope.storage), [scope]);
   const backToThread = () => router.replace(threadHref(thread));
+  // The thread is usually the screen before this one; on a reloaded address there is nothing before it.
+  const leave = () => (router.canGoBack() ? router.back() : backToThread());
+  const finish = part === undefined ? undefined : <FinishedPart places={places} part={part} />;
+  const started = part === undefined ? null : <StartedPart places={places} part={part} />;
   return (
-    <OpenScroll scope={scope} assetId={assetId} onBack={() => router.back()}>
+    <OpenScroll
+      scope={scope}
+      assetId={assetId}
+      onBack={leave}
+      stage={(scroll) => (
+        <>
+          {started}
+          <ThreadStageScroll scope={scope} scroll={scroll} onBack={leave} endSlot={finish} />
+        </>
+      )}
+    >
       {(scroll) => (
         <>
+          {started}
           <ThreadScrollArticle
             scope={scope}
             scroll={scroll}
             store={store}
-            endSlot={part === undefined ? undefined : <FinishedPart places={places} part={part} />}
+            endSlot={finish}
             floating={
               send.status === 'sent' ? undefined : (
                 <Button

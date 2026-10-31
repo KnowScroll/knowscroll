@@ -40,7 +40,7 @@ export function SelectionMenu({
   onAsk,
 }: {
   readonly onSimpler: (stopId: string) => void;
-  readonly onAsk: (stopId: string, selected: string) => void;
+  readonly onAsk?: ((stopId: string, selected: string) => void) | undefined;
 }) {
   const [selected, setSelected] = useState<Selected>();
   useEffect(() => {
@@ -54,6 +54,10 @@ export function SelectionMenu({
     window.getSelection()?.removeAllRanges();
     setSelected(undefined);
   };
+  const items: readonly (readonly [string, () => void])[] = [
+    ['Simpler', () => onSimpler(selected.stopId)],
+    ...(onAsk === undefined ? [] : [['Ask', () => onAsk(selected.stopId, selected.text)] as const]),
+  ];
   const left = Math.min(Math.max(selected.x - MENU_WIDTH / 2, EDGE), window.innerWidth - MENU_WIDTH - EDGE);
   return (
     <div
@@ -76,12 +80,7 @@ export function SelectionMenu({
         backgroundColor: content.ink,
       }}
     >
-      {(
-        [
-          ['Simpler', () => onSimpler(selected.stopId)],
-          ['Ask', () => onAsk(selected.stopId, selected.text)],
-        ] as const
-      ).map(([label, act]) => (
+      {items.map(([label, act]) => (
         <button
           key={label}
           type="button"

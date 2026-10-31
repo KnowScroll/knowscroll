@@ -40,9 +40,38 @@ export interface SeededCallScroll extends SeededAsset {
  * recomputed on that path), so only the call's own words change.
  */
 export async function seedCallScroll(db: Kysely<Database>, call: CallFixture = TIDES_CALL): Promise<SeededCallScroll> {
+  const assetId = randomUUID();
+  await db
+    .insertInto('content.assets')
+    .values({ id: assetId, revision: 1, kind: 'scroll', status: 'admitted' })
+    .execute();
+  await insertCallRevision(db, assetId, 1, call);
+  return { assetId, call };
+}
+
+/**
+ * A later revision of a seeded Scroll with its own first Call it, released the way a correction is: its row, and the Scroll
+ * pointing at it. The earlier revisions stay as they are (revisions are immutable), so a thread that called on revision 1
+ * can still read what it called on.
+ */
+export async function seedCallRevision(
+  db: Kysely<Database>,
+  assetId: string,
+  revision: number,
+  call: CallFixture,
+): Promise<void> {
+  await insertCallRevision(db, assetId, revision, call);
+  await db.updateTable('content.assets').set({ revision }).where('id', '=', assetId).execute();
+}
+
+async function insertCallRevision(
+  db: Kysely<Database>,
+  assetId: string,
+  revision: number,
+  call: CallFixture,
+): Promise<void> {
   const assembled = assembleScrollV2(authoredV2('plain'), PUBLICATION_V2, recipeV2('plain'));
   if (assembled.kind !== 'assembled') throw new Error('CI v2 fixture did not assemble');
-  const assetId = randomUUID();
   const document = JSON.parse(JSON.stringify(assembled.document)) as ScrollDocumentV2;
   const first = callsOf(document).find((stop) => stop.kind === 'call_it');
   if (first === undefined) throw new Error('CI v2 fixture has no Call it');
@@ -62,25 +91,20 @@ export async function seedCallScroll(db: Kysely<Database>, call: CallFixture = T
     twist: call.twist,
     commonGuess: guess,
   });
-  Object.assign(document, { assetId, revision: 1 });
-  await db
-    .insertInto('content.assets')
-    .values({ id: assetId, revision: 1, kind: 'scroll', status: 'admitted' })
-    .execute();
+  Object.assign(document, { assetId, revision });
   await db
     .insertInto('content.asset_revisions')
     .values({
       asset_id: assetId,
-      revision: 1,
+      revision,
       provenance_kind: 'authored_editorial',
       document_version: 'scroll-document.v2',
       document: JSON.stringify(document),
       document_sha256: createHash('sha256').update(JSON.stringify(document)).digest('hex'),
-      explanation_unit_id: `ci-call-${assetId.slice(0, 8)}`,
+      explanation_unit_id: `ci-call-${assetId.slice(0, 8)}-${String(revision)}`,
       language: 'en',
       title: document.title,
       reading_facts: '{}',
     })
     .execute();
-  return { assetId, call };
 }

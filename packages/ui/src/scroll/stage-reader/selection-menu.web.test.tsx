@@ -60,6 +60,18 @@ describe('the selection menu (web)', () => {
     expect(window.getSelection()?.isCollapsed).toBe(true);
   });
 
+  it('offers Simpler alone where the screen has no Ask', () => {
+    const root = createRoot();
+    act(() => {
+      root.render(<SelectionMenu onSimpler={jest.fn()} />);
+    });
+    selectWordsIn('read', 'the-lean', 'Earth is tilted');
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    expect(buttons(root).map((button) => button.toJSON()?.children)).toEqual([['Simpler']]);
+  });
+
   it('runs Simpler for the stop alone', () => {
     const onSimpler = jest.fn();
     const root = createRoot();

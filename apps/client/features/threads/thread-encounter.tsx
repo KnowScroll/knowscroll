@@ -41,8 +41,9 @@ export interface ThreadEncounterProps {
   /** The episode's summary line from the thread's root, when this is the root. */
   readonly summary?: string | undefined;
   /**
-   * Tells the thread where this person is, from this player only (D-065): they started the part (a Reel
-   * playing, or "Read this Scroll" pressed) or finished it (a Reel played to its last second). These come
+   * Tells the thread where this person is, from this player only (D-065): they started a Reel (it opened and
+   * is playing) or finished it (played to its last second). A Scroll's reader tells its own start once the Scroll has
+   * opened, and its finish when the person says so (D-153, D-235); pressing Read tells nothing. These come
    * from the person's own playing, so the controller sends nothing while recording is paused (D-153). Absent
    * where a thread has no places (a room, a single item). Choosing, folding or docking a part is not told.
    */
@@ -132,11 +133,8 @@ export function ThreadEncounter({
   const handleFinished = useCallback(() => {
     if (part !== undefined) onPlace?.(part, 'finished');
   }, [onPlace, part]);
-  /** Pressing Read on a Scroll starts the part: the reader is the thread's own screen. */
-  const readScroll = () => {
-    if (part !== undefined) onPlace?.(part, 'on');
-    router.push(readHref(episode.assetId));
-  };
+  /** The reader is the thread's own screen, and it tells the thread the part started once the Scroll has opened. */
+  const readScroll = () => router.push(readHref(episode.assetId));
   const place =
     series && episode.part !== undefined
       ? `Part ${String(episode.part)} of ${String(total)}`

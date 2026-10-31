@@ -1626,6 +1626,35 @@ export interface RoomsInvitations {
   room_id: string;
 }
 
+export interface RoomsLaunchAnswers {
+  account_id: string;
+  answered_at: Timestamp;
+  choice: number;
+  correct: boolean;
+  elapsed_ms: number;
+  launch_id: string;
+  round: number;
+}
+
+export interface RoomsLaunches {
+  created_at: Timestamp;
+  deck_ritual_id: string;
+  finished_at: Timestamp | null;
+  launch_id: string;
+  played: number | null;
+  questions: Json;
+  room_id: string;
+  star: boolean | null;
+  starts_at: Timestamp;
+  state: string;
+}
+
+export interface RoomsLaunchPlayers {
+  account_id: string;
+  joined_at: Timestamp;
+  launch_id: string;
+}
+
 export interface RoomsMembers {
   account_id: string;
   ai_level: Generated<string>;
@@ -2326,6 +2355,9 @@ export interface DB {
   "rooms.debates": RoomsDebates;
   "rooms.discussions": RoomsDiscussions;
   "rooms.invitations": RoomsInvitations;
+  "rooms.launch_answers": RoomsLaunchAnswers;
+  "rooms.launch_players": RoomsLaunchPlayers;
+  "rooms.launches": RoomsLaunches;
   "rooms.members": RoomsMembers;
   "rooms.message_snippets": RoomsMessageSnippets;
   "rooms.message_useful": RoomsMessageUseful;

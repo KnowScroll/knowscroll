@@ -1,17 +1,14 @@
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  createScopedBlockStateStore,
-  createScrollRecorder,
-  type AccountScope,
-  type ScrollBlockStateStore,
-} from '@knowscroll/client-core';
+import { createScopedBlockStateStore, type AccountScope, type ScrollBlockStateStore } from '@knowscroll/client-core';
 import { content, layout, spacing } from '@knowscroll/design-tokens';
-import { ErrorState, IconButton, OfflineState, ScrollArticle, Skeleton, StateBlock } from '@knowscroll/ui';
-import { newCommandId } from '../../platform/command-id';
-import type { OpenedScroll } from '../scroll/scroll-session';
+import { Button, ErrorState, IconButton, OfflineState, ScrollArticle, Skeleton, StateBlock } from '@knowscroll/ui';
+import { useDocumentTitle } from '../../platform/document-title';
+import { recorderFor } from '../scroll/reading-recorder';
+import type { OpenedScroll, OpenedStageScroll } from '../scroll/scroll-session';
+import { StageReaderSurface } from '../scroll/stage-reader-surface';
 import { useScrollSession } from '../scroll/use-scroll-session';
 
 /** One quiet screen for every state that is not the article itself. */
@@ -29,19 +26,25 @@ function Frame({ children, onBack }: { readonly children: ReactNode; readonly on
  * Opens a Scroll (exposure, document, activation) and hands it to `children` once it is ready. Every
  * other state has its screen: opening, unavailable, needs an update, offline, error. This is where
  * reading begins: nothing is opened before the person chose to read.
+ *
+ * A caller that can draw a v2 Scroll passes `stage`: the Scroll is then opened as the Stage + Spine reader's
+ * document and handed to `stage`. Without it a v2 Scroll is "needs an app update", as it is for a caller that
+ * cannot read one.
  */
 export function OpenScroll({
   scope,
   assetId,
   onBack,
   children,
+  stage,
 }: {
   readonly scope: AccountScope;
   readonly assetId: string;
   readonly onBack: () => void;
   readonly children: (scroll: OpenedScroll) => ReactNode;
+  readonly stage?: ((scroll: OpenedStageScroll) => ReactNode) | undefined;
 }) {
-  const { session, state } = useScrollSession(scope, assetId);
+  const { session, state } = useScrollSession(scope, assetId, { stage: stage !== undefined });
   useEffect(() => {
     session.start();
     return () => session.dispose();
@@ -49,6 +52,8 @@ export function OpenScroll({
   switch (state.status) {
     case 'ready':
       return <>{children(state.scroll)}</>;
+    case 'ready_stage':
+      return <>{stage?.(state.scroll)}</>;
     case 'opening':
     case 'loading':
     case 'activating':
@@ -63,7 +68,6 @@ export function OpenScroll({
           <StateBlock title="This Scroll isn’t available" body="It may have been removed, or it isn’t yours to open." />
         </Frame>
       );
-    case 'ready_stage':
     case 'needs_update':
       return (
         <Frame onBack={onBack}>
@@ -122,19 +126,7 @@ export function ThreadScrollArticle({
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [recorder] = useState(() =>
-    createScrollRecorder({
-      exposure: {
-        exposureId: scroll.exposureId,
-        assetId: scroll.assetId,
-        assetRevision: scroll.assetRevision,
-        ...(scroll.recordingGeneration === undefined ? {} : { recordingGeneration: scroll.recordingGeneration }),
-        ...(scroll.recordingSessionId === undefined ? {} : { recordingSessionId: scroll.recordingSessionId }),
-      },
-      scope,
-      newId: newCommandId,
-    }),
-  );
+  const [recorder] = useState(() => recorderFor(scope, scroll));
   // Re-arm before the article's passive mount reports, including StrictMode setup.
   useLayoutEffect(() => {
     recorder.start();
@@ -172,7 +164,53 @@ export function ThreadScrollArticle({
   );
 }
 
+/**
+ * A v2 Scroll opened from a thread: the Stage + Spine reader `/scroll/<id>` draws, with the same recorder, so what is read
+ * here is an ordinary encounter of the original Scroll. The thread supplies the way back and `endSlot`, its foot (the
+ * finish of a part). Parts and related Scrolls are not offered: the next part is chosen in the thread, whose player is
+ * the only thing that tells a place (D-153).
+ */
+export function ThreadStageScroll({
+  scope,
+  scroll,
+  onBack,
+  endSlot,
+}: {
+  readonly scope: AccountScope;
+  readonly scroll: OpenedStageScroll;
+  readonly onBack: () => void;
+  readonly endSlot?: ReactNode;
+}) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  useDocumentTitle(scroll.document.title);
+  const [recorder] = useState(() => recorderFor(scope, scroll));
+  // A Scroll that another screen covers is not being read: its time stops until it is back.
+  const focused = useIsFocused();
+  useLayoutEffect(() => {
+    recorder.start();
+    return () => recorder.end();
+  }, [recorder]);
+  return (
+    <StageReaderSurface
+      scroll={scroll}
+      observer={recorder.observer}
+      paused={!focused}
+      moves={{ universe: () => router.navigate('/universe'), done: onBack }}
+      headerNote={
+        <View style={styles.back}>
+          <Button label="Back to thread" icon="back" variant="ghost" size="sm" onPress={onBack} />
+        </View>
+      }
+      endSlot={endSlot}
+      topInset={insets.top + spacing[3]}
+      bottomInset={insets.bottom}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
+  back: { alignItems: 'flex-start', paddingHorizontal: spacing[5], paddingBottom: spacing[2] },
   ground: { flex: 1, backgroundColor: content.paper, paddingHorizontal: layout.gutter },
   state: { paddingTop: spacing[9], alignItems: 'center' },
   article: { flex: 1, backgroundColor: content.paper },

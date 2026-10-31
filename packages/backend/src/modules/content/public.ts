@@ -461,6 +461,37 @@ export type ReadLibraryPassageText = (ref: ContentRef & { readonly blockId: stri
 export const READ_LIBRARY_PASSAGE_TEXT = Symbol('content.readLibraryPassageText');
 
 /**
+ * One admitted library Scroll's calls, for a room's Launch (v3 R-6): the current revision of a `scroll-document.v2` that anyone may
+ * be served (the same Scrolls as `LibraryPassageSource`), with each call's question, options, right answer and reason as its authors
+ * wrote and reviewed them. Shared public content: no person, no scope. A Scroll with no call is not listed.
+ */
+export interface LibraryCallSource {
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly title: string;
+  readonly calls: readonly {
+    readonly stopId: string;
+    readonly prompt: string;
+    readonly options: readonly string[];
+    /** Zero-based index of the right option. Never sent to another module's ranking or planning (D-063). */
+    readonly answer: number;
+    readonly explain: string;
+  }[];
+}
+
+/**
+ * The library Scrolls under a topic with their calls: a system covers every planet of it, a planet is its own. At most `limit` (1 to
+ * 100), by asset ID. With `only` the read is for that one exact revision, found only while it is still a served library Scroll under
+ * the topic, so a check of one Scroll never depends on how many others the topic has.
+ */
+export type ReadLibraryCalls = (
+  topic: { readonly kind: 'system' | 'planet'; readonly id: string },
+  limit: number,
+  only?: { readonly assetId: string; readonly assetRevision: number },
+) => Promise<readonly LibraryCallSource[]>;
+export const READ_LIBRARY_CALLS = Symbol('content.readLibraryCalls');
+
+/**
  * Scrolls ordered from code (D-049). A module that holds shared work (a scenario branch) builds a
  * brief, a framing and the research pages itself and orders a Scroll. Content stores the order,
  * researches the pages, writes the Scroll through the same production job and admits it, and adds

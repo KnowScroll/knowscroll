@@ -21,7 +21,7 @@ import type { NextPartPeek, SmallPrint } from './end-tray';
 import type { PartMove } from './part-gesture';
 import { PartSwipe } from './part-swipe';
 import { payoffOf } from './payoff';
-import { quickAnswerFor, type QuickAnswer } from './quick-answer';
+import { passageOf } from './passage';
 import { SelectionMenu } from './selection-menu';
 import { actOnKey, run, type ReaderCommands } from './reader-actions';
 import { ReaderFocus } from './reader-focus';
@@ -66,6 +66,8 @@ export interface StageReaderProps {
    * one backed by its play session; without one the reader keeps it on the device alone.
    */
   readonly play?: StagePlay | undefined;
+  /** Drawn at the end of the Scroll, before the ways on: what the screen it is read on adds (a thread's finish). */
+  readonly endSlot?: ReactNode;
 }
 
 const MIN_STAGE = 176;
@@ -115,6 +117,7 @@ export function StageReader({
   related,
   onDone,
   play: appPlay,
+  endSlot,
 }: StageReaderProps) {
   const { reducedMotion, breakpoint } = useDisplay();
   const { height: windowHeight } = useWindowDimensions();
@@ -158,7 +161,6 @@ export function StageReader({
   };
   const [textVersion, setTextVersion] = useState(false);
   const [simplerStops, setSimplerStops] = useState<ReadonlySet<string>>(new Set());
-  const [quick, setQuick] = useState<QuickAnswer>();
   const toggleSimpler = useCallback((stopId: string) => {
     setSimplerStops((all) => {
       const next = new Set(all);
@@ -166,12 +168,10 @@ export function StageReader({
       return next;
     });
   }, []);
-  /** Words were selected in a stop and asked about: answered from the Scroll's own text, with no model (D-244). */
+  /** Words were selected in a stop and asked about: the app opens Ask from here at that stop with the words as a draft (D-244). */
   const askAboutWords = (stopId: string, selected: string) => {
-    const answer = quickAnswerFor(document, stopId, selected);
-    // The answer opens below the words, so the reader brings it on screen once it is laid out (as a call's reveal is).
-    if (answer !== undefined) text.revealIn(indexOfStop(document.stops, stopId));
-    setQuick(answer);
+    const passage = passageOf(selected);
+    if (passage !== '') commands.askAbout?.(stopId, passage);
   };
   const [opened, setOpened] = useState<ReadonlySet<string>>(
     () => new Set(document.asides.filter((aside) => !aside.collapsed).map((aside) => aside.id)),
@@ -266,6 +266,7 @@ export function StageReader({
               final={final}
               payoff={payoffOf(calls, play)}
               smallPrint={smallPrint}
+              endSlot={endSlot}
               nextPart={nextPart}
               related={related}
               onDone={onDone}
@@ -277,25 +278,12 @@ export function StageReader({
               onChallenge={commands.challenge}
               simplerStops={simplerStops}
               onToggleSimpler={toggleSimpler}
-              quick={quick}
-              quickActions={{
-                onClose: () => setQuick(undefined),
-                onMakeScroll:
-                  commands.askAbout === undefined
-                    ? undefined
-                    : (passage) => quick !== undefined && commands.askAbout?.(quick.stopId, passage),
-                onFollowUp:
-                  commands.askAbout === undefined
-                    ? undefined
-                    : () => quick !== undefined && commands.askAbout?.(quick.stopId, undefined),
-                onReport: commands.report,
-              }}
             />
           </ScrollView>
         </PartSwipe>
         <Spine dots={dots} current={current} onJump={(index) => jump(index, false)} />
       </View>
-      <SelectionMenu onSimpler={toggleSimpler} onAsk={askAboutWords} />
+      <SelectionMenu onSimpler={toggleSimpler} onAsk={commands.askAbout === undefined ? undefined : askAboutWords} />
       {dock}
     </ReaderFocus>
   );

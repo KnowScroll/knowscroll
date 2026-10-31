@@ -107,6 +107,13 @@ describe('a call before a part (T3 frame 4)', () => {
     expect(onLock).not.toHaveBeenCalled();
   });
 
+  it('says the call changed while the person was choosing, and that nothing was locked', async () => {
+    const { element } = card(open, { notice: 'changed' });
+    await render(element);
+    expect(screen.getByTestId('call-notice')).toHaveTextContent(/This call changed\./);
+    expect(screen.getByTestId('call-notice')).toHaveTextContent(/nothing was locked/);
+  });
+
   it('says why a lock was not kept: recording paused, or nothing saved', async () => {
     const paused = card(open, { notice: 'paused' });
     await render(paused.element);
@@ -131,6 +138,32 @@ describe('after the person locked, before the reveal', () => {
       screen.getByText(/everyone who shares where they are has finished Part 2, or after two days/),
     ).toBeOnTheScreen();
     expect(JSON.stringify(screen.toJSON())).not.toMatch(/Spring tides|Plot twist|Ravi|Kenji/);
+  });
+});
+
+describe('a Scroll that was updated since the call began (D-233)', () => {
+  it('says the call keeps the question the thread called on, on an open call, a locked call and a reveal', async () => {
+    for (const call of [
+      { ...base, stage: 'open', updated: 'held' } as ThreadCall,
+      { ...base, stage: 'locked', option: 1, updated: 'held' } as ThreadCall,
+      revealed({ updated: 'held' }),
+    ]) {
+      const { element } = card(call);
+      const view = await render(element);
+      expect(screen.getByTestId('call-updated')).toHaveTextContent(
+        /^Part 2 has been updated since your thread started calling\. The call keeps the question your thread called on/,
+      );
+      await view.unmount();
+    }
+  });
+
+  it('says the new question is asked afresh when the earlier one cannot be shown, and says nothing for a current call', async () => {
+    const afresh = card({ ...open, updated: 'restarted' });
+    const view = await render(afresh.element);
+    expect(screen.getByTestId('call-updated')).toHaveTextContent(/This call asks the new question afresh\.$/);
+    await view.unmount();
+    await render(card(open).element);
+    expect(screen.queryByTestId('call-updated')).toBeNull();
   });
 });
 

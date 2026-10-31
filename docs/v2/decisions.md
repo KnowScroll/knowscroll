@@ -2638,25 +2638,200 @@ Taken for the owner; named in the PR for #462. Confirmed by: `animation.test.ts`
 
 **Amends** D-106 (a friend's visit no longer draws the plain look) and D-107 (a fly down into a system is the 5.3 s entering animation; a step up is still 0.3 s). Confirmed by: `animation.test.ts` (each animation starts and ends on the screens it joins, the planet lands within a pixel of the globe at three stage sizes, the player's cap and clamp), `step-animations.test.tsx` (steps up, the layers), `visitor-scene.test.ts`, `e2e/universe-animations-smoke.spec.ts` (at a phone's density of 3 the cap and the 1.5 pixel ratio hold through the first open, the glide into a system, into a planet and the world opening out).
 
-## D-244 · 2026-11-01 · Simpler and Quick answer are the Scroll's own words, with no model call at read time (v3 S-9, #480)
+## D-178 · 2026-10-31 · The Launch is a scored room activity with its own rules: the server's clock, a score, a podium for one Launch (R-6, #492)
 
-**Amends** D-086 ("Quick answer is a capped worker job"), which this does not build. **Builds on** D-085 (Simpler is written when the Scroll is produced).
+**Implements** D-070. **Amends** D-051 on R03, "never scored", for the Launch only: a moderator's poll or quiz is as it was.
 
-- **Simpler.** A read stop shows its own `simple` text in place of its words, in a yellow box named "SIMPLER VERSION", with Undo. The button under each stop, the ••• item "Simpler (this screen)" and the "Simpler" item of the selection menu all do this. It is instant and free.
-- **Quick answer.** Selecting words in a read stop and choosing "Ask" draws a card under that stop. It says "About “the words”", gives the stop's own `simple` text, and adds the definitions and tangents the Scroll anchors to that stop. It reads the document alone: no model, no network and no queue. A test counts the requests and finds none.
-- **Label.** The card says "QUICK ANSWER · FROM THIS SCROLL" and "This is the Scroll's own wording for the passage. A new Scroll, made for your question, is checked." The design says "not a checked Scroll". Nothing unchecked is shown here, so that wording would be untrue. "Make it a full Scroll" opens Ask from here (D-218) at that stop with "Tell me more about “the words”" as a draft the person can change. "Ask a follow-up" opens it empty. "Report" opens the Scroll's own content-error report where the screen has one (Explore).
-- **Only a read stop.** A call, the Final call and the end are never offered Simpler or Ask. Their words could give the answer away before the person has locked it in. A Quick answer uses nothing from a later stop, and never the recap or the limits aside, so it cannot spoil a call.
-- **Never evidence.** A Quick answer is not an encounter and is not remembered: nothing is sent, stored or counted, and it never reaches the Universe.
-- **No cap.** Nothing is paid for, so there is no daily cap. A live Quick answer by a worker (D-086) stays a later slice, with the cap and the label the change map gives it.
-- **The menu.** On the web a small toolbar with "Simpler" and "Ask" sits above the selected words (a page cannot add items to the browser's own menu). A phone's own selection menu cannot be extended from here, so on a phone Simpler is on each stop and in ••• (planned: native selection items).
+- **A kind of its own.** The Launch has its own tables (`rooms.launches`, `launch_players`, `launch_answers`, migration 0088) and its own use cases. It is not a row of `rooms.activities`, so nothing a poll or a quiz promises is changed.
+- **Five questions, one clock.** A member starts one. A lobby of 20 seconds follows, then five rounds: a question open for 8 seconds, then its answer shown for 5. Every time is the start plus a fixed number of seconds, so the server's clock alone says what is open. A read carries the time left in milliseconds, never a time of day, and a device counts it with a steady clock, so a fast, slow or mis-set clock changes nothing. An answer says the round and the option and has no field for a time: the server measures from the question's opening to the moment it took the answer. An answer after the close, or for a round that is not the open one, is refused.
+- **The score.** One point for each right answer. A tie goes to the less total time over the right answers, then to who joined first, so the order is the same on every device. A wrong answer or none costs nothing: it is not a point, and its time is not held against anyone. The first answer to a round stands.
+- **The podium** is the first three people with at least one right answer, for this Launch only. Nobody below third is listed and nobody is listed for scoring nothing. It is read for 24 hours and then it is gone. There is no total, level or rank across Launches or weeks.
+- **No tick job.** A phase is worked out when it is read, from the stored start and the clock. The Launch is marked finished by the first member command after its end (a presence beat, a start, or the device's own "it is over"), guarded by the row it changes, as D-175 settles a constellation's name. A room nobody opens settles nothing.
+- **Finished is when it ended, not when it was noticed.** A Launch that ended on Monday and is settled by a beat on Thursday is finished on Monday: its podium is read for a day from Monday's end (so it is already gone), its star counts against Monday's day and its answers are kept seven days from Monday. A settlement is bookkeeping, not an event of the game.
+- **Starting.** A current member of an open room, with two people having the room open (R3), an approved deck (D-179), and the room's rest since the last Launch over (two hours, `KS_ROOMS_LAUNCH_GAP_MINUTES`). The room is locked FOR UPDATE, so two starts make one Launch.
 
-Confirmed by: `quick-answer.test.ts` (the answer is the stop's words, never a call, nothing from a later stop, never the limits aside), `simpler.test.tsx`, `selection-menu.web.test.tsx`, `e2e/simpler-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe (no `/v1/content` or `/v1/play` request from a Quick answer; the draft question; a call offers no menu).
+Confirmed by: `launch.test.ts` (the phases at each millisecond of the edge, the timing rule, the score, the tie, the podium), `rooms-launch.test.ts` ("a game on the server clock", "tie", "accepts an answer only while its question is open", "starting one").
+
+## D-179 · 2026-10-31 · Launch questions are library Scroll calls that code chooses and an operator approves, and no model is asked (R-6, #492)
+
+**Builds on** D-070, D-138 and D-176. **Amends** D-070 only in that the nightly batch makes no model call for a deck.
+
+- **The source.** A `call_it` or `final_call` of an admitted library Scroll under the room's topic, with its options, right answer and reason exactly as its authors wrote them. Those calls passed the review gate (D-138) and the second model's key check (D-198) when the Scroll was made. So a Launch never shows unreviewed model text, and a Scroll made for a thread is never used (D-049).
+- **The deck.** Five questions, from different Scrolls where the library allows and at most two from one, preferring calls this room was not asked in the last 14 days. The reason keeps its first whole sentences up to 280 characters. A library with fewer than five usable calls makes no deck: nothing is made up. It is a `launch` item of `rooms.rituals`, drafted by the night's batch beside the day's question and Spot the flaw and by `rooms rituals`, and it costs no call.
+- **Approval.** An operator approves a deck. Approving re-reads each cited Scroll's exact revision and refuses with `citation_changed` unless every question still says what the deck says. A deck is played once (`launches.deck_ritual_id` is unique) and is offered for today and the day before.
+- **Starting checks again.** The deck is frozen onto the Launch, and the start refuses unless every cited revision is still the current one anyone may be served. It reads through the caller's own scope, so no network wait runs inside the transaction.
+- **Never generated live.** No model is called on a Launch's path, and its queue holds no job.
+
+Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call, approval, a corrected Scroll), `content-library-calls.test.ts` (a real admitted v2 Scroll; held and withdrawn ones are not read), `rooms-launch.test.ts` (a deck whose Scroll is gone does not start).
+
+## D-219 · 2026-10-31 · The host is Pixel: labelled AI, template lines, no cast row, no message (R-6, #492)
+
+**Amends** D-163, which gave the Quizmaster a place in the cast table when the Launch arrived.
+
+- **Why not a cast resident.** A resident speaks as messages and every message is an `ai_turns` row. The host never posts: it says short lines on the stage, drawn from the state of the game ("Question three. Go.", "Called it!"). So it has no turn to log, no cap to decide, no job and no model.
+- **Always labelled.** The view carries the host as `{ name: 'Pixel', label: 'AI · Quizmaster' }`, fixed by the contract. The screen draws the name, a square mark and the label; a screen reader hears "AI, Quizmaster". No line speaks of a wrong answer.
+- **An AI never plays.** A player is an account, and the contract's faces and podium entries hold only a public person. An AI has no place to stand on a podium, in a count or among the people who called a question.
+- **The ledger rule still holds.** A Launch writes no `ai_turns` row, no AI message and queues nothing; a test counts them around a whole game.
+
+Confirmed by: `rooms-launch.test.ts` (nothing queued, no turn, around five rounds), `room-launch.test.ts` (the host and the faces), `launch.test.tsx` (the label on the stage and the start sheet), `client-core/room-launch.test.ts` (the lines).
+
+## D-220 · 2026-10-31 · A Launch answer is a play result: walled from evidence and ranking, refused while recording is paused, erased by Clear, exported as the person's own (R-6, #492)
+
+**Builds on** D-063, D-082, D-083 and D-182.
+
+- **The wall.** An answer and its score reach no evidence, ranking, planning or formation. Rooms writes to none of those schemas (`write-boundary.test.ts`, and the run-time row counts around a whole game). Two checks keep the tables inside Rooms: an import rule (`launch-wall-only-listed-modules-import-rooms`, an allow-list with probes) and a scan that no production file outside Rooms names a Launch table (`launch-wall.test.ts`).
+- **Paused.** Starting, joining and answering carry the device's recording generation. While recording is paused, or the generation is out of date, nothing is stored, no receipt is written, and the answer is `not_saved` with its reason. This is stricter than a call in a Scroll, which plays on the device: a round does not wait and the key is on the server, so a paused person cannot play a Launch. The stage and the start sheet say so before any tap, from the person's own recording policy (kept fresh while the screen is open), and offer no Start, Join or answer to press.
+- **Erased.** A Clear deletes the person's place and answers (play data, D-082). Leaving or being removed deletes them too, and so does deleting the account. A star the Launch earned has no account and stays. The players and answers of a Launch are also deleted seven days after it ended, by the first member command in the room after that (a presence beat, a start or a settlement), so a room that stops playing does not keep them; the Launch row stays. The count is from the end of the play time, not from when anyone settled it.
+- **Exported.** The person's file lists each Launch they played to its end: the room, the day, how many questions they got right and how many they answered. Never what they picked and never another person. A Launch still running is not listed.
+
+Confirmed by: `rooms-launch.test.ts` (paused, stale, Clear, deletion and export, leave and removal, seven days, the personal-schema row counts), `launch-wall.test.ts`, `pnpm boundaries:probe`, the erasure inventory checks.
+
+## D-221 · 2026-10-31 · A finished Launch earns the room one star when two people answered (R-6, #492)
+
+**Implements** the fourth act D-174 left for R-6.
+
+- **The act.** `launch_finished`, once per Launch (the star is unique by room, act and the Launch). It is awarded in the transaction that marks the Launch finished, under the Launch row held FOR UPDATE and then the room's sky lock, last, as everywhere. That wait means the finished Launch holds every answer accepted before its end. The star carries the moment the play time ended and counts against that day's three, even when a later command settles it; a constellation it finishes starts its name vote from the settlement, when members can first choose.
+- **Why two.** A Launch played by one person is not something the room did together, so it earns nothing (the same reason a debate needs two voters). It still has a podium and a share card.
+- **The day's three.** The star counts against the room's three a day (D-174). A full day earns nothing and is not remembered; the Launch says so by showing no star line.
+- **Never an AI, never a replay.** The host has no account. When R-7 adds a replay it earns sparks, never a star.
+
+Confirmed by: `rooms-launch.test.ts` ("the star": one for two players, none for one, none from a full day, none for the same Launch twice or from two commands at once), `domain/launch.test.ts`.
+
+## D-222 · 2026-10-31 · What a Launch shows, and to whom (R-6, #492)
+
+**Builds on** D-160 and D-176.
+
+- **Members only.** Every Launch read and command answers `unavailable` to a stranger, an invitee and a person who left. A room's preview says nothing of one. The room's own view carries a word for it (ready, starting, on, just finished) and a member's or moderator's station carries `live`; an outsider's station and a friend's visit carry neither.
+- **While a question is open** a reader gets its words, the time left and their own answer. The contract has no field there for the key, the reason, a count or a name, so no client can show one.
+- **When it closes** the reader gets the key, the reason, how many answered, how many were right and the faces of those who were right. Nobody is named as wrong; the count and the faces let a reader work it out for themselves, as R3 draws it.
+- **Blocks.** For a reader who blocked someone, that person is left out of the counts and the faces, and keeps their place on the podium as a place without a name, so the order is true and nobody moves up. The blocked person and everyone else see the room as before.
+- **The numbers.** The allow-list names them: a reveal's `locked` and `right`, the podium's `played` and each score, and `players` in the lobby. Each is a real count; with no data there is no number.
+- **The share card** is the person's own squares, one for each question, with no question and no answer, so it cannot spoil a Launch. Sharing it into General is a button, and posts an ordinary message.
+
+Confirmed by: `rooms-launch.test.ts` ("who can take part", "draws a person the reader blocked", "says on a member's station"), `room-launch.test.ts`, `launch.test.tsx`.
+
+## D-223 · 2026-10-31 · Real time: the server's clock decides, hints are disposable, a read recovers everything (R-6, #492)
+
+**Builds on** D-160.
+
+- **The screen reads** when the room's hint arrives (a start, a join, an end), on focus, on a 20-second poll, and by itself the moment the phase it shows has ended. Between reads it counts down the milliseconds the last read gave, so it is never ahead of the server and a lost hint costs a few seconds, not a wrong answer.
+- **No hint says what was answered.** A start, a join and a settlement announce the room. A first answer by someone who had not joined puts them in the Launch and announces that, like a join; a later answer by someone already in announces nothing. A hint names the room and nothing else, and an open question has no field for who has answered or how many, so a re-read learns nothing before it closes.
+- **A device says the Launch is over** once (`finish`) when its read finds it so. The server refuses while its own clock says it is not, so a fast clock cannot end one early. It settles once whoever asks.
+- **The podium opens by itself** only for a person who watched that Launch go by in this session; arriving later shows a Podium chip and nothing pops up. Digit keys pick an option on the web (R3: "keys 1-4"; a call has two or three options), and the timer is a ring and the words "8 s": the ring steps and never needs motion.
+
+Confirmed by: `client-core/room-launch.test.ts` (time left, the next read, the one `finish`, the retry as the same command), `campfire.test.tsx` (the podium), `e2e/rooms-launch-smoke.spec.ts` (two people in two browser contexts, five rounds, at 390 and 1440, axe).
+
+## D-224 · 2026-10-31 · While a Launch runs the stage takes the top of the phone; the conversation keeps 68 percent the rest of the time (R-6, #492)
+
+**Amends** D-140 ("the conversation keeps over 60 percent of a phone") for the time a Launch runs. **Builds on** the R-5 measurement of the Now strip.
+
+- **The stage sits above General**, not in its list, so the question stays on screen while the chat below it scrolls as the crowd (R3 E 1, A2). The Launch chip is a chip of the Now strip, which scrolls with the messages, so a room with no Launch running keeps 68 percent of a 390 × 844 phone for its messages, as before (measured in `rooms-launch-smoke.spec.ts`).
+- **While a Launch runs** the messages have 18 percent of that phone (154 px: the band, the stage with three options, the Now strip, the AI bar and the composer share the rest). The design draws the same trade (a question card, then two or three crowd messages). It lasts about a minute and a half, once a night, and a person who wants the room back can scroll the stage's place or wait for the podium. The 60 percent rule is for a conversation that is not interrupted by a timed game.
+- **On a desktop** the stage keeps the reading measure, centred above the conversation, and the band's "Launch live" tag sits in the rail.
+
+Confirmed by: `e2e/rooms-launch-smoke.spec.ts` (both numbers are printed by the run).
+
+## D-234 · 2026-10-31 · The thread's reader draws a v2 Scroll as the Stage + Spine reader, and its foot is the end tray (v3 dev check, #570)
+
+**Builds on** D-153 and D-133. Fixes a gap: the thread's own reader opened every Scroll as a v1 article, so a v2 Scroll, which is what a series holds now, showed "This needs an app update" and a person could not reach the finish or the reveal.
+
+- **Same reader.** `/threads/<id>/read/<assetId>` opens the Scroll with `stage: true` and draws it with `StageReaderSurface`, the surface `/scroll/<id>` and Explore use, with the same recorder, so what is read here is an ordinary encounter. The snippet viewer and a branch's reader still open v1 documents only.
+- **The finish sits in the end tray.** "I've finished this part" is drawn after the score and before the ways on, where a v1 article draws it at its foot. It is the same button and the same rule: sent while recording is paused, never while the person hides where they are.
+- **No Part or related move from here.** The reader offers Back to thread, Done for today and Your Universe. The next Part is chosen in the thread, whose player is the only thing that tells a place (D-153); a move to `/scroll/<id>` would leave the player and tell nothing.
+- **Not built.** Sharing a passage of a v2 Scroll back into the thread. A snippet names a v1 block; a stop is not one (D-135).
+
+Confirmed by: `e2e/thread-scroll-smoke.spec.ts` (two people in a thread of three v2 Scrolls: Read opens the Scroll, the finish tells the thread, a locked call reveals once both have finished; a desktop; axe at 390 × 844 and 1440 × 900) and the end tray test in `stage-reader.test.tsx`. Shown failing with the reader opened without `stage`.
+
+## D-235 · 2026-10-31 · A Scroll's place "on" is told once the Scroll has opened, not when Read is pressed (v3 dev check, #570)
+
+**Amends** D-153, which made pressing Read this Scroll the `on` of a Scroll. A place only moves forward and is never taken back (D-152), so a place sent by a tap that then failed to open the Scroll could not be undone: others saw "is on Part 3" for a part nobody had opened, and the person's "Call it first" for the earlier parts closed.
+
+- **The reader tells it.** The thread's reader mounts a small component only after the Scroll's exposure is open and its document is ready, and that component reports `on` for the part. Pressing Read, in the dock or in the open player, tells nothing; it only opens the reader.
+- **Same gate as before.** The report is automatic, so the controller sends nothing while recording is paused or not known, and nothing while the person hides where they are (D-153). The finish button is unchanged.
+- **A Reel is unchanged.** A Reel's `on` already waited for its document to open.
+
+Confirmed by: `thread-encounter.test.tsx` (Read, in the dock and in the open player, tells nothing), `e2e/thread-scroll-smoke.spec.ts` (a Scroll that does not open tells the thread nothing and stores no place; an opened one tells `on`; paused tells nothing while the button still shares the finish). Shown failing with the tap reporting again.
+
+## D-233 · 2026-10-31 · A thread's call stays with the revision its members called on, and says when the Scroll was updated (v3 dev check, #570)
+
+**Amends** D-155 ("a call is the first Call it of a part's Scroll") and **builds on** D-156 (a pick is stored against an asset, a revision and a stop). Fixes a loss found on dev: when a part's Scroll got a new revision and the series was declared again with it, the thread's call moved to the new revision's question, the three picks stayed in the table against the old one, and the card showed a different question and "0 of 3 in" with no reveal and no word of why.
+
+- **A pick belongs to the revision it was locked on.** A call is one question for the whole party, so while any member the reader may count has a pick on an earlier revision of the part's Scroll, the call is about the earliest such revision: its question, its options, its right answer and its reveal. The picks, the count and the reveal rule are unchanged, and a member who has not called yet is asked the same question the others answered, and their pick is stored on that revision.
+- **Fresh only where nothing was locked.** When nobody the reader may count has a pick on an earlier revision, the call is about the series' current revision, as before, and its picks go to that revision. So a new revision never takes a pick away, and a thread that had not started calling gets the new question.
+- **The person is told.** A call whose question is older than the Scroll carries `updated: 'held'`, and the card says "Part N has been updated since your thread started calling. The call keeps the question your thread called on, so everyone answers the same one." in an open, locked and revealed call alike.
+- **When the earlier revision cannot be read.** If the revision the picks are on was held or rejected by review, its question cannot be shown. The card then asks the current question afresh (`updated: 'restarted'`: "Part N has been updated, and the question your thread called on can't be shown any more. This call asks the new question afresh."). The old picks are not deleted; they are kept with the member's row, shown to nobody, and leave, Clear and deletion remove them as before.
+- **A block moves nothing.** Only the picks the reader may count choose the revision, so a member the reader has a block with cannot make the reader's card ask a different question from the one the reader would see without them (D-155).
+- **A lock names the question it was made on.** `LockThreadCall` carries the `assetRevision` of the card the person pressed on. The option is an index into that question's options, so the server stores the pick only if the call is still about that revision, and otherwise answers `changed`, stores nothing and the card is read again with a plain line ("This call changed. The question was updated while you were choosing, so nothing was locked."). Neither `stands` (the caller already locked) nor `closed` (the call is closed to them) fits, so `changed` is its own answer. This closes the window where the only earlier locker clears or leaves between the card and the lock, which moves the call to another revision.
+- **Nothing else changes.** No migration: the key already holds the revision. The export names a pick under the question it was made on.
+
+Confirmed by: `social-calls.test.ts` ("a part whose Scroll gets a new revision": the question, picks, count and reveal stay with revision 1 while revision 2 has a different question and answer; the only earlier locker clears between the card and the lock and the pick lands nowhere, and a revision the call was never about stores nothing; a member who had not called is asked the old question and locks on it; a thread with no picks gets the new question with no note; the export names the question the pick was made on; a rejected earlier revision restarts the call and says so; a block moves nothing), `calls.test.ts` (the pure choice of revision), `threads.test.ts` in `contracts`, `call-words.test.ts` and `call-together.test.tsx` (the words). Shown failing with the choice of revision reduced to the current one.
+
+## D-236 · 2026-10-31 · The Useful mark that earns a star may come from the person who asked (clarifies D-174, #570)
+
+**Clarifies** D-174 and D-168. No code changes. A dev check read D-174 as "the Useful mark must come from someone other than the question's asker" and found that the asker marking someone else's answer to their own question earned a star. That is the rule as written.
+
+- **Two different people, each from the author.** In a question topic the star's words must be by someone other than the person who asked the question (`startedByAccountId` is not the author), and the mark must come from someone other than the words' author (D-168: nobody marks their own). Neither says anything about the giver and the asker. The asker is the person the answer was for, and the one most able to say it helped, so their mark is the main case. D-168 says the same for an AI's answer ("the asker has no other way to say it helped"), where the mark is allowed and earns no star.
+- **What still earns nothing.** The asker's own later words in their question, marked by anyone. A mark on one's own message (refused). A resident's words. General chat, a debate and a share.
+- **Collusion.** Two accounts can still ask, answer and mark each other. The daily cap of three and one star per act and source are what bound that; a rule about the asker would not (the answerer could just as well mark a third account's words). R3 says "a different person gives Useful", meaning different from the author.
+
+Confirmed by: `rooms-sky.test.ts` ("counts the asker's own Useful on someone else's answer, and nobody's Useful on the asker's own words"). Shown failing when a mark by the asker was refused.
+
+## D-237 · 2026-10-31 · An AI reply is an ordinary message with a colour edge, still labelled (v3 dev check, #570)
+
+**Amends** the v2.1 rule that an AI contribution is drawn with a dotted outline, a square corner and "A suggestion. Nothing is made unless someone chooses it." R3 (C1) says: "Drop the dotted 'suggestion' box. An AI reply is a message in the conversation, not a proposal waiting for approval. The label and the Challenge button keep it honest", and "Character colour as a 4px edge. No dotted box, no footnote."
+
+- **What a reply looks like.** The same bubble as a person's, with a thick left edge in the resident's colour: the Explainer's is the room's accent and the Skeptic's its ink, the colours of their marks (D-170). A room without a face has an ink edge.
+- **Still labelled.** The resident's name, the AI label, the kind of contribution and the reason it spoke stay above the bubble, and a screen reader hears "AI, Skeptic". The edge is colour only and is never what says it is an AI.
+- **The buttons stay.** Challenge and Other side stay under a reply, since asking is how a person pushes back. The footnote is gone: nothing about an AI reply is a proposal.
+- **Left as it was.** The "while you were away" card is a card, not a reply, and R3 does not draw it as a message; it keeps its dotted outline.
+
+Confirmed by: `room-messages.test.tsx` (no footnote, no dotted style, the label and the buttons stay; the edge is the resident's colour in a room with a face), `room-identity.test.tsx` (the colour of each resident).
+
+## D-238 · 2026-10-31 · A sheet closes before the screen it opens, and on the web waits for its own Back (v3 dev check, #570)
+
+**Builds on** D-006 k (a sheet adds one transient history entry and a Back removes it). That Back is asynchronous, so a screen opened in the same moment is popped with it: the address changes and the old screen stays. Found on dev three ways: "Visit a friend's universe" left Friends showing, "Open thread" in the Share sheet on `/scroll/<id>` did nothing, and a topic picked in the room menu opened behind the menu.
+
+- **One helper.** `closeThen(close, run)` marks the Back as pending, closes the sheet, and runs the navigation once the Back has landed (or after 400 ms if it never reports). On native it closes and runs.
+- **Where it is used.** Visit a friend's universe, Open conversation and Open thread in the Share sheet, and a topic picked from the room menu's Topics or Pins, which closes the menu first. The older local copies in the room menu, the branch sheets and Explore keep working as they are.
+
+Confirmed by: `close-then.web.test.ts` (the order, and the fallback), `friends-smoke.spec.ts` (Visit reaches `/visit/<handle>` and Friends is not the screen shown; shown failing with the helper replaced by close-then-navigate), `campfire.test.tsx` (picking a topic closes the menu first; shown failing without it), `rooms-smoke.spec.ts` (the topic opens and no sheet is left).
+
+## D-239 · 2026-10-31 · Who is here ends with the lease: a minute after the last beat, and at once when the device says away (v3 dev check, #570)
+
+**Builds on** D-069 and D-160. States the rule a dev check asked for, with no change to the numbers. A dev check saw "3 here" for "minutes" after two members closed their browsers. Measured again on dev with two killed browsers: the header went from 3 to none between 70 and 75 seconds, which is the rule below.
+
+- **The lease.** A face is a lease the member's own device renews every 25 seconds (`ROOM_PRESENCE_BEAT_MS`) and the server reads only while it is under 60 seconds old (`ROOM_PRESENCE_LEASE_MS`). A device that leaves, hides the app or is covered by another screen says `away`, which deletes the lease at once.
+- **What the others see.** An open room reads again every 20 seconds, on a hint, and on focus. So a person who says `away` is gone from another member's header at its next read, and one who just disappears (a closed browser, a lost connection) within the lease and one read: at most about 80 seconds, usually less.
+- **A hidden tab.** A tab that is not visible does not poll; it reads again when it is shown. Nobody is looking at it, so nothing stale is seen.
+- **Not changed.** The lease is not shortened: a shorter one would drop a face for a single lost beat, and a face that comes and goes is worse than one that stays a minute. A closed tab's `away` is not guaranteed on the web (the request may be cut off), which is why the lease exists.
+
+Confirmed by: the measurement above (dev, 31 Oct), and the existing presence tests for the lease and `away` (unchanged).
+
+## D-240 · 2026-10-31 · How a person finds a room: the design is silent, and nothing lists rooms to browse (v3 dev check, #570)
+
+**Records, builds nothing.** A dev check with a new account could not reach the Space room. `/rooms/space` said "This room isn't available". `space` is not a room's address: a room's address carries its ID, which is shown nowhere, so the answer is the same as for a room that does not exist.
+
+- **What reaches a room today.** The room's station on the person's own Universe map (it appears beside a system of their own, so a person has to have formed that system by reading), a room row in Talk once they are a member, an invitation, or a link that carries the room's ID. A preview before joining is read from the station or the link.
+- **What the design says.** R1 and R3 draw a room from the inside, and draw the station on the map (R3 p-04, p-09, "Enter room"). Neither draws a list of rooms to browse or search.
+- **What this means for a new account.** It meets a room after it has read about the room's topic. That is the shape the designs give ("rooms follow your own universe"), but it makes a room unreachable from Explore alone. If the owner wants a directory, it is a new design (a list of the rooms of systems the person has formed, a "Rooms near you" row, or a share link), not a fix.
+- **Seeded rooms.** An operator seeds one room per library system. Nothing links the seed to a person until their map has the system.
+
+Recorded as a fidelity row ("R1, R3, finding a room") and in the PR. No code changes.
+
+## D-244 · 2026-11-01 · Simpler is the stop's authored text; Quick answer waits for its worker job (v3 S-9, #480)
+
+**Builds on** D-085 and D-086, which stand unchanged. Quick answer is built in S-9b as D-086 says (an HTTP command, then pg-boss, then MiniMax, with a daily cap, labelled "Quick answer · not a checked Scroll", reportable, never evidence and never in the Universe).
+
+- **Simpler.** A read stop shows its own `simple` text in place of its words, in a yellow box named "SIMPLER VERSION", with Undo. The button under each stop, the ••• item "Simpler (this screen)" and the "Simpler" item of the selection menu all do this. It is the text written and checked with the Scroll (D-085), so it is instant and free and calls no model.
+- **The menu.** On the web a small toolbar with "Simpler" and "Ask" sits above selected words in a read stop (a page cannot add items to the browser's own menu). Until S-9b, "Ask" opens the Ask sheet (D-218) at that stop with "Tell me more about “the words”" as a draft the person can change. No card is drawn between the two. A call, the Final call and the end are never offered the menu, because their words could give the answer away before the person has locked it in. A phone's own selection menu cannot be extended, so on a phone Simpler is on each stop and in ••• (planned: native selection items).
+
+Confirmed by: `simpler.test.tsx`, `selection-menu.web.test.tsx`, `e2e/simpler-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe (Ask opens the sheet with the draft and sends nothing until Send; a call offers no menu).
 
 ## D-245 · 2026-11-01 · Challenge a friend is a card in a direct conversation, and each pick stays hidden until both have called (v3 S-9, #480)
 
 **Builds on** D-063, D-083, D-155 to D-157 and D-180. It settles the challenge snippet's shape, which the change map leaves open.
 
-- **The card.** A content message in a direct conversation can name one call of the exact Scroll revision it shows: its Final call, else its first Call it. Migration 0088 adds `social.messages.challenge_stop` (the stop id, only on a content message). The question and options are read from that immutable revision when the card is shown. The send carries the stop and no pick.
+- **The card.** A content message in a direct conversation can name one call of the exact Scroll revision it shows: its Final call, else its first Call it. Migration 0090 adds `social.messages.challenge_stop` (the stop id, only on a content message). The question and options are read from that immutable revision when the card is shown. The send carries the stop and no pick.
 - **The picks.** Each person locks their own pick with `conversations.lockChallenge` (message, option, recording generation). It is stored in `social.thread_calls`, keyed by the direct conversation, the revision and the stop. That table's key is a conversation and its member, so Clear, account deletion, export and the wall around picks (D-156) already cover it. The sender locks right after the card goes, as a second command, so no pick is in the send's receipt. The first pick stands. No receipt, no time finer than a day.
 - **What each person sees.** Before they call: the question and the options, and nothing of the friend, not even whether the friend has called. After they call and before the friend does: their own pick only. When both have called: both picks, the right answer, why, and the Scroll's warm second look after a wrong pick. The right answer is never stored and never sent before then. A right call is a spark, shown and not stored. A wrong one is a plot twist (D-064).
 - **Privacy.** A blocked or ended friendship closes the conversation, so neither person can read or lock (`unavailable`, as for every other message). A deleted friend's pick is erased and the other person's card stays "locked". A deleted sender's message becomes a tombstone and clears `challenge_stop`. The export lists a person's own pick in words with `challengeFromConversation`, never the friend's and never whether it was right.

@@ -13,9 +13,7 @@ export interface ReaderCommands {
   /** Challenge a friend with one of this Scroll's calls (D-245); absent where it cannot be sent. */
   readonly challenge?: (() => void) | undefined;
   /** Opens Ask from here anchored to a stop, with the passage the reader selected as the draft question (D-244). */
-  readonly askAbout?: ((stopId: string, passage: string | undefined) => void) | undefined;
-  /** Reports the Scroll (a Quick answer is the Scroll's own text); absent where reports are not offered. */
-  readonly report?: (() => void) | undefined;
+  readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }
 
 /** Runs a command the app may not provide; whether it ran is whether the key or swipe was used. */

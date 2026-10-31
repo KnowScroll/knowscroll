@@ -92,6 +92,9 @@ function Panes({
               <View style={styles.tags}>
                 <BandTag label={RULE_WORDS[member.room.joinRule]} />
                 {member.hasModerator ? <BandTag label="Moderated" /> : null}
+                {member.launch?.state === 'lobby' || member.launch?.state === 'live' ? (
+                  <BandTag label="Launch live" testID="band-live" />
+                ) : null}
               </View>
               <HereStrip here={member.here} lastMessageAt={member.lastMessageAt} />
             </RoomHeader>

@@ -22,7 +22,7 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; not runtime-verified on dev |
 | Party places in threads (T-D, D-065, D-152) | `thread_places`, and `conversation_members.place_hidden` (migration 0080) | `THREAD_USE_CASES`: `places` (read), `setPlace`, `setPlaceHidden` | Implemented; not runtime-verified |
 | Call it together in threads (T-E, D-155 to D-157) | `thread_calls` (migration 0083) | `THREAD_USE_CASES`: `calls` (read), `lockCall` | Implemented; not runtime-verified |
-| Challenge a friend in a direct conversation (S-9, D-245) | `messages.challenge_stop` (migration 0088); each person's pick is a `thread_calls` row keyed by the direct conversation | `CONVERSATION_USE_CASES`: `conversations.send` (a content card with `challenge: { stopId }`), `conversations.lockChallenge`; the card comes back on the messages of `read`, `history` and `changes` | Implemented; not runtime-verified |
+| Challenge a friend in a direct conversation (S-9, D-245) | `messages.challenge_stop` (migration 0090); each person's pick is a `thread_calls` row keyed by the direct conversation | `CONVERSATION_USE_CASES`: `conversations.send` (a content card with `challenge: { stopId }`), `conversations.lockChallenge`; the card comes back on the messages of `read`, `history` and `changes` | Implemented; not runtime-verified |
 | Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented                              |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
@@ -277,6 +277,11 @@ No model is called. _Implemented; not runtime-verified._
 
 - **The call of a part** is the first Call it of the part's Scroll (`threadCallOf`), found through Content's
   `READ_CONTENT_SEQUENCE` and `READ_SCROLL_PLAY_FACTS`. A Reel, a Scroll without a call and a single-item thread have none.
+  It is about the revision the thread's members locked on, and only when none did, about the series' current revision
+  (`callRevisionCandidates`, D-233), so a new revision of a Scroll never takes a pick away: the card keeps that question,
+  and says `updated: 'held'` so the person is told. If the revision the picks are on can no longer be read, the card asks
+  the current question afresh and says `updated: 'restarted'`. Only the locks the reader may count choose the revision
+  (`presentMembers`), so a block never moves which question a reader is shown.
 - **Read** (`threads/calls/read`, `calls`). Under the thread's lock (FOR SHARE): one call per part that has one, in
   the stage this reader may see (`open`, `locked`, `revealed`, `closed`). The stage decides what the answer can carry:
   counts only before the reader locks, their own pick after, and everyone's picks, the right answer, why, and, for a member
@@ -287,7 +292,8 @@ No model is called. _Implemented; not runtime-verified._
 - **Lock** (`threads/calls/lock`, `lockCall`). Authority: the caller's personal scope, the thread's lock, and
   `FENCE_PERSONAL_RECORDING` with the generation the client sends (paused or stale: nothing is stored and the answer says
   why, D-083). The part must have a call and the option must be one of its options (`invalid_input` otherwise). The first
-  lock stands; a repeat or another pick answers `stands`; a call that is revealed, or on a part the caller's own place says
+  lock stands; a pick for a revision the call is no longer about answers `changed` and stores nothing (the command carries the
+  `assetRevision` of the card, D-233); a repeat or another pick answers `stands`; a call that is revealed, or on a part the caller's own place says
   they started, answers `closed`. The command carries no correctness and no stop, and keeps no receipt: it is idempotent by
   its key and a receipt would keep the time of the lock (D-156). A new lock tells every taking-part member's inbox (a
   disposable hint carrying nothing).

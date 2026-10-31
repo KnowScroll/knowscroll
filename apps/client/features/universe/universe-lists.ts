@@ -1,4 +1,4 @@
-import { stationSkyLine } from '@knowscroll/client-core';
+import { stationCaption } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import { isQuiet, type UniverseIndex } from './universe-layout';
 
@@ -58,7 +58,7 @@ export function listUniverse(
             id: station.room.roomId,
             name: station.room.name,
             systemId: station.placement.systemId,
-            ...(station.sky === undefined ? {} : { caption: stationSkyLine(station.sky) }),
+            ...(station.sky === undefined ? {} : { caption: stationCaption(station.sky, station.live) }),
           },
         ]
       : [],

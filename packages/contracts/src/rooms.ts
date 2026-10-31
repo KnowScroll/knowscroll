@@ -8,6 +8,19 @@ import {
 import { AbuseCategorySchema } from './feedback.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
 import { RoomIdentitySchema } from './room-identity.js';
+import {
+  AnswerLaunchSchema,
+  FinishLaunchSchema,
+  JoinLaunchSchema,
+  LaunchAnsweredAcceptanceSchema,
+  LaunchFinishedAcceptanceSchema,
+  LaunchJoinedAcceptanceSchema,
+  LaunchStartedAcceptanceSchema,
+  ReadRoomLaunchSchema,
+  RoomLaunchSchema,
+  RoomLaunchStripSchema,
+  StartLaunchSchema,
+} from './room-launch.js';
 import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
 import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
@@ -509,6 +522,8 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     sky: RoomSkySchema,
     /** The daily channel and, when an operator approved today's items, what they are (v3 R-5). */
     today: RoomTodayStripSchema.optional(),
+    /** Whether a Launch can be started, is starting, is on, or just finished (v3 R-6). Absent when there is nothing to say. */
+    launch: RoomLaunchStripSchema.optional(),
   }),
 ]);
 export type RoomView = z.infer<typeof RoomViewSchema>;
@@ -977,6 +992,11 @@ export const RoomStationSchema = z.strictObject({
    * its name. Room-level facts that name no person; an outsider's station carries none.
    */
   sky: RoomSkySchema.optional(),
+  /**
+   * A Launch is on in the room (D-178), for a member or moderator only: the station says so on their map (R3 E: "a live Launch
+   * pulses the station"). A room's activity is not shown to people who have not joined it. Names no person and no number.
+   */
+  live: z.boolean().optional(),
 });
 export type RoomStation = z.infer<typeof RoomStationSchema>;
 export const RoomStationsSchema = z.strictObject({
@@ -1293,18 +1313,29 @@ export const roomsSkyContract = {
   voteDebate: roomsPost('/v1/rooms/debates/vote', VoteDebateSchema, DebateVoteAcceptanceSchema),
 };
 
+/** The Launch: read it, start one, join, answer, and settle it when it is over (v3 R-6). */
+export const roomsLaunchContract = {
+  launch: roomsPost('/v1/rooms/launch/read', ReadRoomLaunchSchema, RoomLaunchSchema),
+  startLaunch: roomsPost('/v1/rooms/launch/start', StartLaunchSchema, LaunchStartedAcceptanceSchema),
+  joinLaunch: roomsPost('/v1/rooms/launch/join', JoinLaunchSchema, LaunchJoinedAcceptanceSchema),
+  answerLaunch: roomsPost('/v1/rooms/launch/answer', AnswerLaunchSchema, LaunchAnsweredAcceptanceSchema),
+  finishLaunch: roomsPost('/v1/rooms/launch/finish', FinishLaunchSchema, LaunchFinishedAcceptanceSchema),
+};
+
 /**
- * Served by the API's rooms controller, with Social's problem family and cache policy. The four parts are
+ * Served by the API's rooms controller, with Social's problem family and cache policy. The five parts are
  * named so that the declaration the compiler writes for this object stays bounded.
  */
 export const roomsContract: typeof roomsRoomContract &
   typeof roomsDiscussionContract &
   typeof roomsActivityContract &
-  typeof roomsSkyContract = {
+  typeof roomsSkyContract &
+  typeof roomsLaunchContract = {
   ...roomsRoomContract,
   ...roomsDiscussionContract,
   ...roomsActivityContract,
   ...roomsSkyContract,
+  ...roomsLaunchContract,
 };
 
 /**

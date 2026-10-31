@@ -33,7 +33,7 @@ const ALLOWED = [
  * that alters the table is added here, on purpose.
  */
 const SOCIAL_MIGRATIONS = [/^migrations\/\d{4}_thread_calls\.sql$/, /^migrations\/\d{4}_challenge_messages\.sql$/];
-/** The column that marks a card as a challenge for one call (migration 0088). */
+/** The column that marks a card as a challenge for one call (migration 0090). */
 const CHALLENGE_COLUMN = /\bchallenge_stop\b/;
 
 function filesUnder(folder: string, wanted: RegExp): string[] {

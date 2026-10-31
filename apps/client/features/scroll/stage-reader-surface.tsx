@@ -34,9 +34,7 @@ export interface StageMoves {
    * Opens Ask from here anchored to a stop, with the words the reader selected as the first draft of the question (D-244).
    * Absent where there is no Ask (the direct `/scroll/<id>` route).
    */
-  readonly askAbout?: ((stopId: string, passage: string | undefined) => void) | undefined;
-  /** Reports the Scroll; absent where reports are not offered. */
-  readonly report?: (() => void) | undefined;
+  readonly askAbout?: ((stopId: string, passage: string) => void) | undefined;
 }
 
 /** Hands one value to a ref of either kind. */
@@ -64,6 +62,7 @@ export function StageReaderSurface({
   partLabel,
   moreBody,
   headerNote,
+  endSlot,
   topInset,
   bottomInset,
 }: {
@@ -80,6 +79,8 @@ export function StageReaderSurface({
   readonly moreBody?: ((close: () => void) => ReactNode) | undefined;
   /** A line under the top bar (where the person came from). */
   readonly headerNote?: ReactNode;
+  /** Drawn at the end of the Scroll, before the ways on (a thread's "I've finished this part"). */
+  readonly endSlot?: ReactNode;
   readonly topInset: number;
   readonly bottomInset: number;
 }) {
@@ -113,6 +114,7 @@ export function StageReaderSurface({
           nextPart={moves.nextPart}
           related={moves.related}
           onDone={moves.done}
+          endSlot={endSlot}
           play={play}
           commands={{
             universe: moves.universe,
@@ -123,7 +125,6 @@ export function StageReaderSurface({
             nextTopic: moves.nextTopic,
             challenge: canChallenge ? () => setChallenging(true) : undefined,
             askAbout: moves.askAbout,
-            report: moves.report,
           }}
           header={
             <View style={{ paddingTop: topInset }}>

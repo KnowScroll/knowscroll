@@ -37,6 +37,10 @@ export function RoomEmblem({
   );
 }
 
+/** A resident's colour in a room: the Explainer wears the room's accent and the Skeptic its ink, as their marks do (D-170). */
+export const residentColourOf = (kit: Pick<RoomKit, 'palette'>, resident: 'explainer' | 'skeptic'): string =>
+  ROOM_SWATCHES[resident === 'explainer' ? kit.palette.accent : kit.palette.ink];
+
 /**
  * The mark a resident wears in a room (D-170, R3 C): its glyph on a tile with square corners, which is how an AI is
  * drawn everywhere (never a face, never a person). The Explainer's tile is the room's accent and the Skeptic's its ink;
@@ -59,10 +63,7 @@ export function ResidentMark({
       aria-hidden
       accessibilityElementsHidden
       testID={testID}
-      style={[
-        styles.tile,
-        { width: size, height: size, backgroundColor: ROOM_SWATCHES[resident === 'explainer' ? accent : ink] },
-      ]}
+      style={[styles.tile, { width: size, height: size, backgroundColor: residentColourOf(kit, resident) }]}
     >
       <Svg width={size} height={size} viewBox="0 0 24 24">
         {GLYPH_SHAPES[kit.cast[resident]].map((shape, index) => (
