@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomStation } from '@knowscroll/contracts';
@@ -12,9 +12,13 @@ import { DrawingToggle, OutlineList, UniverseListSheet } from './universe-outlin
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
 import { UniverseStage } from './universe-stage';
-import { FlatPlanet } from './planet-scene';
-import { safeGeometry } from './scene-parts';
+import { paletteOf } from './planet/planet-palette';
+import { planPlanet, type PlanetPlan } from './planet/planet-plan';
+import { looksById } from './space/space-model';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
+
+/** The colour of the globe's hint, from the design. */
+const HINT_COLOUR = '#B8E2E3';
 
 /**
  * A friend's universe seen as a visitor (U06): the visitor bar goes on top, the map is named after its
@@ -54,21 +58,31 @@ export function UniverseSurface({
   const insets = useSafeAreaInsets();
   // From 1024 px the outline sits beside the map, once there is anything to list (D02).
   const wide = breakpoint === 'desktop';
-  const view = viewFor(index, state.focusId);
+  const view = viewFor(index, state.focusId, state.landed);
   const places = session.places();
   const panel = wide && places.length > 0;
   const focused = places.find((place) => place.id === state.focusId);
   const selectedSystem = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
   const regionCard = state.overlay === 'place' && focused?.kind === 'region' ? focused : undefined;
-  const [stageSize, setStageSize] = useState({ width: 390, height: 640 });
   const [dustNote, setDustNote] = useState(false);
+  const [refusedPlanetId, setRefusedPlanetId] = useState<string | null>(null);
   const searching = state.overlay === 'search';
   const openSearch = () => session.showOverlay('search');
-  // A planet whose drawing cannot be built falls back to the flat drawing and the plain list.
-  const simple = view.kind === 'planet' && (state.detail === 'low' || !safeGeometry(session, view.planet));
+  // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
+  const looks = state.read.snapshot?.read.looks;
+  const planet = view.kind === 'planet' ? view.planet : undefined;
+  const plan = useMemo(
+    () => (planet ? planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)) : undefined),
+    [planet, index, looks],
+  );
+  const palette = useMemo(() => (plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined), [plan]);
+  // A planet whose world cannot be drawn, or low detail, falls back to the plain list of its regions.
+  const simple = view.kind === 'planet' && (state.detail === 'low' || refusedPlanetId === view.planet.objectId);
+  // A globe only turns: there is nothing to zoom.
+  const globe = view.kind === 'planet' && !view.landed && !simple;
 
   const card: ReactNode = regionCard ? (
-    <RegionCard session={session} state={state} place={regionCard} />
+    <RegionCard session={session} state={state} place={regionCard} {...(palette ? { palette } : {})} />
   ) : selectedSystem && !searching ? (
     <SystemCard session={session} place={selectedSystem} />
   ) : dustNote && view.kind === 'universe' && state.dust.cues.length > 0 ? (
@@ -90,7 +104,7 @@ export function UniverseSurface({
   );
 
   const caption =
-    view.kind === 'planet' && !view.selectedRegion && !simple ? (
+    view.kind === 'planet' && !view.landed && !simple ? (
       <View style={styles.caption} pointerEvents="none">
         <Text variant="label" color={space.label2}>
           {`A planet in ${index.byId.get(view.planet.parentId)?.label ?? 'your universe'}`}
@@ -99,11 +113,16 @@ export function UniverseSurface({
           {view.planet.label}
         </Text>
         {view.planet.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
-        {visitor ? null : (
-          <Text variant="meta" color={space.label2} style={styles.captionHint}>
-            Tap a region to land.
+        <View style={styles.globeHint}>
+          <View style={styles.hintMark} aria-hidden>
+            <Text variant="meta" color={HINT_COLOUR}>
+              ↔
+            </Text>
+          </View>
+          <Text variant="uiS" color={HINT_COLOUR}>
+            {visitor ? 'Drag to rotate' : 'Drag to rotate · tap to land'}
           </Text>
-        )}
+        </View>
       </View>
     ) : null;
 
@@ -139,6 +158,7 @@ export function UniverseSurface({
           <SpaceChip
             key={route.id}
             testID={`universe-route-${route.id}`}
+            variant="solid"
             label={`Route to ${other.label}`}
             trailingIcon="forward"
             onPress={() => session.travel(route.id)}
@@ -156,10 +176,10 @@ export function UniverseSurface({
     ) : null;
 
   const stage = (
-    <View style={styles.stageHost} onLayout={(event) => setStageSize(event.nativeEvent.layout)}>
+    <View style={styles.stageHost}>
       <UniverseBackdrop glow={false} />
-      {simple && view.kind === 'planet' ? (
-        <SimplePlanet session={session} index={index} view={view} state={state} width={stageSize.width} />
+      {simple && view.kind === 'planet' && plan ? (
+        <SimplePlanet session={session} index={index} view={view} state={state} plan={plan} />
       ) : (
         <UniverseStage
           session={session}
@@ -169,6 +189,8 @@ export function UniverseSurface({
           onDust={() => setDustNote(true)}
           stations={stations}
           onStation={onStation}
+          visitor={visitor !== undefined}
+          onRefused={setRefusedPlanetId}
         />
       )}
       <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
@@ -188,7 +210,7 @@ export function UniverseSurface({
         {panel ? null : card}
         {chips}
       </View>
-      {wide ? (
+      {wide && !globe ? (
         <View pointerEvents="box-none" style={styles.zoomControls}>
           <IconButton
             icon="plus"
@@ -204,7 +226,7 @@ export function UniverseSurface({
           />
         </View>
       ) : null}
-      {wide ? <KeyHints /> : null}
+      {wide ? <KeyHints globe={globe} /> : null}
     </View>
   );
 
@@ -305,7 +327,7 @@ function DustNote({ onClose }: { onClose: () => void }) {
   );
 }
 
-function KeyHints() {
+function KeyHints({ globe }: { globe: boolean }) {
   const hint = (keys: string, action: string) => (
     <View key={action} style={styles.hint}>
       <Text variant="metaS" color={space.label} style={styles.key}>
@@ -318,29 +340,30 @@ function KeyHints() {
   );
   return (
     <View pointerEvents="none" style={styles.hints}>
-      {hint('Arrows', 'pan')}
-      {hint('+ −', 'zoom')}
+      {hint('Arrows', globe ? 'turn' : 'pan')}
+      {globe ? null : hint('+ −', 'zoom')}
       {hint('/', 'search')}
     </View>
   );
 }
 
-/** U03 "Low detail": the flat drawing and a plain list of regions, the same layout as the map. */
+/**
+ * The plain drawing of a planet (low detail, or a world that cannot be drawn): its name and a list of
+ * its regions, in the same order as the map names them. Every region stays one tap away.
+ */
 function SimplePlanet({
   session,
   index,
   view,
   state,
-  width,
+  plan,
 }: {
   session: UniverseMapSession;
   index: UniverseIndex;
   view: Extract<ReturnType<typeof viewFor>, { kind: 'planet' }>;
   state: UniverseViewState;
-  width: number;
+  plan: PlanetPlan;
 }) {
-  const regions = index.regions.get(view.planet.objectId) ?? [];
-  const drawWidth = Math.min(width - spacing[12], 420);
   return (
     <View style={styles.simple}>
       <View style={styles.simpleTitle}>
@@ -351,23 +374,14 @@ function SimplePlanet({
           {`A planet in ${index.byId.get(view.planet.parentId)?.label ?? 'your universe'}`}
         </Text>
       </View>
-      <View style={{ width: drawWidth, alignSelf: 'center' }}>
-        <FlatPlanet
-          session={session}
-          index={index}
-          planet={view.planet}
-          width={drawWidth}
-          selectedRegion={view.selectedRegion}
-        />
-      </View>
       <View style={styles.simpleList}>
-        {regions.map((region) => (
+        {plan.regions.map(({ descriptor }) => (
           <SpaceChip
-            key={region.objectId}
-            label={region.label}
-            variant={region.objectId === state.focusId ? 'solid' : 'ghost'}
+            key={descriptor.objectId}
+            label={descriptor.label}
+            variant={descriptor.objectId === state.focusId ? 'solid' : 'ghost'}
             trailingIcon="forward"
-            onPress={() => session.focus(region.objectId)}
+            onPress={() => void session.focus(descriptor.objectId)}
           />
         ))}
       </View>
@@ -392,7 +406,16 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], alignItems: 'center' },
   caption: { position: 'absolute', left: spacing[6], right: spacing[6], top: '62%', gap: spacing['1.5'] },
   captionTitle: { fontSize: 30, lineHeight: 34 },
-  captionHint: { marginTop: spacing[1] },
+  globeHint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginTop: spacing[1] },
+  hintMark: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dustNote: {
     flexDirection: 'row',
     alignItems: 'center',

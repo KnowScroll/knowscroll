@@ -18,3 +18,27 @@ export function titleFrom(words: string, fallback: string): string {
         .join('')
         .trimEnd()}…`;
 }
+
+/** What a topic is called in place of words that may not be read: a title made from a message that is gone. */
+export const NEUTRAL_TOPIC_TITLE = 'A topic from a message';
+
+/** What is known of the message a topic began from, for one reader. */
+export interface TitleOrigin {
+  /** The message is shown (not removed) and its author's account is not deleted. */
+  readonly shown: boolean;
+  /** The reader has blocked the message's author. */
+  readonly authorBlocked: boolean;
+}
+
+/**
+ * The title a reader is shown. A title typed by the starter is the starter's own and is always shown. A title made
+ * from the first words of a message is another person's words: it is shown only while that message is shown and its
+ * author is not blocked by the reader; otherwise the reader reads `NEUTRAL_TOPIC_TITLE` (D-168).
+ */
+export function shownTitle(
+  discussion: { readonly title: string; readonly titleDerived: boolean },
+  origin: TitleOrigin | undefined,
+): string {
+  if (!discussion.titleDerived) return discussion.title;
+  return origin?.shown === true && !origin.authorBlocked ? discussion.title : NEUTRAL_TOPIC_TITLE;
+}

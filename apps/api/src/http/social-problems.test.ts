@@ -102,6 +102,7 @@ describe('mounted Social serialization boundary before authentication and parsin
         'conversations/changes',
         'conversations/send',
         'conversations/send/read',
+        'conversations/react',
         'conversations/mark-read',
         'conversations/mute',
         'conversations/leave',

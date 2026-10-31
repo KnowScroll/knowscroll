@@ -16,6 +16,8 @@ export interface LastPlace {
  */
 export interface UniverseMemory {
   readonly focusId: string | null;
+  /** On a planet: the person was on its landed map rather than its globe. */
+  readonly landed: boolean;
   readonly frame: UniverseFrame;
   readonly lately: boolean;
   readonly lastPlace: LastPlace | undefined;
@@ -53,6 +55,7 @@ export function loadUniverseMemory(scope: AccountScope): UniverseMemory | undefi
         : undefined;
     return {
       focusId: typeof value['focusId'] === 'string' ? value['focusId'] : null,
+      landed: value['landed'] === true,
       frame: boundedFrame({
         x: Number(frame['x']),
         y: Number(frame['y']),

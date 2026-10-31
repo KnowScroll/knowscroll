@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
+import type { PointedAskKind } from '../domain/asks.js';
 import {
   CONTEXT_MESSAGE_CHARS,
   CONTRIBUTION_MAX_CHARS,
@@ -10,7 +11,7 @@ import {
 } from '../domain/contribution.js';
 
 /** Changes with the instructions or the answer schema; recorded on every contribution. */
-export const INHABITANT_ROLE_VERSION = 'inhabitant.1';
+export const INHABITANT_ROLE_VERSION = 'inhabitant.2';
 export const INHABITANT_POLICY_VERSION = 'rooms-inhabitant.v1';
 
 /** The fixed hints the one repair may carry. Shared with the residents' roles, which write under the same rules. */
@@ -64,12 +65,28 @@ const INSTRUCTIONS: Readonly<Record<InhabitantId, string>> = {
   ].join('\n'),
 };
 
+/**
+ * What a member's pointed ask or mention adds to the role's instructions (D-167). The message is the one named by the
+ * "focus" item. A plain ask has no line: the discussion as a whole is the subject.
+ */
+const ASKED_LINES: Readonly<Record<PointedAskKind, string>> = {
+  challenge:
+    'A member asked you to challenge the message named by the "focus" item. Check that one claim: say plainly what holds, then name the single most useful assumption, gap or counterexample. Do not repeat what the discussion already says.',
+  other_side:
+    'A member asked you for the other side of the message named by the "focus" item. Give the strongest honest case for the opposite view in a few sentences, say where it is weak, and do not pretend it is settled. Prefer the "perspective" kind.',
+  about:
+    'A member asked you about the message named by the "focus" item. Say what it is about, or answer it, in plain words, with one clear example if that helps.',
+  mention:
+    'A member addressed you by name in the message named by the "focus" item. Answer what they wrote to you, in your own role.',
+};
+
 /** One call, no tool loop. Thinking tokens count against the ceiling, so it is generous for a ~120-token answer. */
-export function inhabitantRole(inhabitant: InhabitantId): ReasoningRole<InhabitantAnswer> {
+export function inhabitantRole(inhabitant: InhabitantId, asked?: PointedAskKind): ReasoningRole<InhabitantAnswer> {
   return {
     id: `rooms.${inhabitant}`,
     version: INHABITANT_ROLE_VERSION,
-    instructions: INSTRUCTIONS[inhabitant],
+    instructions:
+      asked === undefined ? INSTRUCTIONS[inhabitant] : [INSTRUCTIONS[inhabitant], ASKED_LINES[asked]].join('\n'),
     outputSchema: answerSchema(inhabitant),
     safeCustomIssues: SAFE_HINTS,
     maxOutputTokens: 4096,
@@ -88,8 +105,10 @@ export interface ContextMessage {
 /** What the model may read: the room, the discussion and its newest messages. Nothing else. */
 export interface ContributionMaterial {
   readonly turnId: string;
-  /** The number of the message an unprompted turn answers, among `messages` (counted from 1). */
+  /** The number of the message the turn is about (answered unprompted, or pointed at by an ask), among `messages` (counted from 1). */
   readonly focus?: number;
+  /** What the member asked, when the ask pointed at a message or named a resident in one. */
+  readonly asked?: PointedAskKind;
   readonly roomName: string;
   readonly topicMeaning: string | undefined;
   readonly guidelines: string | undefined;
@@ -160,13 +179,22 @@ export type ContributionVerdict =
  * honestly; an attempt of unknown outcome is never resent.
  */
 export function contributionVerdict(outcome: ProposeOutcome<InhabitantAnswer>): ContributionVerdict {
+  if (outcome.kind !== 'proposed') return unproposedVerdict(outcome);
+  const { kind, text } = outcome.output;
+  return kind === 'nothing_to_add'
+    ? { kind: 'nothing_to_add', end: 'completed' }
+    : { kind: 'contribution', answer: { kind, text: text.trim() }, attemptId: outcome.attemptId, end: 'completed' };
+}
+
+/**
+ * What a harness outcome that proposed nothing means for the turn, for every role that writes under these rules: a
+ * failure, a refusal, an exhausted budget or an unknown outcome ends it honestly, and an attempt of unknown outcome
+ * is never resent.
+ */
+export function unproposedVerdict(
+  outcome: Exclude<ProposeOutcome<unknown>, { readonly kind: 'proposed' }>,
+): Extract<ContributionVerdict, { readonly kind: 'failed' }> {
   switch (outcome.kind) {
-    case 'proposed': {
-      const { kind, text } = outcome.output;
-      return kind === 'nothing_to_add'
-        ? { kind: 'nothing_to_add', end: 'completed' }
-        : { kind: 'contribution', answer: { kind, text: text.trim() }, attemptId: outcome.attemptId, end: 'completed' };
-    }
     case 'invalid_output':
     case 'failed':
       return { kind: 'failed', dispatched: true, end: 'failed' };

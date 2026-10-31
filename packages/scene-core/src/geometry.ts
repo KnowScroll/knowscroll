@@ -1,5 +1,6 @@
 import { SceneDescriptorSchema, SceneParseError } from './parse.js';
 import { seedState, variation } from './seed.js';
+import { sineSample } from './unit-circle.js';
 import type { SceneFamily, SceneGeometry } from './types.js';
 
 export interface SceneGeometryOptions {
@@ -11,20 +12,6 @@ const FAMILIES: Readonly<Record<SceneFamily, { radius: number; lobes: number; am
   'ridged.v1': { radius: 60, lobes: 7, amplitude: 0.13 },
   'archipelago.v1': { radius: 56, lobes: 3, amplitude: 0.18 },
 };
-// Pinned quarter-circle constants. No engine-dependent transcendental math: all samples,
-// harmonics and low-detail subsets address the same versioned integer lattice.
-const QUARTER_CIRCLE = [
-  0, 0.0980171403295606, 0.19509032201612825, 0.29028467725446233, 0.3826834323650898, 0.47139673682599764,
-  0.5555702330196022, 0.6343932841636455, 0.7071067811865475, 0.7730104533627369, 0.8314696123025452,
-  0.8819212643483549, 0.9238795325112867, 0.9569403357322089, 0.9807852804032304, 0.9951847266721968, 1,
-] as const;
-function sineSample(index: number): number {
-  const sample = index % 64;
-  if (sample <= 16) return QUARTER_CIRCLE[sample] ?? 0;
-  if (sample <= 32) return QUARTER_CIRCLE[32 - sample] ?? 0;
-  if (sample <= 48) return -(QUARTER_CIRCLE[sample - 32] ?? 0);
-  return -(QUARTER_CIRCLE[64 - sample] ?? 0);
-}
 function rounded(n: number): number {
   return Math.round(n * 1_000_000) / 1_000_000;
 }

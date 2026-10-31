@@ -98,7 +98,7 @@ it('flies from the map into a system and a planet, with Back steps up and the sh
   expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
   expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
-  expect(screen.getByText('Tap a region to land.')).toBeOnTheScreen();
+  expect(screen.getByText('Drag to rotate · tap to land')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'Back to CI system 0' }));
   expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
@@ -107,6 +107,106 @@ it('flies from the map into a system and a planet, with Back steps up and the sh
   expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
   await act(() => h.scope.end());
   await v.unmount();
+});
+
+/** Every string a screen draws, hidden or not: what a tree could ever say, whether or not a screen reader hears it. */
+function allStrings(node: unknown, found: string[] = []): string[] {
+  if (typeof node === 'string') found.push(node);
+  else if (Array.isArray(node)) for (const child of node) allStrings(child, found);
+  else if (node && typeof node === 'object') {
+    const element = node as { children?: unknown; props?: { content?: unknown } };
+    // react-native-svg keeps the letters of a Text in its `content` prop.
+    if (typeof element.props?.content === 'string') found.push(element.props.content);
+    allStrings(element.children, found);
+  }
+  return found;
+}
+
+describe('a planet: its globe, landing, and the land not reached yet (D-109)', () => {
+  const openPlanet = async (h: ReturnType<typeof universeHarness>) => {
+    mockScope = h.scope;
+    const view = await render(<UniverseScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+    return view;
+  };
+
+  it('turns a globe with one control, lands on its map, and names only the regions that have formed', async () => {
+    const h = universeHarness(5, 0, 3);
+    const v = await openPlanet(h);
+    expect(screen.getByText('Drag to rotate · tap to land')).toBeOnTheScreen();
+    expect(screen.queryByTestId('universe-level')).toBeNull();
+    // The globe's own names are drawing: the planet's regions are not controls on it.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Land on CI planet 2' })).toBeOnTheScreen());
+    expect(screen.queryAllByRole('button', { name: /, a region$/ })).toHaveLength(0);
+    await fireEvent.press(screen.getByRole('button', { name: 'Land on CI planet 2' }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /, a region$/ })).toHaveLength(4));
+    expect(screen.getByTestId('universe-level')).toHaveTextContent('PLANET');
+    // The map's regions are named in site order, which is also the order of the plain list.
+    const onMap = screen
+      .getAllByRole('button', { name: /, a region$/ })
+      .map((button) => String(button.props.accessibilityLabel));
+    expect(onMap).toEqual([
+      'CI region 4, a region',
+      'CI region 5, a region',
+      'CI region 6, a region',
+      'CI region 7, a region',
+    ]);
+    // Nothing on the screen says anything about land that is not reached yet, hidden from a screen reader or not.
+    const said = allStrings(screen.toJSON()).join(' | ');
+    expect(said).not.toMatch(/uncharted|not reached|unreached|locked|grey|gray|left to|more to/i);
+    expect(new Set(said.match(/CI region \d/g))).toEqual(
+      new Set(['CI region 4', 'CI region 5', 'CI region 6', 'CI region 7']),
+    );
+    // The Back pill goes up to the system, as the design says, and browsing sent nothing but reads.
+    expect(screen.getByRole('button', { name: 'Back to CI system 0' })).toBeOnTheScreen();
+    expect(h.calls.every(universeRead)).toBe(true);
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+
+  it('chooses a region on the map for its card, and the card is dark glass over the map', async () => {
+    const h = universeHarness(5, 0, 3);
+    const v = await openPlanet(h);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Land on CI planet 2' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Land on CI planet 2' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'CI region 5, a region' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'CI region 5, a region' }));
+    await waitFor(() => expect(screen.getByTestId('universe-region-card')).toBeOnTheScreen());
+    expect(screen.getByTestId('universe-level')).toHaveTextContent('REGION');
+    expect(screen.getByRole('button', { name: 'Back to CI planet 2' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'CI region 5, a region' }).props.accessibilityState).toMatchObject({
+      selected: true,
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to CI planet 2' }));
+    expect(screen.queryByTestId('universe-region-card')).toBeNull();
+    expect(screen.getByTestId('universe-level')).toHaveTextContent('PLANET');
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+
+  it('shows the same names in the same order in the Simple drawing, and nothing for land not reached', async () => {
+    const h = universeHarness(5, 0, 3);
+    const v = await openPlanet(h);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Land on CI planet 2' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Land on CI planet 2' }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /, a region$/ })).toHaveLength(4));
+    const onMap = screen
+      .getAllByRole('button', { name: /, a region$/ })
+      .map((button) => String(button.props.accessibilityLabel).replace(', a region', ''));
+    await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple drawing' }));
+    await waitFor(() => expect(screen.getByText('Low detail')).toBeOnTheScreen());
+    // The plain drawing of the planet: its regions, as buttons, in the map's order (the list view's rows are named with their place).
+    const plain = screen
+      .getAllByRole('button', { name: /^CI region \d$/ })
+      .map((button) => String(button.props.accessibilityLabel));
+    expect(plain).toEqual(onMap);
+    expect(allStrings(screen.toJSON()).join(' | ')).not.toMatch(/uncharted|not reached|unreached|locked|grey|gray/i);
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
 });
 
 it('searches and toggles Lately without leaving the map, and none of it is a command', async () => {
@@ -368,12 +468,16 @@ it('shows only an actual correlated card; deliberate Open sends displayed ref an
   });
   expect(mockNavigate).toHaveBeenCalledWith('/universe');
   expect(screen.queryByTestId('universe-region-card')).toBeNull();
-  expect(screen.getByRole('button', { name: 'Back to CI planet 2' })).toBeOnTheScreen();
-  // U04: the pin left through its card says so, and is still the selected place.
+  // U04: back from the encounter is the planet's map at planet level, with the region marked.
+  expect(screen.getByRole('button', { name: 'Back to CI system 0' })).toBeOnTheScreen();
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'CI region 4 · you were here, a region' })).toBeOnTheScreen(),
+  );
   expect(
     screen.getByRole('button', { name: 'CI region 4 · you were here, a region' }).props.accessibilityState,
-  ).toMatchObject({ selected: true });
-  expect(screen.getAllByText('CI region 4 · you were here').length).toBeGreaterThan(0);
+  ).toMatchObject({ selected: false });
+  // The pill is drawing; the region's target is what is announced.
+  expect(screen.getAllByText('CI region 4 · you were here', { includeHiddenElements: true }).length).toBeGreaterThan(0);
   await act(() => scope.end());
   await view.unmount();
 });

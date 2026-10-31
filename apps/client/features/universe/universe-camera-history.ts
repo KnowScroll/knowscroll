@@ -6,6 +6,8 @@ export interface CameraEntry {
   readonly frame: UniverseFrame;
   readonly focusId: string | null;
   readonly locator?: SceneReturnLocator;
+  /** On a planet: the person has landed on its map (U04) rather than turning its globe (U03). */
+  readonly landed?: boolean;
 }
 
 /** Back steps through the camera, bounded: the oldest step falls off first. */

@@ -10,6 +10,7 @@ import type { SequenceUnit, StoredSnippetAnchor } from '../../content/public.js'
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { isParticipant } from '../domain/threads.js';
 import type { ContentRef, MessageRow } from './conversation-ports.js';
+import { extrasOf, readExtras, type ExtrasContext, type MessageExtras } from './message-extras.js';
 import type { SharedLock } from './ports.js';
 import type { LoadedThread, ThreadMember, ThreadPorts, ThreadLock } from './thread-ports.js';
 
@@ -62,6 +63,7 @@ export function viewThreadMessage(
   row: MessageRow,
   snippets: ReadonlyMap<string, StoredSnippetAnchor>,
   cards: ReadonlyMap<string, Card>,
+  extras?: MessageExtras,
 ): ThreadMessage {
   const identity = { messageId: row.messageId, sequence: row.sequence };
   if (row.author === null || (row.text === null && row.content === null)) return { ...identity, status: 'unavailable' };
@@ -70,6 +72,7 @@ export function viewThreadMessage(
     status: 'available' as const,
     author: row.author,
     recordedAt: row.recordedAt.toISOString(),
+    ...extrasOf(row, extras),
   };
   if (row.text !== null) return { ...base, body: { kind: 'text', text: row.text } };
   const anchor = snippets.get(row.messageId);
@@ -81,11 +84,16 @@ export function viewThreadMessage(
   };
 }
 
-/** Views a page of thread messages, reading every distinct card and snippet anchor once. */
+/**
+ * Views a page of thread messages, reading every distinct card and snippet anchor once. With a
+ * `context` (the thread, and who reads it) the page also carries reactions and reply quotes; the thread
+ * list's last messages are viewed without it.
+ */
 export async function viewThreadMessages(
   p: ThreadPorts,
   reader: ThreadLock | PersonalScopeTx,
   rows: readonly MessageRow[],
+  context?: ExtrasContext,
 ): Promise<ThreadMessage[]> {
   const withContent = rows.filter((row) => row.content !== null);
   const snippets = await p.threads.snippetsOf(
@@ -95,7 +103,8 @@ export async function viewThreadMessages(
   const refs = new Map(withContent.map((row) => [keyOf(row.content!), row.content!]));
   const cards = refs.size === 0 ? [] : await p.conversations.cards(reader, [...refs.values()]);
   const byKey = new Map(cards.map((card) => [keyOf(card.target), card]));
-  return rows.map((row) => viewThreadMessage(row, snippets, byKey));
+  const extras = context === undefined ? undefined : await readExtras(p.conversations, reader, context, rows);
+  return rows.map((row) => viewThreadMessage(row, snippets, byKey, extras));
 }
 
 /** Who shows as a participant: members whose place stands, the starter marked, the caller flagged. */

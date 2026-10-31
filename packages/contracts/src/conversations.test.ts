@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ConversationReactionAcceptanceSchema,
+  MESSAGE_REACTION_KINDS,
+  ReactToConversationMessageSchema,
   StartDirectConversationSchema,
   SendConversationMessageSchema,
   ConversationMessageSchema,
@@ -518,4 +521,75 @@ it('correlates own-send identity with every current request/scope/incarnation fi
   });
   expect(ownConversationSendForRead(request, result, accessor)).toBeUndefined();
   expect(calls).toBe(0);
+});
+
+describe('replies and reactions (v3 T-B)', () => {
+  const reply = { version, commandId: id(60), conversation, body: { kind: 'text', text: 'part 2 abhi start kiya' } };
+  it('lets a send name the message it answers by ID, and nothing else', () => {
+    expect(SendConversationMessageSchema.safeParse({ ...reply, replyTo: id(61) }).success).toBe(true);
+    expect(SendConversationMessageSchema.safeParse(reply).success).toBe(true);
+    for (const replyTo of ['not-an-id', 3, { messageId: id(61) }, null])
+      expect(SendConversationMessageSchema.safeParse({ ...reply, replyTo }).success).toBe(false);
+  });
+
+  it('has exactly the five reactions, and a command states a wanted state', () => {
+    expect(MESSAGE_REACTION_KINDS).toEqual(['spark', 'mind_blown', 'ha', 'heart', 'question']);
+    const react = { version, commandId: id(62), conversation, messageId: id(63), kind: 'heart', present: true };
+    expect(ReactToConversationMessageSchema.safeParse(react).success).toBe(true);
+    expect(ReactToConversationMessageSchema.safeParse({ ...react, present: false }).success).toBe(true);
+    for (const patch of [
+      { kind: 'thumbs_up' },
+      { kind: '❤️' },
+      { present: 'yes' },
+      { present: undefined },
+      { extra: 1 },
+    ])
+      expect(ReactToConversationMessageSchema.safeParse({ ...react, ...patch }).success).toBe(false);
+    const accepted = {
+      version,
+      scope,
+      commandId: id(62),
+      recordedAt: '2026-10-31T08:00:00.000Z',
+      replayed: false,
+      outcome: 'accepted',
+      operation: 'message.react',
+      conversation,
+      messageId: id(63),
+      kind: 'heart',
+      present: true,
+      changed: false,
+    };
+    expect(ConversationReactionAcceptanceSchema.safeParse(accepted).success).toBe(true);
+  });
+
+  it('carries each kind once with the people behind it, and a quote of the original, and no time', () => {
+    const ravi = { ...person, personId: id(64), handle: 'friend.b' };
+    const reactions = [
+      { kind: 'spark', mine: false, people: [ravi] },
+      { kind: 'heart', mine: true, people: [person, ravi] },
+    ];
+    const quote = {
+      messageId: id(61),
+      sequence: 1,
+      original: { status: 'available', author: ravi, preview: 'who is on part 2?' },
+    };
+    expect(ConversationMessageSchema.safeParse({ ...message(2), reactions, replyTo: quote }).success).toBe(true);
+    expect(
+      ConversationMessageSchema.safeParse({ ...message(2), replyTo: { ...quote, original: { status: 'unavailable' } } })
+        .success,
+    ).toBe(true);
+    // A kind twice, an empty kind, a sixth kind, a time on a reaction and a person without a name are all refused.
+    for (const bad of [
+      [reactions[0], reactions[0]],
+      [{ kind: 'spark', mine: false, people: [] }],
+      [{ ...reactions[0], at: '2026-10-31T08:00:00.000Z' }],
+      [{ kind: 'thumbs_up', mine: false, people: [ravi] }],
+      [{ kind: 'spark', mine: false, people: [{ personId: id(65) }] }],
+    ])
+      expect(ConversationMessageSchema.safeParse({ ...message(2), reactions: bad }).success).toBe(false);
+    // A removed message carries neither.
+    expect(
+      ConversationMessageSchema.safeParse({ status: 'unavailable', messageId: id(66), sequence: 3, reactions }).success,
+    ).toBe(false);
+  });
 });

@@ -1,13 +1,13 @@
-import { Circle, ClipPath, Defs, G, Path, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { content, space } from '@knowscroll/design-tokens';
+import { Circle, ClipPath, Defs, G, Path, RadialGradient, Stop } from 'react-native-svg';
+import { space } from '@knowscroll/design-tokens';
 import type { SceneGeometry } from '@knowscroll/scene-core';
 import { BODY_COLOURS, calmColours, calmer, STAR_COLOUR } from './universe-palette';
 import type { Vec } from './universe-layout';
 
 /**
- * The layered-SVG drawing kit of the Universe (D-026): stars, planets, orbit hairlines, region
- * pins, dust and the ship. Everything is plain 2D vector shapes computed from persisted
- * descriptors; none of it encodes how much was watched or read.
+ * The small drawing kit of the formation story (U05): the new star and the new planet. Plain 2D
+ * vector shapes computed from persisted descriptors; none of it encodes how much was watched or read.
+ * The planet views (U03, U04) are drawn from the world generator instead (`planet/`).
  */
 /** Closed path through the silhouette's vertices, scaled and turned about a centre. */
 export function silhouettePath(geometry: SceneGeometry, centre: Vec, scale: number, turn = 0): string {
@@ -125,101 +125,6 @@ export function StarGlyph({ cx, cy, r, calm }: { cx: number; cy: number; r: numb
         </>
       )}
       <Circle cx={cx} cy={cy} r={r} fill={calm ? calmer(STAR_COLOUR, 0.55) : STAR_COLOUR} />
-    </G>
-  );
-}
-
-/** A region pin: an octagon with a centre dot, yellow when selected. */
-export function RegionPin({
-  x,
-  y,
-  selected,
-  here,
-  size = 11,
-}: {
-  x: number;
-  y: number;
-  selected?: boolean;
-  /** U04 "you were here": a ring around the place the person left through its card. */
-  here?: boolean;
-  size?: number;
-}) {
-  const corners = Array.from({ length: 8 }, (_, index) => {
-    const angle = (Math.PI / 4) * index + Math.PI / 8;
-    return `${(x + Math.cos(angle) * size).toFixed(2)},${(y + Math.sin(angle) * size).toFixed(2)}`;
-  }).join(' ');
-  return (
-    <G>
-      {selected ? <Circle cx={x} cy={y} r={size * 2} fill={space.regionPin.selected} opacity={0.28} /> : null}
-      {here ? (
-        <Circle
-          cx={x}
-          cy={y}
-          r={size * 2.1}
-          fill="none"
-          stroke={space.regionPin.selected}
-          strokeWidth={2}
-          opacity={0.9}
-        />
-      ) : null}
-      <Polygon
-        points={corners}
-        fill={selected ? space.regionPin.selected : space.regionPin.fill}
-        stroke={space.regionPin.stroke}
-        strokeWidth={2}
-        strokeLinejoin="round"
-      />
-      <Circle cx={x} cy={y} r={size * 0.25} fill={space.regionPin.stroke} />
-    </G>
-  );
-}
-
-/** The ship: parked at the last place visited, with a short dotted trail behind it. */
-export function ShipGlyph({ x, y }: { x: number; y: number }) {
-  return (
-    <G>
-      <Path
-        d={`M ${x - 44} ${y + 64} Q ${x - 34} ${y + 22} ${x - 8} ${y + 4}`}
-        fill="none"
-        stroke={space.focus}
-        strokeWidth={1.6}
-        strokeDasharray="2 6"
-        strokeLinecap="round"
-      />
-      <Path d={`M ${x - 12} ${y - 10} l 20 2 -12 16 z`} fill={content.paper} />
-    </G>
-  );
-}
-
-export type LandmarkKind = 'lighthouse' | 'harbour';
-
-/**
- * Decoration beside a region, picked from the planet's stable seed. A landmark names nothing and
- * never encodes how much was read; it only makes a place look inhabited.
- */
-export function LandmarkGlyph({ x, y, kind }: { x: number; y: number; kind: LandmarkKind }) {
-  if (kind === 'lighthouse')
-    return (
-      <G>
-        <Path
-          d={`M ${x - 3} ${y + 8} L ${x - 2} ${y - 6} L ${x + 2} ${y - 6} L ${x + 3} ${y + 8} Z`}
-          fill={content.paper}
-          stroke={content.ink}
-          strokeWidth={1}
-        />
-        <Rect x={x - 3} y={y - 10} width={6} height={4} fill={space.focus} />
-        <Path
-          d={`M ${x + 3} ${y - 8} L ${x + 22} ${y - 16} M ${x + 3} ${y - 8} L ${x + 22} ${y - 2}`}
-          stroke={space.focus}
-          strokeOpacity={0.75}
-          strokeWidth={1.5}
-        />
-      </G>
-    );
-  return (
-    <G stroke={content.paper} strokeWidth={1.6} fill="none">
-      <Path d={`M ${x - 8} ${y} h 16 M ${x - 4} ${y} v 6 M ${x + 4} ${y} v 6`} />
-      <Path d={`M ${x - 15} ${y + 9} l 6 -7 2 7 z`} fill={content.paper} />
     </G>
   );
 }

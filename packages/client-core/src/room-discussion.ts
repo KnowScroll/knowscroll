@@ -31,6 +31,9 @@ export interface OutgoingRoomMessage {
   readonly sequence?: number;
 }
 
+/** A pointed ask: the resident is chosen by the kind (the Skeptic tests or argues the other side, the Explainer answers). */
+export type PointedAsk = 'challenge' | 'other_side' | 'about';
+
 /** What an ask of an AI inhabitant came to for the person, in the few ways the screen words differently. */
 export type AskOutcome = 'asked' | 'resting' | 'unavailable' | 'failed';
 
@@ -68,6 +71,10 @@ export interface RoomDiscussionController {
   readonly dismiss: (commandId: string) => void;
   /** Asks a labelled AI inhabitant to contribute. Nothing is made unless a person chooses it. */
   readonly ask: (inhabitant: InhabitantId) => Promise<AskOutcome>;
+  /** Challenges a message, asks for the other side, or asks about it (D-167); the kind chooses the resident. */
+  readonly askAbout: (kind: PointedAsk, messageId: string) => Promise<AskOutcome>;
+  /** Marks a message Useful, or takes the mark back. The message shows the change at once; returns whether the server accepted it. */
+  readonly markUseful: (messageId: string, useful: boolean) => Promise<boolean>;
   /** Moderator: pin or unpin this discussion in the room. */
   readonly pin: (pinned: boolean) => Promise<boolean>;
   /** Moderator: remove a message from view, or restore it. */
@@ -252,6 +259,41 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
     }
   }
 
+  /** One ask under an intent's command ID, retired by any definitive answer; the reply arrives later as a message. */
+  async function requestAsk(
+    intent: string,
+    target:
+      | { readonly inhabitant: InhabitantId }
+      | { readonly about: { readonly kind: PointedAsk; readonly messageId: string } },
+  ): Promise<AskOutcome> {
+    if (state.asking) return 'unavailable';
+    publish({ asking: true });
+    const commandId = intents.get(intent) ?? newId();
+    intents.set(intent, commandId);
+    try {
+      await scope.api.rooms.askInhabitant({ version: VERSION, commandId, ...ids, ...target });
+      intents.delete(intent);
+      publish({ asking: false });
+      // The reply arrives later; reading now shows that it is being prepared.
+      await load();
+      return 'asked';
+    } catch (error) {
+      publish({ asking: false });
+      const kind = talkFailure(error);
+      if (kind === 'ended') return 'failed';
+      if (kind !== 'offline') intents.delete(intent);
+      if (apiProblem(error)?.code === 'TOO_MANY_REQUESTS') {
+        await load();
+        return 'resting';
+      }
+      if (kind === 'unavailable') {
+        await load();
+        return 'unavailable';
+      }
+      return 'failed';
+    }
+  }
+
   async function attempt(commandId: string, body: SendRoomBody): Promise<void> {
     setOutgoing(commandId, { status: 'sending' });
     try {
@@ -335,33 +377,22 @@ export function createRoomDiscussion(options: RoomDiscussionOptions): RoomDiscus
         outgoing: state.outgoing.filter((entry) => entry.commandId !== commandId || entry.status !== 'not_sent'),
       });
     },
-    async ask(inhabitant) {
-      if (state.asking) return 'unavailable';
-      publish({ asking: true });
-      const commandId = intents.get(`ask:${inhabitant}`) ?? newId();
-      intents.set(`ask:${inhabitant}`, commandId);
-      try {
-        await scope.api.rooms.askInhabitant({ version: VERSION, commandId, ...ids, inhabitant });
-        intents.delete(`ask:${inhabitant}`);
-        publish({ asking: false });
-        // The reply arrives later; reading now shows that it is being prepared.
-        await load();
-        return 'asked';
-      } catch (error) {
-        publish({ asking: false });
-        const kind = talkFailure(error);
-        if (kind === 'ended') return 'failed';
-        if (kind !== 'offline') intents.delete(`ask:${inhabitant}`);
-        if (apiProblem(error)?.code === 'TOO_MANY_REQUESTS') {
-          await load();
-          return 'resting';
-        }
-        if (kind === 'unavailable') {
-          await load();
-          return 'unavailable';
-        }
-        return 'failed';
-      }
+    ask: (inhabitant) => requestAsk(`ask:${inhabitant}`, { inhabitant }),
+    askAbout: (kind, messageId) => requestAsk(`ask:${kind}:${messageId}`, { about: { kind, messageId } }),
+    async markUseful(messageId, useful) {
+      const accepted = await moderate(`useful:${messageId}:${String(useful)}`, (commandId) =>
+        scope.api.rooms.markUseful({ version: VERSION, commandId, ...ids, messageId, useful }),
+      );
+      if (accepted === undefined) return false;
+      // A mark changes no message's number, so catch-up cannot carry it: the message on screen is changed here.
+      publish({
+        messages: state.messages.map((message) => {
+          if (message.messageId !== messageId || message.status !== 'available') return message;
+          const { usefulByYou: _before, ...rest } = message;
+          return useful ? { ...rest, usefulByYou: true as const } : rest;
+        }),
+      });
+      return true;
     },
     async pin(pinned) {
       const accepted = await moderate(`pin:${String(pinned)}`, (commandId) =>

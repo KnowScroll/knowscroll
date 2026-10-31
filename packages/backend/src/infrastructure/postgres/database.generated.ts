@@ -1063,6 +1063,7 @@ export interface OpsRejectedAnswers {
 }
 
 export interface OpsRoomTurns {
+  ask_kind: string | null;
   created_at: Timestamp | null;
   decided_by: string | null;
   discussion_id: string | null;
@@ -1499,6 +1500,7 @@ export interface RoomsActivities {
 }
 
 export interface RoomsAiTurns {
+  ask_kind: string | null;
   attempt_id: string | null;
   caps: Generated<Json>;
   cause_message_id: string | null;
@@ -1535,7 +1537,9 @@ export interface RoomsDiscussions {
   root_asset_id: string | null;
   root_asset_revision: number | null;
   started_by_account_id: string | null;
+  tag: string | null;
   title: string;
+  title_derived: Generated<boolean>;
 }
 
 export interface RoomsInvitations {
@@ -1573,6 +1577,7 @@ export interface RoomsMessages {
   note: string | null;
   recorded_at: Timestamp;
   sequence: Int8;
+  topic_discussion_id: string | null;
   trigger: string | null;
 }
 
@@ -1593,11 +1598,25 @@ export interface RoomsMessageSnippets {
   start_ms: number | null;
 }
 
+export interface RoomsMessageUseful {
+  account_id: string;
+  marked_at: Timestamp;
+  message_id: string;
+}
+
 export interface RoomsPollVotes {
   account_id: string;
   activity_id: string;
   option_id: string;
   voted_at: Timestamp;
+}
+
+export interface RoomsReadPositions {
+  account_id: string;
+  away_since: Timestamp | null;
+  away_window: Int8 | null;
+  here_until: Timestamp;
+  room_id: string;
 }
 
 export interface RoomsRoomCast {
@@ -1625,6 +1644,26 @@ export interface RoomsRooms {
   status: Generated<string>;
   topic_id: string;
   topic_kind: string;
+}
+
+export interface RoomsSummaries {
+  attempt_id: string | null;
+  body: string | null;
+  covers_from: Timestamp;
+  covers_through: Timestamp;
+  created_at: Timestamp;
+  decided_by: Generated<string>;
+  dispatched: Generated<boolean>;
+  model: string | null;
+  prompt_version: string | null;
+  resident: string;
+  role_version: string | null;
+  room_id: string;
+  settled_at: Timestamp | null;
+  state: string;
+  summary_id: string;
+  trigger: Generated<string>;
+  window_no: Int8;
 }
 
 export interface RoomsTypingHolds {
@@ -1812,6 +1851,14 @@ export interface SocialInvites {
   token_hash: string;
 }
 
+export interface SocialMessageReactions {
+  account_id: string;
+  conversation_id: string;
+  kind: string;
+  message_sequence: Int8;
+  reacted_at: Timestamp;
+}
+
 export interface SocialMessages {
   asset_id: string | null;
   asset_revision: number | null;
@@ -1823,6 +1870,7 @@ export interface SocialMessages {
   message_id: string;
   note: string | null;
   recorded_at: Timestamp;
+  reply_to_sequence: Int8 | null;
   sequence: Int8;
 }
 
@@ -2092,11 +2140,14 @@ export interface DB {
   "rooms.invitations": RoomsInvitations;
   "rooms.members": RoomsMembers;
   "rooms.message_snippets": RoomsMessageSnippets;
+  "rooms.message_useful": RoomsMessageUseful;
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
+  "rooms.read_positions": RoomsReadPositions;
   "rooms.room_cast": RoomsRoomCast;
   "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
+  "rooms.summaries": RoomsSummaries;
   "rooms.typing_holds": RoomsTypingHolds;
   "scenarios.drafts": ScenariosDrafts;
   "scenarios.nodes": ScenariosNodes;
@@ -2113,6 +2164,7 @@ export interface DB {
   "social.conversations": SocialConversations;
   "social.inbox_heads": SocialInboxHeads;
   "social.invites": SocialInvites;
+  "social.message_reactions": SocialMessageReactions;
   "social.message_snippets": SocialMessageSnippets;
   "social.messages": SocialMessages;
   "social.pair_sides": SocialPairSides;

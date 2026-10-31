@@ -27,16 +27,19 @@ import {
   castPassQueue,
   contributeQueue,
   libraryRoomSeeds,
+  summariseQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
   type RoomSeed,
+  type SummariseJob,
 } from '@knowscroll/backend/modules/rooms';
 import {
   contributeAsInhabitant,
   decideCast,
   roomUseCases,
   runCastPass,
+  runSummarise,
   seedRooms,
   setRoomModerator,
 } from '@knowscroll/backend/modules/rooms/nest-providers';
@@ -76,6 +79,8 @@ export interface RoomWorld {
   readonly castChecks: { readonly job: CastDueJob; readonly startAfter: Date | undefined }[];
   /** The model calls of allowed unprompted turns, as queued, in order. */
   readonly castPasses: { readonly job: CastPassJob; readonly startAfter: Date | undefined }[];
+  /** The model calls that write a window's "while you were away", as queued, in order. */
+  readonly summaries: SummariseJob[];
   readonly boss: PgBoss;
   /** The worker's consumer over a harness (a fixture model in tests). */
   contribute(harness: ReasoningHarness): (job: ContributeJob, signal?: AbortSignal) => Promise<void>;
@@ -86,6 +91,11 @@ export interface RoomWorld {
     harness: ProductionReasoningHarness,
     withRoomScope: WithProductionScope,
   ): (job: CastPassJob, signal?: AbortSignal) => Promise<void>;
+  /** The worker's model call that writes a window's "while you were away", over a rooms-scope harness. */
+  summarise(
+    harness: ProductionReasoningHarness,
+    withRoomScope: WithProductionScope,
+  ): (job: SummariseJob, signal?: AbortSignal) => Promise<void>;
   close(): Promise<void>;
 }
 
@@ -105,12 +115,14 @@ export async function roomWorld(
   const queued: ContributeJob[] = [];
   const castChecks: RoomWorld['castChecks'] = [];
   const castPasses: RoomWorld['castPasses'] = [];
+  const summaries: SummariseJob[] = [];
   const enqueue: EnqueueJob = async (scope, queue, payload, enqueueOptions) => {
     if (queue.name === contributeQueue.name) queued.push(payload as ContributeJob);
     if (queue.name === castDueQueue.name)
       castChecks.push({ job: payload as CastDueJob, startAfter: enqueueOptions?.startAfter });
     if (queue.name === castPassQueue.name)
       castPasses.push({ job: payload as CastPassJob, startAfter: enqueueOptions?.startAfter });
+    if (queue.name === summariseQueue.name) summaries.push(payload as SummariseJob);
     await forwarding(scope, queue, payload, enqueueOptions);
   };
   const access = accountAccessUseCases({ db: database.db, lockTimeoutMs: 10_000 });
@@ -143,6 +155,7 @@ export async function roomWorld(
     queued,
     castChecks,
     castPasses,
+    summaries,
     boss,
     decide() {
       const decision = decideCast({ ...deps, enqueue, ownerActive, residentsEnabled: true });
@@ -150,6 +163,19 @@ export async function roomWorld(
     },
     pass(harness, withRoomScope) {
       const consume = runCastPass({
+        ...deps,
+        enqueue,
+        harness,
+        withRoomScope,
+        ownerActive,
+        model: 'fixture-model-v1',
+        generation: 1,
+        residentsEnabled: true,
+      });
+      return (job, signal = new AbortController().signal) => consume(job, signal);
+    },
+    summarise(harness, withRoomScope) {
+      const consume = runSummarise({
         ...deps,
         enqueue,
         harness,
@@ -259,6 +285,99 @@ export const ask = (
   inhabitant: 'explainer' | 'skeptic' = 'skeptic',
 ) => world.rooms.ask(person.authority, { version, commandId: randomUUID(), roomId, discussionId, inhabitant });
 
+/** A pointed ask: challenge a message, ask for the other side, or ask about it (D-167). */
+export const askAbout = (
+  world: RoomWorld,
+  person: Friend,
+  roomId: string,
+  discussionId: string,
+  kind: 'challenge' | 'other_side' | 'about',
+  messageId: string,
+) =>
+  world.rooms.ask(person.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    discussionId,
+    about: { kind, messageId },
+  });
+
+/** Marks a message Useful (or takes the mark back), under a fresh command ID. */
+export const markUseful = (
+  world: RoomWorld,
+  person: Friend,
+  roomId: string,
+  discussionId: string,
+  messageId: string,
+  useful = true,
+) =>
+  world.rooms.markUseful(person.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    discussionId,
+    messageId,
+    useful,
+  });
+
+/** A moderator removes a message from view, or restores it. */
+export const hideMessage = (
+  world: RoomWorld,
+  moderator: Friend,
+  roomId: string,
+  discussionId: string,
+  messageId: string,
+  hidden = true,
+) =>
+  world.rooms.hideMessage(moderator.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    discussionId,
+    messageId,
+    hidden,
+  });
+
+/** Starts a topic from a message of the room (R3 B1). */
+export const startTopicFrom = (
+  world: RoomWorld,
+  person: Friend,
+  roomId: string,
+  from: { readonly discussionId: string; readonly messageId: string },
+  extra: { readonly title?: string; readonly tag?: 'question' | 'debate' | 'explainer' | 'share' } = {},
+) =>
+  world.rooms.create(person.authority, {
+    version,
+    commandId: randomUUID(),
+    roomId,
+    start: { kind: 'message', ...from, ...extra },
+  });
+
+/** The room's topics as the person reads them (R3 B2). */
+export const topicsOf = async (
+  world: RoomWorld,
+  person: Friend,
+  roomId: string,
+  sort: 'hot' | 'new' | 'unanswered' = 'new',
+  tag?: 'question' | 'debate' | 'explainer' | 'share',
+) => {
+  const read = unwrap(
+    await world.rooms.topics(person.authority, {
+      version,
+      readId: randomUUID(),
+      roomId,
+      sort,
+      ...(tag === undefined ? {} : { tag }),
+    }),
+  );
+  if (read.status !== 'ready') throw new Error('expected ready');
+  return read.topics;
+};
+
+/** The member reads their "while you were away". */
+export const dismissAway = (world: RoomWorld, person: Friend, roomId: string) =>
+  world.rooms.dismissAway(person.authority, { version, commandId: randomUUID(), roomId });
+
 /** A moderator starts a poll with the given options (default: three). */
 export const startPoll = (
   world: RoomWorld,
@@ -322,11 +441,30 @@ export function roomScope(db: Kysely<Database>, model: ModelPort, settings: Harn
   return { harness, withScope };
 }
 
-/** How many rows the given schemas hold in all, for proving that a feature wrote nothing there. */
+/**
+ * The schemas of a person's own universe. Rooms are conversation, so no room command or job may write a row to any of
+ * them (D-167 to D-169); a test that lists a schema that does not exist would pass for ever, so `rowsIn` refuses one.
+ */
+export const PERSONAL_UNIVERSE_SCHEMAS = [
+  'experience',
+  'geography',
+  'composer',
+  'planner',
+  'evidence',
+  'personal_context',
+] as const;
+
+/**
+ * How many rows the given schemas hold in all, for proving that a feature wrote nothing there. A schema that has no
+ * table (a misspelt name) throws, so the proof cannot hold for the wrong reason.
+ */
 export async function rowsIn(db: Kysely<Database>, schemas: readonly string[]): Promise<number> {
   const tables = await sql<{ table_schema: string; table_name: string }>`
     select table_schema, table_name from information_schema.tables
     where table_type = 'BASE TABLE' and table_schema = any(${[...schemas]})`.execute(db);
+  for (const schema of schemas)
+    if (!tables.rows.some((table) => table.table_schema === schema))
+      throw new Error(`rowsIn: the schema "${schema}" has no tables`);
   let total = 0;
   for (const table of tables.rows) {
     const row = await sql<{ n: string }>`
