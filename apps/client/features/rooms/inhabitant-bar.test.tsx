@@ -8,11 +8,17 @@ const status = (ask: InhabitantStatus['ask']): InhabitantStatus[] => [
   { inhabitant: 'skeptic', name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims', ask },
 ];
 
-async function show(inhabitants: InhabitantStatus[], outcome?: string) {
+async function show(inhabitants: InhabitantStatus[], outcome?: string, collapsible = false) {
   const onAsk = jest.fn();
   await render(
     <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-      <InhabitantBar inhabitants={inhabitants} asking={false} outcome={outcome} onAsk={onAsk} />
+      <InhabitantBar
+        inhabitants={inhabitants}
+        asking={false}
+        outcome={outcome}
+        onAsk={onAsk}
+        collapsible={collapsible}
+      />
     </DisplayProvider>,
   );
   return { onAsk };
@@ -44,6 +50,25 @@ describe('the inhabitant bar', () => {
 
   it('shows the outcome of the last ask and nothing when the room has no inhabitants', async () => {
     await show(status('available'), 'AI · Skeptic had nothing to add.');
+    expect(screen.getByText('AI · Skeptic had nothing to add.')).toBeOnTheScreen();
+  });
+
+  it('on a phone starts as one line naming the residents; a tap opens the panel and a tap closes it', async () => {
+    const { onAsk } = await show(status('available'), undefined, true);
+    expect(screen.getByRole('button', { name: /^AI residents: Nova, Halley. Show how to ask/ })).toBeOnTheScreen();
+    expect(screen.queryByText(/answer when asked/)).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Ask AI, Skeptic' })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('inhabitants-toggle'));
+    expect(screen.getByText(/answer when asked/)).toBeOnTheScreen();
+    expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ask AI, Skeptic' }));
+    expect(onAsk).toHaveBeenCalledWith('skeptic');
+    await fireEvent.press(screen.getByTestId('inhabitants-toggle'));
+    expect(screen.queryByText(/answer when asked/)).not.toBeOnTheScreen();
+  });
+
+  it('shows the outcome of the last ask even while the panel is closed', async () => {
+    await show(status('available'), 'AI · Skeptic had nothing to add.', true);
     expect(screen.getByText('AI · Skeptic had nothing to add.')).toBeOnTheScreen();
   });
 });

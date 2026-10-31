@@ -113,7 +113,7 @@ export function UniverseHeader({
   return (
     <View style={styles.root}>
       <View style={styles.row}>
-        <View style={styles.actions}>
+        <View style={[styles.actions, styles.back]}>
           <SpaceChip
             testID="universe-up"
             variant="solid"
@@ -152,6 +152,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[3], minHeight: 48 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   title: { flexShrink: 1 },
+  /** The Back pill gives way to the lens beside it, so a long name never pushes it off the screen. */
+  back: { flexShrink: 1, minWidth: 0 },
   subtitle: { marginTop: -spacing[2] },
   /** The level of a landed view, a small orange tag beside Back (U04). */
   level: { backgroundColor: '#ff684c', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },

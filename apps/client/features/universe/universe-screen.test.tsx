@@ -490,6 +490,22 @@ it('opens the orbit dial from List view: the systems on a wheel, a system’s pl
   await v.unmount();
 });
 
+it('opens the orbit dial for a system with no planets: a plain note, no big planet, and Simple view still opens', async () => {
+  // universeHarness(1) is one system and nothing in it (#548: the dial read the first planet of an empty list).
+  const h = universeHarness(1);
+  mockScope = h.scope;
+  const v = await render(<UniverseScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
+  await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+  expect(screen.getByTestId('universe-dial')).toBeOnTheScreen();
+  expect(screen.getByTestId('dial-no-planets')).toHaveTextContent('No planets in CI system 0 yet.');
+  expect(screen.queryByTestId('dial-planet-facts')).toBeNull();
+  await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple view' }));
+  expect(screen.queryByTestId('universe-dial')).toBeNull();
+  await act(() => h.scope.end());
+  await v.unmount();
+});
+
 it('shows only an actual correlated card; deliberate Open sends displayed ref and exact local map return closes the dialog', async () => {
   const world = sceneFixture(),
     calls: { path: string; body: Record<string, unknown> }[] = [];

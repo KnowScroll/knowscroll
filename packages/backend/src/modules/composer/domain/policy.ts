@@ -93,23 +93,23 @@ export const COMPOSER_POLICY_V0: ComposerPolicy = Object.freeze({
 
 /**
  * Policy v1 (D-190): a pull-up leaves the topic more often. The vertical Intent weight drops from 0.35
- * to 0.15, and a candidate whose topic the person met in their last three encounters pays a penalty
- * (`recentTopic`, as heavy as a repeated explanation). Format is read per play level with shrinkage to the
- * topic's rate, and exploration covers each play level. Horizontal moves are unchanged. These numbers are
- * provisional until `composer replay-policy` has been read on stored dev decisions, so no world makes decisions
- * under v1 until `KS_COMPOSER_POLICY=v1` is set for it (default `v0`).
+ * to 0.30, and a candidate whose topic the person met in their last three encounters pays a small penalty
+ * (`recentTopic`, 0.05). Format is read per play level with shrinkage to the other levels' rate, and
+ * exploration covers each play level. Horizontal moves are unchanged. The two numbers were chosen from
+ * `composer replay-policy` over the stored decisions of dev (D-190); no v1 decision had been stored, so they
+ * were set in place. A world makes decisions under v1 only where `KS_COMPOSER_POLICY=v1` is set (default `v0`).
  */
 export const COMPOSER_POLICY_V1: ComposerPolicy = Object.freeze({
   ...COMMON,
   version: 'composer-policy.v1',
   vertical: Object.freeze({
-    intent: 0.15,
+    intent: 0.3,
     interest: 0.2,
     format: 0.15,
     novelty: 0.15,
     semanticFit: 0.15,
     recentRepetition: 0.25,
-    recentTopic: 0.25,
+    recentTopic: 0.05,
   }),
   horizontal: COMPOSER_POLICY_V0.horizontal,
   recentTopicSpan: 3,

@@ -63,9 +63,20 @@ const copyTextOf = (message: AvailableTalkMessage): string => {
   return words.trim();
 };
 
+/** A right-click on the web opens the same menu as a long press; elsewhere there is no such click. */
+function contextMenuProps(open: () => void): object {
+  if (Platform.OS !== 'web') return {};
+  return {
+    onContextMenu: (event: { preventDefault?: () => void }) => {
+      event.preventDefault?.();
+      open();
+    },
+  };
+}
+
 /**
  * One message in Talk (T3 kit): the bubble with its quote and reactions, and every way to act on it. A
- * swipe right (touch only), the R key and the Reply row ask to reply; a long press, the ⋯ button, the E
+ * swipe right (touch only), the R key and the Reply row ask to reply; a long press, a right-click, the ⋯ button, the E
  * key and a screen reader's custom actions open the menu with the five reactions, Reply, Copy and Report.
  * The quote button jumps to the original. Reacting and replying never record anything about what the
  * reader has seen.
@@ -78,7 +89,7 @@ export function TalkMessage(props: TalkMessageProps) {
   const [who, setWho] = useState<MessageReactionKind | undefined>(undefined);
   const [optionsShown, setOptionsShown] = useState(false);
   const swipe = useSwipeToReply({ enabled: open, reducedMotion, onReply: () => onReply(message) });
-  const quote = message.replyTo === undefined ? undefined : quoteView(message.replyTo, all);
+  const quote = message.replyTo === undefined ? undefined : quoteView(message.replyTo, all, ownPersonId);
   const held = heldReactions(message);
   const reactions = message.reactions ?? [];
   const copyText = copyTextOf(message);
@@ -199,6 +210,7 @@ export function TalkMessage(props: TalkMessageProps) {
             focusable={false}
             onLongPress={() => setMenu(true)}
             delayLongPress={400}
+            {...contextMenuProps(() => setMenu(true))}
             onHoverIn={() => setOptionsShown(true)}
             onHoverOut={() => setOptionsShown(false)}
             style={[styles.body, mine ? styles.alignEnd : styles.alignStart]}

@@ -109,6 +109,23 @@ async function expectNoSeriousViolations(page: Page) {
   expect(serious.map((v) => ({ rule: v.id, nodes: v.nodes.map((node) => node.target.join(' ')) }))).toEqual([]);
 }
 
+test('a long system name shortens inside the Back pill on a phone, and the pill keeps its whole name for a screen reader', async ({
+  page,
+}) => {
+  await openPlanet(page, { width: 390, height: 844 });
+  const back = page.getByTestId('universe-up');
+  const name = 'Physical processes of Earth and its astronomical setting and everything that follows from it';
+  // The text is swapped in the page: the fixture's own names are short.
+  await back.evaluate((node, text) => {
+    const leaf = [...node.querySelectorAll('div')].find((div) => div.children.length === 0 && div.textContent !== '');
+    if (leaf === undefined) throw new Error('the pill has a label');
+    leaf.textContent = text;
+  }, name);
+  const box = (await back.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await expect(back).toHaveAttribute('aria-label', /^Back to /);
+});
+
 for (const size of [
   { width: 390, height: 844, label: 'phone' },
   { width: 1440, height: 900, label: 'desktop' },
@@ -162,6 +179,28 @@ for (const size of [
     ]);
     await page.waitForTimeout(600);
     await shot(page, `u04-map-${size.label}`);
+    // The map opens on the formed regions: every one is inside the screen, and so is the whole Back pill (#548).
+    const inside = (box: { x: number; y: number; width: number; height: number } | null) => {
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(size.width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(size.height);
+    };
+    for (const target of await targets.all()) inside(await target.boundingBox());
+    inside(await page.getByTestId('universe-up').boundingBox());
+    if (size.label === 'desktop') {
+      // The key hints do not sit under the chips at the bottom left.
+      const hints = await page.getByText('Back up a level').boundingBox();
+      const chips = await page.getByTestId('universe-up').boundingBox();
+      expect(hints).not.toBeNull();
+      expect(chips).not.toBeNull();
+      for (const chip of await page.getByRole('button', { name: /^Route to / }).all()) {
+        const chipBox = (await chip.boundingBox())!;
+        const clear = hints!.x >= chipBox.x + chipBox.width || chipBox.y >= hints!.y + hints!.height;
+        expect(clear).toBe(true);
+      }
+    }
     // Grey land has no text, no control and no node in the accessibility tree.
     const tree = await page.locator('body').ariaSnapshot();
     expect(tree).not.toMatch(/uncharted|not reached|unreached|locked|grey|gray/i);

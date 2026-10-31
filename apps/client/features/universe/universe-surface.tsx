@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
-import { content, layout, space, spacing } from '@knowscroll/design-tokens';
+import { content, layer, layout, space, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { OrbitDial } from './dial/orbit-dial';
 import { SimpleUniverse } from './simple/simple-universe';
@@ -469,8 +469,16 @@ const styles = StyleSheet.create({
   },
   dustText: { flexShrink: 1, paddingVertical: spacing[3] },
   dormant: { gap: spacing[2], alignItems: 'flex-start' },
-  zoomControls: { position: 'absolute', top: 104, right: spacing[4], gap: spacing[2] },
-  hints: { position: 'absolute', left: spacing[6], bottom: spacing[5], flexDirection: 'row', gap: spacing[4] },
+  zoomControls: { position: 'absolute', top: 104, right: spacing[4], gap: spacing[2], zIndex: layer.mediaOverlay },
+  /** Bottom right, clear of the chips that sit bottom left, and above the map's clouds. */
+  hints: {
+    position: 'absolute',
+    right: spacing[6],
+    bottom: spacing[5],
+    flexDirection: 'row',
+    gap: spacing[4],
+    zIndex: layer.mediaOverlay,
+  },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   key: { paddingHorizontal: spacing[2], paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: space.edge },
 });

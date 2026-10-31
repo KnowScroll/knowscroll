@@ -46,7 +46,9 @@ function dividedByDay(messages: readonly ConversationMessage[]) {
 
 /**
  * Keeps the newest message in view for a reader who is already at the end, and leaves a reader
- * who scrolled up where they are. `changeKey` changes whenever the list grows or first appears.
+ * who scrolled up where they are. `changeKey` changes whenever the list grows or first appears;
+ * `onContentSizeChange` covers what grows without a new message (a reaction under the newest one, a
+ * time line, the reply chip going), so the newest time is never left behind the message box.
  */
 export function useFollowEnd(changeKey: string) {
   const ref = useRef<ScrollViewInstance>(null);
@@ -56,6 +58,9 @@ export function useFollowEnd(changeKey: string) {
   }, [changeKey]);
   return {
     ref,
+    onContentSizeChange: () => {
+      if (nearEnd.current) ref.current?.scrollToEnd({ animated: false });
+    },
     onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
       nearEnd.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - NEAR_END;
@@ -112,6 +117,8 @@ export interface MessageListProps {
   /** From `useFollowEnd`: the scroll view's ref and scroll handler. */
   readonly scrollRef: RefObject<ScrollViewInstance | null>;
   readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** From `useFollowEnd`: keeps the end in view when the content grows. */
+  readonly onContentSizeChange?: (() => void) | undefined;
   /** Reports another person's message. */
   readonly onReport: (message: Available) => void;
   /** Starts a reply to a message (the chip waits in the message box). */
@@ -132,6 +139,7 @@ export function MessageList({
   name,
   scrollRef,
   onScroll,
+  onContentSizeChange,
   onReport,
   onReply,
   onWatchTogether,
@@ -155,6 +163,7 @@ export function MessageList({
       style={[styles.list, { backgroundColor: theme.ground }]}
       contentContainerStyle={styles.listContent}
       onScroll={onScroll}
+      onContentSizeChange={onContentSizeChange}
       scrollEventThrottle={100}
       testID="conversation-messages"
     >

@@ -3,7 +3,7 @@ import { indexUniverse } from '../universe-layout';
 import { looksById } from '../space/space-model';
 import { fixtureId, sceneFixture } from '../universe.fixture';
 import { turnHue } from './hue';
-import { boxOfLoops, mapView, MAP_HEIGHT, MAP_WIDTH, toScreen } from './map-camera';
+import { boxOfFormed, boxOfLoops, mapView, MAP_HEIGHT, MAP_WIDTH, toScreen } from './map-camera';
 import { paletteOf } from './planet-palette';
 import { planPlanet } from './planet-plan';
 
@@ -119,6 +119,30 @@ describe('the camera of the landed map', () => {
     // A huge region does not drop below the least zoom, and a tiny one does not go past the most.
     expect(mapView(size, { x: 0, y: 0, scale: 1 }, { x0: 0, y0: 0, x1: 900, y1: 900 }).scale).toBe(1.6);
     expect(mapView(size, { x: 0, y: 0, scale: 1 }, { x0: 0, y0: 0, x1: 10, y1: 10 }).scale).toBe(2.1);
+  });
+
+  it('opens centred on the formed regions and their names, shrinking a little to take them all in', () => {
+    const cells = [
+      { loops: [[250, 300, 380, 300, 380, 420, 250, 420]], label: { x: 300, y: 350 } },
+      { loops: [[260, 450, 330, 450, 330, 520, 260, 520]], label: { x: 295, y: 480 } },
+    ];
+    const formed = boxOfFormed(cells)!;
+    expect(formed).toEqual({ x0: 250, y0: 300, x1: 380, y1: 520 });
+    const view = mapView(size, { x: 0, y: 0, scale: 1 }, undefined, formed);
+    const middle = toScreen(view, 315, 410);
+    expect(middle.x).toBeCloseTo(195, 6);
+    expect(middle.y).toBeCloseTo(422, 6);
+    // Every corner of the formed box, with the room for names, is inside the screen.
+    const corner = toScreen(view, 250 - 56, 300 - 96);
+    const far = toScreen(view, 380 + 56, 520 + 96);
+    for (const point of [corner, far]) {
+      expect(point.x).toBeGreaterThanOrEqual(-0.001);
+      expect(point.x).toBeLessThanOrEqual(390.001);
+    }
+    expect(view.scale).toBeLessThanOrEqual(1);
+    // Nothing formed: the whole map, as before.
+    expect(boxOfFormed([])).toBeUndefined();
+    expect(mapView(size, { x: 0, y: 0, scale: 1 }, undefined, undefined)).toEqual({ scale: 1, x: 0, y: 0 });
   });
 
   it('boxes the biggest loop of a region', () => {

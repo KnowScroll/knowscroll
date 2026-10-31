@@ -179,3 +179,30 @@ it('goes back one browser step when its marker is no longer needed, however many
   back.mockRestore();
   window.history.replaceState({}, '', window.location.href);
 });
+
+it('a popstate that leaves its marker in place (a sheet over the map closing) does not step up a level', async () => {
+  const session = {
+    back: jest.fn(() => true),
+    escape: () => false,
+    getState: () => ({ overlay: null, selectedId: null }),
+    canBack: () => true,
+    subscribe: () => () => undefined,
+  };
+  function Host() {
+    useUniverseBack(session as unknown as Parameters<typeof useUniverseBack>[0], true);
+    return null;
+  }
+  window.history.replaceState({}, '', window.location.href);
+  const root = createRoot();
+  act(() => root.render(<Host />));
+  // The marker is the current entry: the entry that went was somebody else's.
+  expect((window.history.state as { ksUniverse?: string }).ksUniverse).toMatch(/^universe-/);
+  await act(() => window.dispatchEvent(new PopStateEvent('popstate')));
+  expect(session.back).not.toHaveBeenCalled();
+  // Once the marker itself is popped, Back is the person's.
+  window.history.replaceState({}, '', window.location.href);
+  await act(() => window.dispatchEvent(new PopStateEvent('popstate')));
+  expect(session.back).toHaveBeenCalledTimes(1);
+  act(() => root.unmount());
+  window.history.replaceState({}, '', window.location.href);
+});
