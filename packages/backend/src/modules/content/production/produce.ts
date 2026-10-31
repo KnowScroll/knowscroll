@@ -63,8 +63,10 @@ function summary(row: ProductionRow): ProduceScrollResult {
  * command reports the prior terminal outcome; `resume` continues the same frozen job and harness
  * ledger after a crash. A rejected job is final for its take, but take 2 (then 3) may start once
  * every earlier take was rejected: a new business run with its own writer run, so nothing is
- * resent, and never after a published job or an unknown attempt. Unknown attempts halt: they are
- * never resent. Scope revocation prevents applying even a valid answer.
+ * resent, and never after an unknown attempt or a published job, except that a v2 library recipe's
+ * later take may follow a take whose Scroll was released (regeneration, D-197). Unknown attempts halt:
+ * they are never resent. Scope revocation prevents applying even a valid answer. For a v2 library
+ * recipe the writer's answer is checked before it is stored (D-198).
  */
 export function makeProduceScroll(deps: ProduceScrollDependencies) {
   const store = productionStore(deps.db);

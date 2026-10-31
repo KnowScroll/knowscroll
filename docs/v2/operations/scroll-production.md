@@ -59,7 +59,8 @@ A v2 recipe also shows `regeneration` (`not_v2`, `not_published`, `available`, `
 
 A rejected recipe can be taken again, at most three times in all, because a rejected job is final for its
 take. Take 2 or 3 starts only when every earlier take was rejected: never after a published job or an
-unknown attempt. Each take is a new business run, so nothing an earlier take sent is sent again.
+unknown attempt. The one exception is `content regenerate` (below), which makes another take of a v2 recipe whose Scroll an operator released.
+Each take is a new business run, so nothing an earlier take sent is sent again.
 `produce-library` and Quartermaster send the next take by themselves. Check `reasoning unknown` before
 deciding what to do about a `stopped` recipe: it needs an operator, not another take. A v2 Scroll that an
 operator rejected at the review gate counts as a rejected take; one still held does not, so no new take starts
@@ -299,7 +300,7 @@ The checks the machine cannot make (D-123): the picture matches each stop's word
 
 ### Seasons on dev (S-1e)
 
-The worker environment is the one above. Producing takes at most eight writer requests (four recipes, one repair each) inside the MiniMax window.
+The worker environment is the one above. Producing takes at most eight writer requests (four recipes, one repair each) and the answer check's requests (at most four a recipe, usually one) inside the MiniMax window.
 
 ```sh
 # 1. What would be queued (nothing is sent). All four show as not started: the library holds v1 Scrolls of the first three, and v1 does not satisfy a v2 recipe.
@@ -335,8 +336,17 @@ A wave is a set of recipes produced, read and released together. The goal of the
 
 Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time.
 
+The thirty-five recipes of D-199 go in four waves, one for each system. Every series is inside one wave, so each can be admitted whole once its parts are released.
+
+| Wave | Recipes |
+|---|---|
+| Human body (9) | `cardiac-cycle,blood-pressure,oxygen-transport,action-potential,synapse-signalling,reflex-arc,innate-immunity,adaptive-immunity,immune-memory` |
+| Computing (9) | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
+| Machine learning (12) | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation,gradient-descent,training-by-example,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
+| History (5) | `industrial-causes,steam-power,factory-system,industrial-towns,industrial-debate` |
+
 ```sh
-# 0. The wave's recipes, by system: these are the keys of packages/backend/src/modules/content/domain/library/<system>.ts.
+# 0. The wave's recipes (a row of the table above).
 WAVE=cardiac-cycle,blood-pressure,oxygen-transport,action-potential,synapse-signalling,reflex-arc,innate-immunity,adaptive-immunity,immune-memory
 
 # 1. What would be queued. A recipe with only a v1 Scroll shows as not started; nothing is sent.

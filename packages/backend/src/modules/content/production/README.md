@@ -18,7 +18,7 @@ A recipe the library plan marks `scrollV2` (`{variant, misconception}`) is produ
 and attempt ledger, with the v2 writer (`writer-v2.ts`) in place of the v1 writer. `writer-plan.ts` is the one
 place the two differ: the role the model is asked, and how an accepted answer is compiled into what
 admission stores (`stored-v2.ts`: document, `scroll-provenance.v2`, reading facts v3). Still one writer
-request and at most one repair, none inside a transaction.
+request and at most one repair, none inside a transaction, and the answer check below sits between the answer and its storage.
 
 - **Versions.** A v2 recipe's jobs are `scroll-production.v16`, every other recipe's and every order's
   `.v14` (`productionVersionOf`). A v2 recipe counts as published only when its current revision is a v2
@@ -86,7 +86,7 @@ Who sends a job:
 
 A **take** is a new attempt at a recipe at the same recipe version. Take 1 always may start. A rejected
 job is final for its take, but take 2 (then 3) may start once every earlier take was rejected. Never after
-a published job or an unknown attempt, and never past three takes. Each take is its own business run with
+a published job (except a v2 library recipe's, whose released Scroll can be regenerated, below) or an unknown attempt, and never past three takes. Each take is its own business run with
 its own writer run and attempts, so nothing an earlier take sent is sent again. Senders pick the take from
 the recipe's standing (`domain/library/serving.ts`): `not_started` takes 1, `running` resumes the latest
 take, `retryable` (every take rejected, fewer than three) takes the next one, and `published` and `stopped`
