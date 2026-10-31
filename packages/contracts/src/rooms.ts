@@ -8,6 +8,7 @@ import {
 import { AbuseCategorySchema } from './feedback.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
 import { RoomIdentitySchema } from './room-identity.js';
+import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
 import { PublicPersonRefSchema } from './sharing.js';
 import { roomsPost } from './social-problems.js';
 import { ResolvedSnippetAnchorSchema, SnippetAnchorSchema, SnippetCardSchema, ThreadEpisodeSchema } from './threads.js';
@@ -194,6 +195,141 @@ const continuation = <T extends z.ZodType>(cursor: T) =>
 export const RoomHistoryCursorSchema = z.string().regex(/^krh1_[A-Za-z0-9_-]{22,1024}$/);
 export const RoomChangesCursorSchema = z.string().regex(/^krc1_[A-Za-z0-9_-]{22,1024}$/);
 
+// --- Today and the sky (v3 R-5) --------------------------------------------------------------
+
+const Sentence = z.string().min(1).max(320).refine(isPublicLabel);
+const FlawIndex = z.number().int().min(0).max(4);
+
+/**
+ * What the Now strip says of today (R3 B): the room's Today discussion, and, when an operator approved them, the day's
+ * question and whether there is a Spot the flaw. Nothing here is a count.
+ */
+export const RoomTodayStripSchema = z.strictObject({
+  discussionId: UuidSchema,
+  prompt: z.string().min(1).max(200).refine(isPublicLabel).optional(),
+  flaw: z.boolean(),
+});
+export type RoomTodayStrip = z.infer<typeof RoomTodayStripSchema>;
+
+/**
+ * The day's question: a template filled from a library Scroll, never a model's words, and the Scroll it points at. A
+ * resident asks it and says so; the answers are messages in the Today discussion.
+ */
+export const RoomTodayQuestionSchema = z.strictObject({
+  ritualId: UuidSchema,
+  prompt: z.string().min(1).max(200).refine(isPublicLabel),
+  detail: z.string().min(1).max(300).refine(isPublicLabel).optional(),
+  by: AiAuthorSchema,
+  source: ConversationContentProjectionSchema,
+  /** How many people's messages in Today answer it so far: a real count, shown only as a number of answers. */
+  answers: Counter,
+});
+
+const FlawBase = { ritualId: UuidSchema, by: AiAuthorSchema, sentences: z.array(Sentence).min(3).max(5) };
+
+/**
+ * Spot the flaw: a passage of a library Scroll with one sentence altered. The key stays on the server until the reader has
+ * tapped; the tap is final. After it the reader sees which sentence was altered, the Scroll's own sentence and the Scroll.
+ */
+export const RoomTodayFlawSchema = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('open'), ...FlawBase }),
+  z.strictObject({
+    state: z.literal('done'),
+    ...FlawBase,
+    yourPick: FlawIndex,
+    correct: z.boolean(),
+    flawIndex: FlawIndex,
+    original: Sentence,
+    source: ConversationContentProjectionSchema,
+    /** How many people found it, for a reader who has tapped. */
+    found: Counter,
+  }),
+]);
+export type RoomTodayFlaw = z.infer<typeof RoomTodayFlawSchema>;
+
+export const ReadRoomTodaySchema = z.strictObject({ ...Read, roomId: UuidSchema });
+export const RoomTodaySchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    /** The UTC day these items are for. */
+    day: z.iso.date(),
+    discussionId: UuidSchema,
+    canPost: z.boolean(),
+    question: RoomTodayQuestionSchema.optional(),
+    flaw: RoomTodayFlawSchema.optional(),
+    /** The questions of the days before, newest first. */
+    past: z
+      .array(z.strictObject({ day: z.iso.date(), prompt: z.string().min(1).max(200).refine(isPublicLabel) }))
+      .max(7),
+  }),
+]);
+export type RoomToday = z.infer<typeof RoomTodaySchema>;
+
+/** The reader taps one sentence. Final: a second command for the same item is the first one's answer. */
+export const SolveFlawSchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  ritualId: UuidSchema,
+  sentence: FlawIndex,
+});
+export const FlawSolvedAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('today.solve'),
+  roomId: UuidSchema,
+  ritualId: UuidSchema,
+  correct: z.boolean(),
+  flawIndex: FlawIndex,
+  original: Sentence,
+  /** This tap earned the room a star: the first right answer of the day, within the daily cap. */
+  star: z.boolean(),
+});
+
+/** A member reads the room's sky: the stars, the constellation, and the name vote while one is open. */
+export const ReadRoomSkySchema = z.strictObject({ ...Read, roomId: UuidSchema });
+export const RoomSkyViewSchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    sky: RoomSkySchema,
+    /** The newest stars first: the moment each was made, with no person in it. */
+    stars: z.array(RoomStarSchema).max(28),
+    /** Present while the latest finished constellation has no name. */
+    naming: RoomNamingSchema.optional(),
+  }),
+]);
+export type RoomSkyView = z.infer<typeof RoomSkyViewSchema>;
+
+/** A member chooses one of the three names offered for the constellation being named; they may change it until it closes. */
+export const NameConstellationSchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  candidate: z.number().int().min(0).max(2),
+});
+export const ConstellationVoteAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('sky.name'),
+  roomId: UuidSchema,
+  candidate: z.number().int().min(0).max(2),
+});
+
+/** A member votes on a debate's side, and may change it until it closes. */
+export const VoteDebateSchema = z.strictObject({
+  ...Command,
+  roomId: UuidSchema,
+  discussionId: UuidSchema,
+  side: z.enum(['a', 'b']),
+});
+export const DebateVoteAcceptanceSchema = z.strictObject({
+  ...Receipt,
+  operation: z.literal('debate.vote'),
+  roomId: UuidSchema,
+  discussionId: UuidSchema,
+  side: z.enum(['a', 'b']),
+});
+
 // --- Lists and the room itself -------------------------------------------------------------
 
 /** The rooms the caller belongs to or is invited to, for Talk. Rooms the caller has not joined are never listed here. */
@@ -334,6 +470,10 @@ export const RoomViewSchema = z.discriminatedUnion('status', [
     welcome: RoomWelcomeSchema.optional(),
     /** A resident's "while you were away", for a member who came back after a long absence. */
     away: RoomAwaySchema.optional(),
+    /** The room's sky: stars lit, the constellation and its name (D-174). */
+    sky: RoomSkySchema,
+    /** The daily channel and, when an operator approved today's items, what they are (v3 R-5). */
+    today: RoomTodayStripSchema.optional(),
   }),
 ]);
 export type RoomView = z.infer<typeof RoomViewSchema>;
@@ -508,7 +648,13 @@ const Messages = z
 
 /** Starts a discussion: about nothing in particular, about a Reel or Scroll, or from a card in another discussion of the room. */
 export const StartDiscussionSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('topic'), title: DiscussionTitle, tag: RoomTopicTagSchema.optional() }),
+  z.strictObject({
+    kind: z.literal('topic'),
+    title: DiscussionTitle,
+    tag: RoomTopicTagSchema.optional(),
+    /** Two sides and a close time: required for the tag `debate` and refused for any other (D-176). */
+    debate: NewDebateSchema.optional(),
+  }),
   z.strictObject({ kind: z.literal('content'), root: ConversationContentRefSchema, title: DiscussionTitle.optional() }),
   /**
    * From a message of the room. A card for a Reel or Scroll starts a content thread about it; a message with words
@@ -598,6 +744,8 @@ export const DiscussionViewSchema = z.discriminatedUnion('status', [
       }),
       /** The message a topic began from, as this reader may see it: its first item. Absent for any other discussion. */
       origin: RoomMessageSchema.optional(),
+      /** The debate this topic is: its sides, when it closes and the reader's own vote. */
+      debate: RoomDebateSchema.optional(),
       /** Present when the discussion is a content thread: the root, its episodes and the caller's own visited markers. */
       content: z
         .strictObject({
@@ -789,6 +937,11 @@ export const RoomStationSchema = z.strictObject({
   standing: z.enum(['member', 'moderator', 'invited', 'none']),
   /** The caller's own objects the station sits beside: always a system, and the planet when the topic is one. */
   placement: z.strictObject({ systemId: UuidSchema, planetId: UuidSchema.optional() }),
+  /**
+   * The room's sky, for a member or moderator of the room only (D-174): stars lit, whether a constellation is finished and
+   * its name. Room-level facts that name no person; an outsider's station carries none.
+   */
+  sky: RoomSkySchema.optional(),
 });
 export type RoomStation = z.infer<typeof RoomStationSchema>;
 export const RoomStationsSchema = z.strictObject({
@@ -1096,14 +1249,27 @@ export const roomsActivityContract = {
   ),
 };
 
+/** Today's items, the room's sky and a debate's vote (v3 R-5). */
+export const roomsSkyContract = {
+  today: roomsPost('/v1/rooms/today/read', ReadRoomTodaySchema, RoomTodaySchema),
+  solveFlaw: roomsPost('/v1/rooms/today/solve', SolveFlawSchema, FlawSolvedAcceptanceSchema),
+  sky: roomsPost('/v1/rooms/sky/read', ReadRoomSkySchema, RoomSkyViewSchema),
+  nameConstellation: roomsPost('/v1/rooms/sky/name', NameConstellationSchema, ConstellationVoteAcceptanceSchema),
+  voteDebate: roomsPost('/v1/rooms/debates/vote', VoteDebateSchema, DebateVoteAcceptanceSchema),
+};
+
 /**
- * Served by the API's rooms controller, with Social's problem family and cache policy. The three parts are
+ * Served by the API's rooms controller, with Social's problem family and cache policy. The four parts are
  * named so that the declaration the compiler writes for this object stays bounded.
  */
-export const roomsContract: typeof roomsRoomContract & typeof roomsDiscussionContract & typeof roomsActivityContract = {
+export const roomsContract: typeof roomsRoomContract &
+  typeof roomsDiscussionContract &
+  typeof roomsActivityContract &
+  typeof roomsSkyContract = {
   ...roomsRoomContract,
   ...roomsDiscussionContract,
   ...roomsActivityContract,
+  ...roomsSkyContract,
 };
 
 /**

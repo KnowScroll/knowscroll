@@ -1564,6 +1564,42 @@ export interface RoomsBackdropAttempts {
   state: string;
 }
 
+export interface RoomsConstellations {
+  candidates: string[];
+  completed_at: Timestamp;
+  name: string | null;
+  named_at: Timestamp | null;
+  no: number;
+  room_id: string;
+  vote_closes_at: Timestamp;
+}
+
+export interface RoomsConstellationVotes {
+  account_id: string;
+  candidate: number;
+  no: number;
+  room_id: string;
+  voted_at: Timestamp;
+}
+
+export interface RoomsDebates {
+  closed_at: Timestamp | null;
+  closes_at: Timestamp;
+  discussion_id: string;
+  side_a: string;
+  side_b: string;
+  state: string;
+  voters: number | null;
+  winner: string | null;
+}
+
+export interface RoomsDebateVotes {
+  account_id: string;
+  discussion_id: string;
+  side: string;
+  voted_at: Timestamp;
+}
+
 export interface RoomsDiscussions {
   created_at: Timestamp;
   discussion_id: string;
@@ -1659,6 +1695,31 @@ export interface RoomsReadPositions {
   room_id: string;
 }
 
+export interface RoomsRituals {
+  attempt_id: string | null;
+  created_at: Timestamp;
+  day: Timestamp;
+  decided_at: Timestamp | null;
+  decided_by: string | null;
+  kind: string;
+  made_by: string;
+  model: string | null;
+  payload: Json;
+  payload_version: string;
+  ritual_id: string;
+  role_version: string | null;
+  room_id: string;
+  state: string;
+}
+
+export interface RoomsRitualSolves {
+  account_id: string;
+  correct: boolean;
+  picked: number;
+  ritual_id: string;
+  solved_at: Timestamp;
+}
+
 export interface RoomsRoomBackdrops {
   attempt_id: string;
   backdrop_id: string;
@@ -1712,6 +1773,16 @@ export interface RoomsRooms {
   status: Generated<string>;
   topic_id: string;
   topic_kind: string;
+}
+
+export interface RoomsStars {
+  act: string;
+  constellation_no: number;
+  earned_at: Timestamp;
+  earned_on: Timestamp;
+  room_id: string;
+  source_key: string;
+  star_id: string;
 }
 
 export interface RoomsSummaries {
@@ -2219,6 +2290,10 @@ export interface DB {
   "rooms.activities": RoomsActivities;
   "rooms.ai_turns": RoomsAiTurns;
   "rooms.backdrop_attempts": RoomsBackdropAttempts;
+  "rooms.constellation_votes": RoomsConstellationVotes;
+  "rooms.constellations": RoomsConstellations;
+  "rooms.debate_votes": RoomsDebateVotes;
+  "rooms.debates": RoomsDebates;
   "rooms.discussions": RoomsDiscussions;
   "rooms.invitations": RoomsInvitations;
   "rooms.members": RoomsMembers;
@@ -2227,11 +2302,14 @@ export interface DB {
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
   "rooms.read_positions": RoomsReadPositions;
+  "rooms.ritual_solves": RoomsRitualSolves;
+  "rooms.rituals": RoomsRituals;
   "rooms.room_backdrops": RoomsRoomBackdrops;
   "rooms.room_cast": RoomsRoomCast;
   "rooms.room_identity": RoomsRoomIdentity;
   "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
+  "rooms.stars": RoomsStars;
   "rooms.summaries": RoomsSummaries;
   "rooms.typing_holds": RoomsTypingHolds;
   "scenarios.drafts": ScenariosDrafts;
