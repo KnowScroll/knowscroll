@@ -65,12 +65,14 @@ export function sceneCapabilities(detail: 'full' | 'low', reducedMotion: boolean
 }
 /** Focus/camera/preview stay read-only; deliberate Open delegates to the real encounter engine. */
 export function createUniverseViewSession(scope: AccountScope, newId = newCommandId, now = Date.now) {
-  let detail: 'full' | 'low' = 'full',
+  let ended = false;
+  const live = () => !ended && scope.active;
+  const memory = createDeviceMemory(scope, now, live);
+  // Simple drawing is remembered on this device (D-111): the tab opens as the plain lists again.
+  let detail: 'full' | 'low' = memory.simple ? 'low' : 'full',
     reducedMotion = true,
     foreground = false,
-    ended = false,
     notificationDepth = 0;
-  const live = () => !ended && scope.active;
   let core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
   const history = createCameraHistory(DRAW_LIMITS.history);
   const geometryCache = createGeometryCache(DRAW_LIMITS.cache);
@@ -81,7 +83,6 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     projection: () => core.getState(),
     capabilities: () => sceneCapabilities(detail, reducedMotion),
   });
-  const memory = createDeviceMemory(scope, now, live);
   let returnPoint: { camera: CameraEntry; history: CameraEntry[] } | undefined;
   const listeners = new Set<() => void>();
   let state: UniverseViewState = {
@@ -106,7 +107,7 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     if (notificationDepth) return;
     for (const listener of [...listeners]) listener();
   };
-  memory.keep(() => state);
+  memory.keep(() => ({ ...state, simple: state.detail === 'low' }));
   const dust = createDustReader({ scope, live, current: () => state.dust, publish: (next) => publish({ dust: next }) });
   const formationOff = formation.subscribe(() => publish({}));
   const previewOff = preview.subscribe(() => publish({ regionPreview: preview.getState() }));
@@ -237,7 +238,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     locator: state.locator,
     landed: state.landed,
   });
-  const focus = (id: string) => {
+  /** Flies to a place. `land` on a planet goes straight to its map (Land on the desktop card, the orbit dial). */
+  const focus = (id: string, options?: { readonly land?: boolean }) => {
     if (!live() || !foreground || !places().some((p) => p.id === id)) return false;
     cancelPreview();
     formation.skip();
@@ -254,8 +256,8 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     if (state.youWereHere === id) clearHereMarker(scope);
     publish({
       focusId: id,
-      // A planet opens as its globe; a region is only ever chosen on the map.
-      landed: place.kind === 'region',
+      // A planet opens as its globe unless asked to land; a region is only ever chosen on the map.
+      landed: place.kind === 'region' || (place.kind === 'planet' && options?.land === true),
       notice: undefined,
       frame,
       overlay: null,
@@ -323,6 +325,50 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
     return from?.parentId === state.focusId ? route.toObjectId : undefined;
   };
 
+  /**
+   * The Back pill of a system, planet or region: one step up the hierarchy (system to the whole
+   * map, planet to its system, region to its planet). Browser and hardware Back keep following
+   * the camera history instead, so both lead somewhere the person has been.
+   */
+  const up = () => {
+    if (!live() || !foreground) return false;
+    const all = places();
+    const place = all.find((candidate) => candidate.id === state.focusId);
+    const parentId = place?.parentId;
+    const parent = all.find((candidate) => candidate.id === parentId && candidate.kind !== 'star');
+    cancelPreview();
+    formation.skip();
+    history.push(here());
+    // A region steps up to its planet's map, where the person was; everything else to its parent.
+    publish({
+      focusId: parent?.id ?? null,
+      landed: place?.kind === 'region' && parent !== undefined,
+      frame: { ...INITIAL_FRAME },
+      locator: undefined,
+      overlay: null,
+      selectedId: null,
+      notice: undefined,
+    });
+    memory.saveNow();
+    return true;
+  };
+
+  const configure = (next: { detail: 'full' | 'low'; reducedMotion: boolean }) => {
+    if (!live() || (next.detail === detail && next.reducedMotion === reducedMotion)) return;
+    cancelPreview();
+    formation.setForeground(false);
+    detail = next.detail;
+    reducedMotion = next.reducedMotion;
+    unsubscribe();
+    core.dispose();
+    geometryCache.clear();
+    core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
+    unsubscribe = core.subscribe(readChanged);
+    publish({ detail, reducedMotion, read: core.getState(), overlay: null });
+    if (foreground) core.start();
+    formation.setForeground(foreground);
+  };
+
   return {
     getState: () => state,
     subscribe(this: void, listener: () => void) {
@@ -367,20 +413,11 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
         memory.saveNow();
       }
     },
-    configure(next: { detail: 'full' | 'low'; reducedMotion: boolean }) {
-      if (!live() || (next.detail === detail && next.reducedMotion === reducedMotion)) return;
-      cancelPreview();
-      formation.setForeground(false);
-      detail = next.detail;
-      reducedMotion = next.reducedMotion;
-      unsubscribe();
-      core.dispose();
-      geometryCache.clear();
-      core = createUniverseSceneSession({ scope, capabilities: sceneCapabilities(detail, reducedMotion) });
-      unsubscribe = core.subscribe(readChanged);
-      publish({ detail, reducedMotion, read: core.getState(), overlay: null });
-      if (foreground) core.start();
-      formation.setForeground(foreground);
+    configure,
+    /** Simple drawing on or off: the tab as two plain lists, remembered on this device (D-111). */
+    setSimple(simple: boolean) {
+      configure({ detail: simple ? 'low' : 'full', reducedMotion });
+      memory.saveNow();
     },
     showOverlay,
     refreshRegionPreview: readPreview,
@@ -438,32 +475,15 @@ export function createUniverseViewSession(scope: AccountScope, newId = newComman
       if (id !== null && !places().some((p) => p.id === id)) return;
       publish({ selectedId: id });
     },
+    up,
     /**
-     * The Back pill of a system, planet or region: one step up the hierarchy (system to the whole
-     * map, planet to its system, region to its planet). Browser and hardware Back keep following
-     * the camera history instead, so both lead somewhere the person has been.
+     * Escape: closes what is open (the story, a sheet, a card, a pick), and with nothing open steps
+     * up one level, as the Back pill does. Nothing happens on the whole map.
      */
-    up() {
+    escape() {
       if (!live() || !foreground) return false;
-      const all = places();
-      const place = all.find((candidate) => candidate.id === state.focusId);
-      const parentId = place?.parentId;
-      const parent = all.find((candidate) => candidate.id === parentId && candidate.kind !== 'star');
-      cancelPreview();
-      formation.skip();
-      history.push(here());
-      // A region steps up to its planet's map, where the person was; everything else to its parent.
-      publish({
-        focusId: parent?.id ?? null,
-        landed: place?.kind === 'region' && parent !== undefined,
-        frame: { ...INITIAL_FRAME },
-        locator: undefined,
-        overlay: null,
-        selectedId: null,
-        notice: undefined,
-      });
-      memory.saveNow();
-      return true;
+      if (formation.getState().fact || state.overlay || state.selectedId) return back();
+      return state.focusId !== null && up();
     },
     /**
      * Lands on the planet in focus: its globe gives way to its map at planet level, nothing chosen.

@@ -133,7 +133,7 @@ test('draws the systems in 3D, flies into one and back, and browsing sends no wr
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
   // The picture is the 3D scene, not the plain lists: warm sun pixels are on screen.
-  await expect(page.getByTestId('ks-space-simple')).toHaveCount(0);
+  await expect(page.getByTestId('universe-simple')).toHaveCount(0);
   await expect.poll(() => sunPixels(page), { timeout: 30_000 }).toBeGreaterThan(40);
   await page.screenshot({ path: testInfo.outputPath('universe-overview-390x844.png') });
 
@@ -269,4 +269,89 @@ test('draws at a desktop size with the outline beside it', async ({ page }, test
   await expect.poll(() => sunPixels(page), { timeout: 30_000 }).toBeGreaterThan(40);
   await expect(page.getByRole('complementary', { name: 'Outline' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('universe-overview-1440x900.png') });
+});
+
+test('search, the orbit dial and the Simple view work over the real map; search makes no request, and nothing is written', async ({
+  page,
+}) => {
+  const requests: Request[] = [];
+  await openUniverse(page, requests, { station: true });
+  const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
+  await expect(system).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();
+
+  // Search on the device: typing and choosing make no request at all.
+  const everything: string[] = [];
+  page.on('request', (request) => everything.push(request.url()));
+  await page.getByRole('button', { name: 'Search your universe', exact: true }).click();
+  await expect(page.getByText('Find any place you’ve been')).toBeVisible();
+  await page.getByLabel('Search your universe').fill('ci');
+  await expect(page.getByRole('button', { name: 'CI room, room, in CI system 0', exact: true })).toBeVisible();
+  await page.getByLabel('Search your universe').fill('planet 3');
+  await page.getByLabel('Search your universe').press('Enter');
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 3', exact: true })).toBeVisible();
+  expect(everything).toEqual([]);
+
+  // Back restores where the person was looking; Escape then closes the card and steps up a level.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(system).toBeVisible();
+
+  // The orbit dial: the wheel of systems, the filters, the dial of planets, and Land.
+  await page.getByRole('button', { name: 'List view', exact: true }).click();
+  await expect(page.getByTestId('universe-dial')).toBeVisible();
+  await expect(page.getByTestId('dial-planet-facts')).toBeVisible();
+  await page.getByTestId('dial-system-pill').click();
+  await expect(page.getByTestId('dial-system-facts')).toContainText('System 1 of 1');
+  await page.getByRole('button', { name: 'With rooms, 1', exact: true }).click();
+  await expect(page.getByTestId('dial-system-facts')).toContainText('1 room');
+  await page.getByRole('button', { name: 'CI system 0, a system, 2 planets', exact: true }).click();
+  await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
+  await expect(page.getByTestId('universe-level')).toHaveText('PLANET');
+  await page.getByRole('button', { name: 'Back to CI system 0', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
+
+  // The Simple view: two plain lists, remembered, and the switch turns it off again.
+  await page.getByRole('button', { name: 'List view', exact: true }).click();
+  await page.getByRole('button', { name: 'Simple view', exact: true }).click();
+  await expect(page.getByTestId('universe-simple')).toBeVisible();
+  await expect(page.getByText('Plain lists, for slow devices')).toBeVisible();
+  await page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to Your universe', exact: true }).click();
+  await page.getByRole('switch', { name: 'Simple view', exact: true }).click();
+  await expect(page.getByTestId('universe-simple')).toHaveCount(0);
+
+  // J3 over search, the dial and the Simple view: only the Universe's own reads left the page.
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.every(({ method, path }) => method === 'POST' && READS.has(path))).toBe(true);
+  expect(
+    requests.some(({ path }) => /region\/open|activate|observations|formation\/(claim|acknowledge)/.test(path)),
+  ).toBe(false);
+});
+
+test('draws the desktop panel, docks a picked planet’s card, and the Simple drawing switch turns the map into lists', async ({
+  page,
+}, testInfo) => {
+  const requests: Request[] = [];
+  await openUniverse(page, requests, { size: { width: 1440, height: 900 }, station: true });
+  await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true }).first()).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).first().click();
+  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).first().click();
+  await expect(page.getByTestId('universe-planet-card')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible();
+  await expect(page.getByText('Back up a level')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('universe-d02-1440x900.png') });
+  await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
+  await expect(page.getByTestId('universe-level')).toHaveText('PLANET');
+  await page.getByTestId('universe-map').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
+  await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+  await expect(page.getByTestId('universe-simple')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('universe-simple-1440x900.png') });
+  expect(requests.every(({ method, path }) => method === 'POST' && READS.has(path))).toBe(true);
 });

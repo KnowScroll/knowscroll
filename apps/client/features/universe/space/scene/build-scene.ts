@@ -34,8 +34,8 @@ export interface BuiltSpace {
   readonly setCamera: (pose: CameraPose) => void;
   /** Shows one system alone (a System view), or everything (`null`). */
   readonly showOnly: (systemId: string | null) => void;
-  /** Pulses a warm glow around one system (the one picked on the Far level), or none. */
-  readonly highlight: (systemId: string | null) => void;
+  /** Pulses a warm glow around one system (picked on the Far level) or one planet (picked on the desktop), or none. */
+  readonly highlight: (id: string | null) => void;
   /** Releases textures, geometries and materials. */
   readonly dispose: () => void;
 }
@@ -49,7 +49,8 @@ function orbitSpeed(system: SpaceSystemDefinition, orbitRadius: number): number 
 interface SystemBuild {
   readonly built: Built;
   readonly anchors: WorldAnchor[];
-  readonly pick: THREE.Sprite;
+  /** The warm glows a pick turns on: the system's own, and one around each planet (D02 picks a planet). */
+  readonly picks: ReadonlyMap<string, THREE.Sprite>;
 }
 
 /** The ship rides on its planet, a little above and beside it, sized to the planet it parks at. */
@@ -58,6 +59,23 @@ function parkShip(planet: THREE.Object3D, planetRadius: number, sun: THREE.Vecto
   ship.object.position.set(planetRadius * 1.45, planetRadius * 1.5, 0);
   planet.add(ship.object);
   return ship;
+}
+
+/** A soft additive glow, off until a pick turns it on. */
+function makeGlow(context: SceneContext): THREE.Sprite {
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: context.sprites.glow,
+      color: new THREE.Color(1, 0.9, 0.35),
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+    }),
+  );
+  glow.visible = false;
+  glow.userData['pick'] = true;
+  return glow;
 }
 
 function buildSystem(
@@ -73,18 +91,9 @@ function buildSystem(
   group.add(makeHalo(outer * 2.2, system.family, scoped, 0.6));
   const sun = makeSun(system.sunRadius, scoped);
   group.add(sun.object);
-  const pick = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: context.sprites.glow,
-      color: new THREE.Color(1, 0.9, 0.35),
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-    }),
-  );
-  pick.visible = false;
+  const pick = makeGlow(context);
   group.add(pick);
+  const picks = new Map<string, THREE.Sprite>([[system.id, pick]]);
   const anchors: WorldAnchor[] = [
     {
       id: system.id,
@@ -112,6 +121,9 @@ function buildSystem(
     planet.object.position.set(definition.orbitRadius, 0, 0);
     pivot.add(planet.object);
     group.add(pivot);
+    const planetGlow = makeGlow(context);
+    planet.object.add(planetGlow);
+    picks.set(definition.id, planetGlow);
     anchors.push({
       id: definition.id,
       kind: 'planet',
@@ -121,7 +133,7 @@ function buildSystem(
       radius,
     });
     if (definition.id === shipPlanetId) ships.push(parkShip(planet.object, radius, sunPosition, scoped));
-    return { definition, planet, pivot, speed: orbitSpeed(system, definition.orbitRadius) };
+    return { definition, planet, pivot, radius, speed: orbitSpeed(system, definition.orbitRadius) };
   });
 
   const tick = (t: number): void => {
@@ -131,14 +143,20 @@ function buildSystem(
       planet.tick(t);
     }
     for (const ship of ships) ship.tick(t);
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
     if (pick.visible) {
-      const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
       pick.scale.setScalar(outer * (0.9 + 0.25 * pulse));
       pick.material.opacity = 0.3 + 0.3 * pulse;
     }
+    for (const { definition, radius } of orbiting) {
+      const glow = picks.get(definition.id)!;
+      if (!glow.visible) continue;
+      glow.scale.setScalar(radius * (3.4 + 0.6 * pulse));
+      glow.material.opacity = 0.35 + 0.3 * pulse;
+    }
   };
   tick(0);
-  return { built: { object: group, tick }, anchors, pick };
+  return { built: { object: group, tick }, anchors, picks };
 }
 
 function buildStation(
@@ -201,11 +219,11 @@ export function buildSpace(
   /** What belongs to each system (or dust cloud), so a System view can show one alone. */
   const belongings = new Map<string, THREE.Object3D[]>();
   for (const system of definition.systems) {
-    const { built, anchors: systemAnchors, pick } = buildSystem(system, context, definition.shipPlanetId);
+    const { built, anchors: systemAnchors, picks: systemPicks } = buildSystem(system, context, definition.shipPlanetId);
     scene.add(built.object);
     ticks.push(built.tick);
     anchors.push(...systemAnchors);
-    picks.set(system.id, pick);
+    for (const [id, sprite] of systemPicks) picks.set(id, sprite);
     belongings.set(system.id, [built.object]);
   }
   const systemsById = new Map(definition.systems.map((system) => [system.id, system]));
@@ -246,8 +264,8 @@ export function buildSpace(
       for (const [id, objects] of belongings)
         for (const object of objects) object.visible = systemId === null || id === systemId;
     },
-    highlight(systemId) {
-      for (const [id, sprite] of picks) sprite.visible = id === systemId;
+    highlight(pickedId) {
+      for (const [id, sprite] of picks) sprite.visible = id === pickedId;
     },
     dispose() {
       scene.traverse((node) => {
