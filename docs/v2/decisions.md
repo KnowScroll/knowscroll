@@ -2550,3 +2550,13 @@ Confirmed by: `library.test.ts` (the v2 recipes are the Seasons four, the 35 of 
 - **Not built.** Sharing a passage of a v2 Scroll back into the thread. A snippet names a v1 block; a stop is not one (D-135).
 
 Confirmed by: `e2e/thread-scroll-smoke.spec.ts` (two people in a thread of three v2 Scrolls: Read opens the Scroll, the finish tells the thread, a locked call reveals once both have finished; a desktop; axe at 390 × 844 and 1440 × 900) and the end tray test in `stage-reader.test.tsx`. Shown failing with the reader opened without `stage`.
+
+## D-235 · 2026-10-31 · A Scroll's place "on" is told once the Scroll has opened, not when Read is pressed (v3 dev check, #570)
+
+**Amends** D-153, which made pressing Read this Scroll the `on` of a Scroll. A place only moves forward and is never taken back (D-152), so a place sent by a tap that then failed to open the Scroll could not be undone: others saw "is on Part 3" for a part nobody had opened, and the person's "Call it first" for the earlier parts closed.
+
+- **The reader tells it.** The thread's reader mounts a small component only after the Scroll's exposure is open and its document is ready, and that component reports `on` for the part. Pressing Read, in the dock or in the open player, tells nothing; it only opens the reader.
+- **Same gate as before.** The report is automatic, so the controller sends nothing while recording is paused or not known, and nothing while the person hides where they are (D-153). The finish button is unchanged.
+- **A Reel is unchanged.** A Reel's `on` already waited for its document to open.
+
+Confirmed by: `thread-encounter.test.tsx` (Read, in the dock and in the open player, tells nothing), `e2e/thread-scroll-smoke.spec.ts` (a Scroll that does not open tells the thread nothing and stores no place; an opened one tells `on`; paused tells nothing while the button still shares the finish). Shown failing with the tap reporting again.

@@ -161,3 +161,37 @@ test('on a desktop the player reads the Scroll in place of the thread, and the f
   await shot(page, 'thread-scroll-1440-finished');
   await closeAll(asha.context);
 });
+
+test('a Read that does not open the Scroll tells the thread nothing', async ({ browser }) => {
+  const world = partyWorld({ scrolls: true });
+  const ravi = await person(browser, world, 'ravi');
+  // The Scroll will not open: the request for its document fails.
+  await ravi.page.route('**/v1/experience/exposures/*/document', (route) => route.fulfill({ status: 500, json: {} }));
+
+  await choosePart(ravi.page, 2);
+  await ravi.page.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(ravi.page.getByRole('heading', { name: "You're offline" })).toBeVisible();
+  await expect(ravi.page.getByTestId('stop-scroller')).toHaveCount(0);
+  // Give a wrongly sent report time to arrive.
+  await ravi.page.waitForTimeout(1000);
+  expect(world.placeCalls('ravi', 'places/set')).toHaveLength(0);
+  expect(world.placeOf('ravi')).toBeUndefined();
+  await closeAll(ravi.context);
+});
+
+test('while recording is paused opening a part tells nothing, and the button still shares the finish', async ({
+  browser,
+}) => {
+  const world = partyWorld({ scrolls: true });
+  world.pauseRecording('ravi', true);
+  const ravi = await person(browser, world, 'ravi');
+
+  await choosePart(ravi.page, 1);
+  await read(ravi.page);
+  await ravi.page.waitForTimeout(1000);
+  expect(world.placeCalls('ravi', 'places/set')).toHaveLength(0);
+  await ravi.page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await ravi.page.getByRole('button', { name: 'I’ve finished this part' }).click();
+  await expect.poll(() => world.placeOf('ravi')).toMatchObject({ part: 1, state: 'finished' });
+  await closeAll(ravi.context);
+});

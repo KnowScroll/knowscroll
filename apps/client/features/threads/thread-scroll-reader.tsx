@@ -54,6 +54,19 @@ function FinishedPart({ places, part }: { readonly places: ThreadPlacesControlle
   );
 }
 
+/**
+ * Renders nothing; mounted only once the Scroll has opened. It tells the thread this person is on the part, and
+ * so only a part that really opened is ever told: a Read that failed (offline, an error, nothing to show) tells
+ * nothing, and a place never moves back to undo a wrong one (D-153, D-235). The controller sends nothing while
+ * recording is paused.
+ */
+function StartedPart({ places, part }: { readonly places: ThreadPlacesController; readonly part: number }) {
+  useEffect(() => {
+    void places.report(part, 'on');
+  }, [places, part]);
+  return null;
+}
+
 function ReaderBody({
   scope,
   thread,
@@ -78,15 +91,22 @@ function ReaderBody({
   // The thread is usually the screen before this one; on a reloaded address there is nothing before it.
   const leave = () => (router.canGoBack() ? router.back() : backToThread());
   const finish = part === undefined ? undefined : <FinishedPart places={places} part={part} />;
+  const started = part === undefined ? null : <StartedPart places={places} part={part} />;
   return (
     <OpenScroll
       scope={scope}
       assetId={assetId}
       onBack={leave}
-      stage={(scroll) => <ThreadStageScroll scope={scope} scroll={scroll} onBack={leave} endSlot={finish} />}
+      stage={(scroll) => (
+        <>
+          {started}
+          <ThreadStageScroll scope={scope} scroll={scroll} onBack={leave} endSlot={finish} />
+        </>
+      )}
     >
       {(scroll) => (
         <>
+          {started}
           <ThreadScrollArticle
             scope={scope}
             scroll={scroll}

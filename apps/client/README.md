@@ -614,8 +614,8 @@ direct conversations and threads together; a thread row shows its people, the la
   when no one else shows a place), `SeriesTabs` (Parts · Members), `PartFaces` on each part row, and `MembersSection` (each
   member with "On Part 2 · Sat 24 Oct" or their handle, and the person's own "Hide where I am" switch, off by default).
   `use-thread-places.ts` reads the places (first read, hints, focus, a 20 s poll). The thread's own player is the only thing
-  that tells the thread where this person is: `ThreadEncounter.onPlace` fires `on` when a Reel is opened with Watch or
-  Read this Scroll is pressed, `finished` when a Reel plays to its last second (`ReelEncounter.onFinished`) and when the
+  that tells the thread where this person is: `ThreadEncounter.onPlace` fires `on` when a Reel is opened with Watch, and the
+  Scroll reader tells `on` once the Scroll has opened (`StartedPart`; pressing Read tells nothing, D-235), `finished` when a Reel plays to its last second (`ReelEncounter.onFinished`) and when the
   Scroll reader's "I've finished this part" is pressed (the address carries the part as `p`). The automatic ones send
   nothing while recording is paused or not known (D-153); the button is a deliberate share and still sends. Choosing a part, the Series
   sheet, docking, Full screen and the snippet viewer tell nothing. Single-item threads have none of it. No clock time is
