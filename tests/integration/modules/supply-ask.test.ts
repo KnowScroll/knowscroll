@@ -676,10 +676,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
     it('reads a stop of the exact revision, and nothing for a stop that is not in it or a revision that does not exist', async () => {
       await setup();
-      expect(await factsOf({ assetId: scroll.assetId, assetRevision: 1 }, stopId)).toMatchObject({
-        suggestions,
-        stopText: expect.any(String),
-      });
+      const facts = await factsOf({ assetId: scroll.assetId, assetRevision: 1 }, stopId);
+      expect(facts?.suggestions).toEqual(suggestions);
+      expect(facts?.stopText).not.toBe('');
       expect(await factsOf({ assetId: scroll.assetId, assetRevision: 1 }, 'no-such-stop')).toBeUndefined();
       expect(await factsOf({ assetId: scroll.assetId, assetRevision: 2 }, stopId)).toBeUndefined();
     });
