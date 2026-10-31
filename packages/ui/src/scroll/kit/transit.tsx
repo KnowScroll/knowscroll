@@ -150,6 +150,18 @@ function CompareView({ scene }: { readonly scene: TransitScene }) {
       <Label at={{ x: 214, y: 154 }} text="SMALL PLANET" anchor="start" />
       <Circle cx={200} cy={170} r={scene.largeWidth * 36} fill={BLUE} stroke={INK} strokeWidth={1.2} />
       <Label at={{ x: 214, y: 174 }} text="LARGE PLANET" anchor="start" />
+      {scene.focus === 'planet' ? (
+        <Rect
+          x={188}
+          y={138}
+          width={104}
+          height={40}
+          fill="none"
+          stroke={FOCUS}
+          strokeWidth={3}
+          strokeDasharray="5 4"
+        />
+      ) : null}
       {scene.focus === 'dip' ? (
         <Rect
           x={xOf(compareGraph, -1.4)}

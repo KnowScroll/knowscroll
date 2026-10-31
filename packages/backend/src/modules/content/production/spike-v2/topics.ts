@@ -32,7 +32,6 @@ const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
   'stars-lifecycle': myth('The Sun will end its life by exploding as a supernova.'),
   'exoplanet-transit': myth('Astronomers find planets around other stars by photographing them.'),
   greenhouse: { kind: 'none' },
-  'greenhouse-limits': myth('The atmosphere is a blanket that warms the planet by making extra heat of its own.'),
   'exoplanet-habitable-zone': myth('A planet inside the habitable zone is a planet with life on it.'),
   // Human body.
   'cardiac-cycle': myth('The heart squeezes all four of its chambers at once in a single beat.'),
@@ -94,7 +93,7 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The nine Earth & sky and Space recipes the drawing kits of D-194 give a picture, to measure with the
+ * The eight Earth & sky and Space recipes the drawing kits of D-194 give a picture, to measure with the
  * v17 prompt before any of them is marked `scrollV2`: tides, the greenhouse effect, stars and exoplanet
  * transits. Each runs as the library will produce it, a stage Scroll with the recipe's own kit, and with the
  * spike's own unreviewed misconception (`SPIKE_MYTHS`) where the table lists one.
@@ -105,7 +104,6 @@ export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'greenhouse',
   'greenhouse-radiation',
   'greenhouse-balance',
-  'greenhouse-limits',
   'stars-fusion',
   'stars-lifecycle',
   'exoplanet-transit',

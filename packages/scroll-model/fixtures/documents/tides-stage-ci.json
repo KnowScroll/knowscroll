@@ -47,6 +47,15 @@
         "alt": "Seen from above Earth’s north pole, with the Sun far away at the left. Sizes and distances are not to scale. The Moon is new, between Earth and the Sun. The Moon raises two bulges in Earth’s ocean, one facing it and one opposite, and the Sun raises two smaller ones along its own line. The Sun, the Moon and Earth are in a line, so the Sun’s small bulges lie on top of the Moon’s and add to them: the combined bulges are as tall as they get, a spring tide. The picture draws the eye to the Sun."
       },
       {
+        "stop": "new-line",
+        "state": {
+          "view": "sun-moon",
+          "moonAt": "new",
+          "focus": "near-bulge"
+        },
+        "alt": "Seen from above Earth’s north pole, with the Sun far away at the left. Sizes and distances are not to scale. The Moon is new, between Earth and the Sun. The Moon raises two bulges in Earth’s ocean, one facing it and one opposite, and the Sun raises two smaller ones along its own line. The Sun, the Moon and Earth are in a line, so the Sun’s small bulges lie on top of the Moon’s and add to them: the combined bulges are as tall as they get, a spring tide. The picture draws the eye to the bulge on the side facing the Moon."
+      },
+      {
         "stop": "spring",
         "state": {
           "view": "sun-moon",
@@ -119,6 +128,17 @@
         }
       ],
       "simple": "The Sun raises smaller bulges of its own."
+    },
+    {
+      "kind": "read",
+      "id": "new-line",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "At new Moon the Moon stands on the same side of Earth as the Sun. The bulge that faces the Moon points toward both of them, and the other bulge points away from both."
+        }
+      ],
+      "simple": "At new Moon the near bulge faces the Moon and the Sun."
     },
     {
       "kind": "read",
@@ -199,9 +219,9 @@
   "limitsVersion": "scroll-limits.v2",
   "measures": {
     "version": "scroll-measures.v2",
-    "readingSeconds": 152,
-    "readingMinutes": 2.5,
-    "totalWeight": 580,
+    "readingSeconds": 160,
+    "readingMinutes": 2.7,
+    "totalWeight": 614,
     "recapWeight": 20,
     "stops": [
       {
@@ -219,6 +239,10 @@
       {
         "stopId": "sun",
         "weight": 33
+      },
+      {
+        "stopId": "new-line",
+        "weight": 34
       },
       {
         "stopId": "spring",
@@ -244,6 +268,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "370eb01ecd01cab0dc0e65251e37ea6d1d26d34bc3fe110b9be6488cbbd1a88e"
+    "sha256": "a4f01a1933658b4c39c422dcd35420c1ad0763e62070855ffba1dd9d24bd52ac"
   }
 }

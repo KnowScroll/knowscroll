@@ -244,6 +244,6 @@ export const TIDES_KIT_DEFINITION = defineKit({
   writerGuide: [
     'Code draws the picture from a fixed kit: Earth wrapped in an ocean, the Moon, the Sun, arrows for the Moon’s pull and the bulges of water they raise. You choose only the view, the Moon’s phase and the part to look at, from the listed words. Code decides everything else: where the bulges form, how tall they are and whether the tide is a spring tide or a neap tide all follow from the phase. So the phase you choose is a claim the picture makes: choose the one that matches what the stop says.',
     '- The views: "pull" shows the Moon’s pull on the near side, the centre and the far side of Earth (the differences are exaggerated); "bulges" shows the two bulges of water the Moon raises, one facing it and one opposite; "sun-moon" shows Earth, the Moon and the Sun from above, with the Sun’s smaller bulges added to the Moon’s, and is the view for spring and neap tides; "range" compares the size of the tide at new, first quarter, full and last quarter. Only "sun-moon" and "range" show the Moon’s phase; a phase or a focus on a part the view does not draw is ignored.',
-    '- The picture shows only the pull and the bulges, never a coast, a place or a time of day. Say nothing that depends on one.',
+    '- The picture draws no coast, place or time of day; coasts belong to the text.',
   ],
 });

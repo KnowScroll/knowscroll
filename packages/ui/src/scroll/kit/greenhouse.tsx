@@ -279,10 +279,22 @@ function BalanceView({ scene }: { readonly scene: GreenhouseScene }) {
       <Circle cx={289} cy={base + 2} r={11} fill={WARM} stroke={INK} strokeWidth={OUTLINE} />
       {scene.focus === 'surface' ? (
         <Rect
-          x={274}
-          y={base - 114}
-          width={30}
-          height={142}
+          x={190}
+          y={base - 18}
+          width={76}
+          height={24}
+          fill="none"
+          stroke={FOCUS}
+          strokeWidth={3}
+          strokeDasharray="5 4"
+        />
+      ) : null}
+      {scene.focus === 'layer' && has(scene, 'layer') ? (
+        <Rect
+          x={190}
+          y={base - 12 - 16 - scene.layerPx * 0.8 - 6}
+          width={76}
+          height={scene.layerPx * 0.8 + 12}
           fill="none"
           stroke={FOCUS}
           strokeWidth={3}

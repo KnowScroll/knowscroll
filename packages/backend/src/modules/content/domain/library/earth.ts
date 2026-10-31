@@ -243,9 +243,7 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.limits',
-    // The analogy audit is drawn by a layer that infrared still passes through and that makes no energy, so it
-    // is not a sealed lid or an energy-making blanket.
-    stageKit: 'greenhouse.v1',
+    // No kit: its subject is the audit of the blanket analogy, which the greenhouse kit cannot draw (D-194).
     interactive: false,
     interactiveKind: null,
     brief:

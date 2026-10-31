@@ -53,9 +53,9 @@ describe('the twenty topics of the writer spike', () => {
     }
   });
 
-  it('measure the nine recipes the drawing kits of D-194 give a picture, with one command line, the one the runbook prints', () => {
-    expect(SKY_SPIKE_TOPICS_V2).toHaveLength(9);
-    expect(new Set(SKY_SPIKE_TOPICS_V2).size).toBe(9);
+  it('measure the eight recipes the drawing kits of D-194 give a picture, with one command line, the one the runbook prints', () => {
+    expect(SKY_SPIKE_TOPICS_V2).toHaveLength(8);
+    expect(new Set(SKY_SPIKE_TOPICS_V2).size).toBe(8);
     expect(parseSpikeTopics(SKY_SPIKE_TOPICS_V2.join(','))).toEqual(SKY_SPIKE_TOPICS_V2);
     const kits = new Map<string, string[]>();
     for (const topic of SKY_SPIKE_TOPICS_V2) {

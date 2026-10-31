@@ -295,7 +295,7 @@ describe('the Final call that turns the tilt (D-187)', () => {
 
 /** One recipe for each drawing kit of D-194: the recipe's own `stageKit` decides which kit its Scroll is drawn with. */
 const KIT_RECIPES = [
-  ['tides.v1', 'tides', 'The picture shows only the pull and the bulges'],
+  ['tides.v1', 'tides', 'The picture draws no coast, place or time of day; coasts belong to the text.'],
   ['greenhouse.v1', 'greenhouse-radiation', 'In it the layer lets sunlight through'],
   ['star.v1', 'stars-fusion', 'The picture draws no years, no figures and no named star'],
   ['transit.v1', 'exoplanet-transit', 'The picture is the transit method only'],
@@ -318,6 +318,8 @@ describe.each(KIT_RECIPES)('the v17 writer for a recipe drawn with %s', (kit, ke
       expect(text, other).not.toContain(kitDefinition(other).writerGuide[0] ?? 'x');
     expect(text).not.toContain('earthAt');
     expect(text).not.toContain('never call it sideways');
+    // The tides facet on coasts is covered by the text, so the guide must not tell the writer to say nothing about one.
+    if (kit === 'tides.v1') expect(text).not.toContain('Say nothing that depends on one');
     expect(text.length).toBeLessThan(32_768);
   });
 

@@ -45,7 +45,7 @@ export type TransitPart = 'star' | 'planet' | 'orbit' | 'curve' | 'dip';
 const VIEW_PARTS: Readonly<Record<TransitView, readonly TransitPart[]>> = {
   orbit: ['star', 'planet', 'orbit'],
   crossing: ['star', 'planet', 'curve', 'dip'],
-  compare: ['star', 'planet', 'curve', 'dip'],
+  compare: ['planet', 'curve', 'dip'],
 };
 
 /** The parts a view draws. Anything else is never drawn, never described and never a focus. */

@@ -138,14 +138,32 @@ describe('settling and describing a greenhouse state', () => {
         expect(text, JSON.stringify(state)).toContain('sends up more infrared than the sunlight it takes up');
       if (settled.view === 'energy-balance') {
         expect(text.includes('The two bars are equal'), JSON.stringify(state)).toBe(Math.abs(physics.imbalance) < 1e-9);
-        expect(text.includes('for now more arrives than leaves'), JSON.stringify(state)).toBe(
+        expect(text.includes('for now the ground takes up more than leaves'), JSON.stringify(state)).toBe(
           Math.abs(physics.imbalance) >= 1e-9,
         );
       }
     }
   });
 
-  it('describes a layer just thickened as letting less energy leave than arrives, and only that', () => {
+  it('says what leaves to space is the sunlight the ground takes up, never "the sunlight that arrives", which includes the share reflected', () => {
+    for (const layer of LAYERS) {
+      const settled = greenhousePhysics({ layer, change: 'settled' });
+      expect(settled.toSpace).toBeCloseTo(1 - REFLECTED_SHARE, 12);
+      expect(settled.toSpace).toBeLessThan(1);
+    }
+    for (const state of states)
+      expect(describeGreenhouseState(state), JSON.stringify(state)).not.toMatch(
+        /as (?:much|little) (?:w+ )*as (?:the )?sunlight arrives|than arrives|as arrives/u,
+      );
+    expect(describeGreenhouseState({ view: 'infrared', layer: 'thick', change: 'settled', focus: 'none' })).toContain(
+      'as much infrared leaves to space as the sunlight the ground takes up',
+    );
+    expect(
+      describeGreenhouseState({ view: 'energy-balance', layer: 'thick', change: 'settled', focus: 'none' }),
+    ).toContain('as much infrared leaves to space as the ground takes up from the Sun');
+  });
+
+  it('describes a layer just thickened as letting less energy leave than the ground takes up, and only that', () => {
     const thin = describeGreenhouseState({ view: 'infrared', layer: 'thin', change: 'just-thickened', focus: 'none' });
     expect(thin).toContain('for now less infrared reaches space than the sunlight the ground takes up');
     const thick = describeGreenhouseState({

@@ -24,7 +24,8 @@ export const GREENHOUSE_ENUMS = {
   layer: ['none', 'thin', 'thick'],
   /**
    * `just-thickened`: the layer has just become one step thicker and the ground has not yet warmed, so
-   * less energy leaves than arrives. `settled`: the ground has warmed until in and out match. Drawn
+   * less energy leaves than the ground takes up. `settled`: the ground has warmed until the energy leaving
+   * matches the energy the ground takes up. Drawn
    * only where there is a layer to thicken, in `infrared` and `energy-balance`.
    */
   change: ['settled', 'just-thickened'],
@@ -117,8 +118,9 @@ function settledEmission(absorbed: number, share: number): number {
 /**
  * The one-layer energy balance. The layer absorbs a share of the ground's infrared and sends out as
  * much as it absorbs, half up and half down. Settled, the ground sends up `absorbed / (1 - share / 2)`
- * (more than it takes up), and exactly the energy that arrives leaves. Just after the layer thickens
- * the ground has not warmed, so it still sends up what it sent before, and less leaves than arrives.
+ * (more than it takes up), and exactly as much infrared leaves to space as the sunlight the ground takes
+ * up (the share reflected at once never reaches the ground). Just after the layer thickens the ground has
+ * not warmed, so it still sends up what it sent before, and less leaves than the ground takes up.
  */
 export function greenhousePhysics(state: Pick<GreenhouseState, 'layer' | 'change'>): GreenhousePhysics {
   const absorbed = 1 - REFLECTED_SHARE;
@@ -173,7 +175,7 @@ function infraredSentences(state: GreenhouseState, physics: GreenhousePhysics): 
   const outcome =
     state.change === 'just-thickened'
       ? `The layer has just become thicker and the ground has not yet warmed, so for now ${compare(physics.toSpace, physics.absorbed)} infrared reaches space than the sunlight the ground takes up.`
-      : `Settled, the ground sends up ${upward} infrared than the sunlight it takes up, yet only as much reaches space as sunlight arrives: the layer makes no energy, it sends part of it back.`;
+      : `Settled, the ground sends up ${upward} infrared than the sunlight it takes up, yet as much infrared leaves to space as the sunlight the ground takes up: the layer makes no energy, it sends part of it back.`;
   return [
     'The warm ground sends infrared (heat radiation) upward.',
     `Above it lies a ${LAYER_WORDS[state.layer]}. The layer sends out infrared of its own, half up to space and half back down to the ground. The rest of the ground’s infrared passes straight through.`,
@@ -184,8 +186,8 @@ function infraredSentences(state: GreenhouseState, physics: GreenhousePhysics): 
 function balanceSentences(state: GreenhouseState, physics: GreenhousePhysics): string[] {
   const bars =
     Math.abs(physics.imbalance) < TOLERANCE
-      ? 'The two bars are equal: as much energy leaves to space as arrives from the Sun, so nothing is gained or lost.'
-      : 'The bar for energy leaving is shorter than the one for energy arriving: for now more arrives than leaves, so the ground warms until the two bars match.';
+      ? 'The two bars are equal: as much infrared leaves to space as the ground takes up from the Sun, so nothing is gained or lost.'
+      : 'The bar for energy leaving is shorter than the one for energy taken up: for now the ground takes up more than leaves, so it warms until the two bars match.';
   const warmth =
     physics.warmth < TOLERANCE
       ? 'The thermometer shows the ground as warm as it is with no layer at all.'
@@ -244,7 +246,7 @@ export const GREENHOUSE_KIT_DEFINITION = defineKit({
   describe: describeGreenhouseState,
   writerGuide: [
     'Code draws the picture from a fixed kit: the Sun, sunlight and reflected sunlight, the ground, one layer of gas above it, the infrared the ground and the layer send out, and two bars and a thermometer for the energy. You choose only the view, how much the layer absorbs, whether it has just been made thicker and the part to look at, from the listed words. Code decides everything else: how much infrared the ground sends up, how much the layer sends back down, how much reaches space, whether energy in and out balance, and how warm the ground is. So the layer you choose is a claim the picture makes: choose the one that matches what the stop says.',
-    '- The views: "sunlight" shows sunlight arriving, a share reflected and the rest taken up by the ground; "infrared" shows the infrared the ground sends up, the layer absorbing part of it and sending some up and some back down, and the rest passing through; "energy-balance" shows two bars (energy the ground takes up, energy leaving to space) and a thermometer. The layer is "none", "thin" (absorbs some infrared) or "thick" (absorbs most). "change" is "settled" or "just-thickened": just after the layer thickens, less energy leaves than arrives until the ground warms; it needs a layer and the "infrared" or "energy-balance" view, and is otherwise ignored.',
+    '- The views: "sunlight" shows sunlight arriving, a share reflected and the rest taken up by the ground; "infrared" shows the infrared the ground sends up, the layer absorbing part of it and sending some up and some back down, and the rest passing through; "energy-balance" shows two bars (energy the ground takes up, energy leaving to space) and a thermometer. The layer is "none", "thin" (absorbs some infrared) or "thick" (absorbs most). "change" is "settled" or "just-thickened": just after the layer thickens, less energy leaves than the ground takes up until the ground warms; it needs a layer and the "infrared" or "energy-balance" view, and is otherwise ignored.',
     '- The picture is a simple one-layer model. In it the layer lets sunlight through; it is never a lid or a solid blanket, and energy is never made. Never ask the picture to show a temperature number, a forecast or a glasshouse.',
   ],
 });

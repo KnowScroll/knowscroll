@@ -117,6 +117,11 @@ describe('settling and describing a transit state', () => {
       if (settled.focus !== 'none') expect(transitParts(settled.view)).toContain(settled.focus);
     }
     expect(settleTransitState({ view: 'orbit', planet: 'large', at: 'middle', focus: 'dip' }).focus).toBe('none');
+    // The comparison draws two graphs and the two planets, and no star disc, so there is no star to look at.
+    expect(settleTransitState({ view: 'compare', planet: 'small', at: 'before', focus: 'star' }).focus).toBe('none');
+    expect(settleTransitState({ view: 'compare', planet: 'small', at: 'before', focus: 'planet' }).focus).toBe(
+      'planet',
+    );
   });
 
   it('says a planet blocks light exactly where the physics says it does', () => {

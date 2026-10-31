@@ -93,7 +93,16 @@ function MassView({ scene }: { readonly scene: StarScene }) {
         return (
           <G key={MASS_LABELS[index]}>
             <StarDisc at={centre} radius={radius} surface={SURFACE_OF_MASS[index] ?? 'middle'} />
-            {marked ? <FocusRing at={centre} radius={Math.max(...scene.radii) + 6} /> : null}
+            {marked ? (
+              <Circle
+                cx={centre.x}
+                cy={centre.y}
+                r={Math.max(...scene.radii) + 6}
+                fill="none"
+                stroke={FOCUS}
+                strokeWidth={3}
+              />
+            ) : null}
             <Label at={{ x: centre.x, y: 128 }} text={MASS_LABELS[index] ?? ''} bold={marked} />
             <Rect x={barLeft(index)} y={138} width={80} height={14} fill={PAPER_DEEP} stroke={INK} strokeWidth={1.6} />
             <Rect

@@ -18,7 +18,7 @@ import {
   SKY_LIGHT,
   SUN,
 } from './parts';
-import type { TidesScene } from './tides-scene';
+import { bulgeTips, type TidesScene } from './tides-scene';
 
 /**
  * The tides kit drawn in the V3 style (D-194): Earth wrapped in an ocean, the Moon, the Sun, arrows for
@@ -164,8 +164,7 @@ function BulgesView({ scene }: { readonly scene: TidesScene }) {
   const radius = 36;
   const height = BULGE_PX * scene.combinedHeight;
   const moon = { x: 270, y: 100 };
-  const near = { x: earth.x + radius + 10 + height, y: earth.y };
-  const far = { x: earth.x - radius - 10 - height, y: earth.y };
+  const { near, far } = bulgeTips(scene, earth, radius + 10 + height);
   return (
     <G>
       <Ocean at={earth} radius={radius + 10} height={height} axis={0} />
@@ -189,8 +188,7 @@ function SunMoonView({ scene }: { readonly scene: TidesScene }) {
   const height = BULGE_PX * scene.combinedHeight;
   const lunar = BULGE_PX * scene.moonHeight;
   const solar = BULGE_PX * scene.sunHeight;
-  const tip = onCircle(earth, water + height, scene.combinedAxis);
-  const opposite = onCircle(earth, water + height, scene.combinedAxis + 180);
+  const { near: tip, far: opposite } = bulgeTips(scene, earth, water + height);
   return (
     <G>
       <Sun at={sun} radius={20} focused={scene.focus === 'sun'} />

@@ -9,6 +9,7 @@ import {
   type TidesState,
   type TideKind,
 } from '../model';
+import { onCircle, type Point } from './earth-sky-scene';
 import { blendScenes } from './blend';
 
 /**
@@ -78,6 +79,22 @@ export function tidesSceneOf(state: TidesState): TidesScene {
     differenceFar: farDifference / largest,
     bars: TIDES_ENUMS.moonAt.map((phase) => ranges[phase]),
     current: TIDES_ENUMS.moonAt.indexOf(state.moonAt),
+  };
+}
+
+/**
+ * The two ends of the bulges at `distance` from `centre`: the one on the side that faces the Moon and the
+ * one opposite. They lie along the Moon's own direction, never along the combined tide's axis, which is
+ * a line and has no side (it is the same line a half turn on).
+ */
+export function bulgeTips(
+  scene: Pick<TidesScene, 'moonDegrees'>,
+  centre: Point,
+  distance: number,
+): { near: Point; far: Point } {
+  return {
+    near: onCircle(centre, distance, scene.moonDegrees),
+    far: onCircle(centre, distance, scene.moonDegrees + 180),
   };
 }
 
