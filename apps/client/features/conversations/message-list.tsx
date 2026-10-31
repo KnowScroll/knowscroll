@@ -11,6 +11,7 @@ import {
   capsuleLabel,
   clockTime,
   dayKey,
+  deliveryWord,
   endsRun,
   type RunStep,
   type ThreadController,
@@ -70,12 +71,24 @@ export function useFollowEnd(changeKey: string) {
 const stepOf = (message: ConversationMessage | undefined): RunStep | undefined =>
   message?.status === 'available' ? { authorId: message.author.personId, at: new Date(message.recordedAt) } : undefined;
 
-/** The time under the last message of a run, on the side its bubbles sit; "Sent" joins it under the person's own latest. */
-function RunTime({ at, mine, sent }: { readonly at: Date; readonly mine: boolean; readonly sent: boolean }) {
+/**
+ * The time under the last message of a run, on the side its bubbles sit. Under the person's own latest it
+ * adds "Sent", or "Seen" once the other person has read to it and the server says so (SEEN, D-066).
+ */
+function RunTime({
+  at,
+  mine,
+  delivery,
+}: {
+  readonly at: Date;
+  readonly mine: boolean;
+  /** Set only under the person's own latest message. */
+  readonly delivery: 'Sent' | 'Seen' | undefined;
+}) {
   const theme = useTalkTheme();
   return (
     <Text variant="monoXs" color={theme.textQuiet} align={mine ? 'right' : 'left'} testID="message-time">
-      {sent ? `${clockTime(at)} · Sent` : clockTime(at)}
+      {delivery === undefined ? clockTime(at) : `${clockTime(at)} · ${delivery}`}
     </Text>
   );
 }
@@ -109,8 +122,9 @@ export interface MessageListProps {
 
 /**
  * The messages by day, in the Talk look: a capsule for every day, bubbles in runs with the time under the
- * last of each, and the ones still being sent. A reply quotes its original and jumps to it; a message can
- * be replied to, reacted to, copied and reported (`TalkMessage`).
+ * last of each (and Sent or Seen under the person's own latest), and the ones still being sent. A reply
+ * quotes its original and jumps to it; a message can be replied to, reacted to, copied and reported
+ * (`TalkMessage`).
  */
 export function MessageList({
   state,
@@ -203,7 +217,11 @@ export function MessageList({
                       <RunTime
                         at={step.at}
                         mine={mine}
-                        sent={mine && message.sequence === lastMineSequence && state.outgoing.length === 0}
+                        delivery={
+                          mine && message.sequence === lastMineSequence && state.outgoing.length === 0
+                            ? deliveryWord(message.sequence, state.peerReadThrough)
+                            : undefined
+                        }
                       />
                     ) : null}
                   </View>

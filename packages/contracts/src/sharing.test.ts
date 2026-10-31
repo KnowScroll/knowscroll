@@ -13,9 +13,11 @@ import {
   LookupSharingPersonSchema,
   OwnFriendInvitesSchema,
   OwnSharingProfileSchema,
+  OwnReadReceiptsSchema,
   PresenceHeartbeatAckSchema,
   PublicPersonRefSchema,
   ReadFriendRequestsSchema,
+  ReadReceiptsAcceptanceSchema,
   ReadFriendsSchema,
   ReadVisitorWorldSchema,
   RequestFriendSchema,
@@ -23,6 +25,7 @@ import {
   ResolvedFriendInviteSchema,
   RevokeFriendInviteSchema,
   SetPresencePreferenceSchema,
+  SetReadReceiptsSchema,
   SetSharingProfileSchema,
   SetSharingVisibilitySchema,
   SharingHandleSchema,
@@ -347,6 +350,30 @@ describe('bounded Friends and visibility declarations', () => {
     expect(
       SetPresencePreferenceSchema.safeParse({ ...command, expectedPairRevision: 2, preference: 'online' }).success,
     ).toBe(false);
+  });
+
+  it('makes SEEN a switch with its own revision, which says nothing of what anyone read', () => {
+    const own = { ...envelope, readReceiptsRevision: 1, shared: true };
+    expect(OwnReadReceiptsSchema.parse(own)).toEqual(own);
+    expect(SetReadReceiptsSchema.parse({ ...command, expectedReadReceiptsRevision: 1, shared: false })).toBeDefined();
+    for (const changed of [
+      { ...command, expectedReadReceiptsRevision: 0, shared: true },
+      { ...command, expectedPresencePreferenceRevision: 1, shared: true },
+      { ...command, expectedReadReceiptsRevision: 1, shared: 'off' },
+      { ...command, expectedReadReceiptsRevision: 1, shared: true, conversationId: id(9) },
+    ])
+      expect(SetReadReceiptsSchema.safeParse(changed).success).toBe(false);
+    const acceptance = {
+      ...accepted,
+      operation: 'read-receipts.set',
+      baseReadReceiptsRevision: 1,
+      acceptedReadReceiptsRevision: 2,
+    };
+    expect(ReadReceiptsAcceptanceSchema.parse(acceptance)).toEqual(acceptance);
+    expect(ReadReceiptsAcceptanceSchema.safeParse({ ...acceptance, acceptedReadReceiptsRevision: 0 }).success).toBe(
+      false,
+    );
+    expect(OwnReadReceiptsSchema.safeParse({ ...own, peerShared: true }).success).toBe(false);
   });
 
   it('collapses expired, hidden and unknown availability without exact timestamps or playback', () => {

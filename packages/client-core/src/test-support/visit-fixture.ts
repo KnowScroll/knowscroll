@@ -43,6 +43,8 @@ export function visitServer() {
     ],
   };
   const presence = { preference: 'hidden', revision: 1 };
+  /** SEEN is on until the person turns it off (D-066). */
+  const readReceipts = { shared: true, revision: 1 };
   let allowed = true;
   let world: FixtureSystem[] = [
     {
@@ -104,6 +106,19 @@ export function visitServer() {
           acceptedPresencePreferenceRevision: presence.revision,
         });
       }
+      case 'GET /v1/social/read-receipts':
+        return { ...base, readReceiptsRevision: readReceipts.revision, shared: readReceipts.shared };
+      case 'POST /v1/social/read-receipts': {
+        if (body['expectedReadReceiptsRevision'] !== readReceipts.revision)
+          return problem(409, 'SHARING_REVISION_STALE');
+        const before = readReceipts.revision;
+        if (readReceipts.shared !== body['shared']) readReceipts.revision += 1;
+        readReceipts.shared = body['shared'] === true;
+        return accepted(body, 'read-receipts.set', {
+          baseReadReceiptsRevision: before,
+          acceptedReadReceiptsRevision: readReceipts.revision,
+        });
+      }
       case 'POST /v1/social/visits/read': {
         const answer = { ...base, target: body['target'], capabilities: body['capabilities'] };
         if (!allowed) return { ...answer, status: 'unavailable' };
@@ -156,6 +171,7 @@ export function visitServer() {
     requests,
     own,
     presence,
+    readReceipts,
     /** The next request to `path` fails this way. */
     failNext(path: string, ...kinds: Failure[]) {
       failures.set(path, [...(failures.get(path) ?? []), ...kinds]);

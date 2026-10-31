@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { DisplayProvider, useDisplay } from '@knowscroll/ui';
+import { DisplayProvider, TalkThemeProvider, useDisplay } from '@knowscroll/ui';
 import {
   defaultDevicePreferences,
   parseDevicePreferences,
@@ -68,4 +68,13 @@ export function PreferredDisplay({ children }: { readonly children: ReactNode })
       {children}
     </DisplayProvider>
   );
+}
+
+/**
+ * Gives every Talk screen below it the theme the person chose on this device: the dark sky, or Paper for long
+ * reading (D-151). The components read their colours from the theme, so none of them knows the setting.
+ */
+export function PreferredTalkTheme({ children }: { readonly children: ReactNode }) {
+  const { preferences } = useDevicePreferences();
+  return <TalkThemeProvider name={preferences.talkTheme}>{children}</TalkThemeProvider>;
 }
