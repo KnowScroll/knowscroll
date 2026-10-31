@@ -175,8 +175,10 @@ export interface CallStore {
   insert(lock: ThreadLock, accountId: string, call: CallKey, option: number, day: string): Promise<void>;
   /** Deletes every pick the account made in this thread; nothing is left to find. */
   removeOf(lock: ThreadLock, accountId: string): Promise<void>;
-  /** How many calls each option of one call has across every thread: counts only, no person and no thread. */
-  countsOf(lock: ThreadLock, call: CallKey, optionCount: number): Promise<readonly number[]>;
+  /** The days the thread's calls revealed, for the calls that have: a day, never a person or a pick (D-155). */
+  reveals(lock: ThreadLock): Promise<readonly (CallKey & { readonly day: string })[]>;
+  /** Records the day a call revealed for the thread, once: a call that already has a day keeps it. */
+  markRevealed(lock: ThreadLock, call: CallKey, day: string): Promise<void>;
 }
 
 export interface ThreadPorts extends SocialPorts {

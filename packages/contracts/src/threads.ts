@@ -565,7 +565,8 @@ const ThreadCallBase = {
  * - `open`: the caller has not locked and may. The question, the options and counts.
  * - `locked`: they locked. Their own option, and counts. The others' picks and the right answer stay hidden.
  * - `revealed`: they locked and the party has finished the part (or two days passed since the first lock). The
- *   right answer, why, everyone's picks the caller may see, and the common guess once there are 30 calls.
+ *   right answer, why, everyone's picks the caller may see, and the Scroll's reviewed common guess when the caller's own
+ *   pick was it.
  * - `closed`: they never locked and now may not: they started the part, or it was revealed without them. Counts only.
  */
 export const ThreadCallSchema = z.discriminatedUnion('stage', [
@@ -594,8 +595,11 @@ export const ThreadCallSchema = z.discriminatedUnion('stage', [
       .int()
       .min(0)
       .max(MAX_THREAD_FRIENDS + 1),
-    /** The most common pick across every thread, past 30 calls (D-157): an option and a whole percent, no one's pick. */
-    commonGuess: z.strictObject({ option: CallOption, percent: z.number().int().min(1).max(100) }).optional(),
+    /**
+     * The reviewed source the Scroll names for its common wrong guess, present only when the caller's own pick was that
+     * guess: the same note the Scroll reader shows (D-157). It is authored with the Scroll, never counted from picks.
+     */
+    guessSource: z.string().min(3).max(120).optional(),
   }),
   z.strictObject({ ...ThreadCallBase, stage: z.literal('closed'), reason: z.enum(['started', 'revealed']) }),
 ]);

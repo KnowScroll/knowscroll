@@ -363,18 +363,20 @@ describe('Call it together (v3 T-E, D-155 to D-157)', () => {
     );
   });
 
-  it('lists each person once in a reveal, and the common guess is an option and a percent only', () => {
+  it('lists each person once in a reveal, and the common guess is only the Scroll’s reviewed source', () => {
     expect(ThreadCallSchema.safeParse({ ...revealed, picks: [revealed.picks[0], revealed.picks[0]] }).success).toBe(
       false,
     );
-    expect(ThreadCallSchema.safeParse({ ...revealed, commonGuess: { option: 1, percent: 62 } }).success).toBe(true);
-    for (const commonGuess of [
-      { option: 1, percent: 62, calls: 41 },
-      { option: 1, percent: 62, people: [person] },
-      { option: 1, percent: 0 },
-      { option: 1, percent: 62.5 },
+    expect(ThreadCallSchema.safeParse({ ...revealed, guessSource: 'A Private Universe' }).success).toBe(true);
+    // Nothing counted from other threads can be said: no percent, no number of calls, no person.
+    for (const extra of [
+      { commonGuess: { option: 1, percent: 62 } },
+      { percent: 62 },
+      { calls: 41 },
+      { guessSource: 'A Private Universe', people: [person] },
     ])
-      expect(ThreadCallSchema.safeParse({ ...revealed, commonGuess }).success).toBe(false);
+      expect(ThreadCallSchema.safeParse({ ...revealed, ...extra }).success).toBe(false);
+    expect(ThreadCallSchema.safeParse({ ...revealed, guessSource: 62 }).success).toBe(false);
   });
 
   it('is read for a thread, with one call at most for each part', () => {

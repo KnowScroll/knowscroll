@@ -8,12 +8,12 @@ import {
 import type { z } from 'zod';
 import type { ScrollCallFacts } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { commonGuess, threadCallOf, viewCall, type CallView } from '../domain/calls.js';
-import { dayOf, type PlaceRow } from '../domain/places.js';
+import { revealedForThread, threadCallOf, viewCall, type CallView } from '../domain/calls.js';
+import { dayOf } from '../domain/places.js';
 import { refuse, threadEnvelope, type Result } from './ports.js';
 import { makeThreadCommandFrame, ok, takingPart } from './thread-command-frame.js';
 import { enterThread, threadRefOf, type EnteredThread } from './thread-gate.js';
-import type { CallKey, ThreadCallPorts, ThreadCallRow, ThreadMember, ThreadRow } from './thread-ports.js';
+import type { CallKey, ThreadCallPorts, ThreadMember, ThreadRow } from './thread-ports.js';
 
 /** The call a part of the thread's series offers: the part, the exact revision and its first Call it. */
 interface PartCall {
@@ -29,7 +29,7 @@ const keyOf = (target: PartCall): CallKey => ({
   stopId: target.call.stopId,
 });
 
-const sameCall = (row: ThreadCallRow, key: CallKey): boolean =>
+const sameCall = (row: CallKey, key: CallKey): boolean =>
   row.assetId === key.assetId && row.revision === key.revision && row.stopId === key.stopId;
 
 /**
@@ -42,7 +42,7 @@ const sameCall = (row: ThreadCallRow, key: CallKey): boolean =>
  * A pick is a play result (D-063). It is shown to the thread's members after the reveal and to the person in their
  * export, and no ranking, planning, evidence, formation or Composer path reads it. No model is called, and no
  * answer carries a time finer than a day. The right answer is read from the immutable revision when a reveal is
- * built and is never stored or sent before it.
+ * built and is never stored or sent before it. Nothing counts picks across threads (D-157).
  */
 export function makeThreadCalls(p: ThreadCallPorts) {
   const { inThreadWithoutReceipt } = makeThreadCommandFrame(p);
@@ -62,42 +62,73 @@ export function makeThreadCalls(p: ThreadCallPorts) {
     return found.toSorted((left, right) => left.part - right.part);
   }
 
-  /** The rows a reveal rule reads, all under the thread's lock: every lock, every place and the blocks the reader has. */
+  /**
+   * The rows a reveal rule reads, all under the thread's lock: every lock, every place, the days calls already
+   * revealed, and the blocks the reader has.
+   */
   async function partyOf(entered: EnteredThread) {
     const locks = await p.calls.list(entered.lock);
     const places = await p.places.list(entered.lock);
+    const reveals = await p.calls.reveals(entered.lock);
     const blocked = await p.places.blockedWith(
       entered.lock,
       entered.owner.accountId,
       entered.members.map((member) => member.accountId),
     );
-    return { locks, places, blocked };
+    return { locks, places, reveals, blocked };
+  }
+  type Party = Awaited<ReturnType<typeof partyOf>>;
+
+  /**
+   * The day a call revealed for the thread, or none. The first time the rule holds for the whole thread the day is
+   * recorded, so a call that has revealed stays revealed when the earliest locker leaves or clears (D-155). A read may
+   * write it, once, to a row of its own.
+   */
+  async function revealedOn(
+    entered: EnteredThread,
+    target: PartCall,
+    party: Party,
+    now: Date,
+  ): Promise<string | undefined> {
+    const key = keyOf(target);
+    const stored = party.reveals.find((row) => sameCall(row, key));
+    if (stored !== undefined) return stored.day;
+    const today = dayOf(now);
+    const revealed = revealedForThread({
+      part: target.part,
+      members: entered.members,
+      locks: party.locks.filter((row) => sameCall(row, key)),
+      places: party.places,
+      today,
+    });
+    if (!revealed) return undefined;
+    await p.calls.markRevealed(entered.lock, key, today);
+    return today;
   }
 
   /** What one reader may see of one call now, from the rows of the thread read under its lock. */
-  function viewOf(
+  async function viewOf(
     entered: EnteredThread,
     target: PartCall,
-    locks: readonly ThreadCallRow[],
-    places: readonly PlaceRow[],
-    blockedWithReader: ReadonlySet<string>,
+    party: Party,
     now: Date,
-  ): CallView<ThreadMember> {
+  ): Promise<CallView<ThreadMember>> {
     const key = keyOf(target);
     return viewCall({
       readerAccountId: entered.owner.accountId,
       part: target.part,
       answer: target.call.answer,
       members: entered.members,
-      locks: locks.filter((row) => sameCall(row, key)),
-      places,
-      blockedWithReader,
+      locks: party.locks.filter((row) => sameCall(row, key)),
+      places: party.places,
+      blockedWithReader: party.blocked,
       today: dayOf(now),
+      revealedOn: await revealedOn(entered, target, party, now),
       nameOf: (member) => member.person.displayName,
     });
   }
 
-  async function present(entered: EnteredThread, target: PartCall, view: CallView<ThreadMember>): Promise<ThreadCall> {
+  function present(entered: EnteredThread, target: PartCall, view: CallView<ThreadMember>): ThreadCall {
     const base = {
       part: target.part,
       assetId: target.assetId,
@@ -116,7 +147,8 @@ export function makeThreadCalls(p: ThreadCallPorts) {
         return { ...base, stage: 'closed', reason: view.reason };
       case 'revealed': {
         const right = view.option === target.call.answer;
-        const guess = commonGuess(await p.calls.countsOf(entered.lock, keyOf(target), target.call.optionCount));
+        // The Scroll's own authored, reviewed common guess, shown as the reader shows it: to a person who picked it (D-157).
+        const guess = target.call.commonGuess;
         return {
           ...base,
           stage: 'revealed',
@@ -132,7 +164,7 @@ export function makeThreadCalls(p: ThreadCallPorts) {
             right: pick.right,
           })),
           rightCount: view.rightCount,
-          ...(guess === undefined ? {} : { commonGuess: guess }),
+          ...(guess?.option === view.option ? { guessSource: guess.source } : {}),
         };
       }
     }
@@ -140,9 +172,10 @@ export function makeThreadCalls(p: ThreadCallPorts) {
 
   return {
     /**
-     * The calls of the thread's series as the caller may see them, read under the thread's lock. Reading writes
-     * nothing and creates no receipt, notice or evidence, and works while recording is paused. A single-item
-     * thread, a Reel and a Scroll without a call have none.
+     * The calls of the thread's series as the caller may see them, read under the thread's lock. A read writes no
+     * receipt, notice or evidence and works while recording is paused; the one thing it may write is the day a call
+     * first revealed for the thread, once, to a row that names no person (D-155). A single-item thread, a Reel and a
+     * Scroll without a call have none.
      */
     async calls(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadCallsSchema>>> {
       const parsed = ReadThreadCallsSchema.safeParse(input);
@@ -155,9 +188,9 @@ export function makeThreadCalls(p: ThreadCallPorts) {
         const targets = await callsOfSeries(scope, entered.thread);
         const calls: ThreadCall[] = [];
         if (targets.length > 0) {
-          const { locks, places, blocked } = await partyOf(entered);
+          const party = await partyOf(entered);
           for (const target of targets) {
-            calls.push(await present(entered, target, viewOf(entered, target, locks, places, blocked, p.now())));
+            calls.push(present(entered, target, await viewOf(entered, target, party, p.now())));
           }
         }
         return ok(ThreadCallsSchema.parse({ ...envelope, status: 'ready', thread: threadRefOf(entered), calls }));
@@ -210,8 +243,7 @@ export function makeThreadCalls(p: ThreadCallPorts) {
             (candidate) => candidate.part === command.part,
           );
           if (target === undefined || command.option >= target.call.optionCount) return refuse('invalid_input');
-          const { locks, places, blocked } = await partyOf(entered);
-          const view = viewOf(entered, target, locks, places, blocked, now);
+          const view = await viewOf(entered, target, await partyOf(entered), now);
           if (view.stage === 'locked' || view.stage === 'revealed')
             return ok({ write: () => Promise.resolve(accepted('stands')), announce: [] });
           if (view.stage === 'closed') return ok({ write: () => Promise.resolve(accepted('closed')), announce: [] });

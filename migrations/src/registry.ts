@@ -118,5 +118,5 @@ export const migrationRegistry: readonly { readonly name: string; readonly sha25
   { name: '0080_thread_places', sha256: '9673a61b34c1ee43b7527ef9acc37d0684b7731ee2b272a5cb236b6a58d6185b' },
   { name: '0081_composer_policy_v1', sha256: '57d51094f493712a129b69a9fb6cc5197ceb59ab52dc302f6ab179d278a63652' },
   { name: '0082_evidence_play_cells', sha256: '48b900dba3bb68800d2e0260a08135a84a516f132d0cfcb65ace098fedf12706' },
-  { name: '0083_thread_calls', sha256: '979aa8943102082bd0b6e026eaf05b4c9be129191ba749fd0126f78656d9b020' },
+  { name: '0083_thread_calls', sha256: '3fe88f302ff365108cae96c305bf06a631d398fbcafec2286e0f860396490e48' },
 ];

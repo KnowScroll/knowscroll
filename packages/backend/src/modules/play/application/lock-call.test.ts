@@ -46,6 +46,7 @@ const callFacts = (
   answer,
   explain: 'CI explanation.',
   twist: 'CI twist.',
+  commonGuess: undefined,
 });
 const calls: readonly ScrollCallFacts[] = [
   callFacts('call-one', 'call_it', 3, 1),

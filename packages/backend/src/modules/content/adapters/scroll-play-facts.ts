@@ -38,6 +38,10 @@ export const readScrollPlayFacts: ReadScrollPlayFacts = async (scope, assetId, r
     answer: call.answer,
     explain: call.explain,
     twist: call.twist,
+    commonGuess:
+      call.kind === 'call_it' && call.commonGuess?.source.reviewed === true
+        ? { option: call.commonGuess.option, source: call.commonGuess.source.label }
+        : undefined,
   }));
   return { calls, landmark: parsed.document.landmark };
 };

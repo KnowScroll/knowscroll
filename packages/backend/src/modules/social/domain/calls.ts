@@ -2,7 +2,7 @@ import { placeProgress, shownPlaces, type PlaceMember, type PlaceRow } from './p
 import { canTakePart } from './threads.js';
 
 /**
- * Rules of "Call it together" that need no database, clock or crypto (D-155 to D-157).
+ * Rules of "Call it together" that need no database, clock or crypto (D-155, D-157).
  *
  * A call is one question of one part of a thread's series. Each member locks one pick before they start the
  * part, and nobody sees another member's pick until they have locked their own and the party has finished the
@@ -12,9 +12,6 @@ import { canTakePart } from './threads.js';
 
 /** A call that no one has finished opens by itself on this UTC day after the first lock (D-155). */
 export const REVEAL_AFTER_DAYS = 2;
-
-/** The common guess is shown only once this many calls were locked across every thread (D-157). */
-export const COMMON_GUESS_MIN_CALLS = 30;
 
 /** One stored lock: who, which option, and the UTC day. Never a time of day. */
 export interface CallLockRow {
@@ -85,7 +82,55 @@ export interface CallInput<M extends PlaceMember> {
   readonly blockedWithReader: ReadonlySet<string>;
   /** The server's own UTC day. */
   readonly today: string;
+  /** The day this call first revealed for the thread, once a read or a lock has found it so: it stays revealed. */
+  readonly revealedOn: string | undefined;
   readonly nameOf: (member: M) => string;
+}
+
+/**
+ * The party's half of the reveal rule, for the people and places given: everyone who shares where they are has
+ * finished the part, or the second UTC day after the first lock has come, and someone has locked. A member who
+ * does not call is not waited for.
+ */
+function partyHasFinished(input: {
+  readonly part: number;
+  readonly sharing: readonly { readonly place: Pick<PlaceRow, 'part' | 'state'> }[];
+  readonly locks: readonly CallLockRow[];
+  readonly today: string;
+}): boolean {
+  const stillOnTheWay = input.sharing.some(({ place }) => placeProgress(place) < input.part * 2 + 1);
+  const firstDay = input.locks.map((lock) => lock.day).toSorted()[0];
+  const timedOut = firstDay !== undefined && input.today >= addDays(firstDay, REVEAL_AFTER_DAYS);
+  const partyDone = input.sharing.length > 0 && !stillOnTheWay;
+  return input.locks.length > 0 && (partyDone || timedOut);
+}
+
+/**
+ * Whether the call is revealed for the whole thread: the same rule with nobody masked, which is what is stored the
+ * first time it holds so that the earliest locker leaving, a Clear or a place that moves cannot hide it again.
+ * Nobody's block is read: the day it records names no person and no pick.
+ */
+export function revealedForThread<M extends PlaceMember>(input: {
+  readonly part: number;
+  readonly members: readonly M[];
+  readonly locks: readonly CallLockRow[];
+  readonly places: readonly PlaceRow[];
+  readonly today: string;
+}): boolean {
+  const takingPart = new Set(input.members.filter(canTakePart).map((member) => member.accountId));
+  const sharing = shownPlaces({
+    readerAccountId: '',
+    members: input.members,
+    rows: input.places,
+    blockedWithReader: new Set(),
+    nameOf: () => '',
+  });
+  return partyHasFinished({
+    part: input.part,
+    sharing,
+    locks: input.locks.filter((lock) => takingPart.has(lock.accountId)),
+    today: input.today,
+  });
 }
 
 /**
@@ -94,7 +139,8 @@ export interface CallInput<M extends PlaceMember> {
  * has locked. It never waits for a pick: a member who does not call cannot hold the others back, and one who
  * shares a place but never finishes holds them for two days at most. A member who hides, left, was removed
  * or is blocked either way with the reader is not waited for. Locking closes once the party has revealed or
- * the reader's own place says they started the part, so a pick is always a guess made before the part.
+ * the reader's own place says they started the part, so a pick is always a guess made before the part. A call
+ * that has revealed for the thread stays revealed (`revealedOn`), whoever leaves or clears afterwards.
  */
 export function viewCall<M extends PlaceMember>(input: CallInput<M>): CallView<M> {
   const { readerAccountId, part } = input;
@@ -114,12 +160,7 @@ export function viewCall<M extends PlaceMember>(input: CallInput<M>): CallView<M
     blockedWithReader: input.blockedWithReader,
     nameOf: input.nameOf,
   });
-  const finishedPart = part * 2 + 1;
-  const stillOnTheWay = sharing.some(({ place }) => placeProgress(place) < finishedPart);
-  const firstDay = locks.map((lock) => lock.day).toSorted()[0];
-  const timedOut = firstDay !== undefined && input.today >= addDays(firstDay, REVEAL_AFTER_DAYS);
-  const partyDone = sharing.length > 0 && !stillOnTheWay;
-  const revealed = locks.length > 0 && (partyDone || timedOut);
+  const revealed = input.revealedOn !== undefined || partyHasFinished({ part, sharing, locks, today: input.today });
 
   if (own === undefined) {
     if (revealed) return { stage: 'closed', reason: 'revealed', ...counted };
@@ -152,20 +193,4 @@ export function viewCall<M extends PlaceMember>(input: CallInput<M>): CallView<M
     rightCount: picks.filter((pick) => pick.right).length,
     ...counted,
   };
-}
-
-/**
- * The most common pick across every thread, when there are enough calls to say so without pointing at anyone
- * (D-157): the leading option and its share of all calls, in whole percent. Nothing below the threshold, and
- * nothing when two options lead together. It carries no count of people and no one's pick.
- */
-export function commonGuess(
-  countsByOption: readonly number[],
-): { readonly option: number; readonly percent: number } | undefined {
-  const total = countsByOption.reduce((sum, count) => sum + count, 0);
-  if (total < COMMON_GUESS_MIN_CALLS) return undefined;
-  const lead = Math.max(...countsByOption);
-  const leaders = countsByOption.flatMap((count, option) => (count === lead ? [option] : []));
-  if (leaders.length !== 1) return undefined;
-  return { option: leaders[0]!, percent: Math.round((100 * lead) / total) };
 }

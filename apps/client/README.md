@@ -615,7 +615,7 @@ direct conversations and threads together; a thread row shows its people, the la
   and Lock it in; keys 1 to 3 choose and Enter locks), the same card locked (the person's own call, and what it waits for) and
   revealed (a green "CALLED IT!" band with the spark, or an orange "PLOT TWIST!" band with the warm second look and no spark;
   each option with the initials of who called it, a tick on the right answer, "PLOT TWIST" on the person's own miss, why, and
-  the common guess once the server sends it), `CallBar` (a yellow pill above the composer for the first call the person can make,
+  the Scroll's reviewed "The common guess. Source: …" note when the server sends it, never a figure), `CallBar` (a yellow pill above the composer for the first call the person can make,
   then the first they wait on, then a reveal not yet opened here) and `CallChip` (on a part's row in the Series sheet and panel).
   `use-thread-calls.ts` reads the calls (first read, hints, focus, a 20 s poll) only for a series thread and keeps which reveals
   were opened in the account scope's storage on this device; nothing about that is sent. A pick is sent only while recording is

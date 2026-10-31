@@ -267,8 +267,10 @@ No model is called. _Implemented; not runtime-verified._
   `READ_CONTENT_SEQUENCE` and `READ_SCROLL_PLAY_FACTS`. A Reel, a Scroll without a call and a single-item thread have none.
 - **Read** (`threads/calls/read`, `calls`). Under the thread's lock (FOR SHARE): one call per part that has one, in
   the stage this reader may see (`open`, `locked`, `revealed`, `closed`). The stage decides what the answer can carry:
-  counts only before the reader locks, their own pick after, and everyone's picks, the right answer, why, and the common
-  guess only at the reveal. A stranger, a leaver and a stale reference get `unavailable`. It works while recording is paused.
+  counts only before the reader locks, their own pick after, and everyone's picks, the right answer, why, and, for a member
+  whose pick was the Scroll's authored common guess, its reviewed source (D-157), only at the reveal. A stranger, a leaver and
+  a stale reference get `unavailable`. It works while recording is paused. The one thing a read may write is the day a call
+  first revealed for the thread, once, in `thread_call_reveals` (a row with no person and no pick).
 - **Lock** (`threads/calls/lock`, `lockCall`). Authority: the caller's personal scope, the thread's lock, and
   `FENCE_PERSONAL_RECORDING` with the generation the client sends (paused or stale: nothing is stored and the answer says
   why, D-083). The part must have a call and the option must be one of its options (`invalid_input` otherwise). The first
@@ -278,16 +280,18 @@ No model is called. _Implemented; not runtime-verified._
   disposable hint carrying nothing).
 - **The rules** are pure, in `domain/calls.ts` (`viewCall`): the reveal opens when every member the reader can see who
   shares a place has finished the part, or on the second UTC day after the first lock (`REVEAL_AFTER_DAYS`), and never
-  waits for a pick (D-155). `commonGuess` gives an option and a whole percent once a call has 30 locks across all threads
-  and one option leads (D-157).
+  waits for a pick (D-155). `revealedForThread` is the same rule with nobody masked: the first time it holds, the day is
+  recorded, and from then on the call stays revealed whoever leaves, clears or joins. Nothing counts picks across threads (D-157).
 - **Stored** as one `thread_calls` row per member and call: the option and a UTC `date`. Never whether it was right
-  (worked out from the immutable revision when a reveal is built), never a time of day.
+  (worked out from the immutable revision when a reveal is built), never a time of day. `thread_call_reveals` holds, per
+  thread and call, the date it revealed (no foreign key to the thread, so it names no personal root and needs no erasure).
 - **Removed** on leave (`thread-commands.ts`), when the friendship that carried a member in ends (`forgetPartyBetween`),
   when an inviter leaves and their invitees' standing had ended (`releaseInvitees`), on Clear and on account deletion
   (before the membership rows). A block hides a member's pick, count and progress from the blocker and the blocked and does not
   hold either reveal; it deletes nothing.
 - **The wall.** `thread-pick-wall-only-listed-modules-import-social` (an allow-list of who may import this module),
-  `wall.test.ts` (no file outside this module names `social.thread_calls`), and the integration check that a lock, a
+  `wall.test.ts` (no file outside this module names `social.thread_calls`, and no migration but this module's own or
+  operations script names it in SQL), and the integration check that a lock, a
   reveal, a read, a leave and an export change no table outside Social.
 - **Export.** The person's own picks in words (thread name, the question, the option picked, the day), never whether they
   were right and never another member's pick.
@@ -350,6 +354,7 @@ and the installed API (`tests/integration/release/visits-http.test.ts`). Not run
 | content_threads                                                                   | kept                                                         | the starter link is cleared; the thread stays for the others                                                                                                                                                                            |
 | thread_places | **deleted** (a place is drawn from the person's own exploring) | deleted with the account, before the membership rows |
 | thread_calls | **deleted** (a pick is a play result, D-082) | deleted with the account, before the membership rows |
+| thread_call_reveals | kept (names no person, holds no pick: the date a call revealed for the thread) | kept with the thread |
 | message_snippets                                                                  | kept                                                         | deleted with the author's tombstoned message                                                                                                                                                                                            |
 | visibility_settings (audience, availability, SEEN), visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too. The export names the SEEN switch in words (`seenInDirectConversations`) and never the other person's                                                             |
 | visit_publications, visit_systems, visit_planets                                  | deleted (friends who visit then see an empty universe)       | deleted with the universe                                                                                                                                                                                                               |

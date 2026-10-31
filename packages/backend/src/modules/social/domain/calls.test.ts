@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays,
-  COMMON_GUESS_MIN_CALLS,
-  commonGuess,
   REVEAL_AFTER_DAYS,
+  revealedForThread,
   threadCallOf,
   viewCall,
   type CallInput,
@@ -42,6 +41,7 @@ const base = (patch: Partial<CallInput<Member>> = {}): CallInput<Member> => ({
   places: [],
   blockedWithReader: new Set(),
   today: '2026-10-30',
+  revealedOn: undefined,
   nameOf: (candidate) => candidate.name,
   ...patch,
 });
@@ -221,22 +221,73 @@ describe('what a reader sees of a call', () => {
   });
 });
 
-describe('the common guess', () => {
-  it('is nothing below the threshold, whatever the split', () => {
-    expect(commonGuess([COMMON_GUESS_MIN_CALLS - 1, 0, 0])).toBeUndefined();
-    expect(commonGuess([0, 0])).toBeUndefined();
+describe('a reveal that has happened stays', () => {
+  /** Asha and Ravi called on the 30th; nobody shares a place, so the clock opens it on the 1st. */
+  const timed = (patch: Partial<CallInput<Member>> = {}) =>
+    base({ locks: [lock('asha', 0, '2026-10-31'), lock('ravi', 1, '2026-10-30')], today: '2026-11-01', ...patch });
+
+  it('is revealed by the clock only while the earliest lock stands', () => {
+    expect(viewCall(timed()).stage).toBe('revealed');
+    // The earliest locker leaves or clears: the clock now counts from Asha's lock, and it has not run out.
+    expect(viewCall(timed({ locks: [lock('asha', 0, '2026-10-31')] })).stage).toBe('locked');
   });
 
-  it('is the leading option and its whole-percent share once there are enough calls', () => {
-    expect(commonGuess([COMMON_GUESS_MIN_CALLS, 0])).toEqual({ option: 0, percent: 100 });
-    expect(commonGuess([5, 20, 5])).toEqual({ option: 1, percent: 67 });
+  it('stays revealed once the day it revealed is on record, whoever leaves or clears afterwards', () => {
+    const left = timed({ locks: [lock('asha', 0, '2026-10-31')], revealedOn: '2026-11-01' });
+    expect(viewCall(left)).toMatchObject({ stage: 'revealed', option: 0, called: 1 });
   });
 
-  it('is nothing when two options lead together', () => {
-    expect(commonGuess([15, 15, 0])).toBeUndefined();
+  it('stays revealed when someone who shares a place and has not finished the part joins later', () => {
+    const finished = [place('asha', 2, 'finished'), place('ravi', 2, 'finished')];
+    const joined = [...base().members, member('newcomer')];
+    const places = [...finished, place('newcomer', 1, 'on')];
+    const input = base({ locks: [lock('asha', 0)], members: joined, places });
+    expect(viewCall(input).stage).toBe('locked');
+    expect(viewCall({ ...input, revealedOn: '2026-10-30' }).stage).toBe('revealed');
   });
 
-  it('carries only an option and a percent: no count, no person', () => {
-    expect(Object.keys(commonGuess([5, 20, 5])!).sort()).toEqual(['option', 'percent']);
+  it('closes the call for someone who never locked, for good', () => {
+    const closed = viewCall(base({ locks: [lock('ravi', 0)], revealedOn: '2026-10-30' }));
+    expect(closed).toMatchObject({ stage: 'closed', reason: 'revealed' });
+    expect(JSON.stringify(closed)).not.toContain('ravi');
+  });
+});
+
+describe('when the whole thread has revealed', () => {
+  const thread = (patch: Partial<Parameters<typeof revealedForThread<Member>>[0]> = {}) => ({
+    part: 2,
+    members: base().members,
+    locks: [lock('asha', 0)],
+    places: [place('asha', 2, 'finished'), place('ravi', 2, 'finished')],
+    today: '2026-10-30',
+    ...patch,
+  });
+
+  it('is the same rule with nobody masked: it waits for every member who takes part and shares', () => {
+    expect(revealedForThread(thread())).toBe(true);
+    expect(revealedForThread(thread({ places: [place('asha', 2, 'finished'), place('ravi', 1, 'on')] }))).toBe(false);
+  });
+
+  it('reads no block: a member only the blocker cannot see still holds the thread', () => {
+    const places = [place('asha', 2, 'finished'), place('ravi', 1, 'on')];
+    expect(revealedForThread(thread({ places }))).toBe(false);
+    // The blocker's own view does not wait for Ravi, but that is not what is recorded for the thread.
+    expect(viewCall(base({ locks: [lock('asha', 0)], places, blockedWithReader: new Set(['ravi']) })).stage).toBe(
+      'revealed',
+    );
+  });
+
+  it('does not count a member who hides, left, or never reports, and opens by the clock when nobody shares', () => {
+    const left = [member('asha'), member('ravi', { left: true })];
+    expect(
+      revealedForThread(thread({ members: left, places: [place('asha', 2, 'finished'), place('ravi', 1, 'on')] })),
+    ).toBe(true);
+    expect(revealedForThread(thread({ places: [] }))).toBe(false);
+    expect(revealedForThread(thread({ places: [], today: addDays('2026-10-30', REVEAL_AFTER_DAYS) }))).toBe(true);
+  });
+
+  it('has nothing to record until someone has locked, and counts only locks of members who take part', () => {
+    expect(revealedForThread(thread({ locks: [] }))).toBe(false);
+    expect(revealedForThread(thread({ locks: [lock('gone', 0)] }))).toBe(false);
   });
 });

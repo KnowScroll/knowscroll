@@ -171,14 +171,16 @@ describe('the reveal (T3 frame 5)', () => {
     expect(screen.getByTestId('call-card')).not.toHaveTextContent(/-1|lost|wrong|incorrect|miss/i);
   });
 
-  it('shows the common guess only when the server sent it, as an option and a percent', async () => {
+  it('shows the Scroll’s reviewed common guess only when the server sent its source, worded as the reader words it', async () => {
     const without = card(revealed());
     await render(without.element);
     expect(screen.queryByTestId('call-common-guess')).toBeNull();
     await screen.unmount();
-    const withGuess = card(revealed({ commonGuess: { option: 1, percent: 62 } }));
+    const withGuess = card(revealed({ guessSource: 'A Private Universe' }));
     await render(withGuess.element);
-    expect(screen.getByTestId('call-common-guess')).toHaveTextContent('Across threads, most called “Half moon” (62%).');
+    expect(screen.getByTestId('call-common-guess')).toHaveTextContent('The common guess. Source: A Private Universe.');
+    // Nothing built from other threads' picks: no percent, no count.
+    expect(screen.getByTestId('call-card')).not.toHaveTextContent(/%|across threads|most called/i);
   });
 });
 

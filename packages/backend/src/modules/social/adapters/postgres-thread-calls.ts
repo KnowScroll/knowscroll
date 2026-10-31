@@ -54,17 +54,20 @@ export const callStore: CallStore = {
       .execute();
   },
 
-  async countsOf(lock, call, optionCount) {
+  async reveals(lock) {
     const rows = await sharedTransactionOf(lock.shared)
-      .selectFrom('social.thread_calls')
-      .select(['option', (eb) => eb.fn.countAll<string>().as('n')])
-      .where('asset_id', '=', call.assetId)
-      .where('revision', '=', call.revision)
-      .where('stop_id', '=', call.stopId)
-      .groupBy('option')
+      .selectFrom('social.thread_call_reveals')
+      .select(['asset_id', 'revision', 'stop_id', sql<string>`to_char(day, 'YYYY-MM-DD')`.as('day')])
+      .where('thread_id', '=', lock.threadId)
       .execute();
-    return Array.from({ length: optionCount }, (_unused, option) =>
-      Number(rows.find((row) => row.option === option)?.n ?? 0),
-    );
+    return rows.map((row) => ({ assetId: row.asset_id, revision: row.revision, stopId: row.stop_id, day: row.day }));
+  },
+
+  async markRevealed(lock, call, day) {
+    await sharedTransactionOf(lock.shared)
+      .insertInto('social.thread_call_reveals')
+      .values({ thread_id: lock.threadId, asset_id: call.assetId, revision: call.revision, stop_id: call.stopId, day })
+      .onConflict((conflict) => conflict.doNothing())
+      .execute();
   },
 };

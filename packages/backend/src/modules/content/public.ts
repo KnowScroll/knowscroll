@@ -108,6 +108,12 @@ export interface ScrollCallFacts {
   readonly explain: string;
   /** The warm second look shown after a wrong pick. */
   readonly twist: string;
+  /**
+   * The option that is the common wrong guess and the label of the source that says so, only when the source was
+   * reviewed by a person: an unreviewed label is never given (admission requires it, so this is the same rule the
+   * reader applies). Authored with the recipe, never counted from what people picked (D-157).
+   */
+  readonly commonGuess: { readonly option: number; readonly source: string } | undefined;
 }
 
 /** What a Scroll revision awards when its Final call is locked: the stable key and the name the reader sees (D-188). */

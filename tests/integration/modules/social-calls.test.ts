@@ -16,7 +16,7 @@ import { clearExplorationFor, deleteAccountFor } from '@knowscroll/backend/modul
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { befriend, friendCommand, seedFriend, talkCases, type Friend } from '../support/talk.js';
-import { TIDES_CALL, seedCallScroll } from '../support/thread-calls.js';
+import { GUESS_SOURCE, TIDES_CALL, seedCallScroll, type CallFixture } from '../support/thread-calls.js';
 import { activateFor, declareSeries, seedReel } from '../support/thread-fixtures.js';
 
 const version = 'content-thread.v1' as const;
@@ -52,7 +52,7 @@ describe('Call it together (real PostgreSQL)', () => {
    * Asha started a thread on a series of three: two Scrolls that each have an authored call (the right answer is
    * option 0) and a Reel, which has none. Ravi and Kenji both joined.
    */
-  async function party() {
+  async function party(options: { readonly part2?: CallFixture } = {}) {
     const [a, b, c] = [
       await seedFriend(database.db, cases.friends),
       await seedFriend(database.db, cases.friends),
@@ -60,7 +60,7 @@ describe('Call it together (real PostgreSQL)', () => {
     ] as [Friend, Friend, Friend];
     await befriend(cases.friends, a, b);
     await befriend(cases.friends, a, c);
-    const scrolls = [await seedCallScroll(database.db), await seedCallScroll(database.db)];
+    const scrolls = [await seedCallScroll(database.db), await seedCallScroll(database.db, options.part2)];
     const reel = await seedReel(database.db);
     await declareSeries(database.db, `ci-series-${randomUUID()}`, [...scrolls, reel]);
     const root = { assetId: scrolls[0]!.assetId, assetRevision: 1 };
@@ -654,8 +654,9 @@ describe('Call it together (real PostgreSQL)', () => {
 
   describe('the play wall (D-063)', () => {
     /**
-     * A fingerprint of every table outside Social, the receipts (a leave keeps its own) and the queues: what a pick
-     * must never change. The other test shows a lock keeps no receipt.
+     * A fingerprint of every table except Social's own, the receipts (a leave writes its own receipt) and pg-boss's
+     * queue tables, which are left out of it: what a pick must never change anywhere else. The test of receipts shows
+     * that a lock writes none.
      */
     async function elsewhere(): Promise<Record<string, string>> {
       const tables = await sql<{ schema: string; name: string }>`
@@ -726,8 +727,8 @@ describe('Call it together (real PostgreSQL)', () => {
   });
 
   describe('the common guess (D-157)', () => {
-    /** Adds `counts[option]` locks of each option on the first call of a Scroll, each in a thread of its own. */
-    async function pile(scroll: { assetId: string }, counts: readonly number[]) {
+    /** One account locks `option` on the first call of a Scroll in each of `count` threads of its own. */
+    async function lockInManyThreads(scroll: { assetId: string }, option: number, count: number) {
       const person = await seedFriend(database.db, cases.friends);
       const friend = await seedFriend(database.db, cases.friends);
       await befriend(cases.friends, person, friend);
@@ -739,56 +740,171 @@ describe('Call it together (real PostgreSQL)', () => {
       const stopId = (row.document as { stops: { id: string; kind: string }[] }).stops.find(
         (stop) => stop.kind === 'call_it',
       )!.id;
-      for (const [option, count] of counts.entries())
-        for (let index = 0; index < count; index++) {
-          const started = unwrap(
-            await threads().create(person.authority, {
-              version,
-              commandId: randomUUID(),
-              root: { assetId: scroll.assetId, assetRevision: 1 },
-              friendPersonIds: [friend.person.personId],
-            }),
-          );
-          await database.db
-            .insertInto('social.thread_calls')
-            .values({
-              thread_id: started.thread.threadId,
-              account_id: person.accountId,
-              asset_id: scroll.assetId,
-              revision: 1,
-              stop_id: stopId,
-              option,
-              day: '2026-10-24',
-            })
-            .execute();
-        }
+      for (let index = 0; index < count; index++) {
+        const started = unwrap(
+          await threads().create(person.authority, {
+            version,
+            commandId: randomUUID(),
+            root: { assetId: scroll.assetId, assetRevision: 1 },
+            friendPersonIds: [friend.person.personId],
+          }),
+        );
+        await database.db
+          .insertInto('social.thread_calls')
+          .values({
+            thread_id: started.thread.threadId,
+            account_id: person.accountId,
+            asset_id: scroll.assetId,
+            revision: 1,
+            stop_id: stopId,
+            option,
+            day: '2026-10-24',
+          })
+          .execute();
+      }
+    }
+    /** Ravi and Asha call, everyone finishes Part 2 and the call reveals. */
+    async function revealedParty(options: { readonly part2?: CallFixture } = {}, picks = { asha: 1, ravi: 0 }) {
+      const world = await party(options);
+      unwrap(await lock(world.a, world.refs.a, 2, picks.asha));
+      unwrap(await lock(world.b, world.refs.b, 2, picks.ravi));
+      for (const [who, ref] of [
+        [world.a, world.refs.a],
+        [world.b, world.refs.b],
+        [world.c, world.refs.c],
+      ] as const)
+        unwrap(await place(who, ref, 2, 'finished'));
+      return world;
+    }
+    const revealedCall = async (actor: Friend, ref: ContentThreadRef) => {
+      const shown = await call(actor, ref, 2);
+      if (shown.stage !== 'revealed') throw new Error('expected a reveal');
+      return shown;
+    };
+
+    it('shows the Scroll’s own reviewed source to a member whose pick was the authored common guess, and to no one else', async () => {
+      const { a, b, refs } = await revealedParty();
+      // The authored guess is option 1: Asha picked it, Ravi picked the right answer.
+      expect(await revealedCall(a, refs.a)).toMatchObject({ guessSource: GUESS_SOURCE });
+      expect((await revealedCall(b, refs.b)).guessSource).toBeUndefined();
+    });
+
+    it('shows nothing when the authored source has not been reviewed', async () => {
+      const { a, refs } = await revealedParty({ part2: { ...TIDES_CALL, guess: { option: 1, reviewed: false } } });
+      const shown = await revealedCall(a, refs.a);
+      expect(shown.guessSource).toBeUndefined();
+      expect(JSON.stringify(shown)).not.toContain(GUESS_SOURCE);
+    });
+
+    it('never shows a figure built from other threads’ picks: one account locking in thirty threads changes nothing', async () => {
+      const { a, scrolls, refs } = await revealedParty({}, { asha: 2, ravi: 0 });
+      const before = JSON.stringify(await revealedCall(a, refs.a));
+      await lockInManyThreads(scrolls[1]!, 2, 30);
+      const after = JSON.stringify(await revealedCall(a, refs.a));
+      expect(after).toBe(before);
+      expect(after).not.toMatch(/percent|commonGuess|across threads|most called/i);
+      // The same holds before the reveal: a locked call shows counts of this thread only.
+      const { b: ravi, refs: other } = await party();
+      unwrap(await lock(ravi, other.b, 2, 0));
+      await lockInManyThreads(scrolls[1]!, 0, 30);
+      expect(await call(ravi, other.b, 2)).toMatchObject({ stage: 'locked', called: 1, of: 3 });
+    });
+  });
+
+  describe('a reveal that has happened stays (D-155)', () => {
+    const day = (value: string) => new Date(`${value}T08:00:00Z`);
+    const reveals = (thread: ContentThreadRef) =>
+      database.db
+        .selectFrom('social.thread_call_reveals')
+        .selectAll()
+        .where('thread_id', '=', thread.threadId)
+        .execute();
+
+    /** Ravi locked on the 24th and Asha on the 25th; nobody shares a place, so the clock opens it on the 26th. */
+    async function lockedOnTwoDays() {
+      const world = await party();
+      try {
+        cases.clock.now = day('2026-10-24');
+        unwrap(await lock(world.b, world.refs.b, 2, 1));
+        cases.clock.now = day('2026-10-25');
+        unwrap(await lock(world.a, world.refs.a, 2, 0));
+        expect(await call(world.a, world.refs.a, 2)).toMatchObject({ stage: 'locked' });
+        expect(await reveals(world.refs.a)).toEqual([]);
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+      return world;
     }
 
-    it('is shown only past 30 calls, as an option and a percent, and never a person', async () => {
-      const { a, b, scrolls, refs } = await party();
-      unwrap(await lock(a, refs.a, 1, 0));
-      unwrap(await lock(b, refs.b, 1, 1));
+    it('keeps the call revealed when the earliest locker leaves, which would otherwise move the clock back', async () => {
+      const { a, b, refs } = await lockedOnTwoDays();
+      try {
+        cases.clock.now = day('2026-10-26');
+        expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed', called: 2 });
+        // The day it revealed is on record, and names no person and no pick.
+        const [row] = await reveals(refs.a);
+        expect(row).toMatchObject({ thread_id: refs.a.threadId });
+        expect(Object.keys(row!).sort()).toEqual(['asset_id', 'day', 'revision', 'stop_id', 'thread_id']);
+        await leave(b, refs.b);
+        const after = await call(a, refs.a, 2);
+        expect(after).toMatchObject({ stage: 'revealed', called: 1 });
+        if (after.stage !== 'revealed') throw new Error('expected a reveal');
+        expect(after.picks.map((pick) => pick.person.personId)).toEqual([a.person.personId]);
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+    });
+
+    it('keeps it revealed when the earliest locker clears, and closed for a member who never locked', async () => {
+      const { a, b, c, refs } = await lockedOnTwoDays();
+      try {
+        cases.clock.now = day('2026-10-26');
+        expect(await call(c, refs.c, 2)).toMatchObject({ stage: 'closed', reason: 'revealed' });
+        await clearExploration(b);
+        expect(await rowsOf(b)).toEqual([]);
+        expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed', called: 1 });
+        expect(await call(c, refs.c, 2)).toMatchObject({ stage: 'closed', reason: 'revealed' });
+        expect(unwrap(await lock(c, refs.c, 2, 0))).toMatchObject({ result: 'closed' });
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+    });
+
+    it('writes the day once, the first time anyone finds the call revealed, and never moves it', async () => {
+      const { a, b, refs } = await lockedOnTwoDays();
+      try {
+        // Reading a call that has not revealed writes nothing.
+        expect(await reveals(refs.a)).toEqual([]);
+        cases.clock.now = day('2026-10-26');
+        await call(b, refs.b, 2);
+        cases.clock.now = day('2026-10-29');
+        await call(a, refs.a, 2);
+        const rows = await sql<{
+          day: string;
+        }>`select to_char(day, 'YYYY-MM-DD') as day from social.thread_call_reveals where thread_id = ${refs.a.threadId}::uuid`.execute(
+          database.db,
+        );
+        expect(rows.rows).toEqual([{ day: '2026-10-26' }]);
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+    });
+
+    it('does not let a member who shows a lower place again take the reveal back', async () => {
+      const { a, b, c, refs } = await party();
+      unwrap(await lock(a, refs.a, 2, 0));
       for (const [who, ref] of [
         [a, refs.a],
         [b, refs.b],
+        [c, refs.c],
       ] as const)
-        unwrap(await place(who, ref, 1, 'finished'));
-      const reveal = async () => {
-        const shown = await call(a, refs.a, 1);
-        if (shown.stage !== 'revealed') throw new Error('expected a reveal');
-        return shown;
-      };
-      // Two calls, then a pile that brings the total to 29: nothing yet.
-      await pile(scrolls[0]!, [20, 7]);
-      expect((await reveal()).commonGuess).toBeUndefined();
-      // One more makes 30 calls in all, and the common guess appears.
-      await pile(scrolls[0]!, [1]);
-      const shown = await reveal();
-      expect(shown.commonGuess).toEqual({ option: 0, percent: 73 });
-      expect(Object.keys(shown.commonGuess!).sort()).toEqual(['option', 'percent']);
-      // Only the leading option: a tie shows nothing.
-      await pile(scrolls[0]!, [0, 14]);
-      expect((await reveal()).commonGuess).toBeUndefined();
+        unwrap(await place(who, ref, 2, 'finished'));
+      expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed' });
+      // A place only moves forward, but one who hid and shows again from a device that remembers less starts lower.
+      await hideNow(c, refs.c, true);
+      await hideNow(c, refs.c, false);
+      unwrap(await place(c, refs.c, 1, 'on'));
+      expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed' });
     });
   });
 });

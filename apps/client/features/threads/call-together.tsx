@@ -148,7 +148,6 @@ function RevealedOption({ call, option }: { readonly call: Revealed; readonly op
 }
 
 function RevealedBody({ call }: { readonly call: Revealed }) {
-  const common = call.commonGuess;
   return (
     <>
       <View role="list" accessibilityLabel="Options and who called each" style={styles.options}>
@@ -164,9 +163,10 @@ function RevealedBody({ call }: { readonly call: Revealed }) {
           {call.twist}
         </Text>
       )}
-      {common === undefined ? null : (
+      {call.guessSource === undefined ? null : (
+        // The Scroll's own note, worded as the reader words it: authored and reviewed, never counted from anyone's pick.
         <Text variant="metaS" color={content.ink2} testID="call-common-guess">
-          {`Across threads, most called “${call.options[common.option] ?? ''}” (${String(common.percent)}%).`}
+          {`The common guess. Source: ${call.guessSource}.`}
         </Text>
       )}
     </>
