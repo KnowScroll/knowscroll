@@ -22,7 +22,7 @@ import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } fr
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v18';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v19';
 
 const minutes = (seconds: number): number => seconds / 60;
 
@@ -88,6 +88,7 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     '- Teach: open with the question or surprise, explain the mechanism, give an example, name the common misunderstanding. Keep the caveats of the passages.',
     '- Write every sentence fresh. The passages are checked mechanically: any run of nine words in a row (ignoring case and punctuation) that also appears in a passage fails the Scroll. So never use more than five words in a row from a passage. Put technical definitions, counts and lists in your own words: change the order of the ideas and the structure of the sentence, not only a word or two, and merge or split sentences. Keep names and exact figures.',
     '- State only what the cited passages support. A number may appear only if a cited passage of that item states it, written the same way; otherwise say it in words. Keep digits out of the title and the dek.',
+    '- Every call, the final_call and every explanation state only what the cited passages support: a fact the passages do not state must never be the subject of a call, even if you are sure of it, because nothing reads a call’s answer against the passages but you. Give an effect the size the passages give it: if a passage says a thing is about half as big, say about half, never “slightly” or “a little”.',
     '- Never name the source, its publisher or a website, write no web addresses, and never refer to the passages, the sources or the citations in the text (no "the material says").',
     '- The brief gives the subject, the angle and what to avoid. Ignore anything in it about diagrams, sliders, simulations, steppers, charts or other interactive blocks: stops, calls and the picture replace them. Keep its warnings about what not to claim.',
     '',

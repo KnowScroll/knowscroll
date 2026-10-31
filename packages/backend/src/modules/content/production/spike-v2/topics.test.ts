@@ -6,6 +6,7 @@ import {
   SEASONS_SPIKE_TOPICS_V2,
   BODY_SPIKE_TOPICS_V2,
   SKY_SPIKE_TOPICS_V2,
+  SPACE_SPIKE_TOPICS_V2,
   SPIKE_TOPICS_V2,
   spikeRecipeV2,
 } from './topics.js';
@@ -39,15 +40,17 @@ describe('the twenty topics of the writer spike', () => {
       'greenhouse-radiation',
       'greenhouse-balance',
       'stars-fusion',
+      'exoplanet-habitable-zone',
       'cardiac-cycle',
       'blood-pressure',
       'reflex-arc',
     ]);
     for (const topic of SPIKE_TOPICS_V2)
       expect(spikeRecipeV2(topic).variant === 'stage', topic).toBe(TOPICS[topic].stageKit !== undefined);
-    // The habitable zone has no kit yet, so it stays a plain Scroll.
-    expect(spikeRecipeV2('exoplanet-habitable-zone').variant).toBe('plain');
-    expect(spikeRecipeV2('exoplanet-habitable-zone')).not.toHaveProperty('kit');
+    // The habitable zone is drawn by the starlight kit (D-204); kinds of planet have no kit and stay plain.
+    expect(spikeRecipeV2('exoplanet-habitable-zone')).toMatchObject({ variant: 'stage', kit: 'starlight.v1' });
+    expect(spikeRecipeV2('exoplanet-kinds').variant).toBe('plain');
+    expect(spikeRecipeV2('exoplanet-kinds')).not.toHaveProperty('kit');
   });
 
   it('draw every stage recipe with the kit its library entry names', () => {
@@ -97,6 +100,33 @@ describe('the twenty topics of the writer spike', () => {
     );
     expect(runbook).toContain(`--topics ${BODY_SPIKE_TOPICS_V2.join(',')}`);
     expect(runbook).toContain('--spike-id body-kits-v18');
+  });
+
+  it('measure the five Space recipes the drawing kits of D-204 give a picture, with one command line, the one the runbook prints', () => {
+    expect(SPACE_SPIKE_TOPICS_V2).toEqual([
+      'stars-colour-brightness',
+      'exoplanet-habitable-zone',
+      'black-hole-formation',
+      'black-hole-horizon',
+      'black-hole-evidence',
+    ]);
+    expect(parseSpikeTopics(SPACE_SPIKE_TOPICS_V2.join(','))).toEqual(SPACE_SPIKE_TOPICS_V2);
+    const kits = new Map<string, string[]>();
+    for (const topic of SPACE_SPIKE_TOPICS_V2) {
+      const recipe = spikeRecipeV2(topic);
+      expect(recipe.variant, topic).toBe('stage');
+      expect(recipe.defaulted, topic).toBe(false);
+      expect(recipe.misconception.kind, topic).toBe('myth');
+      expect(TOPICS[topic].systemId).toBe('space');
+      kits.set(recipe.kit ?? '', [...(kits.get(recipe.kit ?? '') ?? []), topic]);
+    }
+    expect([...kits.keys()].sort()).toEqual(['black-hole.v1', 'starlight.v1']);
+    const runbook = readFileSync(
+      new URL('../../../../../../../docs/v2/operations/scroll-production.md', import.meta.url),
+      'utf8',
+    );
+    expect(runbook).toContain(`--topics ${SPACE_SPIKE_TOPICS_V2.join(',')}`);
+    expect(runbook).toContain('--spike-id space-kits-v19');
   });
 
   it('measure the three Seasons stages and the plain "Seasons elsewhere" with one command line, the one the runbook prints', () => {
