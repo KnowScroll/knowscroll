@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { claimOverlayEntry } from '@knowscroll/ui';
 import { notePendingBack } from '../../platform/after-pending-back';
 import type { EncounterSession } from './encounter-session';
 
@@ -16,8 +17,13 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
       const sync = () => {
         const state = session.getState();
         const needsBack = state.overlay || session.canBack();
-        if (needsBack && !hasMarker())
-          window.history.pushState({ ...window.history.state, ksEncounter: marker.current }, '', window.location.href);
+        if (needsBack && !hasMarker()) {
+          // A sheet that closes as this one opens (••• then Share) hands over its entry rather than leave one to pop.
+          const claimed = claimOverlayEntry(window.history.state);
+          const next = { ...claimed.state, ksEncounter: marker.current };
+          if (claimed.replace) window.history.replaceState(next, '', window.location.href);
+          else window.history.pushState(next, '', window.location.href);
+        }
         // One pop is enough: several publishes can land before the popstate that removes the marker.
         else if (!needsBack && hasMarker() && !ignored.current) {
           ignored.current = true;
@@ -33,6 +39,8 @@ export function useEncounterBack(session: EncounterSession, enabled: boolean) {
           sync();
           return;
         }
+        // A sheet of the reader's own (••• over a Scroll) took its entry off: ours is still there, so nothing moved.
+        if (hasMarker()) return;
         // Back closes an overlay first or restores one retained entry, synchronously, without API work.
         session.back();
         sync();

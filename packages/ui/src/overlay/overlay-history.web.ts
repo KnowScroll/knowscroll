@@ -54,3 +54,20 @@ export function useOverlayHistory(visible: boolean, onClose: () => void): void {
     };
   }, [visible]);
 }
+
+/**
+ * For a screen with a history marker of its own that must open in the same commit as an overlay closes
+ * (the encounter's sheet opening from a ••• sheet). Given the current history state, it says what state the
+ * marker should carry and whether it should replace the closing overlay's entry instead of adding one. The
+ * overlay finds its entry gone and does not call Back, so Back would not pop the new marker and close the
+ * screen's sheet at once.
+ */
+export function claimOverlayEntry(state: unknown): {
+  readonly state: Record<string, unknown>;
+  readonly replace: boolean;
+} {
+  const base = { ...(typeof state === 'object' && state !== null ? (state as Record<string, unknown>) : {}) };
+  if (overlayToken(base) === undefined) return { state: base, replace: false };
+  delete base[marker];
+  return { state: base, replace: true };
+}

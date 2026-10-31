@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { content } from '@knowscroll/design-tokens';
 import { StateBlock } from '@knowscroll/ui';
+import { useTalkListLook } from './talk-list-look';
 
 /** C01's two-bubble illustration (96 × 80): one cream, one yellow, ink outlines. */
 function TwoBubbles() {
@@ -32,8 +33,10 @@ function TwoBubbles() {
  */
 export function EmptyTalk() {
   const router = useRouter();
+  const look = useTalkListLook();
   return (
     <StateBlock
+      tone={look.tone}
       illustration={<TwoBubbles />}
       title="No conversations yet"
       body="Share a Reel or Scroll with a friend and the conversation starts here."

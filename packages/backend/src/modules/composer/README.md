@@ -13,8 +13,8 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | A vertical move leaves the series the person is in (`same_series`, D-131) and its related move (`related_target`, D-136), and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); not yet run on dev |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
-| Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.15, a recent-topic penalty, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`), and the numbers are provisional until the replay has been read on stored dev decisions |
-| `composer replay-policy`: stored vertical decisions re-run under v0 and v1, counts only | implemented, CI-tested; not yet run on dev |
+| Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.30, a recent-topic penalty of 0.05, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`; dev sets `v1`); the numbers were chosen from the replay of dev's stored decisions (D-190) |
+| `composer replay-policy`: stored vertical decisions re-run under v0 and v1, counts only | implemented, CI-tested; run on dev (2026-10-31) over 640 stored decisions, D-190 |
 | Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
@@ -31,7 +31,7 @@ activated encounters within 24 hours of explicit `evaluatedAt`. These are code-s
 calibrated learned parameters. A decision names its policy and replays under exactly that policy
 (`policyOf(decision.policyVersion)`), which `persistComposerDecision` checks byte for byte, so an old decision never
 changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0` or
-`v1`, default `v0`, read by the API and the worker): v1 is not used by a world until its numbers are chosen. A stored
+`v1`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world uses v1 only when its configuration says so. A stored
 decision replays under its own policy whatever the setting, and the replay command always runs both. A change to v1's
 numbers after v1 decisions are stored needs `composer-policy.v2` and a migration (D-190).
 Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order.
@@ -46,7 +46,7 @@ link bound to the exact source and candidate target; an expected link ID is hard
 The equations are blueprint §9 under v0, and v1 for a vertical move (D-190):
 
 - Vertical v0: `.35Intent+.20Interest+.15Format+.15Novelty+.15SemanticFit-.25RecentRepetition`.
-- Vertical v1: `.15Intent+.20Interest+.15Format+.15Novelty+.15SemanticFit-.25RecentRepetition-.25RecentTopic`.
+- Vertical v1: `.30Intent+.20Interest+.15Format+.15Novelty+.15SemanticFit-.25RecentRepetition-.05RecentTopic`.
 - Horizontal (both): `.45Continuity+.25Intent+.15Format+.15SemanticFit-.25RecentRepetition`.
 
 `RecentTopic` (v1, vertical only) is the share of the person's newest three encounters in the recent window that share

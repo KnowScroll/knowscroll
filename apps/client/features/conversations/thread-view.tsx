@@ -183,6 +183,7 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
   const {
     ref: scrollRef,
     onScroll,
+    onContentSizeChange,
     follow,
   } = useFollowEnd(`${state.phase}:${String(state.messages.length)}:${String(state.outgoing.length)}`);
   const leaveToTalk = () => router.replace('/conversations');
@@ -214,6 +215,7 @@ export function Thread({ scope, controller, state, reference }: ThreadProps) {
         name={name}
         scrollRef={scrollRef}
         onScroll={onScroll}
+        onContentSizeChange={onContentSizeChange}
         onReport={(message) =>
           setReporting({ kind: 'message', messageId: message.messageId, author: reportedPerson(message.author) })
         }

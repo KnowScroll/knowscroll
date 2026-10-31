@@ -29,6 +29,8 @@ export function useUniverseBack(
           ignored.current = false;
           return;
         }
+        // A sheet over the map took its own entry off: ours is still there, so nothing moved up a level.
+        if (hasMarker()) return;
         session.back();
         sync();
       };

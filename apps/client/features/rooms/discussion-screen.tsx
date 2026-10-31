@@ -347,6 +347,7 @@ function ReadyDiscussion({
             outcome={askWords(state, lastAsk)}
             onAsk={ask}
             compact={breakpoint === 'desktop'}
+            collapsible={breakpoint !== 'desktop'}
           />
           <Composer
             name={view.discussion.kind === 'general' ? 'General' : 'this discussion'}

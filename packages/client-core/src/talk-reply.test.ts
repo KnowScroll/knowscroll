@@ -48,6 +48,13 @@ describe('the quote of a reply', () => {
   it('prefers the reader’s own copy of the original, which is newer', () => {
     expect(quoteView(server, [text(1, 'what I hold')]).preview).toBe('what I hold');
   });
+  it('calls the reader’s own words "You", whether the copy is loaded or only the server’s words are', () => {
+    const mine = quote({ status: 'available', author: asha, preview: 'what the server sent' });
+    expect(quoteView(mine, [], asha.personId).author).toBe('You');
+    expect(quoteView(mine, [text(1, 'what I hold', asha)], asha.personId).author).toBe('You');
+    expect(quoteView(mine, [text(1, 'what I hold', asha)], ravi.personId).author).toBe('Asha fixture');
+    expect(quoteView(mine, []).author).toBe('Asha fixture');
+  });
   it('says the original is gone, and offers no words, once its tombstone arrived or the server says so', () => {
     const gone = { messageId: id(101), sequence: 1, author: undefined, preview: '' };
     expect(quoteView(server, [{ status: 'unavailable', messageId: id(101), sequence: 1 }])).toEqual(gone);

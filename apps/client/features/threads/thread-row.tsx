@@ -5,6 +5,7 @@ import type { ThreadSummary } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Icon, RowLink, Text } from '@knowscroll/ui';
 import { threadHref } from './thread-links';
+import { useTalkListLook } from '../conversations/talk-list-look';
 
 /** A thread in Talk: the content it is about, who invited or what was said last. Reading it records nothing about anyone. */
 export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
@@ -12,6 +13,7 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
   const view = threadRowView(item);
   const href = threadHref(item.thread);
   const time = listTime(view.at, new Date());
+  const look = useTalkListLook();
   const kind =
     item.root.status === 'available'
       ? item.root.metadata.kind
@@ -19,29 +21,31 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
         ? item.root.current.metadata.kind
         : 'reel';
   return (
-    <View style={styles.rowFrame}>
+    <View style={[styles.rowFrame, { borderBottomColor: look.rule }]}>
       <RowLink
         label={`Thread ${view.title}${view.unread ? ', unread' : ''}, ${view.subtitle}, ${time}`}
         href={href}
         onPress={() => router.push(href)}
+        tint={look.tint}
+        focusTone={look.focusTone}
         testID={`talk-thread-${item.thread.threadId}`}
       >
         <View style={styles.row}>
-          <View style={styles.tile} aria-hidden>
-            <Icon name={kind === 'reel' ? 'reel' : 'scroll'} size={20} color={content.paper} />
+          <View style={[styles.tile, { backgroundColor: look.tile }]} aria-hidden>
+            <Icon name={kind === 'reel' ? 'reel' : 'scroll'} size={20} color={look.tileGlyph} />
           </View>
           <View style={styles.text}>
             <View style={styles.title}>
-              <Text variant={view.unread ? 'ui' : 'bodyS'} numberOfLines={1} style={styles.grow}>
+              <Text variant={view.unread ? 'ui' : 'bodyS'} color={look.text} numberOfLines={1} style={styles.grow}>
                 {view.title}
               </Text>
             </View>
-            <Text variant="meta" color={content.ink2} numberOfLines={1}>
+            <Text variant="meta" color={look.quiet} numberOfLines={1}>
               {view.subtitle}
             </Text>
           </View>
           <View style={styles.end}>
-            <Text variant="monoXs" color={content.ink2}>
+            <Text variant="monoXs" color={look.quiet}>
               {time}
             </Text>
             {view.unread ? <View style={styles.dot} /> : null}

@@ -7,6 +7,7 @@ import { content, layout, spacing } from '@knowscroll/design-tokens';
 import {
   ActionStrip,
   Banner,
+  BottomSheet,
   ErrorState,
   FormatSwitch,
   IconButton,
@@ -23,6 +24,7 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { useAccountScope } from '../../providers/account-scope';
 import { useKeepSurface } from '../saved/use-keep-surface';
 import { KeepWriteStatus } from '../saved/keep-detail';
+import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { EvidencePanel } from '../diagnostics/evidence-panel';
 import { combineObservers, createAnchorKeeper } from './anchor-keeper';
 import type { OpenedScroll, OpenedStageScroll } from './scroll-session';
@@ -70,11 +72,14 @@ function KeepActions({
   isKept,
   capture,
   degraded,
+  onShare,
 }: {
   readonly kept: KeepState;
   readonly isKept: boolean;
   readonly capture: () => unknown;
   readonly degraded: boolean;
+  /** Opens the Share sheet; without it the strip holds Save only. */
+  readonly onShare?: () => void;
 }) {
   return (
     <View style={{ gap: spacing[3] }}>
@@ -82,10 +87,14 @@ function KeepActions({
         <Banner kind="info" lead="Part of this Scroll needs an app update." message="It is shown here as text." />
       ) : null}
       <ActionStrip
-        available={['save']}
+        available={onShare === undefined ? ['save'] : ['save', 'share']}
         saved={isKept}
         saving={kept.state.save === 'sending'}
-        onAction={() => {
+        onAction={(action) => {
+          if (action === 'share') {
+            onShare?.();
+            return;
+          }
           if (isKept) return;
           capture();
           void kept.surface.save();
@@ -279,6 +288,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
   const isKept =
     kept.state.place.snapshot?.status === 'available' || kept.state.place.snapshot?.status === 'saved_unavailable';
   const [resume] = useState(() => readResume(scope, scroll.assetId, scroll.assetRevision));
+  const [sharing, setSharing] = useState(false);
   useLayoutEffect(() => {
     recorder.start();
     return () => recorder.end();
@@ -293,7 +303,7 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
       <StageReaderSurface
         scroll={scroll}
         observer={recorder.observer}
-        paused={!focused}
+        paused={!focused || sharing}
         initialStopId={initialStopId}
         handleRef={reader}
         onStopChange={(stopId) => {
@@ -318,10 +328,24 @@ function ReadyStageScroll({ scope, scroll }: { readonly scope: AccountScope; rea
           format: () => siblings.select('reel'),
           done: back,
         }}
-        moreBody={() => <KeepActions kept={kept} isKept={isKept} capture={capture} degraded={false} />}
+        moreBody={(close) => (
+          <KeepActions
+            kept={kept}
+            isKept={isKept}
+            capture={capture}
+            degraded={false}
+            onShare={() => {
+              close();
+              setSharing(true);
+            }}
+          />
+        )}
         topInset={insets.top + spacing[3]}
         bottomInset={insets.bottom}
       />
+      <BottomSheet visible={sharing} title="Share" onClose={() => setSharing(false)}>
+        <ShareSheetBody target={target} title={scroll.document.title} kind="scroll" onClose={() => setSharing(false)} />
+      </BottomSheet>
       <EvidencePanel scope={scope} exposureId={scroll.exposureId} />
     </>
   );
