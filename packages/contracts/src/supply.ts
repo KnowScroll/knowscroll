@@ -151,8 +151,8 @@ export const ContentRequestStatusSchema = z.discriminatedUnion('status', [
     status: z.literal('preparing'),
     phase: z.enum(['requested', 'preparing']),
     /**
-     * How long an ask order usually takes, in seconds, measured from the orders that finished. Present only
-     * once at least five have, so a time is never guessed; any other request never has it.
+     * How long an ask order usually takes, in seconds, measured from the orders that finished. Present only on a
+     * request that is an ask order, and only once at least five orders have finished, so a time is never guessed.
      */
     typicalSeconds: z.number().int().min(1).max(86_400).optional(),
   }),

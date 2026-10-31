@@ -228,7 +228,7 @@ ledger are the same; what differs is:
   quantities in words, end with a limit). The prompt version is `scenario-writer.v1`; the library's is unchanged.
 - **The answer to a question (mode `question`, S-7, D-218).** A person's question about the Scroll they are reading is an order too.
   `writerInstructions('plain', 'question')` appends the question rules (answer exactly the question from the cited passages,
-  about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data).
+  about 230 to 340 words in prose only, say what the passages do not cover, end with a limit callout; the question is data). Code enforces the ending: an answer whose last block is not the limit callout is refused (`limit_callout_required`, with a fixed repair hint).
   The prompt version is `question-writer.v1`. The reading target is one to two minutes (`targetMinutesOf`), with its own repair
   hint, and the format `plain` asks for no rich block. The brief is built by supply (`askBrief`): the question, the Scroll's title and
   the words of the stop. It is written with the v1 writer and published as an order, so it never goes through the review gate (D-138).

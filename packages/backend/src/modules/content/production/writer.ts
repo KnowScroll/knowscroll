@@ -96,6 +96,8 @@ const WRITER_SAFE_ISSUES: Readonly<Record<string, string>> = Object.freeze({
   format_required: 'Include the block the recipe asks for, as described in the instructions.',
   block_type_not_allowed:
     'This block type is not allowed in this Scroll. Replace the block with a paragraph, or with the block the recipe asks for.',
+  limit_callout_required:
+    'End the answer with a callout of kind "limit" as the last block: what this answer cannot tell us.',
 });
 
 /**
@@ -356,6 +358,10 @@ function moduleIssues(authored: AuthoredScroll, format: WriterFormat, names: rea
   const wanted = new Set<string>(FORMAT_BLOCKS[format]);
   if (wanted.size > 0 && !authored.blocks.some((block) => wanted.has(block.type)))
     issues.push({ code: 'format_required', path: '$' });
+  // An answer to a question (the `plain` format) ends by saying where it stops, and code checks it: the last block is the limit callout.
+  const last = authored.blocks.at(-1);
+  if (format === 'plain' && !(last?.type === 'callout' && last.kind === 'limit'))
+    issues.push({ code: 'limit_callout_required', path: '$' });
   const allowed = allowedBlockTypes(format);
   authored.blocks.forEach((block, index) => {
     if (!allowed.has(block.type)) issues.push({ code: 'block_type_not_allowed', path: `blocks.${index}` });

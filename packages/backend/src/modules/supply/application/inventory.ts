@@ -121,7 +121,11 @@ export async function inventory(
         ? await catalogueCandidates(p, scope, c, { ...brief, subject: brief.subject })
         : [];
   const serving = candidates.filter((x) => brief && matches(brief, x));
-  const skipExplanations = typeof skip === 'function' ? await skip(serving.map((x) => x.explanationUnitId)) : skip;
+  const decidedSkip = typeof skip === 'function' ? await skip(serving.map((x) => x.explanationUnitId)) : skip;
+  // A question asked from a Scroll asked for something else: it never binds to the explanation it was asked from (D-230).
+  // Every way into this read (placing, polling, Try again) takes the same rule, so none can return the Scroll being read.
+  const asked = c.intent.kind === 'ask' ? sourceSnapshot?.explanationUnitId : undefined;
+  const skipExplanations = asked === undefined ? decidedSkip : new Set([...decidedSkip, asked]);
   const heads = await p.lockCurrent(scope, {
     refs: [...(source ? [source] : []), ...serving.filter((x) => !skipExplanations.has(x.explanationUnitId))],
     capabilities: c.capabilities,
@@ -187,9 +191,10 @@ export async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand
       status: 'unavailable',
       reason: 'could_not_prepare',
     });
-  // How long an ask order usually takes, shown only when finished orders measured it (never a guess).
+  // How long an ask order usually takes: said only of a request that is one (a question still being placed, or one
+  // the library answers, is not an order), and only when finished orders measured it (never a guess).
   const typical =
-    d.command.intent.kind === 'ask' && d.status !== 'ready'
+    d.askOrder !== undefined && d.status !== 'ready'
       ? typicalSeconds(await p.askLedger.recentWaitsSeconds(scope, TYPICAL_SAMPLE_WINDOW))
       : undefined;
   const usually = typical === undefined ? {} : { typicalSeconds: typical };

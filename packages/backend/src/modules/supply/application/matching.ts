@@ -75,7 +75,7 @@ async function decideHere(p: SupplyPorts, scope: PersonalScopeTx, d: Demand): Pr
 /**
  * What the verdict does to the request: the fields it changes, decided before the revision advances.
  * A matched ask is then handled as a person's own catalogue ask would have been: Reuse, else Join or Create.
- * A question asked from a Scroll never binds to the explanation it was asked from: it asked for something else.
+ * A question asked from a Scroll never binds to the explanation it was asked from: `inventory` skips it, as it does for the poll and for Try again.
  */
 async function decide(p: SupplyPorts, scope: PersonalScopeTx, d: Demand, verdict: AskScopeVerdict): Promise<Decided> {
   const closed = (reason: NonNullable<Demand['reason']>) =>
@@ -84,13 +84,7 @@ async function decide(p: SupplyPorts, scope: PersonalScopeTx, d: Demand, verdict
   if (verdict.kind === 'unavailable') return closed(verdict.reason);
   if (verdict.kind === 'here') return decideHere(p, scope, d);
   const brief = catalogueBrief(d.command, verdict.match, formatOf(d.command));
-  const { intent } = d.command;
-  const own =
-    intent.kind === 'ask'
-      ? await p.readExact(scope, { ...intent.source, capabilities: d.command.capabilities })
-      : undefined;
-  const skip = new Set(own === undefined ? [] : [own.explanationUnitId]);
-  const found = (await inventory(p, scope, d.command, brief, skip)).ready;
+  const found = (await inventory(p, scope, d.command, brief)).ready;
   if (found?.encounter)
     return {
       status: 'ready',

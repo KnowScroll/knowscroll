@@ -72,7 +72,9 @@ It is the same request row, the same states (E07), polling, cancel and retry; on
 6. **Try again** (`application/ask-retry.ts`) re-drives the same request and order: a Scroll admitted meanwhile makes it ready; otherwise the next take is sent (three in all). Nothing else can start: `not_retryable`.
 7. **The Scroll is open to its asker only** (`READ_ASK_ORDER_AUDIENCE`, `adapters/postgres-ask-orders.ts`): an account whose own request, not cancelled, names the asset. Erasing the request (Clear, account deletion) first sets the order's brief empty
    (`adapters/erasure.ts`), so a later take finds no order and the Scroll opens to nobody.
-8. **The "usually" time.** `snapshot` adds `typicalSeconds` to a preparing ask: the median of the last 20 finished orders, and only from five (`domain/ask-order.ts`).
+8. **The "usually" time.** `snapshot` adds `typicalSeconds` to a preparing request that is an ask order (not one still being placed, not one the library answers): the median of the last 20 finished orders, and only from five (`domain/ask-order.ts`).
+9. **The brief is one quoted line.** `askBrief` collapses the person's words (and the Scroll's title and stop) to one line, dropping control and format characters, so typed text cannot start a line of the brief of its own.
+10. **Never the Scroll being read.** `inventory` skips the source's explanation for every ask, so placing, polling and Try again can all not return the Scroll the question was asked from (D-230).
 
 *Implemented.* Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience), asking from a passage (D2) and as a wager (D3).
 
@@ -184,6 +186,7 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 
 An ask from here also writes one row in Content's `made_to_order_scrolls` (mode `question`) and reads the production jobs of the order; supply's erasure sets that row's brief empty (the one write it makes outside its own tables).
 Erasure ownership: the request (the person's words) is erased by Clear and by account deletion and is exported under "requests"; the ledger is not personal.
+What erasure does not reach (D-231), all of it unlinked from the person: the writer's request bytes in the production scope (the brief, with the question), kept up to 48 hours (`KS_REASONING_REQUEST_RETENTION_HOURS`); a refused writer answer, kept up to 30 days for the operator (`REJECTED_ANSWER_RETENTION_DAYS`), which can echo the question; and the Scroll the answer became, whose title and text stay in Content (revisions are immutable), open to nobody.
 
 States of `supply.requests`: `matching`, `requested`, `deferred` (Planner), `ready`, `unavailable`,
 `cancelled`.

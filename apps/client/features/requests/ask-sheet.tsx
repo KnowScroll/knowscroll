@@ -134,6 +134,8 @@ export function AskSheet({
   const waiting = state.phase === 'accepted' && status?.status === 'preparing';
   const couldBePreparedAgain =
     state.phase === 'accepted' && status?.status === 'unavailable' && status.reason === 'could_not_prepare';
+  // Said only when the server measured a time (five finished orders at least); otherwise nothing is claimed.
+  const usually = waiting ? usuallyPhrase(status.typicalSeconds) : undefined;
   const scopeLine = state.about ? `about “${aboutTitle(scroll.document.title)}”` : 'about something new';
   return (
     <KeyboardAvoidingView
@@ -302,9 +304,7 @@ export function AskSheet({
               </Text>
               <Text variant="body">
                 {`“${state.text.trim()}” — a short Scroll. We'll let you know here when it's ready${
-                  usuallyPhrase(status.typicalSeconds) === undefined
-                    ? '.'
-                    : `, ${usuallyPhrase(status.typicalSeconds)!}.`
+                  usually === undefined ? '.' : `, ${usually}.`
                 }`}
               </Text>
               <View style={styles.row}>

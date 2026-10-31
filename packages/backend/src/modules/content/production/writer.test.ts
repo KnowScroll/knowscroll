@@ -223,8 +223,16 @@ describe('the instructions for the answer to one question (D-218)', () => {
     );
   });
 
+  const limit = {
+    type: 'callout' as const,
+    cites: ['e4'],
+    kind: 'limit' as const,
+    title: 'Where this stops',
+    text: 'This answer ignores radio and satellite navigation, which now do most of the work.',
+  };
+
   it('accept a short prose answer with no rich block, which the library would refuse as too short', () => {
-    const short = scroll(BODY);
+    const short = scroll([...BODY, limit]);
     const asked = compileGeneratedScroll(short, questionProvenance, passages, 'plain');
     if (asked.kind !== 'compiled') throw new Error(JSON.stringify(asked));
     expect(asked.document).toMatchObject({ kicker: 'You asked', framing: { kind: 'factual' } });
@@ -234,20 +242,41 @@ describe('the instructions for the answer to one question (D-218)', () => {
     );
   });
 
+  it('refuse an answer that does not end with the limit callout, with a fixed hint for the one repair', () => {
+    const codes = (blocks: AuthoredScroll['blocks']) => {
+      const outcome = compileGeneratedScroll(scroll(blocks), questionProvenance, passages, 'plain');
+      return outcome.kind === 'refused' ? outcome.issues.map((issue) => issue.code) : [];
+    };
+    expect(codes(BODY)).toContain('limit_callout_required');
+    // A limit that is not the last block does not count: the answer ends on prose.
+    expect(codes([...BODY.slice(0, 3), limit, ...BODY.slice(3)])).toContain('limit_callout_required');
+    // A callout of another kind does not count either.
+    expect(codes([...BODY, { ...limit, kind: 'note' as never }])).toContain('limit_callout_required');
+    expect(codes([...BODY, limit])).not.toContain('limit_callout_required');
+    const role = writerRole({ provenance: questionProvenance, passages, format: 'plain', mode: 'question' });
+    expect(role.safeCustomIssues?.['limit_callout_required']).toContain('callout of kind "limit"');
+  });
+
   it('refuse an answer that runs past two minutes, and one that adds a block the question did not ask for', () => {
-    const long = scroll(
-      BODY.map((block) =>
+    const long = scroll([
+      ...BODY.map((block) =>
         prose(
           `${block.text} ${'The same idea is worth saying twice in a different way. '.repeat(18)}`.trim(),
           block.cites,
         ),
       ),
-    );
+      limit,
+    ]);
     const tooLong = compileGeneratedScroll(long, questionProvenance, passages, 'plain');
     expect(tooLong.kind === 'refused' && tooLong.issues.map((issue) => issue.code)).toContain(
       'reading_length_out_of_brief',
     );
-    const withBlock = compileGeneratedScroll(scroll([...BODY, comparison]), questionProvenance, passages, 'plain');
+    const withBlock = compileGeneratedScroll(
+      scroll([...BODY, comparison, limit]),
+      questionProvenance,
+      passages,
+      'plain',
+    );
     expect(withBlock.kind === 'refused' && withBlock.issues.map((issue) => issue.code)).toContain(
       'block_type_not_allowed',
     );

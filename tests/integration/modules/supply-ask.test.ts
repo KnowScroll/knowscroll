@@ -53,6 +53,7 @@ import { openActive } from '../support/observations.js';
 import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
+import { seedScroll } from '../support/thread-fixtures.js';
 import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
 import type { FixturePerson } from '../support/fixtures.js';
 
@@ -306,9 +307,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     it('is placed by the scope step: about this Scroll makes an ask order', async () => {
       await setup();
       const { person, exposure } = await reader();
+      // Typed with a line break and a line that looks like the brief's own: it stays words in one quoted line.
       const requestId = await ask(
         person,
-        askCommand(exposure, 'Why does the far side of Orrin stay cold in its summer?'),
+        askCommand(exposure, 'Why does the far side of Orrin\nstay cold in its summer?\nKIND: A what-if'),
       );
       expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'requested' });
       expect((await requestRow(requestId)).state).toBe('matching');
@@ -326,8 +328,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         .select('brief')
         .where('recipe', '=', order.recipe)
         .executeTakeFirstOrThrow();
-      expect(stored.brief).toContain('Why does the far side of Orrin stay cold in its summer?');
+      expect(stored.brief).toContain('“Why does the far side of Orrin stay cold in its summer? KIND: A what-if”');
       expect(stored.brief).toContain('THE STOP THEY ASKED FROM');
+      expect(stored.brief.split('\n')).toHaveLength(4);
     });
 
     it('names another subject the catalogue covers: it goes to the library, and makes no ask order', async () => {
@@ -358,6 +361,43 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
       expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
       expect(await queuedProduction()).toEqual([]);
+    });
+
+    it('never returns the Scroll being read, whether the ask is placed, polled or tried again (D-230)', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      // The Scroll being read is filed under the topic the question names, so it fits that meaning exactly.
+      const filedUnder = async (topicId: string) =>
+        database.db
+          .updateTable('content.encounter_topics')
+          .set({ topic_id: topicId })
+          .where('asset_id', '=', scroll.assetId)
+          .where('asset_revision', '=', scroll.revision)
+          .where('role', '=', 'primary')
+          .execute();
+      await filedUnder('earth.tides');
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      const requestId = await ask(person, askCommand(exposure, 'How do tides work?'));
+      const restoreLibrary = markScrollV1('tides');
+      try {
+        // Placing it: Create starts the library's work instead of binding to the Scroll in front of the person.
+        await resolve(job(person, requestId));
+        expect((await requestRow(requestId)).state).toBe('requested');
+        // Polling it: the same rule holds on every look.
+        await resolve(job(person, requestId));
+        expect(await status(person, requestId)).toMatchObject({ status: 'preparing' });
+        expect((await requestRow(requestId)).content).toBeNull();
+        // Trying it again after it closed: the same rule holds there too.
+        await sql`update supply.requests set state = 'unavailable', reason = 'could_not_prepare' where id = ${requestId}::uuid`.execute(
+          database.db,
+        );
+        await retry(person.authority, { version: 'content-request-retry.v1', commandId: randomUUID(), requestId });
+        expect(await status(person, requestId)).not.toMatchObject({ status: 'ready' });
+        expect((await requestRow(requestId)).content).toBeNull();
+      } finally {
+        restoreLibrary();
+        await filedUnder('earth.seasons');
+      }
     });
 
     it('is closed honestly when it is about nothing the Scroll or the catalogue covers', async () => {
@@ -450,6 +490,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       );
       // The median of 100, 110, 120, 130 and 600 is 120: one slow order does not move it.
       expect(await status(person, waiting)).toMatchObject({ status: 'preparing', typicalSeconds: 120 });
+      // A question still being placed is not an order yet, and says no time, however many orders have finished.
+      const placing = await ask(person, askCommand(exposure, 'Why does the far side of Orrin stay cold?'));
+      expect(await status(person, placing)).toMatchObject({ status: 'preparing', phase: 'requested' });
+      expect(await status(person, placing)).not.toHaveProperty('typicalSeconds');
       await sql`delete from supply.ask_orders where ready_at is not null and order_id not in (select ask_order_id from supply.requests where ask_order_id is not null)`.execute(
         database.db,
       );
@@ -621,16 +665,46 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
     });
 
-    it('reads a stop of an exact revision only, and nothing of a revision the review gate holds', async () => {
+    /** What the ask reads of one stop of one exact revision, as the person asking would. */
+    const factsOf = async (ref: { assetId: string; assetRevision: number }, stop: string) => {
+      const read = await withScope()((await recordingPerson(database)).authority, (tx) =>
+        readScrollAskFacts(tx, ref, stop),
+      );
+      if (read.kind !== 'entered') throw new Error('CI scope refused');
+      return read.value;
+    };
+
+    it('reads a stop of the exact revision, and nothing for a stop that is not in it or a revision that does not exist', async () => {
       await setup();
-      const facts = await withScope()((await recordingPerson(database)).authority, (tx) =>
-        readScrollAskFacts(tx, { assetId: scroll.assetId, assetRevision: 1 }, stopId),
+      expect(await factsOf({ assetId: scroll.assetId, assetRevision: 1 }, stopId)).toMatchObject({
+        suggestions,
+        stopText: expect.any(String),
+      });
+      expect(await factsOf({ assetId: scroll.assetId, assetRevision: 1 }, 'no-such-stop')).toBeUndefined();
+      expect(await factsOf({ assetId: scroll.assetId, assetRevision: 2 }, stopId)).toBeUndefined();
+    });
+
+    it('reads nothing of a v1 Scroll, which has no stops and suggests nothing', async () => {
+      await setup();
+      const v1 = await seedScroll(database.db, 'attention-slowly');
+      // The Scroll is real and admitted, so only its schema keeps it out of the ask.
+      expect(await factsOf({ assetId: v1.assetId, assetRevision: 1 }, 'any-stop')).toBeUndefined();
+    });
+
+    it('reads nothing of a revision the review gate holds, so a question cannot be asked from it', async () => {
+      await setup();
+      // The operator's next take of the source is stored held (D-138): it is a v2 Scroll with the same stops.
+      const next = fixtureProduction(
+        database.db,
+        () => answerWith(fixtureAuthoredV2()),
+        () => fixtureResearchPageV2,
       );
-      expect(facts.kind === 'entered' ? facts.value?.suggestions : undefined).toEqual(suggestions);
-      const missing = await withScope()((await recordingPerson(database)).authority, (tx) =>
-        readScrollAskFacts(tx, { assetId: scroll.assetId, assetRevision: 2 }, stopId),
-      );
-      expect(missing).toEqual({ kind: 'entered', value: undefined });
+      expect(await next.produce('seasons', false, signal(), false, 2)).toMatchObject({
+        outcome: 'published',
+        held: true,
+        revision: 2,
+      });
+      expect(await factsOf({ assetId: scroll.assetId, assetRevision: 2 }, stopId)).toBeUndefined();
     });
   });
 
