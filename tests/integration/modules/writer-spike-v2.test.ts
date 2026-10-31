@@ -117,7 +117,7 @@ describe('the writer spike (CI fixture model + real PostgreSQL; no provider netw
       tokens: { input: 4321, output: 8765, thinking: 5432, complete: true },
       stops: 9,
       calls: 3,
-      promptVersion: 'scroll-writer.v17',
+      promptVersion: 'scroll-writer.v19',
     });
     expect(line.attempts).toHaveLength(1);
     expect(document?.document.schemaVersion).toBe('scroll-document.v2');

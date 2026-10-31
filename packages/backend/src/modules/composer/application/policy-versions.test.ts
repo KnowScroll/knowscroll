@@ -134,6 +134,19 @@ describe('policy v0 decisions replay byte for byte', () => {
 describe('policy v1 is deterministic and bounded', () => {
   const snapshots = fixtureSnapshots();
 
+  it('uses the numbers D-190 chose from the dev replay: Intent 0.30, a recent-topic penalty of 0.05', () => {
+    expect(COMPOSER_POLICY_V1.vertical).toEqual({
+      intent: 0.3,
+      interest: 0.2,
+      format: 0.15,
+      novelty: 0.15,
+      semanticFit: 0.15,
+      recentRepetition: 0.25,
+      recentTopic: 0.05,
+    });
+    expect(COMPOSER_POLICY_V1.horizontal).toEqual(COMPOSER_POLICY_V0.horizontal);
+  });
+
   it('the same snapshot gives the same decision hash, and its label replays it', () => {
     for (const snapshot of snapshots) {
       const first = composeEncounter(snapshot, COMPOSER_POLICY_V1);
@@ -219,7 +232,7 @@ describe('recent-topic repeat penalty', () => {
     );
   });
 
-  it('leaves the topic: a new topic beats a same-topic candidate the person just read, under v1 and not v0', () => {
+  describe('a pull-up leaves the topic more often under v1 than under v0', () => {
     const base = fixtureSnapshots()[0]!;
     const topicOf = (topicId: string, index: number) => ({
       admitted: true,
@@ -238,7 +251,14 @@ describe('recent-topic repeat penalty', () => {
         attributionVersion: 'fixture-taxonomy',
       },
     });
-    const snapshot: ComposerSnapshot = {
+    /** The person is on Seasons and has read two Seasons Scrolls today. asset-1 is on the topic, asset-2 is not. */
+    const onSeasons = (
+      extra: {
+        readonly established?: NonNullable<ComposerSnapshot['evidence']>['established'];
+        readonly semanticAssessments?: ComposerSnapshot['semanticAssessments'];
+      } = {},
+      activity = 2,
+    ): ComposerSnapshot => ({
       ...base,
       mode: 'vertical',
       seed: 'fixture-seed-no-explore-9',
@@ -252,7 +272,7 @@ describe('recent-topic repeat penalty', () => {
         evaluatedAt: base.evaluatedAt,
         watermark: base.watermarks.context,
         policyVersion: 'fixture-actual-activity',
-        topics: [{ topicId: 'earth.seasons', activity: 2, formats: [] }],
+        topics: [{ topicId: 'earth.seasons', activity, formats: [] }],
         recent: [
           {
             exposureId: 'e1',
@@ -270,14 +290,67 @@ describe('recent-topic repeat penalty', () => {
           },
         ],
         hiddenAssetIds: [],
+        ...(extra.established ? { established: extra.established } : {}),
       },
-    };
-    const first = (policy: typeof COMPOSER_POLICY_V0) => composeEncounter(snapshot, policy).selection[0]?.assetId;
-    expect(first(COMPOSER_POLICY_V0)).toBe('asset-1');
-    expect(first(COMPOSER_POLICY_V1)).toBe('asset-2');
-    const v1 = composeEncounter(snapshot, COMPOSER_POLICY_V1);
-    expect(v1.evaluations.find((e) => e.assetId === 'asset-1')?.features.recentTopic).toBeCloseTo(5 / 6);
-    expect(v1.evaluations.find((e) => e.assetId === 'asset-2')?.features.recentTopic).toBe(0);
+      ...(extra.semanticAssessments ? { semanticAssessments: extra.semanticAssessments } : {}),
+    });
+    const scoreOf = (snapshot: ComposerSnapshot, policy: typeof COMPOSER_POLICY_V0, assetId: string) =>
+      composeEncounter(snapshot, policy).evaluations.find((e) => e.assetId === assetId)!.score;
+
+    it('costs the topic the person is on exactly the Intent it gives up and its share of the penalty', () => {
+      const snapshot = onSeasons();
+      const margin = (policy: typeof COMPOSER_POLICY_V0) =>
+        scoreOf(snapshot, policy, 'asset-1') - scoreOf(snapshot, policy, 'asset-2');
+      const intentGivenUp = COMPOSER_POLICY_V0.vertical.intent - COMPOSER_POLICY_V1.vertical.intent;
+      // asset-1 is on the topic of the two recent encounters (3 + 2 of 6), asset-2 is not; nothing else differs.
+      const penalty = COMPOSER_POLICY_V1.vertical.recentTopic * (5 / 6);
+      expect(margin(COMPOSER_POLICY_V0) - margin(COMPOSER_POLICY_V1)).toBeCloseTo(intentGivenUp + penalty, 12);
+      expect(margin(COMPOSER_POLICY_V1)).toBeLessThan(margin(COMPOSER_POLICY_V0));
+      const v1 = composeEncounter(snapshot, COMPOSER_POLICY_V1);
+      expect(v1.evaluations.find((e) => e.assetId === 'asset-1')?.features.recentTopic).toBeCloseTo(5 / 6);
+      expect(v1.evaluations.find((e) => e.assetId === 'asset-2')?.features.recentTopic).toBe(0);
+    });
+
+    it('stays on the topic when the other candidate is no better, under both policies', () => {
+      const snapshot = onSeasons();
+      for (const policy of [COMPOSER_POLICY_V0, COMPOSER_POLICY_V1])
+        expect(composeEncounter(snapshot, policy).selection[0]?.assetId).toBe('asset-1');
+    });
+
+    it('leaves it under v1, and stays under v0, when the other candidate is somewhat better', () => {
+      // asset-1 was read before and Jev found it a worse next step; asset-2 is new. The person has read little of
+      // Seasons, so the topic's own pull is small. Under v0 the topic still wins, under v1 the other candidate does.
+      const snapshot = onSeasons(
+        {
+          established: {
+            policyVersion: 'retained-activated-history.v0',
+            watermark: 'fixture-history',
+            units: [
+              { explanationUnitId: 'unit-1', encountered: true, facets: [{ facetId: 'facet-1', encountered: true }] },
+              {
+                explanationUnitId: 'unit-2',
+                encountered: false,
+                facets: [{ facetId: 'facet-2', encountered: false }],
+              },
+            ],
+          },
+          semanticAssessments: {
+            roleVersion: 'jev.2/fixture',
+            model: 'fixture-model',
+            assessedAt: base.evaluatedAt,
+            expiresAt: '2026-10-30T12:30:00.000Z',
+            entries: [
+              { assetId: 'asset-1', assetRevision: 1, relevance: 0.4, appropriateness: 0.4, redundancy: 0.5 },
+              { assetId: 'asset-2', assetRevision: 1, relevance: 1, appropriateness: 1, redundancy: 0 },
+            ],
+          },
+        },
+        0.2,
+      );
+      const first = (policy: typeof COMPOSER_POLICY_V0) => composeEncounter(snapshot, policy).selection[0]?.assetId;
+      expect(first(COMPOSER_POLICY_V0)).toBe('asset-1');
+      expect(first(COMPOSER_POLICY_V1)).toBe('asset-2');
+    });
   });
 });
 

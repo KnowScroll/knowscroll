@@ -367,6 +367,7 @@ function ReadyDiscussion({
             outcome={askWords(state, lastAsk)}
             onAsk={ask}
             compact={breakpoint === 'desktop'}
+            collapsible={breakpoint !== 'desktop'}
           />
           <Composer
             name={

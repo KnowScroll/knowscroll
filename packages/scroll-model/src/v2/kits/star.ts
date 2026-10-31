@@ -80,14 +80,29 @@ export function settleStarState(state: StarState): StarState {
 /** The star's mass in Suns for each class. Classes, not data: the picture gives no figure. */
 export const MASS_IN_SUNS: Readonly<Record<StarMass, number>> = { low: 0.5, 'sun-like': 1, high: 10 };
 
+/** A main-sequence star's output goes as its mass to the power 3.5 (Suns' outputs, for masses in Suns). */
+export const LUMINOSITY_MASS_EXPONENT = 3.5;
+/** A main-sequence star's radius goes as its mass to the power 0.8 (Sun radii, for masses in Suns). */
+export const RADIUS_MASS_EXPONENT = 0.8;
+
+/** The output, in Suns' outputs, of a main-sequence star of the given mass in Suns. */
+export function mainSequenceLuminosityForMass(massInSuns: number): number {
+  return massInSuns ** LUMINOSITY_MASS_EXPONENT;
+}
+
+/** The radius, in Sun radii, of a main-sequence star of the given mass in Suns. */
+export function mainSequenceRadiusForMass(massInSuns: number): number {
+  return massInSuns ** RADIUS_MASS_EXPONENT;
+}
+
 /** A main-sequence star's lifetime in Suns' lifetimes: its fuel goes as the mass and its output as the mass to the power 3.5, so it goes as the mass to the power -2.5. */
 export function lifetimeInSunLifetimes(mass: StarMass): number {
-  return MASS_IN_SUNS[mass] ** -2.5;
+  return MASS_IN_SUNS[mass] / mainSequenceLuminosityForMass(MASS_IN_SUNS[mass]);
 }
 
 /** A main-sequence star's radius in Sun radii: about the mass to the power 0.8. */
 export function mainSequenceRadiusInSuns(mass: StarMass): number {
-  return MASS_IN_SUNS[mass] ** 0.8;
+  return mainSequenceRadiusForMass(MASS_IN_SUNS[mass]);
 }
 
 /** How hot the surface is and so what colour the star shines: cooler and red, in between and yellow, hotter and blue-white. */

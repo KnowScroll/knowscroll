@@ -3,9 +3,17 @@ import { Framing, Integrity, SeriesRef, THEME_FAMILIES } from '../document.js';
 import { LanguageTag, LocalId, OpaqueId, plainText, Revision } from '../primitives.js';
 import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
 import {
+  CIRCULATION_KIT,
+  CirculationStateSchema,
+  BLACK_HOLE_KIT,
+  BlackHoleStateSchema,
   GREENHOUSE_KIT,
   GreenhouseStateSchema,
+  NERVE_KIT,
+  NerveStateSchema,
   STAR_KIT,
+  STARLIGHT_KIT,
+  StarlightStateSchema,
   StarStateSchema,
   TIDES_KIT,
   TidesStateSchema,
@@ -163,6 +171,10 @@ export const Stage = z.discriminatedUnion('kit', [
   stageOf(GREENHOUSE_KIT, GreenhouseStateSchema),
   stageOf(STAR_KIT, StarStateSchema),
   stageOf(TRANSIT_KIT, TransitStateSchema),
+  stageOf(CIRCULATION_KIT, CirculationStateSchema),
+  stageOf(NERVE_KIT, NerveStateSchema),
+  stageOf(STARLIGHT_KIT, StarlightStateSchema),
+  stageOf(BLACK_HOLE_KIT, BlackHoleStateSchema),
 ]);
 export type Stage = z.infer<typeof Stage>;
 

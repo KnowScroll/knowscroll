@@ -48,9 +48,11 @@ export interface QuoteView {
  * The quote of a reply. The reader's own copy of the original wins over the words the server sent with
  * the reply, because the copy is newer: an original removed after the reply was read stops being
  * quoted as soon as its tombstone arrives. When the original is not loaded (it is older than the
- * page) the server's words stand.
+ * page) the server's words stand. The reader's own words are quoted as "You" (the quote strip of T3), which needs
+ * `ownPersonId`; without it every author is named.
  */
-export function quoteView(replyTo: MessageQuote, loaded: readonly QuotableMessage[]): QuoteView {
+export function quoteView(replyTo: MessageQuote, loaded: readonly QuotableMessage[], ownPersonId?: string): QuoteView {
+  const nameOf = (person: PublicPersonRef): string => (person.personId === ownPersonId ? 'You' : person.displayName);
   const own = loaded.find((candidate) => candidate.sequence === replyTo.sequence);
   if (own?.status === 'unavailable')
     return { messageId: replyTo.messageId, sequence: replyTo.sequence, author: undefined, preview: '' };
@@ -58,14 +60,14 @@ export function quoteView(replyTo: MessageQuote, loaded: readonly QuotableMessag
     return {
       messageId: own.messageId,
       sequence: own.sequence,
-      author: own.author.displayName,
+      author: nameOf(own.author),
       preview: messagePreview(own),
     };
   return replyTo.original.status === 'available'
     ? {
         messageId: replyTo.messageId,
         sequence: replyTo.sequence,
-        author: replyTo.original.author.displayName,
+        author: nameOf(replyTo.original.author),
         preview: replyTo.original.preview,
       }
     : { messageId: replyTo.messageId, sequence: replyTo.sequence, author: undefined, preview: '' };

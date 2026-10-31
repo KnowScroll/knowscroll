@@ -250,8 +250,8 @@ const supplyScenarioDailyCapVariable = z.coerce.number().int().min(0).max(500).o
 /** `KS_SUPPLY_SCENARIO_THREAD_CAP`: the branches one thread may have ordered in all. Default 6. */
 const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(6);
 /**
- * `KS_COMPOSER_POLICY`: the Composer policy new decisions are made under (D-190). `v0` until the numbers of v1 are
- * chosen. Replay of a stored decision does not read it: a decision names its own policy.
+ * `KS_COMPOSER_POLICY`: the Composer policy new decisions are made under (D-190). Default `v0`; a world moves to `v1` by
+ * configuration once v1's numbers are deployed. Replay of a stored decision does not read it: a decision names its own policy.
  */
 const composerPolicyVariable = z.enum(['v0', 'v1']).default('v0');
 
