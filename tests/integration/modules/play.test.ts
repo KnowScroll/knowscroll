@@ -5,6 +5,7 @@ import type { CallLockRequest } from '@knowscroll/contracts';
 import { exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { playStore } from '../../../packages/backend/src/modules/play/adapters/play-store.js';
 import type { PlayUseCases } from '@knowscroll/backend/modules/play';
 import type { ReadingFacts } from '@knowscroll/backend/modules/content';
 import { makeReviewGate, readScrollPlayFacts } from '@knowscroll/backend/modules/content/nest-providers';
@@ -595,14 +596,20 @@ describe('The Final call and its landmark (real PostgreSQL, labelled CI fixtures
     const person = await reader();
     expect(await orbitOf(person)).toMatchObject({ days: 0, goal: 3, closed: false });
     const [first, second] = callIt();
+    const third = finalCall();
     await lock(person, first!, picks(first!).right);
     await lock(person, second!, picks(second!).wrong);
     // Two calls on one day are one day.
     expect(await orbitOf(person)).toMatchObject({ days: 1, goal: 3, closed: false });
-    // Three distinct days, the way a calendar counts them: the days since Monday are the most this week can hold.
+    // Three calls on three distinct days (today, yesterday, the day before). A calendar week holds only the days
+    // since its Monday, so on a Monday or a Tuesday of this run fewer than three belong to it; from Wednesday it
+    // closes (the rule itself is pinned for every weekday in domain/orbit.test.ts).
+    await lock(person, third, picks(third).right);
     await lockedAt(person, 1, second!.id);
+    await lockedAt(person, 2, third.id);
     const sinceMonday = (new Date().getUTCDay() + 6) % 7;
-    expect((await orbitOf(person, 'UTC')).days).toBe(Math.min(2, sinceMonday + 1));
+    const inWeek = Math.min(3, sinceMonday + 1);
+    expect(await orbitOf(person, 'UTC')).toMatchObject({ days: inWeek, goal: 3, closed: inWeek === 3 });
   });
 
   it('removes nothing for a missed week: the Orbit starts again and the landmark stands', async () => {
@@ -618,14 +625,57 @@ describe('The Final call and its landmark (real PostgreSQL, labelled CI fixtures
     });
   });
 
-  it("names the week in the person's own time zone, and reads an unknown zone as UTC", async () => {
+  /** The date, `YYYY-MM-DD`, an instant has in a zone, and the Monday of its week: arithmetic of the test's own. */
+  const localDate = (instant: Date, timeZone: string) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
+  const mondayOf = (date: string) => {
+    const day = new Date(`${date}T00:00:00Z`);
+    return new Date(day.getTime() - ((day.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+  };
+  const orbitDaysExpected = (instants: readonly Date[], timeZone: string) => {
+    const monday = mondayOf(localDate(new Date(), timeZone));
+    const today = localDate(new Date(), timeZone);
+    return new Set(instants.map((at) => localDate(at, timeZone)).filter((day) => day >= monday && day <= today)).size;
+  };
+
+  it("names the days in the person's own time zone: two calls either side of a local midnight are two days there and one day elsewhere", async () => {
     const person = await reader();
-    await lock(person, callIt()[0]!, 0);
-    // UTC+14 and UTC-11 are never on the same calendar day, yet the call is on today's date in each.
-    const east = await orbitOf(person, 'Pacific/Kiritimati');
-    const west = await orbitOf(person, 'Pacific/Pago_Pago');
-    expect([east.days, west.days]).toEqual([1, 1]);
-    expect(east.weekStart >= west.weekStart).toBe(true);
+    const [first, second] = callIt();
+    await lock(person, first!, 0);
+    await lock(person, second!, 0);
+    // The latest midnight of UTC+14 that is at least twenty minutes behind us; one call twenty minutes before it,
+    // one twenty minutes after.
+    const kiritimati = 'Pacific/Kiritimati';
+    const midnight = (
+      await sql<{ at: Date }>`
+        select (case when now() - m < interval '20 minutes' then m - interval '1 day' else m end) as at
+        from (select date_trunc('day', now() at time zone ${kiritimati}) at time zone ${kiritimati} as m) as latest`.execute(
+        database.db,
+      )
+    ).rows[0]!.at;
+    const before = new Date(midnight.getTime() - 20 * 60_000);
+    const after = new Date(midnight.getTime() + 20 * 60_000);
+    await sql`update play.calls set locked_at = ${before.toISOString()}::timestamptz
+      where universe_id = ${person.universeId}::uuid and stop_id = ${first!.id}`.execute(database.db);
+    await sql`update play.calls set locked_at = ${after.toISOString()}::timestamptz
+      where universe_id = ${person.universeId}::uuid and stop_id = ${second!.id}`.execute(database.db);
+    const playedDays = async (timeZone: string) => {
+      const entered = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
+        playStore.readPlayDays(scope, timeZone),
+      );
+      if (entered.kind !== 'entered') throw new Error('CI scope refused');
+      return [...entered.value.playedDays].sort();
+    };
+    // In UTC+14 the two calls are on two dates. In UTC-11 and in UTC both fall inside one date.
+    expect(await playedDays(kiritimati)).toEqual([localDate(before, kiritimati), localDate(after, kiritimati)].sort());
+    expect(await playedDays(kiritimati)).toHaveLength(2);
+    expect(await playedDays('Pacific/Pago_Pago')).toEqual([localDate(before, 'Pacific/Pago_Pago')]);
+    expect(await playedDays('UTC')).toEqual([localDate(before, 'UTC')]);
+    // The Orbit counts the days of this week in that zone (a Monday boundary can leave one of the two outside it).
+    for (const zone of [kiritimati, 'Pacific/Pago_Pago', 'UTC'])
+      expect((await orbitOf(person, zone)).days).toBe(orbitDaysExpected([before, after], zone));
+    // The week itself begins on the Monday of that zone's own today.
+    expect((await orbitOf(person, kiritimati)).weekStart).toBe(mondayOf(localDate(new Date(), kiritimati)));
     // Not a zone the database knows: answered as UTC, never refused.
     expect(await orbitOf(person, 'Mars/Olympus_Mons')).toEqual(await orbitOf(person, 'UTC'));
   });

@@ -84,10 +84,14 @@ async function tolerated<T>(
  * a planet is made here on the topic, a public catalogue id.
  *
  * Authority: the actual scope's own session. Side effects: none, on the server or the device. Failure:
- * a part that cannot be read is left out and the rest is shown; `unavailable` only when none could be,
- * and the caller keeps what it had.
+ * a part that cannot be read keeps its value in `previous` and the rest is shown; `unavailable` only when none could
+ * be, and the caller keeps what it had.
  */
-export async function readCollection(scope: AccountScope, signal?: AbortSignal): Promise<CollectionRead> {
+export async function readCollection(
+  scope: AccountScope,
+  signal?: AbortSignal,
+  previous: Collection = NO_COLLECTION,
+): Promise<CollectionRead> {
   if (!scope.active) return { status: 'unavailable' };
   const options = signal ? { signal } : undefined;
   try {
@@ -120,10 +124,11 @@ export async function readCollection(scope: AccountScope, signal?: AbortSignal):
     return {
       status: 'ready',
       collection: {
-        landmarks: landmarks ?? [],
-        orbit,
-        resume: resume ?? null,
-        planets: places ?? [],
+        // A part that could not be read keeps what the screen already showed (a dropped connection never empties it).
+        landmarks: landmarks ?? previous.landmarks,
+        orbit: orbit ?? previous.orbit,
+        resume: resume === undefined ? previous.resume : resume,
+        planets: places ?? previous.planets,
       },
     };
   } catch {

@@ -31,7 +31,7 @@ export function createCollectionReader(options: {
     const mine = (controller = new AbortController());
     const previous = options.current().collection;
     options.publish({ status: 'loading', collection: previous });
-    const result = await readCollection(options.scope, mine.signal);
+    const result = await readCollection(options.scope, mine.signal, previous);
     if (mine.signal.aborted || !options.live()) return;
     options.publish(
       result.status === 'ready'

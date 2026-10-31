@@ -352,7 +352,7 @@ export const exposureContextContract = oc
 export const ReadResumeRequestSchema = z.strictObject({});
 
 /**
- * The next Part of a series the person has started and not yet opened (D-215): "Resume Part 2 of 3". It
+ * The next Part of a series the person has started and not yet opened (D-216): "Resume Part 2 of 3". It
  * is derived from the caller's own opened Scrolls and the admitted series, so it names no other
  * person's position and no place inside a Scroll. `part` and `total` are counted from the admitted
  * series, never declared (D-059). `resume` is null when there is nothing to pick up.

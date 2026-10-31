@@ -3,7 +3,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import type { NavigationPorts } from './navigation-ports.js';
 import { ref, scopeCode } from './navigation-support.js';
 
-/** How many of the caller's most recent Scroll openings are looked at, and how far back (D-215). */
+/** How many of the caller's most recent Scroll openings are looked at, and how far back (D-216). */
 export const RESUME_WINDOW = { limit: 8, days: 30 } as const;
 
 export interface ResumePorts extends Pick<
@@ -31,7 +31,7 @@ export type ReadResume = (authority: PersonalAuthority) => Promise<ReadResumeRes
 
 /**
  * `POST /v1/experience/resume/read`: the next Part of a series the caller has started and not yet
- * opened, the thing "continue where you were" offers on the Universe (D-215).
+ * opened, the thing "continue where you were" offers on the Universe (D-216).
  *
  * Authority: the caller's own personal scope. It reads only the caller's own opened Scrolls and the
  * admitted series, so it names no other person's position and no place inside a Scroll. Newest

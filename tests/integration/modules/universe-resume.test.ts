@@ -122,6 +122,15 @@ describe('Resume on the Universe (real PostgreSQL, labelled CI fixtures)', () =>
     expect(await resumeOf(other)).toBeNull();
   });
 
+  it('looks only at the own openings of the caller: nine later openings by someone else do not crowd it out', async () => {
+    const mine = await seedPerson(database.db);
+    const crowd = await seedPerson(database.db);
+    await readPart(mine, parts.one);
+    // The query takes the newest eight openings; nine newer ones in another universe must not take their place.
+    for (let opening = 0; opening < 9; opening++) await readPart(crowd, parts.one);
+    expect(await resumeOf(mine)).toMatchObject({ assetId: parts.two.assetId, part: 2, total: 3 });
+  });
+
   it('does not offer a Part after a long absence, and a Scroll the person opened only once is not "resumed" beyond the window', async () => {
     const person = await seedPerson(database.db);
     await readPart(person, parts.one);

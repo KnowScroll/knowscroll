@@ -86,6 +86,26 @@ describe('reading the collection', () => {
     expect(read).toMatchObject({ status: 'ready', collection: { resume: null, landmarks: [landmark()] } });
   });
 
+  it('keeps what the screen showed for a part that cannot be read now, and takes the rest fresh', async () => {
+    const shown = await readCollection(scopeAnswering().scope);
+    if (shown.status !== 'ready') throw new Error('fixture must read');
+    const { scope } = scopeAnswering({
+      '/v1/play/landmarks/read': () => json(problemDetails('NOT_FOUND'), 404),
+      '/v1/play/orbit/read': () => json({ orbit: { days: 2, goal: 3, weekStart: '2026-11-02', closed: false } }),
+      '/v1/experience/resume/read': () => json(problemDetails('NOT_FOUND'), 404),
+    });
+    const read = await readCollection(scope, undefined, shown.collection);
+    expect(read).toMatchObject({
+      status: 'ready',
+      collection: {
+        landmarks: [landmark()],
+        orbit: { days: 2 },
+        resume: { part: 2 },
+        planets: [{ id: id(20), topicId: 'earth.seasons' }],
+      },
+    });
+  });
+
   it('is unavailable only when nothing could be read, and refuses planets of another universe or epoch', async () => {
     const down = (): Response => json(problemDetails('NOT_FOUND'), 404);
     const none = scopeAnswering(Object.fromEntries(Object.keys(answers).map((path) => [path, down])));

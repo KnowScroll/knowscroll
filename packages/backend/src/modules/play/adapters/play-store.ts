@@ -116,11 +116,23 @@ export const playStore: PlayStore = {
   },
 };
 
+/**
+ * What the database said about each time zone name it was asked, so a name is looked up once and not on every
+ * Orbit read inside the locked transaction. Bounded, so a stream of invented names cannot grow it; a name beyond
+ * the bound is looked up each time.
+ */
+const ZONE_ANSWERS = new Map<string, string>();
+const ZONE_ANSWER_LIMIT = 512;
+
 /** The zone the database knows by that name, or UTC: a read answers whatever the device sent. */
 async function knownZone(db: ReturnType<typeof transactionOf>, name: string | undefined): Promise<string> {
   if (name === undefined) return 'UTC';
+  const remembered = ZONE_ANSWERS.get(name);
+  if (remembered !== undefined) return remembered;
   const known = await sql<{ name: string }>`select name from pg_timezone_names where name = ${name} limit 1`.execute(
     db,
   );
-  return known.rows[0]?.name ?? 'UTC';
+  const zone = known.rows[0]?.name ?? 'UTC';
+  if (ZONE_ANSWERS.size < ZONE_ANSWER_LIMIT) ZONE_ANSWERS.set(name, zone);
+  return zone;
 }
