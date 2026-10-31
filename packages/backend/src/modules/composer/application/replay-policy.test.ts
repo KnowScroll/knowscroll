@@ -61,7 +61,9 @@ function storedInput(seed: string): ComposerSnapshot {
       evaluatedAt: '2026-10-30T12:00:00.000Z',
       watermark: 'w',
       policyVersion: 'fixture-actual-activity',
-      topics: [{ topicId: 'earth.seasons', activity: 3, formats: [{ kind: 'scroll', measured: 3, qualified: 3 }] }],
+      // No format evidence on purpose: with three qualified Scrolls on Seasons the topic's Format fit keeps it ahead
+      // under v1 too (a legitimate per-topic signal), and this fixture must show a case where v1 leaves the topic.
+      topics: [{ topicId: 'earth.seasons', activity: 3, formats: [] }],
       recent: [
         {
           exposureId: 'exposure-1',
