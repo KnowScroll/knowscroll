@@ -21,7 +21,8 @@ import {
  * Every Social store is keyed by account, not universe, and each has an explicit answer for the
  * two erasures. `clear` is selective Clear (exploration history): it keeps everything here,
  * because friendships, conversations and links are explicit communication, not exploration
- * evidence. `onAccountErasure` is what deleting the account does (D-043). The profile and the
+ * evidence. The one exception is a party place (D-065): it says where the person is in a series, which
+ * is drawn from their own exploring, so Clear deletes it. `onAccountErasure` is what deleting the account does (D-043). The profile and the
  * friendship rows go with the account, silently. Conversations are never deleted for the other
  * person: the author's messages become tombstones, their membership is removed and the
  * conversation closes, and the person who remains reads the history with "Deleted account" in
@@ -62,6 +63,7 @@ export const socialStoreLifecycle = {
   },
   'social.inbox_heads': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.content_shares': { clear: 'preserve', onAccountErasure: 'delete with the account' },
+  'social.thread_places': { clear: 'erase', onAccountErasure: 'delete with the account' },
   ...visibilityLifecycle,
 } as const;
 
@@ -89,6 +91,7 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'message_snippets', ownerColumn: 'message_id' },
     { schema: 'social', table: 'inbox_heads', ownerColumn: 'account_id' },
     { schema: 'social', table: 'content_shares', ownerColumn: 'owner_account_id' },
+    { schema: 'social', table: 'thread_places', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     ...visibilityAccountColumns,
@@ -112,6 +115,7 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'message_reactions', column: 'account_id' },
     { schema: 'social', table: 'inbox_heads', column: 'account_id' },
     { schema: 'social', table: 'content_shares', column: 'owner_account_id' },
+    { schema: 'social', table: 'thread_places', column: 'account_id' },
   ],
   /** Full erasure of one universe removes its published copy; conversations and friendships are account-keyed. */
   async erase(scope) {
@@ -155,6 +159,8 @@ export const socialErasure = declareErasure({
       ).numAffectedRows ?? 0,
     );
     removed += await eraseReactions(trx, account);
+    // Before the membership rows go: a place follows its member's row.
+    removed += await erasePlaces(trx, account);
     const tombstoned = await sql`
       with mine as (
         select conversation_id, sequence,
@@ -234,20 +240,29 @@ export const socialErasure = declareErasure({
 
   /**
    * Clearing exploration history keeps profiles, friendships, invites, conversations, links and the
-   * person's sharing choices, and removes the published copy of their universe: friends who visit
-   * afterwards see an empty one.
+   * person's sharing choices (including "hide where I am", a choice and not history), and removes the
+   * published copy of their universe: friends who visit afterwards see an empty one. It also deletes
+   * where the person was in each thread's series, which came from their exploring (D-065).
    */
   clear: {
     dispositions: Object.fromEntries(
       Object.entries(socialStoreLifecycle).map(([store, lifecycle]) => [store, lifecycle.clear]),
     ),
     async erase(scope) {
-      const removed = await eraseVisitRows(clearCoreTransactionOf(scope), scope.binding.universeId);
+      const trx = clearCoreTransactionOf(scope);
+      const removed =
+        (await eraseVisitRows(trx, scope.binding.universeId)) + (await erasePlaces(trx, scope.binding.accountId));
       return { module: 'social', status: 'completed', removed };
     },
   },
   export: (declaration) => exportSocial(declaration),
 });
+
+/** Deletes every party place the account has, in every thread. Idempotent; returns how many rows went. */
+async function erasePlaces(trx: Transaction<Database>, accountId: string): Promise<number> {
+  const result = await sql`delete from social.thread_places where account_id = ${accountId}::uuid`.execute(trx);
+  return Number(result.numAffectedRows ?? 0);
+}
 
 /**
  * Takes the row of every thread the account is in, in id order, before anything else of theirs is
@@ -339,6 +354,7 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
       'social.message_reactions',
       'social.content_threads',
       'social.message_snippets',
+      'social.thread_places',
       'social.content_shares',
       'social.visibility_settings',
       'social.visibility_audience',
@@ -415,6 +431,22 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
         .groupBy('c.kind')
         .execute();
       const membershipsOf = (kind: string) => Number(memberships.find((row) => row.kind === kind)?.n ?? 0);
+      const placesShown = await trx
+        .selectFrom('social.thread_places as place')
+        .innerJoin('social.content_threads as thread', 'thread.thread_id', 'place.thread_id')
+        .select(['thread.name', 'place.part', 'place.state', sql<string>`to_char(place.day, 'YYYY-MM-DD')`.as('day')])
+        .where('place.account_id', '=', person.accountId)
+        .orderBy('place.day', 'desc')
+        .limit(500)
+        .execute();
+      const hidingIn = await trx
+        .selectFrom('social.conversation_members as m')
+        .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('m.account_id', '=', person.accountId)
+        .where('c.kind', '=', 'thread')
+        .where('m.place_hidden', '=', true)
+        .executeTakeFirstOrThrow();
       const links = await trx
         .selectFrom('social.content_shares')
         .select(['created_at', 'expires_at', 'revoked_at', 'conversation_id'])
@@ -467,6 +499,14 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
             startedAt: thread.created_at.toISOString(),
             ...(thread.name === null ? {} : { name: thread.name }),
           })),
+          // Where the person told a thread they were in its series (D-065): their own, and only a part, a state and a day.
+          placesShown: placesShown.map((place) => ({
+            ...(place.name === null ? {} : { thread: place.name }),
+            part: place.part,
+            state: place.state === 'finished' ? 'finished' : 'on',
+            day: place.day,
+          })),
+          hidingWhereIAmIn: Number(hidingIn.n),
         },
         sharedLinks: links.map((link) => ({
           createdAt: link.created_at.toISOString(),

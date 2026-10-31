@@ -29,6 +29,7 @@ import {
   PullDownSheet,
   Skeleton,
   StateBlock,
+  Text,
   useDisplay,
   useTalkTheme,
   type ReelPositionHandle,
@@ -47,6 +48,7 @@ import { useScenarioBoard } from '../scenarios/use-scenarios';
 import { useThreadBranches } from '../scenarios/use-thread-branches';
 import { useOwnPlace } from './own-place';
 import { useMarkHere } from '../scenarios/use-mark-here';
+import { MembersSection, PartWorlds, PartyLine, SeriesTabs, type SeriesTab } from './party';
 import { ShareMomentSheet } from './share-moment-sheet';
 import { PartsSection, seriesHeading } from './series-sections';
 import { InvitationView, OptionsSheet, ThreadPeople, ThreadStrip, threadEyebrow, threadTitle } from './thread-chrome';
@@ -54,6 +56,7 @@ import { ThreadEncounter } from './thread-encounter';
 import { readInThreadHref, snippetHref, threadRefFromParams } from './thread-links';
 import { ThreadMessages } from './thread-messages';
 import { useContentThread } from './use-content-thread';
+import { useThreadPlaces } from './use-thread-places';
 
 /** D03, T3: the series panel beside the conversation. */
 const SERIES_PANEL_WIDTH = 400;
@@ -96,6 +99,15 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
   const sideBySide = useDisplay().breakpoint === 'desktop';
   const place = useOwnPlace(scope, thread.threadId, !sideBySide);
   useMarkHere(scope, thread.threadId);
+  // Where the members of a series are (D-065). This player is the only thing that tells the thread where this person is.
+  const parties = useThreadPlaces(scope, thread);
+  const reportPlace = useCallback(
+    (part: number, state: 'on' | 'finished') => {
+      void parties.controller.report(part, state);
+    },
+    [parties.controller],
+  );
+  const [seriesTab, setSeriesTab] = useState<SeriesTab>('parts');
   const [draft, keepDraft] = useDraft(scope, thread.threadId);
   const [seriesOpen, setSeriesOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(HEADER_HEIGHT_GUESS);
@@ -146,6 +158,19 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
       : undefined;
   // The sheet exists only below 1024 px: a resize to desktop with it open must not leave the player paused.
   const sheetOpen = seriesOpen && !sideBySide;
+  const now = new Date();
+  const members = series ? (
+    <MembersSection
+      participants={state.participants}
+      places={parties.state.places}
+      total={episodes.length}
+      now={now}
+      state={parties.state}
+      onHide={(hidden) => void parties.controller.setHidden(hidden)}
+    />
+  ) : (
+    <ThreadPeople participants={state.participants} />
+  );
   const showMap = branches.mapOffered
     ? () => {
         setSeriesOpen(false);
@@ -159,6 +184,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
         selected={current.assetId}
         series={series}
         heading={sideBySide ? seriesHeading(series, episodes.length) : undefined}
+        places={parties.state.places}
         onSelect={(assetId) => {
           place.select(assetId);
           setSeriesOpen(false);
@@ -171,7 +197,13 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
     current === undefined ? null : (
       <ThreadEncounter
         scope={scope}
-        readHref={(assetId) => readInThreadHref(thread, assetId)}
+        readHref={(assetId) =>
+          readInThreadHref(
+            thread,
+            assetId,
+            series ? episodes.find((episode) => episode.assetId === assetId)?.part : undefined,
+          )
+        }
         episode={current}
         series={series}
         total={episodes.length}
@@ -182,6 +214,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
         positionRef={positionRef}
         onOpened={onReelOpened}
         summary={rootSummary}
+        onPlace={series ? reportPlace : undefined}
         dock
       />
     );
@@ -194,15 +227,28 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
       <ThreadStrip
         title={title}
         eyebrow={threadEyebrow(state, sideBySide)}
+        worlds={
+          series && current !== undefined ? (
+            <PartWorlds episodes={episodes} places={parties.state.places} selected={current.assetId} />
+          ) : undefined
+        }
         onBack={onBack}
         series={
           sideBySide || current === undefined
             ? undefined
-            : { open: seriesOpen, onPress: () => setSeriesOpen(!seriesOpen) }
+            : {
+                open: seriesOpen,
+                onPress: () => {
+                  // The sheet opens on the parts each time; its Members tab is one press away.
+                  if (!seriesOpen) setSeriesTab('parts');
+                  setSeriesOpen(!seriesOpen);
+                },
+              }
         }
         onMenu={() => setMenu(true)}
         onLayout={(event: LayoutChangeEvent) => setHeaderHeight(event.nativeEvent.layout.height)}
       />
+      {series ? <PartyLine places={parties.state.places} total={episodes.length} /> : null}
       {state.offline ? (
         <View style={styles.banner}>
           <Banner kind="reconnecting" lead="Reconnecting…" message="Missing messages will appear in order." />
@@ -217,7 +263,16 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
           >
             {sideBySide ? parts : null}
             {encounter}
-            {sideBySide ? <ThreadPeople participants={state.participants} /> : null}
+            {sideBySide ? (
+              <View style={styles.panelMembers}>
+                {series ? (
+                  <Text variant="monoXs" heading={2} color={content.ink2}>
+                    MEMBERS · WHERE THEY ARE
+                  </Text>
+                ) : null}
+                {members}
+              </View>
+            ) : null}
           </ScrollView>
         </View>
         <View role="region" aria-label="Conversation" style={styles.stack}>
@@ -293,8 +348,17 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
         onClose={() => setSeriesOpen(false)}
         testID="thread-series-sheet"
       >
-        {parts}
-        <ThreadPeople participants={state.participants} />
+        {series ? (
+          <>
+            <SeriesTabs tab={seriesTab} onTab={setSeriesTab} memberCount={state.participants.length} />
+            {seriesTab === 'parts' ? parts : members}
+          </>
+        ) : (
+          <>
+            {parts}
+            {members}
+          </>
+        )}
       </PullDownSheet>
       <BranchSheets
         scope={scope}
@@ -506,4 +570,5 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   panelContent: { padding: layout.gutter, gap: spacing[4], paddingBottom: spacing[6] },
+  panelMembers: { gap: spacing[3] },
 });

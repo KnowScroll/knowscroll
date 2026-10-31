@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
+import { tapOrbitingTarget } from './orbiting-target';
 
 /**
  * The planet globe (U03) and the landed map (U04) in the production export, over authored HTTP
@@ -85,12 +86,12 @@ async function openPlanet(page: Page, size: { width: number; height: number }) {
   await page.goto('/universe');
   await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
   // From 1024 px a tap on a planet picks it for the panel's card; its row in the panel opens its globe.
-  await page
-    .getByRole('button', {
-      name: size.width >= 1024 ? 'CI planet 2, a planet in CI system 0' : 'CI planet 2, a planet',
-      exact: true,
-    })
-    .click();
+  const planet = page.getByRole('button', {
+    name: size.width >= 1024 ? 'CI planet 2, a planet in CI system 0' : 'CI planet 2, a planet',
+    exact: true,
+  });
+  if (size.width >= 1024) await planet.click();
+  else await tapOrbitingTarget(planet);
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   return calls;
 }

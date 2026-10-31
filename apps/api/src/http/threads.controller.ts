@@ -107,6 +107,30 @@ export class ThreadsController {
   }
 
   @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.threads.places)
+  placesRoute(@Req() request: Request) {
+    return implement(apiContract.threads.places).handler(async ({ input }) =>
+      value(await this.useCases.places(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.threads.setPlace)
+  setPlaceRoute(@Req() request: Request) {
+    return implement(apiContract.threads.setPlace).handler(async ({ input }) =>
+      value(await this.useCases.setPlace(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.threads.setPlaceHidden)
+  setPlaceHiddenRoute(@Req() request: Request) {
+    return implement(apiContract.threads.setPlaceHidden).handler(async ({ input }) =>
+      value(await this.useCases.setPlaceHidden(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
   @Implement(apiContract.threads.openSnippet)
   openSnippetRoute(@Req() request: Request) {
     return implement(apiContract.threads.openSnippet).handler(async ({ input }) =>
