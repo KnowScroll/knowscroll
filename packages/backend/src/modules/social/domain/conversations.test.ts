@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptedReadThrough, shareState, visiblePeerRead, SHARE_LIFETIME_MS } from './conversations.js';
+import { acceptedReadThrough, planReadMove, shareState, visiblePeerRead, SHARE_LIFETIME_MS } from './conversations.js';
 import { changesCursor, historyCursor, inboxCursor } from './cursors.js';
 
 const conversationId = '0199a000-0000-7000-8000-000000000001';
@@ -28,10 +28,10 @@ describe('read position', () => {
 });
 
 describe('SEEN is mutual', () => {
-  const both = { readerShares: true, peerShares: true, standing: true, peerReadThrough: 4 };
+  const both = { readerShares: true, peerShares: true, standing: true, peerSharedThrough: 4 };
   it('tells the reader how far the other person has read only while both people share', () => {
     expect(visiblePeerRead(both)).toBe(4);
-    expect(visiblePeerRead({ ...both, peerReadThrough: 0 })).toBe(0);
+    expect(visiblePeerRead({ ...both, peerSharedThrough: 0 })).toBe(0);
   });
   it('is hidden from a reader who hides their own, and when the other person hides theirs', () => {
     expect(visiblePeerRead({ ...both, readerShares: false })).toBeUndefined();
@@ -40,6 +40,19 @@ describe('SEEN is mutual', () => {
   });
   it('is hidden once the conversation has ended', () => {
     expect(visiblePeerRead({ ...both, standing: false })).toBeUndefined();
+  });
+});
+
+describe('a read that may move the shared position', () => {
+  const move = { moved: true, readerShares: true, peerShares: true, standing: true };
+  it('records the shared position and tells the other person only while the reader shares and both see it', () => {
+    expect(planReadMove(move)).toEqual({ recordShared: true, tellPeer: true });
+    expect(planReadMove({ ...move, peerShares: false })).toEqual({ recordShared: true, tellPeer: false });
+    expect(planReadMove({ ...move, standing: false })).toEqual({ recordShared: true, tellPeer: false });
+  });
+  it('records nothing shared while the reader hides theirs, and nothing at all when the position did not move', () => {
+    expect(planReadMove({ ...move, readerShares: false })).toEqual({ recordShared: false, tellPeer: false });
+    expect(planReadMove({ ...move, moved: false })).toEqual({ recordShared: false, tellPeer: false });
   });
 });
 

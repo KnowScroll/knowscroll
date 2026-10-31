@@ -9,7 +9,7 @@ with component tests over a labelled in-memory server; not runtime-verified on d
 | Visitors: Nobody, Friends I choose, All friends      | Who may visit the universe. Choosing friends lists the person's friends to tick. Nobody ticked is saved as nobody and the radio stays where the person put it |
 | One switch for each system                           | Whether visitors see that system and the names of its planets. Regions are never shared                                                                       |
 | Activity status: Online, Recently active, Don't show | Whether friends see "Online" or "Recently active". It is its own command with its own revision, and never says what anyone is watching                        |
-| Read receipts: Show SEEN in direct conversations     | On by default (D-066, D-150). On: people you talk with see SEEN once you've read their message, and you see theirs. Off: neither. Its own command and revision; direct conversations only, never threads or rooms |
+| Read receipts: Show SEEN in direct conversations     | On by default (D-066, D-150). On: people you talk with see SEEN once you've read their message, and you see theirs. Off: neither, and what you read while it is off stays unseen even if you turn it on later. Its own command and revision; direct conversations only, never threads or rooms |
 
 Everything about visits starts off (SEEN starts on). Each change is one command (`createVisibilitySession`, client-core), shows Saving, Saved
 or "Couldn't save" with Retry, and applies to every later visit at once. The page says that what a friend already

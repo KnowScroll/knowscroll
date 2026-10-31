@@ -21,7 +21,7 @@ import { enterConversation, refOf, type EnteredConversation } from './conversati
 import type { ConversationPorts, InboxChange } from './conversation-ports.js';
 import { conversationEnvelope, refuse, type PairLock, type Result } from './ports.js';
 import { planReaction, resolveReplyTarget } from './reactions.js';
-import { sharedPeerRead } from './seen.js';
+import { planSharedRead } from './seen.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
 
@@ -268,8 +268,10 @@ export function makeConversationCommands(p: ConversationPorts) {
 
     /**
      * Moves the caller's own read position forward; it never moves back or past the newest message. It is
-     * always recorded, for the caller's own unread dot. When both people share it (SEEN, D-066), the other
-     * person's inbox also hears of the move, so their screen can read it; otherwise only the caller's does.
+     * always recorded, for the caller's own unread dot. The shared position (SEEN, D-066, D-150) moves with it
+     * only while the caller's own switch is on, so what they read while it is off is never shown, even later.
+     * The other person's inbox also hears of the move only when the shared position moved and both share, so
+     * their screen can read it; otherwise only the caller's does.
      */
     markRead(
       authority: PersonalAuthority,
@@ -292,8 +294,7 @@ export function makeConversationCommands(p: ConversationPorts) {
           );
           if (accepted === undefined) return refuse('invalid_input');
           const moved = accepted !== entered.own.readThroughSequence;
-          // The other person is told only while SEEN is mutual; their own position is what `sharedPeerRead` reads.
-          const told = moved && (await sharedPeerRead(p, entered)) !== undefined;
+          const { recordShared, tellPeer } = await planSharedRead(p, entered, moved);
           return ok({
             write: async () => {
               if (moved)
@@ -302,6 +303,7 @@ export function makeConversationCommands(p: ConversationPorts) {
                   entered.conversation.conversationId,
                   entered.owner.accountId,
                   accepted,
+                  recordShared,
                 );
               return ConversationReadAcceptanceSchema.parse({
                 ...receiptBase(context, command.commandId),
@@ -311,7 +313,7 @@ export function makeConversationCommands(p: ConversationPorts) {
                 acceptedThroughSequence: accepted,
               });
             },
-            announce: told ? both(entered) : moved ? ownInbox(entered) : [],
+            announce: tellPeer ? both(entered) : moved ? ownInbox(entered) : [],
           });
         },
       });

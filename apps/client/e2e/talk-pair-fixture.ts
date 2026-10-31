@@ -6,8 +6,9 @@ import { id } from './encounter-fixture';
  * once (no backend). What one page sends the other reads, so replies, reactions and the changes feed can be
  * exercised from both sides. It keeps the real server's rules that the client depends on: gapless sequences,
  * a fresh change number for a changed reaction, one reaction per person and kind, a reply only to a
- * message of this conversation, per-reader `mine`, and SEEN (D-066): each person's read position moves only by
- * their own mark-read, and the other person is told how far it has moved only while both people's switches are on.
+ * message of this conversation, per-reader `mine`, and SEEN (D-066, D-150): each person's read position moves only by
+ * their own mark-read, a second "shared" position moves with it only while their own switch is on, and the other
+ * person is told the shared position only while both people's switches are on.
  * Authored names, never product data.
  */
 export type Who = 'asha' | 'ravi';
@@ -54,6 +55,8 @@ export function pairWorld() {
   let changes = 0;
   /** How far each person has read: moved by their own mark-read only, whether or not they share it. */
   const readThrough: Record<Who, number> = { asha: 0, ravi: 0 };
+  /** How far each person has read while their own switch was on: the only position the other can be told. */
+  const sharedThrough: Record<Who, number> = { asha: 0, ravi: 0 };
   /** Each person's SEEN switch (on by default) and its revision. */
   const sharing: Record<Who, { shared: boolean; revision: number }> = {
     asha: { shared: true, revision: 1 },
@@ -61,7 +64,7 @@ export function pairWorld() {
   };
   /** What the server may tell `who` about the other person's reading: only while both share. */
   const peerReadFor = (who: Who) =>
-    sharing.asha.shared && sharing.ravi.shared ? { peerRead: { throughSequence: readThrough[other(who)] } } : {};
+    sharing.asha.shared && sharing.ravi.shared ? { peerRead: { throughSequence: sharedThrough[other(who)] } } : {};
   const find = (sequence: number) => messages.find((message) => message.sequence === sequence)!;
 
   const quoteOf = (sequence: number) => {
@@ -130,8 +133,9 @@ export function pairWorld() {
       if (sharing[who].shared !== shared) sharing[who].revision += 1;
       sharing[who].shared = shared;
     },
-    /** How far this person has read. */
+    /** How far this person has read, and how far while sharing. */
     readThrough: (who: Who) => readThrough[who],
+    sharedThrough: (who: Who) => sharedThrough[who],
     /** What the reactions on a message are now, as "who:kind". */
     reactionsOn: (sequence: number) => find(sequence).reactions.map((reaction) => `${reaction.by}:${reaction.kind}`),
     replyOf: (sequence: number) => find(sequence).replyTo,
@@ -282,7 +286,9 @@ export function pairWorld() {
             };
           }
           case '/v1/social/conversations/mark-read': {
+            const moved = Number(body['throughSequence']) > readThrough[who];
             readThrough[who] = Math.max(readThrough[who], Number(body['throughSequence']));
+            if (moved && sharing[who].shared) sharedThrough[who] = readThrough[who];
             return {
               json: {
                 ...receipt(body),

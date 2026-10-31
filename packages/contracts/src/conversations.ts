@@ -186,7 +186,8 @@ const OwnSettings = z.strictObject({ readThroughSequence: Counter, muted: z.bool
 /** Present (true) only after the other person left: history stays readable, nothing more can be sent. */
 const Ended = z.literal(true).optional();
 /**
- * How far the other person has read: SEEN (D-066, D-150). Present only while the conversation stands and both
+ * How far the other person has read while their own switch was on: SEEN (D-066, D-150). What they read while it was
+ * off is never in it, even after they turn it on. Present only while the conversation stands and both
  * people share their read position. Its absence gives no reason (the other person hides theirs, the reader hides
  * their own, either person left). A position, never a time: the time under a message is when it was sent.
  */

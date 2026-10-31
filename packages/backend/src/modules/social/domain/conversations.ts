@@ -31,8 +31,8 @@ export interface SeenInput {
   readonly peerShares: boolean;
   /** The other person is still in the conversation and it has not ended. */
   readonly standing: boolean;
-  /** How far the other person has read, as stored. */
-  readonly peerReadThrough: number;
+  /** How far the other person has read while their own switch was on, as stored (never what they read while it was off). */
+  readonly peerSharedThrough: number;
 }
 
 /**
@@ -43,5 +43,25 @@ export interface SeenInput {
  */
 export function visiblePeerRead(input: SeenInput): number | undefined {
   if (!input.standing || !input.readerShares || !input.peerShares) return undefined;
-  return input.peerReadThrough;
+  return input.peerSharedThrough;
+}
+
+/** What a read that may have moved the reader's position means for SEEN. */
+export interface ReadMoveInput {
+  /** The reader's own position moved forward with this read (not a repeat, not a smaller number). */
+  readonly moved: boolean;
+  readonly readerShares: boolean;
+  readonly peerShares: boolean;
+  readonly standing: boolean;
+}
+
+/**
+ * The reader's own position always moves, for their own unread dot. The shared position, the only one the
+ * other person can be told, moves with it only while the reader's switch is on: what a person reads while it
+ * is off is never shown, even after they turn it on (D-150). The other person's inbox hears of it only when
+ * the shared position moved and they could see it, which is while both share and the conversation stands.
+ */
+export function planReadMove(input: ReadMoveInput): { readonly recordShared: boolean; readonly tellPeer: boolean } {
+  const recordShared = input.moved && input.readerShares;
+  return { recordShared, tellPeer: recordShared && input.peerShares && input.standing };
 }

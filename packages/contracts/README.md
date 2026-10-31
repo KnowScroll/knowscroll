@@ -966,7 +966,7 @@ people, never a time; people the reader blocked are left out). A reaction advanc
 `changes` sends it again. The thread contract reuses the same shapes.
 
 SEEN (v3 T-C, D-066, D-150): the direct conversation `read` snapshot and `changes` page may carry
-`peerRead { throughSequence }`, how far the other person has read: a position, never a time, a name or a flag.
+`peerRead { throughSequence }`, how far the other person has read while their own switch was on: a position, never a time, a name or a flag.
 It is present only while both people share their read position and the conversation stands, and absent in every
 other case, and its absence gives no reason. The inbox row, the thread contract and rooms have no
 such field (strict schemas refuse one), and a typing signal is never on the wire. The caller's own switch is

@@ -135,6 +135,31 @@ test('SEEN works both ways: when either person hides theirs, neither sees the ot
   await closeAll(asha.context, ravi.context);
 });
 
+test('what a person read while theirs was hidden stays Sent after they show it again, and a new read while sharing shows', async ({
+  browser,
+}) => {
+  const world = conversation();
+  const asha = await person(browser, world, 'asha');
+  const ravi = await person(browser, world, 'ravi');
+  await expect.poll(() => world.readThrough('ravi')).toBe(3);
+  // Ravi hides his, and Asha sends something he reads while it is hidden.
+  world.setSeen('ravi', false);
+  world.say('asha', 'ruk, saath mein dekhte hain', { minutesAgo: 2 });
+  await ravi.page.reload();
+  await expect.poll(() => world.readThrough('ravi')).toBe(4);
+  expect(world.sharedThrough('ravi')).toBe(3);
+  world.setSeen('ravi', true);
+  await asha.page.reload();
+  expect(await deliveryUnder(asha.page)).toEqual(['sent']);
+  // A new message, read while he shares: shown.
+  world.say('asha', 'part 2 abhi start kiya', { minutesAgo: 1 });
+  await ravi.page.reload();
+  await expect.poll(() => world.sharedThrough('ravi')).toBe(5);
+  await asha.page.reload();
+  expect(await deliveryUnder(asha.page)).toEqual(['seen']);
+  await closeAll(asha.context, ravi.context);
+});
+
 test('a message the other person has not read to stays Sent, and an older own message never carries the word', async ({
   browser,
 }) => {

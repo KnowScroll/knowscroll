@@ -1811,6 +1811,7 @@ export interface SocialConversationMembers {
   muted: Generated<boolean>;
   pending: Generated<boolean>;
   read_through_sequence: Generated<Int8>;
+  shared_read_through_sequence: Generated<Int8>;
 }
 
 export interface SocialConversations {

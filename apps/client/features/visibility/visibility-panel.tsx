@@ -196,7 +196,7 @@ export function VisibilityPanel({
                 description={
                   readReceipts.shared
                     ? 'On: people you talk with see SEEN once you’ve read their message, and you see theirs.'
-                    : 'Off: they won’t see when you’ve read their messages, and you won’t see theirs.'
+                    : 'Off: they won’t see when you’ve read their messages, and you won’t see theirs. What you read while it’s off stays unseen, even if you turn it on later.'
                 }
                 checked={readReceipts.shared}
                 disabled={busy}

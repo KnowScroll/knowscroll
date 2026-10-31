@@ -4,14 +4,22 @@
  * no provider and no model call.
  */
 import { randomUUID } from 'node:crypto';
-import { sql } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ContentThreadRef, DirectConversationRef } from '@knowscroll/contracts';
 import { eraseCurrentAccount, personalStores } from '@knowscroll/backend/erasure-registry';
 import { createBoss } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import { loadMigrations } from '@knowscroll/migrations';
+import {
+  createDatabase,
+  makeWithPersonalScope,
+  migrateToLatest,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { deleteAccountFor } from '@knowscroll/backend/modules/identity/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
+import { databaseUrl, quoteIdentifier, withAdmin } from '../support/admin.js';
+import { seedPerson } from '../support/fixtures.js';
 import {
   befriend,
   consumptionRows,
@@ -121,6 +129,18 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
     if (list.status !== 'ready') throw new Error('CI inbox');
     return list.viewRevision;
   };
+
+  /** The two positions stored for a person's membership: how far they read, and how far they read while sharing. */
+  async function positionsOf(person: Friend) {
+    const row = await database.db
+      .selectFrom('social.conversation_members as m')
+      .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
+      .select(['m.read_through_sequence as read', 'm.shared_read_through_sequence as shared'])
+      .where('m.account_id', '=', person.accountId)
+      .where('c.kind', '=', 'direct')
+      .executeTakeFirstOrThrow();
+    return { read: String(row.read), shared: String(row.shared) };
+  }
 
   describe('the switch', () => {
     it('is on by default, and a person who never touched it has no row', async () => {
@@ -242,14 +262,54 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
     });
 
     it('gives no reason when it says nothing: the field is absent, with no flag about who hid theirs', async () => {
-      const { a, b, aRef, bRef } = await pair();
+      const { a, b, aRef } = await pair();
       await send(a, aRef, 'one');
       await setSeen(b, false);
       const snapshot = await snapshotOf(a, aRef);
       expect(snapshot).not.toHaveProperty('peerRead');
       expect(JSON.stringify(snapshot)).not.toMatch(/shared|receipt|seen|hidden/i);
       expect(JSON.stringify(await changesOf(a, aRef))).not.toMatch(/shared|receipt|seen|hidden/i);
-      expect(bRef.conversationId).toBe(aRef.conversationId);
+    });
+
+    it('never shows what was read while the switch was off, even after it is turned on again', async () => {
+      const { a, b, aRef, bRef } = await pair();
+      await send(a, aRef, 'one');
+      await send(a, aRef, 'two');
+      await send(a, aRef, 'three');
+      // Read while sharing: shown.
+      await markRead(b, bRef, 1);
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 1 });
+
+      // B hides, reads to the end, and shows again: A is told nothing new about it.
+      await setSeen(b, false);
+      await markRead(b, bRef, 3);
+      expect(await positionsOf(b)).toEqual({ read: '3', shared: '1' });
+      expect(await seen(a, aRef)).toBeUndefined();
+      await setSeen(b, true);
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 1 });
+      expect((await snapshotOf(b, bRef)).own.readThroughSequence).toBe(3);
+      // Asking to read what B already read changes nothing: nothing new was read while sharing.
+      await markRead(b, bRef, 3);
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 1 });
+
+      // A newer message, read while sharing: shown up to there.
+      await send(a, aRef, 'four');
+      await markRead(b, bRef, 4);
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 4 });
+      expect(await positionsOf(b)).toEqual({ read: '4', shared: '4' });
+    });
+
+    it('shows nothing from a person who hid theirs before reading anything, until they read again while sharing', async () => {
+      const { a, b, aRef, bRef } = await pair();
+      await send(a, aRef, 'one');
+      await setSeen(b, false);
+      await markRead(b, bRef, 1);
+      await setSeen(b, true);
+      // Shared, with nothing read while sharing: position 0, which the app draws as Sent.
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 0 });
+      await send(a, aRef, 'two');
+      await markRead(b, bRef, 2);
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 2 });
     });
 
     it('still records a hidden reader’s own position for their own unread dot, and writes nothing more on a read', async () => {
@@ -259,6 +319,8 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
       await setSeen(b, false);
       await markRead(b, bRef, 2);
       expect((await snapshotOf(b, bRef)).own.readThroughSequence).toBe(2);
+      // The position that may be shown did not move while it was hidden.
+      expect(await positionsOf(b)).toEqual({ read: '2', shared: '0' });
 
       // Reading a snapshot or catching up writes no row anywhere in Social: only a read command moves a position.
       const tables = ['conversation_members', 'messages', 'inbox_heads', 'visibility_settings', 'message_reactions'];
@@ -321,6 +383,46 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
       const settled = [await inboxRevision(a), await inboxRevision(b)];
       await markRead(b, bRef, 3);
       expect([await inboxRevision(a), await inboxRevision(b)]).toEqual(settled);
+    });
+  });
+
+  describe('the hint after the other person is gone', () => {
+    it('tells only the reader’s inbox once the other person left', async () => {
+      const { a, b, aRef, bRef } = await pair();
+      await send(a, aRef, 'one');
+      unwrap(await talk().leave(b.authority, { version: direct, commandId: randomUUID(), conversation: bRef }));
+      const aBefore = await inboxRevision(a);
+      const bBefore = await inboxRevision(b);
+      await markRead(a, aRef, 1);
+      expect(await inboxRevision(a)).toBe(aBefore + 1);
+      expect(await inboxRevision(b)).toBe(bBefore);
+    });
+
+    it('tells only the reader’s inbox once the other person’s account is deleted, and creates nothing for them', async () => {
+      const { a, b, aRef } = await pair();
+      await send(a, aRef, 'one');
+      const boss = createBoss(database.settings, 'producer', { onError: () => undefined, onWarning: () => undefined });
+      await boss.start();
+      try {
+        const deleting = deleteAccountFor(database.db, boss, {
+          eraseAccountData: eraseCurrentAccount,
+          lockTimeoutMs: 5_000,
+        });
+        const receiptId = randomUUID();
+        expect((await deleting.request(b.authority, { receiptId })).kind).toBe('accepted');
+        expect(await deleting.process({ v: 1, deletionId: receiptId })).toBe('completed');
+      } finally {
+        await boss.stop({ graceful: false });
+      }
+      const aBefore = await inboxRevision(a);
+      expect(await markRead(a, aRef, 1)).toMatchObject({ acceptedThroughSequence: 1 });
+      expect(await inboxRevision(a)).toBe(aBefore + 1);
+      const heads = await database.db
+        .selectFrom('social.inbox_heads')
+        .select('account_id')
+        .where('account_id', '=', b.accountId)
+        .execute();
+      expect(heads).toEqual([]);
     });
   });
 
@@ -433,6 +535,89 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
     });
   });
 
+  describe('migration 0078', () => {
+    it('starts every direct conversation with the shared position equal to the read position, and a thread member at 0', async () => {
+      const name = `ks_it_seen_backfill_${randomUUID().replaceAll('-', '')}`;
+      await withAdmin((client) => client.query(`create database ${quoteIdentifier(name)} template template0`));
+      const handle = createDatabase(
+        { ...database.settings, url: databaseUrl(name) },
+        { onIdleClientError: () => undefined },
+      );
+      try {
+        const migrations = loadMigrations();
+        const index = migrations.findIndex((migration) => migration.name === '0078_read_receipts');
+        expect(index).toBeGreaterThan(0);
+        expect((await migrateToLatest(handle.db, migrations.slice(0, index))).kind).toBe('migrated');
+        const typed = handle.db as unknown as Kysely<Database>;
+        const [first, second] = [await seedPerson(typed), await seedPerson(typed)];
+        const now = new Date('2026-10-30T08:00:00Z');
+        const [direct, thread] = [randomUUID(), randomUUID()];
+        await typed
+          .insertInto('social.conversations')
+          .values([
+            { conversation_id: direct, lineage: randomUUID(), last_activity_at: now, created_at: now, closed_at: now },
+            {
+              conversation_id: thread,
+              lineage: randomUUID(),
+              last_activity_at: now,
+              created_at: now,
+              closed_at: now,
+              kind: 'thread',
+            },
+          ])
+          .execute();
+        await typed
+          .insertInto('social.conversation_members')
+          .values([
+            {
+              conversation_id: direct,
+              account_id: first.accountId,
+              membership_id: randomUUID(),
+              read_through_sequence: 5,
+            },
+            {
+              conversation_id: direct,
+              account_id: second.accountId,
+              membership_id: randomUUID(),
+              read_through_sequence: 0,
+            },
+            {
+              conversation_id: thread,
+              account_id: first.accountId,
+              membership_id: randomUUID(),
+              read_through_sequence: 7,
+            },
+          ])
+          .execute();
+
+        expect((await migrateToLatest(handle.db, migrations.slice(0, index + 1))).kind).toBe('migrated');
+        const rows = await typed
+          .selectFrom('social.conversation_members')
+          .select(['conversation_id', 'account_id', 'read_through_sequence', 'shared_read_through_sequence'])
+          .execute();
+        const positionOf = (conversation: string, account: string) => {
+          const row = rows.find(
+            (candidate) => candidate.conversation_id === conversation && candidate.account_id === account,
+          );
+          return [String(row?.read_through_sequence), String(row?.shared_read_through_sequence)];
+        };
+        expect(positionOf(direct, first.accountId)).toEqual(['5', '5']);
+        expect(positionOf(direct, second.accountId)).toEqual(['0', '0']);
+        // A thread never tells a member where another has read.
+        expect(positionOf(thread, first.accountId)).toEqual(['7', '0']);
+        // The shared position can never be ahead of the read position.
+        await expect(
+          sql`update social.conversation_members set shared_read_through_sequence = read_through_sequence + 1
+            where conversation_id = ${direct}::uuid and account_id = ${first.accountId}::uuid`.execute(handle.db),
+        ).rejects.toThrow();
+      } finally {
+        await handle.close();
+        await withAdmin((client) => client.query(`drop database ${quoteIdentifier(name)} with (force)`));
+      }
+      // Migrating a database from nothing is slow on a busy machine.
+    }, 180_000);
+  });
+
   describe('erasure and export', () => {
     it('exports the switch in words, for the person alone', async () => {
       const { a, b } = await pair();
@@ -454,9 +639,24 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
       expect((await exportOf(b)).sharing.seenInDirectConversations).toMatch(/^on:/);
     });
 
-    it('keeps the switch through Clear and removes it with the account', async () => {
+    it('keeps the switch and what was shared through Clear, and removes the switch with the account', async () => {
       expect(socialErasure.clearExploration?.dispositions['social.visibility_settings']).toBe('preserve');
-      const { a, b } = await pair();
+      const { a, b, aRef, bRef } = await pair();
+      await send(a, aRef, 'one');
+      await markRead(b, bRef, 1);
+      await setSeen(b, false);
+      // Clear runs Social's erase for each person's universe (the published copy); conversations and choices stay.
+      const clearing = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
+      for (const person of [a, b])
+        expect(await clearing(person.authority, (scope) => socialErasure.erase(scope))).toMatchObject({
+          kind: 'entered',
+          value: { status: 'completed' },
+        });
+      expect(unwrap(await settings.readOwnReadReceipts(b.authority))).toMatchObject({ shared: false });
+      expect(unwrap(await settings.readOwnReadReceipts(a.authority))).toMatchObject({ shared: true });
+      expect(await positionsOf(b)).toEqual({ read: '1', shared: '1' });
+      await setSeen(b, true);
+      expect(await seen(a, aRef)).toEqual({ throughSequence: 1 });
       await setSeen(b, false);
       const row = () =>
         database.db
@@ -479,7 +679,6 @@ describe('SEEN in direct conversations (real PostgreSQL)', () => {
         await boss.stop({ graceful: false });
       }
       expect(await row()).toBeUndefined();
-      expect(a.accountId).not.toBe(b.accountId);
     });
   });
 });

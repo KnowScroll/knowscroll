@@ -114,7 +114,7 @@ describe('sharing and visibility settings (labelled in-memory server)', () => {
     await waitFor(() => expect(checked('Show SEEN in direct conversations', 'switch')).toBe(false));
     expect(server.readReceipts).toEqual({ shared: false, revision: 2 });
     expect(
-      screen.getByText(/Off: they won’t see when you’ve read their messages, and you won’t see theirs/),
+      screen.getByText(/What you read while it’s off stays unseen, even if you turn it on later/),
     ).toBeOnTheScreen();
     // The audience and the availability choice were not touched.
     expect(commandsTo(server, '/v1/social/visibility')).toHaveLength(0);

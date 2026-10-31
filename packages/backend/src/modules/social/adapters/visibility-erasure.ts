@@ -63,7 +63,7 @@ export async function eraseVisibilityAccountRows(trx: Transaction<Database>, acc
 const AVAILABILITY_WORDS = { hidden: 'not shown', recently_active: 'Recently active', online: 'Online' } as const;
 const SEEN_WORDS = {
   on: 'on: people you talk with see when you have read their message, and you see when they have read yours',
-  off: 'off: you do not show when you have read a message, and you do not see it for them either',
+  off: 'off: you do not show when you have read a message, and you do not see it for them either. What you read while it is off is not shown later if you turn it on again',
 } as const;
 const AUDIENCE_WORDS = { nobody: 'nobody', chosen_friends: 'friends you chose', all_friends: 'all friends' } as const;
 
