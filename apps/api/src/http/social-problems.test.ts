@@ -113,6 +113,9 @@ describe('mounted Social serialization boundary before authentication and parsin
         'content-shares/read',
         'content-shares/list',
         'content-shares/resolve',
+        'threads/places/read',
+        'threads/places/set',
+        'threads/places/hide',
       ].map((path) => ['POST', `/v1/social/${path}`]),
       ['POST', '/s/preview'],
     ];

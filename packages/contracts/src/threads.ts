@@ -17,13 +17,17 @@ import { socialPost } from './social-problems.js';
 /**
  * Content threads (blueprint §17): a Reel or Scroll, the people it was shared with and their
  * conversation about it, on one surface. The thread owns membership and messages. Each person's
- * playback position, current episode and seen markers are their own and never appear here.
+ * playback position, current episode and seen markers are their own and never appear here. The one
+ * thing a member may choose to tell the others is a coarse place: a part, `on` or `finished`, and a
+ * day (D-065). It has its own read and commands, and no other answer carries it.
  */
 const Version = z.literal('content-thread.v1');
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const Limit = z.number().int().min(1).max(50);
 const Millis = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+/** A part of a declared series: the same bound as an episode's `part`. */
+const PartNumber = z.number().int().min(1).max(99);
 
 /** Most friends one thread can be started with. */
 export const MAX_THREAD_FRIENDS = 8;
@@ -164,12 +168,28 @@ export const ThreadEpisodeSchema = z.strictObject({
   assetId: UuidSchema,
   assetRevision: Revision,
   kind: z.enum(['reel', 'scroll']),
-  part: z.number().int().min(1).max(99).optional(),
+  part: PartNumber.optional(),
   title: z.string().min(1).max(240),
   state: z.enum(['ready', 'corrected', 'unavailable']),
   visited: z.boolean(),
 });
 export type ThreadEpisode = z.infer<typeof ThreadEpisodeSchema>;
+
+/**
+ * Where a member is in the thread's series: on a part, or finished it. A coarse, self-reported place
+ * (D-065), shown only to the members of a thread they joined and only while the member has not hidden
+ * it. It is a part and a calendar day, never a playhead, a branch, a selected episode, a seen marker
+ * or a time of day: `day` is a date, so a finer time does not parse. It is not consumption evidence.
+ */
+export const ThreadPlaceSchema = z.strictObject({
+  person: PublicPersonRefSchema,
+  you: z.boolean(),
+  part: PartNumber,
+  state: z.enum(['on', 'finished']),
+  /** The UTC calendar day the member reached this place, as YYYY-MM-DD. */
+  day: z.iso.date(),
+});
+export type ThreadPlace = z.infer<typeof ThreadPlaceSchema>;
 
 export const ThreadParticipantSchema = z.strictObject({
   person: PublicPersonRefSchema,
@@ -436,6 +456,75 @@ export const ThreadInboxSchema = z.strictObject({
 });
 
 /**
+ * The places of a thread's series as the caller may see them. `hidden` is the caller's own switch. A
+ * member who hides, has not set a place, left, was removed, or blocks the caller (or is blocked by them)
+ * is simply not listed, and nothing says which; a thread that is not a series has none. The caller's own
+ * place is listed with `you` while they share it. A stranger gets `unavailable`.
+ */
+export const ReadThreadPlacesSchema = z.strictObject({ ...Read, thread: ContentThreadRefSchema });
+export const ThreadPlacesSchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    thread: ContentThreadRefSchema,
+    hidden: z.boolean(),
+    places: z
+      .array(ThreadPlaceSchema)
+      .max(MAX_THREAD_FRIENDS + 1)
+      .refine((places) => new Set(places.map((place) => place.person.personId)).size === places.length),
+  }),
+]);
+export type ThreadPlaces = z.infer<typeof ThreadPlacesSchema>;
+
+/**
+ * What a place command answers: the caller's scope and what the command did, and no time. A place command
+ * is idempotent by its wanted state, so it has no command ID, keeps no receipt and has nothing to replay
+ * (D-152): a receipt would hold the exact time of every report.
+ */
+const PlaceAcceptance = { version: Version, scope: ConversationScopeSchema };
+
+/**
+ * Reports the caller's own place. Written only by the member's own client, when they open a part of
+ * the thread's series or finish it. The server checks that the part is in the series, keeps a place
+ * that is further along, stamps the day itself and writes nothing while the caller hides. Repeating it
+ * changes nothing. Not consumption evidence for anyone.
+ */
+export const SetThreadPlaceSchema = z.strictObject({
+  version: Version,
+  thread: ContentThreadRefSchema,
+  part: PartNumber,
+  state: z.enum(['on', 'finished']),
+});
+export const ThreadPlaceAcceptanceSchema = z.strictObject({
+  ...PlaceAcceptance,
+  operation: z.literal('thread.place'),
+  thread: ContentThreadRefSchema,
+  /**
+   * `stored`: the place moved. `unchanged`: the caller was already there or further on. `hidden`: the
+   * caller hides, so nothing was written.
+   */
+  result: z.enum(['stored', 'unchanged', 'hidden']),
+});
+
+/**
+ * Hides or shows where the caller is in this thread (a wanted state, so a repeat changes nothing).
+ * Hiding deletes the caller's place in the same step; showing again waits for their next open.
+ */
+export const SetThreadPlaceHiddenSchema = z.strictObject({
+  version: Version,
+  thread: ContentThreadRefSchema,
+  hidden: z.boolean(),
+});
+export const ThreadPlaceHiddenAcceptanceSchema = z.strictObject({
+  ...PlaceAcceptance,
+  operation: z.literal('thread.place-hidden'),
+  thread: ContentThreadRefSchema,
+  hidden: z.boolean(),
+  changed: z.boolean(),
+});
+
+/**
  * Opens a snippet: where it points now. `ready` names the content to open and the anchor in it;
  * `mapped` is true when a correction moved the anchor through an explicit compatible mapping, and
  * `settingsReset` when shared settings no longer fit the block. `changed` means the moment is no
@@ -504,4 +593,11 @@ export const threadsContract = {
   leave: socialPost('/v1/social/threads/leave', LeaveThreadSchema, ThreadLeaveAcceptanceSchema),
   inbox: socialPost('/v1/social/threads/inbox', ReadThreadInboxSchema, ThreadInboxSchema),
   openSnippet: socialPost('/v1/social/threads/snippets/open', OpenThreadSnippetSchema, ThreadSnippetOpeningSchema),
+  places: socialPost('/v1/social/threads/places/read', ReadThreadPlacesSchema, ThreadPlacesSchema),
+  setPlace: socialPost('/v1/social/threads/places/set', SetThreadPlaceSchema, ThreadPlaceAcceptanceSchema),
+  setPlaceHidden: socialPost(
+    '/v1/social/threads/places/hide',
+    SetThreadPlaceHiddenSchema,
+    ThreadPlaceHiddenAcceptanceSchema,
+  ),
 };

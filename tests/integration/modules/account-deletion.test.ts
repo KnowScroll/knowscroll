@@ -393,6 +393,12 @@ describe('account deletion (real database)', () => {
       if (startedThread.kind !== 'ok') throw new Error('thread not started');
       // What they asked of the Scenario Planner there: a draft (theirs alone) and a branch (the thread's).
       scenarioThreadId = startedThread.value.thread.threadId;
+      // Where they told the thread they are (D-065). The thread is a single Reel, which the command would refuse a
+      // place on, so this is a labelled fixture row; `social-places.test.ts` proves the real path.
+      await database.db
+        .insertInto('social.thread_places')
+        .values({ thread_id: scenarioThreadId, account_id: erased.accountId, part: 1, state: 'on', day: '2026-10-24' })
+        .execute();
       await seedScenarioRows(erased, scenarioThreadId);
       // A room: the person joined, started a discussion, wrote in it, invited their friend and asked an inhabitant.
       const rooms = await roomWorld(database);

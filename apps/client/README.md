@@ -75,7 +75,7 @@ exclude Reels, even though this controller has a working Reel player.
   Talk current, around a conversation or a thread, which are not tabs) and `keyboard-map.tsx` (every key the app
   listens to, as a sheet from Account and from the desktop Explore footer; add a row there with any new key).
 - Talk by size (D03, T3, D-140 to D-144): below 1024 px a conversation or a thread is one column. A thread there is a 72 px header
-  strip (Back, "A THREAD · n PARTS", the title, Series, options), the docked player (a 56 px bar) and the conversation,
+  strip (Back, "A THREAD · n PARTS" or, in a series, the part worlds with the faces of members on them, the title, Series, options), a one-line party line when others share where they are, the docked player (a 56 px bar) and the conversation,
   which keeps over 60 % of a 390 x 844 screen. "Series" pulls the parts and the people down from the header as a sheet
   that Back, Esc and Close close first. From 1024 px a thread has the conversation with a 400 px series panel on its
   right (parts, the player, the people); a direct conversation has the inbox beside it, with its row current; the Talk
@@ -595,8 +595,21 @@ direct conversations and threads together; a thread row shows its people, the la
   encounter area), `thread-messages.tsx` (day capsules and a time under each run: another author, five minutes or a new
   day starts one) and the composer. Which episode is selected, and whether the player is docked, are kept in the account
   scope's storage on this device only; nothing about them is sent. A phone starts docked until the person unfolds the
-  player themselves; watching unfolds it for good, so a resize never docks a playing Reel. Not built here: painted worlds
-  and faces on the header (art, and a coarse place is T-D), the dark New Universe look, replies and reactions (T-B).
+  player themselves; watching unfolds it for good, so a resize never docks a playing Reel. Painted worlds (art) are not
+  built: a world is a numbered coloured tile.
+- **A thread as a party (v3 T-D, D-065, D-152, D-153).** `party.tsx` draws the header's `PartWorlds` (a numbered tile per
+  part, the member faces on the part they are on, ringed in green once finished, the selected part ringed in yellow; named
+  for a screen reader with who is on it), `PartyLine` ("Ravi is on Part 2 · Asha and Kenji on Part 1", "All finished"; absent
+  when no one else shows a place), `SeriesTabs` (Parts · Members), `PartFaces` on each part row, and `MembersSection` (each
+  member with "On Part 2 · Sat 24 Oct" or their handle, and the person's own "Hide where I am" switch, off by default).
+  `use-thread-places.ts` reads the places (first read, hints, focus, a 20 s poll). The thread's own player is the only thing
+  that tells the thread where this person is: `ThreadEncounter.onPlace` fires `on` when a Reel is opened with Watch or
+  Read this Scroll is pressed, `finished` when a Reel plays to its last second (`ReelEncounter.onFinished`) and when the
+  Scroll reader's "I've finished this part" is pressed (the address carries the part as `p`). The automatic ones send
+  nothing while recording is paused or not known (D-153); the button is a deliberate share and still sends. Choosing a part, the Series
+  sheet, docking, Full screen and the snippet viewer tell nothing. Single-item threads have none of it. No clock time is
+  drawn: a place carries a day. Covered by `party.test.tsx` and `e2e/thread-party-smoke.spec.ts` (two people in two browser
+  contexts; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
   activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
   moment ("Watch from here") and always has a Back to thread button that returns to the same message.

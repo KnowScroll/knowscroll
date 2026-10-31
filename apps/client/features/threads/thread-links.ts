@@ -11,9 +11,18 @@ export const threadHref = (ref: ContentThreadRef): string => `/threads/${ref.thr
 export const snippetHref = (ref: ContentThreadRef, messageId: string): string =>
   `/threads/${ref.threadId}/snippet/${messageId}${carry(ref)}`;
 
-/** The thread's own reader of one of its Scrolls, where a passage or block can be shared back into the thread. */
-export const readInThreadHref = (ref: ContentThreadRef, assetId: string): string =>
-  `/threads/${ref.threadId}/read/${assetId}${carry(ref)}`;
+/**
+ * The thread's own reader of one of its Scrolls, where a passage or block can be shared back into the thread.
+ * In a series it carries the part's number (`p`), so the reader can tell the thread the person finished it.
+ */
+export const readInThreadHref = (ref: ContentThreadRef, assetId: string, part?: number): string =>
+  `/threads/${ref.threadId}/read/${assetId}${carry(ref)}${part === undefined ? '' : `&p=${String(part)}`}`;
+
+/** The part a reader address names, or undefined when it names none or something that is not a part. */
+export function partFromParam(value: string | undefined): number | undefined {
+  const part = Number(value);
+  return value !== undefined && Number.isInteger(part) && part >= 1 && part <= 99 ? part : undefined;
+}
 
 /** A branch of the thread (X03): its own items, with a way back to the original sequence. */
 export const branchHref = (ref: ContentThreadRef, nodeId: string): string =>

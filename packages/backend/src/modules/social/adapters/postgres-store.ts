@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { sql } from 'kysely';
 import { PublicPersonRefSchema } from '@knowscroll/contracts';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import {
@@ -202,6 +203,15 @@ export const socialStore: SocialStore = {
         .where('pair_id', '=', pair.id)
         .where('account_id', '=', s.accountId)
         .execute();
+  },
+  async forgetPlacesBetween(lock, accountA, accountB) {
+    await sql`
+      delete from social.thread_places place using social.conversation_members member
+      where member.conversation_id = place.thread_id and member.account_id = place.account_id
+        and ((member.account_id = ${accountA}::uuid and member.invited_by_account_id = ${accountB}::uuid)
+          or (member.account_id = ${accountB}::uuid and member.invited_by_account_id = ${accountA}::uuid))`.execute(
+      sharedTransactionOf(lock.shared),
+    );
   },
   async binding(lock, actor, operation, command) {
     const row = await sharedTransactionOf(lock.shared)
