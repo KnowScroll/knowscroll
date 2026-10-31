@@ -1832,6 +1832,9 @@ export interface ScenariosDrafts {
 }
 
 export interface ScenariosNodes {
+  answer: Json | null;
+  answer_settled_at: Timestamp | null;
+  answer_state: string | null;
   asset_id: string;
   asset_revision: number | null;
   asset_title: string | null;

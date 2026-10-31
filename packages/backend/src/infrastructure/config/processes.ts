@@ -98,8 +98,8 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly supplyPlannerCreateDailyCap: number;
   /** Branches of threads Quartermaster may order per UTC day (D-049); 0 turns scenario Create off. */
   readonly supplyScenarioDailyCap: number;
-  /** Branches one thread may have ordered over its life. */
-  readonly supplyScenarioThreadCap: number;
+  /** Branches one thread may have ordered per UTC day (D-076, T3 Q8). */
+  readonly supplyScenarioThreadDailyCap: number;
   /**
    * `KS_REASONING_ROOM_ENABLED`: residents may speak unprompted (D-162). The API schedules their checks only when it
    * is on, so a world that leaves it off queues nothing. The worker reads the same variable.
@@ -247,8 +247,12 @@ const supplyPlannerCapVariable = z.coerce.number().int().min(0).max(500).default
  * world (D-049).
  */
 const supplyScenarioDailyCapVariable = z.coerce.number().int().min(0).max(500).optional();
-/** `KS_SUPPLY_SCENARIO_THREAD_CAP`: the branches one thread may have ordered in all. Default 6. */
-const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(6);
+/**
+ * `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP`: the branches one thread may have ordered per UTC day (a what-if or another
+ * perspective). Default 5 (D-076, D-211). It replaces `KS_SUPPLY_SCENARIO_THREAD_CAP`, which counted a thread's whole life;
+ * that variable is no longer read.
+ */
+const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(5);
 /**
  * `KS_COMPOSER_POLICY`: the Composer policy new decisions are made under (D-190). Default `v0`; a world moves to `v1` by
  * configuration once v1's numbers are deployed. Replay of a stored decision does not read it: a decision names its own policy.
@@ -309,7 +313,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
       KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
-      KS_SUPPLY_SCENARIO_THREAD_CAP: supplyScenarioThreadCapVariable,
+      KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
       KS_ROOMS_STARS_PER_DAY: positiveInteger(3, 50),
       KS_COMPOSER_POLICY: composerPolicyVariable,
@@ -329,7 +333,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_CREATE_DAILY_CAP',
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_DAILY_CAP',
-      'KS_SUPPLY_SCENARIO_THREAD_CAP',
+      'KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP',
       'KS_REASONING_ROOM_ENABLED',
       'KS_ROOMS_STARS_PER_DAY',
       'KS_COMPOSER_POLICY',
@@ -370,7 +374,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
-    supplyScenarioThreadCap: parsed.KS_SUPPLY_SCENARIO_THREAD_CAP,
+    supplyScenarioThreadDailyCap: parsed.KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP,
     roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
     roomStarsPerDay: parsed.KS_ROOMS_STARS_PER_DAY,
     composerPolicy: parsed.KS_COMPOSER_POLICY,

@@ -18,6 +18,7 @@ export function ScenarioSheet({
   start,
   scope,
   thread,
+  threadFull = false,
   onClose,
   onChosen,
 }: {
@@ -25,6 +26,8 @@ export function ScenarioSheet({
   readonly start: ScenarioStart | undefined;
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
+  /** The thread has made its five branches for today: a refusal for the budget says so. */
+  readonly threadFull?: boolean;
   readonly onClose: () => void;
   readonly onChosen: (card: ScenarioCard) => void;
 }) {
@@ -54,6 +57,7 @@ export function ScenarioSheet({
           start={'offer' in start ? start : { ...start, kind }}
           scope={scope}
           thread={thread}
+          threadFull={threadFull}
           onClose={close}
           onChosen={onChosen}
         />

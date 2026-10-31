@@ -80,9 +80,10 @@ function requestOf(draft: DraftRow, selection: Choice['selection']): Chosen | un
 /**
  * Chooses a direction, or submits a complete request: the only command that commissions content
  * (D-006 i; blueprint §14). A choice makes the branch's node, orders its Scroll from Quartermaster and
- * sends the production job, all in one transaction with the receipt, so a retry is the same branch and
- * a rollback leaves nothing. If the thread already has this very branch (another member asked for the
- * same change), no second one is made and the draft points at the existing branch.
+ * sends the production job, and for a what-if sends the short answer's job too, all in one transaction with the
+ * receipt, so a retry is the same branch and a rollback leaves nothing. If the thread already has this very
+ * branch (another member asked for the same change), no second one is made and the draft points at the existing
+ * branch.
  *
  * Authority: the caller's membership reference under the thread's lock; the draft must be theirs,
  * unchosen and unexpired; the parent must be at the revision they saw. Refused without a receipt: a
@@ -137,11 +138,20 @@ export function makeChoose(p: ScenarioPorts) {
       speculative: step.speculative,
       semanticKey,
       assetId,
+      // Only a what-if gets a short answer (D-211); a perspective keeps the branch card it always had.
+      answerMaking: step.kind === 'what_if',
       createdAt: p.now(),
     };
     await p.store.insertNode(scope, node);
+    if (node.answerMaking) await p.enqueueAnswer(scope, { nodeId });
     await p.store.chooseDraft(scope, draft.draftId, nodeId);
-    return ok({ ...node, status: 'preparing', revision: 1 });
+    const { answerMaking, ...row } = node;
+    return ok({
+      ...row,
+      status: 'preparing',
+      revision: 1,
+      ...(answerMaking ? { answer: { state: 'making' as const } } : {}),
+    });
   }
 
   return async function choose(authority: PersonalAuthority, input: unknown): Promise<Result<Acceptance>> {

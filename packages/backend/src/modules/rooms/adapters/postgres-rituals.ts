@@ -39,7 +39,7 @@ const insertValues = (item: NewRitual) => ({
 });
 
 /**
- * Postgres rows of the room's daily items (migration 0084). Not personal: nothing here reads a message or a person, and
+ * Postgres rows of the room's daily items (migration 0085). Not personal: nothing here reads a message or a person, and
  * who decided is the operator's login as `cli:<name>`. A room's item is unique by (room, day, kind), so a retried batch
  * inserts nothing the second time.
  */

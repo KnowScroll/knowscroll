@@ -48,6 +48,7 @@ export function BranchSheets({
         start={scenarios.start}
         scope={scope}
         thread={thread}
+        threadFull={scenarios.madeAllToday}
         onClose={scenarios.close}
         onChosen={onChosen}
       />

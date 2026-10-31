@@ -123,6 +123,18 @@ Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 
 | Universe, desktop key hints | Bottom right of the map, above the clouds. | differs | The design draws them bottom left, where the chips sit when a place has a "Route to" chip. |
 | Universe, list view with no planets | "No planets in <system> yet." under the system row. | differs | The design draws systems with planets only. |
 
+## v3 T-F, the what-if answer card (#486)
+
+T3 "Threads" frames 6 to 9 and the desktop panel, at 390 × 844 and 1440 × 900, production export, labelled two-person fixtures (`thread-whatif-smoke.spec.ts`). Not yet seen with the real model.
+
+| Frame | What | Status | Why |
+|---|---|---|---|
+| 6 What if… | The sheet's note: "We make a short what-if, check it, then post it here as a branch. About 30 s. Keep chatting meanwhile." | matches | The sheet is the existing X01 sheet; only the line is new, for a what-if. |
+| 7 Making it | A paper card labelled "What-if · made by KnowScroll", the title, "Making a short what-if · about 30 s · keep chatting", a bar, "We check it before it posts.", Cancel for the one who asked. | differs | No step list ("Read Part 2 / Set the assumption / Checking the numbers"): no step is tracked, so none is drawn (D-213). After 90 seconds the line says it is taking longer than usual. |
+| 8 The branch, posted | "WHAT-IF READY · MADE IN 26 S · 12:46", ASSUMED, CHANGED (cobalt edge), KEPT, the answer, Open, Branch again. | differs | No Reply, Call it first or "2 replies in this branch" (D-213). The label is a pill inside the card, not floating over the card's top edge beside a planet. A figure row appears only when a source states a figure. |
+| 9 Branches tab | Every what-if under the part it came from. | missing | A branch continues the thread's root or another branch, never a part, so there is nothing to group by (D-213). The branch map (X04) stays the list. |
+| Desktop | The card sits in the conversation column beside the Series panel. | differs | The panel has no Branches section (frame 9). |
+
 ## v3 R-5: Today and the sky (#491)
 
 R3 pages p-04 (end to end), p-07 (Today channel), p-09 (on the Universe map) and p-10 (E, game feel). 390 × 844 and 1440 × 900, production export, labelled fixtures (`rooms-sky-smoke.spec.ts`). Screenshots in the PR.

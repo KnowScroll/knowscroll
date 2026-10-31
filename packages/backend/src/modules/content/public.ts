@@ -496,6 +496,21 @@ export const ENQUEUE_SCROLL_PRODUCTION = Symbol('content.enqueueScrollProduction
 export type ReadScrollSourcePages = (scope: PersonalScopeTx, root: ContentRef) => Promise<readonly string[]>;
 export const READ_SCROLL_SOURCE_PAGES = Symbol('content.readScrollSourcePages');
 
+/** One claim a Scroll cites: its ID in the provenance and the passage text of a public source, as stored. */
+export interface ScrollEvidenceClaim {
+  readonly claimId: string;
+  readonly text: string;
+}
+
+/**
+ * The claims an exact revision rests on, for a short answer a what-if may cite: those the revision's own provenance
+ * records, else those of the admitted Scroll that gives the same explanation (a Reel's twin, a Scroll's other
+ * revision). The same Scrolls, under the same review gate, as `ReadScrollSourcePages`. Stored research text only:
+ * nothing is fetched. At most 24, in the order the provenance lists them; empty when nothing is known.
+ */
+export type ReadScrollEvidence = (scope: PersonalScopeTx, root: ContentRef) => Promise<readonly ScrollEvidenceClaim[]>;
+export const READ_SCROLL_EVIDENCE = Symbol('content.readScrollEvidence');
+
 /**
  * Port the ordering module implements: which of these Scrolls it ordered may this caller open? Content
  * asks only about assets that have an order, so everything else stays as public as it was. `on` is

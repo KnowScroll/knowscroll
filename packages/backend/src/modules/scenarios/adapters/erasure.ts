@@ -4,7 +4,7 @@ import { EXPORT_LIST_LIMIT, boundedSection, exportReading } from '../../../infra
 import { deleteClearJobPayloads, deleteJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
-import { suggestDraftQueue } from '../events.js';
+import { suggestDraftQueue, writeAnswerQueue } from '../events.js';
 
 /**
  * What the scenarios module keeps about a person (D-049). Both stores are keyed by account.
@@ -13,7 +13,8 @@ import { suggestDraftQueue } from '../events.js';
  * - **Nodes** are the thread's shared exploration: a branch, its premises, its title and its Scroll.
  *   Clear keeps them. Deleting an account clears only the link to the person (`started_by_account_id`):
  *   the card then names nobody. What stays is what the others read: the title, the premises (which may
- *   be the member's own typed sentences), the order's brief and framing and the Scroll. None of it
+ *   be the member's own typed sentences), the order's brief and framing, the Scroll and a what-if's short
+ *   answer (D-211: words a model wrote from the premise and public sources, no account ID). None of it
  *   carries an account ID. Content that is a member's alone, their request in the composer, is a draft
  *   and is deleted.
  */
@@ -34,6 +35,11 @@ export const scenariosErasure = declareErasure({
       name: `pgboss/${suggestDraftQueue.name}`,
       description: 'Queued, active, retained and dead-lettered draft IDs.',
     },
+    {
+      name: `pgboss/${writeAnswerQueue.name}`,
+      description:
+        'Queued, active, retained and dead-lettered branch IDs of short answers, with the starter’s universe.',
+    },
   ],
   async erase(scope) {
     const removed = await transactionOf(scope)
@@ -43,7 +49,9 @@ export const scenariosErasure = declareErasure({
     return {
       module: 'scenarios',
       status: 'completed',
-      removed: Number(removed.numDeletedRows) + (await deleteJobPayloads(scope, [suggestDraftQueue.name])),
+      removed:
+        Number(removed.numDeletedRows) +
+        (await deleteJobPayloads(scope, [suggestDraftQueue.name, writeAnswerQueue.name])),
     };
   },
   async eraseAccount(scope) {
@@ -74,7 +82,9 @@ export const scenariosErasure = declareErasure({
       return {
         module: 'scenarios',
         status: 'completed',
-        removed: Number(removed.numDeletedRows) + (await deleteClearJobPayloads(scope, [suggestDraftQueue.name])),
+        removed:
+          Number(removed.numDeletedRows) +
+          (await deleteClearJobPayloads(scope, [suggestDraftQueue.name, writeAnswerQueue.name])),
       };
     },
   },
@@ -98,8 +108,9 @@ export const scenariosErasure = declareErasure({
           changes: { statement: string }[];
           kept: { statement: string }[];
           status: string;
+          answer: { claims: { text: string }[]; assumption: string } | null;
         }>`
-          select created_at, kind, title, lens, changes, kept, status from scenarios.nodes
+          select created_at, kind, title, lens, changes, kept, status, answer from scenarios.nodes
           where started_by_account_id = ${person.accountId}::uuid
           order by created_at desc, node_id limit ${EXPORT_LIST_LIMIT + 1}`.execute(trx);
         // A person who never used What if has no section: the file never names the module.
@@ -121,6 +132,14 @@ export const scenariosErasure = declareErasure({
               ...(row.lens === null ? {} : { lens: row.lens }),
               changes: row.changes.map((change) => change.statement),
               kept: row.kept.map((kept) => kept.statement),
+              ...(row.answer === null
+                ? {}
+                : {
+                    shortAnswer: {
+                      assumption: row.answer.assumption,
+                      text: row.answer.claims.map((claim) => claim.text).join(' '),
+                    },
+                  }),
               state: row.status,
             })),
           ),

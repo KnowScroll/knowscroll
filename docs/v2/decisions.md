@@ -2347,6 +2347,62 @@ Confirmed by: `writer-v2.test.ts` (the version, that a recipe of each new kit ge
 - **What stays.** A chosen region still drops the camera over it. Pan and zoom still work from the new start. Land not reached yet is still grey and unnamed (D-078).
 - **Verified.** `planet-plan.test.ts` (centred, names inside the screen, nothing formed keeps the old view) and `universe-planet-smoke.spec.ts`.
 
+## D-158 · 2026-10-31 · A thread makes five branches a day, counted by the UTC day (v3 T-F, #486)
+
+**Builds** D-076 (T3 Q8). **Amends** D-049, "`KS_SUPPLY_SCENARIO_THREAD_CAP` per thread over its life (default 6; dev 6)".
+
+- **Rule.** Quartermaster refuses a branch when the thread has had five orders since 00:00 UTC. It counts its own ledger (`supply.scenario_orders`), so a removed branch still counts. What-ifs and perspectives count together: both cost a made-to-order Scroll. A reused branch (the same idea asked twice) makes no order and does not count.
+- **A new variable.** `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP`, default 5 (1 to 100), read by the API. The old `KS_SUPPLY_SCENARIO_THREAD_CAP` is not read any more, so a world that still sets it to 6 (dev does) gets five a day without being edited. The world's daily cap `KS_SUPPLY_SCENARIO_DAILY_CAP` is unchanged.
+- **What bounds the spend now.** The old ceiling of six branches over a thread's whole life is gone: a thread can make five every day, for ever. A thread's five a day bounds one thread; the only bound on the whole is the world's daily cap (`KS_SUPPLY_SCENARIO_DAILY_CAP`, 6 on dev, 0 outside `local` unless set), together with the asker's own allowance and the reasoning harness's budgets. Each branch costs a made-to-order Scroll and, for a what-if, a short answer, so raising the world cap raises both.
+- **The sixth is refused honestly.** The command answers `budget_unavailable` (HTTP 429 `TOO_MANY_REQUESTS`) and writes no node, no order and no job. The sheet says "This thread has made its five branches for today" and when it comes back ("the day changes at midnight UTC") when its own cards show five from today; otherwise it names both limits (the thread's five and KnowScroll's own for the day). The client counts the cards it already has; the server decides.
+- **Verified.** `scenario-orders.test.ts` (five then refused, the next UTC day, another thread unaffected), `processes.test.ts` (the default, the new name, the old name ignored), `scenario-answers.test.ts` (five and the sixth against real PostgreSQL, nothing written; yesterday's orders do not count), client-core `scenario-answers.test.ts` (`threadMadeAllToday`) and `thread-whatif-smoke.spec.ts` (the sixth refused in a browser).
+
+## D-159 · 2026-10-31 · The card's checks: every claim cites, every figure is a source's, the assumption line is mandatory (v3 T-F, #486)
+
+**Builds** D-211. The rules are `answerRefusals` in `scenarios/domain/answer-card.ts`; a refusal reaches the writer's one repair as a fixed hint.
+
+- **Structure.** One JSON object: an assumption line (12 to 200 characters), two or three claims of 20 to 300 characters that each cite one to three passages by handle, and up to three figures with their own citations. Two claims make an answer of at least 41 characters, which is what the contract's answer needs (40), and three make at most 902 of its 1000: a card that passes the writer's rules is always one a list can carry. Plain text, no web address, no unknown field. A card with no assumption line is never shown.
+- **Citations are real.** A handle must be one the code offered. A claim is judged against the passages it cites, not those of another claim.
+- **Digits are sourced.** A digit in a claim must be a number a passage that claim cites states, or one the branch itself states (its title, changes, kept lines and premises). Every quantity that follows from the premise is written in words ("about eight times"). The assumption line may use only the branch's own figures. `4,096` and `4096` are one figure. This is the Scroll's rule ("digits only where a cited passage states them", D-049) with the branch's own premise added, because a premise is stated by the member, not claimed about the world.
+- **Figures are a source's.** Each entry of `numbers` is a label and a value. The label is words: a digit in it is refused, so no number hides beside its value. The value is one number with at most one short unit ("2 m", "200 milliseconds", "37%") and nothing else: no prose, no second number. And it appears, written exactly so, in a passage the figure cites, with no letter or digit stuck to either end (`150` is not in `1500` or `150,000`). When no passage gives a figure the list is empty, and the card draws no figures row. The card never computes a number.
+- **A stored card that does not serve reads as no short answer.** The worker never stores a card the contract would refuse, and a row that no longer parses (a limit moved since) is read as "no short answer" instead of failing the thread's list for every member.
+- **No copying.** A claim may not repeat nine or more words in a row of a passage it cites (the Scroll's copy check).
+- **It reads as reasoning.** At least one claim carries a word such as "would", "could", "might" or "likely", so the answer is not a flat statement of what happens.
+- **No repeats.** Two claims may not say the same thing.
+- **Code decides.** The writer proposes; a draft that breaks a rule after the one repair ends as "no short answer", never a lesser card. Nothing is shown unchecked (T3 Q9: "never on unchecked text").
+- **Verified.** `answer-card.test.ts`: each rule is broken once and the test goes red (an offered handle, an unstated digit, a premise figure, a copied run, a missing marker, a repeat, a figure that is not a number, a missing assumption), and `scenario-answers.test.ts` runs a repaired card and a card that stays refused through the harness.
+
+## D-211 · 2026-10-31 · A what-if has a short answer card, written by a worker in the asker's allowance (v3 T-F, #486)
+
+**Amends** D-049 (a branch is one made-to-order Scroll) and D-006 i. **Builds on** D-150 (nothing about a member's position on the wire).
+
+- **What it is.** When a member chooses a what-if, the thread shows a card about 30 seconds later: the assumption line, what changed and what stays, a short answer and any figure a source states, labelled "What-if · made by KnowScroll". It opens into the branch's full Scroll once that exists. Another perspective has no short answer: T3 draws only the what-if.
+- **Where it lives.** On the branch's own row (`scenarios.nodes`: `answer_state` of `making`, `ready` or `unavailable`, the checked card, when it settled). It is shared work of the thread exactly as the node is and it names no person, so Clear keeps it, and account deletion needs nothing more than the link the node already clears. The export lists the answer with the branches the person started.
+- **How it is made.** `choose` sends the job `scenarios.write-answer` (IDs only) in the same transaction as the node, the order and the receipt. The worker, on the asker's own scope, reads the branch's checked premise, the public subject and the claims the thread's Scroll cites (`READ_SCROLL_EVIDENCE`), asks the role `scenarios.answer-card` (`answer-card.1`, one call and one repair, interactive class, so the asker's allowance pays), checks the answer with D-159 and stores it. The run is the branch's ID, so a redelivery never pays twice and an attempt of unknown outcome is never resent. No model call runs in a transaction or on the HTTP path. The writer sees the branch's premise (its changes and kept lines, which may be a member's own typed sentences, as for the Scroll writer, D-049), the thread root's public subject and the cited claims. It never sees the request text, a message, a name or another thread.
+- **The wait is honest.** `making` says "about 30 s" and "keep chatting"; after 90 seconds it says it is taking longer than usual; there is no step list, because no step is tracked. The minute sweep gives up on an answer after 12 minutes (a paid attempt at the largest request deadline and its one repair can take 10, and the job's claim lasts 670 s, so a paid slow answer is not dropped) and the card says there is no short answer (the branch and its Scroll carry on). A late answer finds the wait ended and is dropped. A starter who left the thread, or a branch removed meanwhile, gets nothing stored. With fewer than two claims to cite no model is asked.
+- **The card does not move the branch.** The answer arriving does not change the branch's `revision`, so someone about to remove it or branch from it is not told the branch is stale because words arrived. Removing a branch clears its answer.
+- **The status label stays.** D-006 a allows only Hypothetical (or Speculative, D-056) as a status label on a branch. The card keeps it beside "What-if · made by KnowScroll", on the making card and the ready card alike.
+- **Another member's card says nothing about them.** The card carries no field for where anyone is, what they have open or whether anyone read it; "Opened by you" stays the caller's own history (D-049).
+- **Branches made before this** have no short answer and are drawn as they were. Nothing is back-filled.
+- **Verified.** `scenario-answers.test.ts` against real PostgreSQL with a labelled fixture model; `answer-card.test.ts`; `what-if-card.test.tsx`; `thread-whatif-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe. **Not yet run with the real model:** the coordinator runs it on dev and checks the served `model` is `MiniMax-M3.1-Flash` (the ledger's attempt for the run, which is the branch's ID, records it).
+
+## D-212 · 2026-10-31 · The card cites the claims of the Scroll the thread rests on, and shows the checked premise as it is (v3 T-F, #486)
+
+**Builds on** D-049 and D-211.
+
+- **What it may cite.** The claims recorded in the provenance of the thread root's Scroll (`READ_SCROLL_EVIDENCE`): the passages of public sources a published Scroll already rests on, from the same Scrolls and under the same review gate as the pages a what-if is researched from (D-138). Nothing is fetched and no page is named by a person or a model. At most 24, as `[e1]`, `[e2]`.
+- **Changed and kept are not the writer's.** T3's JSON has "changed" and "kept". The card shows the branch's own `changes` and `kept` statements, which the Planner proposed and code checked (`planStep`), so a card cannot say a branch keeps something it does not. The writer returns the assumption line, the claims and the figures.
+- **Citations are stored, not shown.** The card stores each claim's citations as claim IDs of the Scroll's provenance, for an operator; the thread is served the assumption, the claims joined as one answer and the figures. Consumer UI shows no sources panel.
+- **Verified.** `scenario-answers.test.ts` (the stored claim IDs; none in what a member reads; a Scroll that records one claim gets no model call).
+
+## D-213 · 2026-10-31 · What T3 draws on the card that is not built yet (v3 T-F, #486)
+
+- **Reply in branch** and "2 replies in this branch" need a scope on messages for each branch, which Social owns and the Scenarios README already lists as not built. The card has no reply button, and no reply is drawn under it.
+- **Call it first** needs an authored call in the branch's Scroll. A made-to-order Scroll has none, and T3 allows it only on a branch that passed its checks (Q9). Not drawn.
+- **The Branches tab** groups every what-if under the part it came from. A branch continues the thread's root or another branch, never a part (D-049, "a branch under a specific part: not built"), so there is nothing to group by. The thread's branch map (X04) stays the list of branches.
+- **The step list** ("Read Part 2, Set the assumption, Checking the numbers") would show progress no code tracks. The wait is one honest line and a bar.
+- **Branch again** is offered once the branch's Scroll exists (the branch must be ready to continue), not as soon as the short answer is.
+
 ## D-204 · 2026-10-31 · Two more kits give five Space recipes a picture, and one recipe stays plain (S-8c, #479)
 
 **Amends** D-194 (which left these recipes without a kit). **Builds on** D-125.

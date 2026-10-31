@@ -312,7 +312,7 @@ export interface DiscussionStore {
   usefulAmong(lock: RoomLock, accountId: string, messageIds: readonly string[]): Promise<ReadonlySet<string>>;
   /** The room's General discussion; every room has one. */
   general(lock: RoomLock): Promise<DiscussionRow | undefined>;
-  /** The room's Today discussion: one per room, made with it (migration 0084). */
+  /** The room's Today discussion: one per room, made with it (migration 0085). */
   today(lock: RoomLock): Promise<DiscussionRow | undefined>;
   /** When the newest message a member can see was sent, anywhere in the room; none while nobody has written. */
   lastMessageAt(lock: RoomLock): Promise<Date | undefined>;
@@ -654,7 +654,7 @@ export interface ActivityStore {
   tally(lock: RoomLock, activityId: string, votersPerOption: number): Promise<readonly OptionTally[]>;
 }
 
-// --- The sky, debates and Today (migration 0084) ------------------------------------------
+// --- The sky, debates and Today (migration 0085) ------------------------------------------
 
 export type StarActName = StarAct;
 

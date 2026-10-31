@@ -32,6 +32,38 @@ export const suggestDraftQueue = defineQueue({
   consumer: { localConcurrency: 4, pollingIntervalSeconds: 1 },
 });
 
+/** IDs only: the card is written from the branch's checked premise and the Scroll's cited claims, none of it a payload. */
+export const WriteAnswerJobSchema = z.strictObject({
+  v: z.literal(1),
+  universeId: z.uuid(),
+  privacyEpoch: z.number().int().positive(),
+  nodeId: z.uuid(),
+});
+export type WriteAnswerJob = z.infer<typeof WriteAnswerJobSchema>;
+
+/**
+ * One bounded model step for one what-if branch (D-211). It waits on the provider, so a delivery may run as long
+ * as a primary and a repair attempt can (670 s at the largest request deadline, as the planner's). The run is the
+ * branch's ID: a redelivery answers from the ledger and never pays twice. Few retries: a card that does not come is
+ * a branch with its full Scroll only, and the sweep ends the wait.
+ */
+export const writeAnswerQueue = defineQueue({
+  name: 'scenarios.write-answer',
+  purpose:
+    "Write the short answer card of one what-if branch from its checked premise and the Scroll's cited claims; commissions nothing.",
+  payload: WriteAnswerJobSchema,
+  policy: {
+    expireInSeconds: 670,
+    retryLimit: 2,
+    retryDelaySeconds: 10,
+    retryBackoff: true,
+    retentionSeconds: 7 * 86400,
+    deleteAfterSeconds: 2 * 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 4, pollingIntervalSeconds: 1 },
+});
+
 export const ResolveBranchesJobSchema = z.strictObject({ v: z.literal(1) });
 export type ResolveBranchesJob = z.infer<typeof ResolveBranchesJobSchema>;
 

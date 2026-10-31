@@ -386,7 +386,7 @@ person who never took part in a room has no section.
 Status: implemented (CI-verified; fixture model). Not runtime-verified: needs `KS_REASONING_ROOM_ENABLED`, a provider and an operator's approval.
 
 A room's day has two items, both grounded in an admitted library Scroll and both waiting for an operator before any member sees them
-(`rooms.rituals`, migration 0084, states `draft`, `approved`, `rejected`, unique by room, day and kind):
+(`rooms.rituals`, migration 0085, states `draft`, `approved`, `rejected`, unique by room, day and kind):
 
 - **The question** is a template over a Scroll's title and summary (`domain/ritual-question.ts`). It costs no model call.
 - **Spot the flaw** is a passage of three or four sentences of a Scroll with one sentence altered. **Code** picks the passage and the sentence

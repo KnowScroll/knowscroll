@@ -31,7 +31,7 @@ const constellationOf = (row: ConstellationColumns): ConstellationRow => ({
 });
 
 /**
- * The room's stars, constellations and the vote that names one (migration 0084). Every method is one explicit query inside
+ * The room's stars, constellations and the vote that names one (migration 0085). Every method is one explicit query inside
  * the room's lock; none decides access or an award. `lock` takes the room's sky advisory lock, which the use case takes
  * last, so the day's count and the unique insert after it are exact.
  */
@@ -194,7 +194,7 @@ export const skyStore: SkyStore = {
   },
 };
 
-/** Debates (migration 0084): the two sides and the close of a topic tagged `debate`, and its votes. */
+/** Debates (migration 0085): the two sides and the close of a topic tagged `debate`, and its votes. */
 export const debateStore: DebateStore = {
   async insert(lock, debate) {
     await trxOf(lock)
@@ -295,7 +295,7 @@ const ritualOf = (row: { ritual_id: string; day: string; kind: string; payload: 
   payload: row.payload,
 });
 
-/** Today's approved items and what people tapped (migration 0084). Nothing here is shown until an operator approved it. */
+/** Today's approved items and what people tapped (migration 0085). Nothing here is shown until an operator approved it. */
 export const todayStore: TodayStore = {
   async approvedOn(lock, day) {
     const result = await sql<{ ritual_id: string; day: string; kind: string; payload: unknown }>`
