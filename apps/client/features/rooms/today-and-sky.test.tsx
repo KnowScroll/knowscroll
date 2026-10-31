@@ -31,7 +31,12 @@ const halley = { kind: 'ai' as const, inhabitant: 'skeptic' as const, name: 'Hal
 const source = {
   status: 'available' as const,
   target: { assetId: id(40), assetRevision: 1 },
-  metadata: { kind: 'scroll', title: 'Why the Moon shows one face', summary: 'Tidal locking.' },
+  metadata: {
+    kind: 'scroll' as const,
+    title: 'Why the Moon shows one face',
+    summary: 'Tidal locking.',
+    language: 'en',
+  },
 };
 const today = (patch: Partial<Ready> = {}): Ready =>
   ({

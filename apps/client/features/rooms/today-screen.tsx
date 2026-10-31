@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { AccountScope } from '@knowscroll/client-core';
+import { TALK_QUERY_KEY, type AccountScope } from '@knowscroll/client-core';
 import { content } from '@knowscroll/design-tokens';
 import { Skeleton, StateBlock } from '@knowscroll/ui';
 import { useDocumentTitle } from '../../platform/document-title';
@@ -24,6 +24,11 @@ function TodayRoom({ scope, roomId }: { readonly scope: AccountScope; readonly r
   const router = useRouter();
   const { controller, state } = useRoomToday(scope, roomId);
   const [focus, setFocus] = useState(0);
+  // A star this tap earned changes the room's sky: the room under this screen reads again now, not at its next poll.
+  const starred = state.starFor !== undefined;
+  useEffect(() => {
+    if (starred) void scope.queryClient.invalidateQueries({ queryKey: scope.queryKey(TALK_QUERY_KEY, 'room', roomId) });
+  }, [starred, scope, roomId]);
   const back = () => (router.canGoBack() ? router.back() : router.replace(roomHref(roomId)));
   useDocumentTitle('Today');
   const view = state.view;
@@ -52,7 +57,7 @@ function TodayRoom({ scope, roomId }: { readonly scope: AccountScope; readonly r
       header={
         <ThreadHeader
           title="Today"
-          people={`${dayHeading(view.day)}${resident === undefined ? '' : ` · asked by ${resident.name}, ${resident.label}`}`}
+          people={`${dayHeading(view.day)}${resident === undefined ? '' : ` · opened by ${resident.name} (${resident.label})`}`}
           onBack={back}
           onMenu={undefined}
         />

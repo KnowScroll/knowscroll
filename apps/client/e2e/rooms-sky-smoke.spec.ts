@@ -6,7 +6,7 @@ import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/un
 import { id } from './encounter-fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { FACES, room, roomFixture } from './rooms-fixture';
-import { TODAY_STRIP, skyOf, skyRoutes, skyWorld, todayId, type SkyWorld } from './rooms-sky-fixture';
+import { TODAY_STRIP, skyOf, skyRoutes, skyWorld, type SkyWorld } from './rooms-sky-fixture';
 
 /**
  * Today and the sky (v3 R-5) in the production export over labelled HTTP fixtures, for two people who share one room. Person A
@@ -61,7 +61,12 @@ async function openMapOfC(page: Page, world: SkyWorld, size: { width: number; he
       },
     } as never,
     {
-      room: { ...room, roomId: id(530), name: 'Outside room', identity: { kit: FACES.history.kit } },
+      room: {
+        ...room,
+        roomId: '0199a000-0000-7000-8000-a5a5a5a50001',
+        name: 'Outside room',
+        identity: { kit: FACES.history.kit },
+      },
       standing: 'none',
       placement: place,
     } as never,
@@ -172,9 +177,14 @@ for (const { name, size } of VIEWPORTS) {
     const mapPage = await other.newPage();
     await mapPage.emulateMedia({ reducedMotion: 'reduce' });
     await openMapOfC(mapPage, world, size);
-    await expect(mapPage.getByRole('button', { name: 'Space room, a room station, 7 of 7 · Lit' })).toBeVisible();
+    await expect(
+      mapPage.getByRole('button', { name: 'Space room, a room station, 7 of 7 · Lit' }).first(),
+    ).toBeVisible();
     // A station of a room C is not in is drawn exactly as before: its name and nothing about its sky.
-    await expect(mapPage.getByRole('button', { name: 'Outside room, a room station', exact: true })).toBeVisible();
+    // At desktop width the panel lists the same stations, so a station may have two buttons: the first is enough.
+    await expect(
+      mapPage.getByRole('button', { name: 'Outside room, a room station', exact: true }).first(),
+    ).toBeVisible();
     await expect(mapPage.getByText(/Outside room · /)).toHaveCount(0);
     await shoot(mapPage, `${name}-c-map`);
     expect(await seriousViolations(mapPage)).toEqual([]);

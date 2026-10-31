@@ -226,7 +226,7 @@ function ReadyDiscussion({
   const [starting, setStarting] = useState<RoomMessage>();
   const [roomController] = useState(() => createRoom({ scope, roomId, newId: newCommandId }));
   const positionRef = useRef<ReelPositionHandle>(null);
-  const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length));
+  const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length), listHeader !== undefined);
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));
@@ -369,7 +369,13 @@ function ReadyDiscussion({
             compact={breakpoint === 'desktop'}
           />
           <Composer
-            name={view.discussion.kind === 'general' ? 'General' : 'this discussion'}
+            name={
+              view.discussion.kind === 'general'
+                ? 'General'
+                : view.discussion.kind === 'today'
+                  ? 'Today'
+                  : 'this discussion'
+            }
             value={draft}
             onChange={typeDraft}
             focusSignal={focusSignal}
