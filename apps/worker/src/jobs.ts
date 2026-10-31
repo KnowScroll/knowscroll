@@ -40,19 +40,22 @@ import type { PlannerMaterialChange } from '@knowscroll/backend/modules/planner'
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { REFRESH_VISIT_PUBLICATION, type RefreshVisitPublication } from '@knowscroll/backend/modules/social';
 import { socialPeopleProviders, visitRefreshProviders } from '@knowscroll/backend/modules/social/nest-providers';
-import { roomsWorkerProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
+import { roomsRitualProviders, roomsWorkerProviders } from '@knowscroll/backend/modules/rooms/nest-providers';
 import {
   CONTRIBUTE_AS_INHABITANT,
   DECIDE_CAST,
   RUN_CAST_PASS,
+  RUN_NIGHTLY_RITUALS,
   SUMMARISE,
   castDueQueue,
   castPassQueue,
+  nightlyRitualsQueue,
   summariseQueue,
   contributeQueue,
   type ContributeAsInhabitant,
   type DecideCast,
   type RunCastPass,
+  type RunNightlyRituals,
   type Summarise,
 } from '@knowscroll/backend/modules/rooms';
 import { supplyProviders } from '@knowscroll/backend/modules/supply/nest-providers';
@@ -104,6 +107,7 @@ import { jobConsumer, type JobConsumer } from '@knowscroll/backend/infrastructur
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
   contentProviders,
+  libraryPassageProviders,
   madeToOrderProviders,
   scrollProductionSenderProviders,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -185,6 +189,9 @@ export const jobWiring: Provider[] = [
     workerConfig: WORKER_CONFIG,
     enqueueJob: ENQUEUE_JOB,
   }),
+  // The night's daily items for each room, drafted from the library's prose for an operator to approve (D-176).
+  ...libraryPassageProviders({ database: DATABASE }),
+  ...roomsRitualProviders({ database: DATABASE, workerConfig: WORKER_CONFIG }),
   ...cartographerWorkerProviders({ workerConfig: WORKER_CONFIG }),
   ...quietSweepProviders({ database: DATABASE, boss: PG_BOSS, workerConfig: WORKER_CONFIG }),
   {
@@ -267,6 +274,7 @@ export const jobWiring: Provider[] = [
       PURGE_EXPIRED_REQUESTS,
       SWEEP_DISPATCHED_ATTEMPTS,
       PURGE_REPORTS,
+      RUN_NIGHTLY_RITUALS,
       PRODUCTION_REASONING_HARNESS,
       WITH_PRODUCTION_SCOPE,
       LOG_EVENT,
@@ -300,6 +308,7 @@ export const jobWiring: Provider[] = [
       purgeExpiredRequests: PurgeExpiredRequests,
       sweepDispatchedAttempts: SweepDispatchedAttempts,
       purgeReports: PurgeReports,
+      runNightlyRituals: RunNightlyRituals,
       productionHarness: ProductionReasoningHarness,
       withProductionScope: WithProductionScope,
       logEvent: LogEvent,
@@ -406,6 +415,10 @@ export const jobWiring: Provider[] = [
             }),
             jobConsumer(summariseQueue, async (payload, delivery) => {
               await summarise(payload, delivery.signal);
+            }),
+            // Once a night: each room's question and Spot the flaw, drafted for an operator to approve (D-176).
+            jobConsumer(nightlyRitualsQueue, async (_payload, delivery) => {
+              await runNightlyRituals(delivery.signal);
             }),
           ]
         : []),
