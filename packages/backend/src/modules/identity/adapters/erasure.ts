@@ -148,7 +148,7 @@ export const identityErasure = declareErasure({
   }),
 });
 
-/** The person's own address, setting and signed-in devices. Never a token, hash or session id. */
+/** The person's own address, settings (Pause recording, whether the opening was shown) and signed-in devices. Never a token, hash or session id. */
 async function readAccountSection(scope: PersonalScopeTx, person: ExportPerson) {
   const trx = transactionOf(scope);
   const address = await trx
@@ -160,6 +160,11 @@ async function readAccountSection(scope: PersonalScopeTx, person: ExportPerson) 
     .selectFrom('identity.universes')
     .select('recording_on')
     .where('id', '=', scope.authority.universeId)
+    .executeTakeFirst();
+  const account = await trx
+    .selectFrom('identity.accounts')
+    .select('universe_first_opened_at')
+    .where('id', '=', person.accountId)
     .executeTakeFirst();
   const sessions = await trx
     .selectFrom('identity.sessions')
@@ -174,6 +179,8 @@ async function readAccountSection(scope: PersonalScopeTx, person: ExportPerson) 
     email: address?.address ?? null,
     accountCreatedAt: address?.created_at.toISOString() ?? null,
     recordingOn: root?.recording_on ?? null,
+    // Whether the Universe tab's opening animation has started on any device (D-114); never when.
+    universeOpeningShown: (account?.universe_first_opened_at ?? null) !== null,
     signedInDevices: sessions.map((session) => ({
       device: session.device_label ?? (session.client === 'native' ? 'KnowScroll app' : 'Web browser'),
       signedInAt: session.created_at.toISOString(),

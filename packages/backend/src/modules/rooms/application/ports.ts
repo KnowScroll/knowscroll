@@ -772,7 +772,7 @@ export interface TodayStore {
   messagesSince(lock: RoomLock, discussionId: string, since: Date): Promise<number>;
 }
 
-// --- The Launch (migration 0086) ----------------------------------------------------------
+// --- The Launch (migration 0088) ----------------------------------------------------------
 
 /**
  * The Launch's rows. Every method is one explicit query inside the room's lock; none decides access or a result. The use case takes the
@@ -882,7 +882,7 @@ export interface RoomPorts {
   readonly sky: SkyStore;
   readonly debates: DebateStore;
   readonly today: TodayStore;
-  /** The Launch's rows (migration 0086). */
+  /** The Launch's rows (migration 0088). */
   readonly launches: LaunchStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;

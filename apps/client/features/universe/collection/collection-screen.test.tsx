@@ -4,6 +4,7 @@ import { type EffectCallback } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AppState } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
+import { DisplayProvider } from '@knowscroll/ui';
 import { UniverseScreen } from '../universe-screen';
 import { UniverseSurface } from '../universe-surface';
 import { indexUniverse } from '../universe-layout';
@@ -67,7 +68,12 @@ const universeRead = (path: string) =>
 
 async function open(h: ReturnType<typeof universeHarness>) {
   mockScope = h.scope;
-  const view = await render(<UniverseScreen />);
+  // The steps down have animations of their own (animation/step-animations.test.tsx); these tests walk the map and skip them.
+  const view = await render(
+    <DisplayProvider value={{ width: 750, textScale: 1, reducedMotion: true }}>
+      <UniverseScreen />
+    </DisplayProvider>,
+  );
   await waitFor(() => expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen());
   return view;
 }

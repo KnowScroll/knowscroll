@@ -432,6 +432,7 @@ export {
   type AccountSessionsState,
   type SessionsEnding,
 } from './account-sessions';
+export { claimFirstOpen, firstOpenSeen, type FirstOpenAnswer } from './first-open';
 export { createDataExportsSession, type DataExportsSession, type DataExportsState } from './data-exports';
 export { requestAccountDeletion, type AccountDeletionDeps, type AccountDeletionOutcome } from './account-deletion';
 export {

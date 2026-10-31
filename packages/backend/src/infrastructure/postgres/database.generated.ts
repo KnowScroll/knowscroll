@@ -742,6 +742,7 @@ export interface IdentityAccounts {
   created_at: Generated<Timestamp>;
   id: string;
   status: Generated<string>;
+  universe_first_opened_at: Timestamp | null;
 }
 
 export interface IdentityClearLiabilities {

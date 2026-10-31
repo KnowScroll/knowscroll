@@ -9,6 +9,7 @@ import { reuseUnchangedAnchors } from './reuse-anchors';
 import { SpaceCanvas } from './space-canvas';
 import type { SpaceDefinition } from './space-definition';
 import type { SpaceCameraSpec, SpaceRenderer } from './space-renderer';
+import type { SpaceScript } from './space-script';
 import type { SpaceAnchor, SpaceChoice, SpaceFailure, SpaceProbe, SpaceSurface } from './space-surface';
 import { useAppActive } from './use-app-active';
 
@@ -35,6 +36,11 @@ export interface SpaceViewProps {
   readonly definition: SpaceDefinition;
   /** Where the camera looks and how the person has panned and zoomed. Absent: the definition's own pose. */
   readonly camera?: SpaceCameraSpec;
+  /**
+   * An animation that has the camera for a while ("Enter a system", "Enter a planet"). Absent when none plays.
+   * Under reduced motion it is never given: the destination is shown at once.
+   */
+  readonly script?: SpaceScript;
   /** The system glowing as picked on the Far level. */
   readonly highlightId?: string | null;
   /**
@@ -42,6 +48,13 @@ export interface SpaceViewProps {
    * per system and planet (the developer gallery).
    */
   readonly overlay?: (info: SpaceOverlayInfo) => ReactNode;
+  /**
+   * Where the renderer comes from, when it is not the map's own: the first open draws its own scene with the
+   * same canvas host, loop, caps and fallbacks.
+   */
+  readonly load?: typeof loadSpaceRenderer;
+  /** The renderer made its WebGL context and the first frame is on its way: the picture can be relied on. */
+  readonly onReady?: () => void;
   /** Shown instead of the drawing when 3D is not available: the Simple lists. */
   readonly fallback: (reason: SpaceFailure) => ReactNode;
   /** A label or planet was chosen. */
@@ -76,6 +89,9 @@ const browserScheduler = {
 export function SpaceView({
   definition,
   camera,
+  script,
+  load = loadSpaceRenderer,
+  onReady,
   highlightId = null,
   overlay,
   fallback,
@@ -96,9 +112,31 @@ export function SpaceView({
   const frames = useRef(0);
 
   const active = failure === null && focused && appActive && onScreen;
-  const live = useRef({ diagnostics, reducedMotion, definition, camera, highlightId, active, failed: false });
+  const live = useRef({
+    diagnostics,
+    reducedMotion,
+    definition,
+    camera,
+    script,
+    load,
+    onReady,
+    highlightId,
+    active,
+    failed: false,
+  });
   useEffect(() => {
-    live.current = { ...live.current, diagnostics, reducedMotion, definition, camera, highlightId, active };
+    live.current = {
+      ...live.current,
+      diagnostics,
+      reducedMotion,
+      definition,
+      camera,
+      script,
+      load,
+      onReady,
+      highlightId,
+      active,
+    };
   });
 
   /** Stops the loop and releases the renderer, if there are any. */
@@ -132,13 +170,14 @@ export function SpaceView({
       generation.current += 1;
       const mine = generation.current;
       try {
-        const { createSpaceRenderer } = await loadSpaceRenderer();
+        const { createSpaceRenderer } = await live.current.load();
         if (generation.current !== mine) return;
         const created = createSpaceRenderer(
           { ...surface, preserveDrawingBuffer: live.current.diagnostics !== undefined },
           live.current.definition,
         );
         renderer.current = created;
+        if (live.current.script !== undefined) created.setScript(live.current.script);
         if (live.current.camera !== undefined) created.setCamera(live.current.camera, false);
         created.setHighlight(live.current.highlightId);
         const drawing = createRenderLoop({
@@ -162,6 +201,7 @@ export function SpaceView({
         });
         loop.current = drawing;
         drawing.setActive(live.current.active);
+        live.current.onReady?.();
       } catch (error) {
         if (generation.current === mine) fail('context-creation-failed', describe(error));
       }
@@ -182,6 +222,11 @@ export function SpaceView({
     renderer.current?.setDefinition(definition);
     loop.current?.redraw();
   }, [definition]);
+  // Before the camera effect: an animation that starts with a change of focus is known when the camera moves.
+  useEffect(() => {
+    renderer.current?.setScript(script ?? null);
+    loop.current?.redraw();
+  }, [script]);
   useEffect(() => {
     if (camera === undefined) return;
     renderer.current?.setCamera(camera, !reducedMotion);

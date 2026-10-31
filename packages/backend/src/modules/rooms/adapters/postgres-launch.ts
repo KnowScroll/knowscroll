@@ -46,7 +46,7 @@ const rowOf = (row: Columns): LaunchRow => {
 };
 
 /**
- * The room's Launches, their players and answers (migration 0086). Every method is one explicit query inside the room's lock; none
+ * The room's Launches, their players and answers (migration 0088). Every method is one explicit query inside the room's lock; none
  * decides access or a result. An unfinished Launch is at most one per room (a partial unique index), and a deck is played once (a
  * unique key), so a retry or two commands at once cannot make a second.
  */

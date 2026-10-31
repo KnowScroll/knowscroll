@@ -1,5 +1,5 @@
 /**
- * The rows of the Launch (migration 0086, D-178) as the use cases read them. The store that reads and writes them is `LaunchStore` in
+ * The rows of the Launch (migration 0088, D-178) as the use cases read them. The store that reads and writes them is `LaunchStore` in
  * `ports.ts`, with the room's other stores.
  */
 
