@@ -75,10 +75,14 @@ describe.each(STAGE_KIT_IDS)('the generic rules of the kit %s', (id) => {
       expect(text.length).toBeLessThanOrEqual(FIELD_LIMITS_V2.stateDescriptionChars);
       expect(plainText(10, FIELD_LIMITS_V2.stateDescriptionChars).safeParse(text).success, text).toBe(true);
     }
-    // A state that settles to another is described as that one, whichever words it was chosen with.
-    states.forEach((state, index) => {
-      if (index % 31 === 0) expect(kit.describe(state)).toBe(kit.describe(kit.settle(state)));
-    });
+    // A state that settles to another is described as that one, whichever words it was chosen with. Every state is
+    // checked up to 20,000 of them; only a kit with more (the nerve kit has about 120,000) is checked at an even stride,
+    // and each of its settled states is described above.
+    const stride = Math.max(1, Math.ceil(states.length / 20_000));
+    const different = states.filter(
+      (state, index) => index % stride === 0 && kit.describe(state) !== kit.describe(kit.settle(state)),
+    );
+    expect(different).toEqual([]);
   });
 
   it('never mentions a prompt, a source, a score or a model', () => {

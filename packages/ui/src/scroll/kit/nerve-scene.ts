@@ -45,6 +45,11 @@ export interface NerveScene {
   readonly sodiumOpen: number;
   readonly potassiumOpen: number;
   readonly sodiumShut: number;
+  /** 1 while the sodium channels have just begun to open: drawn as a dashed arrow, since the true share is too small to see. */
+  readonly sodiumOpening: number;
+  /** 1 while sodium (or potassium) ions are flowing through open channels: drawn as a solid arrow. */
+  readonly sodiumFlows: number;
+  readonly potassiumFlows: number;
   /** 1 while a fresh push that would normally fire the cell would not: the cell is still recovering from its spike. */
   readonly pushWouldNotFire: number;
   /** `all-or-none`: the voltage over time for the weak, the enough and the strong push. */
@@ -90,45 +95,101 @@ const GAP_PROGRESS: Readonly<Record<NerveState['synapseAt'], number>> = {
   clearing: 0.5,
 };
 
-/** The scene of a settled nerve state. */
-export function nerveSceneOf(state: NerveState): NerveScene {
+/** What a view that does not use a group of fields leaves them as: nothing drawn. */
+const NO_VOLTAGES = { restVoltage: 0, thresholdVoltage: 0, peakVoltage: 0, undershootVoltage: 0 };
+const NO_SPIKE = {
+  curve: [] as readonly number[],
+  markerTime: 0,
+  sodiumOpen: 0,
+  sodiumOpening: 0,
+  sodiumFlows: 0,
+  potassiumFlows: 0,
+  potassiumOpen: 0,
+  sodiumShut: 0,
+  pushWouldNotFire: 0,
+};
+const NO_PUSHES = {
+  weakCurve: [] as readonly number[],
+  enoughCurve: [] as readonly number[],
+  strongCurve: [] as readonly number[],
+};
+const NO_AXON = { profile: [] as readonly number[], recovering: [] as readonly number[], peakAt: 0, peakShare: 0 };
+const NO_SYNAPSE = {
+  released: 0,
+  inGap: 0,
+  gapProgress: 0,
+  receptorsOpen: 0,
+  shift: 0,
+  synapseTime: 0,
+  fullShift: 0,
+  excites: 'excite' as NerveState['effect'],
+};
+const NO_ARC = { sensorLit: 0, sensoryLit: 0, cordLit: 0, motorLit: 0, muscleLit: 0, brainLit: 0, newsOnItsWay: 0 };
+
+/** The voltage scale every view but the reflex draws against: the model's rest, threshold, peak and undershoot. */
+function voltagesOf(): typeof NO_VOLTAGES {
+  const { restVoltage, thresholdVoltage, peakVoltage, undershootVoltage } = actionPotential();
+  return { restVoltage, thresholdVoltage, peakVoltage, undershootVoltage };
+}
+
+/**
+ * The sodium channels' drawn opening when they have just begun to open. The model's share is a few thousandths
+ * of its most, too little to see, so the picture draws the start as a dashed arrow and a slightly wider gap
+ * (`sodiumOpening`) and keeps `sodiumOpen` honest.
+ */
+function spikeFields(phase: NerveState['phase']): typeof NO_SPIKE {
   const spike = actionPotential();
-  const channels = spikePhysics(state.phase);
-  const [weak, enough, strong] = pushResponses();
-  const profile = axonProfile();
-  const synapse = synapsePhysics(state.synapseAt, state.effect);
-  const arc = arcPhysics(state.arcAt);
-  const fullShift = synapsePhysics('binding', state.effect).shift;
-  const lit = (step: NerveState['arcAt']): number => (arcPhysics(step).links <= arc.links ? 1 : 0);
+  const channels = spikePhysics(phase);
   return {
-    view: state.view,
-    parts: nerveParts(state.view),
-    focus: state.focus,
-    restVoltage: spike.restVoltage,
-    thresholdVoltage: spike.thresholdVoltage,
-    peakVoltage: spike.peakVoltage,
-    undershootVoltage: spike.undershootVoltage,
     curve: sampled(spike.trace.states.map((membrane) => membrane.voltage)),
     markerTime: channels.time,
     sodiumOpen: channels.sodiumOpenShare / spike.mostSodiumOpen,
+    sodiumOpening: channels.sodium === 'opening' ? 1 : 0,
+    sodiumFlows: channels.sodium === 'open' || channels.sodium === 'shutting' ? 1 : 0,
+    potassiumFlows: channels.potassium === 'open' || channels.potassium === 'closing' ? 1 : 0,
     potassiumOpen: channels.potassiumOpenShare / spike.mostPotassiumOpen,
     sodiumShut: channels.sodium === 'shutting' || channels.sodium === 'inactive' ? 1 : 0,
     pushWouldNotFire: channels.freshPushFires === false ? 1 : 0,
+  };
+}
+
+function pushFields(): typeof NO_PUSHES {
+  const [weak, enough, strong] = pushResponses();
+  return {
     weakCurve: sampled(weak?.voltage ?? []),
     enoughCurve: sampled(enough?.voltage ?? []),
     strongCurve: sampled(strong?.voltage ?? []),
+  };
+}
+
+function axonFields(along: NerveState['along']): typeof NO_AXON {
+  const profile = axonProfile();
+  return {
     profile: profile.voltage,
     recovering: profile.recovering.map((recovering) => (recovering ? 1 : 0)),
-    peakAt: AXON_PEAK_AT[state.along],
+    peakAt: AXON_PEAK_AT[along],
     peakShare: profile.peakShare,
+  };
+}
+
+function synapseFields(step: NerveState['synapseAt'], effect: NerveState['effect']): typeof NO_SYNAPSE {
+  const synapse = synapsePhysics(step, effect);
+  return {
     released: synapse.released ? 1 : 0,
     inGap: synapse.inGap ? 1 : 0,
-    gapProgress: GAP_PROGRESS[state.synapseAt],
+    gapProgress: GAP_PROGRESS[step],
     receptorsOpen: synapse.receptorsOpen ? 1 : 0,
     shift: synapse.shift,
-    synapseTime: SYNAPSE_TIME_IN_CONSTANTS[state.synapseAt],
-    fullShift,
-    excites: state.effect,
+    synapseTime: SYNAPSE_TIME_IN_CONSTANTS[step],
+    fullShift: synapsePhysics('binding', effect).shift,
+    excites: effect,
+  };
+}
+
+function arcFields(step: NerveState['arcAt']): typeof NO_ARC {
+  const arc = arcPhysics(step);
+  const lit = (other: NerveState['arcAt']): number => (arcPhysics(other).links <= arc.links ? 1 : 0);
+  return {
     sensorLit: lit('sensor'),
     sensoryLit: lit('sensory-neuron'),
     cordLit: lit('spinal-cord'),
@@ -136,6 +197,25 @@ export function nerveSceneOf(state: NerveState): NerveScene {
     muscleLit: lit('muscle'),
     brainLit: arc.newsReachedBrain ? 1 : 0,
     newsOnItsWay: arc.newsOnItsWay ? 1 : 0,
+  };
+}
+
+/**
+ * The scene of a settled nerve state. Only the view's own fields are worked out: the membrane model costs a
+ * little the first time (`actionPotential`, once) and the axon's recovering stretch a little more (`axonProfile`,
+ * once), so a reflex never runs the model at all and a spike never runs the axon's probes.
+ */
+export function nerveSceneOf(state: NerveState): NerveScene {
+  return {
+    view: state.view,
+    parts: nerveParts(state.view),
+    focus: state.focus,
+    ...(state.view === 'reflex' ? NO_VOLTAGES : voltagesOf()),
+    ...(state.view === 'spike' ? spikeFields(state.phase) : NO_SPIKE),
+    ...(state.view === 'all-or-none' ? pushFields() : NO_PUSHES),
+    ...(state.view === 'axon' ? axonFields(state.along) : NO_AXON),
+    ...(state.view === 'synapse' ? synapseFields(state.synapseAt, state.effect) : NO_SYNAPSE),
+    ...(state.view === 'reflex' ? arcFields(state.arcAt) : NO_ARC),
   };
 }
 

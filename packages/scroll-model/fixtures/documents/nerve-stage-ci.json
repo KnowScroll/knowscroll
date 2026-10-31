@@ -69,7 +69,7 @@
           "arcAt": "sensor",
           "focus": "channels"
         },
-        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage falls back. The sodium channels are shutting themselves, and potassium channels are open and potassium ions flow out. A fresh push that would normally make the cell fire does not. The picture draws the eye to the channels."
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage falls back. The sodium channels are shutting themselves, so less sodium flows in, and potassium channels are open and potassium ions flow out. A fresh push that would normally make the cell fire does not. The picture draws the eye to the channels."
       },
       {
         "stop": "undershoot",
@@ -82,7 +82,7 @@
           "arcAt": "sensor",
           "focus": "trace"
         },
-        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage dips below rest. The sodium channels are still recovering, and the potassium channels are slow to close. A fresh push that would normally make the cell fire does not. The picture draws the eye to the voltage graph."
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage dips below rest. The sodium channels are still recovering, and the potassium channels are slow to close, so potassium still flows out. A fresh push that would normally make the cell fire does not. The picture draws the eye to the voltage graph."
       },
       {
         "stop": "all",
@@ -121,7 +121,7 @@
           "arcAt": "sensor",
           "focus": "vesicles"
         },
-        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The packets join the membrane and release their neurotransmitter into the gap. The picture draws the eye to the packets."
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out. The packets join the membrane and release their neurotransmitter into the gap. The picture draws the eye to the packets."
       },
       {
         "stop": "bind",
@@ -134,7 +134,7 @@
           "arcAt": "sensor",
           "focus": "receptors"
         },
-        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire. This connection excites the next cell, which depends on its receptors, not on the neurotransmitter alone. The picture draws the eye to the receptors."
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative; a cell adds up many inputs. This connection excites the next cell; that depends on its receptors. The picture draws the eye to the receptors."
       },
       {
         "stop": "inhibit",
@@ -147,7 +147,7 @@
           "arcAt": "sensor",
           "focus": "receptors"
         },
-        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire. This connection inhibits the next cell, which depends on its receptors, not on the neurotransmitter alone. The picture draws the eye to the receptors."
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative; a cell adds up many inputs. This connection inhibits the next cell; that depends on its receptors. The picture draws the eye to the receptors."
       },
       {
         "stop": "reflex",
@@ -160,7 +160,7 @@
           "arcAt": "muscle",
           "focus": "muscle"
         },
-        "alt": "A simple plan of a reflex: a sensor, a sensory neuron into the spinal cord, a motor neuron out to a muscle, and a branch up to the brain. The muscle responds. News of it is still on its way up to the brain. The picture draws the eye to the muscle."
+        "alt": "A simple plan of a reflex: a sensor, a sensory neuron into the spinal cord, a motor neuron out to a muscle, and a branch up to the brain. Most reflexes also use a relay neuron in the cord, which is left out. The muscle responds. News of it is still on its way up to the brain. The picture draws the eye to the muscle."
       }
     ]
   },
@@ -405,6 +405,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "6802be6fd4636f6a862a27e3d4ff217aaddfbee9ca7a7c3ec661a42a53071d42"
+    "sha256": "ffa28ecd47ed2a2da17b9ef94abba617f4464d60a2d2e2a8466c21ac02097fb9"
   }
 }

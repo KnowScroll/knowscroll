@@ -17,6 +17,11 @@ import { Arrow, BLUE, FocusBox, FocusRing, INK, Label, MUTED, OUTLINE, PAPER, PA
 const RICH = WARM;
 const POOR = BLUE;
 
+/** The words every view that colours blood without a legend of its own carries, saying the colours are a convention. */
+function ColourKey() {
+  return <Label at={{ x: 4, y: 7 }} text="RED RICH, BLUE POOR IN OXYGEN: A CONVENTION" anchor="start" />;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // The heart.
 
@@ -146,6 +151,7 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
   const { focus } = scene;
   return (
     <G>
+      <ColourKey />
       <Path
         d="M 100 120 L 100 38 L 22 38"
         fill="none"
@@ -198,10 +204,11 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
       ))}
       <Label at={{ x: 82, y: 198 }} text="RIGHT" bold />
       <Label at={{ x: 150, y: 198 }} text="LEFT" bold />
-      <Label at={{ x: 232, y: 106 }} text="RELATIVE PRESSURE" anchor="start" bold />
-      <PressureBar y={116} label="LEFT ATRIUM" level={scene.atriumPressure} />
+      <Label at={{ x: 232, y: 94 }} text="RELATIVE PRESSURE" anchor="start" bold />
+      <Label at={{ x: 230, y: 105 }} text="LOW: DRAWN LARGER" anchor="start" />
+      <PressureBar y={118} label="LEFT ATRIUM" level={scene.atriumPressure} />
       <PressureBar y={138} label="LEFT VENTRICLE" level={scene.ventriclePressure} />
-      <PressureBar y={160} label="AORTA" level={scene.arteryPressure} />
+      <PressureBar y={158} label="AORTA" level={scene.arteryPressure} />
       {focus === 'atria' ? (
         <>
           <FocusRing at={RIGHT_ATRIUM.centre} radius={37} />
@@ -270,7 +277,7 @@ function CircuitsView({ scene }: { readonly scene: CirculationScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // Pressure along the loop through the body.
 
-const CHART = { left: 36, right: 300, top: 24, bottom: 128 } as const;
+const CHART = { left: 36, right: 300, top: 28, bottom: 128 } as const;
 const SECTION_WIDTH = (CHART.right - CHART.left) / 4;
 const SECTION_LABELS = ['ARTERIES', 'ARTERIOLES', 'CAPILLARIES', 'VEINS'] as const;
 const FOCUS_SECTION = { arteries: 0, arterioles: 1, capillaries: 2, veins: 3 } as const;
@@ -302,6 +309,7 @@ function PressureView({ scene }: { readonly scene: CirculationScene }) {
   const focusSection = scene.focus === 'none' ? undefined : FOCUS_SECTION[scene.focus as keyof typeof FOCUS_SECTION];
   return (
     <G>
+      <ColourKey />
       <Line x1={CHART.left} y1={CHART.top - 6} x2={CHART.left} y2={CHART.bottom} stroke={INK} strokeWidth={1.8} />
       <Line x1={CHART.left} y1={CHART.bottom} x2={CHART.right + 6} y2={CHART.bottom} stroke={INK} strokeWidth={1.8} />
       <Label at={{ x: CHART.left + 4, y: CHART.top - 10 }} text="AVERAGE PRESSURE (RELATIVE)" anchor="start" />
@@ -363,7 +371,7 @@ function PressureView({ scene }: { readonly scene: CirculationScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // Oxygen on haemoglobin.
 
-const PLOT = { left: 38, right: 176, top: 28, bottom: 150 } as const;
+const PLOT = { left: 38, right: 176, top: 30, bottom: 150 } as const;
 const xOfOxygen = (share: number): number => PLOT.left + share * (PLOT.right - PLOT.left);
 const yOfLoaded = (loaded: number): number => PLOT.bottom - loaded * (PLOT.bottom - PLOT.top);
 
@@ -403,10 +411,12 @@ function OxygenView({ scene }: { readonly scene: CirculationScene }) {
   const gapBottom = BAR.bottom - (BAR.bottom - BAR.top) * scene.hereLoaded;
   return (
     <G>
+      <ColourKey />
       <Line x1={PLOT.left} y1={PLOT.top - 6} x2={PLOT.left} y2={PLOT.bottom} stroke={INK} strokeWidth={1.8} />
       <Line x1={PLOT.left} y1={PLOT.bottom} x2={PLOT.right + 6} y2={PLOT.bottom} stroke={INK} strokeWidth={1.8} />
       <Label at={{ x: PLOT.left + 4, y: PLOT.top - 12 }} text="SHARE OF HAEMOGLOBIN LOADED" anchor="start" />
       <Label at={{ x: PLOT.left, y: PLOT.bottom + 13 }} text="OXYGEN AROUND: LOW TO HIGH" anchor="start" />
+      <Label at={{ x: PLOT.left, y: PLOT.bottom + 25 }} text="ACIDITY AND WARMTH LEFT OUT" anchor="start" />
       <Path d={curvePath(scene.curve)} fill="none" stroke={INK} strokeWidth={3} strokeLinejoin="round" />
       <Line
         x1={lungs.x}
@@ -418,7 +428,7 @@ function OxygenView({ scene }: { readonly scene: CirculationScene }) {
         strokeDasharray="4 4"
       />
       <Circle cx={lungs.x} cy={lungs.y} r={5} fill={RICH} stroke={INK} strokeWidth={1.8} />
-      <Label at={{ x: lungs.x - 8, y: lungs.y - 7 }} text="LUNGS" anchor="end" />
+      <Label at={{ x: lungs.x + 8, y: lungs.y + 15 }} text="LUNGS" anchor="start" />
       {tissue ? (
         <>
           <Line

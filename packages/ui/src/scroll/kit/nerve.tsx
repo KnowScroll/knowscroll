@@ -111,8 +111,8 @@ const SPIKE_MS = 16;
 const MEMBRANE = { top: 150, bottom: 164 } as const;
 
 /** A channel in the membrane: two blocks with a gap between them that is wider the more open it is. */
-function Channel({ x, open }: { readonly x: number; readonly open: number }) {
-  const gap = 2 + 12 * open;
+function Channel({ x, open, opening = 0 }: { readonly x: number; readonly open: number; readonly opening?: number }) {
+  const gap = 2 + 12 * open + 3 * opening;
   return (
     <G>
       <Rect
@@ -162,12 +162,12 @@ function SpikeView({ scene }: { readonly scene: NerveScene }) {
       {scene.pushWouldNotFire > 0.5 ? (
         <Label at={{ x: plot.right, y: plot.top + 10 }} text="A FRESH PUSH WOULD NOT FIRE IT NOW" anchor="end" bold />
       ) : null}
-      <Channel x={sodiumX} open={scene.sodiumOpen} />
+      <Channel x={sodiumX} open={scene.sodiumOpen} opening={scene.sodiumOpening} />
       <Channel x={potassiumX} open={scene.potassiumOpen} />
       {scene.sodiumShut > 0.5 ? (
         <Circle cx={sodiumX} cy={MEMBRANE.bottom + 9} r={7} fill={WARM} stroke={INK} strokeWidth={1.6} />
       ) : null}
-      {scene.sodiumOpen > 0.04 ? (
+      {scene.sodiumFlows > 0.5 ? (
         <Arrow
           from={{ x: sodiumX, y: 128 }}
           to={{ x: sodiumX, y: 176 }}
@@ -176,7 +176,10 @@ function SpikeView({ scene }: { readonly scene: NerveScene }) {
           outlined
         />
       ) : null}
-      {scene.potassiumOpen > 0.04 ? (
+      {scene.sodiumOpening > 0.5 ? (
+        <Line x1={sodiumX} y1={132} x2={sodiumX} y2={172} stroke={INK} strokeWidth={2.4} strokeDasharray="4 3" />
+      ) : null}
+      {scene.potassiumFlows > 0.5 ? (
         <Arrow
           from={{ x: potassiumX, y: 176 }}
           to={{ x: potassiumX, y: 128 }}
@@ -368,18 +371,11 @@ const GAP_DOTS: readonly { share: number; y: number }[] = [
 ];
 const COURSE = { left: 176, right: 268, rest: 170, pixelsPerMillivolt: 5.5, constants: 5 } as const;
 
-function SynapseView({ scene }: { readonly scene: NerveScene }) {
+const GAP_WIDTH = RECEIVING.left - SENDING.right;
+
+/** The end of the sending cell: its axon tail with the arriving spike, the packets, and the one that has fused once they are released. */
+function SendingCell({ scene }: { readonly scene: NerveScene }) {
   const released = scene.released > 0.5;
-  const bound = scene.receptorsOpen > 0.5;
-  const gapWidth = RECEIVING.left - SENDING.right;
-  const courseX = (time: number): number => COURSE.left + (time / COURSE.constants) * (COURSE.right - COURSE.left);
-  const courseY = (shift: number): number => COURSE.rest - shift * COURSE.pixelsPerMillivolt;
-  const thresholdShift = scene.thresholdVoltage - scene.restVoltage;
-  const effectShown = scene.synapseTime >= 1;
-  const fullCourse = Array.from({ length: 41 }, (_, index) => {
-    const time = (index * COURSE.constants) / 40;
-    return `${index === 0 ? 'M' : 'L'} ${courseX(time)} ${courseY(courseAt(time) * scene.fullShift)}`;
-  }).join(' ');
   return (
     <G>
       <Rect x={0} y={54} width={SENDING.left + 2} height={22} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
@@ -394,15 +390,14 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
         strokeWidth={OUTLINE}
       />
       <Label at={{ x: 75, y: SENDING.top - 6 }} text="SENDING CELL" bold />
-      {scene.released < 0.5 ? (
+      {released ? null : (
         <>
           <Label at={{ x: 2, y: 48 }} text="SPIKE" anchor="start" />
           <Arrow from={{ x: 4, y: 65 }} to={{ x: 30, y: 65 }} width={2.4} colour={INK} />
         </>
-      ) : null}
-      {VESICLES.map((at, index) => {
-        const fused = released && index === VESICLES.length - 1;
-        return fused ? (
+      )}
+      {VESICLES.map((at, index) =>
+        released && index === VESICLES.length - 1 ? (
           <Circle
             key={index}
             cx={SENDING.right - 4}
@@ -415,8 +410,18 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
           />
         ) : (
           <Circle key={index} cx={at.x} cy={at.y} r={7} fill={SUN} stroke={INK} strokeWidth={1.6} />
-        );
-      })}
+        ),
+      )}
+    </G>
+  );
+}
+
+/** The next cell and its receptors: a channel's gap is wide, with ions in it, while the receptors are open. */
+function ReceivingCell({ scene }: { readonly scene: NerveScene }) {
+  const bound = scene.receptorsOpen > 0.5;
+  const open = bound ? 9 : 2;
+  return (
+    <G>
       <Rect
         x={RECEIVING.left}
         y={SENDING.top - 6}
@@ -428,24 +433,29 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
         strokeWidth={OUTLINE}
       />
       <Label at={{ x: 246, y: SENDING.top - 10 }} text="NEXT CELL" bold />
-      <Label at={{ x: SENDING.right + gapWidth / 2, y: SENDING.bottom + 22 }} text="GAP" bold />
-      {RECEPTORS.map((y) => {
-        const open = bound ? 9 : 2;
-        return (
-          <G key={y}>
-            <Rect x={RECEIVING.left - 5} y={y - 6 - open / 2} width={10} height={6} fill={INK} />
-            <Rect x={RECEIVING.left - 5} y={y + open / 2} width={10} height={6} fill={INK} />
-            {bound ? <Circle cx={RECEIVING.left + 1} cy={y} r={2.8} fill={SUN} stroke={INK} strokeWidth={1} /> : null}
-          </G>
-        );
-      })}
+      {RECEPTORS.map((y) => (
+        <G key={y}>
+          <Rect x={RECEIVING.left - 5} y={y - 6 - open / 2} width={10} height={6} fill={INK} />
+          <Rect x={RECEIVING.left - 5} y={y + open / 2} width={10} height={6} fill={INK} />
+          {bound ? <Circle cx={RECEIVING.left + 1} cy={y} r={2.8} fill={SUN} stroke={INK} strokeWidth={1} /> : null}
+        </G>
+      ))}
+    </G>
+  );
+}
+
+/** The neurotransmitter in the gap, as far across as the step says; none once it has been cleared away. */
+function GapTransmitter({ scene }: { readonly scene: NerveScene }) {
+  return (
+    <G>
+      <Label at={{ x: SENDING.right + GAP_WIDTH / 2, y: SENDING.bottom + 22 }} text="GAP" bold />
       {scene.inGap > 0.5
         ? GAP_DOTS.map((dot, index) => {
             const share = Math.min(1, dot.share * 0.5 + scene.gapProgress * 0.55 + (index % 3) * 0.04);
             return (
               <Circle
                 key={index}
-                cx={SENDING.right + 6 + share * (gapWidth - 14)}
+                cx={SENDING.right + 6 + share * (GAP_WIDTH - 14)}
                 cy={dot.y}
                 r={3.2}
                 fill={WARM}
@@ -455,6 +465,22 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
             );
           })
         : null}
+    </G>
+  );
+}
+
+const courseX = (time: number): number => COURSE.left + (time / COURSE.constants) * (COURSE.right - COURSE.left);
+const courseY = (shift: number): number => COURSE.rest - shift * COURSE.pixelsPerMillivolt;
+
+/** The next cell's voltage against rest and its threshold, with the whole course of the change once the receptors have opened and a marker for now. */
+function NextCellVoltage({ scene }: { readonly scene: NerveScene }) {
+  const thresholdShift = scene.thresholdVoltage - scene.restVoltage;
+  const fullCourse = Array.from({ length: 41 }, (_, index) => {
+    const time = (index * COURSE.constants) / 40;
+    return `${index === 0 ? 'M' : 'L'} ${courseX(time)} ${courseY(courseAt(time) * scene.fullShift)}`;
+  }).join(' ');
+  return (
+    <G>
       <Label at={{ x: COURSE.left - 4, y: 122 }} text="NEXT CELL’S VOLTAGE" anchor="start" />
       <Line
         x1={COURSE.left}
@@ -476,7 +502,9 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
         strokeDasharray="6 3"
       />
       <Label at={{ x: COURSE.right, y: courseY(thresholdShift) - 3 }} text="THRESHOLD" anchor="end" />
-      {effectShown ? <Path d={fullCourse} fill="none" stroke={INK} strokeWidth={2.4} strokeLinejoin="round" /> : null}
+      {scene.synapseTime >= 1 ? (
+        <Path d={fullCourse} fill="none" stroke={INK} strokeWidth={2.4} strokeLinejoin="round" />
+      ) : null}
       <Circle
         cx={courseX(scene.synapseTime)}
         cy={courseY(scene.shift)}
@@ -485,25 +513,44 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
         stroke={INK}
         strokeWidth={1.8}
       />
-      {scene.focus === 'vesicles' ? (
-        <FocusBox
-          x={SENDING.left + 8}
-          y={SENDING.top + 10}
-          width={SENDING.right - SENDING.left - 8}
-          height={SENDING.bottom - SENDING.top - 18}
-        />
-      ) : null}
-      {scene.focus === 'gap' ? (
-        <FocusBox
-          x={SENDING.right + 2}
-          y={SENDING.top - 6}
-          width={gapWidth - 4}
-          height={SENDING.bottom - SENDING.top + 12}
-        />
-      ) : null}
-      {scene.focus === 'receptors' ? (
-        <FocusBox x={RECEIVING.left - 12} y={RECEPTORS[0] - 16} width={26} height={RECEPTORS[2] - RECEPTORS[0] + 32} />
-      ) : null}
+    </G>
+  );
+}
+
+function SynapseFocus({ focus }: { readonly focus: NerveScene['focus'] }) {
+  if (focus === 'vesicles')
+    return (
+      <FocusBox
+        x={SENDING.left + 8}
+        y={SENDING.top + 10}
+        width={SENDING.right - SENDING.left - 8}
+        height={SENDING.bottom - SENDING.top - 18}
+      />
+    );
+  if (focus === 'gap')
+    return (
+      <FocusBox
+        x={SENDING.right + 2}
+        y={SENDING.top - 6}
+        width={GAP_WIDTH - 4}
+        height={SENDING.bottom - SENDING.top + 12}
+      />
+    );
+  if (focus === 'receptors')
+    return (
+      <FocusBox x={RECEIVING.left - 12} y={RECEPTORS[0] - 16} width={26} height={RECEPTORS[2] - RECEPTORS[0] + 32} />
+    );
+  return null;
+}
+
+function SynapseView({ scene }: { readonly scene: NerveScene }) {
+  return (
+    <G>
+      <SendingCell scene={scene} />
+      <ReceivingCell scene={scene} />
+      <GapTransmitter scene={scene} />
+      <NextCellVoltage scene={scene} />
+      <SynapseFocus focus={scene.focus} />
     </G>
   );
 }

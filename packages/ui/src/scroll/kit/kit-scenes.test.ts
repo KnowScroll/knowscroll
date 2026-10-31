@@ -326,6 +326,22 @@ describe('the nerve picture agrees with the physics', () => {
     expect(at('falling')?.potassiumOpen ?? 0).toBeGreaterThan(at('rest')?.potassiumOpen ?? 1);
   });
 
+  it('draws the start of the sodium channels opening as its own mark, and a solid arrow only while ions flow', () => {
+    const at = (phase: (typeof NERVE_ENUMS.phase)[number]) => nerveSceneOf(nerve({ phase }));
+    expect(at('threshold')).toMatchObject({ sodiumOpening: 1, sodiumFlows: 0 });
+    expect(at('rest')).toMatchObject({ sodiumOpening: 0, sodiumFlows: 0, potassiumFlows: 0 });
+    expect(at('rising')).toMatchObject({ sodiumOpening: 0, sodiumFlows: 1, potassiumFlows: 0 });
+    expect(at('peak')).toMatchObject({ sodiumFlows: 1, potassiumFlows: 1 });
+    expect(at('undershoot')).toMatchObject({ sodiumFlows: 0, potassiumFlows: 1 });
+  });
+
+  it('works out only the view’s own numbers: a reflex has no voltages and a spike no pushes', () => {
+    expect(nerveSceneOf(nerve({ view: 'reflex' })).thresholdVoltage).toBe(0);
+    expect(nerveSceneOf(nerve({ view: 'spike' })).weakCurve).toEqual([]);
+    expect(nerveSceneOf(nerve({ view: 'all-or-none' })).curve).toEqual([]);
+    expect(nerveSceneOf(nerve({ view: 'axon' })).profile.length).toBeGreaterThan(0);
+  });
+
   it('draws the three pushes: a weak one that stays under the threshold and two stronger spikes of about one height', () => {
     const scene = nerveSceneOf(nerve({ view: 'all-or-none' }));
     expect(Math.max(...scene.weakCurve)).toBeLessThan(scene.thresholdVoltage);

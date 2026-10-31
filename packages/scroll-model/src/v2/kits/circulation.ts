@@ -327,30 +327,35 @@ const FOCUS_SENTENCE: Readonly<Record<CirculationState['focus'], string>> = {
   handoff: 'The picture draws the eye to the oxygen handed over.',
 };
 
+/** What every view that colours blood says of the colours; the picture carries the same words (`COLOUR_KEY`). */
+export const COLOUR_CONVENTION =
+  'Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way.';
+
 function heartSentences(phase: HeartPhase): string[] {
   const physics = heartPhysics(phase);
   const chambers = [
-    physics.atriaSqueezing ? 'The two atria squeeze.' : 'The atria are relaxed and filling from the veins.',
+    physics.atriaSqueezing ? 'The two atria squeeze.' : 'The atria are relaxed and filling.',
     physics.ventriclesSqueezing ? 'The two ventricles squeeze.' : 'The ventricles are relaxed.',
   ].join(' ');
-  const valves = `The valves between the atria and the ventricles are ${physics.atrioventricularOpen ? 'open' : 'shut'}, and the valves to the arteries are ${physics.semilunarOpen ? 'open' : 'shut'}.`;
+  const valves = `The valves between atria and ventricles are ${physics.atrioventricularOpen ? 'open' : 'shut'}; those to the arteries are ${physics.semilunarOpen ? 'open' : 'shut'}.`;
   const blood = physics.semilunarOpen
-    ? 'Blood is pushed out, from the right side to the lungs and from the left side to the body.'
+    ? 'Blood is pushed out, to the lungs and to the body.'
     : physics.atrioventricularOpen
       ? 'Blood flows from the atria into the ventricles.'
       : 'No blood enters or leaves the ventricles.';
   return [
-    'The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it.',
+    'The heart’s four chambers and four valves, with bars for the pressure in the left atrium, the left ventricle and the aorta. A valve is open when the pressure behind it is above that ahead. The low pressures are drawn larger so the valves can be compared.',
     chambers,
     valves,
     blood,
+    COLOUR_CONVENTION,
   ];
 }
 
 function circuitSentences(): string[] {
   return [
     'Two loops meet at the heart. The right side sends blood to the lungs, where it picks up oxygen, and it returns to the left side. The left side sends it to the rest of the body, where it gives up oxygen, and it returns to the right side.',
-    'Blood is drawn red where it is rich in oxygen and blue where it is poor. That is a drawing convention: blood is red either way.',
+    COLOUR_CONVENTION,
   ];
 }
 
@@ -370,14 +375,15 @@ function pressureSentences(state: CirculationState): string[] {
   };
   const vessels: Readonly<Record<VesselWidth, string>> = {
     usual: '',
-    narrowed: 'The arterioles are narrowed, which raises their resistance, so the pressure before them is higher.',
-    widened: 'The arterioles are widened, which lowers their resistance, so the pressure before them is lower.',
+    narrowed: 'The arterioles are narrowed and resist more, so the pressure before them is higher.',
+    widened: 'The arterioles are widened and resist less, so the pressure before them is lower.',
   };
   return [
-    'A graph shows the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through.',
-    `The biggest fall is across ${PRESSURE_WORD[physics.biggestDrop]}. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out.`,
+    'A graph of the average pressure along the loop through the body: from the large arteries to the veins. It falls all the way, as each stretch uses some of it.',
+    `The biggest fall is across ${PRESSURE_WORD[physics.biggestDrop]}: the fall across a stretch is the flow times its resistance. Pressures are relative; the pulse is left out.`,
     flow[state.flow],
     vessels[state.vessels],
+    COLOUR_CONVENTION,
   ];
 }
 
@@ -395,8 +401,9 @@ function oxygenSentences(place: BloodPlace): string[] {
     'active-tissue': `In working tissue oxygen is much scarcer, so the blood gives up ${loadWords(physics.releasedShareOfLoad)}, though some stays on the haemoglobin.`,
   };
   return [
-    'A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth.',
+    'A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. Acidity and warmth, which shift it, are left out.',
     where[place],
+    COLOUR_CONVENTION,
   ];
 }
 

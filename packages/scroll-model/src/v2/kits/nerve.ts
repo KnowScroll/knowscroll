@@ -455,6 +455,15 @@ export const SYNAPSE_TIME_IN_CONSTANTS: Readonly<Record<SynapseStep, number>> = 
   clearing: 3,
 };
 
+/**
+ * The change in the next cell's voltage at a step: the full change times where the step sits on the course. A
+ * step before the receptors open is exactly 0, not the negative zero that 0 times an inhibitory change would be.
+ */
+function postsynapticShift(step: SynapseStep, effect: SynapseEffect, restVoltage: number): number {
+  const course = postsynapticCourse(SYNAPSE_TIME_IN_CONSTANTS[step]);
+  return course === 0 ? 0 : course * synapticShift(effect, restVoltage);
+}
+
 /** What follows from a step of the synapse and the kind of connection by physics. */
 export function synapsePhysics(step: SynapseStep, effect: SynapseEffect): SynapsePhysics {
   const { restVoltage, thresholdVoltage } = actionPotential();
@@ -462,7 +471,7 @@ export function synapsePhysics(step: SynapseStep, effect: SynapseEffect): Synaps
     released: step !== 'arrives',
     inGap: step === 'release' || step === 'crossing' || step === 'binding',
     receptorsOpen: step === 'binding',
-    shift: postsynapticCourse(SYNAPSE_TIME_IN_CONSTANTS[step]) * synapticShift(effect, restVoltage) + 0,
+    shift: postsynapticShift(step, effect, restVoltage),
     restVoltage,
     thresholdVoltage,
   };
@@ -533,14 +542,14 @@ const SODIUM_WORDS: Readonly<Record<SodiumChannels, string>> = {
   ready: 'The sodium channels are shut but ready',
   opening: 'The sodium channels begin to open',
   open: 'Sodium channels are open and sodium ions rush in',
-  shutting: 'The sodium channels are shutting themselves',
+  shutting: 'The sodium channels are shutting themselves, so less sodium flows in',
   inactive: 'The sodium channels are still recovering',
 };
 
 const POTASSIUM_WORDS: Readonly<Record<PotassiumChannels, string>> = {
   closed: 'the potassium channels are mostly shut',
   open: 'potassium channels are open and potassium ions flow out',
-  closing: 'the potassium channels are slow to close',
+  closing: 'the potassium channels are slow to close, so potassium still flows out',
 };
 
 function spikeSentences(phase: SpikePhase): string[] {
@@ -587,8 +596,8 @@ function synapseSentences(step: SynapseStep, effect: SynapseEffect): string[] {
   const physics = synapsePhysics(step, effect);
   const binding =
     effect === 'excite'
-      ? 'Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire.'
-      : 'Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire.';
+      ? 'Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative; a cell adds up many inputs.'
+      : 'Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative; a cell adds up many inputs.';
   const steps: Readonly<Record<SynapseStep, string>> = {
     arrives: 'A spike reaches the end of the sending cell. Packets of neurotransmitter wait there.',
     release: 'The packets join the membrane and release their neurotransmitter into the gap.',
@@ -598,10 +607,10 @@ function synapseSentences(step: SynapseStep, effect: SynapseEffect): string[] {
       'The neurotransmitter is cleared away, the receptors’ channels close, and the next cell’s voltage settles back toward rest.',
   };
   return [
-    'The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold.',
+    'The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out.',
     steps[step],
     physics.receptorsOpen || step === 'clearing'
-      ? `This connection ${effect === 'excite' ? 'excites' : 'inhibits'} the next cell, which depends on its receptors, not on the neurotransmitter alone.`
+      ? `This connection ${effect === 'excite' ? 'excites' : 'inhibits'} the next cell; that depends on its receptors.`
       : '',
   ];
 }
@@ -618,7 +627,7 @@ function reflexSentences(step: ArcStep): string[] {
     brain: 'The news reaches the brain, after the muscle has already responded.',
   };
   return [
-    'A simple plan of a reflex: a sensor, a sensory neuron into the spinal cord, a motor neuron out to a muscle, and a branch up to the brain.',
+    'A simple plan of a reflex: a sensor, a sensory neuron into the spinal cord, a motor neuron out to a muscle, and a branch up to the brain. Most reflexes also use a relay neuron in the cord, which is left out.',
     steps[step],
     physics.newsOnItsWay && step !== 'spinal-cord' ? 'News of it is still on its way up to the brain.' : '',
   ];
@@ -653,6 +662,6 @@ export const NERVE_KIT_DEFINITION = defineKit({
   writerGuide: [
     'Code draws the picture from a fixed kit: the voltage across a nerve cell’s membrane through one spike with its channels, three pushes of different strength, a spike running along an axon, a synapse, and a reflex arc. You choose only the view, the point of the spike, where it is along the axon, the step of the synapse, whether the connection excites or inhibits, the step of the reflex and the part to look at, from the listed words. Code decides everything else: the voltage and the state of the channels at each point of the spike, the threshold, whether a push fires the cell, which stretch is recovering and the direction of the change at a synapse. So the words you choose are claims the picture makes: choose the ones that match what the stop says.',
     '- The views: "spike" shows one action potential as a graph; "phase" is, in order, "rest", "threshold" (the push has lifted the voltage to the point beyond which the cell fires by itself), "rising" (sodium channels open and sodium ions rush in), "peak", "falling" (potassium ions flow out) and "undershoot" (the voltage dips below rest and the cell cannot fire again for a moment). "all-or-none" shows a weak push that dies away and two stronger pushes that give spikes of the same size. "axon" shows the spike at one instant along the axon, running away from the cell body, with the stretch behind it recovering; "along" is "start", "early", "middle" or "end". "synapse" shows the end of one cell, the gap and the next cell; "synapseAt" is, in order, "arrives", "release", "crossing", "binding" and "clearing", and "effect" is "excite" or "inhibit" (it matters from "binding" on). "reflex" shows a sensor, a sensory neuron, the spinal cord, a motor neuron, a muscle and a branch to the brain; "arcAt" is, in order, "sensor", "sensory-neuron", "spinal-cord", "motor-neuron", "muscle" and "brain". A key a view does not use is ignored.',
-    '- The picture draws no voltage figure, speed or time, no named chemical and no disease, so say nothing that depends on one: the shapes are from a standard model of the membrane and a human cell differs in its numbers. A spike is all or nothing, so never say a stronger push makes a bigger spike. A nerve is not a wire carrying electricity, so never say that it is. Whether a synapse excites or inhibits depends on the receptor, not on the neurotransmitter alone, so never call one chemical a "happiness chemical". A reflex still uses the spinal cord and the brain is told a moment later, so never say a reflex involves no brain at all or is a decision.',
+    '- The picture draws no voltage figure, speed or time, no named chemical and no disease, and it leaves out the calcium that triggers release and the relay neuron most reflexes use, so say nothing that depends on any of them: the shapes are from a standard model of the membrane and a human cell differs in its numbers. A spike is all or nothing, so never say a stronger push makes a bigger spike. A nerve is not a wire carrying electricity, so never say that it is. Whether a synapse excites or inhibits depends on the receptor, not on the neurotransmitter alone, so never call one chemical a "happiness chemical". A reflex still uses the spinal cord and the brain is told a moment later, so never say a reflex involves no brain at all or is a decision.',
   ],
 });

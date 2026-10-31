@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ARTERIOLE_RADIUS,
   CIRCULATION_ENUMS,
+  COLOUR_CONVENTION,
   circulationParts,
   describeCirculationState,
   haemoglobinSaturation,
@@ -253,7 +254,7 @@ describe('settling and describing a circulation state', () => {
     for (const phase of CIRCULATION_ENUMS.phase) {
       const physics = heartPhysics(phase);
       const text = describeCirculationState({ ...INITIAL_CIRCULATION_STATE, view: 'heart', phase, focus: 'none' });
-      const expected = `The valves between the atria and the ventricles are ${physics.atrioventricularOpen ? 'open' : 'shut'}, and the valves to the arteries are ${physics.semilunarOpen ? 'open' : 'shut'}.`;
+      const expected = `The valves between atria and ventricles are ${physics.atrioventricularOpen ? 'open' : 'shut'}; those to the arteries are ${physics.semilunarOpen ? 'open' : 'shut'}.`;
       expect(text, phase).toContain(expected);
       expect(text.includes('Blood is pushed out'), phase).toBe(physics.semilunarOpen);
       expect(text.includes('No blood enters or leaves the ventricles'), phase).toBe(
@@ -265,10 +266,10 @@ describe('settling and describing a circulation state', () => {
   it('says where the biggest fall in pressure is, and that narrowing or widening the arterioles moves the pressure before them', () => {
     const text = (flow: CirculationState['flow'], vessels: CirculationState['vessels']) =>
       describeCirculationState({ view: 'pressure', phase: 'filling', flow, vessels, where: 'lungs', focus: 'none' });
-    expect(text('usual', 'usual')).toContain('The biggest fall is across the arterioles.');
+    expect(text('usual', 'usual')).toContain('The biggest fall is across the arterioles:');
     // Wide enough, the arterioles no longer hold the largest share, which the words follow from the physics.
     expect(loopPhysics({ flow: 'usual', vessels: 'widened' }).biggestDrop).toBe('capillaries');
-    expect(text('usual', 'widened')).toContain('The biggest fall is across the capillaries.');
+    expect(text('usual', 'widened')).toContain('The biggest fall is across the capillaries:');
     expect(text('usual', 'narrowed')).toContain('narrowed');
     expect(text('usual', 'narrowed')).toContain('the pressure before them is higher');
     expect(text('usual', 'widened')).toContain('the pressure before them is lower');
@@ -279,8 +280,7 @@ describe('settling and describing a circulation state', () => {
     for (const state of states) {
       const text = describeCirculationState(state);
       expect(text, JSON.stringify(state)).not.toMatch(/\d|mmHg|heart rate|beats per|disease|medicine|cardiac arrest/iu);
-      if (settleCirculationState(state).view === 'circuits')
-        expect(text).toContain('That is a drawing convention: blood is red either way.');
+      if (settleCirculationState(state).view === 'circuits') expect(text).toContain(COLOUR_CONVENTION);
       if (settleCirculationState(state).view === 'oxygen') expect(text).toContain('S-shaped');
       expect(text).not.toMatch(/blood is blue|blue blood|all four chambers|at once/iu);
     }

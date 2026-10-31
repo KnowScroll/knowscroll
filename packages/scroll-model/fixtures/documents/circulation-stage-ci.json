@@ -29,7 +29,7 @@
           "where": "lungs",
           "focus": "none"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles."
+        "alt": "The heart’s four chambers and four valves, with bars for the pressure in the left atrium, the left ventricle and the aorta. A valve is open when the pressure behind it is above that ahead. The low pressures are drawn larger so the valves can be compared. The atria are relaxed and filling. The ventricles are relaxed. The valves between atria and ventricles are open; those to the arteries are shut. Blood flows from the atria into the ventricles. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way."
       },
       {
         "stop": "atria",
@@ -41,7 +41,7 @@
           "where": "lungs",
           "focus": "atria"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The two atria squeeze. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles. The picture draws the eye to the atria."
+        "alt": "The heart’s four chambers and four valves, with bars for the pressure in the left atrium, the left ventricle and the aorta. A valve is open when the pressure behind it is above that ahead. The low pressures are drawn larger so the valves can be compared. The two atria squeeze. The ventricles are relaxed. The valves between atria and ventricles are open; those to the arteries are shut. Blood flows from the atria into the ventricles. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the atria."
       },
       {
         "stop": "tense",
@@ -53,7 +53,7 @@
           "where": "lungs",
           "focus": "valves"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles. The picture draws the eye to the valves."
+        "alt": "The heart’s four chambers and four valves, with bars for the pressure in the left atrium, the left ventricle and the aorta. A valve is open when the pressure behind it is above that ahead. The low pressures are drawn larger so the valves can be compared. The atria are relaxed and filling. The two ventricles squeeze. The valves between atria and ventricles are shut; those to the arteries are shut. No blood enters or leaves the ventricles. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the valves."
       },
       {
         "stop": "ejection",
@@ -65,7 +65,7 @@
           "where": "lungs",
           "focus": "ventricles"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are open. Blood is pushed out, from the right side to the lungs and from the left side to the body. The picture draws the eye to the ventricles."
+        "alt": "The heart’s four chambers and four valves, with bars for the pressure in the left atrium, the left ventricle and the aorta. A valve is open when the pressure behind it is above that ahead. The low pressures are drawn larger so the valves can be compared. The atria are relaxed and filling. The two ventricles squeeze. The valves between atria and ventricles are shut; those to the arteries are open. Blood is pushed out, to the lungs and to the body. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the ventricles."
       },
       {
         "stop": "relaxing",
@@ -77,7 +77,7 @@
           "where": "lungs",
           "focus": "none"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles."
+        "alt": "The heart’s four chambers and four valves, with bars for the pressure in the left atrium, the left ventricle and the aorta. A valve is open when the pressure behind it is above that ahead. The low pressures are drawn larger so the valves can be compared. The atria are relaxed and filling. The ventricles are relaxed. The valves between atria and ventricles are shut; those to the arteries are shut. No blood enters or leaves the ventricles. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way."
       },
       {
         "stop": "circuits",
@@ -89,7 +89,7 @@
           "where": "lungs",
           "focus": "lungs"
         },
-        "alt": "Two loops meet at the heart. The right side sends blood to the lungs, where it picks up oxygen, and it returns to the left side. The left side sends it to the rest of the body, where it gives up oxygen, and it returns to the right side. Blood is drawn red where it is rich in oxygen and blue where it is poor. That is a drawing convention: blood is red either way. The picture draws the eye to the lungs."
+        "alt": "Two loops meet at the heart. The right side sends blood to the lungs, where it picks up oxygen, and it returns to the left side. The left side sends it to the rest of the body, where it gives up oxygen, and it returns to the right side. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the lungs."
       },
       {
         "stop": "pressure",
@@ -101,7 +101,7 @@
           "where": "lungs",
           "focus": "arterioles"
         },
-        "alt": "A graph shows the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The picture draws the eye to the arterioles."
+        "alt": "A graph of the average pressure along the loop through the body: from the large arteries to the veins. It falls all the way, as each stretch uses some of it. The biggest fall is across the arterioles: the fall across a stretch is the flow times its resistance. Pressures are relative; the pulse is left out. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the arterioles."
       },
       {
         "stop": "narrowed",
@@ -113,7 +113,7 @@
           "where": "lungs",
           "focus": "arteries"
         },
-        "alt": "A graph shows the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The arterioles are narrowed, which raises their resistance, so the pressure before them is higher. The picture draws the eye to the arteries."
+        "alt": "A graph of the average pressure along the loop through the body: from the large arteries to the veins. It falls all the way, as each stretch uses some of it. The biggest fall is across the arterioles: the fall across a stretch is the flow times its resistance. Pressures are relative; the pulse is left out. The arterioles are narrowed and resist more, so the pressure before them is higher. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the arteries."
       },
       {
         "stop": "oxygen-lungs",
@@ -125,7 +125,7 @@
           "where": "lungs",
           "focus": "curve"
         },
-        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth. In the lungs oxygen is plentiful, so nearly all of the haemoglobin is loaded. The picture draws the eye to the curve."
+        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. Acidity and warmth, which shift it, are left out. In the lungs oxygen is plentiful, so nearly all of the haemoglobin is loaded. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the curve."
       },
       {
         "stop": "oxygen-rest",
@@ -137,7 +137,7 @@
           "where": "resting-tissue",
           "focus": "handoff"
         },
-        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth. In resting tissue oxygen is scarcer, so the blood gives up a small share of its load and the rest stays on the haemoglobin. The picture draws the eye to the oxygen handed over."
+        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. Acidity and warmth, which shift it, are left out. In resting tissue oxygen is scarcer, so the blood gives up a small share of its load and the rest stays on the haemoglobin. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the oxygen handed over."
       },
       {
         "stop": "oxygen-work",
@@ -149,7 +149,7 @@
           "where": "active-tissue",
           "focus": "handoff"
         },
-        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. The picture leaves out the effects of acidity and warmth. In working tissue oxygen is much scarcer, so the blood gives up most of its load, though some stays on the haemoglobin. The picture draws the eye to the oxygen handed over."
+        "alt": "A curve of how much of the haemoglobin in red blood cells carries oxygen, against how much oxygen is around. It is S-shaped, because each haemoglobin holds up to four oxygen molecules and the first makes the next easier to bind. Acidity and warmth, which shift it, are left out. In working tissue oxygen is much scarcer, so the blood gives up most of its load, though some stays on the haemoglobin. Red and blue mark blood rich and poor in oxygen, a drawing convention: blood is red either way. The picture draws the eye to the oxygen handed over."
       }
     ]
   },
@@ -397,6 +397,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "493a3672d34e67689796dc9b1911f4a8e20e4f2303a0edb0857f004f125462ad"
+    "sha256": "f27b9f35c260c3fdb9332f2191b8c11aa7e6fdaf871aefc0e648ffc4333e4130"
   }
 }
