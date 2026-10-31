@@ -34,8 +34,8 @@ export function deckOf(row: LaunchRow): LaunchDeck | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-/** When a Launch is over: finished at the moment it settled, or at the end of its last round while nobody has settled it. */
-const overAt = (row: LaunchRow): Date => row.finishedAt ?? endsAt(row.startsAt);
+/** When a Launch was over: the end of its last round, whether or not anyone has settled it yet (a settlement is not an event of the game). */
+const overAt = (row: LaunchRow): Date => endsAt(row.startsAt);
 
 /**
  * People as faces for this reader: the reader first, then the others in the order given, never a person the reader blocked (D-160:
@@ -105,7 +105,8 @@ async function openView(
   closesInMs: number,
 ): Promise<LaunchView> {
   const question = deck.questions[round - 1]!;
-  const mine = OWN_ANSWER(await read.p.launches.answers(read.lock, row.launchId), read.readerId, round);
+  // While the question is open only the reader's own answer is read: nobody else's row is touched.
+  const mine = await read.p.launches.ownAnswer(read.lock, row.launchId, round, read.readerId);
   const youIn = await read.p.launches.isPlayer(read.lock, row.launchId, read.readerId);
   return {
     phase: 'open',

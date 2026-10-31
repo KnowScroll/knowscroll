@@ -145,6 +145,25 @@ export const launchStore: LaunchStore = {
     }));
   },
 
+  async ownAnswer(lock, launchId, round, accountId) {
+    const found = await trxOf(lock)
+      .selectFrom('rooms.launch_answers')
+      .select(['account_id', 'round', 'choice', 'correct', 'elapsed_ms'])
+      .where('launch_id', '=', launchId)
+      .where('round', '=', round)
+      .where('account_id', '=', accountId)
+      .executeTakeFirst();
+    return found === undefined
+      ? undefined
+      : {
+          accountId: found.account_id,
+          round: found.round,
+          choice: found.choice,
+          correct: found.correct,
+          elapsedMs: found.elapsed_ms,
+        };
+  },
+
   async addAnswer(lock, answer) {
     const inserted = await trxOf(lock)
       .insertInto('rooms.launch_answers')
@@ -165,7 +184,7 @@ export const launchStore: LaunchStore = {
   async finish(lock, launchId, result) {
     const updated = await trxOf(lock)
       .updateTable('rooms.launches')
-      .set({ state: 'finished', finished_at: result.now, played: result.played, star: result.star })
+      .set({ state: 'finished', finished_at: result.at, played: result.played, star: result.star })
       .where('launch_id', '=', launchId)
       .where('state', '=', 'live')
       .executeTakeFirst();

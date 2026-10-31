@@ -31,7 +31,8 @@ import { deckOf, launchViewOf, startDecision } from './launch-view.js';
 import { ok, refuse, roomEnvelope, type Result, type RoomLock, type RoomPorts } from './ports.js';
 import { awardStar } from './sky.js';
 
-const DAY_MS = 86_400_000;
+/** Results of a Launch that ended before this moment are past their seven days. */
+const resultsKeptUntil = (now: Date): Date => new Date(now.getTime() - RESULTS_KEPT_DAYS * 86_400_000);
 
 /**
  * Settles the room's Launch when its play time has passed (D-178): it is marked finished once, with how many people answered, and
@@ -39,17 +40,27 @@ const DAY_MS = 86_400_000;
  * (a presence beat, which an open room sends every 25 seconds, or a Launch command), exactly as D-175 settles a constellation's name.
  * The Launch row is taken FOR UPDATE, so an answer in flight commits first and the finished Launch holds every answer that was
  * accepted; the sky lock follows it, last, as everywhere. Two commands at once settle it once.
+ *
+ * A Launch is finished **when its play time ended**, not when someone noticed: a room nobody opened for three days still shows no
+ * podium (it is read for a day from the end), its star counts against the day it ended, and its answers are kept seven days from
+ * that end (D-178, D-220, D-221). The results of every Launch past their seven days are deleted by the same commands, so a room that
+ * stops playing does not keep them until its next start.
  */
 export async function settleLaunches(p: RoomPorts, lock: RoomLock, topicId: string, now: Date): Promise<void> {
   const running = await p.launches.unfinished(lock, 'none');
-  if (running === undefined || now.getTime() < endsAt(running.startsAt).getTime()) return;
+  if (running === undefined || now.getTime() < endsAt(running.startsAt).getTime()) {
+    await p.launches.purgeResults(lock, resultsKeptUntil(now));
+    return;
+  }
   const row = await p.launches.unfinished(lock, 'update');
   if (row === undefined || now.getTime() < endsAt(row.startsAt).getTime()) return;
+  const ended = endsAt(row.startsAt);
   const results = resultsOf(await p.launches.players(lock, row.launchId), await p.launches.answers(lock, row.launchId));
   const played = playedCount(results);
   const star =
-    earnsStar(played) && (await awardStar(p, lock, topicId, 'launch_finished', row.launchId, now)) === 'awarded';
-  if (await p.launches.finish(lock, row.launchId, { now, played, star })) await p.rooms.announce(lock, now);
+    earnsStar(played) && (await awardStar(p, lock, topicId, 'launch_finished', row.launchId, now, ended)) === 'awarded';
+  if (await p.launches.finish(lock, row.launchId, { at: ended, played, star })) await p.rooms.announce(lock, now);
+  await p.launches.purgeResults(lock, resultsKeptUntil(now));
 }
 
 /** What a command that records the person as playing answers while their recording is paused or the device is out of date. */
@@ -163,7 +174,7 @@ export function makeLaunch(p: RoomPorts) {
           return ok(async () => {
             const launchId = p.newId();
             const startsAt = startsAtFrom(now);
-            await p.launches.purgeResults(lock, new Date(now.getTime() - RESULTS_KEPT_DAYS * DAY_MS));
+            await p.launches.purgeResults(lock, resultsKeptUntil(now));
             await p.launches.insert(lock, {
               launchId,
               deckRitualId: decision.deckRitualId,

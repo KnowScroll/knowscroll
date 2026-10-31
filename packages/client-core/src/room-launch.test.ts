@@ -35,13 +35,25 @@ function scopeOf(rooms: Api, recording: { on: boolean; generation: number } = { 
       },
     ]),
   );
+  const listeners = new Set<() => void>();
   const session = {
     getState: () => ({ policy: { on: recording.on, generation: recording.generation } }),
     generation: () => Promise.resolve(recording.generation),
     refresh: () => Promise.resolve(true),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    /** A test turns recording off or on, as the Privacy screen does, and the session tells whoever listens. */
+    change: (on: boolean) => {
+      recording.on = on;
+      for (const listener of [...listeners]) listener();
+    },
+    listening: () => listeners.size,
   };
   return { active: true, api: { rooms: wrapped }, calls, recording: session } as unknown as AccountScope & {
     calls: { name: string; input: unknown }[];
+    recording: typeof session;
   };
 }
 let counter = 100;
@@ -255,6 +267,31 @@ describe('a Launch on the client', () => {
     // The question is back as it was: nothing was kept, so nothing shows as answered.
     expect(controller.getState().view?.launch).toMatchObject({ phase: 'open', youIn: false });
     expect((controller.getState().view?.launch as { yourChoice?: number }).yourChoice).toBeUndefined();
+  });
+
+  it('knows recording is paused before any command, and follows the policy only while a screen listens', () => {
+    const scope = scopeOf({ launch: () => Promise.resolve(ready(open)) });
+    const controller = createRoomLaunch({ scope, roomId, newId, clock: () => 0 });
+    expect(controller.getState().recordingPaused).toBe(false);
+    expect(scope.recording.listening()).toBe(0);
+    const heard: boolean[] = [];
+    const stop = controller.subscribe(() => heard.push(controller.getState().recordingPaused));
+    expect(scope.recording.listening()).toBe(1);
+    scope.recording.change(false);
+    expect(controller.getState().recordingPaused).toBe(true);
+    scope.recording.change(false);
+    scope.recording.change(true);
+    // A change that is not a change tells nobody twice.
+    expect(heard).toEqual([true, false]);
+    stop();
+    expect(scope.recording.listening()).toBe(0);
+    const paused = createRoomLaunch({
+      scope: scopeOf({ launch: () => Promise.resolve(ready(open)) }, { on: false, generation: 5 }),
+      roomId,
+      newId,
+      clock: () => 0,
+    });
+    expect(paused.getState().recordingPaused).toBe(true);
   });
 
   it('says not_saved when the server says the device is out of date, and does not count the answer', async () => {

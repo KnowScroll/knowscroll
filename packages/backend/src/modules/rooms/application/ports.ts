@@ -803,13 +803,15 @@ export interface LaunchStore {
   ): Promise<readonly { readonly accountId: string; readonly joinedAt: Date }[]>;
   isPlayer(lock: RoomLock, launchId: string, accountId: string): Promise<boolean>;
   answers(lock: RoomLock, launchId: string): Promise<readonly StoredAnswer[]>;
+  /** One person's answer to one round, for the question that is still open: nobody else's row is read while it is. */
+  ownAnswer(lock: RoomLock, launchId: string, round: number, accountId: string): Promise<StoredAnswer | undefined>;
   /** Stores an answer; false when the person already answered this round (the first stands). */
   addAnswer(lock: RoomLock, answer: StoredAnswer & { readonly launchId: string; readonly now: Date }): Promise<boolean>;
-  /** Marks an unfinished Launch finished, once. False when another command finished it first. */
+  /** Marks an unfinished Launch finished, once, at the moment its play time ended. False when another command finished it first. */
   finish(
     lock: RoomLock,
     launchId: string,
-    result: { readonly now: Date; readonly played: number; readonly star: boolean },
+    result: { readonly at: Date; readonly played: number; readonly star: boolean },
   ): Promise<boolean>;
   /** Deletes the players and answers of this room's Launches that finished before `before`. */
   purgeResults(lock: RoomLock, before: Date): Promise<void>;

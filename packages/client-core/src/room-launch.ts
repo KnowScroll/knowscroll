@@ -161,6 +161,11 @@ export interface RoomLaunchState {
   readonly working: boolean;
   /** The last command was refused (too late, or the Launch changed meanwhile); the screen reads the Launch again and says so. */
   readonly refused: boolean;
+  /**
+   * Recording is paused right now (D-057). A Launch keeps each answer, so while it is true nothing can be played: the screen says so
+   * before any tap and offers no Start, Join or answer. Read from the person's own recording policy and kept fresh while a screen listens.
+   */
+  readonly recordingPaused: boolean;
   /** The last command was not kept: recording is paused or this device's settings were out of date (D-220). Nothing was stored. */
   readonly notSaved: 'recording_paused' | 'recording_generation_stale' | undefined;
 }
@@ -196,6 +201,7 @@ const initial: RoomLaunchState = {
   working: false,
   refused: false,
   notSaved: undefined,
+  recordingPaused: false,
 };
 
 /**
@@ -209,15 +215,15 @@ export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchControll
   const { scope, roomId, newId, clock } = options;
   const listeners = new Set<() => void>();
   const run = intentRunner(newId);
-  let state = initial;
+  const paused = () => scope.recording?.getState().policy?.on === false;
+  let state: RoomLaunchState = { ...initial, recordingPaused: paused() };
   let settledFor: string | undefined;
+  let stopWatching: (() => void) | undefined;
   const publish = (patch: Partial<RoomLaunchState>): void => {
     if (!scope.active) return;
     state = { ...state, ...patch };
     for (const listener of [...listeners]) listener();
   };
-  const paused = () => scope.recording?.getState().policy?.on === false;
-
   async function read(): Promise<void> {
     try {
       const answer = await scope.api.rooms.launch({ version: VERSION, readId: newId(), roomId });
@@ -283,7 +289,18 @@ export function createRoomLaunch(options: RoomLaunchOptions): RoomLaunchControll
     getState: () => state,
     subscribe(listener) {
       listeners.add(listener);
-      return () => void listeners.delete(listener);
+      // While a screen listens, the policy is watched, so a pause or a resume shows at once.
+      if (listeners.size === 1)
+        stopWatching = scope.recording?.subscribe(() => {
+          if (paused() !== state.recordingPaused) publish({ recordingPaused: paused() });
+        });
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          stopWatching?.();
+          stopWatching = undefined;
+        }
+      };
     },
     load,
 

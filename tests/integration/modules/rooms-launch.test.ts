@@ -533,6 +533,52 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       void ravi;
     });
 
+    it('settles a Launch that is over but not yet settled once, however many commands reach the room at the same moment', async () => {
+      const t0 = begin();
+      const { roomId, people } = await readyRoom(3);
+      const [asha, ravi, kenji] = people as [Friend, Friend, Friend];
+      const started = unwrap(await start(asha, roomId));
+      if (started.outcome !== 'accepted') throw new Error('expected accepted');
+      const open = opensAt(t0).getTime() - t0.getTime();
+      at(open + 500, t0);
+      unwrap(await answer(asha, roomId, started.launchId, 1, KEY[0]));
+      unwrap(await answer(ravi, roomId, started.launchId, 1, KEY[0]));
+      // The play time is over and no command has settled it: it is still unfinished in the table.
+      at(open + PLAY_MS + 2_000, t0);
+      expect(
+        await world.db
+          .selectFrom('rooms.launches')
+          .select('state')
+          .where('launch_id', '=', started.launchId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ state: 'live' });
+      // Three beats and two device finishes meet at once.
+      const [beatAsha, beatRavi, beatKenji, finishAsha, finishKenji] = await Promise.all([
+        setPresence(world, asha, roomId),
+        setPresence(world, ravi, roomId),
+        setPresence(world, kenji, roomId),
+        finish(asha, roomId, started.launchId),
+        finish(kenji, roomId, started.launchId),
+      ]);
+      for (const beat of [beatAsha, beatRavi, beatKenji]) unwrap(beat);
+      for (const device of [finishAsha, finishKenji]) expect(unwrap(device)).toMatchObject({ outcome: 'accepted' });
+      expect(await starCount(roomId)).toBe(1);
+      const stars = await world.db
+        .selectFrom('rooms.stars')
+        .select('star_id')
+        .where('room_id', '=', roomId)
+        .where('source_key', '=', started.launchId)
+        .execute();
+      expect(stars).toHaveLength(1);
+      const row = await world.db
+        .selectFrom('rooms.launches')
+        .select(['state', 'played', 'star'])
+        .where('launch_id', '=', started.launchId)
+        .executeTakeFirstOrThrow();
+      expect(row).toEqual({ state: 'finished', played: 2, star: true });
+      expect((await memberView(world, asha, roomId)).sky.lit).toBe(1);
+    });
+
     it('stops at the room’s three stars a day, and an AI never earns one', async () => {
       const t0 = begin();
       const { roomId, people } = await readyRoom(2);
@@ -838,6 +884,34 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       expect(await starCount(roomId)).toBe(1);
     });
 
+    it('lists a Launch in the export only once it has finished', async () => {
+      const t0 = begin();
+      const { roomId } = await seedRoom(world);
+      const person = await realMember();
+      unwrap(await world.rooms.join(person.authority, { version, commandId: randomUUID(), roomId }));
+      const [asha] = (await joined(world, roomId, 1)) as [Friend];
+      for (const member of [person, asha]) unwrap(await setPresence(world, member, roomId));
+      await approvedDeck(roomId);
+      const started = unwrap(await start(person, roomId));
+      if (started.outcome !== 'accepted') throw new Error('expected accepted');
+      const open = opensAt(t0).getTime() - t0.getTime();
+      at(open + 700, t0);
+      unwrap(await answer(person, roomId, started.launchId, 1, KEY[0]));
+      const exportNow = async () => {
+        const exported = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(person.authority, (scope) =>
+          exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+        );
+        if (exported.kind !== 'entered') throw new Error('export refused');
+        return JSON.stringify(exported.value.sections['rooms']);
+      };
+      // Running: the answer is held, and the file does not list a game that has not ended.
+      expect(await countFor('rooms.launch_answers', person.accountId)).toBe(1);
+      expect(await exportNow()).not.toContain('"questionsAnswered"');
+      at(open + PLAY_MS, t0);
+      unwrap(await finish(asha, roomId, started.launchId));
+      expect(await exportNow()).toContain('"questionsAnswered":1');
+    });
+
     it('deletes the answers with an account that never had a Clear, and lists them first', async () => {
       const { roomId, person, launchId } = await playedMember();
       expect(await countFor('rooms.launch_answers', person.accountId)).toBe(1);
@@ -854,6 +928,112 @@ describe('the Launch (real PostgreSQL, labelled CI fixtures)', () => {
       expect(
         await world.db.selectFrom('rooms.launches').select('launch_id').where('launch_id', '=', launchId).execute(),
       ).toHaveLength(1);
+    });
+  });
+
+  describe('a Launch settled long after it ended', () => {
+    const DAY = 24 * HOUR;
+    /** Plays a two-person Launch to its end and leaves it unsettled. Returns the moment the play time ended. */
+    async function playedUnsettled() {
+      const t0 = begin();
+      const { roomId, people } = await readyRoom(2);
+      const [asha, ravi] = people as [Friend, Friend];
+      const started = unwrap(await start(asha, roomId));
+      if (started.outcome !== 'accepted') throw new Error('expected accepted');
+      const open = opensAt(t0).getTime() - t0.getTime();
+      at(open + 500, t0);
+      unwrap(await answer(asha, roomId, started.launchId, 1, KEY[0]));
+      unwrap(await answer(ravi, roomId, started.launchId, 1, KEY[0]));
+      const ended = new Date(t0.getTime() + open + PLAY_MS);
+      return { roomId, asha, ravi, launchId: started.launchId, ended };
+    }
+    const settledRow = (launchId: string) =>
+      world.db
+        .selectFrom('rooms.launches')
+        .select(['state', 'finished_at', 'played', 'star'])
+        .where('launch_id', '=', launchId)
+        .executeTakeFirstOrThrow();
+    const answersOf = (launchId: string) =>
+      sql<{ n: string }>`select count(*)::text as n from rooms.launch_answers where launch_id = ${launchId}::uuid`
+        .execute(world.db)
+        .then((found) => Number(found.rows[0]!.n));
+
+    it('is finished when it ended: no podium comes back, the star counts on the day it ended, and the room’s other days are untouched', async () => {
+      const { roomId, asha, ravi, launchId, ended } = await playedUnsettled();
+      const settledAt = new Date(ended.getTime() + 3 * DAY);
+      // The day it ended already has two of the room's three stars; the day it is settled on has all three.
+      const insertStars = async (day: string, count: number) => {
+        for (let index = 0; index < count; index++)
+          await sql`insert into rooms.stars (star_id, room_id, act, source_key, earned_at, earned_on, constellation_no)
+            values (${randomUUID()}::uuid, ${roomId}::uuid, 'answer_useful', ${randomUUID()}::uuid, ${ended}, ${day}::date, 1)`.execute(
+            world.db,
+          );
+      };
+      await insertStars(dayOf(ended), 2);
+      await insertStars(dayOf(settledAt), 3);
+      world.clock.now = settledAt;
+      for (const person of [asha, ravi]) unwrap(await setPresence(world, person, roomId));
+
+      // Finished at its end, not at the beat that noticed.
+      const row = await settledRow(launchId);
+      expect(row).toMatchObject({ state: 'finished', played: 2, star: true });
+      expect(new Date(row.finished_at!).toISOString()).toBe(ended.toISOString());
+      // The star is the third of the day it ended, and says when it was earned.
+      const star = await world.db
+        .selectFrom('rooms.stars')
+        .select(['earned_at', sql<string>`earned_on::text`.as('day')])
+        .where('room_id', '=', roomId)
+        .where('act', '=', 'launch_finished')
+        .executeTakeFirstOrThrow();
+      expect(new Date(star.earned_at).toISOString()).toBe(ended.toISOString());
+      expect(star.day).toBe(dayOf(ended));
+      // No fresh podium: it was readable for a day from the end, and the end was three days ago.
+      expect((await read(asha, roomId)).launch).toBeUndefined();
+      expect((await memberView(world, asha, roomId)).launch).toBeUndefined();
+      // Seven days have not passed: the answers are still kept.
+      expect(await answersOf(launchId)).toBe(2);
+    });
+
+    it('does not take a star from a day that was already full on the day it ended, whatever day it is settled on', async () => {
+      const { roomId, asha, ravi, ended } = await playedUnsettled();
+      for (let index = 0; index < 3; index++)
+        await sql`insert into rooms.stars (star_id, room_id, act, source_key, earned_at, earned_on, constellation_no)
+          values (${randomUUID()}::uuid, ${roomId}::uuid, 'answer_useful', ${randomUUID()}::uuid, ${ended}, ${dayOf(ended)}::date, 1)`.execute(
+          world.db,
+        );
+      world.clock.now = new Date(ended.getTime() + 2 * DAY);
+      for (const person of [asha, ravi]) unwrap(await setPresence(world, person, roomId));
+      // The next day was empty, but the star belongs to the day the Launch ended, which was full.
+      expect(await starCount(roomId)).toBe(0);
+    });
+
+    it('keeps the answers seven days from the end of the play time and deletes them with the first command after that', async () => {
+      const { roomId, asha, ravi, launchId, ended } = await playedUnsettled();
+      // Settled the moment the seven days are up: nothing is past them yet.
+      world.clock.now = new Date(ended.getTime() + 7 * DAY);
+      for (const person of [asha, ravi]) unwrap(await setPresence(world, person, roomId));
+      expect(new Date((await settledRow(launchId)).finished_at!).toISOString()).toBe(ended.toISOString());
+      expect(await answersOf(launchId)).toBe(2);
+      // A second after, the beat of an open room deletes them, with no new Launch needed.
+      world.clock.now = new Date(ended.getTime() + 7 * DAY + 1_000);
+      unwrap(await setPresence(world, asha, roomId));
+      expect(await answersOf(launchId)).toBe(0);
+      expect(
+        await sql<{
+          n: string;
+        }>`select count(*)::text as n from rooms.launch_players where launch_id = ${launchId}::uuid`
+          .execute(world.db)
+          .then((found) => Number(found.rows[0]!.n)),
+      ).toBe(0);
+      expect((await settledRow(launchId)).state).toBe('finished');
+    });
+
+    it('settles and deletes in one command for a room nobody opened for eight days', async () => {
+      const { roomId, asha, launchId, ended } = await playedUnsettled();
+      world.clock.now = new Date(ended.getTime() + 8 * DAY);
+      unwrap(await setPresence(world, asha, roomId));
+      expect(await settledRow(launchId)).toMatchObject({ state: 'finished', played: 2, star: true });
+      expect(await answersOf(launchId)).toBe(0);
     });
   });
 

@@ -46,6 +46,7 @@ const mockLaunch: { current: { controller: object; state: RoomLaunchState } } = 
       working: false,
       refused: false,
       notSaved: undefined,
+      recordingPaused: false,
     },
   },
 };
@@ -381,6 +382,7 @@ describe('the Launch in the room', () => {
         working: false,
         refused: false,
         notSaved: undefined,
+        recordingPaused: false,
       },
     };
   };

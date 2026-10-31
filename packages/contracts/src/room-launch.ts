@@ -58,7 +58,7 @@ const Own = { youIn: z.boolean() };
 /**
  * The Launch in each phase. `open` has the question and its time left and **nothing that says which option is right**, how many
  * answered or who: that is the schema's own shape, not a client's courtesy. `reveal` has the key, the reason, how many answered and
- * the people who got it right (never who got it wrong). `finished` has the podium and the caller's own squares.
+ * the people who got it right (nobody is named as wrong). `finished` has the podium and the caller's own squares.
  */
 export const LaunchViewSchema = z.discriminatedUnion('phase', [
   z.strictObject({
@@ -91,7 +91,7 @@ export const LaunchViewSchema = z.discriminatedUnion('phase', [
       /** How many people answered this question, and how many of them got it right. */
       locked: Counter,
       right: Counter,
-      /** The people who got it right, never the people who did not. */
+      /** The people who got it right. Nobody is named as wrong (the count and the faces let a reader infer it, as R3 draws). */
       calledIt: Faces,
       /** The caller's right answers so far. */
       yourScore: z.number().int().min(0).max(LAUNCH_QUESTIONS),

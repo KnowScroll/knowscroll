@@ -225,7 +225,8 @@ test('phone: while recording is paused the Launch says so and an answer is not s
   await launchRoutes(page, world, 'ravi', scope);
   await page.goto(address);
   await expect(page.getByTestId('launch-stage')).toBeVisible();
-  await page.getByTestId('launch-join').click();
+  // Said before any tap: there is nothing to press, and nothing is sent.
+  await expect(page.getByTestId('launch-join')).toBeDisabled();
   await expect(page.getByTestId('launch-paused')).toContainText('Recording is paused.');
   await expect(page.getByTestId('launch-paused')).toContainText('can’t be played while recording is paused');
   expect(world.calls.filter((call) => call.path.endsWith('/join') || call.path.endsWith('/answer'))).toHaveLength(0);

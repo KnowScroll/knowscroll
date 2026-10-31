@@ -91,6 +91,7 @@ const state = (patch: Partial<RoomLaunchState> = {}): RoomLaunchState => ({
   working: false,
   refused: false,
   notSaved: undefined,
+  recordingPaused: false,
   ...patch,
 });
 const controller = () =>
@@ -192,18 +193,59 @@ describe('the Launch on the stage', () => {
     expect(screen.getByTestId('launch-called')).toHaveTextContent('Nobody answered this one.');
   });
 
-  it('says plainly that recording is paused, that an answer was refused, and that the connection is gone', async () => {
+  it('says plainly that recording is paused before any tap, and offers nothing to tap', async () => {
+    const actions = controller();
+    await wrap(
+      <LaunchStage launch={open} host={LAUNCH_HOST} state={state({ recordingPaused: true })} controller={actions} />,
+    );
+    expect(screen.getByTestId('launch-paused')).toHaveTextContent(/can’t be played while recording is paused/);
+    for (const index of open.options.keys())
+      expect(screen.getByTestId(`launch-option-${String(index)}`)).toBeDisabled();
+    await fireEvent.press(screen.getByTestId('launch-option-0'));
+    expect(actions.answer).not.toHaveBeenCalled();
+  });
+
+  it('offers no Join while recording is paused, in the lobby too', async () => {
+    const actions = controller();
+    await wrap(
+      <LaunchStage
+        launch={{ ...lobby, youIn: false }}
+        host={LAUNCH_HOST}
+        state={state({ recordingPaused: true })}
+        controller={actions}
+      />,
+    );
+    expect(screen.getByTestId('launch-paused')).toBeOnTheScreen();
+    expect(screen.getByTestId('launch-join')).toBeDisabled();
+    await fireEvent.press(screen.getByTestId('launch-join'));
+    expect(actions.join).not.toHaveBeenCalled();
+  });
+
+  it('says that an answer was refused as too late, and nothing about recording', async () => {
+    await wrap(
+      <LaunchStage launch={open} host={LAUNCH_HOST} state={state({ refused: true })} controller={controller()} />,
+    );
+    expect(screen.getByText('Too late for that one.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('launch-paused')).not.toBeOnTheScreen();
+  });
+
+  it('says that the connection is gone, and that the next answer will go when it is back', async () => {
+    await wrap(
+      <LaunchStage launch={open} host={LAUNCH_HOST} state={state({ offline: true })} controller={controller()} />,
+    );
+    expect(screen.getByText('Reconnecting…')).toBeOnTheScreen();
+  });
+
+  it('says the device’s recording setting was out of date when the server refused to keep an answer', async () => {
     await wrap(
       <LaunchStage
         launch={open}
         host={LAUNCH_HOST}
-        state={state({ notSaved: 'recording_paused', refused: true, offline: true })}
+        state={state({ notSaved: 'recording_generation_stale' })}
         controller={controller()}
       />,
     );
-    expect(screen.getByTestId('launch-paused')).toHaveTextContent(/can’t be played while recording is paused/);
-    expect(screen.getByText('Too late for that one.')).toBeOnTheScreen();
-    expect(screen.getByText('Reconnecting…')).toBeOnTheScreen();
+    expect(screen.getByTestId('launch-stale')).toBeOnTheScreen();
   });
 
   it('is an onlooker until someone answers: a person who has not joined is told they are watching', async () => {
@@ -339,18 +381,19 @@ describe('where a Launch starts', () => {
     expect(screen.getByLabelText('AI, Quizmaster')).toBeOnTheScreen();
   });
 
-  it('says that recording is paused before anyone presses Start', async () => {
+  it('says that recording is paused before anyone presses Start, and does not offer to start', async () => {
     await wrap(
       <LaunchStartSheet
         visible
         host={LAUNCH_HOST}
         view={ready({ allowed: true })}
-        state={state({ notSaved: 'recording_paused' })}
+        state={state({ recordingPaused: true })}
         onStart={jest.fn()}
         onClose={jest.fn()}
       />,
     );
     expect(screen.getByTestId('launch-start-paused')).toBeOnTheScreen();
+    expect(screen.getByTestId('launch-start')).toBeDisabled();
   });
 });
 

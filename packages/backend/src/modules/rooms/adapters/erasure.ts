@@ -413,7 +413,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         join rooms.launches launch on launch.launch_id = player.launch_id
         join rooms.rooms room on room.room_id = launch.room_id
         left join rooms.launch_answers answer on answer.launch_id = player.launch_id and answer.account_id = player.account_id
-        where player.account_id = ${person.accountId}::uuid
+        where player.account_id = ${person.accountId}::uuid and launch.state = 'finished'
         group by room.name, launch.launch_id, launch.starts_at
         order by launch.starts_at desc limit 500`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);

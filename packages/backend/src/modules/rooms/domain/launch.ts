@@ -29,7 +29,7 @@ export const MIN_PLAYERS_FOR_STAR = 2;
 export const MIN_HERE_TO_START = 2;
 /** A deck of today or of the day before may be played, so a night's deck is still there the next evening. */
 export const DECK_DAYS = 2;
-/** The players and answers of a Launch are kept this many days after it finished, then deleted by the room's next Launch command. */
+/** The players and answers of a Launch are kept this many days after its play time ended, then deleted by the room's first member command after that. */
 export const RESULTS_KEPT_DAYS = 7;
 
 /** When the first question opens, from when the Launch was started. */

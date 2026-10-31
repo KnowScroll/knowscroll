@@ -45,7 +45,7 @@ export function LaunchStartSheet({
         {blocked === undefined ? null : (
           <Banner kind="info" lead="Not just yet." message={blocked} testID="launch-start-blocked" />
         )}
-        {state.notSaved === 'recording_paused' ? (
+        {state.recordingPaused || state.notSaved === 'recording_paused' ? (
           <Banner
             kind="recordingPaused"
             lead="Recording is paused."
@@ -63,7 +63,7 @@ export function LaunchStartSheet({
         <Button
           label="Start the Launch"
           variant="primary"
-          disabled={start?.allowed !== true || state.working}
+          disabled={start?.allowed !== true || state.working || state.recordingPaused}
           onPress={onStart}
           testID="launch-start"
         />

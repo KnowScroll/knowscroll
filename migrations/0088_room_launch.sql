@@ -13,8 +13,8 @@
 -- Access: members only. A launch holds no account (who started it is not kept). A player row and an answer name the person and are
 -- read by that person; others read only what the podium and the reveal show.
 -- Growth: one unfinished Launch per room (partial unique index); one Launch per deck (unique); at most five answers a player.
--- Retention: a Launch row stays with the room. The players and answers of a Launch are deleted seven days after it finished, by the
--- next Launch command of the room; a podium is read for a day.
+-- Retention: a Launch row stays with the room. The players and answers of a Launch are deleted seven days after its play time ended, by the
+-- first member command of the room after that (a presence beat settles and deletes); a podium is read for a day from the end.
 -- Erasure: players and answers are play results of the person (D-082), so a Clear, leaving or being removed, and deleting the account
 -- delete them, and the export lists them first. A star a Launch earned names no account and stays.
 -- Rollout: additive, except that two checks widen (a ritual's kind and a star's act). An older process neither reads nor writes the new

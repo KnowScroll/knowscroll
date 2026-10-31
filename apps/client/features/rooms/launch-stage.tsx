@@ -185,7 +185,7 @@ function useDigitKeys(enabled: boolean, count: number, onDigit: (index: number) 
 function Notices({ state }: { readonly state: RoomLaunchState }) {
   return (
     <>
-      {state.notSaved === 'recording_paused' ? (
+      {state.recordingPaused || state.notSaved === 'recording_paused' ? (
         <Banner
           kind="recordingPaused"
           lead="Recording is paused."
@@ -281,7 +281,7 @@ export function LaunchStage({
                 label="Join the Launch"
                 variant="primary"
                 onPress={() => void controller.join()}
-                disabled={state.working}
+                disabled={state.working || state.recordingPaused}
                 testID="launch-join"
               />
             )}
@@ -301,7 +301,7 @@ export function LaunchStage({
                   open={asking}
                   picked={launch.yourChoice === index}
                   correct={launch.phase === 'reveal' && launch.correct === index}
-                  locked={answered || state.working}
+                  locked={answered || state.working || state.recordingPaused}
                   onPick={() => pick(index)}
                 />
               ))}
