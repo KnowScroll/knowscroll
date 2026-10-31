@@ -8,9 +8,9 @@ import {
 } from '@knowscroll/backend/reasoning/nest-providers';
 import type { TestDatabase } from './database.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
-import type { FixtureScenario } from './fixture-model-port.js';
+import type { FixtureCall, FixtureScenario } from './fixture-model-port.js';
 import type { ResearchPage } from '../../../packages/backend/src/infrastructure/research/public-pages.js';
-import { fixtureResearchFor } from './generated-scroll.js';
+import { fixtureResearchFor, routedScript } from './generated-scroll.js';
 
 /** The fixture model's quota observation per attempt. */
 export type QuotaScript = NonNullable<Parameters<typeof fixtureModel>[1]>['quota'];
@@ -22,14 +22,17 @@ export type QuotaScript = NonNullable<Parameters<typeof fixtureModel>[1]>['quota
  */
 export function fixtureProductionWorker(
   database: TestDatabase<Database>,
-  script: () => FixtureScenario,
+  script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>,
   options: {
     readonly quota?: QuotaScript;
+    /** The checker's verdicts; by default every call is consistent. */
+    readonly checker?: Parameters<typeof routedScript>[1];
     /** The research fetch; defaults to the authored fixture pages. */
     readonly research?: (url: string) => Promise<ResearchPage>;
   } = {},
 ) {
-  const fixture = fixtureModel(script, {
+  const routed = routedScript(script, options.checker);
+  const fixture = fixtureModel(routed.script, {
     label: 'production-worker-CI-fixture',
     ...(options.quota ? { quota: options.quota } : {}),
   });
@@ -54,5 +57,13 @@ export function fixtureProductionWorker(
       model: model.model,
       research: options.research ?? ((url) => Promise.resolve(fixtureResearchFor(url))),
     });
-  return { fixture, harness, producer, run: makeRunScrollProduction(producer()) };
+  return {
+    fixture,
+    /** The writer's requests only, and the checker's only (live). `fixture.calls` holds both. */
+    writerCalls: routed.writerCalls,
+    checkerCalls: routed.checkerCalls,
+    harness,
+    producer,
+    run: makeRunScrollProduction(producer()),
+  };
 }

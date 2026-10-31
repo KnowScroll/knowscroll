@@ -40,9 +40,13 @@ import { buildFromProviders } from '../support/providers.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { markLibraryV1 } from '../support/scroll-v2.js';
 
 /** CI fixtures only: actual PostgreSQL/pg-boss/admission/receipts, no provider or live content. */
 describe('Supply private demand foundation (real PostgreSQL, authored CI content)', () => {
+  // Create commissions only v1 recipes (D-138): this file tests private demand on the v1 library.
+  const restoreLibrary = markLibraryV1();
+  afterAll(restoreLibrary);
   let database: TestDatabase<Database>, content: Awaited<ReturnType<typeof scrollUseCases>>;
   let create: CreateRequest, read: ReadRequest, cancel: CancelRequest, resolve: ResolveRequest, ports: SupplyPorts;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });

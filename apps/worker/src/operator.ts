@@ -1,5 +1,10 @@
 import { replayPolicyCommand } from './composer-operator.js';
-import { admitContinuityCommand, produceLibraryCommand, productionStatusCommand } from './library-operator.js';
+import {
+  admitContinuityCommand,
+  produceLibraryCommand,
+  productionStatusCommand,
+  regenerateCommand,
+} from './library-operator.js';
 import { journeyCommand } from './journey-operator.js';
 import { reelCommand } from './reel-operator.js';
 import { roomsCommand } from './rooms-operator.js';
@@ -28,7 +33,12 @@ import {
   productionHarnessSettings,
   postgresProductionHarnessPorts,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { MAX_TAKES_PER_RECIPE, parseScrollTopic, REQUEST_BOUND_PER_TOPIC } from '@knowscroll/backend/modules/content';
+import {
+  MAX_TAKES_PER_RECIPE,
+  parseScrollTopic,
+  REQUEST_BOUND_PER_TOPIC,
+  requestBoundOf,
+} from '@knowscroll/backend/modules/content';
 import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backend/modules/content/nest-providers';
 
 /**
@@ -49,7 +59,8 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  *   rooms kit|kit-list|kit-review|backdrop|backdrop-list|backdrop-review|spend|backdrop-reconcile|backdrop-write-off   every room's face and painted backdrops within $1 (rooms-face-operator.ts, D-166, D-170)
  *   scenes backfill-looks [--dry-run] [--limit <n>]       give worlds projected before looks existed their look; moves no slot, seed, family or anchor (scenes-operator.ts, D-102)
  *   content writer-spike-v2 --topics <keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]   the v15 writer on real recipes; admits and publishes nothing (writer-spike-operator.ts, S-0)
- *   content review-list [--all] | review-show --asset <id> [--revision <n>] [--sources]   library v2 Scrolls held for review, and their text (review-operator.ts, D-138)
+ *   content regenerate --only <keys> [--dry-run]            another take of a served v2 library Scroll, stored held until release (library-operator.ts, D-197)
+ *   content review-list [--all] | review-show --asset <id> [--revision <n>] [--sources]   library v2 Scrolls held for review, and their text with the answer check (review-operator.ts, D-138, D-198)
  *   content release --asset <id> --revision <n> | reject --asset <id> --revision <n> --reason <text>   the two decisions; both are recorded with who and when
  *
  * Exit status: 0 done, 2 refused or not applicable (bad usage, not unknown, missing), 1 failure.
@@ -57,7 +68,7 @@ import { produceScrollUseCase, readmitCoverageUseCase } from '@knowscroll/backen
  * unresolved liability and its reason, and does not prove that the provider stopped work.
  */
 const usage =
-  'usage: operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>] [--recent-topic-penalty <0-1>] [--sweep] | operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | rooms kit|kit-list|kit-review|backdrop|backdrop-list|backdrop-review|spend|backdrop-reconcile|backdrop-write-off (see `rooms` for its options) | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
+  'usage: operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>] [--recent-topic-penalty <0-1>] [--sweep] | operator.js scenes backfill-looks [--dry-run] [--limit <1-1000>] | operator.js rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | rooms kit|kit-list|kit-review|backdrop|backdrop-list|backdrop-review|spend|backdrop-reconcile|backdrop-write-off (see `rooms` for its options) | operator.js journey <id> | journey --account <accountId> [--json] | operator.js reel <check|order|follow|receive|status|write-off|settle> (see `reel` for its options) | operator.js content produce-scroll --topic <recipe key> [--take <1-3>] [--dry-run] [--resume] | operator.js content writer-spike-v2 --topics <recipe keys> [--out <file>] [--concurrency <1-4>] [--spike-id <id>] | operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run] | operator.js content regenerate --only <keys> [--dry-run] | operator.js content production-status [--only <keys>] | operator.js supply recover-open-demand [--dry-run] | operator.js content readmit-coverage [--dry-run] | operator.js content admit-continuity [--dry-run] | operator.js content review-list [--all] | content review-show --asset <uuid> [--revision <n>] [--sources] | content release --asset <uuid> --revision <n> | content reject --asset <uuid> --revision <n> --reason <text> | operator.js reasoning write-off --attempt <uuid> --reason <text> | reasoning unknown [--limit <n>] | reasoning sweep-dispatched [--older-than-seconds <n>] | reasoning purge-expired | reasoning rejected [--limit <n>] [--attempt <uuid>]';
 
 const operatorName = /^[a-z_][a-z0-9_.-]{0,31}$/;
 
@@ -145,7 +156,7 @@ async function main(): Promise<number> {
       // Both dry and real paths validate the allowlisted world before touching the database/provider.
       if (args.values['dry-run']) {
         readContentOperatorConfig(process.env);
-        print({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: REQUEST_BOUND_PER_TOPIC });
+        print({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: requestBoundOf(topic) });
         return 0;
       }
       const contentConfig = readScrollProductionOperatorConfig(process.env);
@@ -179,7 +190,7 @@ async function main(): Promise<number> {
           harness,
           model: model?.model ?? 'none',
         });
-        print({ command: 'content produce-scroll', requestBound: REQUEST_BOUND_PER_TOPIC, outcome: 'starting' });
+        print({ command: 'content produce-scroll', requestBound: requestBoundOf(topic), outcome: 'starting' });
         const result = await produce(topic, false, abort.signal, args.values.resume, take);
         print({ command: 'content produce-scroll', ...result });
         return result.outcome === 'published' ? 0 : 2;
@@ -213,6 +224,12 @@ async function main(): Promise<number> {
         interactiveFirst: args.values['interactive-first'],
         dryRun: args.values['dry-run'],
       },
+      print,
+      logEvent,
+    );
+  if (area === 'content' && command === 'regenerate' && args.positionals.length === 2)
+    return regenerateCommand(
+      { ...(args.values.only === undefined ? {} : { only: args.values.only }), dryRun: args.values['dry-run'] },
       print,
       logEvent,
     );

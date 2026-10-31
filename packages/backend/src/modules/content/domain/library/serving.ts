@@ -1,3 +1,4 @@
+import type { AnswerCheckSummary } from '../answer-check.js';
 import { RECIPE_KEYS, RECIPES, type RecipeKey } from './index.js';
 
 /**
@@ -60,6 +61,53 @@ export function takeToSend(standing: ScrollProductionState, takes: number): numb
   }
 }
 
+/**
+ * Where a recipe stands as far as making another take of its published Scroll goes (D-197). Only a v2
+ * library recipe whose Scroll is served can be regenerated: the new take is stored held, the served
+ * Scroll stays served until an operator releases the new one, and a recipe has at most three takes per
+ * production version, which is what stops a loop of paid production.
+ */
+export type RegenerationState =
+  /** The plan does not mark the recipe v2: it publishes without a read, so it is never regenerated. */
+  | 'not_v2'
+  /** No v2 Scroll is served yet; `produce-library` makes the first one. */
+  | 'not_published'
+  /** Another take may start. */
+  | 'available'
+  /** A take is queued or running. Sending it again resumes it. */
+  | 'running'
+  /** A new revision waits for an operator to release or reject it. */
+  | 'held'
+  /** The three takes of this production version are used; a new writer version gives new ones. */
+  | 'spent'
+  /** The latest take's outcome is unknown: reconcile it with `reasoning unknown` first. */
+  | 'stopped';
+
+/**
+ * A recipe's regeneration state from its takes at the current production version, in take order.
+ * `heldRevision` says a revision of the asset waits for a decision, whichever version made it. Pure.
+ */
+export function regenerationStanding(facts: {
+  readonly v2: boolean;
+  readonly admitted: boolean;
+  readonly jobs: readonly ProductionJobState[];
+  readonly heldRevision: boolean;
+}): RegenerationState {
+  if (!facts.v2) return 'not_v2';
+  if (!facts.admitted) return 'not_published';
+  const latest = facts.jobs.at(-1);
+  if (latest === 'research' || latest === 'writer') return 'running';
+  if (latest === 'held' || facts.heldRevision) return 'held';
+  if (facts.jobs.includes('unknown')) return 'stopped';
+  return facts.jobs.length < MAX_TAKES_PER_RECIPE ? 'available' : 'spent';
+}
+
+/** The take a regeneration should send: the next one, or the running one to resume. */
+export function regenerationTake(state: RegenerationState, takes: number): number | undefined {
+  if (state === 'available') return takes + 1;
+  return state === 'running' ? takes : undefined;
+}
+
 /** A recipe's standing with the take a send for it should name (none when nothing can be sent). */
 export interface ScrollProductionReading {
   readonly state: ScrollProductionState;
@@ -87,6 +135,12 @@ export interface LibraryRecipeStatus {
   readonly heldRevision?: number;
   /** Paid model attempts recorded on its jobs, across takes. */
   readonly attempts: number;
+  /** Whether another take of its served Scroll may be made, and why not (D-197). */
+  readonly regeneration?: RegenerationState;
+  /** Takes still unused at the current production version; present for a v2 library recipe. */
+  readonly takesLeft?: number;
+  /** What the answer check said about the latest take; absent when no check ran for it. */
+  readonly check?: AnswerCheckSummary;
 }
 
 /** What a request for this catalogue meaning should produce, or `none` when nothing can. */
@@ -131,6 +185,32 @@ export function libraryRecipes(): readonly RecipeKey[] {
 export interface ProductionSend {
   readonly recipe: RecipeKey;
   readonly take: number;
+}
+
+/** Why a recipe is not regenerated now: its `RegenerationState`, which is also what the operator reads. */
+export type RegenerationSkip = Exclude<RegenerationState, 'available' | 'running'>;
+
+export interface RegenerationPlan {
+  /** Takes to send, in plan order. A running take is sent again to resume it; a job already queued is not doubled. */
+  readonly queue: readonly ProductionSend[];
+  readonly skipped: readonly { readonly recipe: RecipeKey; readonly reason: RegenerationSkip }[];
+}
+
+/**
+ * What `content regenerate` sends: the next take of every recipe whose served v2 Scroll may be made
+ * again, and the running take of one that is under way. Every other recipe is skipped with the reason.
+ * It never starts a first production (that is `produce-library`'s) and never a take past the third. Pure.
+ */
+export function planRegeneration(standing: readonly LibraryRecipeStatus[]): RegenerationPlan {
+  const queue: ProductionSend[] = [];
+  const skipped: { recipe: RecipeKey; reason: RegenerationSkip }[] = [];
+  for (const row of standing) {
+    const state = row.regeneration ?? 'not_v2';
+    const take = regenerationTake(state, row.takes);
+    if (take !== undefined) queue.push({ recipe: row.recipe, take });
+    else if (state !== 'available' && state !== 'running') skipped.push({ recipe: row.recipe, reason: state });
+  }
+  return { queue, skipped };
 }
 
 export interface LibraryProductionPlan {

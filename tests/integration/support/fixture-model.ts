@@ -14,7 +14,12 @@ import {
   type HarnessSettings,
   type ModelPort,
 } from '@knowscroll/backend/reasoning/nest-providers';
-import { fixtureModelPort, type FixtureModelPort, type FixtureScenario } from './fixture-model-port.js';
+import {
+  fixtureModelPort,
+  type FixtureCall,
+  type FixtureModelPort,
+  type FixtureScenario,
+} from './fixture-model-port.js';
 
 /**
  * CI fixtures for the reasoning harness: a labelled fixture model (`fixture-model-port.ts`,
@@ -41,7 +46,7 @@ export const fixtureSettings: HarnessSettings = {
 
 /** A labelled fixture model whose every call plays `script` (default: one valid echo answer). */
 export function fixtureModel(
-  script: (sequence: number) => FixtureScenario | Promise<FixtureScenario> = () => ({
+  script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario> = () => ({
     kind: 'success',
     text: '{"ok": true, "echo": "lantern"}',
     remoteId: 'fixture-remote-1',
@@ -51,7 +56,7 @@ export function fixtureModel(
   return guardedModelPort(
     fixtureModelPort({
       label: options.label ?? 'ci-fixture',
-      script: (call) => script(call.sequence),
+      script: (call) => script(call.sequence, call),
       ...(options.quota === undefined ? {} : { quota: options.quota }),
     }),
   );

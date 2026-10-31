@@ -30,6 +30,10 @@ node dist/operator.js content production-status [--only seasons,tides]
 node dist/operator.js content produce-library --dry-run [--only seasons,tides] [--interactive-first]
 node dist/operator.js content produce-library [--only seasons,tides] [--interactive-first]
 
+# make another take of a v2 Scroll that is already served (stored held; see "Running a library wave")
+node dist/operator.js content regenerate --only seasons,seasons-hemispheres --dry-run
+node dist/operator.js content regenerate --only seasons,seasons-hemispheres
+
 # run one job directly through the same use case (debugging)
 node dist/operator.js content produce-scroll --topic seasons --dry-run
 node dist/operator.js content produce-scroll --topic seasons [--take 2]
@@ -47,12 +51,16 @@ budget left open. It is safe to run it again at any time.
 `retryable` (every take so far was rejected and another may start) or `stopped` (an attempt of unknown
 outcome, or all three takes used), the latest job state, how many takes exist, the Scroll's asset and
 revision once admitted (`heldRevision` while it is held), and the paid attempts so far.
+A v2 recipe also shows `regeneration` (`not_v2`, `not_published`, `available`, `running`, `held`, `spent`, `stopped`), `takesLeft`
+(takes unused at this production version) and `check`, what the answer check said about the latest take (`passed`, `repaired`,
+`flagged`, `unchecked`, with the flagged calls and the checker's problem for each).
 
 ### Takes
 
 A rejected recipe can be taken again, at most three times in all, because a rejected job is final for its
 take. Take 2 or 3 starts only when every earlier take was rejected: never after a published job or an
-unknown attempt. Each take is a new business run, so nothing an earlier take sent is sent again.
+unknown attempt. The one exception is `content regenerate` (below), which makes another take of a v2 recipe whose Scroll an operator released.
+Each take is a new business run, so nothing an earlier take sent is sent again.
 `produce-library` and Quartermaster send the next take by themselves. Check `reasoning unknown` before
 deciding what to do about a `stopped` recipe: it needs an operator, not another take. A v2 Scroll that an
 operator rejected at the review gate counts as a rejected take; one still held does not, so no new take starts
@@ -150,8 +158,11 @@ pnpm build
 node scripts/check-library-sources.mjs [--only seasons,tides]
 ```
 
-The bound is **two model requests per take**: the writer, and at most one repair. A refusal ends the
-take; a spent budget or quota pauses it; an unknown outcome halts the recipe.
+The bound is **two model requests per take for a v1 recipe**: the writer, and at most one repair. A v2 library recipe adds the
+answer check (D-198): the bound is **six**, two writer requests (the draft and one repair, from the validator or from the check)
+and the checker once for each of the two drafts, each with at most one repair of an unusable reply. A refusal ends the
+take; a spent budget or quota pauses it; an unknown outcome halts the recipe, except the checker's, which leaves the Scroll
+held and marked unchecked.
 Output is one JSON line with IDs, outcome codes, attempt states and token counts; never prompts,
 drafts or page text. A rerun of a finished take reports its stored outcome. A new recipe version
 (`SCROLL_PRODUCTION_VERSION`) is a new job; an old terminal job is never edited or resumed. No
@@ -248,7 +259,7 @@ Each run starts fresh and remembers nothing. Before running again, reconcile eve
 
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
-A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks four recipes today (D-137): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, and `seasons-elsewhere` without one. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v17`. A v2 recipe is a job of its own version (`scroll-production.v15`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset.
+A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137) and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, and every other marked recipe without one. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v17`. A v2 recipe is a job of its own version (`scroll-production.v17`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
 
 **A produced v2 library Scroll is held, not published (D-138).** The job stores it with its provenance and coverage and then waits: nobody is served it until you have read it and released it (next section). The commands that start a job are the same for every recipe; the plan decides which writer runs and the gate decides what happens to the result.
 
@@ -278,13 +289,26 @@ node dist/operator.js content reject  --asset <asset id> --revision <n> --reason
 
 All four refuse worlds other than `local`, `ci`, `dev` and `stage`, use the shared database only, and call no provider. `review-list` prints one JSON line with titles and counts, never body text. `review-show` prints the text to the terminal and nowhere else: do not paste it into an issue or a pull request. `--sources` adds, under each stop, aside and the recap, the exact source passages it cites, and the pages at the end, so a statement can be checked against its source. `release` and `reject` record who ran them (`cli:<your user>`) and when, write a `content.review_decided` line to the event log on stderr (recipe key, outcome, revision, a refusal's code; no text), and are safe to repeat: a second `release` answers `already_released`, a second `reject` answers `already_rejected` and keeps the first reason. Exit status is 0 for a decision or a repeat and 2 for a refusal (`not_under_review`, `revision_rejected`, `revision_released`, `not_newer_than_served`, `asset_withdrawn`, `reason_invalid`).
 
+### The answer check (S-6a, D-198)
+
+Before a v2 library Scroll is stored, a second model checks that the answer key of each call agrees with the call's own words: the marked answer is the one the explanation supports, no other option is also right, the twist does not contradict the key. It sees no sources, so it does not check facts. Code decides what a verdict does:
+
+| What `review-list` and `review-show` say | What happened | What you do |
+|---|---|---|
+| `passed` | Every call was consistent in the first draft. | Read it as usual. |
+| `repaired` | The first draft had a flagged call. The writer corrected it once, and the stored draft passed. The first draft's flags are printed, each with the question, the options (the marked one is named) and the explanation as the checker saw them, because that draft is not stored. | Read those calls first in the stored draft: check the repair did not swap one problem for another. |
+| `NOT CHECKED (<code>)` | The checker gave no usable answer (`provider_failed`, `outcome_unknown`, `invalid_output`, `refused_…`). The Scroll is held with no verdict. | Read every call's answer key yourself. For `outcome_unknown`, the attempt is listed by `reasoning unknown`. |
+| _not run_ | The revision was made before the check existed. | Read every call. |
+
+A Scroll still flagged after the one repair is not stored: its take is spent, `production-status` shows the recipe `retryable` (or `stopped` after three) with `check.outcome: flagged` and, for each flagged call, the checker's problem and the call itself (`check.flags[].call`: question, options, marked answer index, explanation), because no draft was stored. `review-list` carries the problems and call ids only. A draft the validator had already repaired has no repair left, so a flag on it ends the take at once. The check is a model's opinion: if a flagged problem looks wrong to you, the recipe's next take is the remedy, and three such takes is the signal to read the brief.
+
 ### What to read for
 
 The checks the machine cannot make (D-123): the picture matches each stop's words (the month decides the pins and Ray); no sentence calls Earth's axis sideways; each statement is in the passages it cites (`--sources`); the correct option of each call is correct and the wrong ones are plausible; the Final call is a new case and not a repeat of an earlier call; the Plot twist reads warm; a plain Scroll about other worlds says nothing the pages do not state; nothing is invented (dates, temperatures, season lengths).
 
 ### Seasons on dev (S-1e)
 
-The worker environment is the one above. Producing takes at most eight writer requests (four recipes, one repair each) inside the MiniMax window.
+The worker environment is the one above. Producing takes at most eight writer requests (four recipes, one repair each) and the answer check's requests (at most four a recipe, usually one) inside the MiniMax window.
 
 ```sh
 # 1. What would be queued (nothing is sent). All four show as not started: the library holds v1 Scrolls of the first three, and v1 does not satisfy a v2 recipe.
@@ -313,6 +337,59 @@ Release all three parts before step 6. `admit-continuity` binds a series to the 
 `reject` keeps the revision stored and unserved for good (it is never released), leaves the earlier revision served if there is one, and spends that take. `production-status` then shows the recipe `retryable` and `produce-library --only <key>` queues the next take, which writes a new revision (the next number). A recipe has three takes in all. If you reject all three, the recipe is `stopped`: the brief or the pages need a change in the plan, which is a code change and a new production version, so stop and say so in the issue. Tell the next person why in the reason (500 characters, plain words); `review-list --all` shows it with who and when.
 
 Nothing in the gate edits a revision: a Scroll is released as it was read. To correct a wording, reject and produce again.
+
+## Running a library wave (S-6a, D-197 to D-199)
+
+A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199); the eight kit recipes of S-8a (D-194) are marked after their spike is read.
+
+Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time. A take can hold its worker claim for up to 35 minutes (six requests at the largest request timeout, 300 s, plus a margin); a job whose worker died is retried only after that, so do not expect a quick retry of a stuck take (`production-status` shows it as `running`).
+
+The thirty-five recipes of D-199 go in four waves, one for each system. Every series is inside one wave, so each can be admitted whole once its parts are released.
+
+| Wave | Recipes |
+|---|---|
+| Human body (9) | `cardiac-cycle,blood-pressure,oxygen-transport,action-potential,synapse-signalling,reflex-arc,innate-immunity,adaptive-immunity,immune-memory` |
+| Computing (9) | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
+| Machine learning (12) | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation,gradient-descent,training-by-example,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
+| History (5) | `industrial-causes,steam-power,factory-system,industrial-towns,industrial-debate` |
+
+```sh
+# 0. The wave's recipes (a row of the table above).
+WAVE=cardiac-cycle,blood-pressure,oxygen-transport,action-potential,synapse-signalling,reflex-arc,innate-immunity,adaptive-immunity,immune-memory
+
+# 1. What would be queued. A recipe with only a v1 Scroll shows as not started; nothing is sent.
+node dist/operator.js content produce-library --dry-run --only $WAVE
+# 2. Queue it. The dev worker runs the jobs: research, writer, validator, the answer check, and the hold.
+node dist/operator.js content produce-library --only $WAVE
+# 3. Watch. held = waiting for you; running = still at it; retryable = a take was refused (see "When a Scroll is refused");
+#    stopped = no take can start. "paused" in the worker log means the budget or the window is spent: run step 2 again after it resets.
+node dist/operator.js content production-status --only $WAVE
+# 4. Read every held Scroll. The header says what the answer check found.
+node dist/operator.js content review-list
+node dist/operator.js content review-show --asset <asset id from review-list> --sources
+# 5. Decide each revision.
+node dist/operator.js content release --asset <asset id> --revision <n>
+node dist/operator.js content reject  --asset <asset id> --revision <n> --reason "<why, in plain words>"
+# 6. Once every part of a series is released, admit the series and the related moves, then decide coverage again.
+node dist/operator.js content admit-continuity --dry-run
+node dist/operator.js content admit-continuity
+node dist/operator.js content readmit-coverage --dry-run
+node dist/operator.js content readmit-coverage
+```
+
+A rejected take frees the next one: run step 2 again for the same recipes (it queues the next take of each `retryable` recipe). A recipe has three takes to a production version.
+
+**Making a served Scroll again.** To replace a Scroll that is already served (a wrong answer found after release, a better writer), use `regenerate`. It sends the next take of a recipe whose v2 Scroll is served, stores it held as the next revision, and leaves the served one serving until you release the new one:
+
+```sh
+node dist/operator.js content regenerate --only seasons,seasons-hemispheres --dry-run   # wouldQueue, resuming, skipped with the reason
+node dist/operator.js content regenerate --only seasons,seasons-hemispheres
+node dist/operator.js content production-status --only seasons,seasons-hemispheres      # regeneration: held once produced
+```
+
+`--only` is required. A recipe is skipped with its reason: `not_v2` (v1 recipes are never regenerated), `not_published` (use `produce-library`), `held` (release or reject the waiting revision first), `spent` (its three takes of this production version are used; a new writer version gives new ones, D-197), `stopped` (an attempt of unknown outcome: `reasoning unknown`). Then read, release or reject, and run `admit-continuity` and `readmit-coverage` again, as above.
+
+**Leaving a wave.** Record the yield (recipes held, released, rejected, unchecked), the tokens (sum the `attempts` of `production-status`) and the top findings of `reasoning rejected` in the tracker.
 
 ## Facts about the model
 

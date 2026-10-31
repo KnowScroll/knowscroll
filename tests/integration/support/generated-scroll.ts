@@ -13,7 +13,7 @@ import { AuthoredScroll } from '@knowscroll/scroll-model/producer';
 import { makeProduceScroll } from '../../../packages/backend/src/modules/content/production/produce.js';
 import type { WriterFormat } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { fixtureModel, fixtureSettings, silent } from './fixture-model.js';
-import type { FixtureModelPort, FixtureScenario } from './fixture-model-port.js';
+import type { FixtureCall, FixtureScenario } from './fixture-model-port.js';
 
 /**
  * CI fixtures that drive the real Scroll production path (`makeProduceScroll`) against a labelled
@@ -152,6 +152,54 @@ export function fixtureAuthored(
 
 export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
 
+/** Whether a request is the answer checker's (a v2 library Scroll's second role, D-198). */
+export const isCheckerCall = (call: FixtureCall): boolean =>
+  call.request.system.includes('content.scroll-answer-check');
+
+/** The ids of the calls a checker request lists, in the order given. */
+export function checkedCallIds(call: FixtureCall): string[] {
+  return [...call.request.user.matchAll(/<context-item ref="answer-check:([^"]+)"/gu)].map((match) => match[1]!);
+}
+
+/** A checker's verdicts: every call consistent, except the ones named (id -> problem). */
+export function verdicts(ids: readonly string[], flagged: Readonly<Record<string, string>> = {}): FixtureScenario {
+  return answerWith({
+    calls: ids.map((id) =>
+      flagged[id] === undefined ? { id, consistent: true } : { id, consistent: false, problem: flagged[id] },
+    ),
+  });
+}
+
+/**
+ * Routes a production job's requests: the checker's go to `checker` (its own count, from 1, and the ids of
+ * the calls it was asked about; by default every call is consistent), and everything the writer is asked,
+ * a check repair included, to `writer` with the writer's own count, so a script written for the writer
+ * alone still counts its requests from 1.
+ */
+export function routedScript(
+  writer: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>,
+  checker: (check: number, ids: readonly string[], call: FixtureCall) => FixtureScenario = (_check, ids) =>
+    verdicts(ids),
+): {
+  readonly script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>;
+  /** The writer's requests so far (live). */
+  readonly writerCalls: FixtureCall[];
+  /** The checker's requests so far (live). */
+  readonly checkerCalls: FixtureCall[];
+} {
+  const writerCalls: FixtureCall[] = [];
+  const checkerCalls: FixtureCall[] = [];
+  const script = (_sequence: number, call: FixtureCall) => {
+    if (isCheckerCall(call)) {
+      checkerCalls.push(call);
+      return checker(checkerCalls.length, checkedCallIds(call), call);
+    }
+    writerCalls.push(call);
+    return writer(writerCalls.length, call);
+  };
+  return { script, writerCalls, checkerCalls };
+}
+
 /**
  * A production run over the test database whose model is a labelled fixture. The transport is not
  * real, but it carries a MiniMax identity so the published attempts pass the same identity checks as
@@ -159,10 +207,18 @@ export const answerWith = (value: unknown): FixtureScenario => ({ kind: 'success
  */
 export function fixtureProduction(
   db: Kysely<Database>,
-  script: Parameters<typeof fixtureModel>[0],
+  script: (sequence: number, call: FixtureCall) => FixtureScenario | Promise<FixtureScenario>,
   research: (url: string) => ResearchPage = fixtureResearchFor,
-): { readonly calls: FixtureModelPort['calls']; readonly produce: ReturnType<typeof makeProduceScroll> } {
-  const fixture = fixtureModel(script, { label: 'generated-scroll-CI-fixture' });
+  checker?: Parameters<typeof routedScript>[1],
+): {
+  /** The writer's requests only (the first answer, the validator's repair and a check repair). */
+  readonly calls: readonly FixtureCall[];
+  /** The checker's requests only. */
+  readonly checks: readonly FixtureCall[];
+  readonly produce: ReturnType<typeof makeProduceScroll>;
+} {
+  const routed = routedScript(script, checker);
+  const fixture = fixtureModel(routed.script, { label: 'generated-scroll-CI-fixture' });
   const model = guardedModelPort({ ...fixture, provider: 'minimax', model: 'MiniMax-M3.1-Flash' });
   const withScope = makeWithProductionScope(db, { enabled: true, lockTimeoutMs: 5000 });
   const harness = makeProductionReasoningHarness(
@@ -183,7 +239,7 @@ export function fixtureProduction(
     model: model.model,
     research: (url) => Promise.resolve(research(url)),
   });
-  return { calls: fixture.calls, produce };
+  return { calls: routed.writerCalls, checks: routed.checkerCalls, produce };
 }
 
 /** The production scope is disabled until an operator enables it; tests enable it explicitly. */

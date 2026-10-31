@@ -3,7 +3,7 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { RoleReceipt } from './types.js';
-import { productionVersionOf } from './topics.js';
+import { MAX_TAKES_PER_RECIPE, productionVersionOf, scrollV2PlanOf } from './topics.js';
 
 /**
  * A job's state as far as takes and the recipe's standing are concerned. A job whose Scroll the review
@@ -14,6 +14,23 @@ export const jobStateForTakes = sql<string>`case when run.state = 'published' an
   select 1 from content.revision_reviews review
   where review.asset_id = run.asset_id and review.revision = run.asset_revision and review.state = 'rejected')
   then 'rejected' else run.state end`;
+
+/**
+ * A job's state as far as a regenerated take is concerned (D-197): like `jobStateForTakes`, and a
+ * published job whose Scroll is still held for review is `held`, because nobody has decided it yet. A
+ * published job whose Scroll the operator released stays `published`: it may be regenerated. The query
+ * must name the job table `run`.
+ */
+export const jobStateForRegeneration = sql<string>`case
+  when run.state = 'published' and exists (
+    select 1 from content.revision_reviews review
+    where review.asset_id = run.asset_id and review.revision = run.asset_revision and review.state = 'rejected')
+    then 'rejected'
+  when run.state = 'published' and exists (
+    select 1 from content.revision_reviews review
+    where review.asset_id = run.asset_id and review.revision = run.asset_revision and review.state = 'held')
+    then 'held'
+  else run.state end`;
 
 export type CreateJobResult =
   | { readonly kind: 'job'; readonly row: ProductionRow; readonly created: boolean }
@@ -61,8 +78,10 @@ export function productionStore(db: Kysely<Database>) {
     },
     /**
      * The job of one take, created if it does not exist. Take 1 always may be; a later take only when
-     * every earlier take exists and was rejected (never after a published job or an unknown attempt),
-     * decided here under the transaction so two senders cannot both start it.
+     * every earlier take exists and was rejected (never after an unknown attempt), decided here under the
+     * transaction so two senders cannot both start it. A v2 library recipe's later take may also follow a
+     * take whose Scroll an operator released: that is a regeneration (D-197). It never follows a held
+     * one. At most three takes exist per recipe and version, which is what bounds paid regeneration.
      */
     async create(
       tx: Transaction<Database>,
@@ -71,6 +90,8 @@ export function productionStore(db: Kysely<Database>) {
       generation: number,
       take: number,
     ): Promise<CreateJobResult> {
+      // The table holds three takes per recipe and version: a fourth is refused here, not by a constraint.
+      if (!Number.isInteger(take) || take < 1 || take > MAX_TAKES_PER_RECIPE) return { kind: 'take_refused' };
       const read = async () =>
         (
           await sql<ProductionRow>`select * from content.scroll_production_runs where topic=${topic} and policy_version=${productionVersionOf(topic)} and take=${take} for update`.execute(
@@ -80,14 +101,17 @@ export function productionStore(db: Kysely<Database>) {
       const existing = await read();
       if (existing) return { kind: 'job', row: existing, created: false };
       if (take > 1) {
+        const regenerates = scrollV2PlanOf(topic) !== undefined;
+        const stateOfEarlier = regenerates ? jobStateForRegeneration : jobStateForTakes;
         const earlier = (
           await sql<{
             state: string;
-          }>`select ${jobStateForTakes} as state from content.scroll_production_runs run where run.topic=${topic} and run.policy_version=${productionVersionOf(topic)} and run.take<${take}`.execute(
+          }>`select ${stateOfEarlier} as state from content.scroll_production_runs run where run.topic=${topic} and run.policy_version=${productionVersionOf(topic)} and run.take<${take}`.execute(
             tx,
           )
         ).rows;
-        if (earlier.length !== take - 1 || earlier.some((job) => job.state !== 'rejected'))
+        const mayFollow = (state: string) => state === 'rejected' || (regenerates && state === 'published');
+        if (earlier.length !== take - 1 || !earlier.every((job) => mayFollow(job.state)))
           return { kind: 'take_refused' };
       }
       const inserted =
@@ -98,6 +122,16 @@ export function productionStore(db: Kysely<Database>) {
       const raced = await read();
       if (!raced) throw new Error('PRODUCTION_RUN_MISSING');
       return { kind: 'job', row: raced, created: false };
+    },
+    /**
+     * Makes `runId` the job's writer run. The answer check's repair is a writer run of its own (D-198);
+     * when its answer is the one stored, the job names it, so the provenance, the receipts and the
+     * ledger agree on which run wrote the Scroll. Called in the transaction that stores it.
+     */
+    async useWriterRun(tx: Transaction<Database>, id: string, runId: string): Promise<void> {
+      await sql`update content.scroll_production_runs set writer_run_id=${runId} where id=${id} and state='writer'`.execute(
+        tx,
+      );
     },
     async research(tx: Transaction<Database>, id: string, pages: readonly ResearchPage[]): Promise<void> {
       await sql`update content.scroll_production_runs set research=${JSON.stringify(pages)}::jsonb,state='writer' where id=${id} and state='research'`.execute(

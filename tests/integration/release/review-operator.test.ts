@@ -179,4 +179,47 @@ describe('the review gate commands from the built release', () => {
       revisions: [{ state: 'released', decidedBy: `cli:${operatorName}` }],
     });
   });
+
+  it('shows what the answer check said in the list and in the text of the Scroll', async () => {
+    const audit = await operator(['review-list', '--all']);
+    expect(lastLine(audit.stdout)).toMatchObject({
+      revisions: [{ answerCheck: { outcome: 'passed', calls: 3 } }],
+    });
+    const shown = await operator(['review-show', '--asset', recipe.assetId, '--revision', '1']);
+    expect(shown.stdout).toContain('Answer check: passed. The checker found all 3 calls consistent');
+  });
+
+  it('shows the regeneration state of a served recipe in production-status, and the answer check of its take', async () => {
+    const status = await operator(['production-status', '--only', 'seasons-hemispheres']);
+    expect(status.code).toBe(0);
+    expect(lastLine(status.stdout)).toMatchObject({
+      command: 'content production-status',
+      recipes: [
+        {
+          recipe: 'seasons-hemispheres',
+          state: 'published',
+          takes: 1,
+          takesLeft: 2,
+          regeneration: 'available',
+          check: { outcome: 'passed', calls: 3 },
+        },
+      ],
+    });
+  });
+
+  it('plans a regeneration without sending anything, needs --only, and skips a recipe that is not a served v2 Scroll', async () => {
+    const dry = await operator(['regenerate', '--only', 'seasons-hemispheres,tides', '--dry-run']);
+    expect(dry.code).toBe(0);
+    expect(lastLine(dry.stdout)).toMatchObject({
+      command: 'content regenerate',
+      dryRun: true,
+      requestBoundPerTake: 6,
+      wouldQueue: [{ recipe: 'seasons-hemispheres', take: 2 }],
+      skipped: [{ recipe: 'tides', reason: 'not_v2' }],
+    });
+    for (const args of [['regenerate'], ['regenerate', '--dry-run'], ['regenerate', '--only', 'no-such-recipe']]) {
+      const refused = await operator(args);
+      expect(refused.code, args.join(' ')).toBe(2);
+    }
+  });
 });
