@@ -21,8 +21,9 @@ import {
  * Every Social store is keyed by account, not universe, and each has an explicit answer for the
  * two erasures. `clear` is selective Clear (exploration history): it keeps everything here,
  * because friendships, conversations and links are explicit communication, not exploration
- * evidence. The one exception is a party place (D-065): it says where the person is in a series, which
- * is drawn from their own exploring, so Clear deletes it. `onAccountErasure` is what deleting the account does (D-043). The profile and the
+ * evidence. The exceptions are a party place (D-065), which says where the person is in a series, and a pick on a
+ * thread's call (D-156), which is a play result (D-082): both are drawn from their own exploring, so Clear deletes
+ * them. `onAccountErasure` is what deleting the account does (D-043). The profile and the
  * friendship rows go with the account, silently. Conversations are never deleted for the other
  * person: the author's messages become tombstones, their membership is removed and the
  * conversation closes, and the person who remains reads the history with "Deleted account" in
@@ -64,6 +65,8 @@ export const socialStoreLifecycle = {
   'social.inbox_heads': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.content_shares': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.thread_places': { clear: 'erase', onAccountErasure: 'delete with the account' },
+  'social.thread_calls': { clear: 'erase', onAccountErasure: 'delete with the account' },
+  'social.thread_call_reveals': { clear: 'preserve', onAccountErasure: 'kept with the thread: no person, no pick' },
   ...visibilityLifecycle,
 } as const;
 
@@ -92,6 +95,8 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'inbox_heads', ownerColumn: 'account_id' },
     { schema: 'social', table: 'content_shares', ownerColumn: 'owner_account_id' },
     { schema: 'social', table: 'thread_places', ownerColumn: 'account_id' },
+    { schema: 'social', table: 'thread_calls', ownerColumn: 'account_id' },
+    { schema: 'social', table: 'thread_call_reveals', ownerColumn: 'thread_id' },
   ],
   accountColumns: [
     ...visibilityAccountColumns,
@@ -116,6 +121,7 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'inbox_heads', column: 'account_id' },
     { schema: 'social', table: 'content_shares', column: 'owner_account_id' },
     { schema: 'social', table: 'thread_places', column: 'account_id' },
+    { schema: 'social', table: 'thread_calls', column: 'account_id' },
   ],
   /** Full erasure of one universe removes its published copy; conversations and friendships are account-keyed. */
   async erase(scope) {
@@ -159,8 +165,9 @@ export const socialErasure = declareErasure({
       ).numAffectedRows ?? 0,
     );
     removed += await eraseReactions(trx, account);
-    // Before the membership rows go: a place follows its member's row.
+    // Before the membership rows go: a place and a pick follow their member's row.
     removed += await erasePlaces(trx, account);
+    removed += await erasePicks(trx, account);
     const tombstoned = await sql`
       with mine as (
         select conversation_id, sequence,
@@ -251,7 +258,9 @@ export const socialErasure = declareErasure({
     async erase(scope) {
       const trx = clearCoreTransactionOf(scope);
       const removed =
-        (await eraseVisitRows(trx, scope.binding.universeId)) + (await erasePlaces(trx, scope.binding.accountId));
+        (await eraseVisitRows(trx, scope.binding.universeId)) +
+        (await erasePlaces(trx, scope.binding.accountId)) +
+        (await erasePicks(trx, scope.binding.accountId));
       return { module: 'social', status: 'completed', removed };
     },
   },
@@ -261,6 +270,12 @@ export const socialErasure = declareErasure({
 /** Deletes every party place the account has, in every thread. Idempotent; returns how many rows went. */
 async function erasePlaces(trx: Transaction<Database>, accountId: string): Promise<number> {
   const result = await sql`delete from social.thread_places where account_id = ${accountId}::uuid`.execute(trx);
+  return Number(result.numAffectedRows ?? 0);
+}
+
+/** Deletes every pick the account made on a thread's call, in every thread. Idempotent; returns how many rows went. */
+async function erasePicks(trx: Transaction<Database>, accountId: string): Promise<number> {
+  const result = await sql`delete from social.thread_calls where account_id = ${accountId}::uuid`.execute(trx);
   return Number(result.numAffectedRows ?? 0);
 }
 
@@ -341,6 +356,14 @@ const EXPORT_MESSAGE_LIMIT = 2000;
  * people's names, handles, IDs and messages are never in the file: a friend list and a friend's
  * words are theirs to export.
  */
+interface PickExportRow {
+  readonly name: string | null;
+  readonly asset_id: string;
+  readonly option: number;
+  readonly day: string;
+  readonly stop: { readonly prompt?: string; readonly options?: readonly string[] } | null;
+}
+
 function exportSocial(declaration: ModuleErasure): ModuleExport {
   return exportReading(
     declaration,
@@ -355,12 +378,13 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
       'social.content_threads',
       'social.message_snippets',
       'social.thread_places',
+      'social.thread_calls',
       'social.content_shares',
       'social.visibility_settings',
       'social.visibility_audience',
       'social.visit_systems',
     ],
-    'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping; the heartbeat time is a signal that lapses within minutes and is never exported; visit planets and the publication header are copies of places the universe section already lists.',
+    'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping; the heartbeat time is a signal that lapses within minutes and is never exported; thread call reveals are thread state that name no person and hold no pick; visit planets and the publication header are copies of places the universe section already lists.',
     async (scope, person) => {
       const trx = transactionOf(scope);
       const profile = await trx
@@ -439,6 +463,19 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
         .orderBy('place.day', 'desc')
         .limit(500)
         .execute();
+      // Their own picks on a thread's call (D-156), in words: the thread, the question and the option they picked. Not
+      // whether it was right: nothing stores that, and the reveal is the thread's to give.
+      const picks = await sql<PickExportRow>`
+        select thread.name, pick.asset_id, pick.option, to_char(pick.day, 'YYYY-MM-DD') as day,
+          jsonb_path_query_first(revision.document, '$.stops[*] ? (@.id == $stop)', jsonb_build_object('stop', pick.stop_id)) as stop
+        from social.thread_calls pick
+        join social.content_threads thread on thread.thread_id = pick.thread_id
+        left join content.asset_revisions revision
+          on revision.asset_id = pick.asset_id and revision.revision = pick.revision
+        where pick.account_id = ${person.accountId}::uuid
+        order by pick.day desc
+        limit 500`.execute(trx);
+      const reachable = await person.reach([...new Set(picks.rows.map((pick) => pick.asset_id))]);
       const hidingIn = await trx
         .selectFrom('social.conversation_members as m')
         .innerJoin('social.conversations as c', 'c.conversation_id', 'm.conversation_id')
@@ -507,6 +544,15 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
             day: place.day,
           })),
           hidingWhereIAmIn: Number(hidingIn.n),
+          // What they locked on a thread's "Call it together" (D-156): their own pick, in words, and the day.
+          callsMade: picks.rows.map((pick) => ({
+            ...(pick.name === null ? {} : { thread: pick.name }),
+            ...(reachable.has(pick.asset_id) && pick.stop?.prompt !== undefined ? { question: pick.stop.prompt } : {}),
+            ...(reachable.has(pick.asset_id) && pick.stop?.options?.[pick.option] !== undefined
+              ? { picked: pick.stop.options[pick.option] }
+              : {}),
+            day: pick.day,
+          })),
         },
         sharedLinks: links.map((link) => ({
           createdAt: link.created_at.toISOString(),

@@ -2018,6 +2018,23 @@ export interface SocialRosterHeads {
   revision: Generated<Int8>;
 }
 
+export interface SocialThreadCallReveals {
+  asset_id: string;
+  revision: number;
+  stop_id: string;
+  thread_id: string;
+}
+
+export interface SocialThreadCalls {
+  account_id: string;
+  asset_id: string;
+  day: Timestamp;
+  option: number;
+  revision: number;
+  stop_id: string;
+  thread_id: string;
+}
+
 export interface SocialThreadPlaces {
   account_id: string;
   day: Timestamp;
@@ -2259,6 +2276,8 @@ export interface DB {
   "social.requests": SocialRequests;
   "social.roster_entries": SocialRosterEntries;
   "social.roster_heads": SocialRosterHeads;
+  "social.thread_call_reveals": SocialThreadCallReveals;
+  "social.thread_calls": SocialThreadCalls;
   "social.thread_places": SocialThreadPlaces;
   "social.visibility_audience": SocialVisibilityAudience;
   "social.visibility_settings": SocialVisibilitySettings;

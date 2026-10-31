@@ -6,8 +6,8 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
  * leaves the product (all its threads). An invitee whose friendship with the inviter still stands keeps
  * their place and from now on stands on their own membership. An invitee whose friendship already
  * ended (Remove, Block, a new friendship) had lost their place; it is closed here, because dropping
- * the link would otherwise give it back, and their party place goes with it (D-065). Call it before the
- * inviter's friendships are deleted. Returns how many member rows changed.
+ * the link would otherwise give it back, and their party place and their picks on the thread's calls go with
+ * it (D-065, D-156). Call it before the inviter's friendships are deleted. Returns how many member rows changed.
  */
 export async function releaseInvitees(
   trx: Transaction<Database>,
@@ -19,6 +19,16 @@ export async function releaseInvitees(
   await sql`
     delete from social.thread_places place using social.conversation_members member
     where member.conversation_id = place.thread_id and member.account_id = place.account_id
+      and member.invited_by_account_id = ${inviterAccountId}::uuid ${inThread}
+      and not exists (
+        select 1 from social.pairs pair
+        where pair.low_account_id = least(member.account_id, member.invited_by_account_id)
+          and pair.high_account_id = greatest(member.account_id, member.invited_by_account_id)
+          and pair.accepted_lineage = member.invited_lineage
+      )`.execute(trx);
+  await sql`
+    delete from social.thread_calls pick using social.conversation_members member
+    where member.conversation_id = pick.thread_id and member.account_id = pick.account_id
       and member.invited_by_account_id = ${inviterAccountId}::uuid ${inThread}
       and not exists (
         select 1 from social.pairs pair

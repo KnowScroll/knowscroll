@@ -21,6 +21,8 @@ import type {
   ThreadPlaceAcceptanceSchema,
   ThreadPlaceHiddenAcceptanceSchema,
   ThreadPlacesSchema,
+  ThreadCallLockAcceptanceSchema,
+  ThreadCallsSchema,
   ThreadReadAcceptanceSchema,
   ThreadSnippetOpeningSchema,
   CreateContentShareResultSchema,
@@ -155,7 +157,8 @@ export const CONVERSATION_USE_CASES = Symbol('social.conversationUseCases');
  * membership, the friendship an invitation rests on and the source's current state. Reads create
  * no evidence, and no answer carries another member's position, current episode or seen marker. The one
  * exception is `places`: a member's own, coarse, self-reported place (a part, on or finished, and a day)
- * shown only to members of the thread and only while the member has not hidden it (D-065).
+ * shown only to members of the thread and only while the member has not hidden it (D-065). The other is
+ * `calls`: a member's pick on a part's authored question, hidden from everyone else until the reveal (D-155).
  */
 export interface ThreadUseCases {
   create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ContentThreadCreationSchema>>>;
@@ -184,6 +187,13 @@ export interface ThreadUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof ThreadPlaceHiddenAcceptanceSchema>>>;
+  /** The calls of the thread's series as the caller may see them: counts, their own pick, and the reveal once it is theirs. */
+  calls(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadCallsSchema>>>;
+  /** Locks the caller's pick on the call of one part. The first lock stands; nothing is stored while recording is paused. */
+  lockCall(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ThreadCallLockAcceptanceSchema>>>;
 }
 export const THREAD_USE_CASES = Symbol('social.threadUseCases');
 
