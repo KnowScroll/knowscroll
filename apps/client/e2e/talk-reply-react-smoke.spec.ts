@@ -162,12 +162,14 @@ test('swipe right replies with a touch, never with a mouse, and the reply quotes
   // The reply carries the quote; the other person reads it as a quote of their own words.
   await ravi.page.reload();
   const quote = ravi.page.getByTestId('quote-strip').last();
-  await expect(quote).toContainText('Ravi fixture');
+  await expect(quote).toContainText('You');
+  await expect(quote).not.toContainText('Ravi fixture');
   await expect(quote).toContainText('who is on part 2?');
 
   // Asha's quote jumps back to the original, which is far above, and lights it for a moment.
   const quoteOnAsha = page.getByTestId('quote-strip').last();
   await expect(quoteOnAsha).toBeVisible();
+  await expect(quoteOnAsha).toContainText('Ravi fixture');
   const original = bubbleOf(page, 'who is on part 2?');
   await page.getByTestId('conversation-messages').evaluate((list) => list.scrollTo({ top: 0 }));
   await quoteOnAsha.scrollIntoViewIfNeeded();
@@ -266,6 +268,22 @@ test('on a desktop, the keys work from the options button: R replies, E opens th
   await shot(page, 'dm-desktop-menu');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Message options' })).toHaveCount(0);
+  await closeAll(asha.context);
+});
+
+test('on a desktop a right-click on a bubble opens the same menu as a long press', async ({ browser }) => {
+  const world = conversation();
+  const asha = await person(browser, world, 'asha', desktop);
+  const { page } = asha;
+  await bubbleOf(page, 'who is on part 2?').click({ button: 'right' });
+  const menu = page.getByRole('dialog', { name: 'Message options' });
+  await expect(menu).toBeVisible();
+  for (const name of ['Heart', 'Spark']) await expect(menu.getByRole('button', { name })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Reply' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Copy' })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Report' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
   await closeAll(asha.context);
 });
 
