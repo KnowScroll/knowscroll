@@ -70,12 +70,14 @@ export function SheetBody({
   start,
   scope,
   thread,
+  threadFull,
   onClose,
   onChosen,
 }: {
   readonly start: KindedStart | OfferStart;
   readonly scope: AccountScope;
   readonly thread: ContentThreadRef;
+  readonly threadFull: boolean;
   readonly onClose: () => void;
   readonly onChosen: (card: ScenarioCard) => void;
 }) {
@@ -122,7 +124,14 @@ export function SheetBody({
     );
   }
   if (state.phase === 'blocked' && state.block !== undefined)
-    return <BlockedStep block={state.block} onRetry={() => void controller.retry()} onClose={onClose} />;
+    return (
+      <BlockedStep
+        block={state.block}
+        threadFull={threadFull}
+        onRetry={() => void controller.retry()}
+        onClose={onClose}
+      />
+    );
   if (editing !== undefined)
     return (
       <OwnRequestForm

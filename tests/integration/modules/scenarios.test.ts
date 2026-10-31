@@ -190,7 +190,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
         [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })],
         [ENQUEUE, makeEnqueueJob(content.boss)],
         [DATABASE, database.db],
-        [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadCap: caps.perThread }],
+        [CONFIG, { supplyScenarioDailyCap: caps.perDay, supplyScenarioThreadDailyCap: caps.perThread }],
         [HARNESS, fixtureHarness(database.db, { model: planner }).harness],
         [THREAD_GUEST, cases.guest],
         [READ_THREAD_STANDING, standing],
@@ -660,7 +660,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       expect(unwrap(await choose(a, aRef, draftId))).toMatchObject({ node: { status: 'preparing' } });
     });
 
-    it('stops a thread at its own cap', async () => {
+    it('stops a thread at its own cap for the day', async () => {
       const { a, aRef, root } = await begun();
       const small = compose({ perDay: 100, perThread: 1 }).scenarios;
       const chooseWith = (draftId: string, optionId: string) =>

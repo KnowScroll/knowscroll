@@ -6,13 +6,18 @@ import { Banner, Button, Spinner, Tag, Text } from '@knowscroll/ui';
 import { sheetStyles } from './sheet-styles';
 
 const blockMessage: Record<ScenarioBlock, string> = {
-  budget: 'No more branches can be made in this thread right now. Try again later.',
+  budget:
+    'No more branches can be made right now. A thread can make five a day, and KnowScroll has a limit each day too. Try again tomorrow.',
   unsupported: 'This can’t be explored yet: nothing it rests on can be looked up.',
   invalid: 'That wording isn’t accepted. Keep it to a plain sentence, without web addresses.',
   stale: 'This changed while you were writing. Close this and start again from it.',
   unavailable: 'This isn’t available any more.',
   offline: 'Couldn’t reach KnowScroll. Nothing was lost; try again.',
 };
+
+/** The sixth branch of a thread's day: said as it is, with when it comes back (the UTC day starts at midnight UTC). */
+const THREAD_FULL_MESSAGE =
+  'This thread has made its five branches for today. It can make more tomorrow (the day changes at midnight UTC).';
 
 /** The directions are being thought of: wait, or write one's own meanwhile. */
 export function ThinkingStep({ onOwn }: { readonly onOwn: () => void }) {
@@ -84,10 +89,13 @@ export function ChosenStep({
 /** Something stopped it: what, in words, and a way to try again when only the network did. */
 export function BlockedStep({
   block,
+  threadFull = false,
   onRetry,
   onClose,
 }: {
   readonly block: ScenarioBlock;
+  /** This thread has made its five branches for the day: the refusal says so, instead of the wider limit. */
+  readonly threadFull?: boolean;
   readonly onRetry: () => void;
   readonly onClose: () => void;
 }) {
@@ -96,7 +104,7 @@ export function BlockedStep({
       <Banner
         kind={block === 'offline' ? 'offline' : 'error'}
         lead={block === 'offline' ? 'Offline.' : 'Can’t do that.'}
-        message={blockMessage[block]}
+        message={block === 'budget' && threadFull ? THREAD_FULL_MESSAGE : blockMessage[block]}
       />
       {block === 'offline' ? (
         <Button label="Try again" variant="primary" fullWidth icon="retry" onPress={onRetry} />

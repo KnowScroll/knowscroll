@@ -147,6 +147,38 @@ export const ScenarioDraftViewSchema = z.discriminatedUnion('status', [
 ]);
 export type ScenarioDraftView = z.infer<typeof ScenarioDraftViewSchema>;
 
+/** The assumption line of a short answer: how the idea was read, in one plain line (mandatory on a ready card). */
+export const AnswerAssumptionSchema = plainText(12, 200);
+/** One claim of a short answer: one or two plain sentences. */
+export const AnswerClaimTextSchema = plainText(20, 300);
+/** One figure the short answer leans on: what it measures and the value a cited source states. */
+export const AnswerNumberSchema = z.strictObject({ label: plainText(2, 40), value: plainText(1, 40) });
+export type AnswerNumber = z.infer<typeof AnswerNumberSchema>;
+
+/**
+ * The short answer of a what-if branch (D-211): a card the thread shows about 30 seconds after the branch is
+ * chosen, while its full Scroll is still being made. `making` is an honest wait, `unavailable` says there will
+ * be no short answer (the branch and its Scroll carry on), and `ready` is an answer that passed the card's own
+ * checks: every claim cites, every figure is a source's, and the assumption line is there. `madeBy` is fixed:
+ * the card is always labelled as made by KnowScroll. What the branch changes and keeps are the card's
+ * `changes` and `kept`, which code copies from the checked premise; the model never rewrites them.
+ */
+export const ScenarioAnswerSchema = z.discriminatedUnion('status', [
+  z.strictObject({ status: z.literal('making') }),
+  z.strictObject({ status: z.literal('unavailable') }),
+  z.strictObject({
+    status: z.literal('ready'),
+    madeBy: z.literal('knowscroll'),
+    /** How the idea was read, in one line: what "twice the size" means here. Never absent on a ready answer. */
+    assumption: AnswerAssumptionSchema,
+    answer: plainText(40, 1000),
+    /** Figures a cited source states, at most three; empty when no source gives one. */
+    numbers: z.array(AnswerNumberSchema).max(3),
+    readyAt: z.iso.datetime(),
+  }),
+]);
+export type ScenarioAnswer = z.infer<typeof ScenarioAnswerSchema>;
+
 /** A branch as a card in the thread. `startedBy` is absent once that member's account was deleted. */
 export const ScenarioCardSchema = z.strictObject({
   nodeId: UuidSchema,
@@ -172,6 +204,11 @@ export const ScenarioCardSchema = z.strictObject({
   status: z.enum(['preparing', 'ready', 'failed', 'removed']),
   /** Moves when the card's state does; a draft from this card names it as its parent revision. */
   revision: Revision,
+  /**
+   * The short answer of a what-if. Absent for a perspective, a removed branch and a branch made before short
+   * answers existed: nothing is made up for them.
+   */
+  answer: ScenarioAnswerSchema.optional(),
   /** The admitted Scroll, once ready. */
   content: z
     .strictObject({

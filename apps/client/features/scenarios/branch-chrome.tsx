@@ -3,7 +3,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import type { ScenarioCard } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, Icon, Text, useTypeStyle } from '@knowscroll/ui';
-import { SPECULATIVE_NOTICE } from './branch-card';
+import { SPECULATIVE_NOTICE } from './branch-parts';
 import { kindedTitle } from '@knowscroll/client-core';
 
 /** What a branch is, for the line under the thread's title (X03): "What if · a black hole were a portal". */

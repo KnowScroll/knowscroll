@@ -35,6 +35,7 @@ import {
   READ_SCROLL_PRODUCTION,
   RECORD_MADE_TO_ORDER_SCROLL,
   READ_MADE_TO_ORDER_PRODUCTION,
+  READ_SCROLL_EVIDENCE,
   READ_SCROLL_SOURCE_PAGES,
   CHECK_ASSET_AUDIENCE,
   ENQUEUE_SCROLL_PRODUCTION,
@@ -64,6 +65,7 @@ import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollRe
 import {
   makeCheckAssetAudience,
   makeReadMadeToOrderProduction,
+  readScrollEvidence,
   readScrollSourcePages,
   recordMadeToOrderScroll,
 } from './made-to-order.js';
@@ -101,6 +103,7 @@ export function contentProviders() {
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
     { provide: RECORD_MADE_TO_ORDER_SCROLL, useValue: recordMadeToOrderScroll },
     { provide: READ_SCROLL_SOURCE_PAGES, useValue: readScrollSourcePages },
+    { provide: READ_SCROLL_EVIDENCE, useValue: readScrollEvidence },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_SCROLL_PLAY_FACTS, useValue: readScrollPlayFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },

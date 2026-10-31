@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   TALK_QUERY_KEY,
+  answersKey,
   callForBar,
   composerAddressees,
   findThread,
@@ -127,7 +128,9 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
     ref: scrollRef,
     onScroll,
     follow,
-  } = useFollowEnd(`${String(state.messages.length)}:${String(board.state.cards.length)}`);
+  } = useFollowEnd(
+    `${String(state.messages.length)}:${String(board.state.cards.length)}:${answersKey(board.state.cards)}`,
+  );
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));

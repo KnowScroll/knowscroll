@@ -278,6 +278,7 @@ export function ThreadMessages({
                       starterIsYou={entry.card.startedBy?.personId === ownPersonId}
                       openedByYou={openedBranches.includes(entry.card.nodeId)}
                       startedLine={startedLine(entry.card, state.messages)}
+                      now={now}
                       onOpen={onOpenBranch}
                       onRemove={onRemoveBranch}
                       onContinue={onContinueBranch}

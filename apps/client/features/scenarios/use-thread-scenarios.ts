@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ScenarioBoardController } from '@knowscroll/client-core';
+import { threadMadeAllToday, type ScenarioBoardController } from '@knowscroll/client-core';
 import type { ScenarioCard, ScenarioKind, ScenarioSuggestion } from '@knowscroll/contracts';
 import { quoteOf, type AvailableMessage } from './message-step';
 import type { ScenarioStart } from './scenario-start';
@@ -23,6 +23,8 @@ export function useThreadScenarios(options: {
   const fromRoot = (rootAt: number) => ({ kind: 'root' as const, assetRevision: rootAt });
   return {
     start,
+    /** This thread has made its five branches for today: a refusal then says so (the server decides). */
+    madeAllToday: threadMadeAllToday(cards, new Date()),
     close: () => setStart(undefined),
     askFromRoot: (kind: ScenarioKind) => {
       if (rootRevision === undefined) return;

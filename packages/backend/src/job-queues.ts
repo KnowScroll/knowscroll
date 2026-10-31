@@ -7,7 +7,7 @@ import { plannerQueue } from './modules/planner/public.js';
 import { purgeReportsQueue } from './modules/feedback/public.js';
 import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from './modules/rooms/public.js';
 import { prepareBufferQueue } from './modules/composer/public.js';
-import { resolveBranchesQueue, suggestDraftQueue } from './modules/scenarios/public.js';
+import { resolveBranchesQueue, suggestDraftQueue, writeAnswerQueue } from './modules/scenarios/public.js';
 import { queueRegistry } from './infrastructure/jobs/queues.js';
 import {
   applyActionEvidenceQueue,
@@ -46,6 +46,7 @@ export const releaseQueues = queueRegistry([
   resolveSupplyQueue,
   produceScrollQueue,
   suggestDraftQueue,
+  writeAnswerQueue,
   resolveBranchesQueue,
   plannerQueue,
   prepareBufferQueue,
