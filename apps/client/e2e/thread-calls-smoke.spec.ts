@@ -113,10 +113,18 @@ test('a call waits above the composer; locking hides everyone else’s pick, and
   );
   await expect(asha.page.getByTestId('call-lock')).toHaveCount(0);
   await expect(asha.page.getByLabel('Option B. CI half moon. Your call.')).toBeVisible();
-  // What was sent: a part, an option and the recording generation. Not whether it was right, not a time.
+  // What was sent: a part, the revision on the card, an option and the recording generation. Not whether it was right, not a time.
   const [sent] = world.callCalls('asha', 'calls/lock');
-  expect(Object.keys(sent!.body).toSorted()).toEqual(['option', 'part', 'recordingGeneration', 'thread', 'version']);
-  expect(sent!.body).toMatchObject({ part: 2, option: 1 });
+  expect(Object.keys(sent!.body).toSorted()).toEqual([
+    'assetRevision',
+    'option',
+    'part',
+    'recordingGeneration',
+    'thread',
+    'version',
+  ]);
+  // The revision is the one of the question on the card the person pressed on (D-233).
+  expect(sent!.body).toMatchObject({ part: 2, assetRevision: 1, option: 1 });
   await shot(asha.page, 'call-390-locked');
   expect(await seriousViolations(asha.page)).toEqual([]);
 

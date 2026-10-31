@@ -48,6 +48,7 @@ export function StageReaderSurface({
   partLabel,
   moreBody,
   headerNote,
+  endSlot,
   topInset,
   bottomInset,
 }: {
@@ -64,6 +65,8 @@ export function StageReaderSurface({
   readonly moreBody?: ((close: () => void) => ReactNode) | undefined;
   /** A line under the top bar (where the person came from). */
   readonly headerNote?: ReactNode;
+  /** Drawn at the end of the Scroll, before the ways on (a thread's "I've finished this part"). */
+  readonly endSlot?: ReactNode;
   readonly topInset: number;
   readonly bottomInset: number;
 }) {
@@ -86,6 +89,7 @@ export function StageReaderSurface({
           nextPart={moves.nextPart}
           related={moves.related}
           onDone={moves.done}
+          endSlot={endSlot}
           play={play}
           commands={{
             universe: moves.universe,

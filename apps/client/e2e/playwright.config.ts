@@ -43,6 +43,8 @@ export default defineConfig({
         'thread-party-smoke.spec.ts',
         'thread-whatif-smoke.spec.ts',
         'thread-calls-smoke.spec.ts',
+        'thread-scroll-smoke.spec.ts',
+        'share-open-smoke.spec.ts',
         'reflow-smoke.spec.ts',
         'keyboard-smoke.spec.ts',
         'privacy-smoke.spec.ts',

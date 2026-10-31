@@ -102,6 +102,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
+- `platform/close-then.ts`: closes a sheet and then opens the screen the person chose, waiting on the web for the sheet's own Back so the navigation is not popped (D-238). Visit a friend's universe, Open thread and a topic picked in the room menu use it. `e2e/share-open-smoke.spec.ts` shows Open thread and Open chat from the Share sheet on `/scroll/<id>` reach their screens.
 - `providers/account-scope.tsx`: the AccountScope provider (#226). It reads the session once
   (nothing renders before), gives the tree the QueryClient of the signed-in scope (one per account
   and privacy epoch) or of the signed-out period, and is keyed by the scope, so sign-out, an account
@@ -659,8 +660,8 @@ direct conversations and threads together; a thread row shows its people, the la
   when no one else shows a place), `SeriesTabs` (Parts · Members), `PartFaces` on each part row, and `MembersSection` (each
   member with "On Part 2 · Sat 24 Oct" or their handle, and the person's own "Hide where I am" switch, off by default).
   `use-thread-places.ts` reads the places (first read, hints, focus, a 20 s poll). The thread's own player is the only thing
-  that tells the thread where this person is: `ThreadEncounter.onPlace` fires `on` when a Reel is opened with Watch or
-  Read this Scroll is pressed, `finished` when a Reel plays to its last second (`ReelEncounter.onFinished`) and when the
+  that tells the thread where this person is: `ThreadEncounter.onPlace` fires `on` when a Reel is opened with Watch, and the
+  Scroll reader tells `on` once the Scroll has opened (`StartedPart`; pressing Read tells nothing, D-235), `finished` when a Reel plays to its last second (`ReelEncounter.onFinished`) and when the
   Scroll reader's "I've finished this part" is pressed (the address carries the part as `p`). The automatic ones send
   nothing while recording is paused or not known (D-153); the button is a deliberate share and still sends. Choosing a part, the Series
   sheet, docking, Full screen and the snippet viewer tell nothing. Single-item threads have none of it. No clock time is
@@ -677,6 +678,7 @@ direct conversations and threads together; a thread row shows its people, the la
   were opened in the account scope's storage on this device; nothing about that is sent. A pick is sent only while recording is
   on: paused, the card says so and nothing is sent (D-156). The card shows counts and the person's own pick until the reveal, and
   no screen holds another member's pick before it: the contract carries picks only in the revealed stage. Covered by
+  A call whose Scroll was updated after the thread began calling keeps the question the thread called on and says so on the card (`updated`, `callUpdateWords`, D-233).
   `call-together.test.tsx` and `e2e/thread-calls-smoke.spec.ts` (two people in two browser contexts and a third member; the
   reveal, a member who hides, paused recording; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
@@ -690,6 +692,9 @@ direct conversations and threads together; a thread row shows its people, the la
   quiet note and nothing to open.
 - `thread-scroll-reader.tsx` and `scroll-open.tsx` read a Scroll in the thread; "Open as set" applies the sender's settings
   through an in-memory overlay (`overlayBlockState`), never to the reader's own saved block state.
+  A v2 Scroll opens with `stage: true` and is drawn by `ThreadStageScroll`, the same `StageReaderSurface` as `/scroll/<id>`,
+  with "I've finished this part" in its end tray and a Back to thread control (D-234); Parts and related moves are not offered
+  there. _Implemented; covered by `e2e/thread-scroll-smoke.spec.ts`, which also checks that it reports its reading to the recorder exactly as `/scroll/<id>` does, and nothing while recording is paused; not runtime-verified on dev._
 - For the screens owned by the Explore, Reel and Scroll work: a Reel screen mounts `ShareSheetBody`, which now offers
   "Explore with friends" (`features/sharing/explore-with-friends.tsx`: pick friends, name, "Create thread · N friends").
   The Reel and Scroll encounter screens can reuse `ShareMomentSheet` and `ShareFromScrollSheet` through the hooks in
@@ -721,8 +726,8 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   existing space tokens.
 - `features/rooms/discussion-screen.tsx`: the same thread as a friend's. It reuses `EpisodeNavigator`,
   `ThreadEncounter` (given a `readHref`, so a Scroll opens in the ordinary reader), `ShareMomentSheet`, `SnippetCard` and the
-  composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, a dotted outline and a square
-  corner, "A suggestion. Nothing is made unless someone chooses it."), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked (a moderator who blocked the author gets it collapsed with "Show for moderation", and the options to remove it). An open discussion reads afresh when the person comes back to it, and when the Friends session announces an accepted block or unblock (`announceBlocksChanged`, a counter in the scope's query cache). `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
+  composer. `room-messages.tsx` draws a person's bubble, an AI inhabitant's (its label above, then an ordinary
+  message with its resident's colour as a thick left edge; no dotted box and no footnote, R3 C1, D-237), a card, and the markers for a removed message, a deleted account and a message from someone the reader blocked (a moderator who blocked the author gets it collapsed with "Show for moderation", and the options to remove it). An open discussion reads afresh when the person comes back to it, and when the Friends session announces an accepted block or unblock (`announceBlocksChanged`, a counter in the scope's query cache). `inhabitant-bar.tsx` is the only way an inhabitant speaks: a button to ask each one, with the reason when it
   cannot be asked. `message-options-sheet.tsx` holds "Start a topic from this message", "Ask Nova about this", "Other side",
   "Challenge" and "Useful" (v3 R-3, D-167, D-168; a resident that is busy or resting is named with the reason and its button
   is off), "Start a thread from this" and the moderator's remove and restore; a resident's answer to an ask says "Asked by Lena ·

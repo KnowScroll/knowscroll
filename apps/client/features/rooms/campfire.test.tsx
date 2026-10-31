@@ -332,6 +332,27 @@ describe('the room menu', () => {
     expect(screen.queryByRole('button', { name: 'Share into room' })).not.toBeOnTheScreen();
   });
 
+  it('closes the menu before a topic opens, so the sheet never stays over the topic', async () => {
+    mockPush.mockClear();
+    const onClose = jest.fn();
+    const topic = { ...pinned, discussionId: id(12), pinned: false, title: 'Why is the night sky dark?' };
+    await wrap(
+      <RoomMenu
+        scope={scope}
+        view={member({ discussions: [topic] })}
+        controller={controller()}
+        state={roomState()}
+        visible
+        onClose={onClose}
+        onShare={jest.fn()}
+      />,
+    );
+    await fireEvent.press(screen.getByTestId('menu-topics'));
+    await fireEvent.press(screen.getByTestId(`discussion-${topic.discussionId}`));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledWith(`/rooms/${id(1)}/t/${topic.discussionId}`);
+  });
+
   it('shows the written guidelines, or says there are none', async () => {
     await open(member({ guidelines: 'Be kind. Say where an idea came from.' }));
     await fireEvent.press(screen.getByTestId('menu-guidelines'));

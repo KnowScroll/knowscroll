@@ -2730,3 +2730,90 @@ Confirmed by: `client-core/room-launch.test.ts` (time left, the next read, the o
 - **On a desktop** the stage keeps the reading measure, centred above the conversation, and the band's "Launch live" tag sits in the rail.
 
 Confirmed by: `e2e/rooms-launch-smoke.spec.ts` (both numbers are printed by the run).
+
+## D-234 · 2026-10-31 · The thread's reader draws a v2 Scroll as the Stage + Spine reader, and its foot is the end tray (v3 dev check, #570)
+
+**Builds on** D-153 and D-133. Fixes a gap: the thread's own reader opened every Scroll as a v1 article, so a v2 Scroll, which is what a series holds now, showed "This needs an app update" and a person could not reach the finish or the reveal.
+
+- **Same reader.** `/threads/<id>/read/<assetId>` opens the Scroll with `stage: true` and draws it with `StageReaderSurface`, the surface `/scroll/<id>` and Explore use, with the same recorder, so what is read here is an ordinary encounter. The snippet viewer and a branch's reader still open v1 documents only.
+- **The finish sits in the end tray.** "I've finished this part" is drawn after the score and before the ways on, where a v1 article draws it at its foot. It is the same button and the same rule: sent while recording is paused, never while the person hides where they are.
+- **No Part or related move from here.** The reader offers Back to thread, Done for today and Your Universe. The next Part is chosen in the thread, whose player is the only thing that tells a place (D-153); a move to `/scroll/<id>` would leave the player and tell nothing.
+- **Not built.** Sharing a passage of a v2 Scroll back into the thread. A snippet names a v1 block; a stop is not one (D-135).
+
+Confirmed by: `e2e/thread-scroll-smoke.spec.ts` (two people in a thread of three v2 Scrolls: Read opens the Scroll, the finish tells the thread, a locked call reveals once both have finished; a desktop; axe at 390 × 844 and 1440 × 900) and the end tray test in `stage-reader.test.tsx`. Shown failing with the reader opened without `stage`.
+
+## D-235 · 2026-10-31 · A Scroll's place "on" is told once the Scroll has opened, not when Read is pressed (v3 dev check, #570)
+
+**Amends** D-153, which made pressing Read this Scroll the `on` of a Scroll. A place only moves forward and is never taken back (D-152), so a place sent by a tap that then failed to open the Scroll could not be undone: others saw "is on Part 3" for a part nobody had opened, and the person's "Call it first" for the earlier parts closed.
+
+- **The reader tells it.** The thread's reader mounts a small component only after the Scroll's exposure is open and its document is ready, and that component reports `on` for the part. Pressing Read, in the dock or in the open player, tells nothing; it only opens the reader.
+- **Same gate as before.** The report is automatic, so the controller sends nothing while recording is paused or not known, and nothing while the person hides where they are (D-153). The finish button is unchanged.
+- **A Reel is unchanged.** A Reel's `on` already waited for its document to open.
+
+Confirmed by: `thread-encounter.test.tsx` (Read, in the dock and in the open player, tells nothing), `e2e/thread-scroll-smoke.spec.ts` (a Scroll that does not open tells the thread nothing and stores no place; an opened one tells `on`; paused tells nothing while the button still shares the finish). Shown failing with the tap reporting again.
+
+## D-233 · 2026-10-31 · A thread's call stays with the revision its members called on, and says when the Scroll was updated (v3 dev check, #570)
+
+**Amends** D-155 ("a call is the first Call it of a part's Scroll") and **builds on** D-156 (a pick is stored against an asset, a revision and a stop). Fixes a loss found on dev: when a part's Scroll got a new revision and the series was declared again with it, the thread's call moved to the new revision's question, the three picks stayed in the table against the old one, and the card showed a different question and "0 of 3 in" with no reveal and no word of why.
+
+- **A pick belongs to the revision it was locked on.** A call is one question for the whole party, so while any member the reader may count has a pick on an earlier revision of the part's Scroll, the call is about the earliest such revision: its question, its options, its right answer and its reveal. The picks, the count and the reveal rule are unchanged, and a member who has not called yet is asked the same question the others answered, and their pick is stored on that revision.
+- **Fresh only where nothing was locked.** When nobody the reader may count has a pick on an earlier revision, the call is about the series' current revision, as before, and its picks go to that revision. So a new revision never takes a pick away, and a thread that had not started calling gets the new question.
+- **The person is told.** A call whose question is older than the Scroll carries `updated: 'held'`, and the card says "Part N has been updated since your thread started calling. The call keeps the question your thread called on, so everyone answers the same one." in an open, locked and revealed call alike.
+- **When the earlier revision cannot be read.** If the revision the picks are on was held or rejected by review, its question cannot be shown. The card then asks the current question afresh (`updated: 'restarted'`: "Part N has been updated, and the question your thread called on can't be shown any more. This call asks the new question afresh."). The old picks are not deleted; they are kept with the member's row, shown to nobody, and leave, Clear and deletion remove them as before.
+- **A block moves nothing.** Only the picks the reader may count choose the revision, so a member the reader has a block with cannot make the reader's card ask a different question from the one the reader would see without them (D-155).
+- **A lock names the question it was made on.** `LockThreadCall` carries the `assetRevision` of the card the person pressed on. The option is an index into that question's options, so the server stores the pick only if the call is still about that revision, and otherwise answers `changed`, stores nothing and the card is read again with a plain line ("This call changed. The question was updated while you were choosing, so nothing was locked."). Neither `stands` (the caller already locked) nor `closed` (the call is closed to them) fits, so `changed` is its own answer. This closes the window where the only earlier locker clears or leaves between the card and the lock, which moves the call to another revision.
+- **Nothing else changes.** No migration: the key already holds the revision. The export names a pick under the question it was made on.
+
+Confirmed by: `social-calls.test.ts` ("a part whose Scroll gets a new revision": the question, picks, count and reveal stay with revision 1 while revision 2 has a different question and answer; the only earlier locker clears between the card and the lock and the pick lands nowhere, and a revision the call was never about stores nothing; a member who had not called is asked the old question and locks on it; a thread with no picks gets the new question with no note; the export names the question the pick was made on; a rejected earlier revision restarts the call and says so; a block moves nothing), `calls.test.ts` (the pure choice of revision), `threads.test.ts` in `contracts`, `call-words.test.ts` and `call-together.test.tsx` (the words). Shown failing with the choice of revision reduced to the current one.
+
+## D-236 · 2026-10-31 · The Useful mark that earns a star may come from the person who asked (clarifies D-174, #570)
+
+**Clarifies** D-174 and D-168. No code changes. A dev check read D-174 as "the Useful mark must come from someone other than the question's asker" and found that the asker marking someone else's answer to their own question earned a star. That is the rule as written.
+
+- **Two different people, each from the author.** In a question topic the star's words must be by someone other than the person who asked the question (`startedByAccountId` is not the author), and the mark must come from someone other than the words' author (D-168: nobody marks their own). Neither says anything about the giver and the asker. The asker is the person the answer was for, and the one most able to say it helped, so their mark is the main case. D-168 says the same for an AI's answer ("the asker has no other way to say it helped"), where the mark is allowed and earns no star.
+- **What still earns nothing.** The asker's own later words in their question, marked by anyone. A mark on one's own message (refused). A resident's words. General chat, a debate and a share.
+- **Collusion.** Two accounts can still ask, answer and mark each other. The daily cap of three and one star per act and source are what bound that; a rule about the asker would not (the answerer could just as well mark a third account's words). R3 says "a different person gives Useful", meaning different from the author.
+
+Confirmed by: `rooms-sky.test.ts` ("counts the asker's own Useful on someone else's answer, and nobody's Useful on the asker's own words"). Shown failing when a mark by the asker was refused.
+
+## D-237 · 2026-10-31 · An AI reply is an ordinary message with a colour edge, still labelled (v3 dev check, #570)
+
+**Amends** the v2.1 rule that an AI contribution is drawn with a dotted outline, a square corner and "A suggestion. Nothing is made unless someone chooses it." R3 (C1) says: "Drop the dotted 'suggestion' box. An AI reply is a message in the conversation, not a proposal waiting for approval. The label and the Challenge button keep it honest", and "Character colour as a 4px edge. No dotted box, no footnote."
+
+- **What a reply looks like.** The same bubble as a person's, with a thick left edge in the resident's colour: the Explainer's is the room's accent and the Skeptic's its ink, the colours of their marks (D-170). A room without a face has an ink edge.
+- **Still labelled.** The resident's name, the AI label, the kind of contribution and the reason it spoke stay above the bubble, and a screen reader hears "AI, Skeptic". The edge is colour only and is never what says it is an AI.
+- **The buttons stay.** Challenge and Other side stay under a reply, since asking is how a person pushes back. The footnote is gone: nothing about an AI reply is a proposal.
+- **Left as it was.** The "while you were away" card is a card, not a reply, and R3 does not draw it as a message; it keeps its dotted outline.
+
+Confirmed by: `room-messages.test.tsx` (no footnote, no dotted style, the label and the buttons stay; the edge is the resident's colour in a room with a face), `room-identity.test.tsx` (the colour of each resident).
+
+## D-238 · 2026-10-31 · A sheet closes before the screen it opens, and on the web waits for its own Back (v3 dev check, #570)
+
+**Builds on** D-006 k (a sheet adds one transient history entry and a Back removes it). That Back is asynchronous, so a screen opened in the same moment is popped with it: the address changes and the old screen stays. Found on dev three ways: "Visit a friend's universe" left Friends showing, "Open thread" in the Share sheet on `/scroll/<id>` did nothing, and a topic picked in the room menu opened behind the menu.
+
+- **One helper.** `closeThen(close, run)` marks the Back as pending, closes the sheet, and runs the navigation once the Back has landed (or after 400 ms if it never reports). On native it closes and runs.
+- **Where it is used.** Visit a friend's universe, Open conversation and Open thread in the Share sheet, and a topic picked from the room menu's Topics or Pins, which closes the menu first. The older local copies in the room menu, the branch sheets and Explore keep working as they are.
+
+Confirmed by: `close-then.web.test.ts` (the order, and the fallback), `friends-smoke.spec.ts` (Visit reaches `/visit/<handle>` and Friends is not the screen shown; shown failing with the helper replaced by close-then-navigate), `campfire.test.tsx` (picking a topic closes the menu first; shown failing without it), `rooms-smoke.spec.ts` (the topic opens and no sheet is left).
+
+## D-239 · 2026-10-31 · Who is here ends with the lease: a minute after the last beat, and at once when the device says away (v3 dev check, #570)
+
+**Builds on** D-069 and D-160. States the rule a dev check asked for, with no change to the numbers. A dev check saw "3 here" for "minutes" after two members closed their browsers. Measured again on dev with two killed browsers: the header went from 3 to none between 70 and 75 seconds, which is the rule below.
+
+- **The lease.** A face is a lease the member's own device renews every 25 seconds (`ROOM_PRESENCE_BEAT_MS`) and the server reads only while it is under 60 seconds old (`ROOM_PRESENCE_LEASE_MS`). A device that leaves, hides the app or is covered by another screen says `away`, which deletes the lease at once.
+- **What the others see.** An open room reads again every 20 seconds, on a hint, and on focus. So a person who says `away` is gone from another member's header at its next read, and one who just disappears (a closed browser, a lost connection) within the lease and one read: at most about 80 seconds, usually less.
+- **A hidden tab.** A tab that is not visible does not poll; it reads again when it is shown. Nobody is looking at it, so nothing stale is seen.
+- **Not changed.** The lease is not shortened: a shorter one would drop a face for a single lost beat, and a face that comes and goes is worse than one that stays a minute. A closed tab's `away` is not guaranteed on the web (the request may be cut off), which is why the lease exists.
+
+Confirmed by: the measurement above (dev, 31 Oct), and the existing presence tests for the lease and `away` (unchanged).
+
+## D-240 · 2026-10-31 · How a person finds a room: the design is silent, and nothing lists rooms to browse (v3 dev check, #570)
+
+**Records, builds nothing.** A dev check with a new account could not reach the Space room. `/rooms/space` said "This room isn't available". `space` is not a room's address: a room's address carries its ID, which is shown nowhere, so the answer is the same as for a room that does not exist.
+
+- **What reaches a room today.** The room's station on the person's own Universe map (it appears beside a system of their own, so a person has to have formed that system by reading), a room row in Talk once they are a member, an invitation, or a link that carries the room's ID. A preview before joining is read from the station or the link.
+- **What the design says.** R1 and R3 draw a room from the inside, and draw the station on the map (R3 p-04, p-09, "Enter room"). Neither draws a list of rooms to browse or search.
+- **What this means for a new account.** It meets a room after it has read about the room's topic. That is the shape the designs give ("rooms follow your own universe"), but it makes a room unreachable from Explore alone. If the owner wants a directory, it is a new design (a list of the rooms of systems the person has formed, a "Rooms near you" row, or a share link), not a fix.
+- **Seeded rooms.** An operator seeds one room per library system. Nothing links the seed to a person until their map has the system.
+
+Recorded as a fidelity row ("R1, R3, finding a room") and in the PR. No code changes.
