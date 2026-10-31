@@ -19,8 +19,10 @@ import { READ_VISITED_ASSETS, type ReadVisitedAssets } from '../../experience/pu
 import { makeConversationCommands } from '../application/conversation-commands.js';
 import { makeThreadCommands } from '../application/thread-commands.js';
 import { makeThreadReads } from '../application/thread-reads.js';
+import { makePlaces } from '../application/thread-places.js';
 import type { ThreadPorts } from '../application/thread-ports.js';
 import { threadIdFor, threadStore } from './postgres-threads.js';
+import { placeStore } from './postgres-thread-places.js';
 import { makeThreadGuest } from '../application/thread-guest.js';
 import { makeAnnounceThread, makeReadThreadStanding, sequenceOf } from './postgres-thread-guest.js';
 import { makeConversationReads } from '../application/conversation-reads.js';
@@ -193,6 +195,7 @@ function threadPorts(deps: ThreadDeps): ThreadPorts {
     ...socialPorts(deps),
     conversations: conversationStore(deps.readContent),
     threads: threadStore,
+    places: placeStore,
     threadIdFor,
     readSequence: deps.readSequence,
     readVisited: deps.readVisited,
@@ -204,7 +207,7 @@ function threadPorts(deps: ThreadDeps): ThreadPorts {
 /** Content threads over the same ports plus the content and experience reads they need. */
 export function threadUseCases(deps: ThreadDeps): ThreadUseCases {
   const ports = threadPorts(deps);
-  return { ...makeThreadCommands(ports), ...makeThreadReads(ports) };
+  return { ...makeThreadCommands(ports), ...makeThreadReads(ports), ...makePlaces(ports) };
 }
 
 /** What other modules may do inside a thread, over the same ports (see `ThreadGuest`). */

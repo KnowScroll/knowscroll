@@ -1332,8 +1332,9 @@ The declarations above are now served. Changes made with that slice:
 
 ## Content threads and snippets (#243, D-046)
 
-`threads.ts` declares `content-thread.v1`: `apiContract.threads` has ten private JSON POSTs under `/v1/social/threads/`
-(`create`, `read`, `history`, `changes`, `send`, `respond`, `mark-read`, `leave`, `inbox`, `snippets/open`).
+`threads.ts` declares `content-thread.v1`: `apiContract.threads` has thirteen private JSON POSTs under `/v1/social/threads/`
+(`create`, `read`, `history`, `changes`, `send`, `respond`, `mark-read`, `leave`, `inbox`, `snippets/open`, and for party
+places `places/read`, `places/set`, `places/hide`).
 
 - A thread is named by `ContentThreadRef` (thread ID, membership ID, membership revision), like a conversation.
 - `CreateContentThread` takes one to eight distinct friend person IDs, the exact root revision and an optional plain name.
@@ -1343,5 +1344,14 @@ The declarations above are now served. Changes made with that slice:
 - A `ContentThreadView` is `unavailable`, `invitation` (who invited and the root, no messages) or `ready` (messages,
   people, episodes with the caller's own `visited`, own read state, catch-up cursor). No schema has a field for another
   member's position, current episode or seen marker; `threads.test.ts` checks that unknown fields are refused.
+- **Party places (v3 T-D, D-065, D-152).** The one thing a member may tell the others about where they are in a series is a
+  `ThreadPlace`: `{ person, you, part (1 to 99), state ('on' | 'finished'), day }`, where `day` is `z.iso.date()`, a
+  calendar date, so a datetime, a clock time, a playhead, a branch or a selected episode does not parse (`threads.test.ts`
+  tries each). It has its own read, `ReadThreadPlaces` -> `ThreadPlaces` (`unavailable`, or `ready` with the caller's own
+  `hidden` switch and at most nine unique people), and two commands: `SetThreadPlace` (a part and a state; no field for
+  whose place or when) answered `stored`, `unchanged` or `hidden`, and `SetThreadPlaceHidden` (a wanted state). Both are
+  idempotent by their state, so they have no command ID, keep no receipt and answer with the scope and what they did,
+  never a time (`threads.test.ts` refuses a command ID, a replay flag or a time). The thread view and list stay free of
+  places. _Implemented._
 - A snippet message carries a card: the exact target, the anchor in words (range, quote, label, settings description) and the
   content status (`available`, `corrected`, `unavailable`). Quote and settings are omitted when the content is unavailable.

@@ -1889,6 +1889,7 @@ export interface SocialConversationMembers {
   membership_revision: Generated<Int8>;
   muted: Generated<boolean>;
   pending: Generated<boolean>;
+  place_hidden: Generated<boolean>;
   read_through_sequence: Generated<Int8>;
   shared_read_through_sequence: Generated<Int8>;
 }
@@ -2015,6 +2016,14 @@ export interface SocialRosterHeads {
   kind: string;
   owner_account_id: string;
   revision: Generated<Int8>;
+}
+
+export interface SocialThreadPlaces {
+  account_id: string;
+  day: Timestamp;
+  part: number;
+  state: string;
+  thread_id: string;
 }
 
 export interface SocialVisibilityAudience {
@@ -2250,6 +2259,7 @@ export interface DB {
   "social.requests": SocialRequests;
   "social.roster_entries": SocialRosterEntries;
   "social.roster_heads": SocialRosterHeads;
+  "social.thread_places": SocialThreadPlaces;
   "social.visibility_audience": SocialVisibilityAudience;
   "social.visibility_settings": SocialVisibilitySettings;
   "social.visit_planets": SocialVisitPlanets;

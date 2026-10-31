@@ -236,3 +236,10 @@ turn, so a process from before this migration cannot ask until it restarts, as a
 binary; the generated database types change by the same columns and tables, and the worker registers the `rooms.summarise` queue.
 
 0079 is every room's face and painted backdrops within $1 (v3 R-4, #490, D-166, D-170, D-171): `rooms.room_identity` (a kit a model proposed for a room, as closed-vocabulary JSON with its version, and the operator's decision; one proposal waits and one kit is approved at a time), `rooms.backdrop_attempts` (the ledger of every paid image attempt, in millionths of a dollar, with the charge each counts against the $1 cap), `rooms.room_backdrops` (the painted images those attempts made, each reviewed before it is served) and the `ops.room_faces` view (counts and the spent total only). No table names an account, so the erasure registry has nothing to declare. Additive: an older process neither reads nor writes the tables, and every room keeps its default face. Apply with the new binary; the generated database types change by the same tables and view. Numbered 0079 on the branch (0077 and 0078 are merged); the coordinator renumbers at merge if another migration lands first.
+
+0080 is party places (v3 T-D, #484, D-065, D-152): `social.thread_places` (one row per member and thread: a part from 1 to 99, `on` or
+`finished`, and a `date`, so nothing finer than a day can be stored; the row follows the member's membership row through a composite
+foreign key) and `social.conversation_members.place_hidden` (the member's own "hide where I am" for that thread, false by default).
+Additive: older writers never touch the table and the column defaults. Apply with the new binary; the generated database types change by
+the same table and column. Clear deletes the places and keeps the switch; deleting the account deletes the places before the membership
+rows.

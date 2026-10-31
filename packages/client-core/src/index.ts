@@ -77,6 +77,13 @@ export {
   type QuotableMessage,
   type QuoteView,
 } from './talk-reply';
+export { allFinished, facesByPart, joinNames, partyLine, placeDay, placeWords } from './party-lines';
+export {
+  createThreadPlaces,
+  placeProgress,
+  type ThreadPlacesController,
+  type ThreadPlacesState,
+} from './thread-places';
 export {
   createContentThread,
   type ContentThreadController,

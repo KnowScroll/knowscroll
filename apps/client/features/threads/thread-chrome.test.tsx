@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ContentThreadState } from '@knowscroll/client-core';
-import { DisplayProvider } from '@knowscroll/ui';
+import { DisplayProvider, Text } from '@knowscroll/ui';
 import { InvitationView, ThreadHeader, ThreadPeople, ThreadStrip, threadEyebrow, threadTitle } from './thread-chrome';
 
 const asha = {
@@ -111,6 +111,25 @@ describe('the thread strip', () => {
     await strip();
     expect(screen.getByText('A THREAD · 3 PARTS · 2 PEOPLE')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Black holes' })).toBeOnTheScreen();
+  });
+
+  it('draws the part worlds where the small line would be, and keeps the title and the buttons', async () => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <ThreadStrip
+          title="Black holes"
+          eyebrow="A THREAD · 3 PARTS"
+          worlds={<Text variant="meta">worlds here</Text>}
+          onBack={jest.fn()}
+          series={{ open: false, onPress: jest.fn() }}
+          onMenu={jest.fn()}
+        />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('worlds here')).toBeOnTheScreen();
+    expect(screen.queryByText('A THREAD · 3 PARTS')).toBeNull();
+    expect(screen.getByRole('header', { name: 'Black holes' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Series' })).toBeOnTheScreen();
   });
 
   it('pulls the parts down from its Series button, and only where the parts are not always shown', async () => {

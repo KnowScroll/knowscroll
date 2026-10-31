@@ -20,6 +20,7 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | Content threads                                  | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`)                                  | `THREAD_USE_CASES`: create, read, history, changes, send, react, respond, mark read, leave, inbox, open snippet                                      | Implemented; not runtime-verified on dev |
 | Replies and reactions (T-B, D-146, D-147)        | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message)                                                                               | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react`                                                    | Implemented; not runtime-verified on dev |
 | SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; not runtime-verified on dev |
+| Party places in threads (T-D, D-065, D-152) | `thread_places`, and `conversation_members.place_hidden` (migration 0080) | `THREAD_USE_CASES`: `places` (read), `setPlace`, `setPlaceHidden` | Implemented; not runtime-verified |
 | Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented                              |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
@@ -186,7 +187,8 @@ reading a thread add no exposure, observation or Keep.
   is `unavailable` to anyone outside that thread, so a snippet cannot be used to quote it.
 - **Episodes** in a thread view are the declared series that contains the root revision, by part, or the root alone.
   Each carries the caller's own `visited` (an activated exposure of that asset) and says `corrected` or `unavailable`
-  when it is. No answer has any field for another member's position, current episode or seen marker.
+  when it is. No answer has any field for another member's position, current episode or seen marker; the only thing a
+  member may tell the thread is a coarse place, and it has its own read (see Party places).
 - **Direct inbox.** A thread never appears in the direct inbox: every direct read selects `kind = 'direct'`.
 - **Talk** lists a person's threads (`threads/inbox`, newest activity first, at most 50). An invitation shows who
   asked and no message or count.
@@ -213,6 +215,43 @@ whose account is active. Account deletion takes the person's thread rows first, 
 A committed send, join, leave or read bumps `inbox_heads` for each member whose place stands and calls
 `notifyInboxChanged`, as direct conversations do. The thread screen catches up from its cursor on a hint, a focus or
 its 20 second poll, so a lost hint loses nothing.
+
+## Party places (T-D, D-065, D-152, D-153)
+
+In a series thread each member may tell the others which part they are on. A place is a part, `on` or `finished`, and
+a day. It is the one thing about where a member is in a series that the server holds, and it is coarse on purpose:
+there is no column for a playhead, a branch, a selected episode, a seen marker or a time of day, and `day` is a
+`date`. It is not consumption evidence: nothing here writes Experience, Composer, Planning or Geography, and nothing
+here reads another member's Experience. _Implemented; not runtime-verified._
+
+- **Write** (`threads/places/set`, `setPlace`). Only the caller's own row, from their own client: the command has no
+  field for whose place it is. The part must be one of the series' parts (`invalid_input` otherwise, and for a thread on
+  a single item). A place only moves forward (on a part, finished it, on the next), so a repeat or an earlier part
+  changes nothing, not even the stored day. The day is the server's own UTC date. A change tells every taking-part
+  member's inbox (a disposable hint carrying nothing, kept nowhere); a repeat tells nobody. **No receipt is written**
+  for it or for hide (`inThreadWithoutReceipt` in `thread-command-frame.ts`): both are idempotent by their state, a
+  receipt would keep the exact time of every report and survive leave and Clear, and so neither command has a command
+  ID, a replay or a time in its answer. A test finds no receipt row and no clock time in any table after set, hide,
+  leave and Clear.
+- **Hide** (`threads/places/hide`, `setPlaceHidden`). "Hide where I am", per thread and per person, on the member's own
+  row. Places are shown by default, so it is off until the person turns it on. Turning it on deletes their place in the
+  same transaction. While it is on, `setPlace` is accepted, says `hidden` and writes nothing. Turning it off writes
+  nothing: the place comes back with the person's next report. It is a wanted state, so a repeat changes nothing, and it
+  is not mutual.
+- **Read** (`threads/places/read`, `places`). Its own read, so the thread view and the thread list keep no place field.
+  Under the thread's lock it lists a member only when they take part now, have not hidden, and neither side of a block
+  with the reader exists. A member with no place, who hides, left, was removed or is blocked is simply not listed, and
+  nothing says which. Order is by how far along and then by name, never by arrival. The reader's own place carries
+  `you`. A stranger, an invitee who has not joined, a leaver and a stale membership reference get `unavailable`.
+- **Removed** on leave (`thread-commands.ts` deletes it before ending the place), when the friendship that carried a
+  member in ends (`forgetPlacesBetween` in the pair command, under the friendship's lock, for Remove, Block and Accept),
+  when an inviter leaves and their invitees' places had already ended (`releaseInvitees`), on Clear (the places are
+  deleted, "hide where I am" is kept: it is a choice, not history) and on account deletion (before the membership rows,
+  because the row follows its member's).
+- **Lock order** is the thread's: personal root, the caller's account gate, the thread's conversation row (FOR UPDATE to
+  write, FOR SHARE to read), then the member and place rows. The pair command deletes places without the thread lock;
+  a place is only ever shown through the standing check, so a row that outlives a race is never visible.
+- **Export.** The person's own places (thread name, part, state, day) and how many threads they hide in, never anyone else.
 
 ## Visibility, availability and the friend visit
 
@@ -270,11 +309,12 @@ and the installed API (`tests/integration/release/visits-http.test.ts`). Not run
 | message_reactions                                                                 | kept                                                         | the person's reactions and every reaction on their messages are deleted; each message of another person that loses one gets a new change sequence, so the others' catch-up replaces it                                                  |
 | content_shares                                                                    | kept                                                         | deleted                                                                                                                                                                                                                                 |
 | content_threads                                                                   | kept                                                         | the starter link is cleared; the thread stays for the others                                                                                                                                                                            |
+| thread_places | **deleted** (a place is drawn from the person's own exploring) | deleted with the account, before the membership rows |
 | message_snippets                                                                  | kept                                                         | deleted with the author's tombstoned message                                                                                                                                                                                            |
 | visibility_settings (audience, availability, SEEN), visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too. The export names the SEEN switch in words (`seenInDirectConversations`) and never the other person's                                                             |
 | visit_publications, visit_systems, visit_planets                                  | deleted (friends who visit then see an empty universe)       | deleted with the universe                                                                                                                                                                                                               |
 
-Clear never removes messages, cards, snippets, reactions, threads or links. `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), tombstone
+Clear never removes messages, cards, snippets, reactions, threads or links, but it deletes the person's party places (`erasePlaces`). `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), delete their party places (`erasePlaces`), tombstone
 their messages, pick the peers, close conversations, delete their membership and heads, hint the peers, then
 the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
 invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`; a reply is marked `wasAReply`), their own reactions (kind, when, and whether on their own message or someone else's; newest 2,000, with `reactionsGiven` and `reactionsTruncated`) and
@@ -296,8 +336,8 @@ the systems they share (never a heartbeat, a public ID or who the friends are). 
 ## Related
 
 - Blueprint 02d sections 14 and 17; decisions D-049 (what other modules may do in a thread), D-042 (conversations and links), D-043 (deleted accounts), D-046
-  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit), D-066 and D-150 (SEEN).
+  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit), D-066 and D-150 (SEEN), D-065, D-152 and D-153 (party places).
 - Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`,
   `friend-pages.ts`, `socket.ts` (`presence_heartbeat`).
-- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`; SEEN: `social-seen`),
+- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`; SEEN: `social-seen`; party places: `social-places`),
   `tests/integration/release/conversations-http.test.ts`, `threads-http.test.ts`, `visits-http.test.ts`.

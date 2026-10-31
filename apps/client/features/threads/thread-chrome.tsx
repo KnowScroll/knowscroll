@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import type { ContentThreadState } from '@knowscroll/client-core';
 import type { ConversationContentProjection, ThreadParticipant } from '@knowscroll/contracts';
@@ -77,12 +78,14 @@ export function threadEyebrow(
 
 /**
  * C04's header strip on a thread (T3): 72 px, so the conversation keeps the screen. Back, the title under a small
- * line saying what this is, and the thread's options. On a phone "Series" pulls the parts down as a
- * sheet; beside the conversation (desktop) the parts are always on show and the button is absent.
+ * line saying what this is (or, in a series, under its part worlds with the faces of the members on them), and
+ * the thread's options. On a phone "Series" pulls the parts down as a sheet; beside the conversation (desktop)
+ * the parts are always on show and the button is absent.
  */
 export function ThreadStrip({
   title,
   eyebrow,
+  worlds,
   onBack,
   series,
   onMenu,
@@ -90,6 +93,8 @@ export function ThreadStrip({
 }: {
   readonly title: string;
   readonly eyebrow: string | undefined;
+  /** The part worlds, drawn where the small line would be: a series says how long it is by showing its parts. */
+  readonly worlds?: ReactNode;
   readonly onBack: () => void;
   /** Pulls the parts down from this header; absent where they are always shown. */
   readonly series?: { readonly open: boolean; readonly onPress: () => void } | undefined;
@@ -103,7 +108,7 @@ export function ThreadStrip({
       <View style={[styles.strip, { backgroundColor: theme.bar.fill, borderColor: theme.bar.edge }]}>
         <IconButton icon="back" label="Back" variant="onSpace" size={44} onPress={onBack} />
         <View style={styles.title}>
-          {eyebrow === undefined ? null : (
+          {worlds !== undefined || eyebrow === undefined ? null : (
             <Text variant="monoXs" color={theme.textQuiet} numberOfLines={1}>
               {eyebrow}
             </Text>
@@ -111,6 +116,7 @@ export function ThreadStrip({
           <Text variant="ui" heading={1} numberOfLines={1} color={theme.bar.text}>
             {title}
           </Text>
+          {worlds}
         </View>
         {series === undefined ? null : (
           <Button
