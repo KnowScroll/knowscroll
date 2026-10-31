@@ -140,8 +140,21 @@ export const retryAccountDeletionContract = oc
   .input(z.strictObject({ receiptId: UuidSchema }))
   .output(AccountDeletionStatusSchema);
 
+// ── First open ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Claims the Universe tab's first-open animation for this account (D-114). It answers `claimed: true`
+ * exactly once in the lifetime of the account, to whichever device asks first, and `false` to every
+ * later request on any device. The claim is made when the animation starts, so a crash never plays it
+ * again. It carries no body and writes only the flag on the account: no evidence, no personal data.
+ */
+export const claimFirstOpenContract = oc
+  .route({ method: 'POST', path: '/v1/account/universe/first-open', successStatus: 200, tags: ['account'] })
+  .output(z.strictObject({ claimed: z.boolean() }));
+
 export const accountContract = {
   sessions: listSessionsContract,
+  claimFirstOpen: claimFirstOpenContract,
   endSession: endSessionContract,
   endOtherSessions: endOtherSessionsContract,
   delete: deleteAccountContract,

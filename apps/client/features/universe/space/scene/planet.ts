@@ -72,6 +72,7 @@ function atmosphereShell(radius: number, sun: THREE.Vector3, colour: THREE.Vecto
   );
 }
 
+/** The ring mesh and the numbers it starts from, so a hand-over can be undone. */
 function ringMesh(
   radius: number,
   genome: PlanetGenome,
@@ -97,6 +98,7 @@ function ringMesh(
         pr: { value: radius },
         rIn: { value: inner },
         rOut: { value: outer },
+        opacity: { value: 1 },
         ...hazeUniforms(context),
       },
     }),
@@ -117,6 +119,38 @@ function makeMoon(genome: PlanetGenome, radius: number, sunPosition: THREE.Vecto
   );
 }
 
+/** What "Enter a planet with rings or a moon" asks of a planet on one frame (design 3b). All in world terms. */
+export interface PlanetHandover {
+  readonly ring: {
+    /** Inner and outer radius in planet radii, 1.4 and 2.4 at rest. */
+    readonly inner: number;
+    readonly outer: number;
+    /** 0 keeps the ring's own tilt, 1 lies in the planet view's. */
+    readonly weight: number;
+    readonly fade: number;
+    /** The world orientation of the planet view's ring. */
+    readonly turnTo: THREE.Quaternion;
+  };
+  readonly moon: {
+    readonly weight: number;
+    readonly fade: number;
+    /** Where the planet view's moon is, in the world. */
+    readonly target: THREE.Vector3;
+    /** The moon's size when it reaches its place, as a share of its own. */
+    readonly shrinkTo: number;
+  };
+}
+
+/** A built planet and the few things a camera move may change about it. */
+export interface BuiltPlanet extends Built {
+  /** The atmosphere rim's strength: 1.15 at rest, easing down as the camera comes close. */
+  readonly setAtmosphere: (strength: number) => void;
+  /** Turns the 3D ring and moon into the planet view's (or back to their own, with `null`). Call after `tick`. */
+  readonly handOver: (handover: PlanetHandover | null) => void;
+  readonly hasRing: boolean;
+  readonly hasMoon: boolean;
+}
+
 /**
  * A painted planet: surface, optional cloud layer, atmosphere rim, optional ring and optional
  * moon. Its spin and its moon's orbit are pure functions of `t`. `sunPosition` is the lit side.
@@ -126,7 +160,7 @@ export function makePlanet(
   radius: number,
   sunPosition: THREE.Vector3,
   context: SceneContext,
-): Built {
+): BuiltPlanet {
   const pixels = paintOnce(genome, context.paintCache);
   const atmosphere = unitColour(pixels.atmosphere);
   const group = new THREE.Group();
@@ -147,12 +181,15 @@ export function makePlanet(
     );
     spinner.add(clouds);
   }
-  group.add(atmosphereShell(radius, sunPosition, atmosphere, context));
+  const rim = atmosphereShell(radius, sunPosition, atmosphere, context);
+  group.add(rim);
 
   const centre = new THREE.Vector3();
-  if (pixels.ring !== null) {
-    group.add(ringMesh(radius, genome, context.trackTexture(pixels.ring), sunPosition, centre, context));
-  }
+  const ring =
+    pixels.ring === null
+      ? null
+      : ringMesh(radius, genome, context.trackTexture(pixels.ring), sunPosition, centre, context);
+  if (ring !== null) group.add(ring);
   const moon = genome.moon ? makeMoon(genome, radius, sunPosition, context) : null;
   if (moon !== null) group.add(moon);
 
@@ -166,5 +203,43 @@ export function makePlanet(
     }
     group.getWorldPosition(centre);
   };
-  return { object: group, tick };
+  const ownRingTurn = ring?.quaternion.clone() ?? new THREE.Quaternion();
+  const parentTurn = new THREE.Quaternion();
+  const turned = new THREE.Quaternion();
+  const ringUniforms = ring === null ? undefined : (ring.material as THREE.ShaderMaterial).uniforms;
+  return {
+    object: group,
+    tick,
+    hasRing: ring !== null,
+    hasMoon: moon !== null,
+    setAtmosphere(strength) {
+      (rim.material as THREE.ShaderMaterial).uniforms['strength']!.value = strength;
+    },
+    handOver(handover) {
+      if (ring !== null && ringUniforms !== undefined) {
+        const state = handover?.ring;
+        ringUniforms['rIn']!.value = radius * (state?.inner ?? 1.4);
+        ringUniforms['rOut']!.value = radius * (state?.outer ?? 2.4);
+        ringUniforms['opacity']!.value = state?.fade ?? 1;
+        ring.quaternion.copy(ownRingTurn);
+        if (state !== undefined) {
+          group.updateWorldMatrix(true, false);
+          group.getWorldQuaternion(parentTurn);
+          turned.copy(parentTurn).invert().multiply(state.turnTo);
+          ring.quaternion.slerp(turned, state.weight);
+        }
+      }
+      if (moon !== null) {
+        const state = handover?.moon;
+        if (state === undefined) {
+          moon.scale.setScalar(1);
+          return;
+        }
+        group.updateWorldMatrix(true, false);
+        const place = group.worldToLocal(state.target.clone());
+        moon.position.lerp(place, state.weight);
+        moon.scale.setScalar(Math.max(1e-4, (1 + (state.shrinkTo - 1) * state.weight) * state.fade));
+      }
+    },
+  };
 }

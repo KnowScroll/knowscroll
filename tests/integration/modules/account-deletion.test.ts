@@ -913,4 +913,43 @@ describe('account deletion (real database)', () => {
     expect(await use.retry(receiptId)).toEqual({ kind: 'completed' });
     expect(await use.recover()).toEqual({ requeued: 0 });
   });
+
+  it('keeps the Universe first-open flag through export and Clear, reads it in the export, and deletes it with the account (D-114)', async () => {
+    const person = await recordingPerson(database);
+    const flag = () =>
+      database.db
+        .selectFrom('identity.accounts')
+        .select('universe_first_opened_at')
+        .where('id', '=', person.accountId)
+        .executeTakeFirst();
+    const exported = async (authority: FixturePerson['authority']) => {
+      const file = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(authority, (scope) =>
+        exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+      );
+      if (file.kind !== 'entered') throw new Error('CI export refused');
+      return (file.value.sections['identity'] as { account: { universeOpeningShown: boolean } }).account
+        .universeOpeningShown;
+    };
+    expect(await exported(person.authority)).toBe(false);
+
+    expect(await identity().claimFirstOpen({ accountId: person.accountId })).toEqual({ claimed: true });
+    const claimedAt = (await flag())?.universe_first_opened_at;
+    expect(claimedAt).toBeInstanceOf(Date);
+    // The export says it was shown, in words, and never when.
+    expect(await exported(person.authority)).toBe(true);
+
+    // Clear removes the exploration, not the account's lifetime flag: it is still set, at the same moment, and still read.
+    await clearRecordingPerson(database, boss, person);
+    expect((await flag())?.universe_first_opened_at).toEqual(claimedAt);
+    const afterClear = { ...person.authority, privacyEpoch: 2 };
+    expect(await exported(afterClear)).toBe(true);
+    expect(await identity().claimFirstOpen({ accountId: person.accountId })).toEqual({ claimed: false });
+
+    // Deleting the account deletes the row that held it.
+    const use = deleting();
+    const receiptId = randomUUID();
+    expect((await use.request(afterClear, { receiptId })).kind).toBe('accepted');
+    expect(await use.process({ v: 1, deletionId: receiptId })).toBe('completed');
+    expect(await flag()).toBeUndefined();
+  });
 });

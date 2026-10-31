@@ -405,7 +405,9 @@ tab's own layout of a labelled sample universe, for the frame numbers).
 | A new native surface after resume replaces the renderer and loop; unmount releases them | implemented (unit tests, not driven on a device) |
 | Low memory: `AppState` `memoryWarning` shows the Simple drawing; a browser with `deviceMemory` of 1 GB or less opens as the lists (D-111) | implemented (unit tests; the warning is raised by iOS, not known on Android; no device-memory reading on native) |
 | Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web, Android emulator) |
-| Landmark markers, constellations, the entering animations, a friend's own look | planned (later slices) |
+| The first open and the three steps down (below) | runtime-verified (web, browser, software GL; `e2e/universe-animations-smoke.spec.ts`) |
+| A friend's own look, derived on the visitor's device from public ids | implemented (unit-tested; `e2e` draws it only through the plain fixture) |
+| Landmark markers, constellations | planned (later slices) |
 
 How it fits together. A platform canvas host (`space-canvas.web.tsx`, `space-canvas.tsx`) hands `SpaceView` a
 `SpaceSurface`. `SpaceView` loads `space-renderer.ts` (three.js) on first use, builds the scene from a
@@ -423,7 +425,38 @@ map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the form
 `universe-surface.tsx` (phone and desktop layout),
 `universe-panel.tsx` (D02 panel), `universe-lists.ts` (the lists the panel, the Simple view and the dial share), `simple/`, `dial/`,
 `universe-header.tsx`, `universe-cards.tsx`, `universe-search.ts`, `universe-search-panel.tsx`,
-`formation-presentation.tsx`. Choices are in D-039, D-108 to D-110.
+`formation-presentation.tsx`, `animation/` (the animations, below). Choices are in D-039, D-108 to D-110, D-114 to D-116.
+
+### The first open and the three steps down (v3 U-6; D-114 to D-116)
+
+Four animations, each a pure function of one time value `t` (`animation/player.ts` advances it by the time between
+`requestAnimationFrame` stamps, clamped to 0.1 s a frame and accepted at most every 33 ms): the first open (21.2 s),
+entering a system by ship (5.3 s), entering a planet (4.0 s; the ringed version when it has rings or a moon) and
+entering a world (3.2 s). Only single steps are animated (down: these four; up: a cross-fade): every single step up is a 0.3 s cross-fade (D-093, D-116) and a long
+jump goes straight to its destination. None plays under reduced motion, with Simple drawing or on the desktop layout.
+
+| Capability | Status |
+| --- | --- |
+| `animation/` pure timelines (`enter-system.ts`, `enter-planet.ts`, `enter-world.ts`, `first-open-timeline.ts`) and the player | implemented (unit-tested: each starts and ends on the screens it joins; the planet lands within a pixel of the globe at three stage sizes) |
+| The 3D scene follows a script (`space-script.ts`, `script-director.ts`): camera, rocket, parked ship, close-up glow, ring and moon hand-over | runtime-verified (web, software GL) |
+| The planet view's own globe laid over the 3D planet; the live map opened from the globe by a clipped circle | runtime-verified (web) |
+| The session's gate: taps ignored while one plays, Back/Up/Escape jump it to its end frame | implemented (unit and component tests) |
+| The first open: claimed once per account (`claimFirstOpen`) only once its WebGL context exists, remembered on the device, Skip, Escape and hardware Back (while the tab is in front) end it; the real screen is never rebuilt at the handover; an account with places gets a 0.3 s cross-fade at 19.6 s (D-115) | runtime-verified (web); native not driven on a device |
+| The cap holds while they play (frames at least 32 ms apart, drawing buffer at most 1.5 pixels per pixel) | runtime-verified (web) |
+
+How it fits together. `UniverseSurface` calls `useUniverseAnimation`, which notices a step down while rendering (so the first
+frame is already the animation's first frame), starts the player in a layout effect and closes the session's gate
+(`withTransitionGate`). `UniverseStage` draws the step: the 3D stage with the renderer's script (a system, a planet), the planet
+view's globe laid over the planet by the projection the renderer reports each frame (`GlobeLayer`), or the globe and the live map
+in a clipped circle (`WorldLayers`). The screen being left stays on screen, fading, while the destination's chrome rises
+(`step-chrome.ts`, `ChromeSlot`); values move through `Animated.Value`s written from the clock, so a frame re-renders nothing.
+The first open (`animation/first-open.tsx`, `space/first-open-renderer.ts`) is its own three.js scene on the same canvas host and
+loop, drawn before the real screen is mounted. A friend's universe gets the same steps down (system, planet) and a look derived
+on the visitor's device (`features/visit/visitor-scene.ts`).
+
+Not as designed: the first open's star is the approved sun (no painted convection cells) and the asteroids share one painted rock; the
+planet view's stars come from the 3D sky until the hand-over; the overview's names vanish at the start instead of fading; the
+destination header rises as one piece; the empty state rises as one piece.
 
 ## Mounted Keep lifecycle
 

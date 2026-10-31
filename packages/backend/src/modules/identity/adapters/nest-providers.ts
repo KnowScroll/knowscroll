@@ -17,6 +17,7 @@ import {
   insertPersonalReceipt,
   requestHash,
 } from '../../../infrastructure/receipts/index.js';
+import { makeClaimFirstOpen } from '../application/first-open.js';
 import { makeIssueOperatorSignIn } from '../application/issue-operator-sign-in.js';
 import type { MailSender, ReceiptPorts, SessionPorts } from '../application/ports.js';
 import { makeRedeemSignIn } from '../application/redeem-sign-in.js';
@@ -33,6 +34,7 @@ import {
 } from '../application/sessions.js';
 import { operatorAddressMatcher, signInLinkFor } from '../domain/policy.js';
 import {
+  CLAIM_FIRST_OPEN,
   END_OTHER_SESSIONS,
   END_SESSION,
   LIST_SESSIONS,
@@ -54,6 +56,7 @@ import {
 import { agentMailSender } from './agentmail-sender.js';
 import { fixtureMailSender } from './fixture-mail-sender.js';
 import {
+  claimUniverseFirstOpen,
   consumeLink,
   createAccount,
   createOperatorLink,
@@ -203,6 +206,7 @@ export function identityUseCases(deps: {
     listSessions: makeListSessions(sessionPorts),
     endSession: makeEndSession(sessionPorts),
     endOtherSessions: makeEndOtherSessions(sessionPorts),
+    claimFirstOpen: makeClaimFirstOpen({ claim: (accountId) => claimUniverseFirstOpen(deps.db, accountId) }),
   };
 }
 
@@ -256,6 +260,7 @@ export function signInProviders(tokens: { readonly useCases: symbol }) {
     pick(LIST_SESSIONS, 'listSessions'),
     pick(END_SESSION, 'endSession'),
     pick(END_OTHER_SESSIONS, 'endOtherSessions'),
+    pick(CLAIM_FIRST_OPEN, 'claimFirstOpen'),
   ];
 }
 

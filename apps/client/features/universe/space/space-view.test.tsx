@@ -52,6 +52,7 @@ jest.mock('./load-space-renderer', () => ({
           resize: jest.fn(),
           isFar: () => false,
           setCamera: jest.fn(),
+          setScript: jest.fn(),
           setHighlight: jest.fn(),
           setDefinition: jest.fn(),
           anchors: () => [
