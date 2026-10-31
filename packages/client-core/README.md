@@ -237,6 +237,17 @@ has no label, topic or count, and the read never forms anything. Nothing is cach
 the Universe view session reads again on foreground and when the geography revision changes.
 Status: implemented, CI-verified.
 
+## The collection read (S-4, D-214 to D-216)
+
+`readCollection(scope, signal?)` (`universe-collection.ts`) reads the person's landmarks and this week's Orbit from `play`, the
+next Part to resume from `experience` and the topic of each planet from `geography`, as four independent reads: a part
+that cannot be read is left out and the rest is shown, and the result is `unavailable` only when none could be (the
+caller then keeps what it had). It sends the device's own time zone (`deviceTimeZone`). `placeLandmarks` sets each
+landmark on the planet of its topic when that planet is on the map, and in the tray otherwise; it never looks at a
+landmark's finish. `orbitWords` says "Orbit · 1 of 3 days this week". Nothing here writes or is stored on the device. Used by
+the Universe's own session only; a friend's visit holds an empty collection. *Implemented; unit-tested
+(`universe-collection.test.ts`).*
+
 ## Formation presentation
 
 Related: #363.

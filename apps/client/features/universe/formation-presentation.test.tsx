@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { createAccountScope, memoryStore, type AccountScope } from '@knowscroll/client-core';
 import { FormationPresentation } from './formation-presentation';
 import { createUniverseViewSession } from './universe-session';
-import { fixtureAccount, fixtureId as id, sceneFixture } from './universe.fixture';
+import { COLLECTION_READS, fixtureAccount, fixtureId as id, sceneFixture } from './universe.fixture';
 // Native UUID stub is replaced only in these authored HTTP/component fixtures.
 jest.mock('../../platform/command-id', () => {
   let n = 40000;
@@ -143,7 +143,11 @@ it('claims before mounting a reduced-motion final still and caption, then shown 
   expect(h.session.getState().focusId).toBe(id(12));
   expect(h.session.getState().historyDepth).toBe(1);
   expect(screen.queryByRole('dialog')).toBeNull();
-  expect(h.calls.every((c) => c.path.startsWith('/v1/universe/') || c.path === '/v1/rooms/stations')).toBe(true);
+  expect(
+    h.calls.every(
+      (c) => c.path.startsWith('/v1/universe/') || c.path === '/v1/rooms/stations' || COLLECTION_READS.includes(c.path),
+    ),
+  ).toBe(true);
   await v.unmount();
 });
 it('full presentation survives its own root-hint refresh of the same validated scene and sends shown only after actual2400ms mounted duration', async () => {

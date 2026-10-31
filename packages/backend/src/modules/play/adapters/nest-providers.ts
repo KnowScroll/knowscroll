@@ -1,4 +1,9 @@
-import { READ_SCROLL_PLAY_FACTS, type ReadScrollPlayFacts } from '../../content/public.js';
+import {
+  READ_ENCOUNTER_TOPICS,
+  READ_SCROLL_PLAY_FACTS,
+  type ReadEncounterTopics,
+  type ReadScrollPlayFacts,
+} from '../../content/public.js';
 import { HAS_ACTIVATED_EXPOSURE, type HasActivatedExposure } from '../../experience/public.js';
 import {
   FENCE_OWN_ACCOUNT,
@@ -17,6 +22,7 @@ import {
 import { makeLockCall } from '../application/lock-call.js';
 import type { PlayPorts } from '../application/ports.js';
 import { makeReadLandmarks } from '../application/read-landmarks.js';
+import { makeReadOrbit } from '../application/read-orbit.js';
 import { makeReadResults } from '../application/read-results.js';
 import { PLAY_USE_CASES, type PlayUseCases } from '../public.js';
 import { playStore } from './play-store.js';
@@ -28,6 +34,7 @@ export interface PlayDeps {
   readonly fenceRecording: FencePersonalRecording;
   readonly hasActivatedExposure: HasActivatedExposure;
   readonly readFacts: ReadScrollPlayFacts;
+  readonly readTopics: ReadEncounterTopics;
 }
 
 /** The play use cases over PostgreSQL: the receipt store, the neighbours' public reads and the two tables. */
@@ -43,12 +50,14 @@ export function playUseCases(deps: PlayDeps): PlayUseCases {
       completePersonalReceipt(scope, commandId, outcome as { readonly [key: string]: CanonicalJson }),
     hasActivatedExposure: deps.hasActivatedExposure,
     readFacts: deps.readFacts,
+    readTopics: deps.readTopics,
     store: playStore,
   };
   return {
     lockCall: makeLockCall(ports),
     readResults: makeReadResults(ports),
     readLandmarks: makeReadLandmarks(ports),
+    readOrbit: makeReadOrbit(ports),
   };
 }
 
@@ -63,6 +72,7 @@ export function playProviders(tokens: { readonly withPersonalScope: symbol }) {
         FENCE_PERSONAL_RECORDING,
         HAS_ACTIVATED_EXPOSURE,
         READ_SCROLL_PLAY_FACTS,
+        READ_ENCOUNTER_TOPICS,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -70,7 +80,9 @@ export function playProviders(tokens: { readonly withPersonalScope: symbol }) {
         fenceRecording: FencePersonalRecording,
         hasActivatedExposure: HasActivatedExposure,
         readFacts: ReadScrollPlayFacts,
-      ): PlayUseCases => playUseCases({ withScope, fenceOwn, fenceRecording, hasActivatedExposure, readFacts }),
+        readTopics: ReadEncounterTopics,
+      ): PlayUseCases =>
+        playUseCases({ withScope, fenceOwn, fenceRecording, hasActivatedExposure, readFacts, readTopics }),
     },
   ];
 }

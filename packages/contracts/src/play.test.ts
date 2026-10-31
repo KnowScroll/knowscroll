@@ -79,11 +79,12 @@ describe('results', () => {
       expect(ScrollResultsSchema.safeParse({ ...results, ...extra }).success).toBe(false);
   });
 
-  it('are served by three routes, all under /v1/play', () => {
-    expect(Object.keys(apiContract.play).sort()).toEqual(['lockCall', 'readLandmarks', 'readResults']);
+  it('are served by four routes, all under /v1/play', () => {
+    expect(Object.keys(apiContract.play).sort()).toEqual(['lockCall', 'readLandmarks', 'readOrbit', 'readResults']);
     expect(playContract.lockCall['~orpc'].route.path).toBe('/v1/play/calls/lock');
     expect(playContract.readResults['~orpc'].route.path).toBe('/v1/play/results/read');
     expect(playContract.readLandmarks['~orpc'].route.path).toBe('/v1/play/landmarks/read');
+    expect(playContract.readOrbit['~orpc'].route.path).toBe('/v1/play/orbit/read');
   });
 
   it('carry the landmark the Final call awarded, with its finish, and allow five sparks (the combo bonus)', () => {

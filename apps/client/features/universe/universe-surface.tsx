@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NO_COLLECTION } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
 import { content, layer, layout, space, spacing } from '@knowscroll/design-tokens';
@@ -9,6 +10,8 @@ import { Reveal, type Rising } from './animation/animated';
 import type { AnimationPlayer } from './animation/player';
 import { stepChrome } from './animation/step-chrome';
 import { useUniverseAnimation } from './animation/use-universe-animation';
+import { CollectionSection, CollectionSheet, CollectionStrip, LandmarkTray } from './collection/collection-parts';
+import { collectionViewOf } from './collection/collection-view';
 import { OrbitDial } from './dial/orbit-dial';
 import { SimpleUniverse } from './simple/simple-universe';
 import { UniverseBackdrop } from './universe-backdrop';
@@ -75,6 +78,11 @@ export function UniverseSurface({
   const focused = places.find((place) => place.id === state.focusId);
   const picked = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
   const regionCard = state.overlay === 'place' && focused?.kind === 'region' ? focused : undefined;
+  // Landmarks, the Orbit and the next Part are the person's own: a friend's universe is given none (D-214).
+  const collection = useMemo(
+    () => collectionViewOf(visitor ? NO_COLLECTION : state.collection.collection, index),
+    [visitor, state.collection.collection, index],
+  );
   const [dustNote, setDustNote] = useState(false);
   const [refusedPlanetId, setRefusedPlanetId] = useState<string | null>(null);
   // Why 3D cannot be drawn, if it cannot: the tab is then the Simple lists, by itself (D-111).
@@ -142,6 +150,23 @@ export function UniverseSurface({
     <DustNote onClose={() => setDustNote(false)} />
   ) : null;
   const bottomInset = wide ? spacing[5] : layout.tabBarSlot + insets.bottom;
+  const openCollection = () => session.showOverlay('collection');
+  const sheet =
+    !visitor && state.overlay === 'collection' ? (
+      <CollectionSheet
+        view={collection}
+        onClose={() => session.showOverlay(null)}
+        onPlanet={(planetId) => void session.focus(planetId)}
+      />
+    ) : null;
+  // A landmark whose planet has not formed waits here (D-084); it takes no room while a card or the sheet is open.
+  const tray =
+    !visitor && !card && !sheet && state.overlay !== 'search' && collection.waiting.length > 0 ? (
+      <LandmarkTray view={collection} onSee={openCollection} />
+    ) : null;
+  const collectionPanel = visitor ? null : (
+    <CollectionSection view={collection} onPlanet={(planetId) => void session.focus(planetId)} />
+  );
 
   const headerOf = (shown: UniverseView): ReactNode =>
     searching ? (
@@ -206,7 +231,7 @@ export function UniverseSurface({
         })
       : [];
   const chipsOf = (shown: UniverseView): ReactNode =>
-    !card && !searching ? (
+    !card && !sheet && !searching ? (
       <View style={styles.chips}>
         {shown.kind === 'universe' && returnTo && returnTo.id !== state.focusId ? (
           <SpaceChip
@@ -265,6 +290,7 @@ export function UniverseSurface({
         {...(simpleDrawing ? { onTurnOff: () => turnSimple(false) } : {})}
         {...(searching ? { searchPanel: header } : {})}
         {...(panel || !card ? {} : { card })}
+        {...(collectionPanel ? { collection: collectionPanel } : {})}
         {...(refusedPlanetId !== null && !simpleDrawing && view.kind === 'planet'
           ? { forcedPlanetId: refusedPlanetId }
           : {})}
@@ -292,6 +318,7 @@ export function UniverseSurface({
             session={session}
             state={state}
             index={index}
+            landmarksByPlanet={collection.byPlanet}
             onSearch={openSearch}
             onDust={() => setDustNote(true)}
             stations={stations}
@@ -317,6 +344,9 @@ export function UniverseSurface({
                 <Tag label={status} variant="onDark" />
               </View>
             ) : null}
+            {!visitor && !searching && !wide ? (
+              <CollectionStrip view={collection} onLandmarks={openCollection} />
+            ) : null}
           </View>
           <ChromeSlot
             player={animation.player}
@@ -330,7 +360,9 @@ export function UniverseSurface({
             {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
               <DormantNote session={session} index={index} systemId={view.system.objectId} />
             ) : null}
+            {sheet}
             {panel ? null : card}
+            {tray}
             <ChromeSlot
               player={animation.player}
               now={chips}
@@ -375,6 +407,7 @@ export function UniverseSurface({
               {...(visitor ? { owner: visitor.ownerName } : {})}
               simple={simpleDrawing}
               card={card}
+              collection={collectionPanel}
               onSearch={openSearch}
               onSimple={turnSimple}
               {...(onStation ? { onStation } : {})}

@@ -107,6 +107,7 @@ function fixture(options: Options = {}) {
     hasActivatedExposure: () => Promise.resolve(options.exposure ?? true),
     readFacts: () =>
       Promise.resolve('revisionFacts' in options ? options.revisionFacts : { calls, landmark: undefined }),
+    readTopics: () => Promise.resolve([]),
     store: {
       readPlay: () => Promise.resolve({ calls: order.map((stopId) => stored.get(stopId)!), tally, landmark }),
       insertLandmark: (_scope, awarded: NewLandmark) => {
@@ -115,6 +116,7 @@ function fixture(options: Options = {}) {
         return Promise.resolve();
       },
       listLandmarks: () => Promise.resolve([]),
+      readPlayDays: () => Promise.resolve({ today: '2026-11-02', playedDays: [] }),
       insertCall: (_scope, call: NewCall, next) => {
         writes.push('call');
         order.push(call.stopId);

@@ -2,8 +2,13 @@ import 'reflect-metadata';
 import { call } from '@orpc/server';
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import type { EmergingUniverse, GeographySnapshot, UniverseDeltas } from '@knowscroll/contracts';
-import type { ReadOwnGeography, ReadOwnDeltas, ReadOwnEmerging } from '@knowscroll/backend/modules/geography';
+import type { EmergingUniverse, GeographySnapshot, PlaceConcepts, UniverseDeltas } from '@knowscroll/contracts';
+import type {
+  ReadOwnGeography,
+  ReadOwnDeltas,
+  ReadOwnEmerging,
+  ReadOwnPlaceConcepts,
+} from '@knowscroll/backend/modules/geography';
 import type { Caller } from './callers.js';
 import { scopeGuard } from './scope-guard.js';
 import { GeographyController } from './geography.controller.js';
@@ -41,6 +46,11 @@ const emerging: EmergingUniverse = {
   recordedAt: '2026-10-20T00:00:00.000Z',
   dust: [{ id: '0199a000-0000-7000-8000-000000000003' }],
 };
+const concepts: PlaceConcepts = {
+  ...base,
+  version: 'universe-place-concepts.v1',
+  planets: [{ id: '0199a000-0000-7000-8000-000000000004', topicId: 'seasons' }],
+};
 async function admittedRequest(): Promise<Request> {
   const request = {
     path: '/v1/universe/geography/read',
@@ -58,12 +68,13 @@ function wired() {
   const read = vi.fn<ReadOwnGeography>(() => Promise.resolve({ kind: 'read', snapshot }));
   const changes = vi.fn<ReadOwnDeltas>(() => Promise.resolve({ kind: 'read', deltas }));
   const gathering = vi.fn<ReadOwnEmerging>(() => Promise.resolve({ kind: 'read', emerging }));
-  return { controller: new GeographyController(read, changes, gathering), read, changes, gathering };
+  const places = vi.fn<ReadOwnPlaceConcepts>(() => Promise.resolve({ kind: 'read', concepts }));
+  return { controller: new GeographyController(read, changes, gathering, places), read, changes, gathering, places };
 }
 
 describe('Geography guarded read-only HTTP adapter', () => {
   it('uses only admitted authority and returns the independent backend snapshots unchanged', async () => {
-    const { controller, read, changes, gathering } = wired();
+    const { controller, read, changes, gathering, places } = wired();
     const request = await admittedRequest();
     expect(await call(controller.readRoute(request), input)).toEqual(snapshot);
     expect(read).toHaveBeenCalledExactlyOnceWith(authority, input);
@@ -73,14 +84,21 @@ describe('Geography guarded read-only HTTP adapter', () => {
     expect(read).toHaveBeenCalledOnce();
     expect(await call(controller.emergingRoute(request), {})).toEqual(emerging);
     expect(gathering).toHaveBeenCalledExactlyOnceWith(authority, {});
+    expect(await call(controller.placeConceptsRoute(request), {})).toEqual(concepts);
+    expect(places).toHaveBeenCalledExactlyOnceWith(authority, {});
   });
 
   it('maps foreign or missing selection to the same sanitized problem and scope refusal consistently', async () => {
     const read: ReadOwnGeography = () => Promise.resolve({ kind: 'refused', reason: 'selection_not_found' });
     const changes: ReadOwnDeltas = () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' });
     const gathering: ReadOwnEmerging = () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' });
-    const controller = new GeographyController(read, changes, gathering);
+    const places: ReadOwnPlaceConcepts = () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' });
+    const controller = new GeographyController(read, changes, gathering, places);
     const request = await admittedRequest();
+    await expect(call(controller.placeConceptsRoute(request), {})).rejects.toMatchObject({
+      code: 'UNIVERSE_UNAVAILABLE',
+      data: {},
+    });
     await expect(call(controller.readRoute(request), input)).rejects.toMatchObject({ code: 'NOT_FOUND', data: {} });
     await expect(call(controller.emergingRoute(request), {})).rejects.toMatchObject({
       code: 'UNIVERSE_UNAVAILABLE',
@@ -94,6 +112,7 @@ describe('Geography guarded read-only HTTP adapter', () => {
       () => Promise.resolve({ kind: 'refused', reason: 'scope_refused' }),
       changes,
       gathering,
+      places,
     );
     await expect(call(refused.readRoute(request), input)).rejects.toMatchObject({
       code: 'UNIVERSE_UNAVAILABLE',
@@ -102,11 +121,13 @@ describe('Geography guarded read-only HTTP adapter', () => {
   });
 
   it('refuses unguarded calls before either backend read', async () => {
-    const { controller, read, changes, gathering } = wired();
+    const { controller, read, changes, gathering, places } = wired();
     const request = {} as unknown as Request;
     await expect(call(controller.readRoute(request), input)).rejects.toThrow('without the scope guard');
     await expect(call(controller.deltasRoute(request), deltaInput)).rejects.toThrow('without the scope guard');
     await expect(call(controller.emergingRoute(request), {})).rejects.toThrow('without the scope guard');
+    await expect(call(controller.placeConceptsRoute(request), {})).rejects.toThrow('without the scope guard');
+    expect(places).not.toHaveBeenCalled();
     expect(read).not.toHaveBeenCalled();
     expect(changes).not.toHaveBeenCalled();
     expect(gathering).not.toHaveBeenCalled();
@@ -139,8 +160,8 @@ describe('Geography guarded read-only HTTP adapter', () => {
   it('validates backend output instead of serving malformed geography', async () => {
     const read: ReadOwnGeography = () =>
       Promise.resolve({ kind: 'read', snapshot: { ...snapshot, universeId: 'bad' } });
-    const { changes, gathering } = wired();
-    const controller = new GeographyController(read, changes, gathering);
+    const { changes, gathering, places } = wired();
+    const controller = new GeographyController(read, changes, gathering, places);
     await expect(call(controller.readRoute(await admittedRequest()), input)).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
     });

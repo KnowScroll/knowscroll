@@ -42,6 +42,7 @@ export { buildSceneGeometry } from './geometry.js';
 export { seededUnit } from './seed.js';
 export { buildGlobe, buildMap } from './world/build-world.js';
 export { chartWorld } from './world/chart.js';
+export { landmarkSpots, MAX_LANDMARK_SPOTS } from './world/landmark-spots.js';
 export type { Chart, ChartedCell, RegionSite, UnreachedLand } from './world/chart.js';
 export type { Loop } from './world/contours.js';
 export type {

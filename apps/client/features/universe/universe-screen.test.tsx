@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { AppState } from 'react-native';
 import { UniverseScreen, unavailableWords } from './universe-screen';
 import { fakeGpu, resetFakeGpu } from './space/fake-space-gpu';
-import { fixtureAccount, fixtureId, sceneFixture, universeHarness } from './universe.fixture';
+import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture, universeHarness } from './universe.fixture';
 import { createAccountScope, memoryStore } from '@knowscroll/client-core';
 import { DisplayProvider } from '@knowscroll/ui';
 import { universeSessionFor } from './use-universe-session';
@@ -23,7 +23,8 @@ jest.mock('../../platform/command-id', () => {
   return { newCommandId: () => `0199a000-0000-7000-8000-${(next++).toString(16).padStart(12, '0')}` };
 });
 /** The Universe reads the map, and the room stations beside it: reads both, and nothing else. */
-const universeRead = (path: string) => path.startsWith('/v1/universe/') || path === '/v1/rooms/stations';
+const universeRead = (path: string) =>
+  path.startsWith('/v1/universe/') || path === '/v1/rooms/stations' || COLLECTION_READS.includes(path);
 // The real stage, loop and overlay over a stand-in for the GPU (no WebGL claimed; e2e/universe-smoke.spec.ts draws for real).
 jest.mock('./space/space-canvas', () => ({
   SpaceCanvas: jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.Canvas,

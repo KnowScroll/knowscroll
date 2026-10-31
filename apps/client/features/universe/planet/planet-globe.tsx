@@ -14,6 +14,7 @@ import Svg, {
 } from 'react-native-svg';
 import { fontFamily } from '@knowscroll/design-tokens';
 import type { Chart, GlobeWorld } from '@knowscroll/scene-core';
+import { LandmarkMark, type LandmarkMarker } from '../collection/landmark-mark';
 import { useFocusRing } from '@knowscroll/ui';
 import { useGlobeMotion, type GlobeMotion } from './globe-motion';
 import type { PlanetPalette } from './planet-palette';
@@ -40,6 +41,7 @@ export function globePlacement(size: { readonly width: number; readonly height: 
 }
 
 const unique = (raw: string) => raw.replaceAll(/[^a-zA-Z0-9]/g, '');
+const NO_MARKERS: readonly LandmarkMarker[] = [];
 
 /** The land of one copy of the band: shallows, foam, every continent in colour, patches and coasts. */
 function Land({ world, chart, palette }: { world: GlobeWorld; chart: Chart; palette: PlanetPalette }) {
@@ -123,6 +125,7 @@ const Surface = memo(function Surface({
   chart,
   palette,
   labels,
+  markers,
   width,
   height,
 }: {
@@ -130,6 +133,7 @@ const Surface = memo(function Surface({
   chart: Chart;
   palette: PlanetPalette;
   labels: ReadonlyMap<string, string>;
+  markers: readonly LandmarkMarker[];
   width: number;
   height: number;
 }) {
@@ -138,6 +142,9 @@ const Surface = memo(function Surface({
     <G key={index} clipPath={`url(#${id}${index})`}>
       <G transform={`translate(${index * BAND} 0)`}>
         <Land world={world} chart={chart} palette={palette} />
+        {markers.map((marker) => (
+          <LandmarkMark key={marker.key} at={marker.at} tier={marker.tier} />
+        ))}
         {chart.charted.map((cell) => (
           <Name
             key={cell.objectId}
@@ -320,6 +327,8 @@ export interface PlanetGlobeProps {
   readonly reducedMotion: boolean;
   readonly rings: boolean;
   readonly moon: boolean;
+  /** The landmarks standing on this planet, painted on the land (D-089). */
+  readonly markers?: readonly LandmarkMarker[];
   /** `undefined` where landing is not offered (a friend's visit, a planet with nothing charted). */
   readonly onLand: (() => void) | undefined;
   readonly landLabel: string;
@@ -332,7 +341,20 @@ export interface PlanetGlobeProps {
  * technology; the one control is the "Land on" button.
  */
 export function PlanetGlobe(props: PlanetGlobeProps) {
-  const { world, chart, palette, labels, size, frame, reducedMotion, rings, moon, onLand, landLabel } = props;
+  const {
+    world,
+    chart,
+    palette,
+    labels,
+    markers = NO_MARKERS,
+    size,
+    frame,
+    reducedMotion,
+    rings,
+    moon,
+    onLand,
+    landLabel,
+  } = props;
   const { diameter, ...centre } = globePlacement(size);
   const unit = diameter / BAND_HEIGHT;
   const scale = diameter / DESIGN_GLOBE;
@@ -390,6 +412,7 @@ export function PlanetGlobe(props: PlanetGlobeProps) {
               chart={chart}
               palette={palette}
               labels={labels}
+              markers={markers}
               width={bandWidth}
               height={diameter}
             />

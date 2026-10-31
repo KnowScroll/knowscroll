@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import type { CollectionLandmark } from '@knowscroll/client-core';
 import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
 import { TapRing, usePlayerValue, useFeedValue } from './animation/animated';
 import { chromeAt as systemChrome } from './animation/enter-system';
@@ -87,6 +88,7 @@ export function UniverseStage({
   pickPlanets,
   animation,
   onSize,
+  landmarksByPlanet,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -107,6 +109,8 @@ export function UniverseStage({
   readonly animation: UniverseAnimation;
   /** The stage's size, whenever it is measured: the planet view's globe is placed from it. */
   readonly onSize: (size: Size) => void;
+  /** The landmarks standing on each planet (D-089). Empty on a friend's universe. */
+  readonly landmarksByPlanet?: ReadonlyMap<string, readonly CollectionLandmark[]>;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -191,6 +195,9 @@ export function UniverseStage({
             selectedRegion={view.selectedRegion}
             visitor={visitor === true}
             onRefused={onRefused}
+            {...(landmarksByPlanet?.get(view.planet.objectId)
+              ? { landmarks: landmarksByPlanet.get(view.planet.objectId)! }
+              : {})}
           />
         ) : null}
         {view.kind === 'planet' && isPlanetEntry(step) && step.from.kind === 'system' ? (

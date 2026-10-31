@@ -4,6 +4,7 @@ import Svg, { G, Path, Text as SvgText } from 'react-native-svg';
 import { fontFamily } from '@knowscroll/design-tokens';
 import type { Chart, ChartedCell, MapWorld } from '@knowscroll/scene-core';
 import { Text } from '@knowscroll/ui';
+import { LandmarkMark, type LandmarkMarker } from '../collection/landmark-mark';
 import { BodyTarget, SceneLayer } from '../scene-parts';
 import type { UniverseFrame } from '../universe-camera';
 import type { Size } from '../universe-layout';
@@ -44,6 +45,8 @@ export interface PlanetMapProps {
   readonly arrival?: { readonly names: Animated.Value; readonly clouds: boolean };
   /** Regions that are hypothetical, so a screen reader hears it (their drawing is the same). */
   readonly hypothetical?: ReadonlySet<string>;
+  /** The landmarks standing on this planet, painted on the land (D-089). */
+  readonly markers?: readonly LandmarkMarker[];
 }
 
 /** The chosen region keeps its colour under a white glow and everything else dims. */
@@ -185,6 +188,9 @@ export function PlanetMap(props: PlanetMapProps) {
         <Svg width={size.width} height={size.height}>
           <G transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
             <MapLand world={world} chart={chart} palette={palette} onChoose={choose} />
+            {props.markers?.map((marker) => (
+              <LandmarkMark key={marker.key} at={marker.at} tier={marker.tier} scale={1.3} />
+            ))}
             {chosen ? <Spotlight cell={chosen} scale={view.scale} /> : null}
             {props.arrival?.clouds === false ? null : <MapClouds world={world} chart={chart} palette={palette} />}
           </G>

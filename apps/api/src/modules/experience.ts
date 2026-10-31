@@ -20,6 +20,7 @@ import {
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
+  READ_RESUME,
   APPLY_ENCOUNTER_ACTION,
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import {
@@ -106,5 +107,6 @@ export {
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
+  READ_RESUME,
   APPLY_ENCOUNTER_ACTION,
 };
