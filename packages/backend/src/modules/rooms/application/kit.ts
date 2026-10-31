@@ -98,6 +98,12 @@ function hashOf(text: string): number {
   return hash >>> 0;
 }
 
+/**
+ * The glyphs a room's default may wear: the vocabulary of the first release. Glyphs added later (D-172) are not in it,
+ * so growing the vocabulary never changes the look of a room that has no approved kit; a default has no topic to pick from.
+ */
+export const DEFAULT_GLYPHS = ROOM_EMBLEM_GLYPHS.slice(0, 14);
+
 function pick<T>(list: readonly T[], seed: number, step: number): T {
   return list[Math.floor(seed / step) % list.length] as T;
 }
@@ -110,17 +116,16 @@ function pick<T>(list: readonly T[], seed: number, step: number): T {
 export function defaultKit(roomId: string): RoomKit {
   const seed = hashOf(roomId);
   const [ground, accent, ink] = pick(PALETTES, seed, 1);
-  const explainer = pick(ROOM_EMBLEM_GLYPHS, seed, 7);
+  const explainer = pick(DEFAULT_GLYPHS, seed, 7);
   // The Skeptic's mark is never the Explainer's.
-  const skepticIndex =
-    (ROOM_EMBLEM_GLYPHS.indexOf(explainer) + 1 + (Math.floor(seed / 13) % 5)) % ROOM_EMBLEM_GLYPHS.length;
+  const skepticIndex = (DEFAULT_GLYPHS.indexOf(explainer) + 1 + (Math.floor(seed / 13) % 5)) % DEFAULT_GLYPHS.length;
   return {
     version: ROOM_KIT_VERSION,
     palette: { ground, accent, ink },
-    emblem: { frame: pick(ROOM_EMBLEM_FRAMES, seed, 3), glyph: pick(ROOM_EMBLEM_GLYPHS, seed, 5) },
+    emblem: { frame: pick(ROOM_EMBLEM_FRAMES, seed, 3), glyph: pick(DEFAULT_GLYPHS, seed, 5) },
     motif: pick(ROOM_MOTIFS, seed, 11),
     motion: pick(ROOM_MOTIONS, seed, 17),
-    cast: { explainer, skeptic: ROOM_EMBLEM_GLYPHS[skepticIndex] ?? explainer },
+    cast: { explainer, skeptic: DEFAULT_GLYPHS[skepticIndex] ?? explainer },
   };
 }
 

@@ -18,7 +18,7 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
   const fixtures: { assetId: string; revision: number; unit: string; topic: string }[] = [];
   beforeAll(async () => {
     database = await createTestDatabase<Database>('composer_context');
-    c = await scrollUseCases(database, { recording: true });
+    c = await scrollUseCases(database, { recording: true, composerPolicy: 'v1' });
     for (const name of ['positive', 'zero', 'missing']) {
       const src = starterSource() as { assetId: string; publication: { explanationUnitId: string } };
       src.assetId = randomUUID();
@@ -139,9 +139,12 @@ describe('navigation consumes the PC snapshot (real PostgreSQL, authored CI fixt
     const positive = input.topics.find((t) => t.topicId === fixtures[0]!.topic)!;
     expect(positive.activity).toBeGreaterThan(0);
     expect(positive.formats.find((f) => f.kind === 'scroll')).toEqual({ kind: 'scroll', measured: 1, qualified: 1 });
-    expect(decision.evaluations.find((e) => e.assetId === fixtures[0]!.assetId)?.features).toMatchObject({
-      format: 2 / 3,
-    });
+    // The reading was of a plain Scroll, so it is one qualified encounter in the plain cell as well (D-192). Under policy v1
+    // the Format of a plain candidate is that cell shrunk toward the person's other levels, of which there are none
+    // (even odds): (1 + 4 * 1/2) / (1 + 4).
+    expect(positive.cells).toEqual([{ kind: 'scroll', level: 'plain', measured: 1, qualified: 1 }]);
+    expect(decision.policyVersion).toBe('composer-policy.v1');
+    expect(decision.evaluations.find((e) => e.assetId === fixtures[0]!.assetId)?.features.format).toBeCloseTo(0.6, 12);
     expect(decision.evaluations.find((e) => e.assetId === fixtures[0]!.assetId)?.features.interest).toBeCloseTo(
       positive.activity / (1 + positive.activity),
       12,

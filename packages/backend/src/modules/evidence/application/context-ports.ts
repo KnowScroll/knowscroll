@@ -1,6 +1,7 @@
 import type { ObservedCoverage } from '../domain/coverage.js';
 import type { ActivityChannels } from '../domain/activity.js';
 import type { PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
+import type { PlayLevel } from '../../content/public.js';
 /** Minimal projection event contract, independent of Experience's implementation types. */
 export interface LegacyActivityDerivedInput {
   /** Actual current Evidence activity audit identity; unchanged activity reuses its ID. */
@@ -56,15 +57,27 @@ export interface ActivityDerivedEffect extends LegacyActivityDerivedEffect {
   readonly applyRecording: (scope: RecordingScopeTx, projection: RecordingActivityDerivedInput) => Promise<boolean>;
   readonly isRecordingCurrent: (scope: RecordingScopeTx, projection: RecordingActivityDerivedInput) => Promise<boolean>;
 }
+/**
+ * Measured and qualified encounters of one topic and kind at one play level. They count reading
+ * only (a qualified response is q >= 0.6), never a pick, a result, a spark or a tier (D-063, D-192).
+ */
+export interface FormatCell {
+  readonly kind: 'reel' | 'scroll';
+  readonly level: PlayLevel;
+  readonly measured: number;
+  readonly qualified: number;
+}
 export interface ActivityStatistics {
   readonly topicId: string;
   readonly activity: number;
   readonly channels: Readonly<Record<'q' | 'L' | 'B' | 'S' | 'H' | 'R', number>>;
+  /** Per kind, over every play level: the parent of the cells. */
   readonly formats: readonly {
     readonly kind: 'reel' | 'scroll';
     readonly measured: number;
     readonly qualified: number;
   }[];
+  readonly cells: readonly FormatCell[];
 }
 export type ReadActivityStatistics = (
   scope: PersonalScopeTx,

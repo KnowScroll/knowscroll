@@ -105,6 +105,8 @@ export interface ApiConfig extends ReleaseIdentity {
    * is on, so a world that leaves it off queues nothing. The worker reads the same variable.
    */
   readonly roomResidentsEnabled: boolean;
+  /** `KS_COMPOSER_POLICY`: the policy navigation ranks new decisions under (D-190). */
+  readonly composerPolicy: 'v0' | 'v1';
 }
 
 /** The operator sign-in command (`dist/operator.js`), refused unless enabled outside live. */
@@ -133,6 +135,8 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly cartographerEnabled: boolean;
   /** Jev's optional semantic assessment in the Composer buffer job; default off, on for dev. */
   readonly jevEnabled: boolean;
+  /** `KS_COMPOSER_POLICY`: the policy the buffer job ranks new decisions under (D-190); default `v0`. */
+  readonly composerPolicy: 'v0' | 'v1';
   /** Shared Scroll productions that people's requests may start per UTC day; 0 turns Create off. */
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
@@ -243,6 +247,11 @@ const supplyPlannerCapVariable = z.coerce.number().int().min(0).max(500).default
 const supplyScenarioDailyCapVariable = z.coerce.number().int().min(0).max(500).optional();
 /** `KS_SUPPLY_SCENARIO_THREAD_CAP`: the branches one thread may have ordered in all. Default 6. */
 const supplyScenarioThreadCapVariable = z.coerce.number().int().min(1).max(100).default(6);
+/**
+ * `KS_COMPOSER_POLICY`: the Composer policy new decisions are made under (D-190). `v0` until the numbers of v1 are
+ * chosen. Replay of a stored decision does not read it: a decision names its own policy.
+ */
+const composerPolicyVariable = z.enum(['v0', 'v1']).default('v0');
 
 const databaseVariables = {
   DATABASE_URL: PostgresUrlSchema,
@@ -300,6 +309,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
       KS_SUPPLY_SCENARIO_THREAD_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
+      KS_COMPOSER_POLICY: composerPolicyVariable,
     }),
     pick(env, [
       'DATABASE_URL',
@@ -318,6 +328,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_SCENARIO_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_THREAD_CAP',
       'KS_REASONING_ROOM_ENABLED',
+      'KS_COMPOSER_POLICY',
     ]),
   );
   const [release, parsed, identity, operatorAccounts] = combineChecks(
@@ -357,6 +368,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
     supplyScenarioThreadCap: parsed.KS_SUPPLY_SCENARIO_THREAD_CAP,
     roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
+    composerPolicy: parsed.KS_COMPOSER_POLICY,
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };
 }
@@ -691,6 +703,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_PLANNER_ENABLED: z.enum(['0', '1']).optional(),
         KS_CARTOGRAPHER_ENABLED: z.enum(['0', '1']).default('0'),
         KS_JEV_ENABLED: z.enum(['0', '1']).default('0'),
+        KS_COMPOSER_POLICY: composerPolicyVariable,
         KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
         KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
         KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
@@ -702,6 +715,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_PLANNER_ENABLED',
         'KS_CARTOGRAPHER_ENABLED',
         'KS_JEV_ENABLED',
+        'KS_COMPOSER_POLICY',
         'KS_SUPPLY_CREATE_DAILY_CAP',
         'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
         'KS_SCROLL_PRODUCTION_GENERATION',
@@ -725,6 +739,7 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     plannerEnabled: (parsed.KS_PLANNER_ENABLED ?? (release.world === 'local' ? '1' : '0')) === '1',
     cartographerEnabled: parsed.KS_CARTOGRAPHER_ENABLED === '1',
     jevEnabled: parsed.KS_JEV_ENABLED === '1',
+    composerPolicy: parsed.KS_COMPOSER_POLICY,
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
     scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,

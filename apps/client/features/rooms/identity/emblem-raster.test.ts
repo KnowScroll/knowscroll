@@ -7,7 +7,7 @@ import {
   type RoomKit,
 } from '@knowscroll/contracts';
 import { rasterEmblem } from './emblem-raster';
-import { FRAME_OUTLINES, GLYPH_SHAPES, pathOf } from './shapes';
+import { FRAME_OUTLINES, GLYPH_SHAPES, innerOutline, pathOf, type Point } from './shapes';
 
 const palette = { ground: 'midnight', accent: 'sun', ink: 'cream' } as const;
 const kitOf = (frame: RoomEmblemFrame, glyph: RoomEmblemGlyph): Pick<RoomKit, 'emblem' | 'palette'> => ({
@@ -29,6 +29,30 @@ const accentMask = (frame: RoomEmblemFrame, glyph: RoomEmblemGlyph): string => {
   for (let index = 0; index < width * height; index += 1) mask += isAccent(data, index * 4) ? '1' : '0';
   return mask;
 };
+const inside = (x: number, y: number, outline: readonly Point[]): boolean => {
+  let crossings = 0;
+  for (let index = 0; index < outline.length; index += 1) {
+    const [x1, y1] = outline[index]!;
+    const [x2, y2] = outline[(index + 1) % outline.length]!;
+    if (y1 > y !== y2 > y && x < x1 + ((y - y1) / (y2 - y1)) * (x2 - x1)) crossings += 1;
+  }
+  return crossings % 2 === 1;
+};
+/** How many accent pixels of a 160 pixel emblem lie outside the frame's inner face, that is over its border. */
+const accentOverBorder = (frame: RoomEmblemFrame, glyph: RoomEmblemGlyph): { over: number; total: number } => {
+  const size = 160;
+  const { data } = rasterEmblem(kitOf(frame, glyph), size);
+  const face = innerOutline(FRAME_OUTLINES[frame]);
+  let over = 0;
+  let total = 0;
+  for (let row = 0; row < size; row += 1)
+    for (let column = 0; column < size; column += 1) {
+      if (!isAccent(data, (row * size + column) * 4)) continue;
+      total += 1;
+      if (!inside(((column + 0.5) / size) * 24, ((row + 0.5) / size) * 24, face)) over += 1;
+    }
+  return { over, total };
+};
 const areaOf = (mask: string): number => mask.split('1').length - 1;
 
 describe('the emblem drawings', () => {
@@ -39,6 +63,19 @@ describe('the emblem drawings', () => {
     expect(thin).toEqual([]);
     const open = ROOM_EMBLEM_FRAMES.filter((frame) => FRAME_OUTLINES[frame].length < 4);
     expect(open).toEqual([]);
+  });
+
+  it('draws the globe as a disc with land cut out of it, and the cell as a membrane around a nucleus', () => {
+    expect(GLYPH_SHAPES.globe.map((shape) => shape.role)).toEqual(['mark', 'cut']);
+    expect(GLYPH_SHAPES.cell.map((shape) => shape.role)).toEqual(['mark', 'mark', 'cut']);
+    const globe = accentMask('circle', 'globe');
+    const cell = accentMask('circle', 'cell');
+    const row = (mask: string, y: number) => mask.slice(y * 32, y * 32 + 32);
+    // The globe's disc is filled on the left edge of its middle row and cut by land further in.
+    expect(row(globe, 16)).toContain('10');
+    // The cell is hollow between its membrane and nucleus: a run of accent, a gap, then accent again.
+    expect(row(cell, 16)).toMatch(/1+0+1+/);
+    expect(areaOf(globe)).toBeGreaterThan(areaOf(cell));
   });
 
   it('draws no two glyphs alike, so a word is never another word with the same picture', () => {
@@ -60,6 +97,17 @@ describe('the emblem drawings', () => {
             if (isAccent(data, (row * width + column) * 4)) strays.push(`${frame} ${glyph}`);
       }
     expect(strays).toEqual([]);
+  });
+
+  it('keeps the globe and the cell inside the face of every frame, never over its border', () => {
+    const crossing: string[] = [];
+    for (const frame of ROOM_EMBLEM_FRAMES)
+      for (const glyph of ['globe', 'cell'] as const) {
+        const { over, total } = accentOverBorder(frame, glyph);
+        if (total < 200) crossing.push(`${frame} ${glyph}: only ${String(total)} accent pixels`);
+        if (over > 0) crossing.push(`${frame} ${glyph}: ${String(over)} of ${String(total)}`);
+      }
+    expect(crossing).toEqual([]);
   });
 
   it('is transparent outside the frame, filled inside it, and cached for the same kit', () => {
