@@ -187,8 +187,9 @@ and never free text. The vocabulary and its wire shape are `packages/contracts/s
   image, with its source and the day it was read), recorded whether the image is paid or drawn from a plan's quota. A request is refused
   when the recorded total plus its estimate would pass the cap, **before any row exists**; the check and the reservation share one transaction
   that holds the advisory lock `rooms.backdrop-spend`, so two operators at once cannot both pass. Each attempt is one row of `backdrop_attempts`,
-  recorded `dispatched` before the request leaves. A provider refusal and a call that never left count nothing; everything else, an unknown
-  outcome included, keeps its full estimate. An unknown outcome (a timeout, a reset, a 502 or 504, a success with no image, or a crash) is **never
+  recorded `dispatched` before the request leaves. Only a refusal MiniMax documents as coming before an image is made (status 1002, 1004, 1008, 1026, 2013, 2049; HTTP 400, 401, 403, 404, 413,
+  422, 429) and a call that never left count nothing; everything else keeps its full estimate. An unknown outcome (any other status, HTTP 408 or a
+  5xx, a timeout, a reset, a success with no image, images blocked after generation, or a crash) is **never
   sent again** and blocks that room until an operator settles it (`backdrop-reconcile --charged yes|no`, or `backdrop-write-off`, which stays charged).
 - **Lock order.** The spend lock is taken alone, in its own transaction; it is never taken under a personal root or the room root. The kit is
   stored inside the rooms scope's own transaction (`production_scopes` root `FOR NO KEY UPDATE`), together with ending the run.

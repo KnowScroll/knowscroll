@@ -94,8 +94,7 @@ export type RoomMotion = (typeof ROOM_MOTIONS)[number];
 
 const Swatch = z.enum(ROOM_SWATCH_NAMES);
 
-/** What a model proposes: everything but the version, which code adds. */
-export const RoomKitDraftSchema = z.strictObject({
+const RoomKitShape = z.strictObject({
   palette: z.strictObject({ ground: Swatch, accent: Swatch, ink: Swatch }),
   emblem: z.strictObject({ frame: z.enum(ROOM_EMBLEM_FRAMES), glyph: z.enum(ROOM_EMBLEM_GLYPHS) }),
   motif: z.enum(ROOM_MOTIFS),
@@ -103,9 +102,24 @@ export const RoomKitDraftSchema = z.strictObject({
   /** The mark each resident wears in this room: a skin, never a face. Their names stay the catalogue's (D-163). */
   cast: z.strictObject({ explainer: z.enum(ROOM_EMBLEM_GLYPHS), skeptic: z.enum(ROOM_EMBLEM_GLYPHS) }),
 });
+
+/** The two residents of a room wear different marks, so one can tell them apart without reading their names. */
+const distinctSkins = (kit: { readonly cast: { readonly explainer: string; readonly skeptic: string } }): boolean =>
+  kit.cast.explainer !== kit.cast.skeptic;
+const SAME_SKIN = {
+  message: 'The residents wear the same mark',
+  path: ['cast'],
+  params: { safeCode: 'same_skin' },
+};
+
+/** What a model proposes: everything but the version, which code adds. */
+export const RoomKitDraftSchema = RoomKitShape.refine(distinctSkins, SAME_SKIN);
 export type RoomKitDraft = z.infer<typeof RoomKitDraftSchema>;
 
-export const RoomKitSchema = RoomKitDraftSchema.extend({ version: z.literal(ROOM_KIT_VERSION) });
+export const RoomKitSchema = RoomKitShape.extend({ version: z.literal(ROOM_KIT_VERSION) }).refine(
+  distinctSkins,
+  SAME_SKIN,
+);
 export type RoomKit = z.infer<typeof RoomKitSchema>;
 
 /** Where an approved painted backdrop is served. It is read with the session, like other media. */

@@ -84,23 +84,72 @@ describe('the MiniMax image transport', () => {
   });
 
   describe('what each failure means for the money', () => {
+    it('is not sent when the connection is refused: nothing left the machine', async () => {
+      const { transport } = port(refusedConnection);
+      expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({
+        kind: 'not_sent',
+        code: 'NOT_CONNECTED_ECONNREFUSED',
+      });
+    });
+
+    // Only what MiniMax documents as refused before an image is made counts nothing.
+    it.each([1002, 1004, 1008, 1026, 2013, 2049])(
+      'is a refusal that counts nothing: provider status %i',
+      async (code) => {
+        const { transport } = port(() => reply({ base_resp: { status_code: code } }));
+        expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({
+          kind: 'rejected',
+          code: `PROVIDER_${String(code)}`,
+        });
+      },
+    );
+
+    it.each([400, 401, 403, 404, 413, 422, 429])('is a refusal that counts nothing: HTTP %i', async (status) => {
+      const { transport } = port(() => reply('refused', status));
+      expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({
+        kind: 'rejected',
+        code: `HTTP_${String(status)}`,
+      });
+    });
+
+    // Anything else may have come after an image was made, and the pricing page does not say a failed image is free.
+    it.each([1000, 1001, 1013, 1027, 2000, 2056, 9999])(
+      'is unknown, charged and room-blocking: provider status %i',
+      async (code) => {
+        const { transport } = port(() => reply({ base_resp: { status_code: code } }));
+        expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({
+          kind: 'unknown',
+          code: `PROVIDER_${String(code)}`,
+        });
+      },
+    );
+
+    it.each([300, 302, 402, 405, 408, 409, 500, 501, 502, 503, 504, 529])('is unknown: HTTP %i', async (status) => {
+      const { transport } = port(() => reply('maybe', status));
+      expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({
+        kind: 'unknown',
+        code: `HTTP_${String(status)}`,
+      });
+    });
+
+    it('is unknown when images were blocked by content safety after they were generated', async () => {
+      const { transport } = port(() =>
+        reply({ metadata: { success_count: '0', failed_count: '1' }, base_resp: { status_code: 0 } }),
+      );
+      expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({
+        kind: 'unknown',
+        code: 'BLOCKED_AFTER_GENERATION',
+      });
+    });
+
     it.each([
-      ['a refused connection: nothing was sent', refusedConnection, 'not_sent'],
-      ['a status from the provider: it made nothing', () => reply({ base_resp: { status_code: 1008 } }), 'rejected'],
-      ['a blocked prompt', () => reply({ metadata: { failed_count: 1 }, base_resp: { status_code: 0 } }), 'rejected'],
-      ['HTTP 400', () => reply('bad', 400), 'rejected'],
-      ['HTTP 401', () => reply('no', 401), 'rejected'],
-      ['HTTP 429', () => reply('slow down', 429), 'rejected'],
-      ['HTTP 500', () => reply('oops', 500), 'rejected'],
-      ['HTTP 502: a gateway cannot say', () => reply('bad gateway', 502), 'unknown'],
-      ['HTTP 504: a gateway cannot say', () => reply('timeout', 504), 'unknown'],
-      ['a success with no image', () => reply({ base_resp: { status_code: 0 } }), 'unknown'],
-      ['a reply that is not JSON', () => reply('<html>'), 'unknown'],
-      ['a reply of the wrong shape', () => reply({ hello: 'world' }), 'unknown'],
-      ['a reply too large to read', () => reply('x'.repeat(5_000)), 'unknown'],
-    ])('%s is %s', async (_name, respond, kind) => {
+      ['a success with no image', () => reply({ base_resp: { status_code: 0 } }), 'SUCCESS_WITHOUT_IMAGE'],
+      ['a reply that is not JSON', () => reply('<html>'), 'REPLY_UNREADABLE'],
+      ['a reply of the wrong shape', () => reply({ hello: 'world' }), 'REPLY_UNREADABLE'],
+      ['a reply too large to read', () => reply('x'.repeat(5_000)), 'REPLY_TOO_LARGE'],
+    ])('is unknown: %s', async (_name, respond, code) => {
       const { transport } = port(respond);
-      expect((await transport.generate({ prompt: 'x' }, signal)).kind).toBe(kind);
+      expect(await transport.generate({ prompt: 'x' }, signal)).toEqual({ kind: 'unknown', code });
     });
 
     it('treats a reset after the request left as unknown, and a deadline as unknown too', async () => {

@@ -110,6 +110,8 @@ describe('RoomBackdropController', () => {
     expect(sent.headers['x-content-type-options']).toBe('nosniff');
     expect(sent.headers['referrer-policy']).toBe('no-referrer');
     expect(sent.headers['etag']).toBe(`"${DIGEST}"`);
+    // Kept by the device, but asked about before each use, so a rejection or a replacement takes effect at once.
+    expect(sent.headers['cache-control']).toBe('private, no-cache');
     expect(sent.body.equals(BYTES)).toBe(true);
   });
 

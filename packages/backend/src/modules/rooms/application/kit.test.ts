@@ -83,6 +83,16 @@ describe('what a model may answer', () => {
     expect(schema.safeParse({ ...draft(), ...patch }).success).toBe(false);
   });
 
+  it('refuses two residents that wear the same mark, with a fixed code', () => {
+    const result = schema.safeParse({ ...draft(), cast: { explainer: 'gear', skeptic: 'gear' } });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const [issue] = result.error.issues;
+      expect(issue?.path).toEqual(['cast']);
+      expect((issue as { params?: { safeCode?: string } }).params?.safeCode).toBe('same_skin');
+    }
+  });
+
   it('refuses low contrast with a fixed code, never with anything the model wrote', () => {
     const result = schema.safeParse(draft({ ink: 'forest' }));
     expect(result.success).toBe(false);
@@ -138,6 +148,7 @@ describe('the kit to show', () => {
       'a palette that does not read',
       { ...kitOfDraft(draft()), palette: { ground: 'midnight', accent: 'sun', ink: 'plum' } },
     ],
+    ['two residents wearing the same mark', { ...kitOfDraft(draft()), cast: { explainer: 'star', skeptic: 'star' } }],
     ['not an object', 'station-kit.v1'],
     ['extra markup', { ...kitOfDraft(draft()), html: '<b>hi</b>' }],
   ])('falls back to the default for %s', (_name, stored) => {

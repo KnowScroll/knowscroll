@@ -11,8 +11,10 @@ import { sendProblem } from './problems.js';
 /**
  * The painted backdrop of a room (D-166): `GET /media/room/<sha256>`, on the app origin where the edge already sends
  * `/media/*`. It serves only a backdrop an operator approved, to a signed-in session. The digest is the address, so a
- * replaced or rejected picture is gone from it at once, and the page that names the digest is a room the caller may
- * read. The picture is reviewed art with no text and no faces; it holds nothing of any person.
+ * replaced picture has a new one and a rejected or replaced picture is not found at its old one. The picture is cached
+ * only with revalidation (`private, no-cache` and an ETag): a device keeps the bytes but asks before each use, which is
+ * answered from the approval check without sending them again, so a rejection takes effect at the next use instead of
+ * after a day. The picture is reviewed art with no text and no faces; it holds nothing of any person.
  */
 @Controller()
 export class RoomBackdropController {
@@ -58,7 +60,7 @@ export class RoomBackdropController {
     }
     const etag = `"${digest}"`;
     response.setHeader('ETag', etag);
-    response.setHeader('Cache-Control', 'private, max-age=86400, immutable');
+    response.setHeader('Cache-Control', 'private, no-cache');
     response.setHeader('Content-Type', backdrop.mime);
     const conditional = request.headers['if-none-match'];
     if (conditional?.split(',').some((candidate) => candidate.trim().replace(/^W\//, '') === etag) === true) {

@@ -397,7 +397,7 @@ the call does not have), `COMMAND_KEY_REUSED`, `PRIVACY_EPOCH_CHANGED`, `UNIVERS
 
 `RoomBackdropController` serves `GET` and `HEAD /media/room/<sha256>`: the painted backdrop of a room, only while an operator has approved it, to a
 signed-in session (the same credential rules as `/media/:digest`, which the edge already sends to the API). It answers the stored type with
-`nosniff`, an ETag (a repeat visit is a 304) and `Cache-Control: private, max-age=86400, immutable`; a digest that is not an approved backdrop, a
+`nosniff`, an ETag and `Cache-Control: private, no-cache` (a device keeps the bytes but asks before each use, and an ask is checked against the approval, so a rejection takes effect at the next use; a repeat visit is a 304); a digest that is not an approved backdrop, a
 signed-out caller and a stored size that is not the file's are all one `NOT_FOUND`. It reads `READ_ROOM_BACKDROP` and the media store; it writes
 nothing. Tests: `src/http/room-backdrop.controller.test.ts`. *Implemented. Not yet run on dev.*
 

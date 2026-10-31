@@ -12,10 +12,12 @@ export interface ImageRequest {
 }
 
 /**
- * What one request came to. `not_sent` means nothing left the machine; `rejected` that the provider conclusively
- * refused and made nothing; `unknown` that the request may have been processed (a timeout, a reset, a gateway error,
- * a success with no image), so the caller must never send it again blind. `unusable` is an image the provider made
- * that is not one of the allowed types: it was produced, so it was paid for.
+ * What one request came to. `not_sent` means nothing left the machine; `rejected` that the provider refused with one of
+ * the refusals it documents as coming before an image is made, so nothing was charged (a rate limit, authentication,
+ * balance, a blocked prompt, bad parameters); `unknown` that the request may have been processed and billed (a timeout,
+ * a reset, HTTP 408 or a 5xx, a status the documentation does not list, a success with no image, an image blocked by
+ * content safety after it was generated), so the caller keeps its charge and never sends it again blind. `unusable` is an
+ * image the provider made that is not one of the allowed types: it was produced, so it was paid for.
  */
 export type ImageOutcome =
   | { readonly kind: 'image'; readonly bytes: Uint8Array; readonly mime: ImageMime }

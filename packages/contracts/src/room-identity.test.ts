@@ -38,6 +38,7 @@ describe('a room’s identity on the wire', () => {
     ['another version', { ...kit, version: 'station-kit.v2' }],
     ['a field it does not have', { ...kit, backdropPrompt: 'anything' }],
     ['no cast skins', { ...kit, cast: { explainer: 'star' } }],
+    ['both residents wearing one mark', { ...kit, cast: { explainer: 'star', skeptic: 'star' } }],
   ])('refuses %s', (_name, value) => {
     expect(RoomKitSchema.safeParse(value).success).toBe(false);
   });

@@ -170,6 +170,19 @@ describe('every room has a face (real PostgreSQL, CI fixture model and image pro
       expect(RoomKitSchema.safeParse((await shown(roomId))?.kit).success).toBe(true);
     });
 
+    it('refuses a kit whose two residents wear the same mark, and stores nothing', async () => {
+      const { roomId, slug } = await room();
+      const { face, model } = operator({
+        model: fixtureModel(() => kitAnswer({ cast: { explainer: 'gear', skeptic: 'gear' } }), { label: 'rooms-kit' }),
+      });
+      expect(await face.kit.propose({ slug, dryRun: false, signal: never })).toEqual({
+        kind: 'not_made',
+        reason: 'invalid_output',
+      });
+      expect(model.calls).toHaveLength(2);
+      expect(await identityRows(roomId)).toEqual([]);
+    });
+
     it('accepts the repair when it fixes the palette', async () => {
       const { slug } = await room();
       const { face, model } = operator({

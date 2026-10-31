@@ -56,7 +56,8 @@ export const KIT_HINTS = {
   ink_contrast: 'Pick an "ink" swatch that is much lighter or much darker than the "ground" swatch.',
   accent_contrast: 'Pick an "accent" swatch that stands out clearly from the "ground" swatch.',
   same_swatch: 'Use three different swatches for "ground", "accent" and "ink".',
-} as const satisfies Record<KitProblem, string>;
+  same_skin: 'Give the "explainer" and the "skeptic" different glyph words.',
+} as const satisfies Record<KitProblem | 'same_skin', string>;
 
 /** What a model may answer: the closed vocabulary, and a palette that reads. A refusal carries one fixed hint. */
 export function kitAnswerSchema(): z.ZodType<RoomKitDraft> {

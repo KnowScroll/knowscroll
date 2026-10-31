@@ -23,6 +23,15 @@ const ReplySchema = z.object({
   base_resp: z.object({ status_code: z.number().int() }),
 });
 
+/**
+ * The refusals MiniMax documents as happening before an image is made: a rate limit (1002), authentication (1004, 2049),
+ * balance (1008), a blocked prompt (1026) and bad parameters (2013). Only these, and the HTTP statuses of a request the
+ * server refused before it started (400, 401, 403, 404, 413, 422, 429), are taken as "nothing was made, nothing is
+ * charged". The pricing page does not say a failed image is free, so every other status is treated as possibly billed.
+ */
+const REFUSED_BEFORE_MAKING_STATUS: ReadonlySet<number> = new Set([1002, 1004, 1008, 1026, 2013, 2049]);
+const REFUSED_BEFORE_MAKING_HTTP: ReadonlySet<number> = new Set([400, 401, 403, 404, 413, 422, 429]);
+
 const decoder = new TextDecoder('utf-8', { fatal: false });
 
 /** The type of an image from its first bytes; a file name or a header the provider sent is never trusted. */
@@ -49,12 +58,17 @@ function outcomeOfReply(text: string): ImageOutcome {
   const reply = ReplySchema.safeParse(json);
   if (!reply.success) return { kind: 'unknown', code: 'REPLY_UNREADABLE' };
   const { base_resp: status, data, metadata } = reply.data;
-  // A non-zero status is the provider saying it made nothing: rate limit, balance, a blocked prompt, bad parameters.
-  if (status.status_code !== 0) return { kind: 'rejected', code: `PROVIDER_${String(status.status_code)}` };
+  if (status.status_code !== 0)
+    return REFUSED_BEFORE_MAKING_STATUS.has(status.status_code)
+      ? { kind: 'rejected', code: `PROVIDER_${String(status.status_code)}` }
+      : // A status the documentation does not list may have come after an image was made.
+        { kind: 'unknown', code: `PROVIDER_${String(status.status_code)}` };
   const encoded = data?.image_base64?.[0];
   if (encoded === undefined || encoded === '')
+    // `failed_count` is images blocked by content safety after they were generated: possibly billed, and the same prompt
+    // would be blocked again, so it is charged and the room waits for an operator like any unknown outcome.
     return (metadata?.failed_count ?? 0) > 0
-      ? { kind: 'rejected', code: 'BLOCKED_BY_SAFETY' }
+      ? { kind: 'unknown', code: 'BLOCKED_AFTER_GENERATION' }
       : { kind: 'unknown', code: 'SUCCESS_WITHOUT_IMAGE' };
   const bytes = new Uint8Array(Buffer.from(encoded, 'base64'));
   const mime = imageMimeOf(bytes);
@@ -65,9 +79,12 @@ function outcomeOfReply(text: string): ImageOutcome {
  * The MiniMax image transport behind `ImagePort` (D-166): one `fetch`, no SDK, no retries, `redirect: "manual"`, one
  * deadline over the whole exchange and a bounded body read. The picture is requested inline (base64), so no second
  * request fetches a presigned address. The wide band ratio is fixed (21:9). Mapping: a refused connection or a failed
- * DNS or TLS handshake means nothing was sent; a timeout, reset or interrupted read after the request left, and a 502
- * or 504, mean the outcome is unknown; any other non-200 status, and a non-zero provider status, are conclusive
- * refusals. The key is sent only in a header. Nothing here logs.
+ * DNS or TLS handshake means nothing was sent; only the documented refusals made before an image is generated
+ * (provider status 1002, 1004, 1008, 1026, 2013, 2049; HTTP 400, 401, 403, 404, 413, 422, 429) are conclusive and
+ * charged nothing. Everything else may have been billed and is unknown: a timeout, a reset or an interrupted read after
+ * the request left, HTTP 408 and every 5xx (and any other non-200 status), any other non-zero provider status, a success
+ * with no image, and images blocked by content safety after generation. The key is sent only in a header. Nothing here
+ * logs.
  */
 export function makeMiniMaxImagePort(settings: MiniMaxImageSettings, fetchImpl: typeof fetch = fetch): ImagePort {
   if (!settings.apiKey.startsWith('sk-cp-')) throw new Error('MiniMax: only a token-plan (sk-cp-) key is accepted');
@@ -110,9 +127,9 @@ export function makeMiniMaxImagePort(settings: MiniMaxImageSettings, fetchImpl: 
         }
         if (response.status !== 200) {
           await discard(response);
-          return response.status === 502 || response.status === 504
-            ? { kind: 'unknown', code: `HTTP_${String(response.status)}` }
-            : { kind: 'rejected', code: `HTTP_${String(response.status)}` };
+          return REFUSED_BEFORE_MAKING_HTTP.has(response.status)
+            ? { kind: 'rejected', code: `HTTP_${String(response.status)}` }
+            : { kind: 'unknown', code: `HTTP_${String(response.status)}` };
         }
         let bytes: Uint8Array;
         try {
