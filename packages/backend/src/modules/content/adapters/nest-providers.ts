@@ -39,6 +39,8 @@ import {
   CHECK_ASSET_AUDIENCE,
   ENQUEUE_SCROLL_PRODUCTION,
   READ_PLAY_LEVEL,
+  READ_LIBRARY_PASSAGES,
+  READ_LIBRARY_PASSAGE_TEXT,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -72,6 +74,7 @@ import { readContentSequence, readSeriesTotal } from './content-sequence.js';
 import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
+import { makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -134,6 +137,25 @@ export function madeToOrderProviders(tokens: { readonly database: symbol; readon
   ];
 }
 
+/**
+ * The library's prose for a room's daily items (v3 R-5): the Scrolls under a topic, and one block's text on the exact current
+ * revision. Shared public content read on the pool with no personal scope, for the worker and the operator.
+ */
+export function libraryPassageProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: READ_LIBRARY_PASSAGES,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadLibraryPassages(db),
+    },
+    {
+      provide: READ_LIBRARY_PASSAGE_TEXT,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadLibraryPassageText(db),
+    },
+  ];
+}
+
 /** The sender of production jobs outside a transaction, over the process's pg-boss (the branch resolver, the operator). */
 export function scrollProductionSenderProviders(tokens: { readonly boss: symbol }) {
   return [
@@ -174,6 +196,7 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
   });
 }
 
+export { makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
 

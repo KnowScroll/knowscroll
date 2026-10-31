@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { releaseQueues } from '@knowscroll/backend/job-queues';
 import { COMPOSE_ENCOUNTER, type ComposeEncounter, type ComposerSnapshot } from '@knowscroll/backend/modules/composer';
+import { RUN_NIGHTLY_RITUALS, nightlyRitualsQueue } from '@knowscroll/backend/modules/rooms';
 import { jobWiring } from './jobs.js';
 import { WORKER_CONFIG } from './tokens.js';
 
@@ -37,5 +39,21 @@ describe('the worker ranks buffers under the policy its own configuration sets (
       (provider.useFactory as (config: { composerPolicy: 'v0' | 'v1' }) => ComposeEncounter)({ composerPolicy });
     expect(composeUnder('v0')(SNAPSHOT).policyVersion).toBe('composer-policy.v0');
     expect(composeUnder('v1')(SNAPSHOT).policyVersion).toBe('composer-policy.v1');
+  });
+});
+
+describe('the night’s ritual batch (rooms.nightly-rituals, D-176)', () => {
+  it('is a declared release queue that runs once a night with a payload of its version only', () => {
+    const declared = releaseQueues.find((queue) => queue.name === nightlyRitualsQueue.name);
+    expect(declared?.schedule).toEqual({ cron: '10 3 * * *', payload: { v: 1 } });
+    expect(nightlyRitualsQueue.payload.safeParse({ v: 1 }).success).toBe(true);
+    expect(nightlyRitualsQueue.payload.safeParse({ v: 1, roomId: 'x' }).success).toBe(false);
+  });
+
+  it('has its consumer built from the worker wiring', () => {
+    const provided = jobWiring.filter(
+      (provider) => typeof provider === 'object' && 'provide' in provider && provider.provide === RUN_NIGHTLY_RITUALS,
+    );
+    expect(provided).toHaveLength(1);
   });
 });

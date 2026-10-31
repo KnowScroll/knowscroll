@@ -154,6 +154,12 @@ answers a message; the second makes the model call of an allowed turn under the 
 `rooms.summarise` (v3 R-3, D-169): one call per room and 12-hour window that writes "while you were away", under the same scope as an
 `ambient` role, with kept-out members and removed messages left out of what it reads.
 
+The ritual commands (`src/rooms-ritual-operator.ts`, v3 R-5, D-176) are `rooms rituals --room <slug> [--day YYYY-MM-DD] [--dry-run]`, `ritual-list [--state ...]` and
+`ritual-review --ritual <uuid> --approve|--reject`: they draft, list and approve a room's daily question (a template, no call) and Spot the flaw (one call of the
+`rooms.ambient-ritual` role under the `rooms` scope, so they need `KS_REASONING_ROOM_ENABLED=1` and a provider). The `rooms.nightly-rituals` consumer (cron `10 3 * * *`,
+registered with the other room jobs only while `KS_REASONING_ROOM_ENABLED=1`) drafts today's day for every open room with a member; nothing it drafts is
+shown to a member before an operator approves it (the rooms README, "Today's ritual items").
+
 The room face commands (`src/rooms-face-operator.ts`, v3 R-4, D-166, D-170, D-171) are `rooms kit`, `kit-list`, `kit-review`, `backdrop`,
 `backdrop-list`, `backdrop-review`, `spend`, `backdrop-reconcile` and `backdrop-write-off` (the rooms README lists their options). `kit` calls the
 `rooms.station-kit` role under the `rooms` scope (it needs `KS_REASONING_ROOM_ENABLED=1` and a provider); `backdrop` asks MiniMax's `image-01` for one

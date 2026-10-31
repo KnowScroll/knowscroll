@@ -547,6 +547,23 @@ It reads only the asset's status and kind, each revision's title and language, a
 document, a reading fact or any personal state, and it creates no evidence. One SQL statement serves up to 100 refs.
 *Implemented.*
 
+## The library's prose for a room's daily items (v3 R-5, D-176)
+
+Status: implemented, CI-tested against real PostgreSQL. Not runtime-verified on dev.
+
+Rooms drafts a day's question and Spot the flaw from the library's own words. It reads them through two ports in `public.ts`
+(`libraryPassageProviders`, built over the pool, no personal scope), never through Content's tables.
+
+| Port | Answers |
+| --- | --- |
+| `READ_LIBRARY_PASSAGES` (`makeReadLibraryPassages(db)(topic, limit)`) | The current revision of each admitted library Scroll whose **primary** encounter topic falls under a room's topic (a system covers every planet of it), with its title, summary and prose blocks. At most 100, by asset ID |
+| `READ_LIBRARY_PASSAGE_TEXT` (`makeReadLibraryPassageText(db)(ref)`) | The text of one block of an exact revision, only while that revision is still the current one anyone may be served; absent when the Scroll was corrected, withdrawn or held |
+
+A block is a paragraph of a v1 document, or one stop's paragraph and line blocks joined by a space for a v2 document (its `blockId`
+is the stop's ID). A Scroll held or rejected by the review gate, withdrawn, or made for a thread (D-049) is never returned. Reads
+only; no evidence, no personal state. The operator's approval of a ritual item uses the second port to prove a cited passage still
+says what it did. *Implemented.*
+
 ## Thread sequences and snippet anchors (#243, D-046)
 
 Social threads read three things from Content through `public.ts`, never through its tables. None creates evidence.

@@ -43,14 +43,17 @@ export {
   CastPassJobSchema,
   ContributeJobSchema,
   SummariseJobSchema,
+  NightlyRitualsJobSchema,
   castDueQueue,
   castPassQueue,
   contributeQueue,
   summariseQueue,
+  nightlyRitualsQueue,
   type CastDueJob,
   type CastPassJob,
   type ContributeJob,
   type SummariseJob,
+  type NightlyRitualsJob,
 } from './events.js';
 export { libraryRoomSeeds } from './application/library-rooms.js';
 export { DEFAULT_CAST, type CastMember } from './domain/cast.js';
@@ -206,3 +209,12 @@ export type ReadRoomBackdrop = (
   { readonly key: string; readonly mime: 'image/jpeg' | 'image/png' | 'image/webp'; readonly size: number } | undefined
 >;
 export const READ_ROOM_BACKDROP = Symbol('rooms.readRoomBackdrop');
+
+/**
+ * The worker's consumer of `rooms.nightly-rituals` (D-176): drafts each room's day, a question from a library Scroll (a
+ * template) and a Spot the flaw (one call under the room scope, as an `ambient` role), for an operator to approve. Registered
+ * with the cast jobs, only where the worker holds the rooms grant. It throws when a room could not be drafted, so the job
+ * retries; everything it stores is idempotent by (room, day, kind).
+ */
+export type RunNightlyRituals = (signal: AbortSignal) => Promise<void>;
+export const RUN_NIGHTLY_RITUALS = Symbol('rooms.runNightlyRituals');

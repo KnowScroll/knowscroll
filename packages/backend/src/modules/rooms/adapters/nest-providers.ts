@@ -342,6 +342,7 @@ export function composeFaceOperator(deps: {
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 export { holdCast } from './typing-holds.js';
 export { readApprovedBackdrop } from './postgres-face.js';
+export { composeRitualOperator, roomsRitualProviders } from './ritual-providers.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: {
