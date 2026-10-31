@@ -60,7 +60,15 @@ test('on a phone a member lands in General under the room’s band, sees the not
   await expect(page.getByTestId('ai-notice')).toBeVisible();
   await expect.poll(() => callsTo(calls, '/v1/rooms/presence').length).toBeGreaterThan(0);
   expect(callsTo(calls, '/v1/rooms/presence')[0]?.body).toMatchObject({ state: 'here' });
+  await shoot(page, 'phone-1-first-visit');
+  expect(await seriousViolations(page)).toEqual([]);
+
+  await page.getByTestId('ai-notice-ack').click();
+  await expect(page.getByTestId('ai-notice')).toHaveCount(0);
+  expect(callsTo(calls, '/v1/rooms/preferences')[0]?.body).toMatchObject({ noticeSeen: true });
+  await shoot(page, 'phone-2-campfire');
   // The AI residents are one line, not a panel: the messages keep at least 60 % of the screen (T-A).
+  await page.getByTestId('room-messages').waitFor();
   const residents = page.getByTestId('inhabitants-toggle');
   await expect(residents).toBeVisible();
   await expect(page.getByTestId('ask-explainer')).toHaveCount(0);
@@ -69,13 +77,6 @@ test('on a phone a member lands in General under the room’s band, sees the not
   await residents.click();
   await expect(page.getByTestId('ask-explainer')).toBeVisible();
   await residents.click();
-  await shoot(page, 'phone-1-first-visit');
-  expect(await seriousViolations(page)).toEqual([]);
-
-  await page.getByTestId('ai-notice-ack').click();
-  await expect(page.getByTestId('ai-notice')).toHaveCount(0);
-  expect(callsTo(calls, '/v1/rooms/preferences')[0]?.body).toMatchObject({ noticeSeen: true });
-  await shoot(page, 'phone-2-campfire');
 });
 
 /** A labelled one-pixel PNG, the fixture's `painted backdrop`; never provider output. */
