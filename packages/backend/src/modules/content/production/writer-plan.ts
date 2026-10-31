@@ -72,7 +72,7 @@ function v2Plan(input: WriterPlanInput, plan: NonNullable<ProductionSubject['scr
   if (topic === undefined) throw new Error('SCROLL_V2_REQUIRES_LIBRARY_RECIPE');
   const context: WriterV2Context = {
     publication: { ...publicationV2(topic), revision: input.revision },
-    recipe: plan,
+    recipe: input.subject.stageKit === undefined ? plan : { ...plan, kit: input.subject.stageKit },
     passages: input.passages,
     pages: input.pages,
   };

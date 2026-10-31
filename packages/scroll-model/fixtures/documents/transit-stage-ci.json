@@ -1,0 +1,277 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-transit-stage",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-transit-stage-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "A planet crosses its star (a CI fixture)",
+  "dek": "A dip in starlight, small and large planets, in short steps (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stage": {
+    "kit": "transit.v1",
+    "states": [
+      {
+        "stop": "orbit",
+        "state": {
+          "view": "orbit",
+          "planet": "small",
+          "at": "before",
+          "focus": "none"
+        },
+        "alt": "Seen from above, a small planet goes round its star. We watch from far below, so the planet crosses in front of the star as we see it only when it passes between us and the star. Sizes and distances are not to scale. The planet has not yet reached the star as we see it, so it blocks none of its light."
+      },
+      {
+        "stop": "between",
+        "state": {
+          "view": "orbit",
+          "planet": "small",
+          "at": "middle",
+          "focus": "planet"
+        },
+        "alt": "Seen from above, a small planet goes round its star. We watch from far below, so the planet crosses in front of the star as we see it only when it passes between us and the star. Sizes and distances are not to scale. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. The picture draws the eye to the planet."
+      },
+      {
+        "stop": "ingress",
+        "state": {
+          "view": "crossing",
+          "planet": "small",
+          "at": "ingress",
+          "focus": "planet"
+        },
+        "alt": "A star seen as a bright disc, with a small planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is just starting to cross the star’s edge, so it blocks a little of its light. The picture draws the eye to the planet."
+      },
+      {
+        "stop": "deepest",
+        "state": {
+          "view": "crossing",
+          "planet": "small",
+          "at": "middle",
+          "focus": "dip"
+        },
+        "alt": "A star seen as a bright disc, with a small planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. At the middle of its crossing the dip is as deep as it gets. The picture draws the eye to the dip."
+      },
+      {
+        "stop": "bigger",
+        "state": {
+          "view": "crossing",
+          "planet": "large",
+          "at": "middle",
+          "focus": "dip"
+        },
+        "alt": "A star seen as a bright disc, with a large planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. At the middle of its crossing the dip is as deep as it gets. The picture draws the eye to the dip."
+      },
+      {
+        "stop": "compare",
+        "state": {
+          "view": "compare",
+          "planet": "small",
+          "at": "before",
+          "focus": "dip"
+        },
+        "alt": "Two graphs of a star’s brightness are drawn together: a shallow dip for a small planet and a deeper dip for a large one, each crossing the same star. The large planet is twice as wide and its dip is four times as deep, because the dip follows the area of the star the planet covers. The dips are enlarged so that they can be seen, and the sizes are illustrative. The picture draws the eye to the dip."
+      },
+      {
+        "stop": "after",
+        "state": {
+          "view": "crossing",
+          "planet": "large",
+          "at": "after",
+          "focus": "none"
+        },
+        "alt": "A star seen as a bright disc, with a large planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet has passed the star as we see it, so it blocks none of its light. The marker sits on the level part of the graph."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "orbit",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Seen from above, a planet goes round its star. We watch from far away, so we see a dip in the light only when the planet passes between us and the star."
+        }
+      ],
+      "simple": "We see a dip only when the planet passes in front.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "read",
+      "id": "between",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Here the planet is between us and the star, so it blocks a little of the starlight."
+        }
+      ],
+      "simple": "The planet in front blocks a little light."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-dip",
+      "prompt": "What do we see as a planet crosses its star?",
+      "options": ["The star’s light dips, then returns", "The star gets brighter"],
+      "answer": 0,
+      "explain": "The planet covers part of the star, so less light reaches us, and the light returns once the planet has passed.",
+      "twist": "Brighter is a common guess, because a planet reflects light. It is far too faint to matter here.",
+      "simple": "The light dips, then returns."
+    },
+    {
+      "kind": "read",
+      "id": "ingress",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "On the star’s disc the planet has just started to cross its edge. The graph of the star’s light begins to dip, and the marker follows the planet."
+        }
+      ],
+      "simple": "The graph starts to dip as the planet enters."
+    },
+    {
+      "kind": "read",
+      "id": "deepest",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "With the planet wholly in front, the dip is at its deepest. The dip is enlarged here so that it shows."
+        }
+      ],
+      "simple": "The dip is deepest in the middle."
+    },
+    {
+      "kind": "read",
+      "id": "bigger",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A larger planet covers more of the star, and the dip is deeper."
+        }
+      ],
+      "simple": "A larger planet makes a deeper dip."
+    },
+    {
+      "kind": "read",
+      "id": "compare",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Here the two graphs are together. The large planet is twice as wide and its dip is four times as deep, because the dip follows the area the planet covers."
+        }
+      ],
+      "simple": "Twice as wide, four times as deep."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-area",
+      "prompt": "A planet twice as wide makes a dip how much deeper?",
+      "options": ["Four times as deep", "Twice as deep"],
+      "answer": 0,
+      "explain": "The dip follows the area covered, and the area of a disc goes as the square of its width.",
+      "twist": "Twice is the natural guess, because width doubled. Area is what counts.",
+      "simple": "Four times as deep."
+    },
+    {
+      "kind": "read",
+      "id": "after",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "After the crossing the light is level again, until the planet comes round once more."
+        }
+      ],
+      "simple": "The light is level again afterwards."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-wide",
+      "prompt": "Two planets cross the same star. One’s dip is four times as deep as the other’s. How do their widths compare?",
+      "options": ["The first is twice as wide", "The first is four times as wide"],
+      "answer": 0,
+      "explain": "The dip goes as the square of the width, so a dip four times as deep means a planet twice as wide.",
+      "twist": "Four is the number in front of you. The square root is what you want.",
+      "simple": "Four times as deep means twice as wide."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "The star here is an evenly bright disc and the dips are enlarged. Real stars are dimmer toward the edge, and the sizes shown are illustrative.",
+      "anchorStop": "ingress",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": [
+      "A planet in front of its star blocks a little light.",
+      "A wider planet makes a deeper dip.",
+      "The dip follows the area covered."
+    ],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 131,
+    "readingMinutes": 2.2,
+    "totalWeight": 502,
+    "recapWeight": 24,
+    "stops": [
+      {
+        "stopId": "orbit",
+        "weight": 32
+      },
+      {
+        "stopId": "between",
+        "weight": 17
+      },
+      {
+        "stopId": "call-dip",
+        "weight": 97
+      },
+      {
+        "stopId": "ingress",
+        "weight": 57
+      },
+      {
+        "stopId": "deepest",
+        "weight": 21
+      },
+      {
+        "stopId": "bigger",
+        "weight": 13
+      },
+      {
+        "stopId": "compare",
+        "weight": 30
+      },
+      {
+        "stopId": "call-area",
+        "weight": 87
+      },
+      {
+        "stopId": "after",
+        "weight": 15
+      },
+      {
+        "stopId": "final-wide",
+        "weight": 109
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "ac78605b17aa8b94fe1c2c3a110380ac193ca644cb9c8d3d6338701440425373"
+  }
+}

@@ -3,7 +3,9 @@ import { uniqueIssuesV2, type IssueV2 } from '../../v2/issues.js';
 import type { AuthoringEvidence } from '../authoring-bind.js';
 import { COPY_RUN_WORDS } from '../compile.js';
 import type { AuthoredItemV2, AuthoredScrollV2 } from './authoring-schema.js';
-import type { RecipeDataV2 } from './assemble.js';
+import { isKitPatch, kitDefinition } from '../../v2/kits/index.js';
+import { EARTH_SKY_KIT } from '../../v2/kit.js';
+import { recipeKit, type RecipeDataV2 } from './assemble.js';
 
 /** What the authoring rules need besides the authored list. */
 export interface AuthoringRulesInput {
@@ -52,13 +54,18 @@ function placementIssues(authored: AuthoredScrollV2): IssueV2[] {
   return issues;
 }
 
-/** A plain Scroll has no stage; a stage Scroll sets the starting picture on its first stop. */
+/**
+ * A plain Scroll has no stage; a stage Scroll sets the starting picture on its first stop, and every
+ * change it writes uses only keys and words of the recipe's kit (D-194).
+ */
 function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[] {
   const issues: IssueV2[] = [];
   const first = authored.items.findIndex((item) => item.type !== 'aside');
+  const kit = kitDefinition(recipeKit(recipe));
   authored.items.forEach((item, index) => {
-    if (item.type !== 'aside' && item.stage !== undefined && recipe.variant === 'plain')
-      issues.push({ code: 'stage_unexpected', path: `items.${index}.stage` });
+    if (item.type === 'aside' || item.stage === undefined) return;
+    if (recipe.variant === 'plain') issues.push({ code: 'stage_unexpected', path: `items.${index}.stage` });
+    else if (!isKitPatch(kit, item.stage)) issues.push({ code: 'stage_choice_invalid', path: `items.${index}.stage` });
   });
   const opening = authored.items[first];
   if (
@@ -94,15 +101,15 @@ function unitsOf(authored: AuthoredScrollV2): Unit[] {
 
 /**
  * Earth's axis is tilted by a fixed angle; "sideways" and "on its side" are the words for Uranus. A
- * sentence of a stage Scroll (whose picture is always Earth) that joins them to the axis, the lean
- * or the tilt is refused, because it teaches a picture the kit never draws (D-123). A plain Scroll
- * may say them: its subject may be Uranus.
+ * sentence of an Earth & sky stage Scroll (whose picture is always Earth) that joins them to the axis,
+ * the lean or the tilt is refused, because it teaches a picture the kit never draws (D-123). A plain
+ * Scroll may say them: its subject may be Uranus. Other kits draw no Earth axis.
  */
 const SIDEWAYS = /\bsideways\b|\bon (?:its|their) side\b/iu;
 const AXIS_WORDS = /\b(?:axis|axes|lean|leans|leaning|tilt|tilts|tilted|tilting)\b/iu;
 
 function earthAxisIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[] {
-  if (recipe.variant !== 'stage') return [];
+  if (recipe.variant !== 'stage' || recipeKit(recipe) !== EARTH_SKY_KIT) return [];
   const sidewaysAxis = (text: string): boolean =>
     text.split(/(?<=[.!?])\s+/u).some((sentence) => SIDEWAYS.test(sentence) && AXIS_WORDS.test(sentence));
   return unitsOf(authored)

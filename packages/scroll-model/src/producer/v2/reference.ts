@@ -1,5 +1,6 @@
 import { ASIDE_KINDS, STOP_EMPHASES } from '../../v2/document.js';
-import { STAGE_ENUMS, STAGE_KEYS } from '../../v2/kit.js';
+import { EARTH_SKY_KIT } from '../../v2/kit.js';
+import { kitDefinition, kitKeys, type StageKitId } from '../../v2/kits/index.js';
 import { LIMITS_V2 as L } from '../../v2/limits.js';
 
 /**
@@ -7,10 +8,17 @@ import { LIMITS_V2 as L } from '../../v2/limits.js';
  * tables the schema and the checks use, so the prompt cannot drift from what is enforced. Every
  * example is invented syntax guidance about an invented subject: never evidence, never content.
  */
-export function authoringReferenceV2(variant: 'stage' | 'plain'): string {
+export function authoringReferenceV2(variant: 'stage' | 'plain', kitId: StageKitId = EARTH_SKY_KIT): string {
+  const kit = kitDefinition(kitId);
   const stageLine =
     variant === 'stage'
-      ? `  "stage": optional object on a stop (never on a call_it or the final_call), only the values that change here; the rest carry over from the item before. Keys and allowed words:\n${STAGE_KEYS.map((key) => `    ${key}: ${STAGE_ENUMS[key].join(' | ')}`).join('\n')}\n  The first stop sets the starting picture. Never write a number or a place name in "stage". Code draws everything else: Earth's tilt, the pins and Ray's angle follow from the month.`
+      ? `  "stage": optional object on a stop (never on a call_it or the final_call), only the values that change here; the rest carry over from the item before. Keys and allowed words:\n${kitKeys(
+          kit,
+        )
+          .map((key) => `    ${key}: ${(kit.enums[key] ?? []).join(' | ')}`)
+          .join(
+            '\n',
+          )}\n  The first stop sets the starting picture. Never write a number or a place name in "stage". Code draws everything else from these words.`
       : '';
   return [
     `Top level: {"title":"…","dek":"…","items":[item, …],"recap":{"cites":["e1"],"captions":["…","…","…"]},"askSuggestions":["…?","…?","…?"]}`,

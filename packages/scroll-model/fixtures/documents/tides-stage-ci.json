@@ -1,0 +1,249 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-tides-stage",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-tides-stage-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "Tides: two bulges and a month (a CI fixture)",
+  "dek": "The Moon’s pull, two bulges of water and the Sun’s help, in short steps (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stage": {
+    "kit": "tides.v1",
+    "states": [
+      {
+        "stop": "pull",
+        "state": {
+          "view": "pull",
+          "moonAt": "new",
+          "focus": "moon"
+        },
+        "alt": "Earth is on the left and the Moon is on the right. Three arrows show the Moon’s pull, strongest on the side of Earth nearest the Moon, weaker at Earth’s centre and weakest on the far side. The differences are exaggerated so that they can be seen. Measured against Earth’s centre, the near water is pulled toward the Moon and the far water away from it. The picture draws the eye to the Moon."
+      },
+      {
+        "stop": "two",
+        "state": {
+          "view": "bulges",
+          "moonAt": "new",
+          "focus": "near-bulge"
+        },
+        "alt": "Earth is wrapped in an ocean that is stretched into two bulges along the line to the Moon, one on the side that faces the Moon and one on the opposite side. The two are about equal, and the stretching is exaggerated. The picture draws the eye to the bulge on the side facing the Moon."
+      },
+      {
+        "stop": "sun",
+        "state": {
+          "view": "sun-moon",
+          "moonAt": "new",
+          "focus": "sun"
+        },
+        "alt": "Seen from above Earth’s north pole, with the Sun far away at the left. Sizes and distances are not to scale. The Moon is new, between Earth and the Sun. The Moon raises two bulges in Earth’s ocean, one facing it and one opposite, and the Sun raises two smaller ones along its own line. The Sun, the Moon and Earth are in a line, so the Sun’s small bulges lie on top of the Moon’s and add to them: the combined bulges are as tall as they get, a spring tide. The picture draws the eye to the Sun."
+      },
+      {
+        "stop": "spring",
+        "state": {
+          "view": "sun-moon",
+          "moonAt": "full",
+          "focus": "near-bulge"
+        },
+        "alt": "Seen from above Earth’s north pole, with the Sun far away at the left. Sizes and distances are not to scale. The Moon is full, with Earth between it and the Sun. The Moon raises two bulges in Earth’s ocean, one facing it and one opposite, and the Sun raises two smaller ones along its own line. The Sun, the Moon and Earth are in a line, so the Sun’s small bulges lie on top of the Moon’s and add to them: the combined bulges are as tall as they get, a spring tide. The picture draws the eye to the bulge on the side facing the Moon."
+      },
+      {
+        "stop": "neap",
+        "state": {
+          "view": "sun-moon",
+          "moonAt": "first-quarter",
+          "focus": "none"
+        },
+        "alt": "Seen from above Earth’s north pole, with the Sun far away at the left. Sizes and distances are not to scale. The Moon is at first quarter, at right angles to the Sun. The Moon raises two bulges in Earth’s ocean, one facing it and one opposite, and the Sun raises two smaller ones along its own line. The Sun and the Moon are at right angles, so the Sun’s small bulges lie across the Moon’s and partly cancel them: the combined bulges are as low as they get, a neap tide."
+      },
+      {
+        "stop": "range",
+        "state": {
+          "view": "range",
+          "moonAt": "last-quarter",
+          "focus": "range"
+        },
+        "alt": "Four bars compare the size of the tide through the Moon’s four main phases: new, first quarter, full and last quarter. The bars are tallest at new and full and shortest at first quarter and last quarter. The Moon is now at last quarter, and its bar is marked. The picture draws the eye to the bars."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "pull",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The Moon pulls on all of Earth, and not equally. The side facing the Moon is pulled hardest, the centre a little less and the far side least. The differences are enlarged here so that you can see them."
+        }
+      ],
+      "simple": "The Moon pulls hardest on the near side and least on the far side.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "call_it",
+      "id": "call-where",
+      "prompt": "Where does the ocean bulge?",
+      "options": ["On the side facing the Moon and on the opposite side", "Only on the side facing the Moon"],
+      "answer": 0,
+      "explain": "Measured against Earth’s centre, the near water is pulled toward the Moon and the far water is left behind, so there are two bulges.",
+      "twist": "One bulge is the natural first guess, and it is half right: the far side bulges too.",
+      "simple": "Two bulges: one facing the Moon and one opposite."
+    },
+    {
+      "kind": "read",
+      "id": "two",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The ocean stretches into two bulges along the line to the Moon, one facing it and one on the far side. The two are about equal, and the stretching is enlarged here."
+        }
+      ],
+      "simple": "There are two bulges, one near the Moon and one far from it."
+    },
+    {
+      "kind": "read",
+      "id": "sun",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The Sun raises tides too, smaller ones along its own line. At new Moon the Moon is between Earth and the Sun, so the two sets of bulges lie along the same line."
+        }
+      ],
+      "simple": "The Sun raises smaller bulges of its own."
+    },
+    {
+      "kind": "read",
+      "id": "spring",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "At full Moon the Sun, Earth and Moon are in a line again, so the bulges add up. These are the biggest tides of the month, called spring tides, and the name has nothing to do with the season."
+        }
+      ],
+      "simple": "In line, the bulges add: spring tides."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-neap",
+      "prompt": "At first quarter, how do the Sun’s bulges and the Moon’s compare?",
+      "options": ["The Sun’s lie across the Moon’s and partly cancel them", "They lie on top of one another and add"],
+      "answer": 0,
+      "explain": "At the quarters the Sun and Moon stand at right angles, so the Sun’s small bulges lie across the Moon’s.",
+      "twist": "Adding is what happens at new and full Moon, which makes it easy to guess here.",
+      "simple": "At right angles the bulges partly cancel."
+    },
+    {
+      "kind": "read",
+      "id": "neap",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "At first quarter the Moon and the Sun are at right angles. The Sun’s small bulges lie across the Moon’s and partly cancel them, giving the smallest tides of the month, the neap tides."
+        }
+      ],
+      "simple": "At right angles the bulges partly cancel: neap tides."
+    },
+    {
+      "kind": "read",
+      "id": "range",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Through the month the size of the tide swings: biggest at new and full Moon, smallest at the quarters. The bars show the four main phases, with the Moon’s phase now marked."
+        }
+      ],
+      "simple": "The tide is biggest at new and full Moon."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-tides",
+      "prompt": "If the Sun’s pull on the oceans were switched off, what would happen to the difference between spring and neap tides?",
+      "options": [
+        "It would vanish: every phase would give the same tide",
+        "It would grow: spring tides would be much bigger"
+      ],
+      "answer": 0,
+      "explain": "Spring and neap tides come from the Sun’s bulges adding to the Moon’s or partly cancelling them. With no Sun bulges there is nothing to add or cancel.",
+      "twist": "It is tempting to think a missing Sun would change the Moon’s tide. It would not.",
+      "simple": "No Sun, no spring and neap difference."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "Real tides also depend on the shape and depth of every coast and basin, which this picture leaves out.",
+      "anchorStop": "spring",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": [
+      "The Moon raises two bulges.",
+      "The Sun adds to them or partly cancels them.",
+      "The tide swings through the month."
+    ],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 152,
+    "readingMinutes": 2.5,
+    "totalWeight": 580,
+    "recapWeight": 20,
+    "stops": [
+      {
+        "stopId": "pull",
+        "weight": 39
+      },
+      {
+        "stopId": "call-where",
+        "weight": 102
+      },
+      {
+        "stopId": "two",
+        "weight": 32
+      },
+      {
+        "stopId": "sun",
+        "weight": 33
+      },
+      {
+        "stopId": "spring",
+        "weight": 61
+      },
+      {
+        "stopId": "call-neap",
+        "weight": 105
+      },
+      {
+        "stopId": "neap",
+        "weight": 34
+      },
+      {
+        "stopId": "range",
+        "weight": 32
+      },
+      {
+        "stopId": "final-tides",
+        "weight": 122
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "370eb01ecd01cab0dc0e65251e37ea6d1d26d34bc3fe110b9be6488cbbd1a88e"
+  }
+}

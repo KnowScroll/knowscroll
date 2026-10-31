@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { kitDefinition, kitKeys } from '@knowscroll/scroll-model';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import { evidencePassages } from './evidence.js';
 import { spikeRecipeV2 } from './spike-v2/topics.js';
@@ -30,11 +31,11 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v16 writer', () => {
+describe('the v17 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v16');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v17');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v16');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v17');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
@@ -76,7 +77,12 @@ describe('the v16 writer', () => {
     expect(AuthoredScrollV2.safeParse(withGuess).success).toBe(false);
     const withAxis = JSON.parse(JSON.stringify(fixtureAuthoredV2())) as { items: Record<string, unknown>[] };
     withAxis.items[0] = { ...withAxis.items[0], stage: { view: 'sun-earth', axis: 'sideways' } };
-    expect(AuthoredScrollV2.safeParse(withAxis).success).toBe(false);
+    // The shape allows a few words by key; the recipe's kit has no "axis" word, so the compile refuses it.
+    const refused = compileGeneratedScrollV2(AuthoredScrollV2.parse(withAxis), context());
+    expect(refused.kind === 'refused' && refused.issues).toContainEqual({
+      code: 'stage_choice_invalid',
+      path: 'items.0.stage',
+    });
   });
 
   it('keeps asides, stages and the misconception to what the recipe decided', () => {
@@ -284,5 +290,59 @@ describe('the Final call that turns the tilt (D-187)', () => {
     expect(recipe.finalCall).toEqual({ kind: 'tilt' });
     const { finalCall: _removed, ...unbound } = recipe;
     expect(writerInstructionsV2(unbound)).not.toContain(BOUND);
+  });
+});
+
+/** One recipe for each drawing kit of D-194: the recipe's own `stageKit` decides which kit its Scroll is drawn with. */
+const KIT_RECIPES = [
+  ['tides.v1', 'tides', 'The picture shows only the pull and the bulges'],
+  ['greenhouse.v1', 'greenhouse-radiation', 'In it the layer lets sunlight through'],
+  ['star.v1', 'stars-fusion', 'The picture draws no years, no figures and no named star'],
+  ['transit.v1', 'exoplanet-transit', 'The picture is the transit method only'],
+] as const;
+
+describe.each(KIT_RECIPES)('the v17 writer for a recipe drawn with %s', (kit, key, sentence) => {
+  const kitContext = (): WriterV2Context => ({
+    ...context(),
+    publication: publicationV2(key),
+    recipe: spikeRecipeV2(key),
+  });
+
+  it('is a stage recipe of that kit, and its instructions give that kit’s words and no other kit’s', () => {
+    const recipe = spikeRecipeV2(key);
+    expect(recipe).toMatchObject({ variant: 'stage', kit });
+    const text = writerInstructionsV2(recipe);
+    expect(text).toContain('PINNED PICTURE');
+    expect(text).toContain(sentence);
+    for (const [other] of KIT_RECIPES.filter(([candidate]) => candidate !== kit))
+      expect(text, other).not.toContain(kitDefinition(other).writerGuide[0] ?? 'x');
+    expect(text).not.toContain('earthAt');
+    expect(text).not.toContain('never call it sideways');
+    expect(text.length).toBeLessThan(32_768);
+  });
+
+  it('lists the keys and words of the kit in the shape, for the stage object', () => {
+    const text = writerInstructionsV2(spikeRecipeV2(key));
+    const definition = kitDefinition(kit);
+    for (const stageKey of kitKeys(definition))
+      expect(text).toContain(`${stageKey}: ${(definition.enums[stageKey] ?? []).join(' | ')}`);
+  });
+
+  it('compiles the recorded answer drawn with that kit, and the role accepts it', () => {
+    const outcome = compileGeneratedScrollV2(fixtureAuthoredV2(kit), kitContext());
+    expect(outcome.kind === 'refused' ? outcome.issues : []).toEqual([]);
+    if (outcome.kind !== 'compiled') return;
+    expect(outcome.document.stage?.kit).toBe(kit);
+    expect(outcome.document.stage?.states.length).toBeGreaterThanOrEqual(3);
+    expect(writerRoleV2(kitContext()).outputSchema.safeParse(fixtureAuthoredV2(kit)).success).toBe(true);
+  });
+
+  it('refuses the Earth & sky answer for this recipe, with a fixed hint the repair can use', () => {
+    const outcome = compileGeneratedScrollV2(fixtureAuthoredV2(), kitContext());
+    expect(outcome.kind === 'refused' && outcome.issues).toContainEqual({
+      code: 'stage_choice_invalid',
+      path: 'items.0.stage',
+    });
+    expect(writerRoleV2(kitContext()).safeCustomIssues?.['stage_choice_invalid']).toContain('keys and words listed');
   });
 });

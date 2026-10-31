@@ -14,15 +14,8 @@ import {
   type Stage,
   type Stop,
 } from '../../v2/document.js';
-import {
-  applyStagePatch,
-  describeStageState,
-  EARTH_SKY_KIT,
-  INITIAL_STAGE_STATE,
-  settleStageState,
-  type StagePatch,
-  type StageState,
-} from '../../v2/kit.js';
+import { EARTH_SKY_KIT } from '../../v2/kit.js';
+import { applyKitPatch, kitDefinition, kitKeys, type StageKitId, type WordState } from '../../v2/kits/index.js';
 import { FIELD_LIMITS_V2 as F, SCROLL_LIMITS_V2_VERSION } from '../../v2/limits.js';
 import { computeMeasuresV2 } from '../../v2/measures.js';
 import { computeIntegrityV2 } from '../../v2/validate.js';
@@ -45,13 +38,20 @@ export interface PublicationV2 {
  * data; the writer is told what the Final call is for, and writes none of it.
  */
 export interface RecipeDataV2 {
-  /** `stage` Scrolls carry the Earth & sky kit's stage; `plain` Scrolls have no stage and still have calls. */
+  /** `stage` Scrolls carry the stage of their kit; `plain` Scrolls have no stage and still have calls. */
   readonly variant: 'stage' | 'plain';
+  /** The kit a `stage` Scroll is drawn with (the recipe's `stageKit`). Absent: Earth & sky, the only kit before D-194. */
+  readonly kit?: StageKitId;
   readonly misconception: Misconception;
   /** What a locked Final call awards. Absent: the Scroll awards nothing (D-188). */
   readonly landmark?: Landmark;
   /** The control the Final call hands the reader on the stage. Absent: the Final call is a plain call (D-187). */
   readonly finalCall?: FinalCallBinding;
+}
+
+/** The kit a stage Scroll of this recipe is drawn with. */
+export function recipeKit(recipe: Pick<RecipeDataV2, 'kit'>): StageKitId {
+  return recipe.kit ?? EARTH_SKY_KIT;
 }
 
 /** Where each stop and aside of the document came from in the authored list, to report findings at the writer's item. */
@@ -172,30 +172,32 @@ function readStop(item: Extract<AuthoredItemV2, { type: 'stop' }>, id: string): 
   };
 }
 
-const sameState = (first: StageState, second: StageState): boolean =>
-  first.view === second.view &&
-  first.earthAt === second.earthAt &&
-  first.moonAt === second.moonAt &&
-  first.focus === second.focus;
-
 /**
  * The stage: a state for the first stop and for every stop after which the picture really differs.
  * What the writer chose carries over from stop to stop; what is stored is only what the view can
- * show (`settleStageState`), so a choice that changes nothing visible records nothing, and the tilt,
- * pins and Ray are never stored at all: they follow from the month (D-124).
+ * show (the kit's `settle`), so a choice that changes nothing visible records nothing, and everything
+ * physical follows from the words by the kit's own code (D-124, D-195).
  */
-function buildStage(stops: readonly Stop[], patches: readonly (StagePatch | undefined)[]): Stage {
-  const states: Stage['states'] = [];
-  let chosen = INITIAL_STAGE_STATE;
-  let shown: StageState | undefined;
+function buildStage(
+  kitId: StageKitId,
+  stops: readonly Stop[],
+  patches: readonly (Readonly<Record<string, string>> | undefined)[],
+): Stage {
+  const kit = kitDefinition(kitId);
+  const same = (first: WordState, second: WordState): boolean =>
+    kitKeys(kit).every((key) => first[key] === second[key]);
+  const states: { stop: string; state: WordState; alt: string }[] = [];
+  let chosen = kit.initial;
+  let shown: WordState | undefined;
   stops.forEach((stop, index) => {
-    chosen = applyStagePatch(chosen, patches[index]);
-    const settled = settleStageState(chosen);
-    if (shown !== undefined && sameState(shown, settled)) return;
+    chosen = applyKitPatch(kit, chosen, patches[index]);
+    const settled = kit.settle(chosen);
+    if (shown !== undefined && same(shown, settled)) return;
     shown = settled;
-    states.push({ stop: stop.id, state: settled, alt: describeStageState(settled) });
+    states.push({ stop: stop.id, state: settled, alt: kit.describe(settled) });
   });
-  return { kit: EARTH_SKY_KIT, states };
+  // The kit's own functions made every state, so each holds exactly its words: the document validator proves it again.
+  return { kit: kitId, states } as Stage;
 }
 
 /**
@@ -211,7 +213,7 @@ export function assembleScrollV2(
 ): Assembly {
   const stops: Stop[] = [];
   const asides: Aside[] = [];
-  const patches: (StagePatch | undefined)[] = [];
+  const patches: (Readonly<Record<string, string>> | undefined)[] = [];
   const stopItem: number[] = [];
   const asideItem: number[] = [];
   let firstCall = true;
@@ -267,7 +269,7 @@ export function assembleScrollV2(
     framing: publication.framing,
     misconception: recipe.misconception,
     ...(recipe.landmark === undefined ? {} : { landmark: recipe.landmark }),
-    ...(recipe.variant === 'stage' ? { stage: buildStage(stops, patches) } : {}),
+    ...(recipe.variant === 'stage' ? { stage: buildStage(recipeKit(recipe), stops, patches) } : {}),
     stops,
     asides,
     recap,

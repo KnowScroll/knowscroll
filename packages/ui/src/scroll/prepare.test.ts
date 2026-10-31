@@ -107,6 +107,25 @@ describe('the renderer on the device', () => {
       'TILT_RANGE',
       'physicsAtTilt',
       'describeStageAtTilt',
+      // The other drawing kits' physics (D-194): the same derivations the text versions use, at one state, with no admission.
+      'brightnessAt',
+      'greenhouseParts',
+      'greenhousePhysics',
+      'lifetimeInSunLifetimes',
+      'mainSequenceRadiusInSuns',
+      'moonPull',
+      'PLANET_WIDTH_SHARE',
+      'SOLAR_SHARE_OF_LUNAR',
+      'STAR_ENUMS',
+      'starParts',
+      'starPhysics',
+      'surfaceAt',
+      'tideRangeByPhase',
+      'TIDES_ENUMS',
+      'tidesParts',
+      'tidesPhysics',
+      'transitParts',
+      'transitPhysics',
     ]);
     const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
     const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>

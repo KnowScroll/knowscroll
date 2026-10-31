@@ -2,6 +2,16 @@ import { z } from '../zod.js';
 import { Framing, Integrity, SeriesRef, THEME_FAMILIES } from '../document.js';
 import { LanguageTag, LocalId, OpaqueId, plainText, Revision } from '../primitives.js';
 import { EARTH_SKY_KIT, StageStateSchema } from './kit.js';
+import {
+  GREENHOUSE_KIT,
+  GreenhouseStateSchema,
+  STAR_KIT,
+  StarStateSchema,
+  TIDES_KIT,
+  TidesStateSchema,
+  TRANSIT_KIT,
+  TransitStateSchema,
+} from './kits/index.js';
 import { FIELD_LIMITS_V2 as F, LIMITS_V2 as L, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 
 /**
@@ -131,17 +141,29 @@ export const Aside = z.strictObject({
 });
 export type Aside = z.infer<typeof Aside>;
 
+/** The stage of one kit: the stops that change the picture, each with the state it changes it to and the words for it. */
+function stageOf<Kit extends string, State extends z.ZodType>(kit: Kit, state: State) {
+  return z.strictObject({
+    kit: z.literal(kit),
+    states: z
+      .array(z.strictObject({ stop: LocalId, state, alt: plainText(10, F.stateDescriptionChars) }))
+      .min(1)
+      .max(L.maxStops),
+  });
+}
+
 /**
- * The one pinned figure of a Scroll. `states` lists the stops that change it, in order; every other
- * stop keeps the state before it. The description of each state is derived from the state by code.
+ * The one pinned figure of a Scroll. It names the kit that draws it (D-194), and `states` lists the
+ * stops that change it, in order; every other stop keeps the state before it. Every state holds the words
+ * of that kit and no others, and the description of each is derived from the state by code.
  */
-export const Stage = z.strictObject({
-  kit: z.literal(EARTH_SKY_KIT),
-  states: z
-    .array(z.strictObject({ stop: LocalId, state: StageStateSchema, alt: plainText(10, F.stateDescriptionChars) }))
-    .min(1)
-    .max(L.maxStops),
-});
+export const Stage = z.discriminatedUnion('kit', [
+  stageOf(EARTH_SKY_KIT, StageStateSchema),
+  stageOf(TIDES_KIT, TidesStateSchema),
+  stageOf(GREENHOUSE_KIT, GreenhouseStateSchema),
+  stageOf(STAR_KIT, StarStateSchema),
+  stageOf(TRANSIT_KIT, TransitStateSchema),
+]);
 export type Stage = z.infer<typeof Stage>;
 
 /**
