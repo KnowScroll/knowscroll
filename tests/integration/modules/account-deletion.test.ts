@@ -534,6 +534,54 @@ describe('account deletion (real database)', () => {
             candidate: 1,
           }),
         );
+        // A Launch they started with the person who stays, and the first question they answered: a place and an answer.
+        await rooms.db
+          .insertInto('rooms.rituals')
+          .values({
+            ritual_id: randomUUID(),
+            room_id: room.roomId,
+            day: '2026-10-24',
+            kind: 'launch',
+            payload: JSON.stringify({
+              questions: Array.from({ length: 5 }, (_, index) => ({
+                prompt: `Fixture question ${String(index + 1)}?`,
+                options: ['First option', 'Second option'],
+                answer: 0,
+                explain: 'Because the fixture says so.',
+                source: { assetId: talkContent.assetId, assetRevision: 1, stopId: `s${String(index + 1)}` },
+              })),
+            }),
+            payload_version: 'ritual.v1',
+            state: 'approved',
+            made_by: 'template',
+            created_at: new Date('2026-10-24T07:00:00Z'),
+            decided_at: new Date('2026-10-24T07:30:00Z'),
+            decided_by: 'cli:ci',
+          })
+          .execute();
+        unwrap(await setPresence(rooms, stayer, room.roomId));
+        unwrap(await setPresence(rooms, erasedAsFriend, room.roomId));
+        const launch = unwrap(
+          await rooms.rooms.startLaunch(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            recordingGeneration: 1,
+          }),
+        );
+        if (launch.outcome !== 'accepted') throw new Error('the Launch did not start');
+        rooms.clock.now = new Date(rooms.clock.now.getTime() + launch.startsInMs + 500);
+        unwrap(
+          await rooms.rooms.answerLaunch(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            launchId: launch.launchId,
+            round: 1,
+            choice: 0,
+            recordingGeneration: 1,
+          }),
+        );
       } finally {
         await rooms.close();
       }

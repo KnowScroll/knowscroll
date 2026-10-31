@@ -1,6 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import {
   SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
+  callsOf,
   parseDocument,
   parseDocumentV2,
   projectText,
@@ -8,7 +9,13 @@ import {
 } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { CONCEPTS } from '../domain/concepts.js';
-import type { LibraryPassageSource, ReadLibraryPassageText, ReadLibraryPassages } from '../public.js';
+import type {
+  LibraryCallSource,
+  LibraryPassageSource,
+  ReadLibraryCalls,
+  ReadLibraryPassageText,
+  ReadLibraryPassages,
+} from '../public.js';
 import { notUnderReview } from './review-gate-sql.js';
 
 interface Row {
@@ -96,4 +103,42 @@ export const makeReadLibraryPassageText =
     return row === undefined
       ? undefined
       : proseBlocksOf(row.document).find((block) => block.blockId === ref.blockId)?.text;
+  };
+
+/** The calls of a stored Scroll document: those of a `scroll-document.v2`. A v1 document, and one that does not parse, has none. */
+export function callsOfStored(stored: unknown): LibraryCallSource['calls'] {
+  if ((stored as { schemaVersion?: unknown } | null)?.schemaVersion !== SCROLL_DOCUMENT_V2_SCHEMA_VERSION) return [];
+  const parsed = parseDocumentV2(stored);
+  if (parsed.kind !== 'valid') return [];
+  return callsOf(parsed.document).map((call) => ({
+    stopId: call.id,
+    prompt: call.prompt,
+    options: call.options,
+    answer: call.answer,
+    explain: call.explain,
+  }));
+}
+
+/**
+ * The library Scrolls under a topic with their calls (see `ReadLibraryCalls`): the same Scrolls, from the same query, as
+ * `makeReadLibraryPassages`, so a Scroll counts under a topic by the same rule. Reads the pool outside any transaction.
+ */
+export const makeReadLibraryCalls =
+  (db: Kysely<Database>): ReadLibraryCalls =>
+  async (topic, limit, only) => {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_CALLS_LIMIT');
+    const topicIds = topicIdsOf(topic);
+    if (topicIds.length === 0) return [];
+    const result = await sql<Row>`select r.asset_id, r.revision, r.title, d.summary, r.document
+      ${servedScrolls}
+      ${only === undefined ? sql`` : sql`and r.asset_id = ${only.assetId}::uuid and r.revision = ${only.assetRevision}`}
+      and exists (select 1 from content.encounter_topics t where t.asset_id = r.asset_id
+        and t.asset_revision = r.revision and t.role = 'primary' and t.topic_id = any(${topicIds}::text[]))
+      order by r.asset_id limit ${limit}`.execute(db);
+    return result.rows.flatMap((row): LibraryCallSource[] => {
+      const calls = callsOfStored(row.document);
+      return calls.length === 0
+        ? []
+        : [{ assetId: row.asset_id, assetRevision: row.revision, title: row.title, calls }];
+    });
   };

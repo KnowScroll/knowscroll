@@ -42,6 +42,7 @@ import {
   READ_PLAY_LEVEL,
   READ_LIBRARY_PASSAGES,
   READ_LIBRARY_PASSAGE_TEXT,
+  READ_LIBRARY_CALLS,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -76,7 +77,7 @@ import { readContentSequence, readSeriesTotal } from './content-sequence.js';
 import { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 import { chooseScrollRecipe, readScrollProduction } from './production-state.js';
 import { readRegionEncounterCandidates, lockRegionEncounterCandidates } from './region-candidates.js';
-import { makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+import { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 
 /**
  * Reusable outer wiring (blueprint §22): content's scope-bound read ports, used inside a personal
@@ -141,8 +142,8 @@ export function madeToOrderProviders(tokens: { readonly database: symbol; readon
 }
 
 /**
- * The library's prose for a room's daily items (v3 R-5): the Scrolls under a topic, and one block's text on the exact current
- * revision. Shared public content read on the pool with no personal scope, for the worker and the operator.
+ * The library's prose and calls for a room's daily items and Launch (v3 R-5, R-6): the Scrolls under a topic, one block's text on
+ * the exact current revision, and the calls of the Scrolls under a topic. Shared public content read on the pool with no personal scope, for the worker and the operator.
  */
 export function libraryPassageProviders(tokens: { readonly database: symbol }) {
   return [
@@ -155,6 +156,11 @@ export function libraryPassageProviders(tokens: { readonly database: symbol }) {
       provide: READ_LIBRARY_PASSAGE_TEXT,
       inject: [tokens.database],
       useFactory: (db: Kysely<Database>) => makeReadLibraryPassageText(db),
+    },
+    {
+      provide: READ_LIBRARY_CALLS,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => makeReadLibraryCalls(db),
     },
   ];
 }
@@ -199,7 +205,7 @@ export function importEditorialScrollUseCase(db: Kysely<Database>) {
   });
 }
 
-export { makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
+export { makeReadLibraryCalls, makeReadLibraryPassages, makeReadLibraryPassageText } from './library-passages.js';
 export { makeCutroomReelImporter, type CutroomImportSettings } from './import-cutroom-reel.js';
 export { makeMediaAccess } from './media-access.js';
 

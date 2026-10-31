@@ -51,6 +51,10 @@ const LIFECYCLE = {
   'rooms.debate_votes': 'the account votes on debates are deleted; they also go when they leave or are removed',
   'rooms.ritual_solves':
     'the account taps on Spot the flaw are deleted, by a Clear too (a play result); they also go when they leave or are removed',
+  'rooms.launch_players':
+    'the account place in a Launch is deleted, by a Clear too (a play result); it also goes when they leave or are removed, and seven days after the Launch',
+  'rooms.launch_answers':
+    'the account answers in a Launch are deleted, by a Clear too (a play result); they also go when they leave or are removed, and seven days after the Launch',
 } as const;
 
 /**
@@ -135,6 +139,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'constellation_votes', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'debate_votes', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'ritual_solves', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'launch_players', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'launch_answers', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -151,6 +157,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'constellation_votes', column: 'account_id' },
     { schema: 'rooms', table: 'debate_votes', column: 'account_id' },
     { schema: 'rooms', table: 'ritual_solves', column: 'account_id' },
+    { schema: 'rooms', table: 'launch_players', column: 'account_id' },
+    { schema: 'rooms', table: 'launch_answers', column: 'account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -194,6 +202,8 @@ export const roomsErasure: ModuleErasure = declareErasure({
     removed += count(await sql`delete from rooms.constellation_votes where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.debate_votes where account_id = ${account}::uuid`.execute(trx));
     removed += count(await sql`delete from rooms.ritual_solves where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.launch_answers where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.launch_players where account_id = ${account}::uuid`.execute(trx));
     // A topic named from this person's message is called what it says, so the name is theirs too: before the message is a
     // tombstone, it becomes the neutral title for everyone (D-168).
     removed += count(
@@ -254,15 +264,22 @@ export const roomsErasure: ModuleErasure = declareErasure({
       ...Object.fromEntries(Object.keys(LIFECYCLE).map((store) => [store, 'preserve' as const])),
       // A tap on Spot the flaw is a play result of the person, so a Clear erases it (D-082); the star it earned has no account.
       'rooms.ritual_solves': 'erase' as const,
+      // Answers and places in a Launch are play results too (D-082, D-220); the star a Launch earned has no account.
+      'rooms.launch_answers': 'erase' as const,
+      'rooms.launch_players': 'erase' as const,
       ...Object.fromEntries(QUEUES.map((name) => [`store:pgboss/${name}`, 'erase' as const])),
     },
     async erase(scope) {
       const trx = clearCoreTransactionOf(scope);
       const asks = await failQueuedTurns(trx, scope.binding.universeId);
       const jobs = await deleteClearJobPayloads(scope, QUEUES);
-      const taps = await sql`delete from rooms.ritual_solves where account_id = (
-        select account_id from identity.universes where id = ${scope.binding.universeId}::uuid)`.execute(trx);
-      return { module: 'rooms', status: 'completed', removed: asks + jobs + Number(taps.numAffectedRows ?? 0) };
+      const owner = sql`(select account_id from identity.universes where id = ${scope.binding.universeId}::uuid)`;
+      const taps = await sql`delete from rooms.ritual_solves where account_id = ${owner}`.execute(trx);
+      const answers = await sql`delete from rooms.launch_answers where account_id = ${owner}`.execute(trx);
+      const players = await sql`delete from rooms.launch_players where account_id = ${owner}`.execute(trx);
+      const played =
+        Number(taps.numAffectedRows ?? 0) + Number(answers.numAffectedRows ?? 0) + Number(players.numAffectedRows ?? 0);
+      return { module: 'rooms', status: 'completed', removed: asks + jobs + played };
     },
   },
 
@@ -291,6 +308,8 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.constellation_votes',
       'rooms.debate_votes',
       'rooms.ritual_solves',
+      'rooms.launch_players',
+      'rooms.launch_answers',
     ],
     'An invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
     async (scope, person) => {
@@ -386,6 +405,17 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         join rooms.rooms room on room.room_id = ritual.room_id
         where solve.account_id = ${person.accountId}::uuid
         order by solve.solved_at desc limit 500`.execute(trx);
+      // The person's own Launches: which room and day, how many questions they got right. Never what they picked, never another person.
+      const launches = await sql<{ room: string; day: string; right: string; answered: string }>`
+        select room.name as room, to_char(launch.starts_at at time zone 'UTC', 'YYYY-MM-DD') as day,
+          count(*) filter (where answer.correct) as right, count(*) as answered
+        from rooms.launch_players player
+        join rooms.launches launch on launch.launch_id = player.launch_id
+        join rooms.rooms room on room.room_id = launch.room_id
+        left join rooms.launch_answers answer on answer.launch_id = player.launch_id and answer.account_id = player.account_id
+        where player.account_id = ${person.accountId}::uuid
+        group by room.name, launch.launch_id, launch.starts_at
+        order by launch.starts_at desc limit 500`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);
       const askCount = Number(asks.rows[0]?.n ?? 0);
       // A person who never took part in a room has no section: the file does not name the module.
@@ -399,6 +429,7 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         skyVotes.rows.length === 0 &&
         debateVotes.rows.length === 0 &&
         taps.rows.length === 0 &&
+        launches.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
         return {};
@@ -455,6 +486,12 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
           day: row.day,
           right: row.correct,
           tappedAt: row.solved_at.toISOString(),
+        })),
+        launchesPlayed: launches.rows.map((row) => ({
+          room: row.room,
+          day: row.day,
+          questionsRight: Number(row.right),
+          questionsAnswered: Number(row.answered),
         })),
         activitiesStarted: startedActivities.rows.map((row) => ({
           room: row.room,

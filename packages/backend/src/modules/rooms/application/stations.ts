@@ -38,6 +38,12 @@ export function makeStationReads(p: RoomPorts) {
           scope,
           rows.filter((row) => row.standing === 'member' || row.standing === 'moderator').map((row) => row.room.roomId),
         );
+        // A Launch that is on shows on a member's station too, and on no one else's: a room's activity is for those who joined it.
+        const live = await p.launches.liveRooms(
+          scope,
+          rows.filter((row) => row.standing === 'member' || row.standing === 'moderator').map((row) => row.room.roomId),
+          p.now(),
+        );
         const stations = rows.flatMap((row) => {
           const place = placements.find(
             (candidate) => candidate.topic.kind === row.room.topic.kind && candidate.topic.id === row.room.topic.id,
@@ -52,6 +58,7 @@ export function makeStationReads(p: RoomPorts) {
                 ...(place.planetId === undefined ? {} : { planetId: place.planetId }),
               },
               ...skyFor(skies.get(row.room.roomId)),
+              ...(live.has(row.room.roomId) ? { live: true } : {}),
             },
           ];
         });

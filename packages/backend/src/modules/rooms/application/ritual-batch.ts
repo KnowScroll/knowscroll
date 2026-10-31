@@ -3,7 +3,7 @@ import type {
   ProductionReasoningHarness,
   WithProductionScope,
 } from '../../../reasoning/public.js';
-import type { ReadLibraryPassageText, ReadLibraryPassages } from '../../content/public.js';
+import type { ReadLibraryCalls, ReadLibraryPassageText, ReadLibraryPassages } from '../../content/public.js';
 import {
   alterationProblem,
   citationHolds,
@@ -13,6 +13,7 @@ import {
   type FlawPlan,
   type Sha256,
 } from '../domain/flaw.js';
+import { LaunchDeckSchema, deckStillHolds, planDeck, type CallSource } from '../domain/launch-deck.js';
 import { chooseQuestionSource, questionFrom } from '../domain/ritual-question.js';
 import { FlawPayloadSchema, QuestionPayloadSchema, RITUAL_VERSION, type RitualKind } from '../domain/rituals.js';
 import type { NewRitual, RitualDecision, RitualRoom, RitualRow, RitualStore } from './ritual-ports.js';
@@ -27,6 +28,8 @@ export interface RitualBatchPorts {
   readonly store: RitualStore;
   readonly readPassages: ReadLibraryPassages;
   readonly readPassageText: ReadLibraryPassageText;
+  /** The calls of the library Scrolls under a topic, for a Launch's deck. */
+  readonly readCalls: ReadLibraryCalls;
   /** The model the worker is configured for; recorded on every model-made item. */
   readonly model: string;
   /** The generation of the `rooms` root this process works under. */
@@ -55,6 +58,8 @@ export interface RoomDraft {
   readonly day: string;
   readonly question: DraftOutcome;
   readonly flaw: DraftOutcome;
+  /** The Launch's deck: five library calls chosen by code. No model is asked. */
+  readonly launch: DraftOutcome;
 }
 
 export type ReviewRitualResult =
@@ -66,7 +71,7 @@ type DecisionResult = 'decided' | 'unknown' | 'not_draft';
 
 export interface RitualOperator {
   /**
-   * Drafts a room's question and Spot the flaw for a UTC day. Idempotent by (room, day, kind): a kind the room has is
+   * Drafts a room's question, Spot the flaw and Launch deck for a UTC day. Idempotent by (room, day, kind): a kind the room has is
    * left alone and costs nothing, and the model run's ID is fixed by the room and day, so a retry never pays twice. It
    * does not ask whether the room has members: the night's batch picks its rooms by that, and an operator names a room.
    */
@@ -194,22 +199,19 @@ export function makeRitualOperator(
     return { kind: stored.value ? 'drafted' : 'exists' };
   }
 
-  async function draftRoom(input: {
-    room: RitualRoom;
-    day: string;
-    dryRun: boolean;
-    signal: AbortSignal;
-  }): Promise<RoomDraft> {
-    const { room, day, dryRun, signal } = input;
-    const has = await p.store.kindsOn(room.roomId, day);
-    const base = { room: room.slug, day };
-    if (has.has('question') && has.has('flaw'))
-      return { ...base, question: { kind: 'exists' }, flaw: { kind: 'exists' } };
+  /** The day's question and Spot the flaw: the two items made from a Scroll's prose. */
+  async function draftProse(
+    room: RitualRoom,
+    day: string,
+    has: ReadonlySet<RitualKind>,
+    dryRun: boolean,
+    signal: AbortSignal,
+  ): Promise<Pick<RoomDraft, 'question' | 'flaw'>> {
+    if (has.has('question') && has.has('flaw')) return { question: { kind: 'exists' }, flaw: { kind: 'exists' } };
     const sources = await p.readPassages(room.topic, SOURCES_READ);
     if (sources.length === 0) {
       const none: DraftOutcome = { kind: 'no_source' };
       return {
-        ...base,
         question: has.has('question') ? { kind: 'exists' } : none,
         flaw: has.has('flaw') ? { kind: 'exists' } : none,
       };
@@ -219,13 +221,52 @@ export function makeRitualOperator(
     const question: { outcome: DraftOutcome; assetId: string | undefined } = has.has('question')
       ? { outcome: { kind: 'exists' }, assetId: undefined }
       : await draftQuestion(room, day, sources, recent, seed, dryRun);
-    if (has.has('flaw')) return { ...base, question: question.outcome, flaw: { kind: 'exists' } };
+    if (has.has('flaw')) return { question: question.outcome, flaw: { kind: 'exists' } };
     // The puzzle is about another Scroll than the question when the library has one.
     const avoid = new Set([...recent, ...(question.assetId === undefined ? [] : [question.assetId])]);
     const plan = planFlaw(sources, seed, p.sha256, avoid);
     const flaw: DraftOutcome =
       plan === undefined ? { kind: 'no_source' } : await draftFlaw(room, day, plan, dryRun, signal);
-    return { ...base, question: question.outcome, flaw };
+    return { question: question.outcome, flaw };
+  }
+
+  /**
+   * The Launch's deck (D-179): five calls of the room topic's library Scrolls, chosen by code from the calls the room was not
+   * asked lately. No model is asked and nothing is generated, so it costs nothing and holds only text the Scrolls passed review for.
+   */
+  async function draftDeck(
+    room: RitualRoom,
+    day: string,
+    has: ReadonlySet<RitualKind>,
+    dryRun: boolean,
+  ): Promise<DraftOutcome> {
+    if (has.has('launch')) return { kind: 'exists' };
+    const sources = await p.readCalls(room.topic, SOURCES_READ);
+    const recent = await p.store.recentCalls(room.roomId, day, RECENT_DAYS);
+    const deck = planDeck(sources, seedOf(`${room.roomId}:${day}:launch`, p.sha256), recent);
+    if (deck === undefined) return { kind: 'no_source' };
+    if (dryRun) return { kind: 'dry_run' };
+    const stored = await p.store.insertDraft(
+      draft(room, day, 'launch', deck, {
+        madeBy: 'template',
+        roleVersion: undefined,
+        model: undefined,
+        attemptId: undefined,
+      }),
+    );
+    return { kind: stored ? 'drafted' : 'exists' };
+  }
+
+  async function draftRoom(input: {
+    room: RitualRoom;
+    day: string;
+    dryRun: boolean;
+    signal: AbortSignal;
+  }): Promise<RoomDraft> {
+    const { room, day, dryRun, signal } = input;
+    const has = await p.store.kindsOn(room.roomId, day);
+    const prose = await draftProse(room, day, has, dryRun, signal);
+    return { room: room.slug, day, ...prose, launch: await draftDeck(room, day, has, dryRun) };
   }
 
   /** Whether a question's cited Scroll is still a current one that anyone may be served. */
@@ -245,6 +286,20 @@ export function makeRitualOperator(
     const { assetId, assetRevision, blockId } = parsed.data.source;
     const text = await p.readPassageText({ assetId, assetRevision, blockId });
     return text !== undefined && citationHolds(text, parsed.data, p.sha256);
+  }
+
+  /** Whether every question of a deck is still what its Scroll says, in the exact revision it cites (read afresh for each). */
+  async function deckStillCited(row: RitualRow): Promise<boolean | 'invalid'> {
+    const parsed = LaunchDeckSchema.safeParse(row.payload);
+    if (!parsed.success || row.payloadVersion !== RITUAL_VERSION) return 'invalid';
+    const current = new Map<string, CallSource>();
+    for (const { source } of parsed.data.questions) {
+      const key = `${source.assetId}:${String(source.assetRevision)}`;
+      if (current.has(key)) continue;
+      const [found] = await p.readCalls(row.room.topic, 1, source);
+      if (found !== undefined) current.set(key, found);
+    }
+    return deckStillHolds(parsed.data, (assetId, assetRevision) => current.get(`${assetId}:${String(assetRevision)}`));
   }
 
   return {
@@ -275,7 +330,12 @@ export function makeRitualOperator(
       if (row === undefined) return { kind: 'unknown' };
       if (row.state !== 'draft') return { kind: 'not_draft' };
       if (decision === 'approved') {
-        const holds = row.kind === 'flaw' ? await flawStillCited(row) : await questionStillCited(row);
+        const holds =
+          row.kind === 'flaw'
+            ? await flawStillCited(row)
+            : row.kind === 'launch'
+              ? await deckStillCited(row)
+              : await questionStillCited(row);
         if (holds === 'invalid') return { kind: 'invalid' };
         if (!holds) return { kind: 'citation_changed' };
       }
