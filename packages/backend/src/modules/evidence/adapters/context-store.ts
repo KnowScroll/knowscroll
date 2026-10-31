@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { sql } from 'kysely';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { decay } from '../domain/activity.js';
+import { readCells } from './cell-store.js';
 import type {
   ActivityStatistics,
   ReadActivityStatistics,
@@ -36,6 +37,10 @@ export const readActivityStatistics: ReadActivityStatistics = async (scope, quer
   }>`select topic_id,activity,channel_values,evaluated_at,reel_measured,reel_qualified,scroll_measured,scroll_qualified from evidence.topic_context where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and topic_id=any(${q.topicIds}::text[]) limit 100`.execute(
     transactionOf(scope),
   );
+  const cells = await readCells(
+    scope,
+    r.rows.map((t) => t.topic_id),
+  );
   return r.rows.map((t) => {
     const factor = decay(new Date(t.evaluated_at).getTime(), Date.parse(q.evaluatedAt));
     const channels = ChannelValues.parse(t.channel_values);
@@ -54,6 +59,7 @@ export const readActivityStatistics: ReadActivityStatistics = async (scope, quer
         { kind: 'reel' as const, measured: t.reel_measured, qualified: t.reel_qualified },
         { kind: 'scroll' as const, measured: t.scroll_measured, qualified: t.scroll_qualified },
       ],
+      cells: cells.get(t.topic_id) ?? [],
     };
   });
 };

@@ -6,6 +6,14 @@ const Format = z.enum(['reel', 'scroll']);
 const Ref = z.strictObject({ assetId: Id, assetRevision: Revision });
 const Position = z.strictObject({ seriesId: Id, seriesRevision: Revision, part: z.number().int().min(1).max(99) });
 const Facets = z.array(Id).max(16);
+const Level = z.enum(['plain', 'stage', 'game']);
+/** Public facts of the content (D-192): no field for a pick, a result, a spark or a tier can be added by accident. */
+const Traits = z.strictObject({
+  playLevel: Level,
+  readingMinutes: z.number().min(0.1).max(240).optional(),
+  misconceptionClaim: z.string().min(1).max(240).optional(),
+  seriesTotal: z.number().int().min(1).max(99).optional(),
+});
 const Encounter = Ref.extend({
   kind: Format,
   explanationUnitId: Id,
@@ -27,6 +35,7 @@ const Encounter = Ref.extend({
   facets: Facets,
   siblings: z.array(Ref.extend({ kind: Format })).max(2),
   series: Position.optional(),
+  traits: Traits.optional(),
   catalogWatermark: z.string().min(1).max(240),
   attributionVersion: Id,
 });
@@ -112,11 +121,30 @@ export const ComposerSnapshotSchema: z.ZodType<ComposerSnapshot> = z.strictObjec
                 }),
               )
               .max(2),
+            cells: z
+              .array(
+                z.strictObject({
+                  kind: Format,
+                  level: Level,
+                  measured: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+                  qualified: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+                }),
+              )
+              .max(6)
+              .optional(),
           }),
         )
         .max(100),
       recent: z
-        .array(z.strictObject({ exposureId: Id, activatedAt: z.iso.datetime(), explanationUnitId: Id, facets: Facets }))
+        .array(
+          z.strictObject({
+            exposureId: Id,
+            activatedAt: z.iso.datetime(),
+            explanationUnitId: Id,
+            facets: Facets,
+            topicIds: z.array(Id).max(16).optional(),
+          }),
+        )
         .max(20),
       established: z
         .strictObject({

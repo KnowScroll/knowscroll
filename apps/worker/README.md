@@ -137,6 +137,13 @@ a projected system, planet or region without one (at most `--limit`, default 100
 `scenes.backfill-looks` consumer inserts the missing rows under that universe's lock. No slot, seed, family or anchor
 moves, no provider is called, and running it again assigns nothing. It needs only `KS_WORLD` and `DATABASE_URL`.
 
+`node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
+[--recent-topic-penalty <0-1>] [--sweep]` (`src/composer-operator.ts`, D-190) re-runs the retained vertical Composer decisions
+recorded since a date under `composer-policy.v0` and v1 and prints counts and shares only: first offers that stay on the
+source's topic, are another part of its series or move to another Jev subject, and how often sticky format fell back. It
+names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
+`DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
+
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,
@@ -193,7 +200,8 @@ person just activated and stores it for the next navigation (`modules/composer/R
 session, candidates, Hide and the person's stored Jev assessments in one short transaction, may ask Jev
 (`KS_JEV_ENABLED=1`) outside any transaction, only about shortlisted candidates that have no stored
 assessment from the last 30 minutes (D-058), then adds what it paid for to the stored assessments, persists
-the ranking and replaces the person's buffer in a second one. A job for a
+the ranking and replaces the person's buffer in a second one. It ranks under the policy the world sets
+(`KS_COMPOSER_POLICY`, `v0` unless set, D-190). A job for a
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 

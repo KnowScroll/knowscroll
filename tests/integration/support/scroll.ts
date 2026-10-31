@@ -153,6 +153,8 @@ export async function scrollUseCases(
     readonly recording?: true;
     /** Serves worker-prepared buffers and requests the next one on activation, like the API. */
     readonly buffers?: true;
+    /** The Composer policy new decisions are made under (`KS_COMPOSER_POLICY`); `v0`, the default, unless a test says. */
+    readonly composerPolicy?: 'v0' | 'v1';
     readonly activityDerived?: ActivityDerivedEffect;
     /** Who may open a Scroll ordered from code, as the module that orders it decides. */
     readonly orderAudience?: ReadOrderAudience;
@@ -227,7 +229,7 @@ export async function scrollUseCases(
       values,
     ),
   );
-  const composer = composerProviders({ isOperator: () => false });
+  const composer = composerProviders({ isOperator: () => false }, options.composerPolicy);
   for (const p of composer) values.set(p.provide, p.useValue);
   const bufferProviders = options.buffers ? composerBufferProviders({ enqueueJob: ENQUEUE }) : [];
   for (const p of bufferProviders) if ('useValue' in p) values.set(p.provide, p.useValue);

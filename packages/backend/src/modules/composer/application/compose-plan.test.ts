@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerSnapshot, type CurrentPlan, type PlannedOpportunity } from '../public.js';
 import { PLAN_LIFT } from '../domain/plan.js';
+import { COMPOSER_POLICY_V0, COMPOSER_POLICY_V1 } from '../domain/policy.js';
 
 /** Labelled CI input fixtures: no provider output and no claim about real Planner quality. */
 const EVALUATED_AT = '2026-10-20T12:00:00Z';
@@ -118,48 +119,63 @@ describe('Composer reads the person\u2019s Planner plan (labelled CI input fixtu
     }
   });
 
-  it('current intent wins even when the planned candidate is stronger on interest, format and novelty', () => {
-    // A matches the intent topic. B is off-topic but is exactly what the plan names, and B is better on
-    // every other feature. Without a plan A leads; the plan must not change that.
-    const candidates = [candidate(0, 'topic.a'), candidate(1, 'topic.b')];
-    const evidence = (plan?: CurrentPlan) => ({
-      universeId: 'fixture-universe',
-      privacyEpoch: 1,
-      evaluatedAt: EVALUATED_AT,
-      watermark: 'fixture-context',
-      policyVersion: 'fixture-actual-activity',
-      ...(plan ? { plan } : {}),
-      topics: [
-        { topicId: 'topic.a', activity: 0.2, formats: [] },
-        { topicId: 'topic.b', activity: 20, formats: [{ kind: 'scroll' as const, measured: 9, qualified: 9 }] },
-      ],
-      recent: [],
-      established: {
-        policyVersion: 'fixture-history',
-        watermark: 'fixture-history',
-        units: [
-          { explanationUnitId: 'unit-1', encountered: false, facets: [{ facetId: 'facet-1', encountered: false }] },
+  // The planned candidate B must be stronger on interest and format yet still lose to the intent match A. Intent
+  // weighs 0.35 under v0 and 0.15 under v1 (D-190), so B is made as strong as each policy allows.
+  it.each([
+    ['composer-policy.v0', COMPOSER_POLICY_V0, { activity: 20, measured: 9 }],
+    ['composer-policy.v1', COMPOSER_POLICY_V1, { activity: 0.3, measured: 1 }],
+  ])(
+    'current intent wins even when the planned candidate is stronger on interest, format and novelty (%s)',
+    (_label, policy, strength) => {
+      // A matches the intent topic. B is off-topic but is exactly what the plan names, and B is better on
+      // every other feature. Without a plan A leads; the plan must not change that.
+      const candidates = [candidate(0, 'topic.a'), candidate(1, 'topic.b')];
+      const evidence = (plan?: CurrentPlan) => ({
+        universeId: 'fixture-universe',
+        privacyEpoch: 1,
+        evaluatedAt: EVALUATED_AT,
+        watermark: 'fixture-context',
+        policyVersion: 'fixture-actual-activity',
+        ...(plan ? { plan } : {}),
+        topics: [
+          { topicId: 'topic.a', activity: 0.2, formats: [] },
+          {
+            topicId: 'topic.b',
+            activity: strength.activity,
+            formats: [{ kind: 'scroll' as const, measured: strength.measured, qualified: strength.measured }],
+          },
         ],
-      },
-      hiddenAssetIds: [],
-    });
-    const plan = { revision: 3, opportunities: [opportunity({ topicIds: ['topic.b'], explanationUnitId: 'unit-1' })] };
-    const input = (withPlan: boolean) => ({
-      ...snapshot({ intentTopics: ['topic.a'], candidates }),
-      evidence: evidence(withPlan ? plan : undefined),
-    });
-    const without = composeEncounter(input(false));
-    const withPlan = composeEncounter(input(true));
-    expect(without.selection[0]?.assetId).toBe('asset-0');
-    expect(evaluationOf(without, 'asset-1').features.interest).toBeGreaterThan(
-      evaluationOf(without, 'asset-0').features.interest,
-    );
-    expect(withPlan.selection.map((r) => r.assetId)).toEqual(without.selection.map((r) => r.assetId));
-    expect(withPlan.evaluations.map((e) => [e.features, e.score])).toEqual(
-      without.evaluations.map((e) => [e.features, e.score]),
-    );
-    expect(withPlan.evaluations.every((e) => e.plan === undefined)).toBe(true);
-  });
+        recent: [],
+        established: {
+          policyVersion: 'fixture-history',
+          watermark: 'fixture-history',
+          units: [
+            { explanationUnitId: 'unit-1', encountered: false, facets: [{ facetId: 'facet-1', encountered: false }] },
+          ],
+        },
+        hiddenAssetIds: [],
+      });
+      const plan = {
+        revision: 3,
+        opportunities: [opportunity({ topicIds: ['topic.b'], explanationUnitId: 'unit-1' })],
+      };
+      const input = (withPlan: boolean) => ({
+        ...snapshot({ intentTopics: ['topic.a'], candidates }),
+        evidence: evidence(withPlan ? plan : undefined),
+      });
+      const without = composeEncounter(input(false), policy);
+      const withPlan = composeEncounter(input(true), policy);
+      expect(without.selection[0]?.assetId).toBe('asset-0');
+      expect(evaluationOf(without, 'asset-1').features.interest).toBeGreaterThan(
+        evaluationOf(without, 'asset-0').features.interest,
+      );
+      expect(withPlan.selection.map((r) => r.assetId)).toEqual(without.selection.map((r) => r.assetId));
+      expect(withPlan.evaluations.map((e) => [e.features, e.score])).toEqual(
+        without.evaluations.map((e) => [e.features, e.score]),
+      );
+      expect(withPlan.evaluations.every((e) => e.plan === undefined)).toBe(true);
+    },
+  );
 
   it('does nothing when the intent already puts every candidate at its maximum', () => {
     const plan = { revision: 3, opportunities: [opportunity({ explanationUnitId: 'unit-2' })] };

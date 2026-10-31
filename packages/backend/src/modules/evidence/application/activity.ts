@@ -4,7 +4,13 @@ import type { ActivityProjectionResult } from './activity-contracts.js';
 import type { ActivityDerivedEffect, RecordingActivityDerivedInput } from './context-ports.js';
 import type { PreparedEvidenceInput } from '../../composer/public.js';
 import { z } from 'zod';
-import { activity, ACTIVITY_POLICY, type ActivityChannels } from '../domain/activity.js';
+import {
+  activity,
+  ACTIVITY_POLICY,
+  continuationCredit,
+  type ActivityChannels,
+  type ActivityPolicyVersion,
+} from '../domain/activity.js';
 import type {
   PersonalAuthority,
   PersonalScopeTx,
@@ -14,7 +20,7 @@ import type {
   FencePersonalRecording,
   ReadRecordingLifecycle,
 } from '../../identity/public.js';
-import type { ReadEncounterAttribution, EncounterAttribution } from '../../content/public.js';
+import type { ReadEncounterAttribution, EncounterAttribution, ReadPlayLevel, PlayLevel } from '../../content/public.js';
 import type {
   ReadActivityLineage,
   ReadExposureForEvidence,
@@ -34,10 +40,16 @@ export interface QualificationInput {
   readonly revision: number;
   readonly qualification: 'qualified' | 'not_qualified' | 'unknown';
   readonly q: number;
+  /** How much of the encounter was seen, in [0, 1]: the bar a deliberate continuation must clear (activity.v1). */
+  readonly coverage: number;
   readonly assetId: string;
   readonly assetRevision: number;
 }
 export interface ActivityProjection {
+  /** The activity rule this revision was computed under, stored with it. */
+  readonly policyVersion: ActivityPolicyVersion;
+  /** How much the Scroll asked of the reader, read from the stored revision; plain for a Reel (D-192). */
+  readonly playLevel: PlayLevel;
   readonly recordingGeneration: number;
   readonly segmentChannels: ActivityChannels;
   readonly clockDomain: 'legacy' | 'session';
@@ -97,6 +109,7 @@ export interface ActivityPorts {
   readonly readLineage: ReadActivityLineage;
   readonly ensureLineage: EnsureActivityLineage;
   readonly readAttribution: ReadEncounterAttribution;
+  readonly readPlayLevel: ReadPlayLevel;
   readonly readHistory: ReadRoutingHistory;
   readonly readReconcilePage: ReadActivityReconcilePage;
   readonly readQualification: (
@@ -172,13 +185,17 @@ async function inputs(
       ? prior.base
       : prior.effective
     : await p.legacyCredit(cap, id, segment.metadata);
+  // A deliberate continuation credits the exposure it left only when that exposure was read enough to
+  // count (activity.v1); with no measured reading there is nothing to clear the bar with.
+  const continued = (q: QualificationInput | undefined) =>
+    continuationCredit(ACTIVITY_POLICY, { horizontal: segment.horizontal, coverage: q?.coverage ?? null });
   const source = (q: QualificationInput | undefined) => ({
     channels: {
       q: q && q.qualification !== 'unknown' ? q.q : null,
       L: false,
       B: false,
       S: 0 as const,
-      H: segment.horizontal,
+      H: continued(q),
       R: segment.returned,
     },
     measured: q !== undefined && q.qualification !== 'unknown',
@@ -240,16 +257,19 @@ async function inputs(
     navigationRevision: segment.navigationRevision,
     attribution: segment.attributionSha256,
     policy: 'recording-credit.v1',
+    activityPolicy: ACTIVITY_POLICY.version,
   };
   return {
     id: p.newId(),
+    policyVersion: ACTIVITY_POLICY.version,
+    playLevel: await p.readPlayLevel(cap.personal, segment.exposure),
     recordingGeneration: cap.generation,
     segmentChannels: {
       q: measured ? q.q : null,
       L: segment.likedOverride ?? false,
       B: segment.savedOverride ?? false,
       S: 0,
-      H: segment.horizontal,
+      H: continued(q),
       R: segment.returned,
     },
     clockDomain: domain,

@@ -70,6 +70,12 @@ export function makeReadComposerContext(
           topicId: t.topicId,
           activity: t.activity,
           formats: t.formats.map((f) => ({ kind: f.kind, measured: f.measured, qualified: f.qualified })),
+          cells: t.cells.map((cell) => ({
+            kind: cell.kind,
+            level: cell.level,
+            measured: cell.measured,
+            qualified: cell.qualified,
+          })),
         })),
       recent: s.routing.recent,
       established: { policyVersion: 'retained-activated-history.v0', watermark, units: s.routing.established },
