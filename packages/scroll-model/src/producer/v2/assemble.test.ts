@@ -146,6 +146,25 @@ describe('assembleScrollV2', () => {
     });
   });
 
+  it('sets the landmark and the Final call control from the recipe, never from the writer, and leaves both out otherwise', () => {
+    const landmark = { key: 'ci-fixture-axis', name: 'The CI Fixture Axis' };
+    const recipe = { ...recipeV2('stage'), landmark, finalCall: { kind: 'tilt' } } as const;
+    const result = assembleScrollV2(authoredV2(), PUBLICATION_V2, recipe);
+    if (result.kind !== 'assembled') throw new Error('expected an assembled Scroll');
+    expect(result.document.landmark).toEqual(landmark);
+    const final = result.document.stops.at(-1);
+    expect(final?.kind === 'final_call' && final.binding).toEqual({ kind: 'tilt' });
+    // No other stop is bound, and the model's own answer carries neither field.
+    expect(
+      result.document.stops.filter((stop) => stop.kind === 'final_call' && stop.binding !== undefined),
+    ).toHaveLength(1);
+    expect(JSON.stringify(authoredV2())).not.toMatch(/landmark|binding/u);
+    const plain = assemble().document;
+    expect(plain.landmark).toBeUndefined();
+    expect(Object.keys(plain)).not.toContain('landmark');
+    expect(JSON.stringify(plain.stops)).not.toContain('binding');
+  });
+
   it('gives an authored list with no stop nothing to assemble', () => {
     const onlyAsides = AuthoredScrollV2.parse({
       ...authoredV2(),

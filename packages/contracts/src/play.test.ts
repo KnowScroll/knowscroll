@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CallLockRequestSchema,
   CallLockResponseSchema,
+  ReadLandmarksResponseSchema,
   ReadScrollResultsRequestSchema,
   ScrollResultsSchema,
   apiContract,
@@ -78,9 +79,35 @@ describe('results', () => {
       expect(ScrollResultsSchema.safeParse({ ...results, ...extra }).success).toBe(false);
   });
 
-  it('are served by two routes, both under /v1/play', () => {
-    expect(Object.keys(apiContract.play).sort()).toEqual(['lockCall', 'readResults']);
+  it('are served by three routes, all under /v1/play', () => {
+    expect(Object.keys(apiContract.play).sort()).toEqual(['lockCall', 'readLandmarks', 'readResults']);
     expect(playContract.lockCall['~orpc'].route.path).toBe('/v1/play/calls/lock');
     expect(playContract.readResults['~orpc'].route.path).toBe('/v1/play/results/read');
+    expect(playContract.readLandmarks['~orpc'].route.path).toBe('/v1/play/landmarks/read');
+  });
+
+  it('carry the landmark the Final call awarded, with its finish, and allow five sparks (the combo bonus)', () => {
+    const awarded = { key: 'the-leaning-axis', name: 'The Leaning Axis', tier: 'gold' };
+    expect(ScrollResultsSchema.parse({ ...results, sparks: 5, landmark: awarded }).landmark).toEqual(awarded);
+    expect(ScrollResultsSchema.safeParse({ ...results, sparks: 6 }).success).toBe(false);
+    for (const tier of ['silver', 'GOLD', ''])
+      expect(ScrollResultsSchema.safeParse({ ...results, landmark: { ...awarded, tier } }).success).toBe(false);
+    expect(ScrollResultsSchema.safeParse({ ...results, landmark: { ...awarded, points: 9 } }).success).toBe(false);
+  });
+});
+
+describe('the list of landmarks', () => {
+  it('is their own, newest first, with the finish and the day, and no score', () => {
+    const entry = {
+      assetId: id(2),
+      revision: 3,
+      key: 'the-leaning-axis',
+      name: 'The Leaning Axis',
+      tier: 'plain',
+      earnedAt: '2026-10-31T10:00:00.000Z',
+    };
+    expect(ReadLandmarksResponseSchema.parse({ landmarks: [entry] })).toEqual({ landmarks: [entry] });
+    expect(ReadLandmarksResponseSchema.safeParse({ landmarks: [{ ...entry, sparks: 3 }] }).success).toBe(false);
+    expect(ReadLandmarksResponseSchema.safeParse({ landmarks: [], total: 1 }).success).toBe(false);
   });
 });

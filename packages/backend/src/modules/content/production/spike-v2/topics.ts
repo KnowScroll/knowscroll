@@ -94,8 +94,7 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
  */
 export function spikeRecipeV2(topic: ScrollTopic): SpikeRecipeV2 {
   const planned = TOPICS[topic].scrollV2;
-  if (planned !== undefined)
-    return { variant: planned.variant, misconception: planned.misconception, defaulted: false };
+  if (planned !== undefined) return { ...planned, defaulted: false };
   const variant = TOPICS[topic].stageKit === undefined ? 'plain' : 'stage';
   const listed = SPIKE_MYTHS[topic];
   return listed === undefined

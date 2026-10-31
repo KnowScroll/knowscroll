@@ -1,4 +1,4 @@
-import { talliesAfterEach, NO_TALLY } from '@knowscroll/scroll-model';
+import { landmarkTier, talliesAfterEach, NO_TALLY, type LandmarkTier } from '@knowscroll/scroll-model';
 import type { CallLockResponse, ScrollResults } from '@knowscroll/contracts';
 import { ScopeEndedError, type AccountScope } from './account-scope';
 import { apiProblem } from './api-client';
@@ -14,10 +14,23 @@ import type { OutboxTimers } from './recorder/outbox';
  * `play.*`. The reader reports only the value-free "revealed" to the recorder, as before.
  */
 
-/** A Call it as the device needs it to judge a lock: the stop and which option is right. */
+/** A call as the device needs it to judge a lock: the stop, which option is right, and whether it is the Final call. */
 export interface PlayCall {
   readonly stopId: string;
   readonly answer: number;
+  /** The Final call: a right one after a combo of two or more earns a second spark (D-187). */
+  readonly finalCall?: boolean;
+}
+
+/** The landmark a Scroll's Final call awards, as its document names it (D-188). */
+export interface PlayLandmarkName {
+  readonly key: string;
+  readonly name: string;
+}
+
+/** A landmark the person has earned on this Scroll, with its finish. */
+export interface PlayLandmark extends PlayLandmarkName {
+  readonly tier: LandmarkTier;
 }
 
 /** Whether a lock is kept, in the words the screen needs. */
@@ -38,6 +51,9 @@ export interface PlayLock {
   readonly correct: boolean;
   /** The run of right calls this lock ended at; zero for a wrong call. */
   readonly combo: number;
+  /** The sparks this lock earned: one for a right call, two for a right Final call after a combo of two or more. */
+  readonly earned: number;
+  readonly finalCall: boolean;
   readonly keeping: PlayKeeping;
 }
 
@@ -46,6 +62,8 @@ export interface PlaySnapshot {
   readonly locks: readonly PlayLock[];
   readonly sparks: number;
   readonly combo: number;
+  /** Present once the Final call is locked, when the Scroll names a landmark: gold for a right answer, plain for any other. */
+  readonly landmark: PlayLandmark | undefined;
 }
 
 export interface PlaySession {
@@ -63,8 +81,10 @@ export interface PlaySessionOptions {
   readonly scope: AccountScope;
   readonly assetId: string;
   readonly revision: number;
-  /** The Call its of this revision. The Final call is not played here yet. */
+  /** The calls of this revision, the Final call included. */
   readonly calls: readonly PlayCall[];
+  /** What the Final call awards, from the document; absent for a Scroll that names none. */
+  readonly landmark?: PlayLandmarkName | undefined;
   readonly newId: () => string;
   readonly timers?: OutboxTimers;
 }
@@ -89,6 +109,7 @@ interface Entry {
   readonly stopId: string;
   readonly option: number;
   readonly correct: boolean;
+  readonly finalCall: boolean;
   readonly commandId: string;
   readonly keeping: PlayKeeping;
 }
@@ -99,27 +120,45 @@ interface Entry {
  * (D-181): a lock made while paused was never stored and, as D-083 says, does not appear later, so it
  * is left out of the sparks and the combo (its own reveal still says it was not saved).
  */
-function snapshotOf(entries: readonly Entry[], recordingOn: boolean): PlaySnapshot {
+function snapshotOf(
+  entries: readonly Entry[],
+  recordingOn: boolean,
+  landmark: PlayLandmarkName | undefined,
+): PlaySnapshot {
   const counted = entries.filter((entry) => !recordingOn || entry.keeping !== 'recording_paused');
   const tallies = talliesAfterEach(counted);
   const comboAt = new Map(counted.map((entry, index) => [entry.stopId, tallies[index]!.combo]));
+  const sparksAt = new Map(
+    counted.map((entry, index) => [entry.stopId, tallies[index]!.sparks - (tallies[index - 1]?.sparks ?? 0)]),
+  );
+  const final = counted.find((entry) => entry.finalCall);
   return {
     locks: entries.map((entry) => ({
       stopId: entry.stopId,
       option: entry.option,
       correct: entry.correct,
       combo: comboAt.get(entry.stopId) ?? 0,
+      earned: sparksAt.get(entry.stopId) ?? 0,
+      finalCall: entry.finalCall,
       keeping: entry.keeping,
     })),
     ...(tallies.at(-1) ?? NO_TALLY),
+    // The finish follows the Final call as it was locked, the server's copy once it has answered: the tier is a rule of the call.
+    landmark:
+      final === undefined || landmark === undefined ? undefined : { ...landmark, tier: landmarkTier(final.correct) },
   };
 }
 
 /** What the server kept, then what this device locked that the server does not know. */
-function adopt(entries: readonly Entry[], results: ScrollResults): Entry[] {
+function adopt(entries: readonly Entry[], results: ScrollResults, finals: ReadonlySet<string>): Entry[] {
   const kept = new Set(results.calls.map((call) => call.stopId));
   return [
-    ...results.calls.map((call): Entry => ({ ...call, commandId: '', keeping: 'saved' })),
+    ...results.calls.map((call): Entry => ({
+      ...call,
+      finalCall: finals.has(call.stopId),
+      commandId: '',
+      keeping: 'saved',
+    })),
     ...entries.filter((entry) => !kept.has(entry.stopId)),
   ];
 }
@@ -133,11 +172,13 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
   const { scope, assetId, revision, newId } = options;
   const timers = options.timers ?? defaultTimers;
   const answers = new Map(options.calls.map((call) => [call.stopId, call.answer]));
+  const finals = new Set(options.calls.filter((call) => call.finalCall === true).map((call) => call.stopId));
+  const { landmark } = options;
   const listeners = new Set<() => void>();
   let entries: Entry[] = [];
   /** Recording is on unless the person's policy, as this device last read it, says paused. */
   const recordingOn = (): boolean => scope.recording?.getState().policy?.on !== false;
-  let snapshot = snapshotOf(entries, recordingOn());
+  let snapshot = snapshotOf(entries, recordingOn(), landmark);
   let flushing = false;
   let flushAgain = false;
   let retryTimer: unknown;
@@ -146,7 +187,7 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
   function set(next: Entry[]): void {
     if (!scope.active) return;
     entries = next;
-    snapshot = snapshotOf(entries, recordingOn());
+    snapshot = snapshotOf(entries, recordingOn(), landmark);
     for (const listener of [...listeners]) listener();
   }
 
@@ -198,7 +239,7 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
       settle(entry.stopId, 'refused');
       return true;
     }
-    set(adopt(entries, answer.results));
+    set(adopt(entries, answer.results, finals));
     return true;
   }
 
@@ -239,7 +280,7 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
     timers.clearTimeout(retryTimer);
     listeners.clear();
     entries = [];
-    snapshot = snapshotOf(entries, true);
+    snapshot = snapshotOf(entries, true, landmark);
   });
 
   return {
@@ -254,7 +295,7 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
       try {
         const results = await scope.api.play.readResults({ assetId, revision });
         if (!scope.active || results.assetId !== assetId || results.revision !== revision) return;
-        set(adopt(entries, results));
+        set(adopt(entries, results, finals));
       } catch {
         // Not reached: the device keeps its own play, and the next lock sends what is waiting.
       }
@@ -263,7 +304,17 @@ export function createPlaySession(options: PlaySessionOptions): PlaySession {
       const answer = answers.get(stopId);
       if (!scope.active || answer === undefined || !Number.isInteger(option) || option < 0) return;
       if (entries.some((entry) => entry.stopId === stopId)) return;
-      set([...entries, { stopId, option, correct: option === answer, commandId: newId(), keeping: 'waiting' }]);
+      set([
+        ...entries,
+        {
+          stopId,
+          option,
+          correct: option === answer,
+          finalCall: finals.has(stopId),
+          commandId: newId(),
+          keeping: 'waiting',
+        },
+      ]);
       retries = 0;
       void flush();
     },

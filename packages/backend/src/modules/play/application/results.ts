@@ -1,7 +1,7 @@
 import type { ScrollResults } from '@knowscroll/contracts';
 import type { StoredPlay } from './ports.js';
 
-/** What the reader is shown of one revision: the calls in the order locked, the sparks and the combo. */
+/** What the reader is shown of one revision: the calls in the order locked, the sparks, the combo and the landmark earned. */
 export function resultsOf(
   revision: { readonly assetId: string; readonly revision: number },
   play: StoredPlay,
@@ -12,5 +12,6 @@ export function resultsOf(
     calls: play.calls.map((call) => ({ stopId: call.stopId, option: call.option, correct: call.correct })),
     sparks: play.tally.sparks,
     combo: play.tally.combo,
+    ...(play.landmark === undefined ? {} : { landmark: play.landmark }),
   };
 }
