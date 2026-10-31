@@ -19,15 +19,24 @@ const FIGURE_PASSAGES = [
   ...PASSAGES_V2,
   'Orrin circles Vael at 150 million kilometres, its moon Pell at 228 million, and the ice giant Sarn at 779 million kilometres.',
   'Doubling the work on Orrin ferries takes 100 trips for 10 crates, 10,000 trips for 100 crates and 1,000,000 trips for 1,000 crates.',
-  'The people of Orrin numbered 8.3 million in the year 1801, 17 million in 1850 and 31 million in 1901, while 17 sheep grazed on one hill.',
+  'The people of Orrin numbered 8.3\u00a0million in the year 1801, 17 million in 1850 and 31 million in 1901, while 17 sheep grazed on one hill.',
+  // Other ways a passage writes a figure (D-208).
+  'About 1,400 million people live along the Vael river, and the 1,400 million keep growing.',
+  'Pell holds 8.3m moons of dust, 4.1bn grains of sand and 7.5 crore stones.',
+  'The crowd of 8.3-million cheered, and the harbour holds 9-million barrels.',
+  'Between 8 to 10 million pilgrims come each year, and 20\u201330 million visit in all.',
 ];
 const evidence = (): CompileV2Input['evidence'] => ({
-  claimIdOf: new Map([...EVIDENCE_V2.claimIdOf, ['e7', 'claim-v2-7'], ['e8', 'claim-v2-8'], ['e9', 'claim-v2-9']]),
+  claimIdOf: new Map([
+    ...EVIDENCE_V2.claimIdOf,
+    ...FIGURE_PASSAGES.slice(6).map((_, index): [string, string] => [
+      `e${String(index + 7)}`,
+      `claim-v2-${String(index + 7)}`,
+    ]),
+  ]),
   quoteOf: new Map([
     ...EVIDENCE_V2.quoteOf,
-    ['claim-v2-7', FIGURE_PASSAGES[6] ?? ''],
-    ['claim-v2-8', FIGURE_PASSAGES[7] ?? ''],
-    ['claim-v2-9', FIGURE_PASSAGES[8] ?? ''],
+    ...FIGURE_PASSAGES.slice(6).map((text, index): [string, string] => [`claim-v2-${String(index + 7)}`, text]),
   ]),
   minDistinctCitations: 4,
 });
@@ -268,6 +277,12 @@ describe('which blocks a recipe allows', () => {
     expect(codesOf(withBlock(2, {}, ['sort']))).toContain('block_missing@items');
   });
 
+  it('refuses a block as the first item and a guide on the first stop, in code and not only in the prompt', () => {
+    expect(codesOf(withBlock(0, SORT, ['sort']))).toContain('block_unexpected@items.0');
+    const GUIDE = { guide: { pose: 'smile', line: 'A short word from the guide.' } };
+    expect(codesOf(withBlock(0, GUIDE, [], undefined, 'ray'))).toContain('guide_unexpected@items.0.guide');
+  });
+
   it('keeps at most two play blocks in a Scroll', () => {
     const three = withBlock(2, SORT, ['sort', 'fork', 'chart'], (draft) => {
       draft.items[3] = { ...draft.items[3], ...FORK };
@@ -334,5 +349,71 @@ describe('what the writer is told', () => {
     expect(some).toMatch(/"type":"chart"/u);
     expect(some).not.toMatch(/"type":"fork"/u);
     expect(some).toMatch(/guide:/u);
+  });
+});
+
+describe('figures a passage writes in other ways (D-208)', () => {
+  /** A chart of one figure three times, each with its own label, so only the figure and its word are tested. */
+  const chartOf = (cites: string, unit: string, value: string | number, magnitude?: string) =>
+    withBlock(
+      2,
+      {
+        ...CHART,
+        cites: [cites],
+        unit,
+        points: ['A', 'B', 'C'].map((label) => ({ label, value, ...(magnitude === undefined ? {} : { magnitude }) })),
+      },
+      ['chart'],
+    );
+  const refused = (outcome: Outcome) => codesOf(outcome).includes('block_value_invalid@items.2');
+
+  it('refuses a figure with thousands commas that the passage always scales, and accepts it with its word', () => {
+    expect(refused(chartOf('e10', 'people', '1,400'))).toBe(true);
+    expect(refused(chartOf('e10', 'people', '1,400', 'million'))).toBe(false);
+    expect(chartOf('e10', 'people', '1,400', 'million').kind).toBe('compiled');
+  });
+
+  it('refuses 8.3m, 4.1bn and 7.5 crore with no word and with a word, because a value cannot state them', () => {
+    for (const figure of ['8.3', '4.1', '7.5']) {
+      expect(refused(chartOf('e11', 'stones', figure)), figure).toBe(true);
+      expect(refused(chartOf('e11', 'stones', figure, 'million')), figure).toBe(true);
+    }
+  });
+
+  it('reads 8.3-million as 8.3 million', () => {
+    expect(refused(chartOf('e12', 'crowd', '8.3'))).toBe(true);
+    expect(refused(chartOf('e12', 'crowd', '8.3', 'million'))).toBe(false);
+  });
+
+  it('refuses one end of a range unless the item states the other end', () => {
+    expect(refused(chartOf('e13', 'pilgrims', '8'))).toBe(true);
+    expect(refused(chartOf('e13', 'pilgrims', '8', 'million'))).toBe(true);
+    const states = withBlock(
+      2,
+      {
+        ...CHART,
+        cites: ['e13'],
+        unit: 'pilgrims',
+        points: [
+          { label: 'Low end', value: '8', magnitude: 'million' },
+          { label: 'High end 10', value: '10', magnitude: 'million' },
+          { label: 'Again', value: '8', magnitude: 'million' },
+        ],
+      },
+      ['chart'],
+    );
+    expect(refused(states)).toBe(false);
+  });
+
+  it('refuses exponent notation however the figure is written', () => {
+    expect(refused(chartOf('e8', 'trips', 1.5e-7))).toBe(true);
+    expect(refused(chartOf('e8', 'trips', '1.5e-7'))).toBe(true);
+    expect(refused(chartOf('e8', 'trips', 1e21))).toBe(true);
+  });
+
+  it('refuses a unit whose words no cited passage uses, and accepts one it does', () => {
+    expect(refused(withBlock(2, { ...SCALE, unit: 'light years' }, ['scale']))).toBe(true);
+    expect(refused(withBlock(2, { ...SCALE, unit: 'kilometres' }, ['scale']))).toBe(false);
+    expect(refused(withBlock(2, { ...SCALE, unit: 'million km' }, ['scale']))).toBe(true);
   });
 });

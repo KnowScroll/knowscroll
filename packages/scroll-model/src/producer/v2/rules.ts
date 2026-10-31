@@ -5,7 +5,7 @@ import { COPY_RUN_WORDS } from '../compile.js';
 import type { AuthoredItemV2, AuthoredScrollV2 } from './authoring-schema.js';
 import { isKitPatch, kitDefinition } from '../../v2/kits/index.js';
 import { EARTH_SKY_KIT } from '../../v2/kit.js';
-import { MAGNITUDES } from '../../v2/blocks.js';
+import { pointAgrees, plainFigure, unitInPassages } from './figures.js';
 import { isFigure, recipeKit, type RecipeDataV2 } from './assemble.js';
 import { LIMITS_V2 } from '../../v2/limits.js';
 
@@ -96,32 +96,6 @@ function stageIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2): IssueV2[
   return issues;
 }
 
-const MAGNITUDE_WORDS = Object.keys(MAGNITUDES).join('|');
-/** A figure is digits with at most a decimal point (commas are already gone), so only the point needs escaping. */
-const escaped = (figureText: string): string => figureText.replaceAll('.', '\\.');
-
-/**
- * A value is a figure and, when the passage writes one after it, a word ("8.3 million"). With a word, a
- * cited passage must have exactly that figure followed by exactly that word; without one, the figure must
- * not always be followed by such a word in the cited passages, or the value would be a million times too
- * small. A figure the passages do not state at all is the citation rule's finding, not this one's.
- */
-function magnitudeMatches(
-  point: { readonly value: string | number; readonly magnitude?: keyof typeof MAGNITUDES | undefined },
-  quotes: readonly string[],
-): boolean {
-  const figureText = figure(String(point.value).trim());
-  const occurrence = new RegExp(
-    String.raw`(?<![\d.,])${escaped(figureText)}(?!\d|[.,]\d)(\s+(?:${MAGNITUDE_WORDS})\b)?`,
-    'giu',
-  );
-  const seen = quotes.flatMap((quote) =>
-    [...quote.matchAll(occurrence)].map((match) => match[1]?.trim().toLowerCase()),
-  );
-  if (seen.length === 0) return true;
-  return point.magnitude === undefined ? seen.some((word) => word === undefined) : seen.includes(point.magnitude);
-}
-
 /**
  * The play blocks and the guide against the recipe's plan (D-207): only a block the recipe names may be
  * written, each once, and a recipe that names a block must get it. A figure of a scale or a chart is
@@ -149,7 +123,9 @@ function blockIssues(authored: AuthoredScrollV2, recipe: RecipeDataV2, evidence:
     used.add(item.type);
     if (item.type !== 'scale' && item.type !== 'chart') return;
     if (item.points.some((point) => !isFigure(point.value))) issues.push({ code: 'block_value_invalid', path });
-    if (item.points.some((point) => !magnitudeMatches(point, claimsQuotes(item.cites))))
+    const quotes = claimsQuotes(item.cites);
+    const itemFigures = new Set(readerTexts(item).flatMap((text) => [...figuresIn(text)].map(plainFigure)));
+    if (item.points.some((point) => !pointAgrees(point, quotes, itemFigures)) || !unitInPassages(item.unit, quotes))
       issues.push({ code: 'block_value_invalid', path });
     if (item.type === 'scale' && item.here !== undefined && !item.points.some((point) => point.label === item.here))
       issues.push({ code: 'scale_here_invalid', path });

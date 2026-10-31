@@ -187,9 +187,7 @@ export function figureValue(figure: string | number): number {
 
 /** Whether a figure is written the way a passage writes one: digits, optional thousands commas, optional decimals. */
 export const isFigure = (figure: string | number): boolean =>
-  typeof figure === 'number'
-    ? Number.isFinite(figure) && figure >= 0
-    : /^\d+(?:,\d{3})*(?:\.\d+)?$/u.test(figure.trim());
+  typeof figure === 'number' ? isFigure(String(figure)) : /^\d+(?:,\d{3})*(?:\.\d+)?$/u.test(figure.trim());
 
 /** A figure and the word after it as one number: "8.3" and "million" are 8,300,000 (kept free of floating-point dust). */
 export const valueOf = (figure: string | number, magnitude: Magnitude | undefined): number =>
