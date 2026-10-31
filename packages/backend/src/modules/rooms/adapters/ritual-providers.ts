@@ -85,8 +85,8 @@ export function roomsRitualProviders(tokens: { readonly database: symbol; readon
           model: config.reasoning.minimax?.model ?? 'unconfigured',
           generation: config.reasoning.roomGeneration,
         });
-        return async (signal) => {
-          await operator.draftAll({ day: dayOf(new Date()), signal });
+        return async (signal, onRoomFailed) => {
+          await operator.draftAll({ day: dayOf(new Date()), signal, onRoomFailed });
         };
       },
     },

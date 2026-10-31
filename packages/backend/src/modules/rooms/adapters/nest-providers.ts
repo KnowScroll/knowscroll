@@ -31,8 +31,10 @@ import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
   FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
   type CheckPersonalOwnerActive,
   type FenceOwnAccount,
+  type FencePersonalRecording,
   type WithPersonalScope,
 } from '../../identity/public.js';
 import {
@@ -102,6 +104,8 @@ import { gateSnippetAnchors } from './snippet-audience.js';
 export interface RoomsDeps {
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
+  /** Only the API serves the command that reads it; the worker's jobs never ask. */
+  readonly fenceRecording?: FencePersonalRecording;
   readonly readPeople: ReadPublicPeople;
   readonly readFriends: ReadFriendAccounts;
   /** Which of some accounts the caller has blocked: their words are collapsed for the caller, never for anyone else. */
@@ -135,6 +139,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
   return {
     withScope: deps.withScope,
     fenceOwn: deps.fenceOwn,
+    fenceRecording: deps.fenceRecording ?? (() => Promise.resolve({ kind: 'unavailable' as const })),
     rooms: roomStore,
     discussions: discussionStore,
     presence: presenceStore,
@@ -387,6 +392,7 @@ export function roomsProviders(tokens: {
         READ_ROOM_REPORTS,
         tokens.enqueueJob,
         tokens.apiConfig,
+        FENCE_PERSONAL_RECORDING,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -404,10 +410,12 @@ export function roomsProviders(tokens: {
         readReports: ReadRoomReports,
         enqueue: EnqueueJob,
         config: ApiConfig,
+        fenceRecording: FencePersonalRecording,
       ) =>
         roomUseCases({
           withScope,
           fenceOwn,
+          fenceRecording,
           readPeople,
           readFriends,
           readBlocked,

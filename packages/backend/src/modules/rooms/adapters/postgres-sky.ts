@@ -357,7 +357,7 @@ export const todayStore: TodayStore = {
     return Number(row.n);
   },
 
-  async answersSince(lock, discussionId, since) {
+  async messagesSince(lock, discussionId, since) {
     const row = await trxOf(lock)
       .selectFrom('rooms.messages')
       .select(sql<string>`count(*)`.as('n'))

@@ -8,7 +8,13 @@ import type {
 } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
 import type { ReadGeographySceneInput } from '../../geography/public.js';
-import type { FenceOwnAccount, PersonalScopeTx, SharedScopeTx, WithPersonalScope } from '../../identity/public.js';
+import type {
+  FenceOwnAccount,
+  FencePersonalRecording,
+  PersonalScopeTx,
+  SharedScopeTx,
+  WithPersonalScope,
+} from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
@@ -762,7 +768,7 @@ export interface TodayStore {
   ): Promise<boolean>;
   found(lock: RoomLock, ritualId: string): Promise<number>;
   /** How many messages by people, shown and with words, Today has had since `since`. */
-  answersSince(lock: RoomLock, discussionId: string, since: Date): Promise<number>;
+  messagesSince(lock: RoomLock, discussionId: string, since: Date): Promise<number>;
 }
 
 // --- What the application needs from outside ----------------------------------------------
@@ -815,6 +821,8 @@ export type ReadRoomReports = (
 export interface RoomPorts {
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
+  /** Whether the person's recording is on, for the commands whose result the server stores as a play result (D-083). */
+  readonly fenceRecording: FencePersonalRecording;
   readonly rooms: RoomStore;
   readonly discussions: DiscussionStore;
   readonly presence: PresenceStore;

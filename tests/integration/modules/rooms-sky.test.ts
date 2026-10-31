@@ -139,8 +139,15 @@ describe('Today and the sky (real PostgreSQL)', () => {
 
   const readToday = async (person: Friend, roomId: string) =>
     unwrap(await world.rooms.today(person.authority, { version, readId: randomUUID(), roomId }));
-  const solve = (person: Friend, roomId: string, ritualId: string, sentence: number) =>
-    world.rooms.solveFlaw(person.authority, { version, commandId: randomUUID(), roomId, ritualId, sentence });
+  const solve = (person: Friend, roomId: string, ritualId: string, sentence: number, recordingGeneration = 1) =>
+    world.rooms.solveFlaw(person.authority, {
+      version,
+      commandId: randomUUID(),
+      roomId,
+      ritualId,
+      sentence,
+      recordingGeneration,
+    });
 
   describe('what earns a star', () => {
     it('gives the room a star for a human answer in Today that someone else found useful, and no more than once', async () => {
@@ -314,6 +321,68 @@ describe('Today and the sky (real PostgreSQL)', () => {
     });
   });
 
+  describe('more than one constellation without a name', () => {
+    const nameVote = (person: Friend, roomId: string, candidate: number) =>
+      roomy.rooms.nameConstellation(person.authority, { version, commandId: randomUUID(), roomId, candidate });
+    const constellations = (roomId: string) =>
+      world.db
+        .selectFrom('rooms.constellations')
+        .select(['no', 'name', 'candidates'])
+        .where('room_id', '=', roomId)
+        .orderBy('no')
+        .execute();
+
+    it('names each in turn when the next finishes inside the first day, and votes go to the older until its day ends', async () => {
+      at(300);
+      const { roomId } = await seedRoom(roomy);
+      const [asha, ravi] = (await joined(roomy, roomId, 2)) as [Friend, Friend];
+      for (let index = 0; index < 7; index++) await usefulAnswer(roomy, roomId, asha, ravi, `First ${String(index)}`);
+      at(305);
+      for (let index = 0; index < 7; index++) await usefulAnswer(roomy, roomId, asha, ravi, `Second ${String(index)}`);
+      const both = await skyOf(roomy, ravi, roomId);
+      if (both.status !== 'ready' || both.naming === undefined) throw new Error('expected a vote');
+      expect(both.sky).toMatchObject({ lit: 7, state: 'naming', finished: 2 });
+      expect(both.naming.constellation).toBe(1);
+      unwrap(await nameVote(ravi, roomId, 2));
+      const [first, second] = await constellations(roomId);
+      // The first day ends: the next member command names it by its own votes, and the second keeps its day.
+      at(300 + 25);
+      unwrap(await setPresence(roomy, asha, roomId));
+      expect((await constellations(roomId)).map((row) => row.name)).toEqual([first!.candidates[2], null]);
+      const next = await skyOf(roomy, ravi, roomId);
+      if (next.status !== 'ready' || next.naming === undefined) throw new Error('expected the second vote');
+      expect(next.naming.constellation).toBe(2);
+      expect(next.sky).toMatchObject({ state: 'naming', constellationName: first!.candidates[2] });
+      unwrap(await nameVote(asha, roomId, 1));
+      at(305 + 25);
+      unwrap(await setPresence(roomy, ravi, roomId));
+      // The vote chose the second name, unless the first constellation already holds it: then the next one is taken.
+      const secondName =
+        second!.candidates[1] === first!.candidates[2]
+          ? second!.candidates.find((name) => name !== first!.candidates[2])
+          : second!.candidates[1];
+      expect((await constellations(roomId)).map((row) => row.name)).toEqual([first!.candidates[2], secondName]);
+      const done = await skyOf(roomy, ravi, roomId);
+      expect(done.status === 'ready' && done.sky).toMatchObject({ state: 'named', constellationName: secondName });
+      expect(done.status === 'ready' && done.naming).toBeUndefined();
+    });
+
+    it('names both in one pass when nobody looked until after both days, oldest first and never by the same name', async () => {
+      at(400);
+      const { roomId } = await seedRoom(roomy);
+      const [asha, ravi] = (await joined(roomy, roomId, 2)) as [Friend, Friend];
+      for (let index = 0; index < 7; index++) await usefulAnswer(roomy, roomId, asha, ravi, `First ${String(index)}`);
+      at(401);
+      for (let index = 0; index < 7; index++) await usefulAnswer(roomy, roomId, asha, ravi, `Second ${String(index)}`);
+      at(400 + 60);
+      unwrap(await setPresence(roomy, asha, roomId));
+      const named = await constellations(roomId);
+      expect(named.map((row) => row.name !== null)).toEqual([true, true]);
+      expect(named[0]!.name).toBe(named[0]!.candidates[0]);
+      expect(new Set(named.map((row) => row.name)).size).toBe(2);
+    });
+  });
+
   describe('a debate closed by vote', () => {
     const start = (w: RoomWorld, person: Friend, roomId: string, debate: unknown, tag: string | null = 'debate') =>
       w.rooms.create(person.authority, {
@@ -443,7 +512,7 @@ describe('Today and the sky (real PostgreSQL)', () => {
       expect(open.flaw.sentences).toEqual(FIXTURE_FLAW.sentences);
       expect(JSON.stringify(open.flaw)).not.toContain('January');
       expect(open.flaw.by).toMatchObject({ kind: 'ai', inhabitant: 'skeptic', label: 'AI · Skeptic' });
-      expect(open.question).toMatchObject({ prompt: FIXTURE_QUESTION.prompt, answers: 0 });
+      expect(open.question).toMatchObject({ prompt: FIXTURE_QUESTION.prompt, messagesToday: 0 });
       expect(open.question?.by).toMatchObject({ kind: 'ai', inhabitant: 'explainer' });
 
       // A wrong tap: no star, the key shows, a second command answers with the first.
@@ -468,7 +537,7 @@ describe('Today and the sky (real PostgreSQL)', () => {
       expect(after.status === 'ready' && after.flaw).toMatchObject({ state: 'done', found: 2 });
     });
 
-    it('answers only for today, only for members, and counts the people who answered the question', async () => {
+    it('answers only for today, only for members, and counts the messages written in Today', async () => {
       at(140);
       const { roomId } = await seedRoom(world);
       const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
@@ -479,7 +548,7 @@ describe('Today and the sky (real PostgreSQL)', () => {
       unwrap(await say(world, asha, roomId, today, 'Because of the tilt'));
       unwrap(await say(world, ravi, roomId, today, 'And the Sun is high in summer'));
       const view = await readToday(asha, roomId);
-      expect(view.status === 'ready' && view.question?.answers).toBe(2);
+      expect(view.status === 'ready' && view.question?.messagesToday).toBe(2);
       const stranger = await seedFriend(world.db, world.friends);
       expect((await world.rooms.today(stranger.authority, { version, readId: randomUUID(), roomId })).kind).toBe(
         'refused',
@@ -491,6 +560,70 @@ describe('Today and the sky (real PostgreSQL)', () => {
       expect(withPast.status === 'ready' && withPast.past).toEqual([
         { day: dayOf(new Date(world.clock.now.getTime() - DAY)), prompt: FIXTURE_QUESTION.prompt },
       ]);
+    });
+  });
+
+  describe('Spot the flaw and recording', () => {
+    const setRecording = (person: Friend, on: boolean, generation: number) =>
+      world.db
+        .updateTable('identity.universes')
+        .set({ recording_on: on, recording_generation: generation })
+        .where('account_id', '=', person.accountId)
+        .execute();
+
+    it('stores no tap while recording is paused and keeps the key, and the same tap can be sent after it is back on', async () => {
+      at(210);
+      const { roomId } = await seedRoom(world);
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const ritualId = await fixtureRitual(roomId, 'flaw');
+      await setRecording(ravi, false, 2);
+      const paused = unwrap(await solve(ravi, roomId, ritualId, 1, 2));
+      expect(paused).toMatchObject({ outcome: 'not_saved', reason: 'recording_paused', ritualId });
+      expect(JSON.stringify(paused)).not.toContain('January');
+      expect(
+        await world.db
+          .selectFrom('rooms.ritual_solves')
+          .select('ritual_id')
+          .where('ritual_id', '=', ritualId)
+          .execute(),
+      ).toEqual([]);
+      expect(await starTotal(roomId)).toBe(0);
+      const read = await readToday(ravi, roomId);
+      expect(read.status === 'ready' && read.flaw).toMatchObject({ state: 'open' });
+      // Back on, but the device still names the old generation: nothing stored either.
+      await setRecording(ravi, true, 3);
+      expect(unwrap(await solve(ravi, roomId, ritualId, 1, 2))).toMatchObject({
+        outcome: 'not_saved',
+        reason: 'recording_generation_stale',
+      });
+      expect(await starTotal(roomId)).toBe(0);
+      expect(unwrap(await solve(ravi, roomId, ritualId, 1, 3))).toMatchObject({
+        outcome: 'accepted',
+        correct: true,
+        star: true,
+      });
+      // Someone whose recording is on is unaffected by another pause.
+      expect(unwrap(await solve(asha, roomId, ritualId, 0))).toMatchObject({ outcome: 'accepted', correct: false });
+    });
+
+    it('still answers a tap that was accepted, when recording has been paused since', async () => {
+      at(220);
+      const { roomId } = await seedRoom(world);
+      const [, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const ritualId = await fixtureRitual(roomId, 'flaw');
+      const commandId = randomUUID();
+      const send = (generation: number) =>
+        world.rooms.solveFlaw(ravi.authority, {
+          version,
+          commandId,
+          roomId,
+          ritualId,
+          sentence: 1,
+          recordingGeneration: generation,
+        });
+      expect(unwrap(await send(1))).toMatchObject({ outcome: 'accepted', star: true });
+      await setRecording(ravi, false, 2);
+      expect(unwrap(await send(1))).toMatchObject({ outcome: 'accepted', replayed: true, star: true });
     });
   });
 

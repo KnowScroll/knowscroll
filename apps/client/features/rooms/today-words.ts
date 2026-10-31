@@ -14,5 +14,6 @@ export function closesWords(iso: string): string {
   return `${at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-/** "1 answer", "4 answers": a real count, shown only when there is one. */
-export const answersWords = (count: number): string => `${String(count)} ${count === 1 ? 'answer' : 'answers'}`;
+/** "1 message in Today so far": what the number counts (messages people wrote in Today since UTC midnight), shown only when there is one. */
+export const messagesWords = (count: number): string =>
+  `${String(count)} ${count === 1 ? 'message' : 'messages'} in Today so far`;

@@ -20,7 +20,10 @@ const refused = () =>
   new ORPCError('SHARING_UNAVAILABLE', { status: 403, data: problemDetails('SHARING_UNAVAILABLE') });
 
 type Api = Record<string, (input: never) => Promise<unknown>>;
-function scopeOf(rooms: Api): AccountScope & { calls: { name: string; input: unknown }[] } {
+function scopeOf(
+  rooms: Api,
+  recording: { on: boolean; generation: number } = { on: true, generation: 4 },
+): AccountScope & { calls: { name: string; input: unknown }[] } {
   const calls: { name: string; input: unknown }[] = [];
   const wrapped = Object.fromEntries(
     Object.entries(rooms).map(([name, handler]) => [
@@ -31,7 +34,12 @@ function scopeOf(rooms: Api): AccountScope & { calls: { name: string; input: unk
       },
     ]),
   );
-  return { active: true, api: { rooms: wrapped }, calls } as unknown as AccountScope & {
+  const session = {
+    getState: () => ({ policy: { on: recording.on, generation: recording.generation } }),
+    generation: () => Promise.resolve(recording.generation),
+    refresh: () => Promise.resolve(true),
+  };
+  return { active: true, api: { rooms: wrapped }, calls, recording: session } as unknown as AccountScope & {
     calls: { name: string; input: unknown }[];
   };
 }
@@ -47,6 +55,11 @@ describe('the words of the sky', () => {
     expect(stationSkyLine(sky({ lit: 7, state: 'naming', finished: 1 }))).toBe('7 of 7 · Lit');
     expect(stationSkyLine(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }))).toBe(
       '7 of 7 · The Lantern',
+    );
+    // The next constellation forming does not take the earned name away, and one waiting for a name is only lit.
+    expect(stationSkyLine(sky({ lit: 2, finished: 1, constellationName: 'The Lantern' }))).toBe('2 of 7 · The Lantern');
+    expect(stationSkyLine(sky({ lit: 7, state: 'naming', finished: 2, constellationName: 'The Lantern' }))).toBe(
+      '7 of 7 · Lit',
     );
   });
 
@@ -93,7 +106,7 @@ describe('Today on the client', () => {
   it('sends a tap once, reads the day again for the key, and remembers whether it earned the room a star', async () => {
     const scope = scopeOf({
       today: () => Promise.resolve(ready),
-      solveFlaw: () => Promise.resolve({ star: true, correct: true }),
+      solveFlaw: () => Promise.resolve({ outcome: 'accepted', star: true, correct: true }),
     });
     const controller = createRoomToday({ scope, roomId, newId });
     expect(await controller.solve(ritualId, 2)).toBe(true);
@@ -102,6 +115,8 @@ describe('Today on the client', () => {
       roomId,
       ritualId,
       sentence: 2,
+      // The tap carries the generation this device knows, as a call in a Scroll does.
+      recordingGeneration: 4,
     });
     expect(scope.calls.some((call) => call.name === 'today')).toBe(true);
     expect(controller.getState().starFor).toBe(ritualId);
@@ -113,7 +128,9 @@ describe('Today on the client', () => {
       today: () => Promise.resolve(ready),
       solveFlaw: () => {
         attempts += 1;
-        return attempts === 1 ? Promise.reject(offline()) : Promise.resolve({ star: false, correct: false });
+        return attempts === 1
+          ? Promise.reject(offline())
+          : Promise.resolve({ outcome: 'accepted', star: false, correct: false });
       },
     });
     const controller = createRoomToday({ scope, roomId, newId });
@@ -133,6 +150,40 @@ describe('Today on the client', () => {
     expect(await controller.solve(ritualId, 0)).toBe(false);
     expect(controller.getState().refused).toBe(true);
     expect(scope.calls.some((call) => call.name === 'today')).toBe(true);
+  });
+
+  it('sends nothing while recording is paused, and says why', async () => {
+    const scope = scopeOf(
+      { today: () => Promise.resolve(ready), solveFlaw: () => Promise.reject(new Error('sent')) },
+      {
+        on: false,
+        generation: 5,
+      },
+    );
+    const controller = createRoomToday({ scope, roomId, newId });
+    expect(await controller.solve(ritualId, 1)).toBe(false);
+    expect(scope.calls.some((call) => call.name === 'solveFlaw')).toBe(false);
+    expect(controller.getState().notSaved).toBe('recording_paused');
+  });
+
+  it('says so when the server did not keep the tap, and clears the notice on the next tap', async () => {
+    let kept = false;
+    const scope = scopeOf({
+      today: () => Promise.resolve(ready),
+      solveFlaw: () =>
+        Promise.resolve(
+          kept
+            ? { outcome: 'accepted', star: false, correct: true }
+            : { outcome: 'not_saved', reason: 'recording_generation_stale' },
+        ),
+    });
+    const controller = createRoomToday({ scope, roomId, newId });
+    expect(await controller.solve(ritualId, 1)).toBe(false);
+    expect(controller.getState().notSaved).toBe('recording_generation_stale');
+    expect(controller.getState().starFor).toBeUndefined();
+    kept = true;
+    expect(await controller.solve(ritualId, 1)).toBe(true);
+    expect(controller.getState().notSaved).toBeUndefined();
   });
 
   it('shows nothing once the account scope has ended', async () => {

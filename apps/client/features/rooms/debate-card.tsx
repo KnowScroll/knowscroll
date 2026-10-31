@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import type { RoomDebate } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
-import { Tag, Text } from '@knowscroll/ui';
+import { Banner, Tag, Text } from '@knowscroll/ui';
 import { ChoiceRow } from './choice-row';
 import { closesWords } from './today-words';
 
@@ -28,9 +28,12 @@ function Tally({ votes, total }: { readonly votes: number; readonly total: numbe
 export function DebateCard({
   debate,
   canVote,
+  refused = false,
   onVote,
 }: {
   readonly debate: RoomDebate;
+  /** The last vote was not kept: the debate closed, or the room stopped taking posts, or the vote did not reach the room. */
+  readonly refused?: boolean;
   /** The room takes posts: a paused or closed room reads the debate but cannot vote. */
   readonly canVote: boolean;
   readonly onVote: (side: 'a' | 'b') => void;
@@ -74,6 +77,14 @@ export function DebateCard({
             ? 'Choose a side to see how the room is voting.'
             : 'Your vote is yours to change until it closes.'}
       </Text>
+      {refused ? (
+        <Banner
+          kind="error"
+          lead="Your vote wasn’t kept."
+          message="The debate may have closed, or the message didn’t get through. Here is how it stands now."
+          testID="debate-refused"
+        />
+      ) : null}
     </View>
   );
 }

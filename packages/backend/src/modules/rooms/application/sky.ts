@@ -85,11 +85,13 @@ export async function awardStar(
   return 'awarded';
 }
 
-/** The constellation whose name is being voted on, if one is. */
-const namingOf = (constellations: readonly ConstellationRow[]): ConstellationRow | undefined => {
-  const latest = constellations.at(-1);
-  return latest !== undefined && latest.name === null ? latest : undefined;
-};
+/**
+ * The constellation a vote may go to now: the earliest one with no name whose vote is still open (D-175). A room that
+ * finishes another constellation inside the day of the first has two without a name; each keeps its own 24 hours, and a
+ * vote goes to the older until its day ends.
+ */
+const votableOf = (constellations: readonly ConstellationRow[], now: Date): ConstellationRow | undefined =>
+  constellations.find((row) => row.name === null && now.getTime() < row.voteClosesAt.getTime());
 
 /**
  * Settles what time has made due since anyone last looked, as part of a member's own command in the room (D-175): a
@@ -103,11 +105,19 @@ export async function settleDue(p: RoomPorts, lock: RoomLock, topicId: string, n
   for (const debate of closed)
     if (debate.voters >= DEBATE_MIN_VOTERS)
       await awardStar(p, lock, topicId, 'debate_closed', debate.discussionId, now);
-  const naming = namingOf(await p.sky.constellations(lock));
-  if (naming === undefined || now.getTime() < naming.voteClosesAt.getTime()) return;
+  const all = await p.sky.constellations(lock);
+  const closedVotes = all.filter((row) => row.name === null && now.getTime() >= row.voteClosesAt.getTime());
+  if (closedVotes.length === 0) return;
   await p.sky.lock(lock);
-  const winner = winningCandidate(await p.sky.votes(lock, naming.no));
-  await p.sky.name(lock, naming.no, naming.candidates[winner], now);
+  // Oldest first: each takes the name its own votes chose, and one nobody voted for takes its first name. A name an
+  // earlier constellation of the room holds is passed over, so no two share one.
+  const used = all.flatMap((row) => (row.name === null ? [] : [row.name]));
+  for (const naming of closedVotes) {
+    const taken = naming.candidates.map((name) => used.includes(name)) as [boolean, boolean, boolean];
+    const name = naming.candidates[winningCandidate(await p.sky.votes(lock, naming.no), taken)];
+    await p.sky.name(lock, naming.no, name, now);
+    used.push(name);
+  }
   await p.rooms.announce(lock, now);
 }
 
@@ -159,7 +169,7 @@ export function makeSkyUseCases(p: RoomPorts) {
           p.sky.latestStars(lock, STARS_SHOWN),
           p.sky.constellations(lock),
         ]);
-        const naming = namingOf(constellations);
+        const naming = votableOf(constellations, p.now());
         return ok(
           RoomSkyViewSchema.parse({
             ...roomEnvelope(scope),
@@ -167,6 +177,7 @@ export function makeSkyUseCases(p: RoomPorts) {
             status: 'ready',
             sky,
             stars,
+            starsPerDay: p.starsPerDay,
             ...(naming === undefined ? {} : { naming: await namingView(p, lock, naming, owner.accountId) }),
           }),
         );
@@ -177,7 +188,8 @@ export function makeSkyUseCases(p: RoomPorts) {
     /**
      * A member chooses one of the three names offered for the constellation being named, and may change the choice until the
      * vote closes (D-175). The vote is taken under the room's sky lock, so it either counts before the vote is settled or is
-     * refused. A retry replays; a vote after the close, or when no constellation is being named, is `unavailable`.
+     * refused. It goes to the earliest constellation with no name whose vote is still open. A retry replays; a vote when
+     * every vote has closed, or when no constellation is being named, is `unavailable`.
      */
     nameConstellation(
       authority: PersonalAuthority,
@@ -197,8 +209,8 @@ export function makeSkyUseCases(p: RoomPorts) {
         async decide({ scope, entered, now }) {
           const { lock, owner } = entered;
           await p.sky.lock(lock);
-          const naming = namingOf(await p.sky.constellations(lock));
-          if (naming === undefined || now.getTime() >= naming.voteClosesAt.getTime()) return refuse('unavailable');
+          const naming = votableOf(await p.sky.constellations(lock), now);
+          if (naming === undefined) return refuse('unavailable');
           return ok(async () => {
             await p.sky.setVote(lock, naming.no, owner.accountId, command.candidate as 0 | 1 | 2, now);
             return ConstellationVoteAcceptanceSchema.parse({

@@ -56,7 +56,7 @@ const question = {
   detail: 'If the universe is full of stars, why is it not bright?',
   by: nova,
   source,
-  answers: 0,
+  messagesToday: 0,
 };
 const SENTENCES = [
   'The Moon always shows us the same face.',
@@ -81,6 +81,7 @@ const todayState = (patch: Partial<RoomTodayState> = {}): RoomTodayState => ({
   offline: false,
   working: false,
   refused: false,
+  notSaved: undefined,
   starFor: undefined,
   ...patch,
 });
@@ -100,22 +101,22 @@ describe('Today: the day’s question', () => {
     expect(screen.getByText('Why is the night sky dark?')).toBeOnTheScreen();
     expect(screen.getByText('Nova')).toBeOnTheScreen();
     expect(screen.getByLabelText('AI, Explainer')).toBeOnTheScreen();
-    // No answers yet: no number is invented.
-    expect(screen.queryByTestId('today-answers')).not.toBeOnTheScreen();
+    // No messages yet: no number is invented.
+    expect(screen.queryByTestId('today-messages')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('today-answer'));
     expect(onAnswer).toHaveBeenCalledTimes(1);
   });
 
-  it('counts answers only when there are some, in words, and links to the Scroll it cites', async () => {
+  it('counts messages only when there are some, says what it counts, and links to the Scroll it cites', async () => {
     await wrap(
       <TodayCards
-        view={today({ question: { ...question, answers: 4 } })}
+        view={today({ question: { ...question, messagesToday: 4 } })}
         state={todayState()}
         controller={todayController()}
         onAnswer={jest.fn()}
       />,
     );
-    expect(screen.getByTestId('today-answers')).toHaveTextContent('4 answers');
+    expect(screen.getByTestId('today-messages')).toHaveTextContent('4 messages in Today so far');
     await fireEvent.press(screen.getByRole('link', { name: 'Read the Scroll: Why the Moon shows one face' }));
     expect(mockPush).toHaveBeenCalledWith(`/scroll/${id(40)}`);
   });
@@ -158,7 +159,9 @@ describe('Today: Spot the flaw', () => {
         onAnswer={jest.fn()}
       />,
     );
-    expect(screen.getByText('Found it!')).toBeOnTheScreen();
+    // The live region says the result once, in words, with which sentence was altered.
+    expect(screen.getByText('Found it. Sentence 3 was altered.')).toBeOnTheScreen();
+    expect(screen.getByTestId('flaw-status').props.accessibilityLiveRegion).toBe('polite');
     expect(screen.getByText('ALTERED')).toBeOnTheScreen();
     expect(
       screen.getByText('The Scroll says: Its far side gets as much sunlight as the side we see.'),
@@ -178,11 +181,41 @@ describe('Today: Spot the flaw', () => {
         onAnswer={jest.fn()}
       />,
     );
-    expect(screen.getByText('Not that one.')).toBeOnTheScreen();
+    expect(screen.getByText('Not that one. Sentence 3 was altered; you tapped sentence 1.')).toBeOnTheScreen();
     expect(screen.getByText('ALTERED')).toBeOnTheScreen();
     expect(screen.getByText('YOUR TAP')).toBeOnTheScreen();
+    // Each sentence says in its name what it is now, so a screen reader needs no colour or border.
+    expect(screen.getByLabelText(`Sentence 3: ${SENTENCES[2]}, altered`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Sentence 1: ${SENTENCES[0]}, your tap`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Sentence 2: ${SENTENCES[1]}`)).toBeOnTheScreen();
     expect(screen.getByText('1 found it')).toBeOnTheScreen();
     expect(screen.queryByTestId('flaw-star')).not.toBeOnTheScreen();
+  });
+
+  it('keeps one polite live region mounted before the tap, so the result is announced when it comes', async () => {
+    await wrap(
+      <TodayCards
+        view={today({ flaw: openFlaw })}
+        state={todayState()}
+        controller={todayController()}
+        onAnswer={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('flaw-status').props.accessibilityLiveRegion).toBe('polite');
+    expect(screen.getByTestId('flaw-status')).toHaveTextContent('One sentence below is wrong. Tap it.');
+  });
+
+  it('says plainly that a tap is not kept while recording is paused, and why', async () => {
+    await wrap(
+      <TodayCards
+        view={today({ flaw: openFlaw })}
+        state={todayState({ notSaved: 'recording_paused' })}
+        controller={todayController()}
+        onAnswer={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('flaw-paused')).toHaveTextContent(/Recording is paused\./);
+    expect(screen.getByTestId('flaw-paused')).toHaveTextContent(/turn recording back on in Privacy/i);
   });
 
   it('tells a person whose tap did not arrive that it is not sent yet', async () => {
@@ -204,6 +237,7 @@ describe('the Now strip and the room’s sky', () => {
   const skyView = (patch: Record<string, unknown> = {}) => ({
     status: 'ready',
     sky: sky(),
+    starsPerDay: 3,
     stars: [
       { act: 'daily_solved', day: '2026-10-27', constellation: 1 },
       { act: 'debate_closed', day: '2026-10-26', constellation: 1 },
@@ -246,7 +280,9 @@ describe('the Now strip and the room’s sky', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Star 1 of 7' }));
     // Stars are shown oldest first: the first earned was an answer someone found useful, on 25 Oct.
     expect(screen.getByTestId('sky-moment')).toHaveTextContent('An answer someone found useful · Sun 25 Oct');
-    expect(screen.getByText(/4 more stars light the station on everyone’s map/)).toBeOnTheScreen();
+    expect(screen.getByText(/4 more stars light the station on its members’ maps/)).toBeOnTheScreen();
+    // The cap is the server's number, not the screen's.
+    expect(screen.getByText(/up to 3 a day/)).toBeOnTheScreen();
   });
 
   it('offers three names while a vote is open, chooses one, and shows counts only to a member who has voted', async () => {
@@ -365,6 +401,14 @@ describe('a debate', () => {
     const { winner: _none, ...level } = closed;
     await wrap(<DebateCard debate={level} canVote onVote={onVote} />);
     expect(screen.getByText('It closed level: no side won.')).toBeOnTheScreen();
+  });
+
+  it('says so, beside the result, when the last vote was not kept', async () => {
+    const view = await wrap(<DebateCard debate={debate()} canVote refused onVote={jest.fn()} />);
+    expect(screen.getByTestId('debate-refused')).toHaveTextContent(/Your vote wasn’t kept./);
+    await view.unmount();
+    await wrap(<DebateCard debate={debate()} canVote onVote={jest.fn()} />);
+    expect(screen.queryByTestId('debate-refused')).not.toBeOnTheScreen();
   });
 
   it('cannot be voted on in a room that is paused', async () => {

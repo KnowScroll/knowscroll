@@ -14,10 +14,10 @@ import { useRoomSky } from './use-room';
 export function skySentence(sky: RoomSky): string {
   const left = sky.of - sky.lit;
   if (sky.state === 'naming')
-    return 'Seven stars. The room is choosing its name, and the station is lit on everyone’s map.';
+    return 'Seven stars. The room is choosing its name, and the station is lit on its members’ maps.';
   if (sky.state === 'named')
-    return `Seven stars, named ${sky.constellationName ?? 'by the room'}. The station is lit on everyone’s map.`;
-  const more = `${String(left)} more ${left === 1 ? 'star lights' : 'stars light'} the station on everyone’s map.`;
+    return `Seven stars, named ${sky.constellationName ?? 'by the room'}. The station is lit on its members’ maps.`;
+  const more = `${String(left)} more ${left === 1 ? 'star lights' : 'stars light'} the station on its members’ maps.`;
   return sky.finished >= 1
     ? `The station is lit. ${String(left)} more ${left === 1 ? 'star makes' : 'stars make'} the next constellation.`
     : more;
@@ -104,7 +104,7 @@ function SkyBody({ state, controller }: { readonly state: RoomSkyState; readonly
       {view.naming === undefined ? null : <NamingVote naming={view.naming} controller={controller} state={state} />}
       <Text variant="metaS" color={content.ink2}>
         A star is a moment the room made together. Nobody owns a star, so nobody loses one. Spot the flaw, a topic
-        closed by vote and an answer someone found useful each add one, up to three a day.
+        closed by vote and an answer someone found useful each add one, up to {String(view.starsPerDay)} a day.
       </Text>
     </View>
   );
@@ -133,7 +133,7 @@ export function SkySheet({
 }
 
 /** Reads the sky while the sheet is open: a closed sheet mounts nothing, so a room that never opens it never asks. */
-function SkyContent({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+export function SkyContent({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
   const { controller, state } = useRoomSky(scope, roomId);
   return <SkyBody state={state} controller={controller} />;
 }

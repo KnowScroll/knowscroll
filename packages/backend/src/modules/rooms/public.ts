@@ -70,7 +70,7 @@ export type { RoomSeed } from './application/seeds.js';
  * of a room names who is here (a number only from three), the member total and the last message (D-069).
  */
 export interface RoomUseCases {
-  /** Today for a member: the day's approved question and Spot the flaw, its answers so far and the days before (v3 R-5). */
+  /** Today for a member: the day's approved question and Spot the flaw, the messages in Today so far and the days before (v3 R-5). */
   today(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomTodaySchema>>>;
   /** The member's one, final tap on today's Spot the flaw; a right first tap earns the room a star (D-174). */
   solveFlaw(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof FlawSolvedAcceptanceSchema>>>;
@@ -216,5 +216,8 @@ export const READ_ROOM_BACKDROP = Symbol('rooms.readRoomBackdrop');
  * with the cast jobs, only where the worker holds the rooms grant. It throws when a room could not be drafted, so the job
  * retries; everything it stores is idempotent by (room, day, kind).
  */
-export type RunNightlyRituals = (signal: AbortSignal) => Promise<void>;
+export type RunNightlyRituals = (
+  signal: AbortSignal,
+  onRoomFailed: (slug: string, error: unknown) => void,
+) => Promise<void>;
 export const RUN_NIGHTLY_RITUALS = Symbol('rooms.runNightlyRituals');

@@ -106,6 +106,21 @@ async function openMapOfC(page: Page, world: SkyWorld, size: { width: number; he
   await page.goto('/universe');
 }
 
+/**
+ * D-140: on a phone the conversation keeps at least 60 percent of the screen. The room's messages are measured beside the
+ * header, the Now strip and the ask bar, as a share of the 844 px screen.
+ */
+async function expectConversationKeepsMostOfThePhone(page: Page) {
+  const messages = await page.getByTestId('room-messages').boundingBox();
+  expect(messages).not.toBeNull();
+  const share = messages!.height / VIEWPORTS[0].size.height;
+  // eslint-disable-next-line no-console -- the measurement is the evidence the slice reports
+  console.log(
+    `room at 390x844 with the Now strip: messages ${String(Math.round(messages!.height))} px (${(share * 100).toFixed(1)} %)`,
+  );
+  expect(share).toBeGreaterThanOrEqual(0.6);
+}
+
 for (const { name, size } of VIEWPORTS) {
   test(`${name}: A answers Today, the room earns a star and names its constellation, and C's map shows the same sky`, async ({
     page,
@@ -130,6 +145,7 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByText(/online/i)).toHaveCount(0);
     await shoot(page, `${name}-room-now-strip`);
     expect(await seriousViolations(page)).toEqual([]);
+    if (name === 'phone') await expectConversationKeepsMostOfThePhone(page);
 
     // Today: the labelled residents ask, a sentence is tapped once, and the key arrives only after the tap.
     await page.getByTestId('now-today').click();
@@ -140,14 +156,21 @@ for (const { name, size } of VIEWPORTS) {
     await expect(page.getByTestId('today-flaw')).toContainText('Halley');
     await expect(page.getByTestId('today-flaw')).toContainText('AI · Skeptic');
     await expect(page.getByTestId('flaw-reveal')).toHaveCount(0);
-    await expect(page.getByText('ALTERED')).toHaveCount(0);
+    await expect(page.getByText('ALTERED', { exact: true })).toHaveCount(0);
+    // One polite live region is mounted before the tap, so its change is announced when the result comes.
+    await expect(page.getByTestId('flaw-status')).toHaveAttribute('aria-live', 'polite');
+    await expect(page.getByTestId('flaw-status')).toHaveText('One sentence below is wrong. Tap it.');
     await expect(page.getByText('Because the universe has a beginning')).toBeVisible();
     await shoot(page, `${name}-today-open`);
     expect(await seriousViolations(page)).toEqual([]);
 
     await page.getByTestId('flaw-sentence-2').click();
-    await expect(page.getByText('Found it!')).toBeVisible();
-    await expect(page.getByText('ALTERED')).toBeVisible();
+    await expect(page.getByTestId('flaw-status')).toHaveText('Found it. Sentence 3 was altered.');
+    await expect(page.getByText('ALTERED', { exact: true })).toBeVisible();
+    // Each sentence says in its name what it is now, and focus moved to the result instead of falling to the page.
+    await expect(page.getByRole('button', { name: /^Sentence 3: .*, altered, your tap$/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Sentence 1: / })).toHaveAccessibleName(/^Sentence 1: [^,]*$/);
+    await expect(page.getByTestId('flaw-result')).toBeFocused();
     await expect(page.getByTestId('flaw-star')).toHaveText('+1 star for the room');
     await expect(page.getByText('1 found it')).toBeVisible();
     await expect(page.getByTestId('flaw-sentence-0')).toBeDisabled();
@@ -191,3 +214,42 @@ for (const { name, size } of VIEWPORTS) {
     await other.close();
   });
 }
+
+test('phone: while recording is paused a tap on Spot the flaw is not sent, and the card says why', async ({ page }) => {
+  const world = skyWorld(2);
+  const { address } = await roomFixture(page, VIEWPORTS[0].size, {
+    others: 1,
+    lastMessageMinutesAgo: 5,
+    noticeSeen: true,
+    recordingPaused: true,
+    sky: () => skyOf(world),
+    today: TODAY_STRIP,
+  });
+  const { calls } = await skyRoutes(page, world, scope);
+  await page.goto(address);
+  await page.getByTestId('now-today').click();
+  await page.getByTestId('flaw-sentence-2').click();
+  await expect(page.getByTestId('flaw-paused')).toContainText('Recording is paused.');
+  await expect(page.getByTestId('flaw-paused')).toContainText('Turn recording back on in Privacy');
+  await expect(page.getByTestId('flaw-status')).toHaveText('One sentence below is wrong. Tap it.');
+  expect(calls.filter((call) => call.path === '/v1/rooms/today/solve')).toHaveLength(0);
+  expect(await seriousViolations(page)).toEqual([]);
+});
+
+test('phone: a quiet room, with its pill under the faces and the Now strip, still keeps 60 percent for the messages', async ({
+  page,
+}) => {
+  const world = skyWorld(2);
+  const { address } = await roomFixture(page, VIEWPORTS[0].size, {
+    others: 1,
+    lastMessageMinutesAgo: 180,
+    noticeSeen: true,
+    sky: () => skyOf(world),
+    today: TODAY_STRIP,
+  });
+  await skyRoutes(page, world, scope);
+  await page.goto(address);
+  await expect(page.getByTestId('quiet-pill')).toBeVisible();
+  await expect(page.getByTestId('now-strip')).toBeVisible();
+  await expectConversationKeepsMostOfThePhone(page);
+});

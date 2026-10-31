@@ -123,6 +123,26 @@ Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 
 | Universe, desktop key hints | Bottom right of the map, above the clouds. | differs | The design draws them bottom left, where the chips sit when a place has a "Route to" chip. |
 | Universe, list view with no planets | "No planets in <system> yet." under the system row. | differs | The design draws systems with planets only. |
 
+## v3 R-5: Today and the sky (#491)
+
+R3 pages p-04 (end to end), p-07 (Today channel), p-09 (on the Universe map) and p-10 (E, game feel). 390 × 844 and 1440 × 900, production export, labelled fixtures (`rooms-sky-smoke.spec.ts`). Screenshots in the PR.
+
+| Frame | What | Status | Why |
+|---|---|---|---|
+| R3 B, Today channel | The question card (yellow), a resident's label, Answer, then the day's conversation | matches | The resident is Nova (T3 residents), not Echo, who is not built. |
+| R3 B, Today channel | "Tonight: the Launch" card and "Remind me" | missing | The Launch is R-6. Nothing stands in for it. |
+| R3 B, Today channel | "Past days" | differs | A short list of earlier questions under the cards, not its own screen. |
+| R3 B, Today channel | "Nothing for today yet" when no item is approved | differs | The design draws only a full day. Items wait for an operator's approval (D-070), so a room can have none, and it says so. |
+| R3 E, Spot the flaw | One sentence below is wrong, tap it, then "Found it!" and the key | differs | One 44 px button per sentence instead of a paragraph with tappable parts, so every target is 44 px and has its own name. The result is one line in a live region ("Found it. Sentence 3 was altered."). |
+| R3 E, Spot the flaw | "2 found it" and flair progress ("FIRST FINDER EARNS FLAW FINDER PROGRESS") | differs | The count shows after your tap only. Flair is not built (D-064: no totals), so there is no progress line. |
+| R3 E, Spot the flaw | While recording is paused | differs | Not drawn. A tap is a play result the server keeps, so it is refused with a plain banner and nothing is stored (D-176). |
+| R3 E, Debate and vote | Two sides, a close date, bars, "Your vote: …" | differs | Bars and counts show after you vote or at the close, never before (the poll rule). Close times are four choices (6 hours to a week). The best argument of each side is not pinned. |
+| R3 E, Room sky | The constellation card with "5 of 7" and a star's moment | differs | A bottom sheet from the Now strip's sky chip, not a card in the room. One fixed seven-point arch for every room, not per-room art. A moment names the act and the day, never a person. |
+| R3 E, Room sky | "Echo offers three names" and the room votes | differs | The three names come from code lists (no Echo, no model) and the vote is three buttons, open for a day. |
+| R3 E, Flair and podium | Flair card, Launch podium | missing | Flair is later; the podium is the Launch (R-6). |
+| R3 p-04 step 7 and p-09, the station | A card under the map with "Enter room" and "Remind me"; the constellation named on the map ("THE PRESS"); a Launch pulse | differs | The station shows its constellation and a steadier ring once finished, with "Name · n of 7" in the label (a name is kept while the next constellation forms). No card, no reminder and no Launch pulse (R-6). The sky is for members: an outsider's station is drawn as before. |
+| R3 B, Now strip | Today and Launch chips on top of General | differs | Today and the sky chips; no Launch chip. The strip is the first thing in the conversation list, not pinned: it scrolls away with the messages so they keep over 60 % of a phone (68 % with the strip and 64.5 % in a quiet room, measured at 390 × 844 in `rooms-sky-smoke.spec.ts`; with the strip pinned they were 60.9 % and 57.3 %; D-140). Today and Room sky are also rows in the room menu. |
+
 ## Honest limits
 
 - No VoiceOver or TalkBack run. Real devices were not used; the engine is desktop Chromium at the artboard's width.

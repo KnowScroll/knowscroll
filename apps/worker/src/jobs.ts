@@ -418,7 +418,9 @@ export const jobWiring: Provider[] = [
             }),
             // Once a night: each room's question and Spot the flaw, drafted for an operator to approve (D-176).
             jobConsumer(nightlyRitualsQueue, async (_payload, delivery) => {
-              await runNightlyRituals(delivery.signal);
+              await runNightlyRituals(delivery.signal, (slug, error) =>
+                logEvent('rooms.rituals_room_failed', { context: slug, error }),
+              );
             }),
           ]
         : []),

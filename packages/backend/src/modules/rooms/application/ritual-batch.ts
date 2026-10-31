@@ -77,7 +77,12 @@ export interface RitualOperator {
     readonly signal: AbortSignal;
   }): Promise<RoomDraft>;
   /** The night's batch: every open room with a member, one after another. Throws after the loop when any room failed, so the job retries. */
-  draftAll(input: { readonly day: string; readonly signal: AbortSignal }): Promise<readonly RoomDraft[]>;
+  draftAll(input: {
+    readonly day: string;
+    readonly signal: AbortSignal;
+    /** Told which room failed and why, so the job's log names it; the other rooms are still drafted. */
+    readonly onRoomFailed?: (slug: string, error: unknown) => void;
+  }): Promise<readonly RoomDraft[]>;
   roomBySlug(slug: string): Promise<RitualRoom | undefined>;
   list(
     filter: { readonly state: 'draft' | 'approved' | 'rejected' | undefined },
@@ -228,8 +233,9 @@ export function makeRitualOperator(
     const parsed = QuestionPayloadSchema.safeParse(row.payload);
     if (!parsed.success) return false;
     const { assetId, assetRevision } = parsed.data.source;
-    const sources = await p.readPassages(row.room.topic, SOURCES_READ);
-    return sources.some((source) => source.assetId === assetId && source.assetRevision === assetRevision);
+    // The one Scroll, read by its own address: the check never depends on how many others the room's topic has.
+    const sources = await p.readPassages(row.room.topic, 1, { assetId, assetRevision });
+    return sources.length === 1;
   }
 
   /** Whether a puzzle's cited passage still says what it did, read afresh from the Scroll. */
@@ -244,14 +250,15 @@ export function makeRitualOperator(
   return {
     draftRoom,
 
-    async draftAll({ day, signal }) {
+    async draftAll({ day, signal, onRoomFailed }) {
       const done: RoomDraft[] = [];
       let failed = 0;
       for (const room of await p.store.roomsWithMembers()) {
         try {
           done.push(await draftRoom({ room, day, dryRun: false, signal }));
-        } catch {
+        } catch (error) {
           failed += 1;
+          onRoomFailed?.(room.slug, error);
         }
       }
       // Everything stored is idempotent, so a retry only finishes what this run could not.

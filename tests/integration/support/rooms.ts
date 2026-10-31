@@ -5,6 +5,7 @@ import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
+  fencePersonalRecording,
   makeWithPersonalScope,
   makeWithProductionScope,
   type Database,
@@ -131,6 +132,7 @@ export async function roomWorld(
   const deps = {
     withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 }),
     fenceOwn: access.fenceOwnAccount,
+    fenceRecording: fencePersonalRecording,
     readPeople: readPublicPeople,
     readFriends: readFriendAccounts,
     readBlocked: readBlockedAmong,

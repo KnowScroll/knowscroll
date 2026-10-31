@@ -35,11 +35,14 @@ export const CONSTELLATION_POINTS: readonly (readonly [number, number])[] = [
 export const skyLine = (sky: Pick<RoomSky, 'lit'>): string =>
   `${String(sky.lit)} of ${String(ROOM_STARS_PER_CONSTELLATION)}`;
 
-/** A station's line under its name: the count, and the name once a constellation has one. */
+/**
+ * A station's line under its name: the count, and the name the room earned (kept while the next constellation forms, so a
+ * room that has named one never loses it). A constellation waiting for its name is "Lit".
+ */
 export function stationSkyLine(sky: Pick<RoomSky, 'lit' | 'state' | 'constellationName'>): string {
   const base = skyLine(sky);
-  if (sky.state === 'named' && sky.constellationName !== undefined) return `${base} · ${sky.constellationName}`;
-  return sky.state === 'naming' ? `${base} · Lit` : base;
+  if (sky.state === 'naming') return `${base} · Lit`;
+  return sky.constellationName === undefined ? base : `${base} · ${sky.constellationName}`;
 }
 
 /** What a star is, in the act's own words: fixed text, never a message, a title or a person. */
@@ -75,6 +78,11 @@ export interface RoomTodayState {
   readonly working: boolean;
   /** The last tap was refused (the item changed meanwhile); the screen says so and shows how it stands. */
   readonly refused: boolean;
+  /**
+   * The last tap was not kept: recording is paused (the person's choice) or this device's settings were out of date. Nothing
+   * was stored and the key stays on the server; the screen says so and the tap can be made again (D-176).
+   */
+  readonly notSaved: 'recording_paused' | 'recording_generation_stale' | undefined;
   /** The item whose last tap earned the room a star, so the card can say "+1 star for the room" once. */
   readonly starFor: string | undefined;
 }
@@ -85,7 +93,8 @@ export interface RoomTodayController {
   readonly load: () => Promise<void>;
   /**
    * Taps one sentence of today's Spot the flaw. The tap is final: a retry after an unknown outcome is the same command
-   * and a second tap on a finished item changes nothing. Returns whether the server accepted it.
+   * and a second tap on a finished item changes nothing. While recording is paused nothing is sent (the server would keep the
+   * tap, so it refuses). Returns whether the server accepted and kept it.
    */
   readonly solve: (ritualId: string, sentence: number) => Promise<boolean>;
 }
@@ -102,6 +111,7 @@ const initialToday: RoomTodayState = {
   offline: false,
   working: false,
   refused: false,
+  notSaved: undefined,
   starFor: undefined,
 };
 
@@ -143,10 +153,23 @@ export function createRoomToday(options: RoomTodayOptions): RoomTodayController 
     load,
     async solve(ritualId, sentence) {
       if (state.working) return false;
-      publish({ working: true, refused: false });
-      const outcome = await run(`solve:${ritualId}`, (commandId) =>
-        scope.api.rooms.solveFlaw({ version: VERSION, commandId, roomId, ritualId, sentence }),
-      );
+      if (scope.recording?.getState().policy?.on === false) {
+        publish({ refused: false, notSaved: 'recording_paused' });
+        return false;
+      }
+      publish({ working: true, refused: false, notSaved: undefined });
+      const outcome = await run(`solve:${ritualId}`, async (commandId) => {
+        const recordingGeneration = await scope.recording?.generation();
+        if (recordingGeneration === undefined) throw new Error('recording_policy_unavailable');
+        return scope.api.rooms.solveFlaw({
+          version: VERSION,
+          commandId,
+          roomId,
+          ritualId,
+          sentence,
+          recordingGeneration,
+        });
+      });
       publish({ working: false });
       if (outcome.kind === 'ended') return false;
       if (outcome.kind === 'offline') {
@@ -156,6 +179,11 @@ export function createRoomToday(options: RoomTodayOptions): RoomTodayController 
       if (outcome.kind === 'refused') {
         publish({ refused: true });
         await load();
+        return false;
+      }
+      if (outcome.value.outcome === 'not_saved') {
+        publish({ notSaved: outcome.value.reason });
+        await scope.recording?.refresh();
         return false;
       }
       publish({ starFor: outcome.value.star ? ritualId : undefined });

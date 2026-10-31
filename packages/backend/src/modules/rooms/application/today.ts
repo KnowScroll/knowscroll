@@ -102,8 +102,8 @@ export function makeToday(p: RoomPorts) {
 
   return {
     /**
-     * Today for a member: the day's question and Spot the flaw if an operator approved them, how many answers the question
-     * has had, the questions of the days before, and the Today discussion where answers are written. A resident asks and says
+     * Today for a member: the day's question and Spot the flaw if an operator approved them, how many messages people have
+     * written in Today since midnight, the questions of the days before, and the Today discussion where answers are written. A resident asks and says
      * so; the words are a template over a library Scroll and the altered sentence is checked and approved, never made while
      * someone waits. The flaw's key is withheld until the reader has tapped. Writes nothing.
      */
@@ -128,7 +128,7 @@ export function makeToday(p: RoomPorts) {
                 ...(question.payload.detail === undefined ? {} : { detail: question.payload.detail }),
                 by: residentOf(cast, 'explainer'),
                 source: await cardOf(p, scope, question.payload.source),
-                answers: await p.today.answersSince(lock, discussion.discussionId, startOfDay(day)),
+                messagesToday: await p.today.messagesSince(lock, discussion.discussionId, startOfDay(day)),
               };
         const past = (await p.today.pastQuestions(lock, day, PAST_DAYS)).flatMap((row) => {
           const payload = QuestionPayloadSchema.safeParse(row.payload);
@@ -156,7 +156,10 @@ export function makeToday(p: RoomPorts) {
      * the first right answer of the day the room has had, within its daily star cap, earns the room a star in this same
      * transaction (D-174); a later right tap, a wrong one or a retry earns nothing more. A tap on an item that is not
      * approved, not today's, or on a sentence the passage does not have is refused. The same command again, and a second
-     * command for the same item, answer with the first tap. It is a play result: nothing here is evidence for anyone.
+     * command for the same item, answer with the first tap. It is a play result: nothing here is evidence for anyone, and
+     * it is stored only while the person's recording is on. While it is paused (or the device's generation is out of date)
+     * nothing is stored, the key stays on the server and the answer says `not_saved` so the screen can say so plainly (D-083,
+     * D-182, D-176).
      */
     solveFlaw(
       authority: PersonalAuthority,
@@ -173,6 +176,22 @@ export function makeToday(p: RoomPorts) {
         acceptance: FlawSolvedAcceptanceSchema,
         requires: 'member',
         mode: 'read',
+        async gate({ scope }) {
+          const fence = await p.fenceRecording(scope, command.recordingGeneration);
+          if (fence.kind === 'recording') return undefined;
+          if (fence.kind !== 'paused' && fence.kind !== 'stale') return refuse('unavailable');
+          return ok(
+            FlawSolvedAcceptanceSchema.parse({
+              ...roomEnvelope(scope),
+              commandId: command.commandId,
+              outcome: 'not_saved',
+              operation: 'today.solve',
+              roomId: command.roomId,
+              ritualId: command.ritualId,
+              reason: fence.kind === 'paused' ? 'recording_paused' : 'recording_generation_stale',
+            }),
+          );
+        },
         async decide({ scope, entered, now }) {
           const { lock, owner, standing } = entered;
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');

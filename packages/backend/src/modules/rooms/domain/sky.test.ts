@@ -121,6 +121,13 @@ describe('a constellation (D-175)', () => {
     expect(winningCandidate([2, 2, 2])).toBe(0);
   });
 
+  it('passes over a name the room already gave an earlier constellation', () => {
+    expect(winningCandidate([5, 1, 0], [true, false, false])).toBe(1);
+    expect(winningCandidate([0, 0, 0], [true, false, false])).toBe(1);
+    expect(winningCandidate([0, 0, 3], [false, false, true])).toBe(0);
+    expect(winningCandidate([1, 2, 2], [false, true, false])).toBe(2);
+  });
+
   it('closes the name vote a day after the seventh star', () => {
     expect(namingClosesAt(new Date('2026-10-26T10:00:00Z')).toISOString()).toBe('2026-10-27T10:00:00.000Z');
   });

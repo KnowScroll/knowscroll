@@ -153,7 +153,6 @@ export function GeneralStage({
   return (
     <View style={styles.stage}>
       {header}
-      <NowStrip scope={scope} roomId={view.room.roomId} today={view.today} sky={view.sky} />
       {view.you.noticeSeenAt === undefined ? (
         <AiNoticeCard
           busy={state.working}
@@ -176,6 +175,9 @@ export function GeneralStage({
         discussionId={view.general.discussionId}
         header={null}
         topics={view.discussions}
+        // The Now strip stands first in the list, so it scrolls away with the conversation and the messages keep the screen (D-140).
+        listHeader={<NowStrip scope={scope} roomId={view.room.roomId} today={view.today} sky={view.sky} />}
+        startAtEnd
       />
     </View>
   );

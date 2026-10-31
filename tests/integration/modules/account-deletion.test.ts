@@ -489,6 +489,7 @@ describe('account deletion (real database)', () => {
             roomId: room.roomId,
             ritualId,
             sentence: 1,
+            recordingGeneration: 1,
           }),
         );
         const todayChannel = await rooms.db

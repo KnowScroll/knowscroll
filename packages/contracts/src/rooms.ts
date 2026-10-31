@@ -9,6 +9,7 @@ import { AbuseCategorySchema } from './feedback.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
 import { RoomIdentitySchema } from './room-identity.js';
 import { NewDebateSchema, RoomDebateSchema, RoomNamingSchema, RoomSkySchema, RoomStarSchema } from './room-sky.js';
+import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
 import { roomsPost } from './social-problems.js';
 import { ResolvedSnippetAnchorSchema, SnippetAnchorSchema, SnippetCardSchema, ThreadEpisodeSchema } from './threads.js';
@@ -222,8 +223,11 @@ export const RoomTodayQuestionSchema = z.strictObject({
   detail: z.string().min(1).max(300).refine(isPublicLabel).optional(),
   by: AiAuthorSchema,
   source: ConversationContentProjectionSchema,
-  /** How many people's messages in Today answer it so far: a real count, shown only as a number of answers. */
-  answers: Counter,
+  /**
+   * How many messages people have written in Today since UTC midnight: a real count of messages (not all of them answer
+   * the question), shown as a number of messages.
+   */
+  messagesToday: Counter,
 });
 export type RoomTodayQuestion = z.infer<typeof RoomTodayQuestionSchema>;
 
@@ -269,24 +273,45 @@ export const RoomTodaySchema = z.discriminatedUnion('status', [
 ]);
 export type RoomToday = z.infer<typeof RoomTodaySchema>;
 
-/** The reader taps one sentence. Final: a second command for the same item is the first one's answer. */
+/**
+ * The reader taps one sentence. Final: a second command for the same item is the first one's answer. A tap is a play result
+ * the server stores, so it carries the recording generation the device knows, as a call in a Scroll does (D-083, D-182).
+ */
 export const SolveFlawSchema = z.strictObject({
   ...Command,
   roomId: UuidSchema,
   ritualId: UuidSchema,
   sentence: FlawIndex,
+  recordingGeneration: RecordingGenerationSchema,
 });
-export const FlawSolvedAcceptanceSchema = z.strictObject({
-  ...Receipt,
-  operation: z.literal('today.solve'),
-  roomId: UuidSchema,
-  ritualId: UuidSchema,
-  correct: z.boolean(),
-  flawIndex: FlawIndex,
-  original: Sentence,
-  /** This tap earned the room a star: the first right answer of the day, within the daily cap. */
-  star: z.boolean(),
-});
+export const FlawSolvedAcceptanceSchema = z.discriminatedUnion('outcome', [
+  z.strictObject({
+    ...Receipt,
+    operation: z.literal('today.solve'),
+    roomId: UuidSchema,
+    ritualId: UuidSchema,
+    correct: z.boolean(),
+    flawIndex: FlawIndex,
+    original: Sentence,
+    /** This tap earned the room a star: the first right answer of the day, within the daily cap. */
+    star: z.boolean(),
+  }),
+  /**
+   * Nothing was stored and the key stays on the server: recording is paused (the person's choice, D-057, so a tap that
+   * the server would keep is refused) or the device's generation is out of date. No receipt is written, so the same tap
+   * may be sent again, under a new command, after recording is back on.
+   */
+  z.strictObject({
+    version: Version,
+    scope: ConversationScopeSchema,
+    commandId: CommandIdSchema,
+    outcome: z.literal('not_saved'),
+    operation: z.literal('today.solve'),
+    roomId: UuidSchema,
+    ritualId: UuidSchema,
+    reason: z.enum(['recording_paused', 'recording_generation_stale']),
+  }),
+]);
 
 /** A member reads the room's sky: the stars, the constellation, and the name vote while one is open. */
 export const ReadRoomSkySchema = z.strictObject({ ...Read, roomId: UuidSchema });
@@ -298,6 +323,8 @@ export const RoomSkyViewSchema = z.discriminatedUnion('status', [
     sky: RoomSkySchema,
     /** The newest stars first: the moment each was made, with no person in it. */
     stars: z.array(RoomStarSchema).max(28),
+    /** The most stars the room can earn in a day in this world (D-174), so a screen never states a number of its own. */
+    starsPerDay: z.number().int().min(1).max(50),
     /** Present while the latest finished constellation has no name. */
     naming: RoomNamingSchema.optional(),
   }),

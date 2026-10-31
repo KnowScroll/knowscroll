@@ -191,6 +191,7 @@ function ReadyDiscussion({
   header,
   topics,
   listHeader,
+  startAtEnd,
   focusSignal,
 }: {
   readonly scope: AccountScope;
@@ -203,8 +204,10 @@ function ReadyDiscussion({
   readonly header: ReactNode | undefined;
   /** The room's own list of discussions, read with the room: what a topic card says about its topic. */
   readonly topics: readonly RoomDiscussionSummary[] | undefined;
-  /** What stands first in the list of messages: Today's cards. */
+  /** What stands first in the list of messages: Today's cards, or the Now strip. */
   readonly listHeader: ReactNode | undefined;
+  /** The list opens at the newest message even with a header (General); without it a list with a header opens at the top. */
+  readonly startAtEnd: boolean | undefined;
   readonly focusSignal: number | undefined;
 }) {
   const router = useRouter();
@@ -224,9 +227,15 @@ function ReadyDiscussion({
   const [snippet, setSnippet] = useState<string>();
   const [lastAsk, setLastAsk] = useState<Exclude<AskOutcome, 'asked'>>();
   const [starting, setStarting] = useState<RoomMessage>();
+  // The last vote on a debate was not kept (it closed meanwhile, or the room did): the card says so beside the result.
+  const [voteRefused, setVoteRefused] = useState(false);
   const [roomController] = useState(() => createRoom({ scope, roomId, newId: newCommandId }));
   const positionRef = useRef<ReelPositionHandle>(null);
-  const { ref: scrollRef, onScroll, follow } = useFollowEnd(String(state.messages.length), listHeader !== undefined);
+  const {
+    ref: scrollRef,
+    onScroll,
+    follow,
+  } = useFollowEnd(String(state.messages.length), listHeader !== undefined && startAtEnd !== true);
   // The keyboard opening folds the player, and folding pauses it (C04).
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => place.setFolded(true));
@@ -351,7 +360,11 @@ function ReadyDiscussion({
                 <DebateCard
                   debate={view.debate}
                   canVote={view.canPost}
-                  onVote={(side) => void controller.voteDebate(side)}
+                  refused={voteRefused}
+                  onVote={(side) => {
+                    setVoteRefused(false);
+                    void controller.voteDebate(side).then((kept) => setVoteRefused(!kept));
+                  }}
                 />
               )}
               {view.origin === undefined ? null : <TopicOrigin origin={view.origin} />}
@@ -474,6 +487,7 @@ export function OpenDiscussion({
   header,
   topics,
   listHeader,
+  startAtEnd,
   focusSignal,
 }: {
   readonly scope: AccountScope;
@@ -483,6 +497,7 @@ export function OpenDiscussion({
   /** The room's own list of discussions, for the cards of topics begun from messages here. */
   readonly topics?: readonly RoomDiscussionSummary[];
   readonly listHeader?: ReactNode;
+  readonly startAtEnd?: boolean;
   /** Each new value puts the cursor in the composer. */
   readonly focusSignal?: number;
 }) {
@@ -532,6 +547,7 @@ export function OpenDiscussion({
       header={header}
       topics={topics}
       listHeader={listHeader}
+      startAtEnd={startAtEnd}
       focusSignal={focusSignal}
     />
   );

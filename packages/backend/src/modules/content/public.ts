@@ -400,10 +400,15 @@ export interface LibraryPassageSource {
   readonly blocks: readonly { readonly blockId: string; readonly text: string }[];
 }
 
-/** The library Scrolls under a topic: a system covers every planet of it, a planet is its own. At most `limit` (1 to 100), by asset ID. */
+/**
+ * The library Scrolls under a topic: a system covers every planet of it, a planet is its own. At most `limit` (1 to 100), by
+ * asset ID. With `only` the read is for that one exact revision (found only while it is still a served library Scroll
+ * under the topic), so a check of one Scroll never depends on how many others the topic has.
+ */
 export type ReadLibraryPassages = (
   topic: { readonly kind: 'system' | 'planet'; readonly id: string },
   limit: number,
+  only?: { readonly assetId: string; readonly assetRevision: number },
 ) => Promise<readonly LibraryPassageSource[]>;
 export const READ_LIBRARY_PASSAGES = Symbol('content.readLibraryPassages');
 

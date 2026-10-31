@@ -158,10 +158,15 @@ export function constellationCandidates(input: {
 
 /**
  * The name a vote settles on: the candidate with the most votes, a tie going to the earlier one, and no votes at all to the
- * first. A rule anyone can compute from the counts, so no one decides a name by being last to look.
+ * first. A name the room already gave an earlier constellation (`taken`) is passed over, so two constellations settled
+ * together never share one. A rule anyone can compute from the counts, so no one decides a name by being last to look.
  */
-export function winningCandidate(votes: readonly [number, number, number]): 0 | 1 | 2 {
-  let best: 0 | 1 | 2 = 0;
-  for (const index of [1, 2] as const) if (votes[index] > votes[best]) best = index;
+export function winningCandidate(
+  votes: readonly [number, number, number],
+  taken: readonly [boolean, boolean, boolean] = [false, false, false],
+): 0 | 1 | 2 {
+  const open = ([0, 1, 2] as const).filter((index) => !taken[index]);
+  let best: 0 | 1 | 2 = open[0] ?? 0;
+  for (const index of open) if (votes[index] > votes[best]) best = index;
   return best;
 }

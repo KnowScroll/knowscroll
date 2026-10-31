@@ -94,6 +94,8 @@ export interface RoomFixtureOptions {
   readonly backdrop?: boolean;
   /** R-5: the room's sky as every read of the room carries it; a function so a later read can say more. Default: no stars. */
   readonly sky?: () => Record<string, unknown>;
+  /** R-5: the person's recording is paused (D-083): Spot the flaw sends nothing and says why. */
+  readonly recordingPaused?: boolean;
   /** R-5: today's strip of the room view (the Today discussion, the approved question and whether there is a Spot the flaw). */
   readonly today?: Record<string, unknown>;
 }
@@ -448,7 +450,13 @@ export async function roomFixture(
       });
     if (path === '/v1/privacy/recording/read')
       return route.fulfill({
-        json: { version: 'recording-policy.v1', ...body, scope, revision: 0, policy: { on: true, generation: 1 } },
+        json: {
+          version: 'recording-policy.v1',
+          ...body,
+          scope,
+          revision: 0,
+          policy: options.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 },
+        },
       });
     return route.fulfill({ status: 404, json: {} });
   });

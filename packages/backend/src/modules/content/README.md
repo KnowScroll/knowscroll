@@ -556,7 +556,7 @@ Rooms drafts a day's question and Spot the flaw from the library's own words. It
 
 | Port | Answers |
 | --- | --- |
-| `READ_LIBRARY_PASSAGES` (`makeReadLibraryPassages(db)(topic, limit)`) | The current revision of each admitted library Scroll whose **primary** encounter topic falls under a room's topic (a system covers every planet of it), with its title, summary and prose blocks. At most 100, by asset ID |
+| `READ_LIBRARY_PASSAGES` (`makeReadLibraryPassages(db)(topic, limit, only?)`) | The current revision of each admitted library Scroll whose **primary** encounter topic falls under a room's topic (a system covers every planet of it), with its title, summary and prose blocks. At most 100, by asset ID. With `only` (an exact asset and revision) it answers for that one Scroll alone, which is how an operator's approval re-checks a question: by its own address, not by finding it among the first hundred |
 | `READ_LIBRARY_PASSAGE_TEXT` (`makeReadLibraryPassageText(db)(ref)`) | The text of one block of an exact revision, only while that revision is still the current one anyone may be served; absent when the Scroll was corrected, withdrawn or held |
 
 A block is a paragraph of a v1 document, or one stop's paragraph and line blocks joined by a space for a v2 document (its `blockId`

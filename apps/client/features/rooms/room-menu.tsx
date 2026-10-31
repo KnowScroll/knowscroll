@@ -7,12 +7,13 @@ import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Icon, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { AiHere } from './ai-here';
-import { activitiesHref } from './room-links';
+import { activitiesHref, todayHref } from './room-links';
 import { ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
+import { SkyContent } from './sky-sheet';
 import { TopicsList } from './topics-list';
 
 type Member = Extract<RoomView, { status: 'member' }>;
-type Page = 'root' | 'about' | 'guidelines' | 'ai' | 'pins' | 'topics' | 'moderation';
+type Page = 'root' | 'about' | 'guidelines' | 'ai' | 'pins' | 'topics' | 'sky' | 'moderation';
 
 const LEVEL_WORDS: Record<RoomAiLevel, string> = { lively: 'Lively', quieter: 'Quieter', off: 'Off' };
 
@@ -120,6 +121,22 @@ export function RoomMenu({
             onPress={() => setPage('ai')}
             testID="menu-ai"
           />
+          {view.today === undefined ? null : (
+            <MenuRow
+              label="Today"
+              onPress={() => {
+                close();
+                afterPendingBack(() => router.push(todayHref(view.room.roomId)));
+              }}
+              testID="menu-today"
+            />
+          )}
+          <MenuRow
+            label="Room sky"
+            value={`${String(view.sky.lit)} of ${String(view.sky.of)}`}
+            onPress={() => setPage('sky')}
+            testID="menu-sky"
+          />
           <MenuRow label="Members" value={String(view.memberTotal)} testID="menu-members" />
           <MenuRow label="Pins" value={String(pinned)} onPress={() => setPage('pins')} testID="menu-pins" />
           <MenuRow
@@ -189,6 +206,10 @@ export function RoomMenu({
       ) : page === 'pins' ? (
         <PageFrame title="Pins" onBack={() => setPage('root')}>
           <TopicsList scope={scope} view={view} controller={controller} state={state} pinnedOnly />
+        </PageFrame>
+      ) : page === 'sky' ? (
+        <PageFrame title="Room sky" onBack={() => setPage('root')}>
+          <SkyContent scope={scope} roomId={view.room.roomId} />
         </PageFrame>
       ) : page === 'topics' ? (
         <PageFrame title="Topics" onBack={() => setPage('root')}>

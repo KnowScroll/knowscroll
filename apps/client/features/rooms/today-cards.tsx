@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, type ComponentRef } from 'react';
+import { AccessibilityInfo, Platform, Pressable, StyleSheet, View, findNodeHandle } from 'react-native';
 import type { RoomTodayController, RoomTodayState } from '@knowscroll/client-core';
 import type { ConversationContentProjection, RoomToday } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Banner, Button, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
-import { answersWords, dayHeading } from './today-words';
+import { dayHeading, messagesWords } from './today-words';
 
 type Ready = Extract<RoomToday, { status: 'ready' }>;
 type Question = NonNullable<Ready['question']>;
@@ -62,9 +63,9 @@ function QuestionCard({ question, onAnswer }: { readonly question: Question; rea
       {question.detail === undefined ? null : <Text variant="bodyS">{question.detail}</Text>}
       <SourceLink card={question.source} />
       <View style={styles.actions}>
-        {question.answers === 0 ? null : (
-          <Text variant="metaS" color={content.ink2} testID="today-answers">
-            {answersWords(question.answers)}
+        {question.messagesToday === 0 ? null : (
+          <Text variant="metaS" color={content.ink2} testID="today-messages">
+            {messagesWords(question.messagesToday)}
           </Text>
         )}
         <Button label="Answer" variant="primary" size="sm" onPress={onAnswer} testID="today-answer" />
@@ -93,7 +94,7 @@ function Sentence({
   return (
     <Pressable
       role="button"
-      accessibilityLabel={`Sentence ${String(index + 1)}: ${text}`}
+      accessibilityLabel={`Sentence ${String(index + 1)}: ${text}${altered ? ', altered' : ''}${picked ? ', your tap' : ''}`}
       accessibilityState={{ disabled: done || busy }}
       aria-disabled={done || busy}
       disabled={done || busy}
@@ -129,15 +130,31 @@ function FlawCard({
   readonly onTap: (index: number) => void;
 }) {
   const done = flaw.state === 'done';
+  const result = useRef<ComponentRef<typeof View>>(null);
+  const wasOpen = useRef(!done);
+  // The tapped sentence is no longer a button, so a keyboard or screen-reader user would be left on nothing: the result takes
+  // focus when this tap finishes the item. An item that opens already finished keeps the reader where they are.
+  useEffect(() => {
+    if (!done || !wasOpen.current) return;
+    wasOpen.current = false;
+    const node = result.current;
+    if (node === null) return;
+    if (Platform.OS === 'web') (node as unknown as { focus?: () => void }).focus?.();
+    else {
+      const tag = findNodeHandle(node);
+      if (typeof tag === 'number') AccessibilityInfo.setAccessibilityFocus(tag);
+    }
+  }, [done]);
   return (
     <View style={styles.card} testID="today-flaw">
       <Text variant="monoXs" color={content.ink2}>
         SPOT THE FLAW
       </Text>
       <Resident by={flaw.by} />
-      <Text variant="ui">
-        {done ? (flaw.correct ? 'Found it!' : 'Not that one.') : 'One sentence below is wrong. Tap it.'}
-      </Text>
+      {/* Mounted from the start, so a change of its words is announced: the result is said once, in words. */}
+      <View accessibilityLiveRegion="polite" aria-live="polite" testID="flaw-status">
+        <Text variant="ui">{flawStatus(flaw)}</Text>
+      </View>
       <View style={styles.sentences}>
         {flaw.sentences.map((text, index) => (
           <Sentence
@@ -151,8 +168,10 @@ function FlawCard({
         ))}
       </View>
       {done ? (
-        <View style={styles.reveal} accessibilityLiveRegion="polite" testID="flaw-reveal">
-          <Text variant="bodyS">{`The Scroll says: ${flaw.original}`}</Text>
+        <View style={styles.reveal} testID="flaw-reveal">
+          <View ref={result} accessible focusable tabIndex={-1} testID="flaw-result">
+            <Text variant="bodyS">{`The Scroll says: ${flaw.original}`}</Text>
+          </View>
           <SourceLink card={flaw.source} />
           <Text variant="metaS" color={content.ink2}>{`${String(flaw.found)} found it`}</Text>
           {state.starFor === flaw.ritualId ? (
@@ -180,8 +199,32 @@ function FlawCard({
           message="Your tap hasn’t reached the room. Tap again when you’re back online."
         />
       ) : null}
+      {state.notSaved === 'recording_paused' ? (
+        <Banner
+          kind="recordingPaused"
+          lead="Recording is paused."
+          message="Spot the flaw keeps your tap, so it can’t be played while recording is paused. Turn recording back on in Privacy, then tap again."
+          testID="flaw-paused"
+        />
+      ) : state.notSaved === 'recording_generation_stale' ? (
+        <Banner
+          kind="error"
+          lead="Couldn’t keep your tap."
+          message="Your recording setting changed on another device. Tap again."
+          testID="flaw-stale"
+        />
+      ) : null}
     </View>
   );
+}
+
+/** The one line the live region speaks: the prompt before the tap, and the result after it, with which sentence was altered. */
+function flawStatus(flaw: Flaw): string {
+  if (flaw.state === 'open') return 'One sentence below is wrong. Tap it.';
+  const altered = `Sentence ${String(flaw.flawIndex + 1)} was altered`;
+  return flaw.correct
+    ? `Found it. ${altered}.`
+    : `Not that one. ${altered}; you tapped sentence ${String(flaw.yourPick + 1)}.`;
 }
 
 /**

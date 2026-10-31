@@ -68,12 +68,13 @@ const servedScrolls = sql`from content.assets a
  */
 export const makeReadLibraryPassages =
   (db: Kysely<Database>): ReadLibraryPassages =>
-  async (topic, limit) => {
+  async (topic, limit, only) => {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > READ_LIMIT_MAX) throw new Error('LIBRARY_PASSAGES_LIMIT');
     const topicIds = topicIdsOf(topic);
     if (topicIds.length === 0) return [];
     const result = await sql<Row>`select r.asset_id, r.revision, r.title, d.summary, r.document
       ${servedScrolls}
+      ${only === undefined ? sql`` : sql`and r.asset_id = ${only.assetId}::uuid and r.revision = ${only.assetRevision}`}
       and exists (select 1 from content.encounter_topics t where t.asset_id = r.asset_id
         and t.asset_revision = r.revision and t.role = 'primary' and t.topic_id = any(${topicIds}::text[]))
       order by r.asset_id limit ${limit}`.execute(db);

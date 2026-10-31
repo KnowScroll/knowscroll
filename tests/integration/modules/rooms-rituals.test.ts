@@ -5,6 +5,7 @@
  * approves them after the cited passage is read again.
  */
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
@@ -218,6 +219,38 @@ describe('a room’s daily items (real PostgreSQL, CI fixture model)', () => {
     });
   });
 
+  describe('a night in which one room fails', () => {
+    it('names the room that failed, drafts the others, and fails the job so it is tried again', async () => {
+      await libraryScroll('CI fixture Scroll about the Moon');
+      const broken = await room();
+      const fine = await room();
+      await joined(world, broken.roomId, 1);
+      await joined(world, fine.roomId, 1);
+      const passages = makeReadLibraryPassages(world.db);
+      const calls: string[] = [];
+      const { ritual } = operator(undefined, {
+        readPassages: (topic, limit, only) => {
+          calls.push(topic.id);
+          // The first room the night reaches cannot read its library; the next one can.
+          if (calls.length === 1) return Promise.reject(new Error('the library is not readable'));
+          return passages(topic, limit, only);
+        },
+      });
+      const failed: string[] = [];
+      await expect(
+        ritual.draftAll({ day: DAY, signal: never, onRoomFailed: (slug) => failed.push(slug) }),
+      ).rejects.toThrow('ROOMS_RITUALS_ROOMS_FAILED');
+      expect(failed).toHaveLength(1);
+      expect(failed[0]).toMatch(/^ci-room-/);
+      const drafted = await world.db
+        .selectFrom('rooms.rituals')
+        .select('room_id')
+        .where(sql<boolean>`day = ${DAY}::date`)
+        .execute();
+      expect(drafted.length).toBeGreaterThan(0);
+    });
+  });
+
   describe('what costs nothing', () => {
     it('drafts for no empty room, no paused room and no room whose library has nothing under its topic', async () => {
       await libraryScroll('CI fixture Scroll about the Moon');
@@ -426,6 +459,7 @@ describe('a room’s daily items (real PostgreSQL, CI fixture model)', () => {
           roomId,
           ritualId: view.flaw!.ritualId,
           sentence,
+          recordingGeneration: 1,
         });
       const wrong = (key.flawIndex + 1) % view.flaw.sentences.length;
       expect(unwrap(await tap(asha, wrong))).toMatchObject({ correct: false, star: false });
@@ -435,6 +469,27 @@ describe('a room’s daily items (real PostgreSQL, CI fixture model)', () => {
       expect(after.status === 'ready' && after.flaw?.state === 'done' && after.flaw.source).toMatchObject({
         status: 'available',
       });
+    });
+
+    it('checks a question by reading its own Scroll, never the first hundred of the topic', async () => {
+      await libraryScroll('CI fixture Scroll about the Moon');
+      const { roomId, slug } = await room();
+      const reads: { limit: number; only: unknown }[] = [];
+      const passages = makeReadLibraryPassages(world.db);
+      const { ritual } = operator(undefined, {
+        readPassages: (topic, limit, only) => {
+          reads.push({ limit, only });
+          return passages(topic, limit, only);
+        },
+      });
+      await ritual.draftRoom({ room: (await ritual.roomBySlug(slug))!, day: DAY, dryRun: false, signal: never });
+      reads.length = 0;
+      const question = (await rituals(roomId)).find((row) => row.kind === 'question')!;
+      expect(await ritual.review({ ritualId: question.ritual_id, decision: 'approved', by: 'cli:ci' })).toEqual({
+        kind: 'decided',
+      });
+      const cited = (question.payload as { source: { assetId: string } }).source.assetId;
+      expect(reads).toEqual([{ limit: 1, only: { assetId: cited, assetRevision: 1 } }]);
     });
 
     it('lists the items by state with their words and cited Scroll, and no person', async () => {

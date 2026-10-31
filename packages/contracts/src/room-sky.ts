@@ -58,13 +58,16 @@ export type RoomStar = z.infer<typeof RoomStarSchema>;
  * The name vote of a finished constellation: three names from code word lists and when the vote closes. Counts per name
  * appear only to a member who has voted (`yourVote`), as for a poll, and never say who chose what.
  */
-export const RoomNamingSchema = z.strictObject({
-  constellation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-  candidates: z.tuple([ConstellationNameSchema, ConstellationNameSchema, ConstellationNameSchema]),
-  closesAt: z.iso.datetime(),
-  yourVote: z.number().int().min(0).max(2).optional(),
-  votes: z.tuple([Counter, Counter, Counter]).optional(),
-});
+export const RoomNamingSchema = z
+  .strictObject({
+    constellation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    candidates: z.tuple([ConstellationNameSchema, ConstellationNameSchema, ConstellationNameSchema]),
+    closesAt: z.iso.datetime(),
+    yourVote: z.number().int().min(0).max(2).optional(),
+    votes: z.tuple([Counter, Counter, Counter]).optional(),
+  })
+  // Counts are held back until the reader has voted, whatever a server or a client does.
+  .refine((naming) => (naming.votes === undefined) === (naming.yourVote === undefined));
 export type RoomNaming = z.infer<typeof RoomNamingSchema>;
 
 /** One side of a debate and, once the reader has voted or the debate closed, how many chose it. */
@@ -78,13 +81,20 @@ const DebateSideSchema = z.strictObject({
  * a member who voted and to everyone once it closed; a tie has no winner. Closing it earns the room a star when at least
  * two different people voted.
  */
-export const RoomDebateSchema = z.strictObject({
-  sides: z.tuple([DebateSideSchema, DebateSideSchema]),
-  closesAt: z.iso.datetime(),
-  state: z.enum(['open', 'closed']),
-  yourVote: z.enum(['a', 'b']).optional(),
-  winner: z.enum(['a', 'b']).optional(),
-});
+export const RoomDebateSchema = z
+  .strictObject({
+    sides: z.tuple([DebateSideSchema, DebateSideSchema]),
+    closesAt: z.iso.datetime(),
+    state: z.enum(['open', 'closed']),
+    yourVote: z.enum(['a', 'b']).optional(),
+    winner: z.enum(['a', 'b']).optional(),
+  })
+  // A tally shows (on both sides or neither) only to a reader who voted or once the debate closed; a winner only once it closed.
+  .refine((debate) => {
+    const counted = debate.sides.map((side) => side.votes !== undefined);
+    const mayCount = debate.state === 'closed' || debate.yourVote !== undefined;
+    return counted.every((has) => has === mayCount) && (debate.winner === undefined || debate.state === 'closed');
+  });
 export type RoomDebate = z.infer<typeof RoomDebateSchema>;
 
 /** What a person starting a debate gives: two different short sides and how long it runs. */

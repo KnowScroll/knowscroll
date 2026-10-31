@@ -118,7 +118,7 @@ export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId:
             detail: 'If the universe is full of stars, why is not every direction bright?',
             by: nova,
             source: SOURCE,
-            answers: 0,
+            messagesToday: 0,
           },
           flaw:
             world.picked === undefined
@@ -165,6 +165,7 @@ export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId:
           ...base,
           status: 'ready',
           sky: skyOf(world),
+          starsPerDay: 3,
           stars: Array.from({ length: Math.min(world.stars, 28) }, (_, index) => ({
             act: (['answer_useful', 'debate_closed', 'daily_solved'] as const)[index % 3],
             day: `2026-10-${String(27 - index).padStart(2, '0')}`,
