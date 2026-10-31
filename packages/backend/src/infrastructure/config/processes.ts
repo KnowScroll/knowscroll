@@ -96,6 +96,10 @@ export interface ApiConfig extends ReleaseIdentity {
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
   readonly supplyPlannerCreateDailyCap: number;
+  /** Ask orders (a short Scroll made for a person's question, D-218) Quartermaster may make per UTC day; 0 turns them off. */
+  readonly supplyAskDailyCap: number;
+  /** Ask orders one person may have made per UTC day. */
+  readonly supplyAskPersonDailyCap: number;
   /** Branches of threads Quartermaster may order per UTC day (D-049); 0 turns scenario Create off. */
   readonly supplyScenarioDailyCap: number;
   /** Branches one thread may have ordered per UTC day (D-076, T3 Q8). */
@@ -143,6 +147,10 @@ export interface WorkerConfig extends ReleaseIdentity {
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above `supplyCreateDailyCap`. */
   readonly supplyPlannerCreateDailyCap: number;
+  /** Ask orders (a short Scroll made for a person's question, D-218) Quartermaster may make per UTC day; 0 turns them off. */
+  readonly supplyAskDailyCap: number;
+  /** Ask orders one person may have made per UTC day. */
+  readonly supplyAskPersonDailyCap: number;
   /** The production scope generation the `content.produce-scroll` consumer works under. */
   readonly scrollProductionGeneration: number;
   readonly database: DatabaseSettings;
@@ -241,6 +249,15 @@ function supplyCreateDailyCap(configured: number | undefined, world: string): nu
 const supplyPlannerCapVariable = z.coerce.number().int().min(0).max(500).default(5);
 
 /**
+ * `KS_SUPPLY_ASK_DAILY_CAP`: how many ask orders (a short Scroll made for one person's question, each one writer call
+ * and at most one repair a take) Quartermaster may make per UTC day for the whole world. It is counted apart from every
+ * other Create cap. 0 turns ask orders off. Default 20 in `local`, 0 in every other world (D-218).
+ */
+const supplyAskDailyCapVariable = z.coerce.number().int().min(0).max(500).optional();
+/** `KS_SUPPLY_ASK_PERSON_DAILY_CAP`: the ask orders one person may have made per UTC day. Default 5 (D-218). */
+const supplyAskPersonCapVariable = z.coerce.number().int().min(1).max(100).default(5);
+
+/**
  * `KS_SUPPLY_SCENARIO_DAILY_CAP`: how many branches of content threads (a what-if or another perspective,
  * each one writer call and at most one repair) Quartermaster may order per UTC day. It is counted apart
  * from every other Create cap. 0 turns scenario Create off. Default 20 in `local`, 0 in every other
@@ -312,6 +329,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SOCKET_AUTH_CACHE_MS: z.coerce.number().int().min(0).max(30_000).default(30_000),
       KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
+      KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
+      KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
       KS_SUPPLY_SCENARIO_DAILY_CAP: supplyScenarioDailyCapVariable,
       KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
@@ -332,6 +351,8 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SOCKET_AUTH_CACHE_MS',
       'KS_SUPPLY_CREATE_DAILY_CAP',
       'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
+      'KS_SUPPLY_ASK_DAILY_CAP',
+      'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_DAILY_CAP',
       'KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP',
       'KS_REASONING_ROOM_ENABLED',
@@ -373,6 +394,8 @@ export function readApiConfig(env: Environment): ApiConfig {
     operatorAccounts,
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
+    supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
+    supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
     supplyScenarioDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_SCENARIO_DAILY_CAP, release.world),
     supplyScenarioThreadDailyCap: parsed.KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP,
     roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
@@ -715,6 +738,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         KS_COMPOSER_POLICY: composerPolicyVariable,
         KS_SUPPLY_CREATE_DAILY_CAP: supplyCreateCapVariable,
         KS_SUPPLY_PLANNER_CREATE_DAILY_CAP: supplyPlannerCapVariable,
+      KS_SUPPLY_ASK_DAILY_CAP: supplyAskDailyCapVariable,
+      KS_SUPPLY_ASK_PERSON_DAILY_CAP: supplyAskPersonCapVariable,
         KS_SCROLL_PRODUCTION_GENERATION: positiveInteger(1, 2_147_483_647),
         KS_DB_POOL_MAX: positiveInteger(5, 100),
         KS_SHUTDOWN_GRACE_SECONDS: positiveInteger(20, 300),
@@ -727,6 +752,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
         'KS_COMPOSER_POLICY',
         'KS_SUPPLY_CREATE_DAILY_CAP',
         'KS_SUPPLY_PLANNER_CREATE_DAILY_CAP',
+      'KS_SUPPLY_ASK_DAILY_CAP',
+      'KS_SUPPLY_ASK_PERSON_DAILY_CAP',
         'KS_SCROLL_PRODUCTION_GENERATION',
         'DATABASE_URL',
         'KS_DB_STATEMENT_TIMEOUT_MS',
@@ -751,6 +778,8 @@ export function readWorkerConfig(env: Environment): WorkerConfig {
     composerPolicy: parsed.KS_COMPOSER_POLICY,
     supplyCreateDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_CREATE_DAILY_CAP, release.world),
     supplyPlannerCreateDailyCap: parsed.KS_SUPPLY_PLANNER_CREATE_DAILY_CAP,
+    supplyAskDailyCap: supplyCreateDailyCap(parsed.KS_SUPPLY_ASK_DAILY_CAP, release.world),
+    supplyAskPersonDailyCap: parsed.KS_SUPPLY_ASK_PERSON_DAILY_CAP,
     scrollProductionGeneration: parsed.KS_SCROLL_PRODUCTION_GENERATION,
     database: databaseSettings(parsed, `knowscroll-worker-${release.world}`, parsed.KS_DB_POOL_MAX),
     shutdownGraceMs: parsed.KS_SHUTDOWN_GRACE_SECONDS * 1000,

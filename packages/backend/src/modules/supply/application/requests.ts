@@ -8,8 +8,12 @@ import {
   RetryContentRequestReceiptSchema,
 } from '@knowscroll/contracts';
 import type { CreateContentRequest } from '@knowscroll/contracts';
-import { CONCEPTS } from '../../content/public.js';
+import { CONCEPTS, type ScrollAskFacts } from '../../content/public.js';
+import type { PersonalScopeTx } from '../../identity/public.js';
 import { MAX_OPEN_REQUESTS, MAX_RETRIES, commissionSupply } from './commission.js';
+import { commissionAskOrder } from './ask-orders.js';
+import { reopenedAskOrder } from './ask-retry.js';
+import { isSuggestedQuestion } from '../domain/ask-order.js';
 import { briefOf, checkedRevision, inventory, snapshot, sourceOf } from './inventory.js';
 import type {
   SupplyPorts,
@@ -31,6 +35,28 @@ function asksFreeText(c: CreateContentRequest): boolean {
   );
 }
 
+type AskIntent = Extract<CreateContentRequest['intent'], { kind: 'ask' }>;
+
+/**
+ * What a fresh ask from here becomes. A question the Scroll itself suggests (its exact authored words) is about that
+ * Scroll by construction, so its ask order is made now with no model call. Any other question waits to be placed: a
+ * worker asks the scope step whether it is about this Scroll or names another subject.
+ */
+async function askDemand(
+  p: SupplyPorts,
+  scope: PersonalScopeTx,
+  demand: Demand,
+  ask: AskIntent,
+  facts: ScrollAskFacts,
+): Promise<Demand> {
+  if (!isSuggestedQuestion(ask.question, facts.suggestions))
+    return { ...demand, status: 'matching', decision: 'pending', reason: undefined };
+  const commissioned = await commissionAskOrder(p, scope, { source: ask.source, facts, question: ask.question });
+  return commissioned.kind === 'commissioned'
+    ? { ...demand, status: 'requested', decision: 'create', reason: undefined, askOrder: commissioned.order }
+    : { ...demand, reason: commissioned.reason };
+}
+
 export function makeCreateRequest(p: SupplyPorts): CreateRequest {
   return async (authority, command) => {
     const c = CreateContentRequestSchema.parse(command);
@@ -49,8 +75,21 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
       // writes no receipt: the same command can be sent again once an ask ends or is cancelled.
       if ((await p.store.countOpenPersonDemands(scope)) >= MAX_OPEN_REQUESTS)
         return { kind: 'refused', reason: 'too_many_open' } as const;
+      const ask = c.intent.kind === 'ask' ? c.intent : undefined;
+      if (ask) {
+        // An ask from here is tied to what the person has read, so it needs recording on (D-083).
+        const gate = await p.fenceRecording(scope, ask.recordingGeneration);
+        if (gate.kind === 'paused') return { kind: 'refused', reason: 'recording_paused' } as const;
+        if (gate.kind === 'stale') return { kind: 'refused', reason: 'recording_stale' } as const;
+        if (gate.kind !== 'recording') return { kind: 'refused', reason: 'scope_refused' } as const;
+      }
       const source = sourceOf(c);
       if (source && !(await p.checkSource(scope, source))) return { kind: 'refused', reason: 'stale_source' } as const;
+      // The anchor must be a stop of the exact revision the person is reading, whose words are the writer's context.
+      const askFacts = ask
+        ? await p.readAskFacts(scope, ask.source, ask.anchor.stopId)
+        : undefined;
+      if (ask && !askFacts) return { kind: 'refused', reason: 'source_unavailable' } as const;
       // This preliminary immutable read grants no authority; one sorted lock batch below
       // rechecks current admission after waiting before any receipt or private mutation.
       const preliminary = source ? await p.readExact(scope, { ...source, capabilities: c.capabilities }) : undefined;
@@ -96,7 +135,8 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
                 decision: commissioned.decision,
               }
             : { ...demand, brief, reason: commissioned.reason };
-      } else if (asksFreeText(c)) demand = { ...demand, status: 'matching', decision: 'pending', reason: undefined };
+      } else if (ask && askFacts) demand = await askDemand(p, scope, demand, ask, askFacts);
+      else if (asksFreeText(c)) demand = { ...demand, status: 'matching', decision: 'pending', reason: undefined };
       const revision = await p.advance(scope);
       await p.store.insert(scope, { ...demand, revision });
       if (demand.status === 'requested' || demand.status === 'matching') await p.enqueue(scope, id);
@@ -229,14 +269,24 @@ export function makeRetryRequest(p: SupplyPorts): RetryRequest {
       const current = d.brief ? await inventory(p, scope, d.command, d.brief) : undefined;
       const status = await snapshot(p, scope, d);
       const retryable =
-        d.brief !== undefined &&
+        (d.brief !== undefined || d.askOrder !== undefined) &&
         status.status === 'unavailable' &&
         status.reason === 'could_not_prepare' &&
         (d.retries ?? 0) < MAX_RETRIES;
       let outcome: 'retrying' | 'already_open' | 'not_retryable' =
         status.status === 'preparing' || status.status === 'ready' ? 'already_open' : 'not_retryable';
       let reopened: Demand | undefined;
-      if (retryable && current && d.brief) {
+      if (retryable && d.askOrder) {
+        if ((await p.store.countOpenPersonDemands(scope)) >= MAX_OPEN_REQUESTS)
+          return { kind: 'refused', reason: 'too_many_open' } as const;
+        reopened = await reopenedAskOrder(
+          p,
+          scope,
+          { ...d, askOrder: d.askOrder },
+          checkedRevision(status.requestRevision + 1),
+        );
+        if (reopened) outcome = 'retrying';
+      } else if (retryable && current && d.brief) {
         // The ask still counts against the person's open asks once it is open again.
         if ((await p.store.countOpenPersonDemands(scope)) >= MAX_OPEN_REQUESTS)
           return { kind: 'refused', reason: 'too_many_open' } as const;

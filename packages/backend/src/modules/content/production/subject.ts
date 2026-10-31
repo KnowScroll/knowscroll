@@ -54,7 +54,7 @@ interface OrderRow {
   readonly recipe: string;
   readonly asset_id: string;
   readonly explanation_unit_id: string;
-  readonly mode: 'what_if' | 'perspective';
+  readonly mode: 'what_if' | 'perspective' | 'question';
   readonly brief: string;
   readonly pages: readonly string[];
   readonly kicker: string;
@@ -63,7 +63,8 @@ interface OrderRow {
 
 /**
  * The subject of a Scroll ordered from code, read from the stored order, or `undefined` when no such
- * order exists. Orders are comparison Scrolls: they set the changed world beside the original.
+ * order exists or its brief was wiped by an erasure (nothing is written for words that were erased). A what-if and a
+ * perspective are comparison Scrolls: they set the changed world beside the original. The answer to a question is prose.
  */
 export async function madeToOrderSubject(
   db: Kysely<Database>,
@@ -74,7 +75,7 @@ export async function madeToOrderSubject(
       from content.made_to_order_scrolls where recipe = ${key}`.execute(db)
   ).rows[0];
   const framing = row === undefined ? undefined : Framing.safeParse(row.framing);
-  if (row === undefined || !framing?.success) return undefined;
+  if (row === undefined || !framing?.success || row.brief === '') return undefined;
   return {
     key,
     mode: row.mode,
@@ -86,7 +87,7 @@ export async function madeToOrderSubject(
     },
     brief: row.brief,
     pages: row.pages,
-    format: 'comparison',
+    format: row.mode === 'question' ? 'plain' : 'comparison',
     attribution: 'none',
   };
 }

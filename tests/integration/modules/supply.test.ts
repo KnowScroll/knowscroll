@@ -7,7 +7,12 @@ import type { CreateContentRequest } from '@knowscroll/contracts';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import {
   contentProviders,
   lockCurrentEncounters,
@@ -61,8 +66,9 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
-      [CONFIG, { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5 }],
-      [READ_EXPLORATION_SNAPSHOT, content.readExploration],
+      [CONFIG, { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 }],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
+    [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),

@@ -3,7 +3,12 @@ import { sql } from 'kysely';
 import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
@@ -60,7 +65,8 @@ export async function supplyWorld(purpose: string) {
   const values = new Map<symbol, unknown>([
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
     [ENQUEUE, makeEnqueueJob(content.boss)],
-    [CONFIG, { supplyCreateDailyCap: 10, supplyPlannerCreateDailyCap: 10 }],
+    [CONFIG, { supplyCreateDailyCap: 10, supplyPlannerCreateDailyCap: 10, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 }],
+    [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, content.readExploration],
     [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),

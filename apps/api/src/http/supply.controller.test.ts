@@ -110,6 +110,8 @@ describe('Supply guarded HTTP contract adapter', () => {
     stale_source: 'ASSET_REVISION_STALE',
     not_found: 'NOT_FOUND',
     too_many_open: 'TOO_MANY_REQUESTS',
+    recording_paused: 'RECORDING_PAUSED',
+    recording_stale: 'RECORDING_POLICY_STALE',
   };
   for (const reason of Object.keys(refusalCodes) as Refusal[])
     it(`maps ${reason} consistently without backend details`, async () => {

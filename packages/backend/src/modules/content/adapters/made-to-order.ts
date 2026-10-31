@@ -1,4 +1,4 @@
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readerOn, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
@@ -11,7 +11,9 @@ import { notUnderReview } from './review-gate-sql.js';
 import type {
   CheckAssetAudience,
   ContentRef,
+  MadeToOrderStanding,
   ReadMadeToOrderProduction,
+  ReadMadeToOrderProductionIn,
   ReadOrderAudience,
   ReadScrollEvidence,
   ReadScrollSourcePages,
@@ -37,43 +39,53 @@ export const recordMadeToOrderScroll: RecordMadeToOrderScroll = async (scope, or
   return { recipe };
 };
 
+/** The reader of an order's standing: the pool, or one person's own open transaction. */
+type Queryable = Kysely<Database> | Transaction<Database>;
+
 /**
  * An order's production standing from its jobs at the current recipe version, and the admitted Scroll
  * once there is one. Shared nonpersonal tables only, so the resolver reads it without any scope.
  */
 export function makeReadMadeToOrderProduction(db: Kysely<Database>): ReadMadeToOrderProduction {
-  return async (recipe) => {
-    const order = await db
-      .selectFrom('content.made_to_order_scrolls')
-      .select('asset_id')
-      .where('recipe', '=', recipe)
-      .executeTakeFirst();
-    if (order === undefined) return { state: 'stopped' };
-    const jobs = (
-      await sql<{ state: ProductionJobState }>`select state from content.scroll_production_runs
-        where topic = ${recipe} and policy_version = ${SCROLL_PRODUCTION_VERSION} order by take`.execute(db)
-    ).rows;
-    const asset = await db
-      .selectFrom('content.assets as asset')
-      .innerJoin('content.asset_revisions as revision', (join) =>
-        join.onRef('revision.asset_id', '=', 'asset.id').onRef('revision.revision', '=', 'asset.revision'),
-      )
-      .select(['asset.revision', 'asset.status', 'revision.title'])
-      .where('asset.id', '=', order.asset_id)
-      .executeTakeFirst();
-    const admitted = asset?.status === 'admitted';
-    const state = productionStanding(
-      jobs.map((job) => job.state),
-      admitted,
-    );
-    const take = takeToSend(state, jobs.length);
-    return {
-      state,
-      ...(take === undefined ? {} : { take }),
-      ...(admitted
-        ? { published: { assetId: order.asset_id, assetRevision: asset.revision, title: asset.title } }
-        : {}),
-    };
+  return (recipe) => standingOf(db, recipe);
+}
+
+/**
+ * The same standing read on the caller's own transaction, for a use case that already holds one (a person's ask
+ * waiting on its order): it never takes a second connection from the small pool.
+ */
+export const readMadeToOrderProductionIn: ReadMadeToOrderProductionIn = (scope, recipe) =>
+  standingOf(transactionOf(scope), recipe);
+
+async function standingOf(db: Queryable, recipe: string): Promise<MadeToOrderStanding> {
+  const order = await db
+    .selectFrom('content.made_to_order_scrolls')
+    .select('asset_id')
+    .where('recipe', '=', recipe)
+    .executeTakeFirst();
+  if (order === undefined) return { state: 'stopped' };
+  const jobs = (
+    await sql<{ state: ProductionJobState }>`select state from content.scroll_production_runs
+      where topic = ${recipe} and policy_version = ${SCROLL_PRODUCTION_VERSION} order by take`.execute(db)
+  ).rows;
+  const asset = await db
+    .selectFrom('content.assets as asset')
+    .innerJoin('content.asset_revisions as revision', (join) =>
+      join.onRef('revision.asset_id', '=', 'asset.id').onRef('revision.revision', '=', 'asset.revision'),
+    )
+    .select(['asset.revision', 'asset.status', 'revision.title'])
+    .where('asset.id', '=', order.asset_id)
+    .executeTakeFirst();
+  const admitted = asset?.status === 'admitted';
+  const state = productionStanding(
+    jobs.map((job) => job.state),
+    admitted,
+  );
+  const take = takeToSend(state, jobs.length);
+  return {
+    state,
+    ...(take === undefined ? {} : { take }),
+    ...(admitted ? { published: { assetId: order.asset_id, assetRevision: asset.revision, title: asset.title } } : {}),
   };
 }
 
@@ -180,10 +192,14 @@ export const readScrollEvidence: ReadScrollEvidence = async (scope, root) => {
 
 /**
  * Which of these assets may this caller open or read. An asset with no order is as public as it always
- * was; one with an order is open only to the audience the ordering module names, and to no one if none
- * does. One query finds the orders; the ordering module is asked once for them all.
+ * was; one with an order is open only to the audience an ordering module names, and to no one if none
+ * does. One query finds the orders; each ordering module (a thread's branches, a person's questions) is asked once
+ * for them all, and answers only for the orders it made.
  */
-export function makeCheckAssetAudience(db: Kysely<Database>, readOrderAudience: ReadOrderAudience): CheckAssetAudience {
+export function makeCheckAssetAudience(
+  db: Kysely<Database>,
+  readOrderAudiences: readonly ReadOrderAudience[],
+): CheckAssetAudience {
   return async (on, authority, assetIds) => {
     if (assetIds.length === 0) return new Set();
     // An ID is the same ID in any letter case; the stored ones are lower case, so compare in lower case.
@@ -197,7 +213,10 @@ export function makeCheckAssetAudience(db: Kysely<Database>, readOrderAudience: 
       )
       .execute();
     const ordered = orders.map((order) => order.asset_id.toLowerCase());
-    const held = ordered.length === 0 ? new Set<string>() : await readOrderAudience(on, authority, ordered);
+    const held = new Set<string>();
+    if (ordered.length > 0)
+      for (const readOrderAudience of readOrderAudiences)
+        for (const assetId of await readOrderAudience(on, authority, ordered)) held.add(assetId);
     const orderedSet = new Set(ordered);
     return new Set(
       assetIds.filter((assetId) => {

@@ -13,10 +13,15 @@ import type {
   PersonalScopeTx,
   WithPersonalScope,
   CheckPersonalOwnerActive,
+  FencePersonalRecording,
 } from '../../identity/public.js';
 import type {
   ChooseScrollRecipe,
   EncounterSnapshot,
+  ReadMadeToOrderProductionIn,
+  ReadScrollAskFacts,
+  ReadScrollSourcePages,
+  RecordMadeToOrderScroll,
   ReadDiscoveryCandidates,
   ReadExactEncounter,
   ReadRegionEncounterCandidates,
@@ -47,6 +52,11 @@ export type CanonicalBrief = {
 };
 export type Source = Extract<CreateContentRequest['intent'], { kind: 'variant' }>['source'];
 export type UnavailableReason = Extract<ContentRequestStatus, { status: 'unavailable' }>['reason'];
+/** The ask order a person's question became: its identity, and the Scroll made for it (open to its asker only). */
+export interface AskOrderLink {
+  readonly orderId: string;
+  readonly assetId: string;
+}
 export interface Demand {
   readonly id: string;
   readonly command: CreateContentRequest;
@@ -67,6 +77,8 @@ export interface Demand {
   readonly retries?: number;
   readonly brief?: CanonicalBrief;
   readonly workId?: string;
+  /** Set once an ask from here became an ask order; such a request waits on that order, not on a shared group. */
+  readonly askOrder?: AskOrderLink;
   /** `pending` until a `matching` ask has its match. */
   readonly decision: 'reuse' | 'join' | 'create' | 'refuse' | 'pending';
   readonly reason?: UnavailableReason;
@@ -110,6 +122,8 @@ export interface SupplyStore {
   countCommissionedSince(scope: PersonalScopeTx, since: Date, origin: CommissionOrigin): Promise<number>;
   /** The person's own asks that are still open (waiting to be matched or produced), which bound their poll jobs. */
   countOpenPersonDemands(scope: PersonalScopeTx): Promise<number>;
+  /** Ask orders this person's requests made since `since`: what the person's daily ask cap counts. */
+  countAskOrdersSince(scope: PersonalScopeTx, since: Date): Promise<number>;
   closeWork(scope: PersonalScopeTx, id: string): Promise<void>;
   /**
    * Reopens a request that closed as could-not-prepare (or that read as closed by its wait limit before
@@ -124,6 +138,16 @@ export interface SupplyStore {
     brief: CanonicalBrief,
   ): Promise<{ readonly id: string; readonly state: 'deferred' | 'ready' } | undefined>;
 }
+/** Quartermaster's ledger of ask orders: names no person and no words (see migration 0086). */
+export interface AskOrderLedger {
+  /** Orders made since `since`, for the world's daily cap. */
+  countSince(scope: PersonalScopeTx, since: Date): Promise<number>;
+  insert(scope: PersonalScopeTx, orderId: string): Promise<void>;
+  /** Notes, once, when the order's Scroll was first seen admitted. */
+  markReady(scope: PersonalScopeTx, orderId: string): Promise<void>;
+  /** How long the latest finished orders took, in seconds, newest first. */
+  recentWaitsSeconds(scope: PersonalScopeTx, limit: number): Promise<readonly number[]>;
+}
 export type Refusal =
   | 'scope_refused'
   | 'command_key_reused'
@@ -132,7 +156,11 @@ export type Refusal =
   | 'stale_source'
   | 'not_found'
   /** The person already has the most open asks they may have; no receipt is written. */
-  | 'too_many_open';
+  | 'too_many_open'
+  /** An ask from here is tied to what the person has read, so it is refused while recording is paused (D-083). */
+  | 'recording_paused'
+  /** The client's recording generation is out of date: it reads the policy again. */
+  | 'recording_stale';
 export type Result<T> =
   { readonly kind: 'ok'; readonly value: T } | { readonly kind: 'refused'; readonly reason: Refusal };
 export type CreateRequest = (
@@ -227,6 +255,18 @@ export interface SupplyPorts {
   readonly lockCurrent: LockCurrentEncounters;
   readonly readExact: ReadExactEncounter;
   readonly checkSource: CheckRequestSource;
+  /** The stop an ask from here was made from, and the questions its Scroll suggests; absent when the anchor is not in the revision. */
+  readonly readAskFacts: ReadScrollAskFacts;
+  /** The public pages an ask order's answer may rest on, chosen by code from the source Scroll's own provenance. */
+  readonly readSourcePages: ReadScrollSourcePages;
+  readonly recordOrder: RecordMadeToOrderScroll;
+  /** Where an ask order's production stands, read on the caller's own transaction. */
+  readonly readOrderProduction: ReadMadeToOrderProductionIn;
+  readonly askLedger: AskOrderLedger;
+  /** Ask orders Create may make per UTC day for the world (0 turns them off) and for one person. */
+  readonly askCaps: { readonly perDay: number; readonly perPersonPerDay: number };
+  /** The recording gate: an ask from here is tied to what was read, so it needs recording on (D-083). */
+  readonly fenceRecording: FencePersonalRecording;
   readonly receipts: {
     find(
       scope: PersonalScopeTx,
