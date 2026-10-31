@@ -66,9 +66,12 @@ describe('Supply private demand foundation (real PostgreSQL, authored CI content
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
-      [CONFIG, { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 }],
+      [
+        CONFIG,
+        { supplyCreateDailyCap: 50, supplyPlannerCreateDailyCap: 5, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 },
+      ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
-    [READ_EXPLORATION_SNAPSHOT, content.readExploration],
+      [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),
       ...experienceEvidenceReadProviders().map((p) => [p.provide, p.useValue] as const),

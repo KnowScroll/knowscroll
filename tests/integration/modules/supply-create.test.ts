@@ -109,7 +109,7 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         },
       ],
       [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
-    [READ_EXPLORATION_SNAPSHOT, content.readExploration],
+      [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
       ...contentProviders().map((p) => [p.provide, p.useValue] as const),

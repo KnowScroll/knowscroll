@@ -86,9 +86,7 @@ export function makeCreateRequest(p: SupplyPorts): CreateRequest {
       const source = sourceOf(c);
       if (source && !(await p.checkSource(scope, source))) return { kind: 'refused', reason: 'stale_source' } as const;
       // The anchor must be a stop of the exact revision the person is reading, whose words are the writer's context.
-      const askFacts = ask
-        ? await p.readAskFacts(scope, ask.source, ask.anchor.stopId)
-        : undefined;
+      const askFacts = ask ? await p.readAskFacts(scope, ask.source, ask.anchor.stopId) : undefined;
       if (ask && !askFacts) return { kind: 'refused', reason: 'source_unavailable' } as const;
       // This preliminary immutable read grants no authority; one sorted lock batch below
       // rechecks current admission after waiting before any receipt or private mutation.

@@ -490,7 +490,6 @@ export type RecordMadeToOrderScroll = (
 ) => Promise<{ readonly recipe: string }>;
 export const RECORD_MADE_TO_ORDER_SCROLL = Symbol('content.recordMadeToOrderScroll');
 
-
 /** An order's production standing, as a library recipe's, with the admitted Scroll once there is one. */
 export interface MadeToOrderStanding extends ScrollProductionReading {
   /** The admitted Scroll: its exact revision and the title the writer gave it. */

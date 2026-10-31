@@ -15,7 +15,9 @@ import { resolveSupplyQueue } from '../events.js';
 async function scrubQuestionOrders(trx: ReturnType<typeof transactionOf>, universeId: string): Promise<void> {
   await sql`update content.made_to_order_scrolls set brief = ''
     where mode = 'question' and asset_id in (
-      select ask_asset_id from supply.requests where universe_id = ${universeId}::uuid and ask_asset_id is not null)`.execute(trx);
+      select ask_asset_id from supply.requests where universe_id = ${universeId}::uuid and ask_asset_id is not null)`.execute(
+    trx,
+  );
 }
 
 /** Shared work contains public briefs only; erase private asks/waiters and every retained job ID. */

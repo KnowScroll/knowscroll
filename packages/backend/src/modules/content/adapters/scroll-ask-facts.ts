@@ -1,9 +1,5 @@
 import { sql } from 'kysely';
-import {
-  parseDocumentV2,
-  SCROLL_DOCUMENT_V2_SCHEMA_VERSION,
-  type ScrollDocumentV2,
-} from '@knowscroll/scroll-model';
+import { parseDocumentV2, SCROLL_DOCUMENT_V2_SCHEMA_VERSION, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { notUnderReview } from './review-gate-sql.js';
 import type { ReadScrollAskFacts } from '../public.js';

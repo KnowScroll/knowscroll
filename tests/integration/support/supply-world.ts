@@ -65,7 +65,10 @@ export async function supplyWorld(purpose: string) {
   const values = new Map<symbol, unknown>([
     [SCOPE, makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })],
     [ENQUEUE, makeEnqueueJob(content.boss)],
-    [CONFIG, { supplyCreateDailyCap: 10, supplyPlannerCreateDailyCap: 10, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 }],
+    [
+      CONFIG,
+      { supplyCreateDailyCap: 10, supplyPlannerCreateDailyCap: 10, supplyAskDailyCap: 20, supplyAskPersonDailyCap: 5 },
+    ],
     [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, content.readExploration],
     [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],

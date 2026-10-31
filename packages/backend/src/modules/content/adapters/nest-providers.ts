@@ -128,7 +128,10 @@ export function contentProviders() {
  * read). `orderAudiences` names the token of each module that orders Scrolls; an order none of them claims is
  * open to nobody.
  */
-export function madeToOrderProviders(tokens: { readonly database: symbol; readonly orderAudiences?: readonly symbol[] }) {
+export function madeToOrderProviders(tokens: {
+  readonly database: symbol;
+  readonly orderAudiences?: readonly symbol[];
+}) {
   return [
     {
       provide: READ_MADE_TO_ORDER_PRODUCTION,

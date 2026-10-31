@@ -47,5 +47,11 @@ export async function reopenedAskOrder(
   }
   if (reading.take === undefined) return undefined;
   await p.enqueueProduction(scope, recipe, reading.take);
-  return { ...reopened, status: 'requested', decision: 'create', content: undefined, contentAvailabilityRevision: undefined };
+  return {
+    ...reopened,
+    status: 'requested',
+    decision: 'create',
+    content: undefined,
+    contentAvailabilityRevision: undefined,
+  };
 }
