@@ -45,6 +45,8 @@ export interface NerveScene {
   readonly sodiumOpen: number;
   readonly potassiumOpen: number;
   readonly sodiumShut: number;
+  /** 1 while a fresh push that would normally fire the cell would not: the cell is still recovering from its spike. */
+  readonly pushWouldNotFire: number;
   /** `all-or-none`: the voltage over time for the weak, the enough and the strong push. */
   readonly weakCurve: readonly number[];
   readonly enoughCurve: readonly number[];
@@ -111,6 +113,7 @@ export function nerveSceneOf(state: NerveState): NerveScene {
     sodiumOpen: channels.sodiumOpenShare / spike.mostSodiumOpen,
     potassiumOpen: channels.potassiumOpenShare / spike.mostPotassiumOpen,
     sodiumShut: channels.sodium === 'shutting' || channels.sodium === 'inactive' ? 1 : 0,
+    pushWouldNotFire: channels.freshPushFires === false ? 1 : 0,
     weakCurve: sampled(weak?.voltage ?? []),
     enoughCurve: sampled(enough?.voltage ?? []),
     strongCurve: sampled(strong?.voltage ?? []),

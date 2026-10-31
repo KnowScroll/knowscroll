@@ -27,10 +27,10 @@ interface Chamber {
   readonly colour: string;
 }
 
-const RIGHT_ATRIUM: Chamber = { centre: { x: 74, y: 88 }, halfWidth: 28, halfHeight: 22, colour: POOR };
-const LEFT_ATRIUM: Chamber = { centre: { x: 188, y: 88 }, halfWidth: 28, halfHeight: 22, colour: RICH };
-const RIGHT_VENTRICLE: Chamber = { centre: { x: 98, y: 148 }, halfWidth: 34, halfHeight: 34, colour: POOR };
-const LEFT_VENTRICLE: Chamber = { centre: { x: 158, y: 148 }, halfWidth: 38, halfHeight: 34, colour: RICH };
+const RIGHT_ATRIUM: Chamber = { centre: { x: 70, y: 86 }, halfWidth: 30, halfHeight: 23, colour: POOR };
+const LEFT_ATRIUM: Chamber = { centre: { x: 172, y: 86 }, halfWidth: 30, halfHeight: 23, colour: RICH };
+const RIGHT_VENTRICLE: Chamber = { centre: { x: 82, y: 148 }, halfWidth: 30, halfHeight: 31, colour: POOR };
+const LEFT_VENTRICLE: Chamber = { centre: { x: 150, y: 148 }, halfWidth: 35, halfHeight: 31, colour: RICH };
 
 /** A chamber: its muscular wall, the blood in it as full as the scene says, and small arrows pressing in while it squeezes. */
 function ChamberShape({
@@ -82,10 +82,23 @@ function ChamberShape({
   );
 }
 
-/** A valve as two flaps hinged at its edges: they meet when it is shut and stand apart, pointing the way the blood goes, when it is open. */
-function Valve({ at, half, open }: { readonly at: Point; readonly half: number; readonly open: number }) {
-  const gap = 2 + (half - 5) * open;
-  const reach = 15 * open;
+/**
+ * A valve as two flaps hinged at its edges: they meet when it is shut and stand apart, pointing the way the
+ * blood goes (`direction` is +1 for down the picture, -1 for up), when it is open.
+ */
+function Valve({
+  at,
+  half,
+  open,
+  direction,
+}: {
+  readonly at: Point;
+  readonly half: number;
+  readonly open: number;
+  readonly direction: 1 | -1;
+}) {
+  const gap = 1.5 + (half - 4) * open;
+  const reach = direction * 14 * open;
   return (
     <G>
       <Line
@@ -94,7 +107,7 @@ function Valve({ at, half, open }: { readonly at: Point; readonly half: number; 
         x2={at.x - gap}
         y2={at.y + reach}
         stroke={INK}
-        strokeWidth={3.2}
+        strokeWidth={4}
         strokeLinecap="round"
       />
       <Line
@@ -103,25 +116,28 @@ function Valve({ at, half, open }: { readonly at: Point; readonly half: number; 
         x2={at.x + gap}
         y2={at.y + reach}
         stroke={INK}
-        strokeWidth={3.2}
+        strokeWidth={4}
         strokeLinecap="round"
       />
+      <Circle cx={at.x - half} cy={at.y} r={2.6} fill={INK} />
+      <Circle cx={at.x + half} cy={at.y} r={2.6} fill={INK} />
     </G>
   );
 }
 
-const AV_RIGHT: Point = { x: 80, y: 112 };
-const AV_LEFT: Point = { x: 178, y: 112 };
-const SL_PULMONARY: Point = { x: 118, y: 118 };
-const SL_AORTIC: Point = { x: 142, y: 118 };
+/** Where the valves sit: between each atrium and its ventricle, and at the mouth of each artery. */
+const AV_RIGHT: Point = { x: 74, y: 113 };
+const AV_LEFT: Point = { x: 158, y: 113 };
+const SL_PULMONARY: Point = { x: 100, y: 120 };
+const SL_AORTIC: Point = { x: 126, y: 120 };
 
 /** A bar of relative pressure: its label and a bar as long as the pressure, against the highest. */
 function PressureBar({ y, label, level }: { readonly y: number; readonly label: string; readonly level: number }) {
   return (
     <G>
-      <Label at={{ x: 228, y }} text={label} anchor="start" />
-      <Rect x={228} y={y + 3} width={80} height={9} fill={PAPER_DEEP} stroke={INK} strokeWidth={1.2} />
-      <Rect x={228} y={y + 3} width={80 * level} height={9} fill={INK} />
+      <Label at={{ x: 232, y }} text={label} anchor="start" />
+      <Rect x={232} y={y + 3} width={78} height={9} fill={PAPER_DEEP} stroke={INK} strokeWidth={1.2} />
+      <Rect x={232} y={y + 3} width={78 * level} height={9} fill={INK} />
     </G>
   );
 }
@@ -131,7 +147,7 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
   return (
     <G>
       <Path
-        d="M 118 114 L 118 34 L 30 34"
+        d="M 100 120 L 100 38 L 22 38"
         fill="none"
         stroke={POOR}
         strokeWidth={9}
@@ -139,50 +155,70 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
         opacity={0.6}
       />
       <Path
-        d="M 142 114 L 142 18 L 306 18"
+        d="M 126 120 L 126 20 L 306 20"
         fill="none"
         stroke={RICH}
         strokeWidth={9}
         strokeLinejoin="round"
         opacity={0.6}
       />
-      <Arrow from={{ x: 8, y: 88 }} to={{ x: 44, y: 88 }} width={6} colour={POOR} outlined />
-      <Arrow from={{ x: 312, y: 88 }} to={{ x: 220, y: 88 }} width={6} colour={RICH} outlined />
-      <Label at={{ x: 6, y: 78 }} text="FROM BODY" anchor="start" />
-      <Label at={{ x: 314, y: 78 }} text="FROM LUNGS" anchor="end" />
-      <Label at={{ x: 30, y: 28 }} text="TO LUNGS" anchor="start" />
-      <Label at={{ x: 306, y: 12 }} text="TO BODY" anchor="end" />
+      <Arrow from={{ x: 4, y: 86 }} to={{ x: 38, y: 86 }} width={6} colour={POOR} outlined />
+      <Arrow from={{ x: 232, y: 86 }} to={{ x: 206, y: 86 }} width={6} colour={RICH} outlined />
+      <Label at={{ x: 2, y: 62 }} text="FROM BODY" anchor="start" />
+      <Label at={{ x: 238, y: 74 }} text="FROM LUNGS" anchor="start" />
+      <Label at={{ x: 22, y: 31 }} text="TO LUNGS" anchor="start" />
+      <Label at={{ x: 306, y: 13 }} text="TO BODY" anchor="end" />
       <ChamberShape chamber={RIGHT_ATRIUM} fill={1} squeeze={scene.atriaSqueeze} />
       <ChamberShape chamber={LEFT_ATRIUM} fill={1} squeeze={scene.atriaSqueeze} />
       <ChamberShape chamber={RIGHT_VENTRICLE} fill={scene.ventricleFill} squeeze={scene.ventriclesSqueeze} />
       <ChamberShape chamber={LEFT_VENTRICLE} fill={scene.ventricleFill} squeeze={scene.ventriclesSqueeze} />
-      <Valve at={AV_RIGHT} half={14} open={scene.atrioventricularOpen} />
-      <Valve at={AV_LEFT} half={14} open={scene.atrioventricularOpen} />
-      <Valve at={SL_PULMONARY} half={9} open={scene.semilunarOpen} />
-      <Valve at={SL_AORTIC} half={9} open={scene.semilunarOpen} />
-      <Label at={{ x: 98, y: 196 }} text="RIGHT" bold />
-      <Label at={{ x: 158, y: 196 }} text="LEFT" bold />
-      <Label at={{ x: 228, y: 118 }} text="PRESSURE (RELATIVE)" anchor="start" bold />
-      <PressureBar y={128} label="ATRIUM" level={scene.atriumPressure} />
-      <PressureBar y={150} label="VENTRICLE" level={scene.ventriclePressure} />
-      <PressureBar y={172} label="ARTERY" level={scene.arteryPressure} />
+      <Valve at={AV_RIGHT} half={16} open={scene.atrioventricularOpen} direction={1} />
+      <Valve at={AV_LEFT} half={16} open={scene.atrioventricularOpen} direction={1} />
+      <Valve at={SL_PULMONARY} half={9} open={scene.semilunarOpen} direction={-1} />
+      <Valve at={SL_AORTIC} half={9} open={scene.semilunarOpen} direction={-1} />
+      {[AV_RIGHT, AV_LEFT].map((at) => (
+        <Arrow
+          key={at.x}
+          from={{ x: at.x, y: at.y - 10 }}
+          to={{ x: at.x, y: at.y + 26 }}
+          width={4}
+          colour={INK}
+          opacity={scene.atrioventricularOpen * 0.8}
+        />
+      ))}
+      {[SL_PULMONARY, SL_AORTIC].map((at) => (
+        <Arrow
+          key={at.x}
+          from={{ x: at.x, y: at.y + 12 }}
+          to={{ x: at.x, y: at.y - 28 }}
+          width={4}
+          colour={INK}
+          opacity={scene.semilunarOpen * 0.8}
+        />
+      ))}
+      <Label at={{ x: 82, y: 198 }} text="RIGHT" bold />
+      <Label at={{ x: 150, y: 198 }} text="LEFT" bold />
+      <Label at={{ x: 232, y: 120 }} text="RELATIVE PRESSURE" anchor="start" bold />
+      <PressureBar y={134} label="ATRIUM" level={scene.atriumPressure} />
+      <PressureBar y={156} label="VENTRICLE" level={scene.ventriclePressure} />
+      <PressureBar y={178} label="ARTERY" level={scene.arteryPressure} />
       {focus === 'atria' ? (
         <>
-          <FocusRing at={RIGHT_ATRIUM.centre} radius={36} />
-          <FocusRing at={LEFT_ATRIUM.centre} radius={36} />
+          <FocusRing at={RIGHT_ATRIUM.centre} radius={37} />
+          <FocusRing at={LEFT_ATRIUM.centre} radius={37} />
         </>
       ) : null}
       {focus === 'ventricles' ? (
         <>
-          <FocusRing at={RIGHT_VENTRICLE.centre} radius={44} />
-          <FocusRing at={LEFT_VENTRICLE.centre} radius={46} />
+          <FocusRing at={RIGHT_VENTRICLE.centre} radius={40} />
+          <FocusRing at={LEFT_VENTRICLE.centre} radius={43} />
         </>
       ) : null}
       {focus === 'valves' ? (
         <>
-          <FocusRing at={{ x: AV_RIGHT.x, y: AV_RIGHT.y + 6 }} radius={20} />
-          <FocusRing at={{ x: AV_LEFT.x, y: AV_LEFT.y + 6 }} radius={20} />
-          <FocusRing at={{ x: 130, y: SL_PULMONARY.y + 6 }} radius={24} />
+          <FocusRing at={{ x: AV_RIGHT.x, y: AV_RIGHT.y + 6 }} radius={22} />
+          <FocusRing at={{ x: AV_LEFT.x, y: AV_LEFT.y + 6 }} radius={22} />
+          <FocusRing at={{ x: 113, y: SL_PULMONARY.y - 6 }} radius={24} />
         </>
       ) : null}
     </G>
@@ -192,29 +228,41 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // The two loops.
 
+function Swatch({ y, colour, text }: { readonly y: number; readonly colour: string; readonly text: string }) {
+  return (
+    <G>
+      <Rect x={200} y={y - 8} width={11} height={11} fill={colour} opacity={0.7} stroke={INK} strokeWidth={1.4} />
+      <Label at={{ x: 216, y }} text={text} anchor="start" />
+    </G>
+  );
+}
+
 function CircuitsView({ scene }: { readonly scene: CirculationScene }) {
   const { focus } = scene;
   return (
     <G>
-      <Ellipse cx={160} cy={30} rx={62} ry={19} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
-      <Label at={{ x: 160, y: 34 }} text="LUNGS" bold />
-      <Ellipse cx={160} cy={170} rx={76} ry={19} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
-      <Label at={{ x: 160, y: 174 }} text="REST OF THE BODY" bold />
-      <Rect x={120} y={80} width={40} height={40} fill={POOR} opacity={0.55} stroke={INK} strokeWidth={OUTLINE} />
-      <Rect x={160} y={80} width={40} height={40} fill={RICH} opacity={0.55} stroke={INK} strokeWidth={OUTLINE} />
-      <Label at={{ x: 140, y: 104 }} text="RIGHT" bold />
-      <Label at={{ x: 180, y: 104 }} text="LEFT" bold />
-      <Arrow from={{ x: 134, y: 78 }} to={{ x: 104, y: 42 }} width={5} colour={POOR} outlined />
-      <Arrow from={{ x: 216, y: 42 }} to={{ x: 186, y: 78 }} width={5} colour={RICH} outlined />
-      <Arrow from={{ x: 186, y: 122 }} to={{ x: 216, y: 156 }} width={5} colour={RICH} outlined />
-      <Arrow from={{ x: 104, y: 156 }} to={{ x: 134, y: 122 }} width={5} colour={POOR} outlined />
-      <Label at={{ x: 270, y: 70 }} text="RED: RICH IN OXYGEN" anchor="end" />
-      <Label at={{ x: 270, y: 84 }} text="BLUE: POOR IN OXYGEN" anchor="end" />
-      <Label at={{ x: 270, y: 98 }} text="(A DRAWING CONVENTION)" anchor="end" />
-      {focus === 'right-side' ? <FocusBox x={114} y={74} width={52} height={52} /> : null}
-      {focus === 'left-side' ? <FocusBox x={154} y={74} width={52} height={52} /> : null}
-      {focus === 'lungs' ? <FocusBox x={90} y={6} width={140} height={48} /> : null}
-      {focus === 'body' ? <FocusBox x={74} y={146} width={172} height={48} /> : null}
+      <Ellipse cx={110} cy={30} rx={62} ry={19} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
+      <Label at={{ x: 110, y: 34 }} text="LUNGS" bold />
+      <Ellipse cx={110} cy={170} rx={76} ry={19} fill={PAPER_DEEP} stroke={INK} strokeWidth={OUTLINE} />
+      <Label at={{ x: 110, y: 174 }} text="REST OF THE BODY" bold />
+      <Rect x={80} y={80} width={30} height={40} fill={POOR} opacity={0.55} stroke={INK} strokeWidth={OUTLINE} />
+      <Rect x={110} y={80} width={30} height={40} fill={RICH} opacity={0.55} stroke={INK} strokeWidth={OUTLINE} />
+      <Label at={{ x: 95, y: 104 }} text="RIGHT" bold />
+      <Label at={{ x: 125, y: 104 }} text="LEFT" bold />
+      <Arrow from={{ x: 92, y: 78 }} to={{ x: 62, y: 44 }} width={5} colour={POOR} outlined />
+      <Arrow from={{ x: 158, y: 44 }} to={{ x: 128, y: 78 }} width={5} colour={RICH} outlined />
+      <Arrow from={{ x: 128, y: 122 }} to={{ x: 158, y: 152 }} width={5} colour={RICH} outlined />
+      <Arrow from={{ x: 62, y: 152 }} to={{ x: 92, y: 122 }} width={5} colour={POOR} outlined />
+      <Label at={{ x: 200, y: 60 }} text="RIGHT SIDE: TO THE LUNGS" anchor="start" />
+      <Label at={{ x: 200, y: 74 }} text="LEFT SIDE: TO THE BODY" anchor="start" />
+      <Swatch y={104} colour={RICH} text="RICH IN OXYGEN" />
+      <Swatch y={122} colour={POOR} text="POOR IN OXYGEN" />
+      <Label at={{ x: 200, y: 142 }} text="A DRAWING CONVENTION:" anchor="start" />
+      <Label at={{ x: 200, y: 154 }} text="BLOOD IS RED EITHER WAY" anchor="start" />
+      {focus === 'right-side' ? <FocusBox x={74} y={74} width={42} height={52} /> : null}
+      {focus === 'left-side' ? <FocusBox x={104} y={74} width={42} height={52} /> : null}
+      {focus === 'lungs' ? <FocusBox x={40} y={8} width={140} height={46} /> : null}
+      {focus === 'body' ? <FocusBox x={26} y={146} width={168} height={48} /> : null}
     </G>
   );
 }
@@ -222,10 +270,11 @@ function CircuitsView({ scene }: { readonly scene: CirculationScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // Pressure along the loop through the body.
 
-const CHART = { left: 36, right: 300, top: 22, bottom: 128 } as const;
+const CHART = { left: 36, right: 300, top: 24, bottom: 128 } as const;
 const SECTION_WIDTH = (CHART.right - CHART.left) / 4;
 const SECTION_LABELS = ['ARTERIES', 'ARTERIOLES', 'CAPILLARIES', 'VEINS'] as const;
 const FOCUS_SECTION = { arteries: 0, arterioles: 1, capillaries: 2, veins: 3 } as const;
+const TUBES_Y = 168;
 
 const xAtSection = (index: number): number => CHART.left + index * SECTION_WIDTH;
 const yOfLevel = (level: number): number => CHART.bottom - level * (CHART.bottom - CHART.top);
@@ -240,7 +289,7 @@ function PressureView({ scene }: { readonly scene: CirculationScene }) {
     <Rect
       key={index}
       x={xAtSection(index) + 4}
-      y={172 - width / 2}
+      y={TUBES_Y - width / 2}
       width={SECTION_WIDTH - 8}
       height={width}
       rx={width / 2}
@@ -291,20 +340,20 @@ function PressureView({ scene }: { readonly scene: CirculationScene }) {
       {tube(1, 18 * scene.arterioleWidth)}
       {tube(2, 18)}
       {tube(3, 18)}
-      <Label at={{ x: CHART.left, y: 196 }} text="FLOW" anchor="start" />
+      <Label at={{ x: CHART.left, y: 195 }} text="FLOW" anchor="start" />
       <Arrow
-        from={{ x: CHART.left + 28, y: 193 }}
-        to={{ x: CHART.left + 70, y: 193 }}
+        from={{ x: CHART.left + 28, y: 192 }}
+        to={{ x: CHART.left + 70, y: 192 }}
         width={1.5 + 3 * scene.flow}
         colour={INK}
       />
-      {changed ? <Label at={{ x: CHART.right, y: 196 }} text="DASHED: THE USUAL" anchor="end" /> : null}
+      {changed ? <Label at={{ x: CHART.right, y: 195 }} text="DASHED LINE: THE USUAL" anchor="end" /> : null}
       {focusSection === undefined ? null : (
         <FocusBox
           x={xAtSection(focusSection) + 2}
           y={CHART.top - 2}
           width={SECTION_WIDTH - 4}
-          height={CHART.bottom - CHART.top + 66}
+          height={TUBES_Y + 14 - (CHART.top - 2)}
         />
       )}
     </G>
@@ -314,7 +363,7 @@ function PressureView({ scene }: { readonly scene: CirculationScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // Oxygen on haemoglobin.
 
-const PLOT = { left: 38, right: 196, top: 26, bottom: 150 } as const;
+const PLOT = { left: 38, right: 176, top: 28, bottom: 150 } as const;
 const xOfOxygen = (share: number): number => PLOT.left + share * (PLOT.right - PLOT.left);
 const yOfLoaded = (loaded: number): number => PLOT.bottom - loaded * (PLOT.bottom - PLOT.top);
 
@@ -324,7 +373,8 @@ function curvePath(curve: readonly number[]): string {
     .join(' ');
 }
 
-const BAR = { width: 22, top: 40, bottom: 150 } as const;
+const BAR = { width: 24, top: 40, bottom: 150 } as const;
+const CARRIERS = { lungs: 206, here: 270 } as const;
 
 /** A tall bar of haemoglobin, loaded with oxygen up to the given share. */
 function Carrier({ x, loaded, label }: { readonly x: number; readonly loaded: number; readonly label: string }) {
@@ -349,15 +399,14 @@ function OxygenView({ scene }: { readonly scene: CirculationScene }) {
   const lungs = { x: xOfOxygen(scene.lungsAt), y: yOfLoaded(scene.lungsLoaded) };
   const here = { x: xOfOxygen(scene.hereAt), y: yOfLoaded(scene.hereLoaded) };
   const tissue = scene.handedOver > 0.5;
-  const carrierX = { lungs: 224, here: 264 };
   const gapTop = BAR.bottom - (BAR.bottom - BAR.top) * scene.lungsLoaded;
   const gapBottom = BAR.bottom - (BAR.bottom - BAR.top) * scene.hereLoaded;
   return (
     <G>
       <Line x1={PLOT.left} y1={PLOT.top - 6} x2={PLOT.left} y2={PLOT.bottom} stroke={INK} strokeWidth={1.8} />
       <Line x1={PLOT.left} y1={PLOT.bottom} x2={PLOT.right + 6} y2={PLOT.bottom} stroke={INK} strokeWidth={1.8} />
-      <Label at={{ x: PLOT.left + 4, y: PLOT.top - 10 }} text="HAEMOGLOBIN CARRYING OXYGEN" anchor="start" />
-      <Label at={{ x: PLOT.right, y: PLOT.bottom + 13 }} text="OXYGEN AROUND: LOW TO HIGH" anchor="end" />
+      <Label at={{ x: PLOT.left + 4, y: PLOT.top - 12 }} text="SHARE OF HAEMOGLOBIN LOADED" anchor="start" />
+      <Label at={{ x: PLOT.left, y: PLOT.bottom + 13 }} text="OXYGEN AROUND: LOW TO HIGH" anchor="start" />
       <Path d={curvePath(scene.curve)} fill="none" stroke={INK} strokeWidth={3} strokeLinejoin="round" />
       <Line
         x1={lungs.x}
@@ -369,7 +418,7 @@ function OxygenView({ scene }: { readonly scene: CirculationScene }) {
         strokeDasharray="4 4"
       />
       <Circle cx={lungs.x} cy={lungs.y} r={5} fill={RICH} stroke={INK} strokeWidth={1.8} />
-      <Label at={{ x: lungs.x - 6, y: lungs.y - 9 }} text="LUNGS" anchor="end" />
+      <Label at={{ x: lungs.x - 8, y: lungs.y - 7 }} text="LUNGS" anchor="end" />
       {tissue ? (
         <>
           <Line
@@ -391,20 +440,20 @@ function OxygenView({ scene }: { readonly scene: CirculationScene }) {
             strokeDasharray="4 4"
           />
           <Circle cx={here.x} cy={here.y} r={5} fill={BLUE} stroke={INK} strokeWidth={1.8} />
-          <Label at={{ x: here.x + 8, y: here.y + 14 }} text="TISSUE" anchor="start" />
+          <Label at={{ x: here.x + 9, y: here.y + 14 }} text="TISSUE" anchor="start" />
         </>
       ) : null}
-      <Carrier x={carrierX.lungs} loaded={scene.lungsLoaded} label="LEAVING LUNGS" />
+      <Carrier x={CARRIERS.lungs} loaded={scene.lungsLoaded} label="LUNGS" />
       {tissue ? (
         <>
-          <Carrier x={carrierX.here} loaded={scene.hereLoaded} label="LEAVING TISSUE" />
+          <Carrier x={CARRIERS.here} loaded={scene.hereLoaded} label="TISSUE" />
           <Arrow
-            from={{ x: carrierX.lungs + BAR.width + 4, y: (gapTop + gapBottom) / 2 }}
-            to={{ x: carrierX.here - 4, y: (gapTop + gapBottom) / 2 }}
+            from={{ x: CARRIERS.lungs + BAR.width + 4, y: (gapTop + gapBottom) / 2 }}
+            to={{ x: CARRIERS.here - 4, y: (gapTop + gapBottom) / 2 }}
             width={3}
             colour={INK}
           />
-          <Label at={{ x: 258, y: BAR.top - 8 }} text="HANDED OVER TO TISSUE" anchor="end" />
+          <Label at={{ x: (CARRIERS.lungs + CARRIERS.here + BAR.width) / 2, y: BAR.top - 8 }} text="HANDED OVER" />
         </>
       ) : null}
       {scene.focus === 'curve' ? (
@@ -412,15 +461,15 @@ function OxygenView({ scene }: { readonly scene: CirculationScene }) {
           x={PLOT.left - 6}
           y={PLOT.top - 4}
           width={PLOT.right - PLOT.left + 14}
-          height={PLOT.bottom - PLOT.top + 10}
+          height={PLOT.bottom - PLOT.top + 4}
         />
       ) : null}
       {scene.focus === 'handoff' && tissue ? (
         <FocusBox
-          x={here.x - 10}
-          y={Math.min(lungs.y, here.y) - 10}
-          width={lungs.x - here.x + 20}
-          height={Math.abs(here.y - lungs.y) + 20}
+          x={CARRIERS.lungs - 8}
+          y={BAR.top - 18}
+          width={CARRIERS.here - CARRIERS.lungs + BAR.width + 16}
+          height={BAR.bottom - BAR.top + 20}
         />
       ) : null}
     </G>

@@ -10,6 +10,7 @@ import {
   FocusRing,
   INK,
   Label,
+  mixColour,
   MUTED,
   OUTLINE,
   PAPER,
@@ -41,9 +42,9 @@ interface Plot {
 const spikePlot = (scene: NerveScene, bottom: number): Plot => ({
   left: 36,
   right: 300,
-  top: 16,
+  top: 26,
   bottom,
-  lowest: scene.undershootVoltage - 6,
+  lowest: scene.undershootVoltage - 14,
   highest: scene.peakVoltage + 6,
 });
 
@@ -158,6 +159,9 @@ function SpikeView({ scene }: { readonly scene: NerveScene }) {
       />
       <Label at={{ x: 304, y: 140 }} text="OUTSIDE" anchor="end" />
       <Label at={{ x: 304, y: 182 }} text="INSIDE" anchor="end" />
+      {scene.pushWouldNotFire > 0.5 ? (
+        <Label at={{ x: plot.right, y: plot.top + 10 }} text="A FRESH PUSH WOULD NOT FIRE IT NOW" anchor="end" bold />
+      ) : null}
       <Channel x={sodiumX} open={scene.sodiumOpen} />
       <Channel x={potassiumX} open={scene.potassiumOpen} />
       {scene.sodiumShut > 0.5 ? (
@@ -293,7 +297,7 @@ function AxonView({ scene }: { readonly scene: NerveScene }) {
   const recoveringTo = Math.max(...recoveringIndexes);
   const segmentFill = (index: number): string =>
     (scene.recovering[index] ?? 0) > 0.5
-      ? WARM
+      ? mixColour(PAPER, WARM, 0.45)
       : (scene.profile[index] ?? scene.restVoltage) > scene.thresholdVoltage
         ? SUN
         : PAPER;
@@ -320,12 +324,11 @@ function AxonView({ scene }: { readonly scene: NerveScene }) {
           width={xOf(index + 1) - xOf(index) + 0.5}
           height={TUBE.half * 2 - 2}
           fill={segmentFill(index)}
-          opacity={0.75}
         />
       ))}
       <Path d={path} fill="none" stroke={INK} strokeWidth={2.8} strokeLinejoin="round" />
       <Label at={{ x: xOf(Math.floor((recoveringFrom + recoveringTo) / 2)), y: 178 }} text="RECOVERING" bold />
-      <Label at={{ x: Math.min(TUBE.right - 30, xOf(count - 1) + 34), y: 178 }} text="AT REST, READY" />
+      <Label at={{ x: TUBE.right, y: 178 }} text="READY" anchor="end" />
       <Arrow from={{ x: 120, y: 192 }} to={{ x: 220, y: 192 }} width={2.5} colour={INK} />
       <Label at={{ x: 226, y: 195 }} text="THE SIGNAL RUNS THIS WAY" anchor="start" />
       {scene.focus === 'spike' ? <FocusRing at={peak} radius={18} /> : null}
@@ -344,14 +347,14 @@ function AxonView({ scene }: { readonly scene: NerveScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // A synapse.
 
-const SENDING = { left: 22, right: 118, top: 30, bottom: 112 } as const;
-const RECEIVING = { left: 172, right: 314 } as const;
+const SENDING = { left: 32, right: 118, top: 30, bottom: 112 } as const;
+const RECEIVING = { left: 172, right: 302 } as const;
 const VESICLES: readonly Point[] = [
-  { x: 50, y: 52 },
-  { x: 76, y: 66 },
-  { x: 52, y: 90 },
-  { x: 80, y: 96 },
-  { x: 104, y: 70 },
+  { x: 58, y: 52 },
+  { x: 82, y: 66 },
+  { x: 60, y: 90 },
+  { x: 84, y: 96 },
+  { x: 104, y: 72 },
 ];
 const RECEPTORS = [48, 72, 96] as const;
 const GAP_DOTS: readonly { share: number; y: number }[] = [
@@ -363,7 +366,7 @@ const GAP_DOTS: readonly { share: number; y: number }[] = [
   { share: 0.7, y: 74 },
   { share: 0.85, y: 100 },
 ];
-const COURSE = { left: 184, right: 304, rest: 176, pixelsPerMillivolt: 5.5, constants: 5 } as const;
+const COURSE = { left: 184, right: 304, rest: 184, pixelsPerMillivolt: 5.5, constants: 5 } as const;
 
 function SynapseView({ scene }: { readonly scene: NerveScene }) {
   const released = scene.released > 0.5;
@@ -390,8 +393,13 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
         stroke={INK}
         strokeWidth={OUTLINE}
       />
-      <Label at={{ x: 66, y: SENDING.top - 6 }} text="SENDING CELL" bold />
-      {scene.released < 0.5 ? <Label at={{ x: 12, y: 48 }} text="SPIKE" anchor="start" /> : null}
+      <Label at={{ x: 75, y: SENDING.top - 6 }} text="SENDING CELL" bold />
+      {scene.released < 0.5 ? (
+        <>
+          <Label at={{ x: 2, y: 48 }} text="SPIKE" anchor="start" />
+          <Arrow from={{ x: 4, y: 65 }} to={{ x: 30, y: 65 }} width={2.4} colour={INK} />
+        </>
+      ) : null}
       {VESICLES.map((at, index) => {
         const fused = released && index === VESICLES.length - 1;
         return fused ? (
@@ -447,7 +455,7 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
             );
           })
         : null}
-      <Label at={{ x: COURSE.left, y: 128 }} text="NEXT CELL’S VOLTAGE" anchor="start" />
+      <Label at={{ x: COURSE.left, y: 134 }} text="NEXT CELL’S VOLTAGE" anchor="start" />
       <Line
         x1={COURSE.left}
         y1={courseY(0)}
@@ -503,10 +511,10 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // A reflex arc.
 
-const SENSOR: Point = { x: 40, y: 168 };
-const CORD = { x: 142, y: 66, width: 28, height: 112 } as const;
-const MUSCLE: Point = { x: 268, y: 168 };
-const BRAIN: Point = { x: 156, y: 22 };
+const SENSOR: Point = { x: 40, y: 170 };
+const CORD = { x: 142, y: 74, width: 28, height: 106 } as const;
+const MUSCLE: Point = { x: 268, y: 170 };
+const BRAIN: Point = { x: 156, y: 30 };
 
 function Link({
   from,
@@ -591,21 +599,21 @@ function ReflexView({ scene }: { readonly scene: NerveScene }) {
       />
       <Label at={{ x: BRAIN.x, y: BRAIN.y + 3 }} text="BRAIN" bold />
       <Label at={{ x: SENSOR.x, y: SENSOR.y + 24 }} text="SENSOR" bold />
-      <Label at={{ x: 96, y: 138 }} text="SENSORY NEURON" />
+      <Label at={{ x: 84, y: 110 }} text="SENSORY NEURON" />
       <Label at={{ x: CORD.x + CORD.width + 8, y: CORD.y + 22 }} text="SPINAL CORD" anchor="start" bold />
-      <Label at={{ x: 226, y: 148 }} text="MOTOR NEURON" />
+      <Label at={{ x: 214, y: 120 }} text="MOTOR NEURON" />
       <Label at={{ x: MUSCLE.x, y: MUSCLE.y + 26 }} text="MUSCLE" bold />
       {scene.newsOnItsWay > 0.5 && scene.brainLit < 0.5 ? (
         <Label at={{ x: BRAIN.x + 44, y: 52 }} text="NEWS ON ITS WAY" anchor="start" />
       ) : null}
-      {scene.focus === 'sensor' ? <FocusRing at={SENSOR} radius={20} /> : null}
-      {scene.focus === 'sensory-neuron' ? <FocusBox x={44} y={118} width={92} height={50} /> : null}
+      {scene.focus === 'sensor' ? <FocusRing at={SENSOR} radius={18} /> : null}
+      {scene.focus === 'sensory-neuron' ? <FocusBox x={44} y={120} width={92} height={52} /> : null}
       {scene.focus === 'spinal-cord' ? (
         <FocusBox x={CORD.x - 6} y={CORD.y - 6} width={CORD.width + 12} height={CORD.height + 12} />
       ) : null}
-      {scene.focus === 'motor-neuron' ? <FocusBox x={176} y={120} width={64} height={48} /> : null}
-      {scene.focus === 'muscle' ? <FocusRing at={MUSCLE} radius={36} /> : null}
-      {scene.focus === 'brain' ? <FocusRing at={BRAIN} radius={38} /> : null}
+      {scene.focus === 'motor-neuron' ? <FocusBox x={176} y={128} width={64} height={44} /> : null}
+      {scene.focus === 'muscle' ? <FocusRing at={MUSCLE} radius={34} /> : null}
+      {scene.focus === 'brain' ? <FocusRing at={BRAIN} radius={34} /> : null}
     </G>
   );
 }

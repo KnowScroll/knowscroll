@@ -78,6 +78,9 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.heart-and-blood',
     facetId: 'human-body.heart-and-blood.pumping',
+    // The beat in order (the atria, then the ventricles), the four valves opening and shutting with the pressure
+    // behind them, and the right side serving the lungs and the left the body are what the kit draws (D-201).
+    stageKit: 'circulation.v1',
     interactive: true,
     interactiveKind: 'sequence',
     brief:
@@ -90,6 +93,9 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.heart-and-blood',
     facetId: 'human-body.heart-and-blood.pressure',
+    // Pressure falling along the loop, the fall across a stretch as flow times resistance, and narrower or wider
+    // arterioles are the pressure view, with relative pressures and no figure (D-201).
+    stageKit: 'circulation.v1',
     interactive: true,
     interactiveKind: 'simulation',
     brief:
@@ -102,6 +108,9 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.heart-and-blood',
     facetId: 'human-body.heart-and-blood.oxygen',
+    // The S-shaped curve, haemoglobin loading in the lungs and giving some oxygen up in resting and in working
+    // tissue, are the oxygen view; the effects of acidity and warmth are left out and the picture says so (D-201).
+    stageKit: 'circulation.v1',
     interactive: true,
     interactiveKind: 'chart',
     brief:
@@ -114,6 +123,9 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.nervous-system',
     facetId: 'human-body.nervous-system.signal',
+    // Rest, threshold, rising, peak, falling and the undershoot, with the channels, the all-or-none rule and the
+    // spike running one way along the axon are what the kit draws, from a model of the membrane (D-201).
+    stageKit: 'nerve.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -126,6 +138,9 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.nervous-system',
     facetId: 'human-body.nervous-system.synapse',
+    // The packets, the gap, the receptors and an exciting and an inhibiting connection are what the synapse view
+    // draws; it names no chemical (D-201).
+    stageKit: 'nerve.v1',
     interactive: false,
     interactiveKind: null,
     brief:
@@ -138,6 +153,9 @@ export const humanBodyRecipes = {
     systemId: system,
     topicId: 'human-body.nervous-system',
     facetId: 'human-body.nervous-system.reflex',
+    // Sensor, sensory neuron, spinal cord, motor neuron and muscle, with the news still on its way to the brain
+    // when the muscle responds, are the reflex view (D-201).
+    stageKit: 'nerve.v1',
     interactive: false,
     interactiveKind: null,
     brief:

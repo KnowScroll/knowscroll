@@ -200,12 +200,18 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
     expect(byKit('greenhouse.v1')).toEqual(['greenhouse', 'greenhouse-balance', 'greenhouse-radiation']);
     expect(byKit('star.v1')).toEqual(['stars-fusion', 'stars-lifecycle']);
     expect(byKit('transit.v1')).toEqual(['exoplanet-transit']);
-    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(11);
+    expect(byKit('circulation.v1')).toEqual(['blood-pressure', 'cardiac-cycle', 'oxygen-transport']);
+    expect(byKit('nerve.v1')).toEqual(['action-potential', 'reflex-arc', 'synapse-signalling']);
+    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(17);
   });
 
-  it('gives a kit only to recipes of the system whose subject it draws: Earth & sky and Space', () => {
+  it('gives a kit only to recipes of the system whose subject it draws: Earth & sky, Space and the heart and nerves of the Human body', () => {
     for (const recipe of recipes.filter((candidate) => candidate.stageKit !== undefined))
-      expect(['earth', 'space'], recipe.key).toContain(recipe.systemId);
+      expect(['earth', 'space', 'human-body'], recipe.key).toContain(recipe.systemId);
+    for (const recipe of recipes.filter((candidate) =>
+      ['circulation.v1', 'nerve.v1'].includes(candidate.stageKit ?? ''),
+    ))
+      expect(recipe.systemId, recipe.key).toBe('human-body');
   });
 
   it('leaves the recipes no kit draws plain: coasts, colour and brightness, the habitable zone, kinds of planet, black holes and other worlds', () => {
@@ -220,6 +226,10 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       'black-hole-horizon',
       'black-hole-evidence',
       'seasons-elsewhere',
+      // No kit draws the immune system.
+      'innate-immunity',
+      'adaptive-immunity',
+      'immune-memory',
     ] as const)
       expect(RECIPES[key].stageKit, key).toBeUndefined();
   });

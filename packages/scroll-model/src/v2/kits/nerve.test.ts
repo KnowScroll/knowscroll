@@ -311,12 +311,14 @@ describe('settling and describing a nerve state', () => {
   });
 
   it('says a fresh push does not fire the cell exactly where the physics says so', () => {
-    for (const phase of ['falling', 'undershoot', 'rest'] as const) {
+    for (const phase of NERVE_ENUMS.phase) {
       const text = describeNerveState({ ...INITIAL_NERVE_STATE, view: 'spike', phase, focus: 'none' });
-      const fires = spikePhysics(phase).freshPushFires;
-      expect(text.includes('does not'), phase).toBe(fires === false);
-      expect(text.includes('A fresh push'), phase).toBe(phase !== 'rest');
+      expect(text.includes('A fresh push that would normally make the cell fire does not.'), phase).toBe(
+        spikePhysics(phase).freshPushFires === false,
+      );
     }
+    expect(spikePhysics('undershoot').freshPushFires).toBe(false);
+    expect(spikePhysics('rest').freshPushFires).toBe(true);
   });
 
   it('says what the channels do from the physics, and a spike runs one way, keeps its size, and is not electricity down a wire', () => {

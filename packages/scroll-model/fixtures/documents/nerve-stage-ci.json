@@ -134,7 +134,7 @@
           "arcAt": "sensor",
           "focus": "receptors"
         },
-        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. It binds receptors on the next cell and opens their channels. Ions flow in that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire. This connection excites the next cell, which depends on its receptors, not on the neurotransmitter alone. The picture draws the eye to the receptors."
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire. This connection excites the next cell, which depends on its receptors, not on the neurotransmitter alone. The picture draws the eye to the receptors."
       },
       {
         "stop": "inhibit",
@@ -147,7 +147,7 @@
           "arcAt": "sensor",
           "focus": "receptors"
         },
-        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. It binds receptors on the next cell and opens their channels. Ions flow that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire. This connection inhibits the next cell, which depends on its receptors, not on the neurotransmitter alone. The picture draws the eye to the receptors."
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire. This connection inhibits the next cell, which depends on its receptors, not on the neurotransmitter alone. The picture draws the eye to the receptors."
       },
       {
         "stop": "reflex",
@@ -405,6 +405,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "a6b0dc153e75cd97ae4e41516def264b104ad25615bae4ad975d50a9fff6d9fa"
+    "sha256": "cfbfebd17381231ce493f776166afa76f26d4a9b100335736c00d741771daa53"
   }
 }

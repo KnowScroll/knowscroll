@@ -554,11 +554,7 @@ function spikeSentences(phase: SpikePhase): string[] {
     undershoot: 'The voltage dips below rest.',
   };
   const refractory =
-    phase === 'undershoot' || phase === 'falling'
-      ? physics.freshPushFires === true
-        ? 'A fresh push would make the cell fire again.'
-        : 'A fresh push that would normally make the cell fire does not.'
-      : '';
+    physics.freshPushFires === false ? 'A fresh push that would normally make the cell fire does not.' : '';
   return [
     'The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane.',
     voltage[phase],
@@ -591,8 +587,8 @@ function synapseSentences(step: SynapseStep, effect: SynapseEffect): string[] {
   const physics = synapsePhysics(step, effect);
   const binding =
     effect === 'excite'
-      ? 'Ions flow in that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire.'
-      : 'Ions flow that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire.';
+      ? 'Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire.'
+      : 'Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative: a cell adds up many inputs to decide whether to fire.';
   const steps: Readonly<Record<SynapseStep, string>> = {
     arrives: 'A spike reaches the end of the sending cell. Packets of neurotransmitter wait there.',
     release: 'The packets join the membrane and release their neurotransmitter into the gap.',

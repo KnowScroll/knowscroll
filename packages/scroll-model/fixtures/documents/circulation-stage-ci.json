@@ -101,7 +101,7 @@
           "where": "lungs",
           "focus": "arterioles"
         },
-        "alt": "Bars show the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The picture draws the eye to the arterioles."
+        "alt": "A graph shows the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The picture draws the eye to the arterioles."
       },
       {
         "stop": "narrowed",
@@ -113,7 +113,7 @@
           "where": "lungs",
           "focus": "arteries"
         },
-        "alt": "Bars show the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The arterioles are narrowed, which raises their resistance, so the pressure before them is higher. The picture draws the eye to the arteries."
+        "alt": "A graph shows the average pressure along the loop through the body: the large arteries, the arterioles, the capillaries, the veins. It falls all the way, because each stretch uses some of it pushing the blood through. The biggest fall is across the arterioles. The fall across a stretch is the flow times its resistance. Pressures are relative and the pulse is left out. The arterioles are narrowed, which raises their resistance, so the pressure before them is higher. The picture draws the eye to the arteries."
       },
       {
         "stop": "oxygen-lungs",
@@ -397,6 +397,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "3f2f0ce1d95f3f916a8132d827f38d0d3c768e66c7593808f234c32a4ee911a7"
+    "sha256": "efd64574e1dcbeb059d436368e5a08542e48c2105936b85a50372e1cb0bb69bd"
   }
 }
