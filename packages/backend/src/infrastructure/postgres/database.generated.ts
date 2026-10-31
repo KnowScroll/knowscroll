@@ -1073,6 +1073,16 @@ export interface OpsRejectedAnswers {
   truncated: boolean | null;
 }
 
+export interface OpsRoomFaces {
+  backdrop_attempts: Int8 | null;
+  backdrop_spent_micro_usd: Int8 | null;
+  backdrop_unresolved: Int8 | null;
+  backdrops_approved: Int8 | null;
+  backdrops_pending: Int8 | null;
+  kits_approved: Int8 | null;
+  kits_pending: Int8 | null;
+}
+
 export interface OpsRoomTurns {
   ask_kind: string | null;
   created_at: Timestamp | null;
@@ -1535,6 +1545,25 @@ export interface RoomsAiTurns {
   turn_id: string;
 }
 
+export interface RoomsBackdropAttempts {
+  attempt_id: string;
+  charge_micro_usd: number;
+  dispatched_at: Timestamp;
+  estimate_micro_usd: number;
+  kit_revision: number | null;
+  model: string;
+  note: string | null;
+  outcome_code: string | null;
+  price_checked_on: Timestamp;
+  price_source: string;
+  prompt_sha256: string;
+  requested_by: string;
+  room_id: string;
+  settled_at: Timestamp | null;
+  settled_by: string | null;
+  state: string;
+}
+
 export interface RoomsDiscussions {
   created_at: Timestamp;
   discussion_id: string;
@@ -1630,10 +1659,38 @@ export interface RoomsReadPositions {
   room_id: string;
 }
 
+export interface RoomsRoomBackdrops {
+  attempt_id: string;
+  backdrop_id: string;
+  created_at: Timestamp;
+  media_key: string;
+  mime: string;
+  review_state: string;
+  reviewed_at: Timestamp | null;
+  reviewed_by: string | null;
+  room_id: string;
+  sha256: string;
+  size_bytes: number;
+}
+
 export interface RoomsRoomCast {
   inhabitant: string;
   name: string;
   position: number;
+  room_id: string;
+}
+
+export interface RoomsRoomIdentity {
+  attempt_id: string | null;
+  kit: Json;
+  kit_version: string;
+  model: string;
+  proposed_at: Timestamp;
+  review_state: string;
+  reviewed_at: Timestamp | null;
+  reviewed_by: string | null;
+  revision: number;
+  role_version: string;
   room_id: string;
 }
 
@@ -2120,6 +2177,7 @@ export interface DB {
   "ops.reel_attempts": OpsReelAttempts;
   "ops.reel_orders": OpsReelOrders;
   "ops.rejected_answers": OpsRejectedAnswers;
+  "ops.room_faces": OpsRoomFaces;
   "ops.room_turns": OpsRoomTurns;
   "personal_context.contributions": PersonalContextContributions;
   "personal_context.coverage_contributions": PersonalContextCoverageContributions;
@@ -2151,6 +2209,7 @@ export interface DB {
   "receipts.shared_commands": ReceiptsSharedCommands;
   "rooms.activities": RoomsActivities;
   "rooms.ai_turns": RoomsAiTurns;
+  "rooms.backdrop_attempts": RoomsBackdropAttempts;
   "rooms.discussions": RoomsDiscussions;
   "rooms.invitations": RoomsInvitations;
   "rooms.members": RoomsMembers;
@@ -2159,7 +2218,9 @@ export interface DB {
   "rooms.messages": RoomsMessages;
   "rooms.poll_votes": RoomsPollVotes;
   "rooms.read_positions": RoomsReadPositions;
+  "rooms.room_backdrops": RoomsRoomBackdrops;
   "rooms.room_cast": RoomsRoomCast;
+  "rooms.room_identity": RoomsRoomIdentity;
   "rooms.room_presence": RoomsRoomPresence;
   "rooms.rooms": RoomsRooms;
   "rooms.summaries": RoomsSummaries;

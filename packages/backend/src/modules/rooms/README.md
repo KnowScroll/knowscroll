@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-167 to D-169.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -41,6 +41,9 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | Mark a message Useful: one mark per member, never one's own, counted only on a topic (v3 R-3, D-168) | Implemented (CI-verified) |
 | A welcome from a resident when joining: a template, no model call (v3 R-3, D-169) | Implemented (CI-verified) |
 | A "while you were away" card for a member who comes back after 12 hours to 15 new messages: Halley writes it once per room and 12-hour window, without kept-out members and removed messages, and it is erased when what it read is removed (v3 R-3, D-169) | Implemented (CI-verified; fixture model). Off until `KS_REASONING_ROOM_ENABLED`; not yet runtime-verified |
+| Every room has a face: an emblem, palette, motif and one slow loop on its band, the residents' marks, the emblem on its Talk row and on its station on the Universe map. A room wears the default its ID gives it until an operator approves a kit (v3 R-4, D-170) | Implemented (CI-verified) |
+| Operator: propose a room's kit from its topic (the `rooms.station-kit` role, one call, closed vocabulary, contrast checked), review it, and approve or reject it (v3 R-4, D-170, D-171) | Implemented (CI-verified; fixture model). Not yet runtime-verified |
+| Operator: paint a room's backdrop with MiniMax's image model within a $1 total cap, every attempt in a ledger, review it before any member sees it (v3 R-4, D-166, D-171) | Implemented (CI-verified; fixture image provider and a real media store). Not yet runtime-verified: whether the token-plan key may call the image route is not known |
 | What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -59,6 +62,9 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `summaries` | A resident's "while you were away" for one room and 12-hour window: the unique key (room, window) is the one-call cap, the words (`ready` only), the span they cover, and the provenance of the call. Erased (`stale`) when what it read is removed |
 | `message_snippets` | The anchor of a snippet message, copied from the exact revision when sent |
 | `ai_turns` | One row per AI turn, asked or unprompted: the trigger (`asked`, or why a resident spoke), for an ask its kind (`ask`, `challenge`, `other_side`, `about`, `mention`), the message it answers or is about, the cap that decided it (`caps_clear`, or the cap that refused it), the counts it compared, an answer held back for someone typing, and the provenance of the contribution. The rate-bound ledger; an AI message never exists without a row |
+| `room_identity` | A kit a model proposed for a room: closed-vocabulary JSON with its version, the role's provenance, and the operator's decision (`pending`, `approved`, `rejected`, `superseded`). One waits and one is approved per room, by partial unique indexes. Not personal (D-170, D-171) |
+| `backdrop_attempts` | The ledger of every paid image attempt: its state (`dispatched`, `succeeded`, `failed`, `not_sent`, `unknown`, `reconciled`, `written_off`), the estimate and the charge it counts against the $1 cap in millionths of a dollar, the price's source and the day it was read, the prompt's hash, who asked and the outcome code. No prompt text, no image, no account (D-166) |
+| `room_backdrops` | A painted still an attempt made: its place in the media store, its digest, type and size, and the operator's decision. Only `approved` is served (D-171) |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
 | `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
@@ -71,7 +77,7 @@ question or a strong claim), `openSnippet`, `pin`, `hideMessage`, `markUseful`, 
 a topic from a message. `setPresence` also moves the member's place and, on a long return, claims the window and queues the summary. The
 worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue, `RunCastPass` the
 `rooms.cast-pass` queue and `Summarise` the `rooms.summarise` queue (the last three only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
-Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`.
+Operator controls: `libraryRoomSeeds`, `seedRooms`, `setRoomModerator`, and the face controls of `composeFaceOperator` (`kit.propose`, `kit.list`, `kit.review`, `backdrop.generate`, `backdrop.list`, `backdrop.review`, `backdrop.spend`, `backdrop.reconcile`, `backdrop.writeOff`; none of them runs on an HTTP path).
 
 Dependency direction: `domain/` (pure rules: join decision, ask bounds, contribution text rules,
 cursors) <- `application/` (use cases over ports) <- `adapters/` (PostgreSQL, Nest providers, erasure).
@@ -156,6 +162,57 @@ conversations or threads.
   `planner`, `evidence` or `personal_context` as a write target (`write-boundary.test.ts`), and a resident's turn
   changes no row there (`rooms-residents.test.ts`).
 
+## A room's face (v3 R-4, D-166, D-170, D-171)
+
+Every room has an identity the app draws: an emblem (a frame and a glyph), a palette, a faint motif with one slow loop, and the mark each
+resident wears. It is a **kit**: closed-vocabulary JSON (17 swatches, 6 frames, 14 glyphs, 8 motifs, 6 motions) with a version, never markup
+and never free text. The vocabulary and its wire shape are `packages/contracts/src/room-identity.ts`; the rules that need arithmetic are
+`application/kit.ts`; what each word looks like is the app's (`apps/client/features/rooms/identity/`).
+
+- **A model proposes, code validates, an operator approves.** `rooms kit --room <slug>` runs the `rooms.station-kit` role on the nonpersonal
+  `rooms` scope (`interactive`, one call and at most one repair, outside any transaction, on a run whose ID is fixed by the room, revision and sequence: an unknown outcome is never sent again, and a run that ended is never reopened, so a failed proposal is asked for again on the next run).
+  It reads the topic and its library meaning and nothing else. The harness refuses an answer outside the vocabulary or with a palette that does
+  not read (ink on ground at least 4.5, accent on ground at least 3, three different swatches), with a fixed hint; a kit that fails is stored
+  nowhere. A kit that passes is stored `pending`. `kit-review` approves or rejects it; only `approved` is shown, and approving supersedes the
+  one shown so far.
+- **Every room has a face from the start.** With no approved kit a room wears `defaultKit(roomId)`: a deterministic pick from eleven palettes that
+  pass the rule and from the vocabulary. It is never stored. A stored kit is checked against today's vocabulary and contrast rule whenever it is
+  shown (`kitToShow`); one that no longer passes shows the default instead. `identity` is on every room summary (list, preview, station, room),
+  optional on the wire.
+- **Painted backdrops.** `rooms backdrop --room <slug>` asks MiniMax's `image-01` for one wide still, built by code from the library topic's
+  label and the kit's words (never member text), stores it in the media store (`MediaStore`, as a content-addressed `.jpg`, `.png` or `.webp`)
+  and records it `pending`. It is served at `GET /media/room/<sha256>` only after `backdrop-review` approves it, to a signed-in session. A room
+  with no approved picture draws its kit alone. At most one picture waits for review per room.
+- **The $1 cap.** `BACKDROP_SPEND_CAP_MICRO_USD` is 1,000,000 millionths of a dollar in code. The estimate is `BACKDROP_PRICING` ($0.0035 per
+  image, with its source and the day it was read), recorded whether the image is paid or drawn from a plan's quota. A request is refused
+  when the recorded total plus its estimate would pass the cap, **before any row exists**; the check and the reservation share one transaction
+  that holds the advisory lock `rooms.backdrop-spend`, so two operators at once cannot both pass. Each attempt is one row of `backdrop_attempts`,
+  recorded `dispatched` before the request leaves. Only a refusal MiniMax documents as coming before an image is made (status 1002, 1004, 1008, 1026, 2013, 2049; HTTP 400, 401, 403, 404, 413,
+  422, 429) and a call that never left count nothing; everything else keeps its full estimate. An unknown outcome (any other status, HTTP 408 or a
+  5xx, a timeout, a reset, a success with no image, images blocked after generation, or a crash) is **never
+  sent again** and blocks that room until an operator settles it (`backdrop-reconcile --charged yes|no`, or `backdrop-write-off`, which stays charged).
+- **Lock order.** The spend lock is taken alone, in its own transaction; it is never taken under a personal root or the room root. The kit is
+  stored inside the rooms scope's own transaction (`production_scopes` root `FOR NO KEY UPDATE`), together with ending the run.
+
+Operator commands (`node dist/operator.js rooms …`, results are one JSON line, exit 0 done, 2 refused, 1 failure; they need `KS_WORLD` and
+`DATABASE_URL`, and `KS_REASONING_ROOM_ENABLED=1` plus a provider for `kit`, and `KS_MEDIA_ROOT` plus a provider for `backdrop`):
+
+| Command | What it does |
+| --- | --- |
+| `kit --room <slug> [--dry-run]` | Proposes a kit (one model call). A dry run shows the role and the context and calls nothing |
+| `kit-list` | The kits waiting and the kits approved, as words, with whether each still passes today's rules |
+| `kit-review --room <slug> --revision <n> --approve\|--reject` | The decision. Approving refuses a kit that no longer passes |
+| `backdrop --room <slug> [--dry-run]` | Paints one backdrop (one paid request). A dry run prints the prompt, the price, its source, the recorded total and what a real run would be refused for, and calls nothing |
+| `backdrop-list` | The pictures waiting and approved, with their place under the media root, to open on the server |
+| `backdrop-review --backdrop <uuid> --approve\|--reject` | The decision. Approving refuses a picture whose file is gone |
+| `spend` | The recorded total, the cap, the images left, and any attempt still unresolved |
+| `backdrop-reconcile --attempt <uuid> --charged yes\|no --reason <text>` | Settles an unknown attempt from the provider's own record |
+| `backdrop-write-off --attempt <uuid> --reason <text>` | Gives up on an unknown attempt; it stays charged |
+
+`ops.room_faces` counts kits and pictures by review state, the attempts still unresolved and the spent total in millionths of a dollar, and
+shows no prompt, image or room. Rooms are not personal: no face table names an account (who decided is `cli:<name>`), so neither a Clear nor an
+account deletion touches them and the erasure registry has nothing to declare, as for `room_cast`.
+
 ## Stations on a personal map (U01, U02)
 
 A room belongs to its topic, not to anyone's coordinates, so a station is not stored anywhere. `stations` reads the
@@ -164,7 +221,7 @@ planet) that map holds as a factual place: `{ room, standing, placement: { syste
 map's own object IDs, so the client draws the station beside the scene object they name; the angle comes from the room's
 ID, so a station keeps its spot. The same room sits beside different places on different maps. A person with no map has
 no stations, a hypothetical place never carries one, a closed room is not shown, and the answer has no member, count,
-online or activity field. Asking reads, writes and enqueues nothing. No scene object or Geography row is added: persisting
+online or activity field, only the room's own face (D-170): the station draws the room's emblem over its hub and its ring in the kit's accent. Asking reads, writes and enqueues nothing. No scene object or Geography row is added: persisting
 a placement would need a new scene-core kind and capability (D-051).
 
 ## Optional room activity (R03)
@@ -264,6 +321,7 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | message_snippets | kept | deleted with the author's tombstoned message |
 | ai_turns | kept; asks and unprompted turns still queued under the universe end as failed (and stay counted) | the asker link is cleared and queued asks end as failed, as do queued unprompted turns whose job the universe owned; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
 | room_cast, typing_holds | kept: no account | kept: no account (a hold lapses in seconds) |
+| room_identity, backdrop_attempts, room_backdrops | kept: not personal, no account (an operator is `cli:<name>`) | kept: no account |
 | activities | kept | the creator link is cleared; the poll or quiz stays with the room |
 | poll_votes | kept | the person's votes are deleted |
 | pg-boss `rooms.contribute`, `rooms.cast-due`, `rooms.cast-pass`, `rooms.summarise` | the universe's job payloads are deleted (the turns they named are settled first) | the same (universe erasure runs first) |
@@ -291,9 +349,9 @@ person who never took part in a room has no section.
   keep-out bytes, levels, typing, the room scope), `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
   `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
   `rooms-stations.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),
-  `rooms-away.test.ts` ("while you were away"), and `tests/integration/release/rooms-http.test.ts` over the installed API;
+  `rooms-away.test.ts` ("while you were away"), `rooms-face.test.ts` (kits, the $1 cap under concurrency, the ledger, review), `kit.test.ts` and `backdrop-prompt.test.ts` and `domain/backdrop-spend.test.ts` (the vocabulary, contrast, the prompt, the money rule), and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.
-- Operator: `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
+- Operator: the face commands above, `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
   (naming needs a claimed profile and never undoes a removal; `--remove` only takes the role from a current member;
   a moderator who leaves and comes back is an ordinary member until named again)
   (`apps/worker/src/rooms-operator.ts`).

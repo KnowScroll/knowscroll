@@ -1,8 +1,15 @@
 import { StyleSheet, View } from 'react-native';
-import type { AiContributionKind, RoomMessageAsk, RoomSpeechTrigger } from '@knowscroll/contracts';
+import type {
+  AiContributionKind,
+  InhabitantId,
+  RoomKit,
+  RoomMessageAsk,
+  RoomSpeechTrigger,
+} from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { AiLabel } from './ai-label';
+import { ResidentMark } from './identity/room-emblem';
 import { askedLine } from './ask-words';
 
 /** What an AI contribution is, in words: "A counterexample", never a score. */
@@ -35,6 +42,8 @@ export function ResidentHeader({
   trigger,
   ask,
   ownPersonId,
+  kit,
+  inhabitant,
 }: {
   readonly name: string;
   readonly label: string;
@@ -42,10 +51,16 @@ export function ResidentHeader({
   readonly trigger: RoomSpeechTrigger | undefined;
   readonly ask?: RoomMessageAsk | undefined;
   readonly ownPersonId?: string | undefined;
+  /** The room's kit and which resident this is: the mark it wears in this room (D-170). Absent, no mark is drawn. */
+  readonly kit?: RoomKit | undefined;
+  readonly inhabitant?: InhabitantId | undefined;
 }) {
   return (
     <View style={styles.head} testID="resident-header">
       <View style={styles.line}>
+        {kit === undefined || inhabitant === undefined ? null : (
+          <ResidentMark kit={kit} resident={inhabitant} testID="resident-mark" />
+        )}
         <Text variant="ui">{name}</Text>
         <AiLabel label={label} />
         {suggestion === undefined ? null : (

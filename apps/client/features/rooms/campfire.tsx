@@ -5,10 +5,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
 import { hereView } from '@knowscroll/client-core';
 import type { RoomView } from '@knowscroll/contracts';
-import { layout, space, spacing } from '@knowscroll/design-tokens';
+import { layout, spacing } from '@knowscroll/design-tokens';
 import { Icon, IconButton, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { AiNoticeCard } from './ai-notice';
+import { RoomEmblem } from './identity/room-emblem';
+import { RoomBand } from './identity/room-band';
 import { AwayCard } from './away-card';
 import { OpenDiscussion } from './discussion-screen';
 import { HereStrip } from './here-strip';
@@ -35,31 +37,41 @@ export function CampfireHeader({
 }) {
   const count = hereView(view.here).countLabel;
   const insets = useSafeAreaInsets();
+  const { identity } = view.room;
   return (
-    <View style={[styles.band, { paddingTop: insets.top + spacing[2] }]} testID="campfire-header">
-      <View style={styles.top}>
-        <IconButton icon="back" label="Back" variant="onSpace" onPress={onBack} />
-        <View role="heading" aria-level={1} style={styles.name}>
-          <Pressable
-            role="button"
-            accessibilityLabel={`${view.room.name}, room menu`}
-            onPress={onMenu}
-            style={styles.nameButton}
-            testID="room-menu-open"
-          >
-            <Text variant="title" color={space.label} numberOfLines={1}>
-              {view.room.name}
-            </Text>
-            <Icon name="chevronDown" size={18} color={space.label} />
-          </Pressable>
-        </View>
-        <IconButton icon="menu" label="Room menu" variant="onSpace" onPress={onMenu} />
-      </View>
-      <Text variant="monoXs" color={space.label2} testID="campfire-subline">
-        {count === undefined ? RULE_WORDS[view.room.joinRule] : `A room · ${count}`}
-      </Text>
-      <HereStrip here={view.here} lastMessageAt={view.lastMessageAt} />
-    </View>
+    <RoomBand
+      identity={identity}
+      style={[styles.band, { paddingTop: insets.top + spacing[2] }]}
+      testID="campfire-header"
+    >
+      {(tone) => (
+        <>
+          <View style={styles.top}>
+            <IconButton icon="back" label="Back" variant="onSpace" onPress={onBack} />
+            {identity === undefined ? null : <RoomEmblem kit={identity.kit} size={36} testID="room-emblem" />}
+            <View role="heading" aria-level={1} style={styles.name}>
+              <Pressable
+                role="button"
+                accessibilityLabel={`${view.room.name}, room menu`}
+                onPress={onMenu}
+                style={styles.nameButton}
+                testID="room-menu-open"
+              >
+                <Text variant="title" color={tone.ink} numberOfLines={1}>
+                  {view.room.name}
+                </Text>
+                <Icon name="chevronDown" size={18} color={tone.ink} />
+              </Pressable>
+            </View>
+            <IconButton icon="menu" label="Room menu" variant="onSpace" onPress={onMenu} />
+          </View>
+          <Text variant="monoXs" color={tone.inkSoft} testID="campfire-subline">
+            {count === undefined ? RULE_WORDS[view.room.joinRule] : `A room · ${count}`}
+          </Text>
+          <HereStrip here={view.here} lastMessageAt={view.lastMessageAt} />
+        </>
+      )}
+    </RoomBand>
   );
 }
 
@@ -173,7 +185,7 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     paddingHorizontal: layout.gutter,
     paddingBottom: spacing[3],
-    backgroundColor: space.s0,
+    overflow: 'hidden',
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   name: { flex: 1 },

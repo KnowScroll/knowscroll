@@ -41,6 +41,17 @@ const station = {
     topic: { kind: 'system', id: 'ci-topic', label: 'CI topic' },
     joinRule: 'open',
     status: 'open',
+    // The room's face (D-170): its emblem is drawn on the station over the 3D map (the Simple views draw none).
+    identity: {
+      kit: {
+        version: 'station-kit.v1',
+        palette: { ground: 'midnight', accent: 'sun', ink: 'cream' },
+        emblem: { frame: 'circle', glyph: 'ringed-planet' },
+        motif: 'constellation',
+        motion: 'twinkle',
+        cast: { explainer: 'star', skeptic: 'atom' },
+      },
+    },
   },
   standing: 'none',
   placement: { systemId: fixtureId(10) },

@@ -40,6 +40,8 @@ const compositionRoots = [
   '^apps/worker/src/journey-operator\\.ts$',
   // The rooms operator seeds rooms and names moderators (D-051).
   '^apps/worker/src/rooms-operator\\.ts$',
+  // The face commands compose the rooms scope's harness, an image port and the media store (R-4, D-166, D-170).
+  '^apps/worker/src/rooms-face-operator\\.ts$',
   // The scenes operator sends the look backfill jobs (U-1, D-102).
   '^apps/worker/src/scenes-operator\\.ts$',
   // The writer spike composes the production harness and the v2 writer for one operator command (S-0, D-120).

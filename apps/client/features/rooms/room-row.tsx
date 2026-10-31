@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import type { RoomListItem } from '@knowscroll/contracts';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { Icon, RowLink, Tag, Text } from '@knowscroll/ui';
+import { RoomEmblem } from './identity/room-emblem';
 import { roomHref } from './room-links';
 
 /** The words under a room's name in Talk: what the room is about, or that the person was invited. No counts, no activity. */
@@ -25,9 +26,13 @@ export function RoomRow({ item }: { readonly item: RoomListItem }) {
         testID={`talk-room-${item.room.roomId}`}
       >
         <View style={styles.row}>
-          <View style={styles.tile} aria-hidden>
-            <Icon name="universe" size={20} color={content.paper} />
-          </View>
+          {item.room.identity === undefined ? (
+            <View style={styles.tile} aria-hidden>
+              <Icon name="universe" size={20} color={content.paper} />
+            </View>
+          ) : (
+            <RoomEmblem kit={item.room.identity.kit} size={44} testID={`talk-room-emblem-${item.room.roomId}`} />
+          )}
           <View style={styles.text}>
             <View style={styles.title}>
               <Text variant="bodyS" numberOfLines={1} style={styles.grow}>

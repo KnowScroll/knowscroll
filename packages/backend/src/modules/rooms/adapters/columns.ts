@@ -3,6 +3,8 @@ import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 import type { SpeechTrigger } from '../domain/triggers.js';
 import type { SummaryState, TopicTag, TurnState, TurnTrigger } from '../application/ports.js';
+import type { ReviewState } from '../application/face-ports.js';
+import type { BackdropAttemptState } from '../domain/backdrop-spend.js';
 
 /**
  * The text columns of migration 0062 are closed sets by CHECK constraints, but the generated row types
@@ -47,3 +49,19 @@ export const turnTriggerOf = closed<TurnTrigger>('trigger', [
 export const askKindOf = closed<AskKind>('ask_kind', ['ask', 'challenge', 'other_side', 'about', 'mention']);
 export const topicTagOf = closed<TopicTag>('tag', ['question', 'debate', 'explainer', 'share']);
 export const summaryStateOf = closed<SummaryState>('state', ['queued', 'ready', 'declined', 'failed', 'stale']);
+
+export const reviewStateOf = closed<ReviewState>('review_state', ['pending', 'approved', 'rejected', 'superseded']);
+export const attemptStateOf = closed<BackdropAttemptState>('state', [
+  'dispatched',
+  'succeeded',
+  'failed',
+  'not_sent',
+  'unknown',
+  'reconciled',
+  'written_off',
+]);
+export const imageMimeOf = closed<'image/jpeg' | 'image/png' | 'image/webp'>('mime', [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);

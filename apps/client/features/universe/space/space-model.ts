@@ -141,6 +141,9 @@ function placeStation(station: RoomStation, system: SpaceSystemDefinition, latel
     id: station.room.roomId,
     name: station.room.name,
     systemId: system.id,
+    ...(station.room.identity === undefined
+      ? {}
+      : { emblem: { emblem: station.room.identity.kit.emblem, palette: station.room.identity.kit.palette } }),
     position: {
       x: system.position.x + Math.cos(angle) * reach,
       y: 0.6,
