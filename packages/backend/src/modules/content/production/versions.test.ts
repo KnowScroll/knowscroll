@@ -20,7 +20,7 @@ import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
 
 /** Marks a recipe v2 for one test, the way the plan will. */
 const marked: (() => void)[] = [];
-function markV2(key: 'greenhouse'): void {
+function markV2(key: 'exoplanet-kinds'): void {
   const recipe = TOPICS[key] as { scrollV2?: unknown };
   recipe.scrollV2 = { variant: 'plain', misconception: { kind: 'none' } };
   marked.push(() => delete recipe.scrollV2);
@@ -30,33 +30,36 @@ afterEach(() => marked.splice(0).forEach((undo) => undo()));
 describe('production versions: a recipe is v1 unless the plan marks it v2', () => {
   it('keeps every recipe of the plan, and every order, at the v1 production version', () => {
     expect(SCROLL_PRODUCTION_VERSION).toBe('scroll-production.v14');
-    expect(parseScrollTopic('greenhouse')).toBe('greenhouse');
-    expect(scrollV2PlanOf('greenhouse')).toBeUndefined();
-    expect(productionVersionOf('greenhouse')).toBe(SCROLL_PRODUCTION_VERSION);
+    expect(parseScrollTopic('exoplanet-kinds')).toBe('exoplanet-kinds');
+    expect(scrollV2PlanOf('exoplanet-kinds')).toBeUndefined();
+    expect(productionVersionOf('exoplanet-kinds')).toBe(SCROLL_PRODUCTION_VERSION);
     expect(productionVersionOf(`order-${'a'.repeat(32)}`)).toBe(SCROLL_PRODUCTION_VERSION);
-    expect(produceScrollJob('greenhouse').policyVersion).toBe(SCROLL_PRODUCTION_VERSION);
+    expect(produceScrollJob('exoplanet-kinds').policyVersion).toBe(SCROLL_PRODUCTION_VERSION);
   });
 
   it('gives a marked recipe its own version, in the job it sends and the job it accepts', async () => {
-    markV2('greenhouse');
-    expect(productionVersionOf('greenhouse')).toBe(SCROLL_PRODUCTION_V2_VERSION);
-    expect(produceScrollJob('greenhouse', 2)).toMatchObject({ policyVersion: SCROLL_PRODUCTION_V2_VERSION, take: 2 });
+    markV2('exoplanet-kinds');
+    expect(productionVersionOf('exoplanet-kinds')).toBe(SCROLL_PRODUCTION_V2_VERSION);
+    expect(produceScrollJob('exoplanet-kinds', 2)).toMatchObject({
+      policyVersion: SCROLL_PRODUCTION_V2_VERSION,
+      take: 2,
+    });
     const run = makeRunScrollProduction(() => Promise.reject(new Error('CI: a stale job must not produce')));
     const abort = { signal: new AbortController().signal };
     // A job queued before the plan marked the recipe carries the old version and is dropped.
-    expect(await run({ v: 1, recipe: 'greenhouse', policyVersion: SCROLL_PRODUCTION_VERSION, take: 1 }, abort)).toEqual(
-      {
-        kind: 'skipped',
-        reason: 'policy_version',
-      },
-    );
+    expect(
+      await run({ v: 1, recipe: 'exoplanet-kinds', policyVersion: SCROLL_PRODUCTION_VERSION, take: 1 }, abort),
+    ).toEqual({
+      kind: 'skipped',
+      reason: 'policy_version',
+    });
   });
 });
 
 describe('a v2 recipe whose misconception source no person has reviewed', () => {
   it('is refused by the plan, before any job or request, and only while the label is unreviewed', () => {
-    expect(planRefusalOf('greenhouse')).toBeUndefined();
-    const recipe = TOPICS.greenhouse as { scrollV2?: unknown };
+    expect(planRefusalOf('exoplanet-kinds')).toBeUndefined();
+    const recipe = TOPICS['exoplanet-kinds'] as { scrollV2?: unknown };
     const myth = (reviewed: boolean) => ({
       variant: 'plain',
       misconception: {
@@ -67,11 +70,11 @@ describe('a v2 recipe whose misconception source no person has reviewed', () => 
     });
     recipe.scrollV2 = myth(false);
     marked.push(() => delete recipe.scrollV2);
-    expect(planRefusalOf('greenhouse')).toBe('misconception_source_unreviewed');
+    expect(planRefusalOf('exoplanet-kinds')).toBe('misconception_source_unreviewed');
     recipe.scrollV2 = myth(true);
-    expect(planRefusalOf('greenhouse')).toBeUndefined();
+    expect(planRefusalOf('exoplanet-kinds')).toBeUndefined();
     recipe.scrollV2 = { variant: 'plain', misconception: { kind: 'none' } };
-    expect(planRefusalOf('greenhouse')).toBeUndefined();
+    expect(planRefusalOf('exoplanet-kinds')).toBeUndefined();
   });
 });
 
@@ -108,7 +111,7 @@ describe('takes are counted per production version, so a writer bump gives new o
 
   it('reports the bound of the recipe asked about: six for a v2 recipe, two for every other', () => {
     expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
-    expect(requestBoundOf('tides')).toBe(REQUEST_BOUND_PER_TOPIC);
+    expect(requestBoundOf('exoplanet-kinds')).toBe(REQUEST_BOUND_PER_TOPIC);
     expect(requestBoundOf(`order-${'a'.repeat(32)}`)).toBe(REQUEST_BOUND_PER_TOPIC);
   });
 });

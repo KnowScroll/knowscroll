@@ -2501,6 +2501,45 @@ Confirmed by: `orbit.test.ts` (Monday weeks across a month, a year and a leap da
 
 Confirmed by: `tests/integration/modules/universe-resume.test.ts` (nothing before any reading; Part 2 then Part 3 then nothing, counted from the series; another person's reading changes nothing; a long absence offers nothing; the read writes no exposure, receipt or revision), `experience.controller.test.ts`, `collection-screen.test.tsx` (the chip opens the Part's address, and is absent when there is none), `e2e/universe-collection-smoke.spec.ts`.
 
+## D-217 · 2026-10-31 · The kit recipes of Earth & sky and Space become v2 Scrolls: fifteen recipes, no myth, a landmark each (S-6b, #477)
+
+**Builds on** D-125, D-137, D-188, D-194, D-199 and D-204. **Amends** D-199 only where it left these recipes "for later". It also amends D-138 in effect: Create writes only v1 recipes, and now one recipe is left that is (`exoplanet-kinds`).
+
+- **Which recipes.** Every Earth & sky and Space recipe a drawing kit draws (13), and the two plain parts of the series they sit in (`tides-coasts`, `greenhouse-limits`): 15. The thirteen are `stage` Scrolls with their recipe's kit (`stageKit`); the two are `plain`. With the Seasons recipes and the six heart and nerve recipes this makes 22 stage Scrolls, and with the 35 recipes of D-199 54 of the 55 library recipes are v2. A library test pins the list and that the variant follows the kit.
+- **`exoplanet-kinds` stays unmarked.** It has no kit (D-204) and is in no series, so no rule asks for it. It is the only v1 recipe left, so an ask for the Exoplanets topic is the only one Create can still commission. A person may mark it as a plain Scroll later; that is a separate choice.
+- **Series are whole.** The tides series (`tides`, `tides-spring-neap`, `tides-coasts`), the greenhouse series (`greenhouse-radiation`, `greenhouse-balance`, `greenhouse-limits`) and the stars series (`stars-fusion`, `stars-lifecycle`) are each marked entirely. The test of D-199 still holds. `greenhouse`, `stars-colour-brightness` and the other kit recipes are in no series; their related moves point inside their own system's wave.
+- **Misconception: none for all fifteen.** On 31 Oct I fetched each recipe's pages through the product's fetcher (20 pages, a pool of 7 to 27 passages each) and read the passages the writer would be offered for a statement that people hold a wrong idea, the same search as D-199 (misconception, myth, "commonly believed", "often thought", "mistakenly", "contrary to", "in fact", "misnomer", "so-called", and a wider read for "not a", "instead of", "often called"). No page states a belief as common. The nearest hits are not beliefs:
+  - NOAA, *What are spring and neap tides?* says "spring tide is a common historical term that has nothing to do with the season of spring". It explains a name; it does not say people take it for the season. The brief still tells the writer to say so, in a stop, not as a myth.
+  - Wikipedia, *Main sequence*: "In fact, a higher metallicity leads to a higher opacity" (physics, not a belief).
+  - NASA, *Anatomy*: "These rings are really multiple, highly distorted images of the accretion disk" (a description).
+  - NASA, *How We Find and Characterize*: "small planets are very common" (a finding about planets).
+  - NASA, *Black Holes*, in the `black-hole-evidence` pool: "Cosmic vacuum cleaners. Black holes don’t suck in other matter." The page lists it among things black holes are not, so it is a correction of a popular picture, but it does not say how many people hold it. A person may review this page as the source for a myth later.
+  - NASA Space Place, *What Is a Black Hole?*: "it sucks in everything, even light" (in the `black-hole-horizon` pool). The writer's guide for the black-hole kit forbids that picture (D-206). The page is a source the writer is offered, so the reader of the Space wave checks the held `black-hole-horizon` Scroll for it before release.
+  The spike's placeholder myths for these recipes (the Moon makes one bulge, spring tides happen in spring, the Sun burns like a fire, a planet in the habitable zone has life, and others) are stated as a belief by no page, so none could have a reviewed source (D-129). A recipe may get a myth later, one at a time, with a source a person has read; the first candidate is the spring tide name, if a person finds a source that says people hold it. The spike's own table of those placeholders reached no marked recipe, so it is deleted; the spike runs a marked recipe as the plan decides and an unmarked one (`exoplanet-kinds`) plain, with no misconception.
+- **Landmarks.** One each, short (at most five words), plain, a thing the Scroll is about, never a claim about the reader. Keys and names are unique across the library and a test refuses mastery wording. They are authored here and a person should confirm them.
+- **Consequences.** Create no longer commissions any recipe of these topics; the v1 Scrolls keep serving until a v2 revision is released (as in D-199). `production-status` lists the fifteen as `not_started` until a wave runs. The production version stays `scroll-production.v19` (no writer change, no migration).
+- **The waves.** Two waves, each holding its series whole: Earth & sky (7) and Space (8). The commands are in the runbook.
+
+| Recipe | System | Variant (kit) | Page the choice was checked against | Misconception | Landmark (key) |
+|---|---|---|---|---|---|
+| `tides` | Earth & sky | stage (`tides.v1`) | NOAA, Gravity, Inertia, and the Two Bulges; Tidal Variations | none | The Two Bulges (`the-two-bulges`) |
+| `tides-spring-neap` | Earth & sky | stage (`tides.v1`) | NOAA, What are spring and neap tides?; What are tides? | none | The Added Pulls (`the-added-pulls`) |
+| `tides-coasts` | Earth & sky | plain | Wikipedia, Tidal range; Tidal resonance | none | The Sloshing Bay (`the-sloshing-bay`) |
+| `greenhouse` | Earth & sky | stage (`greenhouse.v1`) | NASA, What is the greenhouse effect? | none | The Warm Layer (`the-warm-layer`) |
+| `greenhouse-radiation` | Earth & sky | stage (`greenhouse.v1`) | NASA, The Earth's Radiation Budget; What is the greenhouse effect? | none | The Returning Glow (`the-returning-glow`) |
+| `greenhouse-balance` | Earth & sky | stage (`greenhouse.v1`) | NASA, Climate and Earth's Energy Budget; What is the greenhouse effect? | none | The Even Ledger (`the-even-ledger`) |
+| `greenhouse-limits` | Earth & sky | plain | NASA, The Earth's Radiation Budget; What is the greenhouse effect? | none | The Leaky Blanket (`the-leaky-blanket`) |
+| `stars-fusion` | Space | stage (`star.v1`) | Wikipedia, Main sequence | none | The Steady Core (`the-steady-core`) |
+| `stars-lifecycle` | Space | stage (`star.v1`) | NASA, Stars | none | The Ageing Star (`the-ageing-star`) |
+| `stars-colour-brightness` | Space | stage (`starlight.v1`) | Wikipedia, Hertzsprung–Russell diagram | none | The Colour Chart (`the-colour-chart`) |
+| `exoplanet-transit` | Space | stage (`transit.v1`) | NASA, How We Find and Characterize | none | The Small Dip (`the-small-dip`) |
+| `exoplanet-habitable-zone` | Space | stage (`starlight.v1`) | Wikipedia, Habitable zone | none | The Temperate Band (`the-temperate-band`) |
+| `black-hole-formation` | Space | stage (`black-hole.v1`) | NASA, Types | none | The Collapsing Core (`the-collapsing-core`) |
+| `black-hole-horizon` | Space | stage (`black-hole.v1`) | NASA, Anatomy; NASA Space Place, What Is a Black Hole? | none | The One-Way Edge (`the-one-way-edge`) |
+| `black-hole-evidence` | Space | stage (`black-hole.v1`) | NASA, Black Holes | none | The Unseen Weight (`the-unseen-weight`) |
+
+Confirmed by: `library.test.ts` (the v2 recipes are the Seasons four, the 35 of D-199 and these fifteen, and nothing else; each of the fifteen is `stage` exactly where a kit draws it and `plain` for `tides-coasts` and `greenhouse-limits`, has no myth and no Final call control, and a landmark with no mastery wording; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (the Space recipes run as the plan marks them, and `exoplanet-kinds` is the recipe left to the spike's defaults), `versions.test.ts` (`exoplanet-kinds` is the v1 example). The integration files that used a kit recipe as their v1 example now name it with `markRecipesV1`. Shown failing when a recipe of a series was left unmarked (the list, the series and the landmark tests), when a plain recipe was given the `stage` variant, when a landmark name claimed mastery and when two landmarks shared a name.
+
 ## D-178 · 2026-10-31 · The Launch is a scored room activity with its own rules: the server's clock, a score, a podium for one Launch (R-6, #492)
 
 **Implements** D-070. **Amends** D-051 on R03, "never scored", for the Launch only: a moderator's poll or quiz is as it was.

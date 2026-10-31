@@ -219,7 +219,7 @@ node dist/operator.js content writer-spike-v2 --topics seasons,seasons-hemispher
 
 What to read in the lines for these four: `variant` is `stage` for the first three and `plain` for `seasons-elsewhere`, `stageStates` is at least 3 for the stage ones, and the `findings` have no `common_guess_*`, `stage_state_on_call`, `earth_axis_sideways` or `final_call_restates_call` that survive the repair. Then read each accepted document on the server: the picture must match each stop's words (the month decides the pins and Ray), no stage text calls Earth's axis sideways, and every statement about Mars and Uranus must be in the NASA pages the recipe cites. The recipes the drawing kits of D-194 give a picture are measured next (below).
 
-To measure the eight Earth & sky and Space recipes the drawing kits give a picture (D-194: tides and spring and neap tides with `tides.v1`; `greenhouse`, `greenhouse-radiation` and `greenhouse-balance` with `greenhouse.v1`; `stars-fusion` and `stars-lifecycle` with `star.v1`; `exoplanet-transit` with `transit.v1`), at most sixteen requests. Each runs as the library will produce it, a stage Scroll drawn with its recipe's kit and the spike's own unreviewed misconception. None of them is marked `scrollV2` yet, so nothing is produced or published until a person has read the results and marked the recipes that pass:
+To measure the eight Earth & sky and Space recipes the drawing kits give a picture (D-194: tides and spring and neap tides with `tides.v1`; `greenhouse`, `greenhouse-radiation` and `greenhouse-balance` with `greenhouse.v1`; `stars-fusion` and `stars-lifecycle` with `star.v1`; `exoplanet-transit` with `transit.v1`), at most sixteen requests. Each runs as the library produces it since D-217 marked them `scrollV2`: a stage Scroll drawn with its recipe's kit, no misconception, with its landmark:
 
 ```sh
 node dist/operator.js content writer-spike-v2 --topics tides,tides-spring-neap,greenhouse,greenhouse-radiation,greenhouse-balance,stars-fusion,stars-lifecycle,exoplanet-transit --concurrency 2 --spike-id sky-kits-v17 --out /var/tmp/ks-v3-spike/sky-kits-v17.jsonl
@@ -235,7 +235,7 @@ node dist/operator.js content writer-spike-v2 --topics cardiac-cycle,blood-press
 
 What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all six, and no `stage_choice_invalid` survives the repair. Then read each accepted document on the server: the picture must match each stop's words (the point of the beat decides the valves, the flow and the width of the arterioles decide the bars, where the blood is decides the oxygen handed over; the point of the spike decides the channels, the step decides the synapse and the reflex), and no stop may say what the picture cannot (a heart rate, a pressure figure, a voltage, a speed, a named chemical, "the heart squeezes all four chambers at once", electricity down a wire, a spike bigger for a stronger push, a reflex with no brain).
 
-To measure the five Space recipes the starlight and black-hole kits of D-204 give a picture (`stars-colour-brightness` and `exoplanet-habitable-zone` with `starlight.v1`; `black-hole-formation`, `black-hole-horizon` and `black-hole-evidence` with `black-hole.v1`), at most ten requests, with prompt v19. As above, none is marked `scrollV2`, and each runs with the spike's own unreviewed misconception:
+To measure the five Space recipes the starlight and black-hole kits of D-204 give a picture (`stars-colour-brightness` and `exoplanet-habitable-zone` with `starlight.v1`; `black-hole-formation`, `black-hole-horizon` and `black-hole-evidence` with `black-hole.v1`), at most ten requests, with prompt v19. As above, each runs as the plan marks it since D-217 (no misconception, with its landmark):
 
 ```sh
 node dist/operator.js content writer-spike-v2 --topics stars-colour-brightness,exoplanet-habitable-zone,black-hole-formation,black-hole-horizon,black-hole-evidence --concurrency 2 --spike-id space-kits-v19 --out /var/tmp/ks-v3-spike/space-kits-v19.jsonl
@@ -275,7 +275,7 @@ Each run starts fresh and remembers nothing. Before running again, reconcile eve
 
 ## Producing a v2 Scroll (S-1b, D-127 to D-130, D-137)
 
-A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137) and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), and every other marked recipe without one. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v19`. A v2 recipe is a job of its own version (`scroll-production.v19`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
+A recipe becomes a `scroll-document.v2` Scroll only when the library plan marks it (`scrollV2` on the recipe: `variant` `stage` or `plain`, and its `misconception`, either `none` or a myth whose source label a person has `reviewed`). Every other recipe stays v1. The plan marks the four Seasons recipes (D-137), the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217): `seasons`, `seasons-hemispheres` and `seasons-limits` with a picture, the six heart and nerve recipes of Human body with a picture (D-201), the thirteen Earth & sky and Space recipes a kit draws (D-217), and every other marked recipe without one. Only `exoplanet-kinds` is still v1. The plan may also name a `landmark` (key and name) and a `finalCall` control (`tilt`) for a recipe; code sets both into the document, the writer never writes them, and a recipe without them awards no landmark (D-187, D-188). The v2 writer prompt is `scroll-writer.v19`. A v2 recipe is a job of its own version (`scroll-production.v19`, v1 recipes stay `.v14`), so a recipe already published as v1 is produced again and its Scroll becomes the next revision of the same asset. That version is the takes' budget: a recipe has three takes to a production version, and the version changes whenever the v2 writer or the job's steps change (D-197), which gives every recipe fresh takes.
 
 **A produced v2 library Scroll is held, not published (D-138).** The job stores it with its provenance and coverage and then waits: nobody is served it until you have read it and released it (next section). The commands that start a job are the same for every recipe; the plan decides which writer runs and the gate decides what happens to the result.
 
@@ -354,13 +354,13 @@ Release all three parts before step 6. `admit-continuity` binds a series to the 
 
 Nothing in the gate edits a revision: a Scroll is released as it was read. To correct a wording, reject and produce again.
 
-## Running a library wave (S-6a, D-197 to D-199)
+## Running a library wave (S-6a, S-6b, D-197 to D-199, D-217)
 
-A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199); the eight kit recipes of S-8a (D-194) are marked after their spike is read.
+A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes, the thirty-five recipes of Human body, Computing, Machine learning and History (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217).
 
 Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time. A take can hold its worker claim for up to 35 minutes (six requests at the largest request timeout, 300 s, plus a margin); a job whose worker died is retried only after that, so do not expect a quick retry of a stuck take (`production-status` shows it as `running`).
 
-The thirty-five recipes of D-199 go in four waves, one for each system. Every series is inside one wave, so each can be admitted whole once its parts are released.
+The thirty-five recipes of D-199 go in four waves, one for each system (the Human body wave includes the six recipes a heart or nerve kit draws, D-201). Every series is inside one wave, so each can be admitted whole once its parts are released.
 
 | Wave | Recipes |
 |---|---|
@@ -368,6 +368,13 @@ The thirty-five recipes of D-199 go in four waves, one for each system. Every se
 | Computing (9) | `dns-lookup,https-handshake,web-caching,rendering-pipeline,event-loop,same-origin-policy,big-o-growth,hybrid-sorting,hash-tables` |
 | Machine learning (12) | `attention-mechanism,attention-example,attention-limits,transformer-architecture,token-embeddings,next-token-generation,gradient-descent,training-by-example,overfitting,long-input-cost,mixture-of-experts,subword-tokens` |
 | History (5) | `industrial-causes,steam-power,factory-system,industrial-towns,industrial-debate` |
+
+The fifteen recipes of D-217 go in two more waves, again one system each and every series inside one wave:
+
+| Wave | Recipes |
+|---|---|
+| Earth & sky (7) | `tides,tides-spring-neap,tides-coasts,greenhouse,greenhouse-radiation,greenhouse-balance,greenhouse-limits` |
+| Space (8) | `stars-fusion,stars-lifecycle,stars-colour-brightness,exoplanet-transit,exoplanet-habitable-zone,black-hole-formation,black-hole-horizon,black-hole-evidence` |
 
 ```sh
 # 0. The wave's recipes (a row of the table above).

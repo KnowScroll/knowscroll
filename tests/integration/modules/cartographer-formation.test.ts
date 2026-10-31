@@ -12,6 +12,7 @@ import { geographyWorld, topic, facet, otherFacet, type GeographyWorld } from '.
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
+import { markRecipesV1 } from '../support/scroll-v2.js';
 
 /**
  * How reading becomes places: dust, then a system with its star, then a planet with its regions.
@@ -54,6 +55,9 @@ function cartographer(world: GeographyWorld) {
 }
 
 describe('Cartographer formation from reading (real PostgreSQL CI fixtures)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1('tides', 'tides-spring-neap', 'tides-coasts');
+  afterAll(restoreRecipes);
   let world: GeographyWorld, steps: ReturnType<typeof cartographer>;
   beforeAll(async () => {
     world = await geographyWorld('cartographer_formation');
