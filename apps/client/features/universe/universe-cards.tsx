@@ -124,12 +124,22 @@ export function PlanetCard({
         </View>
       ) : null}
       <View style={styles.actions}>
-        <Button
-          label="Land"
-          variant="ink"
-          accessibilityLabel={`Land on ${place.label}`}
-          onPress={() => session.focus(place.id, { land: true })}
-        />
+        {countries > 0 ? (
+          <Button
+            label="Land"
+            variant="ink"
+            accessibilityLabel={`Land on ${place.label}`}
+            onPress={() => session.focus(place.id, { land: true })}
+          />
+        ) : (
+          // Nothing has formed to land on: open the planet from orbit instead.
+          <Button
+            label="Open"
+            variant="ink"
+            accessibilityLabel={`Open ${place.label}`}
+            onPress={() => session.focus(place.id)}
+          />
+        )}
         <Button label="Close" variant="ghost" onPress={() => session.select(null)} />
       </View>
     </CardFrame>

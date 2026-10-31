@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomStation } from '@knowscroll/contracts';
+import type { SceneDescriptor, SceneLook } from '@knowscroll/scene-core';
 import { content, layout, space, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
 import { OrbitDial } from './dial/orbit-dial';
@@ -78,8 +79,7 @@ export function UniverseSurface({
   // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
   const looks = state.read.snapshot?.read.looks;
   const planet = view.kind === 'planet' ? view.planet : undefined;
-  const plan = planet ? planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)) : undefined;
-  const palette = plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined;
+  const { palette } = usePlanetPlan(planet, index, looks);
   // The whole tab is the two plain lists: by the setting, because 3D failed, or for one planet whose world cannot be drawn.
   const simpleDrawing = state.detail === 'low' || unavailable !== null;
   const simple = simpleDrawing || (view.kind === 'planet' && refusedPlanetId === view.planet.objectId);
@@ -343,6 +343,20 @@ export function UniverseSurface({
 function hereRegionName(index: UniverseIndex, hereRegionId: string | null, planetId: string): string | undefined {
   const region = hereRegionId ? index.byId.get(hereRegionId) : undefined;
   return region?.parentId === planetId ? region.label : undefined;
+}
+
+/** What a planet in view is drawn from, and its colours; worked out again only when the planet or the reads change. */
+function usePlanetPlan(
+  planet: SceneDescriptor | undefined,
+  index: UniverseIndex,
+  looks: readonly SceneLook[] | undefined,
+) {
+  const plan = useMemo(
+    () => (planet ? planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)) : undefined),
+    [planet, index, looks],
+  );
+  const palette = useMemo(() => (plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined), [plan]);
+  return { plan, palette };
 }
 
 /** Where the ship is parked: the last place, or the planet of a region. A system is its own place. */

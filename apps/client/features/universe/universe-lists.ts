@@ -10,6 +10,8 @@ export interface ListedPlanet {
   /** The name of the region the person left from, when it is on this planet ("You were here"). */
   readonly hereRegion: string | undefined;
   readonly quiet: boolean;
+  /** A hypothetical place says so in its accessible name, wherever it is listed (D-006, D-053). */
+  readonly hypothetical: boolean;
 }
 
 /** A room's station, as a list reads it. */
@@ -25,6 +27,7 @@ export interface ListedSystem {
   readonly planets: readonly ListedPlanet[];
   readonly rooms: readonly ListedRoom[];
   readonly quiet: boolean;
+  readonly hypothetical: boolean;
 }
 
 export interface ListedUniverse {
@@ -60,6 +63,7 @@ export function listUniverse(
       regions: index.regions.get(planet.objectId)?.length ?? 0,
       hereRegion: hereRegion?.parentId === planet.objectId ? hereRegion.label : undefined,
       quiet: isQuiet(planet),
+      hypothetical: planet.truthStatus === 'hypothetical',
     }));
     return {
       id: system.objectId,
@@ -67,6 +71,7 @@ export function listUniverse(
       planets: recentFirst(planets),
       rooms: rooms.filter((room) => room.systemId === system.objectId),
       quiet: isQuiet(system),
+      hypothetical: system.truthStatus === 'hypothetical',
     };
   });
   const nameOf = new Map(systems.map((system) => [system.id, system.name]));
@@ -75,6 +80,10 @@ export function listUniverse(
     rooms: rooms.map((room) => ({ ...room, systemName: nameOf.get(room.systemId) ?? '' })),
   };
 }
+
+/** The accessible name of a place: with ", hypothetical" when that is what it is. */
+export const nameWithTruth = (name: string, hypothetical: boolean): string =>
+  hypothetical ? `${name}, hypothetical` : name;
 
 /** "1 planet", "3 planets", "1 country", "4 countries" for lists that speak of countries as the design does. */
 export function countOf(count: number, noun: string): string {

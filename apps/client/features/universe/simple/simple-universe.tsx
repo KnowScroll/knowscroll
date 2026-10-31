@@ -3,10 +3,10 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { RoomStation } from '@knowscroll/contracts';
 import type { SceneLook } from '@knowscroll/scene-core';
 import { spacing } from '@knowscroll/design-tokens';
-import { Icon, IconButton, SwitchRow, Text } from '@knowscroll/ui';
+import { Icon, IconButton, SwitchRow, Tag, Text } from '@knowscroll/ui';
 import { planPlanet } from '../planet/planet-plan';
 import { looksById } from '../space/space-model';
-import { countOf, listUniverse } from '../universe-lists';
+import { countOf, listUniverse, nameWithTruth } from '../universe-lists';
 import { viewFor, type UniverseIndex } from '../universe-layout';
 import type { UniverseMapSession, UniverseViewState } from '../universe-session';
 import { PlaceRow, RowGroup, SIMPLE } from './place-rows';
@@ -222,9 +222,12 @@ function PlanetHeading({
         <SearchButton onPress={onSearch} owner={owner} />
       </View>
       <View style={styles.planetTitle}>
-        <Text variant="displayL" heading={1} color={SIMPLE.ink} style={styles.title}>
-          {planet?.label ?? ''}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text variant="displayL" heading={1} color={SIMPLE.ink} style={styles.title}>
+            {planet?.label ?? ''}
+          </Text>
+          {planet?.truthStatus === 'hypothetical' ? <Tag label="Hypothetical" variant="hypothetical" /> : null}
+        </View>
         <Text variant="bodyS" color={SIMPLE.ink2}>
           {`A planet in ${system?.label ?? subject}${owner === undefined ? ` · ${countOf(regions, 'country')}` : ''}`}
         </Text>
@@ -274,7 +277,7 @@ function PlanetRegions({
               key={descriptor.objectId}
               testID={`simple-region-${descriptor.objectId}`}
               title={descriptor.label}
-              accessibilityLabel={descriptor.label}
+              accessibilityLabel={nameWithTruth(descriptor.label, descriptor.truthStatus === 'hypothetical')}
               {...(here ? { meta: 'Last place you visited' } : {})}
               current={here}
               onPress={() => session.focus(descriptor.objectId)}
@@ -345,5 +348,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(21,48,42,0.08)',
   },
   backText: { fontWeight: '800' },
+  titleRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[2] },
   planetTitle: { marginTop: spacing['3.5'], gap: 4 },
 });

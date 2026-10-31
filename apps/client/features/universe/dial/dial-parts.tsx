@@ -9,7 +9,7 @@ import { paletteOf } from '../planet/planet-palette';
 import { planPlanet } from '../planet/planet-plan';
 import { useGlobeWorld } from '../planet/use-planet-world';
 import { looksById } from '../space/space-model';
-import { countOf } from '../universe-lists';
+import { countOf, nameWithTruth } from '../universe-lists';
 import type { SearchResult } from '../universe-search';
 import type { UniverseMapSession } from '../universe-session';
 import { PlanetDisc } from './dial-art';
@@ -139,7 +139,7 @@ export function PlanetDial({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${planet.name}, a planet`}
+      accessibilityLabel={nameWithTruth(`${planet.name}, a planet`, planet.hypothetical)}
       aria-current={chosen ? 'true' : undefined}
       onPress={onPress}
       style={[styles.dialItem, { opacity: lit ? (chosen ? 1 : 0.85) : 0.35 }]}
@@ -199,7 +199,10 @@ export function PlanetResults({
         <Pressable
           key={match.planet.id}
           accessibilityRole="button"
-          accessibilityLabel={`${match.planet.name}, a planet in ${match.system.name}`}
+          accessibilityLabel={nameWithTruth(
+            `${match.planet.name}, a planet in ${match.system.name}`,
+            match.planet.hypothetical,
+          )}
           onPress={() => onChoose(match)}
           style={styles.resultRow}
         >
@@ -216,7 +219,10 @@ export function PlanetResults({
       {!everywhere && first ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Also elsewhere: ${first.planet.name} in ${first.system.name}`}
+          accessibilityLabel={nameWithTruth(
+            `Also elsewhere: ${first.planet.name} in ${first.system.name}`,
+            first.planet.hypothetical,
+          )}
           onPress={() => onScope(true)}
           style={styles.elsewhere}
         >

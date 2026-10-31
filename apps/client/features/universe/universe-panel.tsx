@@ -85,16 +85,20 @@ export function UniversePanel({
         ) : null}
         <SwitchRow label="Simple drawing" on={simple} onChange={onSimple} />
       </View>
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        <SystemSections
-          session={session}
-          listed={listed}
-          visitor={owner !== undefined}
-          hereSystemId={hereSystemId ?? null}
-          pickedId={state.selectedId}
-          {...(onStation ? { onStation } : {})}
-        />
-      </ScrollView>
+      {/* With Simple drawing on, the map area is this same list: it is not drawn twice. */}
+      {simple ? null : (
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          <SystemSections
+            session={session}
+            listed={listed}
+            visitor={owner !== undefined}
+            hereSystemId={hereSystemId ?? null}
+            pickedId={state.selectedId}
+            onSystem={(id) => session.focus(id)}
+            {...(onStation ? { onStation } : {})}
+          />
+        </ScrollView>
+      )}
     </View>
   );
 }

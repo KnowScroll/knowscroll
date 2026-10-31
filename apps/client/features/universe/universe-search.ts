@@ -19,6 +19,7 @@ export interface SearchResult {
   readonly trail: readonly string[];
   /** The part of `name` that matched, as a range of its own characters (start, end exclusive). */
   readonly match: readonly [number, number];
+  readonly hypothetical: boolean;
 }
 
 export const SEARCH_LIMIT = 12;
@@ -81,6 +82,7 @@ interface Candidate {
   readonly kind: SearchKind;
   readonly name: string;
   readonly parentId: string;
+  readonly hypothetical: boolean;
 }
 
 /**
@@ -102,12 +104,28 @@ export function searchUniverse(
     ...places.flatMap((place) =>
       place.kind === 'star'
         ? []
-        : [{ id: place.id, kind: place.kind, name: place.label, parentId: place.parentId } satisfies Candidate],
+        : [
+            {
+              id: place.id,
+              kind: place.kind,
+              name: place.label,
+              parentId: place.parentId,
+              hypothetical: place.truthStatus === 'hypothetical',
+            } satisfies Candidate,
+          ],
     ),
     // A room stands beside a system of this map; one whose system is not here is not drawn, so it is not found either.
     ...rooms.flatMap((room) =>
       byId.get(room.systemId)?.kind === 'system'
-        ? [{ id: room.id, kind: 'room', name: room.name, parentId: room.systemId } satisfies Candidate]
+        ? [
+            {
+              id: room.id,
+              kind: 'room',
+              name: room.name,
+              parentId: room.systemId,
+              hypothetical: false,
+            } satisfies Candidate,
+          ]
         : [],
     ),
   ];
@@ -131,6 +149,13 @@ export function searchUniverse(
       const trail: string[] = [];
       for (let parent = byId.get(candidate.parentId); parent && trail.length < 3; parent = byId.get(parent.parentId))
         trail.push(parent.label);
-      return { id: candidate.id, kind: candidate.kind, name: candidate.name, trail, match };
+      return {
+        id: candidate.id,
+        kind: candidate.kind,
+        name: candidate.name,
+        trail,
+        match,
+        hypothetical: candidate.hypothetical,
+      };
     });
 }

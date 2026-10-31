@@ -28,6 +28,7 @@ export interface DialPlanet {
   /** The person's "You were here" region is on this planet. */
   readonly here: boolean;
   readonly quiet: boolean;
+  readonly hypothetical: boolean;
 }
 
 export interface DialSystem {
@@ -41,6 +42,7 @@ export interface DialSystem {
   /** The camera, or the ship, is in this system ("You're here"). */
   readonly here: boolean;
   readonly quiet: boolean;
+  readonly hypothetical: boolean;
 }
 
 /**
@@ -75,6 +77,7 @@ export function buildDial(input: {
         regions: planet.regions,
         here: planet.hereRegion !== undefined,
         quiet: planet.quiet,
+        hypothetical: planet.hypothetical,
       };
     });
     return {
@@ -86,6 +89,7 @@ export function buildDial(input: {
       regions: planets.reduce((sum, planet) => sum + planet.regions, 0),
       here: system.id === hereSystem,
       quiet: system.quiet,
+      hypothetical: system.hypothetical,
     };
   });
 }

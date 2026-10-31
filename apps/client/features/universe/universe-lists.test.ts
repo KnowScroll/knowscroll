@@ -38,7 +38,7 @@ describe('the lists the Simple view, the panel and the dial share', () => {
     const { systems } = listUniverse(index, [], null);
     expect(systems.map((system) => system.name)).toEqual(['Astronomy', 'Backend']);
     expect(systems[0]!.planets).toEqual([
-      { id: 'p-2', name: 'Attention', regions: 2, hereRegion: undefined, quiet: false },
+      { id: 'p-2', name: 'Attention', regions: 2, hereRegion: undefined, quiet: false, hypothetical: false },
     ]);
     expect(systems[0]!.quiet).toBe(true);
   });

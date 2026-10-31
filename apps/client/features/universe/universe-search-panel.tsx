@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text as NativeText, TextInput, View 
 import type { RoomStation } from '@knowscroll/contracts';
 import { borderWidth, content, radius, space, spacing, target } from '@knowscroll/design-tokens';
 import { Button, Icon, IconButton, Text } from '@knowscroll/ui';
+import { nameWithTruth } from './universe-lists';
 import { KIND_WORD, searchRoomsOf, searchUniverse, type SearchResult } from './universe-search';
 import type { UniverseMapSession } from './universe-session';
 
@@ -33,7 +34,8 @@ export function UniverseSearchPanel({
   const [query, setQuery] = useState('');
   const [lit, setLit] = useState(0);
   const rooms = useMemo(() => searchRoomsOf(stations ?? []), [stations]);
-  const results = useMemo(() => searchUniverse(session.places(), rooms, query), [session, rooms, query]);
+  // The places change as reads arrive and `session` does not: search the current ones each time (a few dozen names).
+  const results = searchUniverse(session.places(), rooms, query);
   const choose = (result: SearchResult) => {
     if (result.kind === 'room') {
       session.back();
@@ -114,7 +116,7 @@ export function UniverseSearchPanel({
               Choosing a result flies you there. Back returns you to where you were looking.
             </Text>
             <View style={styles.kinds}>
-              {['Systems', 'Planets', 'Regions', ...(owner === undefined ? ['Rooms'] : [])].map((kind) => (
+              {['Systems', 'Planets', ...(owner === undefined ? ['Regions', 'Rooms'] : [])].map((kind) => (
                 <Text key={kind} variant="ui">
                   {kind}
                 </Text>
@@ -147,7 +149,10 @@ function ResultRow({
     <View role="listitem">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${result.name}, ${KIND_WORD[result.kind].toLowerCase()}${where}`}
+        accessibilityLabel={nameWithTruth(
+          `${result.name}, ${KIND_WORD[result.kind].toLowerCase()}${where}`,
+          result.hypothetical,
+        )}
         onPress={onPress}
         style={[styles.result, lit ? styles.lit : null]}
       >

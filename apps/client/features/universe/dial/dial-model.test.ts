@@ -82,6 +82,22 @@ describe('the orbit dial’s systems, from reads the Universe already holds', ()
   });
 });
 
+describe('a hypothetical place says so', () => {
+  it('is carried to the dial from the descriptor', () => {
+    const marked = indexUniverse(
+      all.map((d) => (d.objectId === 'p-att' ? { ...d, truthStatus: 'hypothetical' as const } : d)),
+      [],
+    );
+    const systems = buildDial({ index: marked, looks, stations: rooms, hereRegionId: null, herePlaceId: undefined });
+    const ml = systems.find((system) => system.id === 's-ml')!;
+    expect(ml.planets.map((planet) => [planet.name, planet.hypothetical])).toEqual([
+      ['Attention', true],
+      ['Inference & serving', false],
+    ]);
+    expect(ml.hypothetical).toBe(false);
+  });
+});
+
 describe('filters and search narrow the wheel and never change what exists', () => {
   const systems = dial();
   const names = (list: readonly DialSystem[]) => list.map((system) => system.name);
@@ -121,7 +137,11 @@ describe('filters and search narrow the wheel and never change what exists', () 
 
   it('never lists land that has not formed: only descriptors are read, and regions are counted, never listed', () => {
     const ml = systems.find((system) => system.id === 's-ml')!;
-    expect(JSON.stringify(ml)).not.toMatch(/uncharted|unreached|not reached/i);
+    // A planet carries one number for its regions, the formed ones: no list of regions and no count of what is left.
+    expect(Object.keys(ml.planets[1]!).sort()).toEqual(
+      ['here', 'hueShift', 'hypothetical', 'id', 'moon', 'name', 'quiet', 'regions', 'rings', 'type'].sort(),
+    );
+    expect(ml.planets[1]!.regions).toBe(index.regions.get('p-inf')!.length);
     expect(searchPlanets(places, systems, ml, 'deployment', true).here).toEqual([]);
   });
 });

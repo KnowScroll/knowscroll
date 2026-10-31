@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { spacing } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
-import { countOf, type ListedUniverse } from '../universe-lists';
+import { countOf, nameWithTruth, type ListedUniverse } from '../universe-lists';
 import type { UniverseMapSession } from '../universe-session';
 import { PlaceRow, RowGroup, SIMPLE } from './place-rows';
 
@@ -18,6 +18,7 @@ export function SystemSections({
   hereSystemId,
   pickedId,
   onStation,
+  onSystem,
 }: {
   readonly session: UniverseMapSession;
   readonly listed: ListedUniverse;
@@ -27,6 +28,8 @@ export function SystemSections({
   /** The planet picked on the map, awaiting Land. */
   readonly pickedId?: string | null;
   readonly onStation?: (roomId: string) => void;
+  /** Where a system's name can be pressed because the map shows the result (the desktop panel); the Simple view has none. */
+  readonly onSystem?: (systemId: string) => void;
 }) {
   return (
     <>
@@ -34,16 +37,28 @@ export function SystemSections({
         <View key={system.id} testID={`simple-system-${system.id}`}>
           <View style={[styles.systemHead, position === 0 ? styles.first : null]}>
             <View style={styles.systemWords}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${system.name}, system`}
-                onPress={() => session.focus(system.id)}
-                style={styles.systemName}
-              >
-                <Text variant="title" heading={2} color={SIMPLE.ink} style={styles.systemTitle}>
+              {onSystem ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={nameWithTruth(`${system.name}, system`, system.hypothetical)}
+                  onPress={() => onSystem(system.id)}
+                  style={styles.systemName}
+                >
+                  <Text variant="title" heading={2} color={SIMPLE.ink} style={styles.systemTitle}>
+                    {system.name}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text
+                  variant="title"
+                  heading={2}
+                  color={SIMPLE.ink}
+                  accessibilityLabel={nameWithTruth(system.name, system.hypothetical)}
+                  style={styles.systemTitle}
+                >
                   {system.name}
                 </Text>
-              </Pressable>
+              )}
               {hereSystemId === system.id ? (
                 <Text variant="label" color={SIMPLE.ink2}>
                   You are here
@@ -60,7 +75,7 @@ export function SystemSections({
                 key={planet.id}
                 testID={`simple-planet-${planet.id}`}
                 title={planet.name}
-                accessibilityLabel={`${planet.name}, a planet in ${system.name}`}
+                accessibilityLabel={nameWithTruth(`${planet.name}, a planet in ${system.name}`, planet.hypothetical)}
                 {...(visitor
                   ? {}
                   : {
@@ -92,7 +107,7 @@ export function SystemSections({
               Rooms
             </Text>
             <Text variant="label" color={SIMPLE.ink2}>
-              {countOf(listed.rooms.length, 'room')}
+              {listed.rooms.length}
             </Text>
           </View>
           <RowGroup label="Rooms">

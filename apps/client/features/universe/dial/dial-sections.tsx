@@ -4,7 +4,7 @@ import { borderWidth, content, radius, space, spacing, target } from '@knowscrol
 import { Button, Icon, IconButton, Text } from '@knowscroll/ui';
 import { SpaceChip } from '../space-chip';
 import type { UniverseIndex } from '../universe-layout';
-import { countOf } from '../universe-lists';
+import { countOf, nameWithTruth } from '../universe-lists';
 import type { UniverseMapSession } from '../universe-session';
 import { PlanetDisc, SunDisc } from './dial-art';
 import { DIAL_FILTERS, type DialSystem } from './dial-model';
@@ -111,7 +111,10 @@ export function SystemWheel({ dial }: { readonly dial: OrbitDialState }) {
         return (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${entry.name}, a system, ${countOf(entry.planets.length, 'planet')}`}
+            accessibilityLabel={nameWithTruth(
+              `${entry.name}, a system, ${countOf(entry.planets.length, 'planet')}`,
+              entry.hypothetical,
+            )}
             aria-current={chosen ? 'true' : undefined}
             onPress={() => dial.chooseSystem(entry.id)}
             style={[styles.sunItem, { opacity: Math.max(0.4, 1 - distance * 0.3) }]}
@@ -152,7 +155,7 @@ export function SystemPill({
       <Pressable
         testID="dial-system-pill"
         accessibilityRole="button"
-        accessibilityLabel={`${system.name}, choose another system`}
+        accessibilityLabel={nameWithTruth(`${system.name}, choose another system`, system.hypothetical)}
         onPress={dial.openWheel}
         style={styles.systemPill}
       >

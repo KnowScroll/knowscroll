@@ -79,7 +79,9 @@ export function PlaceRow({
         )}
       </View>
       {current ? <RippleDot /> : null}
-      {tail ?? (onPress ? <Icon name="forward" size={18} color={SIMPLE.chevron} strokeWidth={2.4} /> : null)}
+      {/* The file puts the rippling dot where the chevron would be, not beside it. */}
+      {tail ??
+        (onPress && !current ? <Icon name="forward" size={18} color={SIMPLE.chevron} strokeWidth={2.4} /> : null)}
     </>
   );
   return (

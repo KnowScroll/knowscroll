@@ -346,7 +346,9 @@ describe('the Simple drawing turns itself on when 3D cannot be drawn (D-111)', (
     const view = await render(<UniverseScreen />);
     await screen.findByTestId('universe-simple');
     // The same places, as a heading and its planets; every one still opens.
-    expect(screen.getByRole('button', { name: 'CI system 0, system' })).toBeOnTheScreen();
+    // The Simple list's system names are headings: pressing one would change nothing on this screen.
+    expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'CI system 0, system' })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0' }));
     expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Back to Your universe' })).toBeOnTheScreen();
@@ -915,6 +917,90 @@ describe('the orbit dial’s two searches (O2 and O4)', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Close the orbit dial' }));
     expect(screen.queryByTestId('universe-dial')).toBeNull();
     expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen();
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+});
+
+describe('a hypothetical place says so wherever it is listed (D-006, D-053)', () => {
+  /** The whole map is hypothetical (a place shares its truth with what contains it): the Geography and the Scene must agree. */
+  const hypotheticalHarness = () => {
+    const h = universeHarness();
+    const ids = new Set([10, 11, 12, 13, 14].map(fixtureId));
+    for (const object of h.world.chunks[0]!.objects) if (ids.has(object.objectId)) object.truthStatus = 'hypothetical';
+    // The one route is dropped: a route joins planets of one truth, and none of this matters to the names.
+    (h.world.chunks[0] as unknown as { routes: unknown[] }).routes.splice(0);
+    const original = h.world.reply.bind(h.world);
+    h.world.reply = ((path: string, body: Record<string, unknown>) => {
+      const reply = original(path, body) as {
+        page?: { objects: { id: string; truthStatus: string }[]; routes: unknown[] };
+      };
+      if (reply.page) reply.page.routes = [];
+      for (const object of reply.page?.objects ?? []) if (ids.has(object.id)) object.truthStatus = 'hypothetical';
+      return reply;
+    }) as typeof h.world.reply;
+    mockScope = h.scope;
+    return h;
+  };
+
+  it('in search, the dial and the Simple lists, in the accessible name, and the Simple planet carries its tag', async () => {
+    const h = hypotheticalHarness();
+    const v = await render(<UniverseScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Search your universe' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Search your universe' }));
+    await fireEvent.changeText(screen.getByLabelText('Search your universe'), 'planet 2');
+    expect(screen.getByRole('button', { name: 'CI planet 2, planet, in CI system 0, hypothetical' })).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByLabelText('Search your universe'), 'system');
+    expect(screen.getByRole('button', { name: 'CI system 0, system, hypothetical' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+    expect(screen.getByRole('button', { name: 'CI planet 2, a planet, hypothetical' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'CI system 0, a system, 2 planets, hypothetical' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple view' }));
+    await screen.findByTestId('universe-simple');
+    expect(
+      screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0, hypothetical' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'CI system 0, hypothetical' })).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0, hypothetical' }));
+    expect(screen.getByRole('header', { name: 'CI planet 2' })).toBeOnTheScreen();
+    expect(screen.getByText('Hypothetical')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'CI region 4, hypothetical' })).toBeOnTheScreen();
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+
+  it('on the desktop panel, which is the screen-reader list of the whole map', async () => {
+    const h = hypotheticalHarness();
+    const v = await render(
+      <DisplayProvider value={{ width: 1440, textScale: 1, reducedMotion: true }}>
+        <UniverseScreen />
+      </DisplayProvider>,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'CI planet 2, a planet in CI system 0, hypothetical' }),
+      ).toBeOnTheScreen(),
+    );
+    await act(() => h.scope.end());
+    await v.unmount();
+  });
+});
+
+describe('the Simple lists keep to the finalized file (v3 U-5)', () => {
+  it('prints the bare room count, has no chevron on the row where the person was, and a visit’s search does not offer Regions', async () => {
+    const h = universeHarness();
+    h.world.stations.push(roomStation());
+    mockScope = h.scope;
+    const v = await render(<UniverseScreen />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
+    await waitFor(() => expect(h.requests.some((request) => request.path === '/v1/rooms/stations')).toBe(true));
+    await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple view' }));
+    await screen.findByTestId('universe-simple');
+    await waitFor(() => expect(screen.getByText('Rooms')).toBeOnTheScreen());
+    expect(screen.queryByText('1 room')).toBeNull();
+    expect(screen.getByText('1')).toBeOnTheScreen();
     await act(() => h.scope.end());
     await v.unmount();
   });
