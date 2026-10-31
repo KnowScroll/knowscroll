@@ -235,3 +235,22 @@ it('is never drawn on a friend’s universe, even over a session that holds a co
   await act(() => h.scope.end());
   await view.unmount();
 });
+
+it('keeps the map working when every collection read fails: the collection is decoration, never a blocker', async () => {
+  const h = universeHarness();
+  const answer = h.world.reply.bind(h.world);
+  h.world.reply = (path: string, body: Record<string, unknown>) => {
+    if (COLLECTION_READS.includes(path)) throw new Error('fixture_collection_down');
+    return answer(path, body);
+  };
+  const v = await open(h);
+  await waitFor(() => expect(h.calls).toContain('/v1/play/landmarks/read'));
+  expect(screen.getByRole('button', { name: 'CI system 0, a system' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen();
+  expect(screen.queryByTestId('universe-collection-strip')).toBeNull();
+  expect(screen.queryByTestId('universe-landmark-tray')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'CI system 0, a system' }));
+  expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+  await act(() => h.scope.end());
+  await v.unmount();
+});

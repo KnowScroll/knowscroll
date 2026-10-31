@@ -25,6 +25,7 @@ export const COLLECTION_READS: readonly string[] = [
   '/v1/play/landmarks/read',
   '/v1/play/orbit/read',
   '/v1/experience/resume/read',
+  '/v1/universe/places/concepts/read',
 ];
 
 export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {

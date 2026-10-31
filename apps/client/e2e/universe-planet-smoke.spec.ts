@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
+import { COLLECTION_READS, fixtureAccount, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { tapOrbitingTarget } from './orbiting-target';
 
@@ -20,6 +20,7 @@ const reads = new Set([
   '/v1/universe/emerging/read',
   '/v1/experience/region/preview',
   '/v1/universe/formation/read',
+  ...COLLECTION_READS,
 ]);
 
 async function openPlanet(page: Page, size: { width: number; height: number }) {
@@ -80,7 +81,8 @@ async function openPlanet(page: Page, size: { width: number; height: number }) {
           },
         },
       });
-    if (path.startsWith('/v1/universe/')) return route.fulfill({ json: world.reply(path, body) });
+    if (path.startsWith('/v1/universe/') || COLLECTION_READS.includes(path))
+      return route.fulfill({ json: world.reply(path, body) });
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/universe');

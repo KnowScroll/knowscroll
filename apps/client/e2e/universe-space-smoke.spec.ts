@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
+import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { tapOrbitingTarget } from './orbiting-target';
 
@@ -19,6 +19,7 @@ const READS = new Set([
   '/v1/experience/region/preview',
   '/v1/universe/formation/read',
   '/v1/rooms/stations',
+  ...COLLECTION_READS,
 ]);
 
 interface Request {
