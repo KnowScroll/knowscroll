@@ -31,7 +31,7 @@ activated encounters within 24 hours of explicit `evaluatedAt`. These are code-s
 calibrated learned parameters. A decision names its policy and replays under exactly that policy
 (`policyOf(decision.policyVersion)`), which `persistComposerDecision` checks byte for byte, so an old decision never
 changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0` or
-`v1`, default `v0`, read by the API and the worker): v1 is not used by a world until its numbers are chosen. A stored
+`v1`, default `v0`, read by the API and the worker): v1's numbers were chosen from the dev replay (D-190), and a world uses v1 only when its configuration says so. A stored
 decision replays under its own policy whatever the setting, and the replay command always runs both. A change to v1's
 numbers after v1 decisions are stored needs `composer-policy.v2` and a migration (D-190).
 Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order.
