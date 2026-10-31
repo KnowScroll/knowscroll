@@ -18,6 +18,9 @@ import type {
   ThreadInvitationResponseAcceptanceSchema,
   ThreadLeaveAcceptanceSchema,
   ThreadMessageAcceptanceSchema,
+  ThreadPlaceAcceptanceSchema,
+  ThreadPlaceHiddenAcceptanceSchema,
+  ThreadPlacesSchema,
   ThreadReadAcceptanceSchema,
   ThreadSnippetOpeningSchema,
   CreateContentShareResultSchema,
@@ -150,7 +153,9 @@ export const CONVERSATION_USE_CASES = Symbol('social.conversationUseCases');
  * Content threads (a Reel or Scroll, the people it was shared with and their conversation). Every
  * method takes the caller's claimed authority and an unparsed body and re-checks authority itself:
  * membership, the friendship an invitation rests on and the source's current state. Reads create
- * no evidence, and no answer carries another member's position, current episode or seen marker.
+ * no evidence, and no answer carries another member's position, current episode or seen marker. The one
+ * exception is `places`: a member's own, coarse, self-reported place (a part, on or finished, and a day)
+ * shown only to members of the thread and only while the member has not hidden it (D-065).
  */
 export interface ThreadUseCases {
   create(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ContentThreadCreationSchema>>>;
@@ -170,6 +175,15 @@ export interface ThreadUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof ThreadSnippetOpeningSchema>>>;
+  /** The coarse places of the thread's members that the caller may see (D-065). */
+  places(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadPlacesSchema>>>;
+  /** Reports the caller's own place: a part, `on` or `finished`. Written only from their own client. */
+  setPlace(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadPlaceAcceptanceSchema>>>;
+  /** Hides or shows where the caller is in this thread. */
+  setPlaceHidden(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ThreadPlaceHiddenAcceptanceSchema>>>;
 }
 export const THREAD_USE_CASES = Symbol('social.threadUseCases');
 

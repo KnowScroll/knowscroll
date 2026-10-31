@@ -2,6 +2,7 @@ import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.
 import { expect, test } from '@playwright/test';
 import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
+import { tapOrbitingTarget } from './orbiting-target';
 /** Production-export consumer over authored HTTP fixtures. No established world/provider acceptance. */
 test('authoritative map/outline/travel and browser Back keep camera private and perform reads only', async ({
   page,
@@ -72,11 +73,11 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
   await expect(page.getByRole('button', { name: 'CI system 0, a system', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
+  await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
+  await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));
   await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
   await page.getByRole('button', { name: 'CI region 4, a region', exact: true }).click();
   await expect(page.getByText('Encounters from this region aren’t available yet.')).toBeVisible();

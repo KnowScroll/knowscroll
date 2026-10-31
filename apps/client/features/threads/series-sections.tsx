@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import type { ThreadEpisode } from '@knowscroll/contracts';
+import type { ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
 import { content, spacing } from '@knowscroll/design-tokens';
 import { Button, Text } from '@knowscroll/ui';
 import { EpisodeList } from './episode-list';
@@ -20,6 +20,7 @@ export function PartsSection({
   selected,
   series,
   heading,
+  places,
   onSelect,
   onStep,
   onMap,
@@ -29,6 +30,8 @@ export function PartsSection({
   readonly series: boolean;
   /** The panel names the section; the sheet already carries the name as its title. */
   readonly heading: string | undefined;
+  /** The members who share where they are, for the faces on their parts. */
+  readonly places?: readonly ThreadPlace[] | undefined;
   readonly onSelect: (assetId: string) => void;
   readonly onStep: (assetId: string) => void;
   /** Offered only once the thread has several branches (X04); never for a first exploration. */
@@ -41,7 +44,14 @@ export function PartsSection({
           {heading}
         </Text>
       )}
-      <EpisodeList episodes={episodes} selected={selected} series={series} onSelect={onSelect} onStep={onStep} />
+      <EpisodeList
+        episodes={episodes}
+        selected={selected}
+        series={series}
+        places={places}
+        onSelect={onSelect}
+        onStep={onStep}
+      />
       {onMap === undefined ? null : (
         <Button label="Map" size="sm" variant="ghost" onPress={onMap} testID="thread-map-button" />
       )}

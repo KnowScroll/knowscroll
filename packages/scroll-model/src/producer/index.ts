@@ -39,6 +39,7 @@ export { DRAFT_STAGES, REPAIR_HINTS, repairItems, stageOf, type DraftStage } fro
 export { AuthoredItemV2, AuthoredScrollV2, SCROLL_AUTHORING_V2_VERSION } from './v2/authoring-schema.js';
 export {
   assembleScrollV2,
+  recipeKit,
   shuffleOptions,
   type Assembly,
   type AssemblyMap,

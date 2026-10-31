@@ -8,7 +8,7 @@ import { createEmptyDatabase } from '../support/empty-database.js';
 import { seedKeepSessions } from '../support/keep-fixture.js';
 import { freePort, startReleaseProcess, waitForHttp, type ReleaseProcess } from '../support/processes.js';
 import { seedFriends, talkCases, type Friend } from '../support/talk.js';
-import { seedReel } from '../support/thread-fixtures.js';
+import { declareSeries, seedReel } from '../support/thread-fixtures.js';
 
 const version = 'content-thread.v1' as const;
 const messageCanary = 'PRIVATE-THREAD-MESSAGE-CANARY';
@@ -127,6 +127,61 @@ describe('content threads over the installed API (disposable accounts)', () => {
     expect(
       await clientOf(b).threads.markRead({ version, commandId: randomUUID(), thread: bRef, throughSequence: 1 }),
     ).toMatchObject({ acceptedThroughSequence: 1 });
+  });
+
+  it('shares a coarse place with the thread, and hides it again (party places, D-065)', async () => {
+    const reels = [await seedReel(db.db, { durationMs: 30_000 }), await seedReel(db.db, { durationMs: 30_000 })];
+    await declareSeries(db.db, `ci-series-${randomUUID()}`, reels);
+    const created = await clientOf(a).threads.create({
+      version,
+      commandId: randomUUID(),
+      root: { assetId: reels[0]!.assetId, assetRevision: 1 },
+      friendPersonIds: [b.person.personId],
+    });
+    const invited = await clientOf(b).threads.inbox({ version, readId: randomUUID(), limit: 20 });
+    const bRef = invited.items.find((item) => item.thread.threadId === created.thread.threadId)!.thread;
+    await clientOf(b).threads.respond({ version, commandId: randomUUID(), thread: bRef, response: 'join' });
+
+    expect(await clientOf(b).threads.setPlace({ version, thread: bRef, part: 2, state: 'on' })).toMatchObject({
+      operation: 'thread.place',
+      result: 'stored',
+    });
+    const seen = await clientOf(a).threads.places({ version, readId: randomUUID(), thread: created.thread });
+    expect(seen).toMatchObject({
+      status: 'ready',
+      hidden: false,
+      places: [{ person: { handle: b.person.handle }, you: false, part: 2, state: 'on' }],
+    });
+    // A part and a day: no clock time, no position, nothing about watching.
+    expect(JSON.stringify(seen)).not.toMatch(/\d{2}:\d{2}|position|playhead|watching/i);
+    // The thread's own view carries none of it.
+    expect(
+      JSON.stringify(
+        await clientOf(a).threads.read({ version, readId: randomUUID(), thread: created.thread, limit: 20 }),
+      ),
+    ).not.toMatch(/placeHidden|"places"/);
+
+    // A part the series does not have is a closed invalid-request problem.
+    const refused = await fetch(origin + '/v1/social/threads/places/set', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${b.tokens.native}`,
+        'x-ks-scope': `${b.accountId}:1`,
+      },
+      body: JSON.stringify({ version, thread: bRef, part: 3, state: 'on' }),
+    });
+    expect(refused.headers.get('content-type')).toBe('application/problem+json');
+    expect(SocialProblemSchema.parse(await refused.json()).code).toBe('INVALID_REQUEST');
+
+    expect(await clientOf(b).threads.setPlaceHidden({ version, thread: bRef, hidden: true })).toMatchObject({
+      operation: 'thread.place-hidden',
+      hidden: true,
+      changed: true,
+    });
+    expect(await clientOf(a).threads.places({ version, readId: randomUUID(), thread: created.thread })).toMatchObject({
+      places: [],
+    });
   });
 
   it('refuses a stranger, an invalid anchor and an unauthenticated caller with closed problems', async () => {

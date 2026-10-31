@@ -11,7 +11,6 @@ import {
   ThreadMessageAcceptanceSchema,
   ThreadReactionAcceptanceSchema,
   ThreadReadAcceptanceSchema,
-  type ContentThreadRef,
   type SendThreadBody,
   type SnippetAnchor,
 } from '@knowscroll/contracts';
@@ -19,26 +18,12 @@ import type { z } from 'zod';
 import type { SnippetAnchorInput, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { acceptedReadThrough } from '../domain/conversations.js';
-import { canTakePart, invitable, isParticipant } from '../domain/threads.js';
-import type { InboxChange } from './conversation-ports.js';
-import { refuse, threadEnvelope, type Result } from './ports.js';
+import { canTakePart, invitable } from '../domain/threads.js';
+import { refuse, type Result } from './ports.js';
 import { planReaction, resolveReplyTarget } from './reactions.js';
-import { enterThread, threadRefOf, type EnteredThread, type Entry } from './thread-gate.js';
-import type { ThreadMember, ThreadPorts, ThreadRow } from './thread-ports.js';
-
-const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
-
-/** What a command decided: the writes to make (they return the acceptance) and whose inbox changes. */
-interface Decision<A> {
-  readonly write: () => Promise<A>;
-  readonly announce: readonly InboxChange[];
-}
-
-interface CommandContext {
-  readonly scope: PersonalScopeTx;
-  readonly entered: EnteredThread;
-  readonly now: Date;
-}
+import { inboxOf, makeThreadCommandFrame, ok, participants, takingPart } from './thread-command-frame.js';
+import { threadRefOf } from './thread-gate.js';
+import type { ThreadPorts, ThreadRow } from './thread-ports.js';
 
 /** The content port's anchor input from the wire anchor: personal values travel only when the sender confirmed them. */
 function anchorInput(anchor: SnippetAnchor): SnippetAnchorInput {
@@ -56,11 +41,6 @@ function anchorInput(anchor: SnippetAnchor): SnippetAnchorInput {
   };
 }
 
-const inboxOf = (member: ThreadMember): InboxChange => ({ accountId: member.accountId, universeId: member.universeId });
-const takingPart = (entered: EnteredThread): readonly InboxChange[] => entered.members.filter(canTakePart).map(inboxOf);
-const participants = (entered: EnteredThread): readonly InboxChange[] =>
-  entered.members.filter(isParticipant).map(inboxOf);
-
 /**
  * The commands of content threads: create, send, answer an invitation, mark read and leave. Each
  * runs in the caller's personal scope in the lock order of the blueprint: personal root, own
@@ -70,50 +50,7 @@ const participants = (entered: EnteredThread): readonly InboxChange[] =>
  * same command with another body is refused. A refusal writes no receipt.
  */
 export function makeThreadCommands(p: ThreadPorts) {
-  const receiptKey = (scope: PersonalScopeTx, operation: string, commandId: string, request: object) => ({
-    commandId,
-    operation,
-    outcomeVersion: 1,
-    requestHash: p.hash(operation, { ...request, actorPrivacyEpoch: scope.authority.privacyEpoch }),
-  });
-
-  const receiptBase = (scope: PersonalScopeTx, now: Date, commandId: string) => ({
-    ...threadEnvelope(scope),
-    commandId,
-    recordedAt: now.toISOString(),
-    replayed: false,
-    outcome: 'accepted' as const,
-  });
-
-  /** Shared skeleton of every command that acts inside one existing thread. */
-  async function inThread<A extends object>(
-    authority: PersonalAuthority,
-    spec: {
-      readonly operation: string;
-      readonly command: { readonly commandId: string; readonly thread: ContentThreadRef };
-      readonly request: object;
-      readonly acceptance: z.ZodType<A>;
-      readonly entry?: Entry;
-      decide(context: CommandContext): Promise<Result<Decision<A>>>;
-    },
-  ): Promise<Result<A>> {
-    const result = await p.withScope(authority, async (scope): Promise<Result<A>> => {
-      const entered = await enterThread(p, scope, spec.command.thread, 'write', spec.entry);
-      if (!entered) return refuse('unavailable');
-      const key = receiptKey(scope, spec.operation, spec.command.commandId, spec.request);
-      const receipt = await p.store.findReceipt(entered.lock, key);
-      if (receipt.kind === 'refused') return receipt;
-      if (receipt.kind === 'replay') return ok({ ...spec.acceptance.parse(receipt.outcome), replayed: true });
-      const decision = await spec.decide({ scope, entered, now: p.now() });
-      if (decision.kind === 'refused') return decision;
-      await p.store.beginReceipt(entered.lock, key);
-      const acceptance = await decision.value.write();
-      await p.conversations.announce(entered.lock, decision.value.announce, () => p.newId());
-      await p.store.receipt(entered.lock, key, acceptance);
-      return ok(acceptance);
-    });
-    return result.kind === 'entered' ? result.value : refuse('unavailable');
-  }
+  const { receiptKey, receiptBase, inThread } = makeThreadCommandFrame(p);
 
   /** The thread a retried create already made: current authority first, then the stored acceptance. */
   async function replayCreate(
@@ -412,7 +349,7 @@ export function makeThreadCommands(p: ThreadPorts) {
 
     /**
      * Ends the caller's place. The thread goes on for the others; whoever the caller invited now stands
-     * on their own membership. The caller's messages stay.
+     * on their own membership. The caller's messages stay, and their party place (D-065) is deleted.
      */
     leave(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ThreadLeaveAcceptanceSchema>>> {
       const parsed = LeaveThreadSchema.safeParse(input);
@@ -428,6 +365,7 @@ export function makeThreadCommands(p: ThreadPorts) {
           return Promise.resolve(
             ok({
               write: async () => {
+                await p.places.remove(entered.lock, entered.owner.accountId);
                 await p.threads.leave(entered.lock, entered.owner.accountId, now);
                 return ThreadLeaveAcceptanceSchema.parse({
                   ...receiptBase(scope, now, command.commandId),

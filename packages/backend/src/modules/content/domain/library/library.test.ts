@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
 import { CONCEPTS, conceptMeaning } from '../concepts.js';
-import { EARTH_SKY_KIT } from '@knowscroll/scroll-model';
+import { EARTH_SKY_KIT, STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS } from '@knowscroll/scroll-model';
 import { INTERACTIVE_KINDS, STAGE_KIT_IDS } from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, hazeFamilyOf, sceneFamilyOf } from './index.js';
 
@@ -180,33 +180,45 @@ describe('library plan (code-owned data; fetching is checked by scripts/check-li
   });
 });
 
-describe('the kit that draws a recipe (stageKit, D-125)', () => {
-  it('names only kits that exist, and keeps the plan’s list in step with the Earth & sky kit of scroll-model', () => {
-    expect([...STAGE_KIT_IDS]).toEqual([EARTH_SKY_KIT]);
+describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
+  const byKit = (kit: string): string[] =>
+    recipes
+      .filter((recipe) => recipe.stageKit === kit)
+      .map((recipe) => recipe.key)
+      .sort();
+
+  it('names only kits that exist, and keeps the plan’s list in step with the kits of scroll-model', () => {
+    expect([...STAGE_KIT_IDS]).toEqual([...SCROLL_MODEL_KIT_IDS]);
+    expect(STAGE_KIT_IDS[0]).toBe(EARTH_SKY_KIT);
     for (const recipe of recipes)
       if (recipe.stageKit !== undefined) expect(STAGE_KIT_IDS, recipe.key).toContain(recipe.stageKit);
   });
 
-  it('gives a stage only to the recipes the Earth & sky kit draws: three Seasons parts, and nothing else yet', () => {
-    expect(
-      recipes
-        .filter((recipe) => recipe.stageKit !== undefined)
-        .map((recipe) => recipe.key)
-        .sort(),
-    ).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
+  it('gives each kit exactly the recipes whose subject it draws, so adding one is a deliberate edit', () => {
+    expect(byKit('earth-sky.v1')).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
+    expect(byKit('tides.v1')).toEqual(['tides', 'tides-spring-neap']);
+    expect(byKit('greenhouse.v1')).toEqual(['greenhouse', 'greenhouse-balance', 'greenhouse-radiation']);
+    expect(byKit('star.v1')).toEqual(['stars-fusion', 'stars-lifecycle']);
+    expect(byKit('transit.v1')).toEqual(['exoplanet-transit']);
+    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(11);
   });
 
-  it('leaves tides, stars, exoplanets, the greenhouse effect and other worlds plain: the kit draws no bulge, no star, no energy flow and no planet but Earth', () => {
+  it('gives a kit only to recipes of the system whose subject it draws: Earth & sky and Space', () => {
+    for (const recipe of recipes.filter((candidate) => candidate.stageKit !== undefined))
+      expect(['earth', 'space'], recipe.key).toContain(recipe.systemId);
+  });
+
+  it('leaves the recipes no kit draws plain: coasts, colour and brightness, the habitable zone, kinds of planet, black holes and other worlds', () => {
     for (const key of [
-      'tides',
-      'tides-spring-neap',
       'tides-coasts',
-      'greenhouse',
-      'greenhouse-radiation',
-      'greenhouse-balance',
+      // The audit of the blanket analogy: the greenhouse kit draws the layer, not an argument about a comparison.
       'greenhouse-limits',
-      'stars-fusion',
+      'stars-colour-brightness',
       'exoplanet-habitable-zone',
+      'exoplanet-kinds',
+      'black-hole-formation',
+      'black-hole-horizon',
+      'black-hole-evidence',
       'seasons-elsewhere',
     ] as const)
       expect(RECIPES[key].stageKit, key).toBeUndefined();

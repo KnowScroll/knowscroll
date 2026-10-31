@@ -11,7 +11,7 @@ import type {
 import type { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import { runSpikeBatch, makeWriterSpikeV2, SPIKE_MODEL, type SpikeResult } from './run.js';
 import type { ScrollTopic } from '../topics.js';
-import { fixtureAuthoredV2, fixtureResearchPageV2 } from './writer-v2.fixture.js';
+import { fixtureAuthoredV2, fixtureResearchPageAt, fixtureResearchPageV2 } from './writer-v2.fixture.js';
 
 // A labelled fixture harness: it never reaches a provider and returns what each test scripts.
 
@@ -39,7 +39,12 @@ interface Script {
 
 function wire(
   script: Script,
-  overrides: { model?: string; research?: (url: string) => Promise<typeof fixtureResearchPageV2> } = {},
+  overrides: {
+    model?: string;
+    research?: (url: string) => Promise<typeof fixtureResearchPageV2>;
+    /** The writer's recorded answer; the Orrin answer drawn with Earth & sky unless a test says otherwise. */
+    answer?: () => AuthoredScrollV2;
+  } = {},
 ) {
   const calls = { proposed: 0, closed: [] as { runId: string; state: string }[], accounting: 0, runs: [] as string[] };
   const harness: ProductionReasoningHarness = {
@@ -47,7 +52,7 @@ function wire(
       calls.proposed += 1;
       calls.runs.push(input.run.id);
       // The real harness validates with the role's schema; so does this stand-in.
-      const parsed = input.role.outputSchema.safeParse(fixtureAuthoredV2());
+      const parsed = input.role.outputSchema.safeParse((overrides.answer ?? fixtureAuthoredV2)());
       const output = parsed.success ? (parsed.data as AuthoredScrollV2) : undefined;
       return Promise.resolve(script.outcome(output) as ProposeOutcome<T>);
     },
@@ -101,6 +106,43 @@ const proposed =
         };
 const never = new AbortController().signal;
 
+describe('the writer spike runs a stage recipe of each drawing kit (D-194)', () => {
+  // One recipe of each kit, with the recorded answer drawn with that kit. The fixture is Orrin text, not product content.
+  it.each([
+    ['tides.v1', 'tides'],
+    ['greenhouse.v1', 'greenhouse-radiation'],
+    ['star.v1', 'stars-fusion'],
+    ['transit.v1', 'exoplanet-transit'],
+  ] as const)(
+    'accepts the answer drawn with %s for %s, and reports a stage of at least three states',
+    async (kit, key) => {
+      const { spike, calls } = wire(
+        {
+          outcome: proposed(false),
+          attempts: [attempt('att-1', 'primary', { input: 4000, output: 9000, thinking: 6000 })],
+        },
+        { answer: () => fixtureAuthoredV2(kit), research: (url) => Promise.resolve(fixtureResearchPageAt(url)) },
+      );
+      const { line, document } = await spike.writeOne(key, never);
+      expect(line).toMatchObject({ key, outcome: 'accepted_first_take', variant: 'stage', findings: [], requests: 1 });
+      expect(line.stageStates).toBeGreaterThanOrEqual(3);
+      expect(document?.document.stage?.kit).toBe(kit);
+      expect(calls.closed).toEqual([{ runId: line.runId, state: 'completed' }]);
+      expect(JSON.stringify(line)).not.toContain('Orrin');
+    },
+  );
+
+  it('rejects the Earth & sky answer for a recipe of another kit, with the finding the repair needs', async () => {
+    const { spike } = wire({
+      outcome: proposed(false),
+      attempts: [attempt('att-1', 'primary', { input: 1, output: 1, thinking: 0 })],
+    });
+    const { line } = await spike.writeOne('tides', never);
+    expect(line.variant).toBe('stage');
+    expect(line.outcome).not.toBe('accepted_first_take');
+  });
+});
+
 describe('the writer spike: one topic', () => {
   it('reports a first-take Scroll with its measures, its tokens (thinking included) and its model, and closes the run', async () => {
     const { spike, calls } = wire({
@@ -114,7 +156,7 @@ describe('the writer spike: one topic', () => {
       outcome: 'accepted_first_take',
       variant: 'stage',
       misconception: 'myth',
-      promptVersion: 'scroll-writer.v16',
+      promptVersion: 'scroll-writer.v17',
       requests: 1,
       findings: [],
       stops: 9,

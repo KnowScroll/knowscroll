@@ -1,7 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
-import type { ScrollV2Plan } from '../domain/library/plan.js';
+import type { ScrollV2Plan, StageKitId } from '../domain/library/plan.js';
 import { isMadeToOrderKey, type MadeToOrderKey } from '../domain/order-key.js';
 import { parseScrollTopic, TOPICS, type ScrollTopic } from './topics.js';
 import {
@@ -30,6 +30,8 @@ export interface ProductionSubject {
   readonly attribution: 'library' | 'none';
   /** Present when the library plan marks the recipe as a `scroll-document.v2`; absent for v1 recipes and orders. */
   readonly scrollV2?: ScrollV2Plan;
+  /** The kit that draws this recipe's subject, when the plan names one (D-125, D-194). Only a `stage` Scroll uses it. */
+  readonly stageKit?: StageKitId;
 }
 
 /** The subject of a library recipe. */
@@ -44,6 +46,7 @@ export function librarySubject(topic: ScrollTopic): ProductionSubject {
     format: writerFormatOf(recipe),
     attribution: 'library',
     ...(recipe.scrollV2 === undefined ? {} : { scrollV2: recipe.scrollV2 }),
+    ...(recipe.stageKit === undefined ? {} : { stageKit: recipe.stageKit }),
   };
 }
 
