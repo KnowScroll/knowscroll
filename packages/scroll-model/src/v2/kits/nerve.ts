@@ -578,7 +578,7 @@ const ALONG_WORDS: Readonly<Record<AxonPlace, string>> = {
 
 function axonSentences(place: AxonPlace): string[] {
   return [
-    'A spike running along a nerve cell’s axon, away from the cell body, drawn as the voltage along the axon at one instant. Ahead of the spike the membrane is at rest and ready. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction. The spike keeps its size as it goes. It is a wave of voltage change across the membrane, not electricity flowing down a wire.',
+    'A spike running along a nerve cell’s axon, away from the cell body, drawn as the voltage along the axon at one instant. Ahead of the spike the membrane is at rest and ready. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction. The spike keeps its size as it goes. It is a wave of voltage change across the membrane, not electricity flowing down a wire. The spike’s length against the axon is not to scale.',
     ALONG_WORDS[place],
   ];
 }

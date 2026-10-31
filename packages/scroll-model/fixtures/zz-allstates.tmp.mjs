@@ -32,7 +32,6 @@ const finalCall = (id, prompt, options, explain, twist, simple) => ({
   stop: { kind: 'final_call', id, prompt, options, answer: 0, explain, twist, simple },
 });
 
-
 const OUT = 'C:/Users/XZNON/knowscroll-dev/tmp/s8b-body-kits/docs';
 import { mkdirSync } from 'node:fs';
 mkdirSync(OUT, { recursive: true });
@@ -45,7 +44,10 @@ const everyState = (kit) => {
 };
 const unique = (kit, states) => {
   const seen = new Map();
-  for (const state of states) { const settled = kit.settle(state); seen.set(JSON.stringify(settled), settled); }
+  for (const state of states) {
+    const settled = kit.settle(state);
+    seen.set(JSON.stringify(settled), settled);
+  }
   return [...seen.values()];
 };
 
@@ -55,7 +57,9 @@ for (const id of ['circulation.v1', 'nerve.v1']) {
   const settled = unique(kit, everyState(kit));
   // every picture with no focus first, then one state for each focus word, in the order the words are listed
   const plain = settled.filter((state) => state.focus === 'none');
-  const focused = kit.enums.focus.filter((word) => word !== 'none').map((word) => settled.find((state) => state.focus === word));
+  const focused = kit.enums.focus
+    .filter((word) => word !== 'none')
+    .map((word) => settled.find((state) => state.focus === word));
   const all = [...plain, ...focused.filter(Boolean)];
   const name = id.split('.')[0];
   for (let start = 0, part = 1; start < all.length; start += 11, part += 1)
@@ -68,11 +72,32 @@ for (const [name, batch] of Object.entries(batches)) {
   const items = [];
   batch.states.forEach((state, index) => {
     items.push(read(`s${index + 1}`, 'A state of the picture, for a screenshot.', 'A state of the picture.', state));
-    if (index === 1 || index === 4) items.push(call(`c${index}`, 'Which?', ['This one', 'That one'], 'This one, for the screenshot.', 'Not that one.', 'This one.'));
+    if (index === 1 || index === 4)
+      items.push(
+        call(
+          `c${index}`,
+          'Which?',
+          ['This one', 'That one'],
+          'This one, for the screenshot.',
+          'Not that one.',
+          'This one.',
+        ),
+      );
   });
-  while (items.filter((item) => item.stop.kind === 'read').length < 3) items.push(read(`pad${items.length}`, 'A state.', 'A state.', {}));
-  items.push(finalCall('final', 'Which?', ['This one', 'That one'], 'This one, for the screenshot.', 'Not that one.', 'This one.'));
-  if (items.filter((item) => item.stop.kind !== 'read').length < 3) items.splice(3, 0, call('c9', 'Which?', ['This one', 'That one'], 'This one.', 'Not that.', 'This one.'));
+  while (items.filter((item) => item.stop.kind === 'read').length < 3)
+    items.push(read(`pad${items.length}`, 'A state.', 'A state.', {}));
+  items.push(
+    finalCall(
+      'final',
+      'Which?',
+      ['This one', 'That one'],
+      'This one, for the screenshot.',
+      'Not that one.',
+      'This one.',
+    ),
+  );
+  if (items.filter((item) => item.stop.kind !== 'read').length < 3)
+    items.splice(3, 0, call('c9', 'Which?', ['This one', 'That one'], 'This one.', 'Not that.', 'This one.'));
   fixtures[name] = {
     kit: batch.kit,
     title: `All states ${name} (a screenshot fixture)`,

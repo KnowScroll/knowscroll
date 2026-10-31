@@ -333,6 +333,7 @@ describe('settling and describing a nerve state', () => {
     expect(axon).toContain('runs on in one direction');
     expect(axon).toContain('keeps its size');
     expect(axon).toContain('not electricity flowing down a wire');
+    expect(axon).toContain('not to scale');
   });
 
   it('says a connection excites or inhibits from the effect, and that this depends on the receptors', () => {

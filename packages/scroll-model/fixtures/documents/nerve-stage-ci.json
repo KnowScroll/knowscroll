@@ -108,7 +108,7 @@
           "arcAt": "sensor",
           "focus": "recovering"
         },
-        "alt": "A spike running along a nerve cell’s axon, away from the cell body, drawn as the voltage along the axon at one instant. Ahead of the spike the membrane is at rest and ready. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction. The spike keeps its size as it goes. It is a wave of voltage change across the membrane, not electricity flowing down a wire. The spike is halfway along the axon. The picture draws the eye to the recovering stretch."
+        "alt": "A spike running along a nerve cell’s axon, away from the cell body, drawn as the voltage along the axon at one instant. Ahead of the spike the membrane is at rest and ready. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction. The spike keeps its size as it goes. It is a wave of voltage change across the membrane, not electricity flowing down a wire. The spike’s length against the axon is not to scale. The spike is halfway along the axon. The picture draws the eye to the recovering stretch."
       },
       {
         "stop": "release",
@@ -405,6 +405,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "cfbfebd17381231ce493f776166afa76f26d4a9b100335736c00d741771daa53"
+    "sha256": "6802be6fd4636f6a862a27e3d4ff217aaddfbee9ca7a7c3ec661a42a53071d42"
   }
 }
