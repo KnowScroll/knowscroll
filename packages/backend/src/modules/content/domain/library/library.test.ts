@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { researchUrl } from '../../../../infrastructure/research/public-pages.js';
 import { CONCEPTS, conceptMeaning } from '../concepts.js';
 import { EARTH_SKY_KIT, STAGE_KIT_IDS as SCROLL_MODEL_KIT_IDS } from '@knowscroll/scroll-model';
+import { LIBRARY_SERIES } from './continuity.js';
 import { INTERACTIVE_KINDS, STAGE_KIT_IDS } from './plan.js';
 import { LIBRARY_SYSTEMS, RECIPES, RECIPE_KEYS, RECIPE_SETS, hazeFamilyOf, sceneFamilyOf } from './index.js';
 
@@ -235,16 +236,16 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
   });
 });
 
+const SEASONS = ['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons-limits'] as const;
+/** The recipes of the first waves (D-199): every recipe of these systems has no drawing kit. */
+const WAVE_SYSTEMS = ['human-body', 'computing', 'machine-learning', 'history'];
+const WAVE_RECIPES = recipes.filter((recipe) => WAVE_SYSTEMS.includes(recipe.systemId)).map((recipe) => recipe.key);
+
 describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => {
   const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
 
-  it('marks the four Seasons recipes and nothing else, so adding one is a deliberate edit', () => {
-    expect(v2.map((recipe) => recipe.key).sort()).toEqual([
-      'seasons',
-      'seasons-elsewhere',
-      'seasons-hemispheres',
-      'seasons-limits',
-    ]);
+  it('marks the four Seasons recipes and the first waves, and nothing else, so adding one is a deliberate edit', () => {
+    expect(v2.map((recipe) => recipe.key).sort()).toEqual([...SEASONS, ...WAVE_RECIPES].sort());
   });
 
   it('gives a picture exactly where a kit draws the subject: the variant follows stageKit', () => {
@@ -275,16 +276,50 @@ describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => 
   });
 });
 
+describe('the waves marked for S-6 (D-199)', () => {
+  const waves = WAVE_RECIPES.map((key) => ({ key, ...RECIPES[key] }));
+
+  it('covers every recipe of the four systems that have no kit, which is all of them', () => {
+    expect(waves).toHaveLength(35);
+    for (const recipe of waves) expect(recipe.stageKit, recipe.key).toBeUndefined();
+  });
+
+  it('makes each a plain Scroll with calls and no myth: none of its pages states a common wrong belief', () => {
+    for (const recipe of waves) {
+      expect(recipe.scrollV2?.variant, recipe.key).toBe('plain');
+      expect(recipe.scrollV2?.misconception, recipe.key).toEqual({ kind: 'none' });
+      expect(recipe.scrollV2?.finalCall, recipe.key).toBeUndefined();
+    }
+  });
+
+  it('names a landmark for each, in plain words that never claim mastery', () => {
+    const mastery = /master|expert\b|genius|champion|perfect|complete|\bwin\b|winner/iu;
+    for (const recipe of waves) {
+      const landmark = recipe.scrollV2?.landmark;
+      expect(landmark, recipe.key).toBeDefined();
+      expect(landmark?.name, recipe.key).not.toMatch(mastery);
+      expect(landmark?.name.split(' ').length, recipe.key).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('marks every part of a series or none of it, so a series is admitted whole', () => {
+    for (const series of LIBRARY_SERIES) {
+      const marked = series.parts.filter((part) => RECIPES[part].scrollV2 !== undefined);
+      expect([0, series.parts.length], series.id).toContain(marked.length);
+    }
+  });
+});
+
 describe('landmarks and the Final call control (D-187, D-188)', () => {
   const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
 
-  it('names a landmark for the four Seasons recipes only, and leaves every other recipe without one', () => {
+  it('names a landmark for every v2 recipe, and leaves every other recipe without one', () => {
     expect(
       recipes
         .filter((recipe) => recipe.scrollV2?.landmark !== undefined)
         .map((recipe) => recipe.key)
         .sort(),
-    ).toEqual(['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons-limits']);
+    ).toEqual([...SEASONS, ...WAVE_RECIPES].sort());
   });
 
   it('gives every landmark a key and a name that fit the document, and no two the same key or name', () => {

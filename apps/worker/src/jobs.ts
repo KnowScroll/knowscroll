@@ -127,7 +127,10 @@ import {
   experienceEvidenceReadProviders,
 } from '@knowscroll/backend/modules/experience/nest-providers';
 import { PREPARE_COMPOSER_BUFFER, prepareBufferQueue, type PrepareBuffer } from '@knowscroll/backend/modules/composer';
-import { composerBufferWorkerProviders, composerProviders } from '@knowscroll/backend/modules/composer/nest-providers';
+import {
+  composerBufferWorkerProviders,
+  composerConfiguredProviders,
+} from '@knowscroll/backend/modules/composer/nest-providers';
 import {
   SWEEP_SIGN_IN_RECORDS,
   sweepSignInRecordsQueue,
@@ -209,7 +212,7 @@ export const jobWiring: Provider[] = [
   ...experienceEvidenceReadProviders(),
   ...experienceBufferSourceProviders(),
   // The worker persists decisions and ranks; it exposes no operator read of them.
-  ...composerProviders({ isOperator: () => false }),
+  ...composerConfiguredProviders({ isOperator: () => false }, WORKER_CONFIG),
   ...composerBufferWorkerProviders({ withPersonalScope: WITH_PERSONAL_SCOPE, workerConfig: WORKER_CONFIG }),
   ...contentProviders(),
   ...madeToOrderProviders({ database: DATABASE, orderAudience: READ_ORDER_AUDIENCE }),

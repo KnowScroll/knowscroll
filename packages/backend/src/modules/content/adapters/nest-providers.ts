@@ -38,6 +38,7 @@ import {
   READ_SCROLL_SOURCE_PAGES,
   CHECK_ASSET_AUDIENCE,
   ENQUEUE_SCROLL_PRODUCTION,
+  READ_PLAY_LEVEL,
   type CheckAssetAudience,
   type EnqueueScrollProduction,
   type ReadMadeToOrderProduction,
@@ -53,6 +54,7 @@ import {
   readSavedMetadata,
   readSavedPageMetadata,
   readEncounterAttribution,
+  readPlayLevel,
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
 import { readScrollPlayFacts } from './scroll-play-facts.js';
@@ -94,6 +96,7 @@ export function contentProviders() {
     { provide: VALIDATE_SNIPPET_ANCHOR, useValue: validateSnippetAnchor },
     { provide: RESOLVE_SNIPPET_ANCHOR, useValue: resolveSnippetAnchor },
     { provide: READ_ENCOUNTER_ATTRIBUTION, useValue: readEncounterAttribution },
+    { provide: READ_PLAY_LEVEL, useValue: readPlayLevel },
     { provide: FIND_ASSET_FOR_ACTION, useValue: findAssetForAction },
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
     { provide: RECORD_MADE_TO_ORDER_SCROLL, useValue: recordMadeToOrderScroll },
@@ -196,6 +199,7 @@ export { makeReviewGate, recipeKeyOfAsset, type ReviewGate } from './review-gate
 /** Bounded shared retrieval capabilities; no feature consumers are installed by this slice. */
 export {
   readEncounterAttribution,
+  readPlayLevel,
   readDiscoveryCandidates,
   readExactEncounter,
   readContinuations,

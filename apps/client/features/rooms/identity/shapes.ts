@@ -109,6 +109,15 @@ const starOf = (cx: number, cy: number, outer: number, inner: number, points: nu
     return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)] as Point;
   });
 
+/** The shapes drawn smaller or larger about the centre of the grid, so a glyph can be made to fit every frame's face. */
+const scaled = (shapes: readonly Shape[], factor: number): Shape[] =>
+  shapes.map(({ role, contours }) => ({
+    role,
+    contours: contours.map((points) =>
+      points.map(([x, y]) => [CENTRE + (x - CENTRE) * factor, CENTRE + (y - CENTRE) * factor] as Point),
+    ),
+  }));
+
 const mark = (...contours: Point[][]): Shape => ({ role: 'mark', contours: body(...contours) });
 const cut = (...contours: Point[][]): Shape => ({ role: 'cut', contours: body(...contours) });
 
@@ -169,6 +178,10 @@ const flame = (cx: number, cy: number, scale: number): Point[] =>
     ...quad([12.4, 5], [15.4, 8.8], [18.4, 14.6]),
     ...quad([18.4, 14.6], [17.6, 18], [12, 18.5]),
   ].map(([x, y]) => [cx + (x - 12) * scale, cy + (y - 12) * scale] as Point);
+
+/** Drawn at these sizes the globe and the cell stay inside the face of every frame, the diamond's being the smallest. */
+const GLOBE_SCALE = 0.9;
+const CELL_SCALE = 0.88;
 
 /** What each glyph of the vocabulary looks like. Complete by type: a word without a drawing does not compile. */
 export const GLYPH_SHAPES: Readonly<Record<RoomEmblemGlyph, readonly Shape[]>> = {
@@ -304,6 +317,44 @@ export const GLYPH_SHAPES: Readonly<Record<RoomEmblemGlyph, readonly Shape[]>> =
     ]),
   ],
   spiral: [{ role: 'mark', contours: stroke(spiral(), 1.4) }],
+  // The Earth seen from space: a disc with flat continents cut out of it.
+  globe: scaled(
+    [
+      mark(circle(CENTRE, CENTRE, 7.6)),
+      cut(
+        [
+          [6.2, 9.4],
+          [8.6, 7.2],
+          [11.2, 7],
+          [12.4, 8.6],
+          [10.6, 10.4],
+          [11.6, 12.8],
+          [10.2, 15.6],
+          [8.8, 16.6],
+          [8.2, 13.4],
+          [6.6, 11.8],
+        ],
+        [
+          [14, 9.2],
+          [16.2, 8],
+          [18, 10.2],
+          [17.2, 13],
+          [15.2, 16.2],
+          [14, 13.4],
+        ],
+      ),
+    ],
+    GLOBE_SCALE,
+  ),
+  // A living cell: a round membrane, a nucleus with its nucleolus and two organelles.
+  cell: scaled(
+    [
+      { role: 'mark', contours: ringOf(CENTRE, CENTRE, 7, 1.4) },
+      mark(circle(10.8, 11, 2.9), ellipse(15.4, 14.8, 1.7, 1, 0.6), circle(8.6, 15.2, 1.1), circle(15, 8.6, 0.9)),
+      cut(circle(10.8, 11, 1)),
+    ],
+    CELL_SCALE,
+  ),
 };
 
 const roundedSquare = (): Point[] => {

@@ -13,7 +13,7 @@ import type { EncounterRef, JevCriteria, SemanticAssessments } from '../domain/t
 
 export const JEV_ROLE_ID = 'composer.jev';
 /** Changes with the instructions or the output schema. Recorded on every run and stored assessment. */
-export const JEV_ROLE_VERSION = 'jev.1';
+export const JEV_ROLE_VERSION = 'jev.2';
 export const JEV_POLICY_VERSION = 'composer-jev.v0';
 /** The role version and the harness framing version together name the instructions an assessment answered. */
 export const JEV_ASSESSMENT_VERSION = `${JEV_ROLE_VERSION}/${HARNESS_PROMPT_VERSION}`;
@@ -35,6 +35,9 @@ const INSTRUCTIONS = [
   "- relevance: how well the candidate continues the learner's current interest as shown by the current step. 1 is directly on the same subject, 0 is unrelated.",
   '- appropriateness: how suitable the candidate is as the next explanation: a sensible next idea, neither a repeat nor a leap the learner is not ready for. 1 is a very natural next step.',
   '- redundancy: how much the candidate repeats the current step. 1 means it says essentially the same thing, 0 means it adds something new.',
+  'An item may also say its kind (Reel or Scroll), how much it asks of the reader, its reading time, its place in a series and the common myth it corrects. These describe the item. They are not criteria: never score an item up or down for them alone.',
+  'Two items that correct the same common myth are redundant with each other: when a candidate corrects the myth the current step corrects, its redundancy is high.',
+  "A candidate in the current step's series is never offered, so do not reward or penalise a candidate for being in a series. Judge it as a new subject.",
   'Judge only the text you are given. Do not use outside knowledge about the learner. Do not rank or choose; only score.',
   'Answer with one JSON object {"assessments":[{"ref":"c1","relevance":0.8,"appropriateness":0.7,"redundancy":0.1}, ...]} with one entry for each candidate ref, using exactly the refs given.',
 ].join('\n');
@@ -52,14 +55,37 @@ export const JEV_ROLE: ReasoningRole<JevOutput> = {
   minContextItems: 2,
 };
 
-const ITEM_TEXT_LIMIT = 700;
+const ITEM_TEXT_LIMIT = 900;
 
+/** What a play level means to a reader, in the words the model is given. Never a result of anyone's play. */
+const PLAY_LEVEL_WORDS = {
+  plain: 'nothing to play',
+  stage: 'a picture that changes as you read, or a single question to call',
+  game: 'several questions to call, ending in a final one',
+} as const;
+
+/**
+ * One item of the context. Public facts of the content only (D-193): the kind, how much play it has, its
+ * reading time, its place in a series and the myth it corrects. Nothing about any reader's play: which
+ * option anyone picked, whether it was right, sparks and tiers never reach a model (D-063). The structural
+ * lines come first and the summary takes what is left of the limit, so a long summary never cuts the myth.
+ */
 function describe(encounter: EncounterSnapshot): string {
-  const facets = encounter.facets.length ? `\nFacets: ${encounter.facets.join(', ')}` : '';
-  return `Title: ${encounter.metadata.title}\nSummary: ${encounter.metadata.summary}${facets}`.slice(
-    0,
-    ITEM_TEXT_LIMIT,
-  );
+  const traits = encounter.traits;
+  const minutes =
+    traits?.readingMinutes === undefined ? '' : `, about ${String(Math.max(1, Math.round(traits.readingMinutes)))} min`;
+  const lines = [
+    `Title: ${encounter.metadata.title}`,
+    `Kind: ${encounter.kind}, ${PLAY_LEVEL_WORDS[traits?.playLevel ?? 'plain']}${minutes}`,
+    ...(encounter.series && traits?.seriesTotal
+      ? [`Series: part ${String(encounter.series.part)} of ${String(traits.seriesTotal)}`]
+      : []),
+    ...(traits?.misconceptionClaim ? [`Corrects the common myth: ${traits.misconceptionClaim}`] : []),
+    ...(encounter.facets.length ? [`Facets: ${encounter.facets.join(', ')}`] : []),
+  ];
+  const fixed = lines.join('\n');
+  const summaryRoom = Math.max(0, ITEM_TEXT_LIMIT - fixed.length - '\nSummary: '.length);
+  return `${fixed}\nSummary: ${encounter.metadata.summary.slice(0, summaryRoom)}`.slice(0, ITEM_TEXT_LIMIT);
 }
 
 /** A shortlist as model context. Candidates get short refs so the answer never echoes long identifiers. */

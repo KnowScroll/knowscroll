@@ -7,9 +7,13 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { seedPerson } from '../support/fixtures.js';
 import { realSupply } from '../support/planned-demand.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
+import { markLibraryV1 } from '../support/scroll-v2.js';
 
 /** Authored CI content and real PostgreSQL: the Planner's entry into Supply, which commissions production jobs but runs none. */
 describe('Supply planned demand (real PostgreSQL, authored CI content)', () => {
+  // Create commissions only v1 recipes (D-138): this file tests the Planner's demand on the v1 library.
+  const restoreLibrary = markLibraryV1();
+  afterAll(restoreLibrary);
   let database: TestDatabase<Database>, content: Awaited<ReturnType<typeof scrollUseCases>>;
   let supply: ReturnType<typeof realSupply>;
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });

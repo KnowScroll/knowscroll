@@ -6,6 +6,7 @@ import type { Journey } from '@knowscroll/backend/modules/operator';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import type { FixturePerson } from '../support/fixtures.js';
 import { supplyWorld, validWriterAnswer, type SupplyWorld } from '../support/supply-world.js';
+import { markLibraryV1 } from '../support/scroll-v2.js';
 
 /**
  * The journey inspector over real records (#248, D-044): a request that was joined to a shared
@@ -14,6 +15,9 @@ import { supplyWorld, validWriterAnswer, type SupplyWorld } from '../support/sup
  * the Scroll writer and the matcher are labelled CI fixture models, not provider output.
  */
 describe('journeys across modules (real PostgreSQL, CI fixture models)', () => {
+  // Create commissions only v1 recipes (D-138): this file follows a request through Create on the v1 library.
+  const restoreLibrary = markLibraryV1();
+  afterAll(restoreLibrary);
   let world: SupplyWorld;
   let asker: FixturePerson;
   let joiner: FixturePerson;

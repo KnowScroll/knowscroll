@@ -201,12 +201,12 @@ of the library plan (the keys are the record keys in `domain/library/`; an unkno
 before any database or provider work). It runs one content-owned writer call through the explicit
 nonpersonal harness (0013), never a personal universe: research and evidence passages by code, one
 writer call that cites them, deterministic compilation, and at most one repair, so **two model
-requests per recipe**; uncertain attempts are never resent. Publication closes the writer run and
+requests per recipe** (six for a v2 library recipe, which adds the answer check, D-198); uncertain attempts are never resent. Publication closes the writer run and
 stores the immutable admitted revision in the same production-root transaction. Research and model
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
 job after a crash. The operator's `content writer-spike-v2` runs the v2 writer (`scroll-authoring.v2`) on library recipes and reports; it admits and publishes nothing
 (S-0, D-120 to D-122). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
-(D-129, implemented). The plan marks the four Seasons recipes (D-137), and a v2 library Scroll is stored **held** until an operator releases it (D-138, "The review gate" below). See [production/README.md](production/README.md) and the
+(D-129, implemented). The plan marks the four Seasons recipes (D-137) and the thirty-five recipes of four systems (D-199), and a v2 library Scroll is stored **held** until an operator releases it (D-138, "The review gate" below). `content regenerate --only <keys>` makes another take of one whose Scroll is served (D-197), three takes to a production version. See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
 
@@ -229,7 +229,8 @@ machinery.
   draw on, the check that a report names a revision a person could have met, and the coverage mapping that
   formation reads) also refuse a revision whose review state is not `released` (`adapters/review-gate-sql.ts`).
   The coverage write path (publication and `readmit-coverage`) still reaches held revisions.
-- **Standing.** `readLibraryStatus` reports `held` (with `heldRevision`), not `published`. `produce-library`
+- **Answer check (D-198).** `review-list` and `review-show` carry what the answer check said about the calls (`passed`, `repaired`, `unchecked`, or `not run` for a revision made before it); `reviewTextOf` prints it under the header.
+- **Standing.** `readLibraryStatus` reports `held` (with `heldRevision`), not `published`, and for a v2 recipe its `regeneration` state, `takesLeft` and `check`. `produce-library`
   skips it, a second take is refused while the first is held, and Quartermaster's `chooseScrollRecipe` never
   picks a v2 recipe, because no person's ask could be answered by a Scroll that waits for a read. A group that
   named a recipe before the plan made it v2 reads as stopped (`readScrollProduction`), so a join never sends its
@@ -369,6 +370,28 @@ real topic/facet attribution and metadata watermark/version, including retained 
 It returns no document, provenance or render authority. Missing metadata remains unknown. New
 offers and activations must separately use current `ReadExactEncounter` capability/admission checks;
 this historical read never authorises opening withdrawn content.
+
+## Encounter traits and play level (D-192, D-193)
+
+Status: implemented, unit-tested; read on real PostgreSQL by the play-wall integration test. Not yet run on dev.
+
+Every candidate that discovery reads carries `traits`, derived from the stored document of its revision on read
+(`domain/traits.ts`). A revision is immutable, so nothing is stored and nothing can drift:
+
+- `playLevel`: `plain` (every v1 Scroll, every Reel, and a v2 Scroll with no stage and no call), `stage` (a stage, or a
+  single call) or `game` (at least two calls, one of them the Final call). It is a fact of the document and the same
+  for every reader.
+- `readingMinutes`, from the document's own measures.
+- `misconceptionClaim`: the public text of the common wrong idea the Scroll is built to meet (its Plot twist), for a v2
+  Scroll with one.
+- `seriesTotal`: the parts of the Scroll's series, counted from `content.series_units` and never declared (D-059).
+
+Composer ranks by `playLevel` (Format per play level, exploration per play level) and describes the rest to Jev
+(`jev.2`). None of it says what any reader did: which option anyone picked, whether it was right, sparks and tiers are
+play results and stay in `play` (D-063).
+
+`ReadPlayLevel` (token `READ_PLAY_LEVEL`) gives Evidence the level of one exact revision when it counts a reading:
+`plain` for a Reel, for a revision that does not exist and for one the review gate holds. Shared content only; no lock.
 
 ## Binding a request to the current head of an encounter
 

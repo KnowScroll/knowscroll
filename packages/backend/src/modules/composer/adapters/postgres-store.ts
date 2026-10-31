@@ -9,6 +9,7 @@ import {
   type PruneComposerDecisions,
   type ComposerOperatorAccess,
 } from '../public.js';
+import { policyOf } from '../domain/policy.js';
 import { composerBufferStore } from './buffer-store.js';
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -41,8 +42,8 @@ export function makeComposerStore(access: ComposerOperatorAccess): {
           (!Number.isSafeInteger(binding.intentRevision) || binding.intentRevision < 0))
       )
         throw new Error('COMPOSER_BINDING_INVALID');
-      // The saved result must be the immutable replay of these exact pure inputs.
-      if (canonical(decision) !== canonical(composeEncounter(decision.input)))
+      // The saved result must be the immutable replay of these exact pure inputs, under the policy it names.
+      if (canonical(decision) !== canonical(composeEncounter(decision.input, policyOf(decision.policyVersion))))
         throw new Error('COMPOSER_REPLAY_INVALID');
       const payload = canonical(decision);
       if (Buffer.byteLength(payload) > 262144) throw new Error('COMPOSER_DECISION_LIMIT');

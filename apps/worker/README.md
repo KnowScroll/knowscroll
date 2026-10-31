@@ -137,6 +137,13 @@ a projected system, planet or region without one (at most `--limit`, default 100
 `scenes.backfill-looks` consumer inserts the missing rows under that universe's lock. No slot, seed, family or anchor
 moves, no provider is called, and running it again assigns nothing. It needs only `KS_WORLD` and `DATABASE_URL`.
 
+`node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
+[--recent-topic-penalty <0-1>] [--sweep]` (`src/composer-operator.ts`, D-190) re-runs the retained vertical Composer decisions
+recorded since a date under `composer-policy.v0` and v1 and prints counts and shares only: first offers that stay on the
+source's topic, are another part of its series or move to another Jev subject, and how often sticky format fell back. It
+names no person, session, asset, title or text, calls no model and writes nothing. It needs only `KS_WORLD` and
+`DATABASE_URL`; exit 2 on bad usage. See the Composer README, "Policy replay".
+
 `node dist/operator.js rooms seed [--dry-run]` (`src/rooms-operator.ts`, D-051) creates one idea room for each
 library system and leaves rooms that exist as they are; `rooms moderator --room <slug> --account <uuid> [--remove]`
 names an account with a claimed profile a moderator of a room, or takes the role back from a current member. Both write room rows only: no member, no message,
@@ -155,19 +162,20 @@ when the recorded total plus its estimate would pass $1 in all. `--dry-run` call
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
-`content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared
-database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
+`content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
+left and what the answer check said. `content regenerate --only <keys> [--dry-run]` (`src/library-operator.ts`, D-197) sends the next take of a
+v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
 
 `node dist/operator.js content review-list [--all]`, `review-show --asset <id> [--revision <n>] [--sources]`, `release --asset <id> --revision <n>`
 and `reject --asset <id> --revision <n> --reason <text>` (`src/review-operator.ts`, D-138) are the review gate for v2 library Scrolls:
-what is held, the text to read, and the two decisions, each recorded with who and when. They use the shared database only, refuse worlds
+what is held, the text to read (with what the answer check said, D-198), and the two decisions, each recorded with who and when. They use the shared database only, refuse worlds
 outside dev/stage/ci/local, and call no provider. `review-show` prints the Scroll to the terminal and never to the log.
 
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
-`MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
+`MiniMax-M3.1-Flash`, prints the request maximum (two for a v1 recipe: one writer call and at most one repair; six for a v2 library recipe, D-198), uses the
 explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
 `--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is
 refused, `node dist/operator.js reasoning rejected [--attempt <uuid>]` shows the kept, redacted answer
@@ -193,7 +201,8 @@ person just activated and stores it for the next navigation (`modules/composer/R
 session, candidates, Hide and the person's stored Jev assessments in one short transaction, may ask Jev
 (`KS_JEV_ENABLED=1`) outside any transaction, only about shortlisted candidates that have no stored
 assessment from the last 30 minutes (D-058), then adds what it paid for to the stored assessments, persists
-the ranking and replaces the person's buffer in a second one. A job for a
+the ranking and replaces the person's buffer in a second one. It ranks under the policy the world sets
+(`KS_COMPOSER_POLICY`, `v0` unless set, D-190). A job for a
 superseded intent, an unactivated offer or an old epoch is skipped. A redelivery does nothing. It logs
 `composer.buffer_prepared` with the outcome code and counts only.
 
