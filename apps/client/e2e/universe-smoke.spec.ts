@@ -248,8 +248,7 @@ test('canonical region card opens displayed A through actual activation, then Ba
         revision: 43,
         results: events.map((event) => ({ eventId: event.eventId, status: 'accepted' })),
       };
-    } else if (COLLECTION_READS.includes(path)) value = world.reply(path, body);
-    else throw new Error(`Unexpected region fixture request: ${path}`);
+    } else throw new Error(`Unexpected region fixture request: ${path}`);
     await route.fulfill({ json: value });
   });
   await page.goto('/universe');
