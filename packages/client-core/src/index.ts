@@ -188,6 +188,21 @@ export {
   type RoomActivityState,
 } from './room-activity';
 export {
+  CONSTELLATION_POINTS,
+  STAR_ACT_WORDS,
+  createRoomSky,
+  createRoomToday,
+  currentConstellation,
+  skyLine,
+  starsOfCurrent,
+  stationSkyLine,
+  type RoomSkyController,
+  type RoomSkyState,
+  type RoomTodayController,
+  type RoomTodayOptions,
+  type RoomTodayState,
+} from './room-sky';
+export {
   createRoomDiscussion,
   mergeRoomMessages,
   type AskOutcome,

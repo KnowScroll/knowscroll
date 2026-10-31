@@ -5,6 +5,7 @@ import { createDatabase, type Database } from '@knowscroll/backend/infrastructur
 import { libraryRoomSeeds } from '@knowscroll/backend/modules/rooms';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
 import { FACE_COMMANDS, FACE_USAGE, roomsFaceCommand } from './rooms-face-operator.js';
+import { RITUAL_COMMANDS, RITUAL_USAGE, roomsRitualCommand } from './rooms-ritual-operator.js';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -37,6 +38,9 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
         charged: { type: 'string' },
         approve: { type: 'boolean', default: false },
         reject: { type: 'boolean', default: false },
+        day: { type: 'string' },
+        ritual: { type: 'string' },
+        state: { type: 'string' },
       },
       allowPositionals: true,
       strict: true,
@@ -44,7 +48,7 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
   } catch {
     print({
       result: 'usage',
-      usage: `rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | ${FACE_USAGE}`,
+      usage: `rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | ${FACE_USAGE} | ${RITUAL_USAGE}`,
     });
     return 2;
   }
@@ -68,6 +72,22 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
       print,
       logEvent,
     );
+  const ritualCommand = RITUAL_COMMANDS.find((candidate) => candidate === command);
+  if (ritualCommand !== undefined && parsed.positionals.length === 1)
+    return roomsRitualCommand(
+      ritualCommand,
+      {
+        room: values.room,
+        day: values.day,
+        ritual: values.ritual,
+        state: values.state,
+        approve: values.approve,
+        reject: values.reject,
+        dryRun: values['dry-run'],
+      },
+      print,
+      logEvent,
+    );
   const isSeed = command === 'seed' && parsed.positionals.length === 1;
   const isModerator =
     command === 'moderator' &&
@@ -78,7 +98,7 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
   if (!isSeed && !isModerator) {
     print({
       result: 'usage',
-      usage: `rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | ${FACE_USAGE}`,
+      usage: `rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | ${FACE_USAGE} | ${RITUAL_USAGE}`,
     });
     return 2;
   }

@@ -45,6 +45,12 @@ const LIFECYCLE = {
   'rooms.message_useful': 'the account marks are deleted, and so are the marks on messages that become tombstones',
   'rooms.read_positions':
     'the place where the account left off is deleted; it also goes when they leave or are removed',
+  'rooms.debates': 'kept with its discussion: two sides and a close time, no account',
+  'rooms.constellation_votes':
+    'the account votes on constellation names are deleted; they also go when they leave or are removed',
+  'rooms.debate_votes': 'the account votes on debates are deleted; they also go when they leave or are removed',
+  'rooms.ritual_solves':
+    'the account taps on Spot the flaw are deleted, by a Clear too (a play result); they also go when they leave or are removed',
 } as const;
 
 /**
@@ -125,6 +131,10 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'room_presence', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'message_useful', ownerColumn: 'account_id' },
     { schema: 'rooms', table: 'read_positions', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'debates', ownerColumn: 'discussion_id' },
+    { schema: 'rooms', table: 'constellation_votes', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'debate_votes', ownerColumn: 'account_id' },
+    { schema: 'rooms', table: 'ritual_solves', ownerColumn: 'account_id' },
   ],
   accountColumns: [
     { schema: 'rooms', table: 'members', column: 'account_id' },
@@ -138,6 +148,9 @@ export const roomsErasure: ModuleErasure = declareErasure({
     { schema: 'rooms', table: 'room_presence', column: 'account_id' },
     { schema: 'rooms', table: 'message_useful', column: 'account_id' },
     { schema: 'rooms', table: 'read_positions', column: 'account_id' },
+    { schema: 'rooms', table: 'constellation_votes', column: 'account_id' },
+    { schema: 'rooms', table: 'debate_votes', column: 'account_id' },
+    { schema: 'rooms', table: 'ritual_solves', column: 'account_id' },
   ],
 
   /** Full erasure of one universe: the queued ask jobs and the asks waiting on them. */
@@ -178,6 +191,9 @@ export const roomsErasure: ModuleErasure = declareErasure({
       ),
     );
     removed += count(await sql`delete from rooms.read_positions where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.constellation_votes where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.debate_votes where account_id = ${account}::uuid`.execute(trx));
+    removed += count(await sql`delete from rooms.ritual_solves where account_id = ${account}::uuid`.execute(trx));
     // A topic named from this person's message is called what it says, so the name is theirs too: before the message is a
     // tombstone, it becomes the neutral title for everyone (D-168).
     removed += count(
@@ -236,12 +252,17 @@ export const roomsErasure: ModuleErasure = declareErasure({
   clear: {
     dispositions: {
       ...Object.fromEntries(Object.keys(LIFECYCLE).map((store) => [store, 'preserve' as const])),
+      // A tap on Spot the flaw is a play result of the person, so a Clear erases it (D-082); the star it earned has no account.
+      'rooms.ritual_solves': 'erase' as const,
       ...Object.fromEntries(QUEUES.map((name) => [`store:pgboss/${name}`, 'erase' as const])),
     },
     async erase(scope) {
-      const asks = await failQueuedTurns(clearCoreTransactionOf(scope), scope.binding.universeId);
+      const trx = clearCoreTransactionOf(scope);
+      const asks = await failQueuedTurns(trx, scope.binding.universeId);
       const jobs = await deleteClearJobPayloads(scope, QUEUES);
-      return { module: 'rooms', status: 'completed', removed: asks + jobs };
+      const taps = await sql`delete from rooms.ritual_solves where account_id = (
+        select account_id from identity.universes where id = ${scope.binding.universeId}::uuid)`.execute(trx);
+      return { module: 'rooms', status: 'completed', removed: asks + jobs + Number(taps.numAffectedRows ?? 0) };
     },
   },
 
@@ -267,6 +288,9 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
       'rooms.activities',
       'rooms.poll_votes',
       'rooms.message_useful',
+      'rooms.constellation_votes',
+      'rooms.debate_votes',
+      'rooms.ritual_solves',
     ],
     'An invitation is a notice between two members and holds no words of the person; a presence lease lasts a minute and records only that the room was open; the place where they left off is private bookkeeping that holds no words; a summary holds a window of the room and no one of its own; the job queue is delivery bookkeeping.',
     async (scope, person) => {
@@ -338,6 +362,30 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         join rooms.rooms room on room.room_id = discussion.room_id
         where mark.account_id = ${person.accountId}::uuid
         order by mark.marked_at desc limit 500`.execute(trx);
+      // The person's own sky acts: which name they chose for which room's constellation, which side of which debate, and
+      // whether their tap on a day's Spot the flaw was right. A star has no account, so none is listed.
+      const skyVotes = await sql<{ room: string; name: string; voted_at: Date }>`
+        select room.name as room, constellation.candidates[vote.candidate + 1] as name, vote.voted_at
+        from rooms.constellation_votes vote
+        join rooms.constellations constellation on constellation.room_id = vote.room_id and constellation.no = vote.no
+        join rooms.rooms room on room.room_id = vote.room_id
+        where vote.account_id = ${person.accountId}::uuid
+        order by vote.voted_at desc limit 500`.execute(trx);
+      const debateVotes = await sql<{ room: string; side: string; voted_at: Date }>`
+        select room.name as room, case vote.side when 'a' then debate.side_a else debate.side_b end as side, vote.voted_at
+        from rooms.debate_votes vote
+        join rooms.debates debate on debate.discussion_id = vote.discussion_id
+        join rooms.discussions discussion on discussion.discussion_id = vote.discussion_id
+        join rooms.rooms room on room.room_id = discussion.room_id
+        where vote.account_id = ${person.accountId}::uuid
+        order by vote.voted_at desc limit 500`.execute(trx);
+      const taps = await sql<{ room: string; day: string; correct: boolean; solved_at: Date }>`
+        select room.name as room, to_char(ritual.day, 'YYYY-MM-DD') as day, solve.correct, solve.solved_at
+        from rooms.ritual_solves solve
+        join rooms.rituals ritual on ritual.ritual_id = solve.ritual_id
+        join rooms.rooms room on room.room_id = ritual.room_id
+        where solve.account_id = ${person.accountId}::uuid
+        order by solve.solved_at desc limit 500`.execute(trx);
       const messageCount = Number(written.rows[0]?.n ?? 0);
       const askCount = Number(asks.rows[0]?.n ?? 0);
       // A person who never took part in a room has no section: the file does not name the module.
@@ -348,6 +396,9 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         askCount === 0 &&
         votes.rows.length === 0 &&
         marks.rows.length === 0 &&
+        skyVotes.rows.length === 0 &&
+        debateVotes.rows.length === 0 &&
+        taps.rows.length === 0 &&
         startedActivities.rows.length === 0
       )
         return {};
@@ -389,6 +440,22 @@ function exportRooms(declaration: ModuleErasure): ModuleExport {
         })),
         // Which room and when, never whose message or what it said: the message belongs to its author.
         usefulMarks: marks.rows.map((row) => ({ room: row.room, markedAt: row.marked_at.toISOString() })),
+        constellationNameVotes: skyVotes.rows.map((row) => ({
+          room: row.room,
+          name: row.name,
+          votedAt: row.voted_at.toISOString(),
+        })),
+        debateVotes: debateVotes.rows.map((row) => ({
+          room: row.room,
+          side: row.side,
+          votedAt: row.voted_at.toISOString(),
+        })),
+        spotTheFlawTaps: taps.rows.map((row) => ({
+          room: row.room,
+          day: row.day,
+          right: row.correct,
+          tappedAt: row.solved_at.toISOString(),
+        })),
         activitiesStarted: startedActivities.rows.map((row) => ({
           room: row.room,
           title: row.title,

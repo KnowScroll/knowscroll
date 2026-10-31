@@ -91,6 +91,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.rooms.end(entered.lock, entered.owner.accountId, 'left', now);
               await p.presence.clear(entered.lock, entered.owner.accountId);
               await p.positions.forget(entered.lock, entered.owner.accountId);
+              await p.sky.forgetMember(entered.lock, entered.owner.accountId);
               await p.rooms.announce(entered.lock, now);
               return RoomLeaveAcceptanceSchema.parse({
                 ...receiptBase(scope, now, command.commandId),
@@ -180,6 +181,7 @@ export function makeRoomCommands(p: RoomPorts) {
               await p.rooms.end(lock, targetAccountId, 'removed', now);
               await p.presence.clear(lock, targetAccountId);
               await p.positions.forget(lock, targetAccountId);
+              await p.sky.forgetMember(lock, targetAccountId);
               await p.rooms.announce(lock, now);
               return accepted();
             });

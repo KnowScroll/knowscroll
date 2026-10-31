@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -44,6 +44,10 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | Every room has a face: an emblem, palette, motif and one slow loop on its band, the residents' marks, the emblem on its Talk row and on its station on the Universe map. A room wears the default its ID gives it until an operator approves a kit (v3 R-4, D-170) | Implemented (CI-verified) |
 | Operator: propose a room's kit from its topic (the `rooms.station-kit` role, one call, closed vocabulary, contrast checked), review it, and approve or reject it (v3 R-4, D-170, D-171) | Implemented (CI-verified; fixture model). Not yet runtime-verified |
 | Operator: paint a room's backdrop with MiniMax's image model within a $1 total cap, every attempt in a ledger, review it before any member sees it (v3 R-4, D-166, D-171) | Implemented (CI-verified; fixture image provider and a real media store). Not yet runtime-verified: whether the token-plan key may call the image route is not known |
+| A Today channel in every room (one per room, made with it) with the day's question and Spot the flaw above it, once an operator approved them; answer in Today, tap one sentence (final), see the key and the Scroll it came from (v3 R-5, D-174, D-176) | Implemented (CI-verified; ritual rows are labelled fixtures). Not yet runtime-verified |
+| The room's stars: a human answer marked Useful, a debate closed by vote, the first right Spot the flaw; three a day, never an AI, in the act's transaction (v3 R-5, D-174) | Implemented (CI-verified) |
+| Seven stars finish a constellation; the members vote for one of three code names for a day; the name is settled by the next member command; the station lights on every member's map (v3 R-5, D-175, D-176) | Implemented (CI-verified). Not yet runtime-verified |
+| Start a Debate (two sides, a close time) and vote until it closes; the tally shows after voting; a close with two voters earns a star (v3 R-5, D-176) | Implemented (CI-verified) |
 | What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
@@ -56,7 +60,7 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `read_positions` | Private: one row per member per room, the last time their device had it open (moved by their own presence beats) and, after a long return, when they left and the window of the summary written for it. Never sent to anyone but its member |
 | `room_presence` | One lease row per member who has the room open: `last_seen_at`, renewed by their own device and read only while it is under a minute old |
 | `invitations` | A member's invitation of a friend; valid while the inviter is still a member |
-| `discussions` | A room thread: `kind` (`general`, one per room by a partial unique index; `topic`; `today`, reserved), title, optional `tag` (question, debate, explainer, share; topics only), `title_derived` (the title is the first words of the origin message, not the starter's typing), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters |
+| `discussions` | A room thread: `kind` (`general` and `today`, one each per room by partial unique indexes, made with the room; `topic`), title, optional `tag` (question, debate, explainer, share; topics only), `title_derived` (the title is the first words of the origin message, not the starter's typing), optional root (an exact asset revision), origin message (the message a topic began from, or the card a content thread began from), starter, pin, counters |
 | `messages` | A person's text or card, a topic card (`topic_discussion_id`: the topic a member started from a message, no words of its own), an AI inhabitant's contribution (with `trigger`, why it spoke, when it spoke on its own), or a tombstone; `hidden_at` is a moderator's removal |
 | `message_useful` | One mark of Useful per member per message (`message_id`, `account_id`, `marked_at`). Never on one's own message; counted only on a topic of the list; the author is never told |
 | `summaries` | A resident's "while you were away" for one room and 12-hour window: the unique key (room, window) is the one-call cap, the words (`ready` only), the span they cover, and the provenance of the call. Erased (`stale`) when what it read is removed |
@@ -65,6 +69,11 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `room_identity` | A kit a model proposed for a room: closed-vocabulary JSON with its version, the role's provenance, and the operator's decision (`pending`, `approved`, `rejected`, `superseded`). One waits and one is approved per room, by partial unique indexes. Not personal (D-170, D-171) |
 | `backdrop_attempts` | The ledger of every paid image attempt: its state (`dispatched`, `succeeded`, `failed`, `not_sent`, `unknown`, `reconciled`, `written_off`), the estimate and the charge it counts against the $1 cap in millionths of a dollar, the price's source and the day it was read, the prompt's hash, who asked and the outcome code. No prompt text, no image, no account (D-166) |
 | `room_backdrops` | A painted still an attempt made: its place in the media store, its digest, type and size, and the operator's decision. Only `approved` is served (D-171) |
+| `rituals` | A day's item for a room: `question` (a template over a library Scroll) or `flaw` (a passage with one sentence altered, key kept), as `ritual.v1` JSON, who made it (`template` or `model`) and the operator's decision (`draft`, `approved`, `rejected`). Unique per (room, day, kind). Shown only when approved (D-174, D-176) |
+| `ritual_solves` | One person's final tap on a Spot the flaw: the sentence and whether it was right. Deleted by a Clear, leaving and account deletion |
+| `stars` | The room's stars: act, source id, UTC day, constellation number. Unique per (room, act, source). No account, no words, no title (D-174) |
+| `constellations`, `constellation_votes` | A finished constellation: when, its three candidate names, when the vote closes and the name once settled; and each member's one vote (D-175) |
+| `debates`, `debate_votes` | A topic tagged `debate`: two sides, a close time, the result and, once closed, the voters; each member's one vote on a side (D-176) |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
 | `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
@@ -73,7 +82,7 @@ Use cases (`public.ts`, `RoomUseCases`): `list`, `read`, `join`, `leave`, `invit
 `setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
 `readDiscussion`, `history`, `changes`, `send` (which asks the resident a text message names, or else queues the resident check for a
 question or a strong claim), `openSnippet`, `pin`, `hideMessage`, `markUseful`, `ask` (a plain ask, or one pointed at a message),
-`topics`, `dismissAway`, `stations`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
+`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
 a topic from a message. `setPresence` also moves the member's place and, on a long return, claims the window and queues the summary. The
 worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue, `RunCastPass` the
 `rooms.cast-pass` queue and `Summarise` the `rooms.summarise` queue (the last three only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
@@ -162,6 +171,18 @@ conversations or threads.
   `planner`, `evidence` or `personal_context` as a write target (`write-boundary.test.ts`), and a resident's turn
   changes no row there (`rooms-residents.test.ts`).
 
+## Today and the sky (v3 R-5, D-174 to D-176)
+
+A room has a **Today** channel and a **sky**. Both are real things members did together: nothing is generated while someone waits, no resident is counted as a person, and the sky names no one.
+
+- **Stars (D-174).** Three acts earn one: another member marks a person's words Useful in Today (or in a question topic, by someone other than its asker); a debate closes by vote with two or more different voters; the first right tap of the day on Spot the flaw. `awardStar` runs in the act's own transaction, under a per-room advisory lock (`rooms.sky:<room>`) taken last, so the daily count (`KS_ROOMS_STARS_PER_DAY`, default 3), the unique (room, act, source) insert and the constellation check are exact. A full day earns nothing and is not remembered. An AI's words, one's own mark, a card, General chat and a replay never earn. A star holds no account and no words, so nothing a person does later removes one.
+- **Constellations (D-175).** The seventh star finishes a constellation and offers three names from code lists by library system. Members vote for 24 hours (changeable; counts only after you voted). A vote goes to the earliest constellation with no name whose 24 hours are still open (a room may finish a second inside the first one's day), and names that constellation (`NameConstellation.constellation`): a tap for any other is refused. A constellation is offered names no other of the room holds or is offered (lists of eighteen; a repeat only when fewer than three are free). `settleDue` names every constellation whose vote has closed, oldest first, reading what is due again under the sky lock, by the most votes (ties to the earlier name, none to the first, a name an earlier constellation holds passed over while a free one is left; the plain vote decides when all three are held), and closes any debate past its time. There is no job: the first member command after the moment settles it (a presence beat or a vote), guarded by the row it changes. A room nobody opens settles nothing.
+- **The station (D-176).** `stations` adds `sky` for a member or moderator, from one read of the stars of the rooms on the caller's map (`SkyStore.figures`). An outsider's or an invitee's station, a preview and a list carry none. Rooms are still never added to a friend visit.
+- **Today (D-176).** `today` (members only) reads the day's approved question and Spot the flaw, the number of people's messages in Today since UTC midnight (`messagesToday`), and the questions of the days before. The flaw's key is withheld until the reader has tapped; the tap (`solveFlaw`) is final and a retry answers with the first. It carries the device's recording generation: while recording is paused (or the generation is stale) nothing is stored, the key stays on the server and the answer is `not_saved` (`CommandSpec.gate`, no receipt), so the screen can say so and the tap can be sent again. Items are written only by the ritual batch and an operator's approval (see "Today's ritual items"); an item that no longer parses is left out. The answers are ordinary messages in the Today discussion, so Useful, blocks and moderation work as in any discussion.
+- **Debates (D-176).** A topic started with the tag `debate` must carry `debate: { sides, closesInHours }` (two different sides up to 60 characters, 1 hour to 7 days); any other tag refuses one. `voteDebate` holds the debate row FOR SHARE, so a vote lands before a close or is refused after it. The tally is held back until the reader has voted or the debate is closed; a tie has no winner.
+- **Lock order.** Personal root, own account gate, the room root (FOR SHARE for these commands), the discussion and debate rows, then the sky lock. `closeDue` takes a debate row FOR UPDATE SKIP LOCKED, then the sky lock; a vote takes only the row FOR SHARE or the sky lock.
+- **Rooms never write evidence.** None of these commands or reads touches `experience`, `geography`, `composer`, `planner`, `evidence` or `personal_context`; `rooms-sky.test.ts` counts those schemas' rows around a star, a tap, a vote and a read.
+
 ## A room's face (v3 R-4, D-166, D-170, D-171, D-172)
 
 Every room has an identity the app draws: an emblem (a frame and a glyph), a palette, a faint motif with one slow loop, and the mark each
@@ -222,7 +243,7 @@ planet) that map holds as a factual place: `{ room, standing, placement: { syste
 map's own object IDs, so the client draws the station beside the scene object they name; the angle comes from the room's
 ID, so a station keeps its spot. The same room sits beside different places on different maps. A person with no map has
 no stations, a hypothetical place never carries one, a closed room is not shown, and the answer has no member, count,
-online or activity field, only the room's own face (D-170): the station draws the room's emblem over its hub and its ring in the kit's accent. Asking reads, writes and enqueues nothing. No scene object or Geography row is added: persisting
+online or activity field, only the room's own face (D-170) and, for a member or moderator, the room's sky (D-176): the station draws the room's emblem over its hub, its ring in the kit's accent and its constellation around it. Asking reads, writes and enqueues nothing. No scene object or Geography row is added: persisting
 a placement would need a new scene-core kind and capability (D-051).
 
 ## Optional room activity (R03)
@@ -321,6 +342,9 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
 | ai_turns | kept; asks and unprompted turns still queued under the universe end as failed (and stay counted) | the asker link is cleared and queued asks end as failed, as do queued unprompted turns whose job the universe owned; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
+| rituals, stars, constellations, debates | kept: no account (a star outlives everyone who earned it) | kept: no account |
+| ritual_solves | erased: a play result of the person (D-082), by a Clear too | the person's taps are deleted (and when they leave or are removed) |
+| constellation_votes, debate_votes | kept: explicit communication, like poll votes | the person's votes are deleted (and when they leave or are removed) |
 | room_cast, typing_holds | kept: no account | kept: no account (a hold lapses in seconds) |
 | room_identity, backdrop_attempts, room_backdrops | kept: not personal, no account (an operator is `cli:<name>`) | kept: no account |
 | activities | kept | the creator link is cleared; the poll or quiz stays with the room |
@@ -329,7 +353,7 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
 The export holds the person's rooms (with their AI level, keep-out choice and when they read the AI notice; never where they were), the discussions they started and their own words (newest 2,000, with
-`truncated`; a topic card is "a topic they started"), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words), the room and time of each mark of Useful they made (never whose message it was) and the activities they started; it names no other person and no AI text, and a
+`truncated`; a topic card is "a topic they started"), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words), their votes on constellation names and on debates (the name or side they chose) and their taps on Spot the flaw (the room, the day, whether right), the room and time of each mark of Useful they made (never whose message it was) and the activities they started; it names no other person and no AI text, and a
 person who never took part in a room has no section.
 
 ## Failure and recovery
@@ -349,10 +373,41 @@ person who never took part in a room has no section.
 - Tests: `tests/integration/modules/rooms.test.ts`, `rooms-residents.test.ts` and `rooms-residents-migration.test.ts` (residents, the router's caps,
   keep-out bytes, levels, typing, the room scope), `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
   `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
-  `rooms-stations.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),
+  `rooms-stations.test.ts`, `rooms-sky.test.ts` (stars, the cap, constellations and their names, debates, Spot the flaw, who can read the sky, what a person takes back), `domain/sky.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),
   `rooms-away.test.ts` ("while you were away"), `rooms-face.test.ts` (kits, the $1 cap under concurrency, the ledger, review), `kit.test.ts` and `backdrop-prompt.test.ts` and `domain/backdrop-spend.test.ts` (the vocabulary, contrast, the prompt, the money rule), and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.
 - Operator: the face commands above, `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
   (naming needs a claimed profile and never undoes a removal; `--remove` only takes the role from a current member;
   a moderator who leaves and comes back is an ordinary member until named again)
   (`apps/worker/src/rooms-operator.ts`).
+
+## Today's ritual items (v3 R-5, D-176)
+
+Status: implemented (CI-verified; fixture model). Not runtime-verified: needs `KS_REASONING_ROOM_ENABLED`, a provider and an operator's approval.
+
+A room's day has two items, both grounded in an admitted library Scroll and both waiting for an operator before any member sees them
+(`rooms.rituals`, migration 0085, states `draft`, `approved`, `rejected`, unique by room, day and kind):
+
+- **The question** is a template over a Scroll's title and summary (`domain/ritual-question.ts`). It costs no model call.
+- **Spot the flaw** is a passage of three or four sentences of a Scroll with one sentence altered. **Code** picks the passage and the sentence
+  (`domain/flaw.ts`: a sentence that states a number, a comparison or a cause when there is one), keeps the Scroll's own sentence as the key, and
+  records the cited range with the SHA-256 of the quote. The model (`rooms.ambient-ritual`, version `ritual.1`, class `ambient`, one call and at
+  most one repair, no tool loop) writes **only the altered sentence**; `alterationProblem` refuses it unless it is one sentence, differs from the original, is
+  about the same length, keeps most of its words, has no link and no word that says it is wrong. A refusal carries a fixed repair hint; a second
+  failure stores nothing.
+
+`application/ritual-batch.ts` drafts a room's day: it skips a kind the room already has, prefers a Scroll the room has not cited in the last 14 days, and
+asks the model at most once per room and day (the run's ID is fixed by the room, the day and the kind, so a repeated batch finds the stored item or the
+ended run and pays nothing; an unknown outcome is never sent again). No open room with a member and no passage with three readable sentences means no call. The
+item and the end of its model run commit together in the room scope's transaction. The night's job `rooms.nightly-rituals` (cron `10 3 * * *`, only where
+the worker holds the rooms grant) drafts today's UTC day for every open room that has a member and throws when a room failed, so it retries
+(everything it stores is idempotent). Calls: at most one per room per day, none for an empty room.
+
+| Operator command | What it does |
+| --- | --- |
+| `rituals --room <slug> [--day YYYY-MM-DD] [--dry-run]` | Drafts one room's day (today by default). A dry run shows the passage and the sentence code chose and calls nothing |
+| `ritual-list [--state draft|approved|rejected]` | The items with their words and cited Scroll; never a person |
+| `ritual-review --ritual <uuid> --approve|--reject` | The decision, as `cli:<name>`. Approving reads the cited block again and refuses with `citation_changed` unless the Scroll still says it |
+
+Public names: `composeRitualOperator` and `roomsRitualProviders` (`adapters/nest-providers`), `RUN_NIGHTLY_RITUALS` and `nightlyRitualsQueue` (`public.ts`). A ritual
+item is room content with no account: neither a Clear nor an account deletion touches `rooms.rituals`. Nothing here writes to a personal schema.

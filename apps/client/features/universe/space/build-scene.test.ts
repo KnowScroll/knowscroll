@@ -183,6 +183,71 @@ describe('a universe with stations, a ship and quiet places', () => {
     space.dispose();
   });
 
+  it('draws the constellation over a member’s station with the room’s accent only, and none over an outsider’s', () => {
+    const faced = {
+      emblem: { frame: 'circle', glyph: 'star' },
+      palette: { ground: 'midnight', accent: 'sun', ink: 'cream' },
+    } as const;
+    const withSky: SpaceDefinition = {
+      ...universe,
+      stations: [
+        { ...universe.stations![0]!, id: 'sky', emblem: faced, sky: { lit: 3, finished: 0, state: 'forming' } },
+        { ...universe.stations![0]!, id: 'none', emblem: faced, position: { x: -2, y: 0.6, z: 6 } },
+      ],
+    };
+    const space = buildSpace(withSky, 390 / 844, 1);
+    const plateOf = (id: string) => {
+      let found: THREE.Sprite | undefined;
+      space.anchors
+        .find((anchor) => anchor.id === id)!
+        .object.traverse((node) => {
+          if (node.name === 'room-constellation') found = node as THREE.Sprite;
+        });
+      return found;
+    };
+    const plate = plateOf('sky')!;
+    expect(plate).toBeInstanceOf(THREE.Sprite);
+    const data = (plate.material.map as THREE.DataTexture).image.data as Uint8Array;
+    const colours = new Set<number>();
+    for (let at = 0; at < data.length; at += 4)
+      if (data[at + 3]! > 200) colours.add((data[at]! << 16) | (data[at + 1]! << 8) | data[at + 2]!);
+    // Lit stars are the kit's accent and nothing else is opaque: no glow or sparkle was painted.
+    expect([...colours]).toEqual([0xffe44d]);
+    expect(plateOf('none')).toBeUndefined();
+    expect(space.anchors.find((anchor) => anchor.id === 'sky')!.caption).toBe('3 of 7');
+    expect(space.anchors.find((anchor) => anchor.id === 'none')).not.toHaveProperty('caption');
+    space.dispose();
+  });
+
+  it('keeps the light of a station that finished a constellation on, and dims its sky under Lately', () => {
+    const faced = {
+      emblem: { frame: 'circle', glyph: 'star' },
+      palette: { ground: 'midnight', accent: 'sun', ink: 'cream' },
+    } as const;
+    const base = { ...universe.stations![0]!, emblem: faced };
+    const probe = (station: NonNullable<SpaceDefinition['stations']>[number], at: number) => {
+      const space = buildSpace({ ...universe, stations: [station] }, 390 / 844, 1);
+      space.poseAt(at);
+      let light = -1;
+      let plate = 1;
+      space.anchors
+        .find((anchor) => anchor.kind === 'station')!
+        .object.traverse((node) => {
+          if (node.name === 'room-constellation') plate = (node as THREE.Sprite).material.opacity;
+          else if (node instanceof THREE.Sprite && node.name === '') light = node.material.opacity;
+        });
+      space.dispose();
+      return { light, plate };
+    };
+    // At t = 0.3 the blinking light is dark (sin(0.78) > 0.4 is false at t = 0; use t = 2 where it is off).
+    const finished = { lit: 7, finished: 1, state: 'naming' as const };
+    const forming = { lit: 2, finished: 0, state: 'forming' as const };
+    for (const at of [0, 0.6, 1.2, 2, 2.9]) expect(probe({ ...base, sky: finished }, at).light).toBe(1);
+    const blinks = [0, 0.6, 1.2, 2, 2.9].map((at) => probe({ ...base, sky: forming }, at).light);
+    expect(new Set(blinks).size).toBeGreaterThan(1);
+    expect(probe({ ...base, calm: true, sky: forming }, 0).plate).toBeLessThan(1);
+  });
+
   it('shows one system alone when asked, with its stations, and everything again afterwards', () => {
     const space = buildSpace(universe, 390 / 844, 1);
     space.showOnly('two');
