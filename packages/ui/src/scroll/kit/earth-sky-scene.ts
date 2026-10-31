@@ -1,4 +1,4 @@
-import { stageParts, stagePhysics, type StagePart, type StageState } from '../model';
+import { AXIAL_TILT_DEGREES, physicsAtTilt, stageParts, stagePhysics, type StagePart, type StageState } from '../model';
 
 /**
  * The drawing parameters of the "Earth & sky" kit (D-133): what the picture needs to place its parts,
@@ -46,6 +46,16 @@ const PIN_DISTANCE_FROM_SUN_POINT_DEGREES: Readonly<Record<'high' | 'middle' | '
 
 /** 0 = cool, 1 = warm: a pin's mark as a number, so a tween can blend two marks. */
 const WARMTH: Readonly<Record<'warm' | 'neutral' | 'cool', number>> = { warm: 1, neutral: 0.5, cool: 0 };
+
+/**
+ * A pin's warmth for a distance from the point facing the Sun that the reader chose by turning the
+ * axis, on the same scale as the table above: the high-Sun distance is fully warm, the low-Sun one fully cool.
+ */
+function warmthAtDistance(distance: number): number {
+  const high = PIN_DISTANCE_FROM_SUN_POINT_DEGREES.high;
+  const low = PIN_DISTANCE_FROM_SUN_POINT_DEGREES.low;
+  return Math.min(1, Math.max(0, 1 - (distance - high) / (low - high)));
+}
 
 /** A to-scale orbit is nearly a circle; the stretched one is drawn flatter, with the Sun off-centre. */
 const ORBIT_SHAPE: Readonly<Record<'orbit' | 'orbit-stretched', { ratio: number; sunOffset: number }>> = {
@@ -96,22 +106,38 @@ function axisTurnOf(view: StageView, leansToward: 'north' | 'south' | 'neither',
   return 0;
 }
 
-/** The scene of a settled stage state. */
-export function sceneOf(state: StageState): EarthSkyScene {
-  const physics = stagePhysics(state);
+/**
+ * The scene of a settled stage state. With a `tiltDegrees` other than today's the reader has turned
+ * the axis at the Final call (D-187): the axis, the pins and Ray are worked out for that tilt by
+ * `physicsAtTilt`, the same physics as the text version, and nothing else changes.
+ */
+export function sceneOf(state: StageState, tiltDegrees: number = AXIAL_TILT_DEGREES): EarthSkyScene {
+  const turned = tiltDegrees !== AXIAL_TILT_DEGREES;
+  const physics = turned ? physicsAtTilt(state, tiltDegrees) : stagePhysics(state);
   const orbit =
     state.view === 'orbit' || state.view === 'orbit-stretched' ? ORBIT_SHAPE[state.view] : ORBIT_SHAPE.orbit;
+  const pins =
+    turned && 'northDistance' in physics
+      ? {
+          northPinAway: physics.northDistance,
+          southPinAway: physics.southDistance,
+          northWarmth: warmthAtDistance(physics.northDistance),
+          southWarmth: warmthAtDistance(physics.southDistance),
+        }
+      : {
+          northPinAway: PIN_DISTANCE_FROM_SUN_POINT_DEGREES[physics.north.sunHeight],
+          southPinAway: PIN_DISTANCE_FROM_SUN_POINT_DEGREES[physics.south.sunHeight],
+          northWarmth: WARMTH[physics.north.pin],
+          southWarmth: WARMTH[physics.south.pin],
+        };
   return {
     view: state.view,
     parts: stageParts(state.view),
     earthAngle: MONTH_ANGLE_DEGREES[state.earthAt],
     orbitRatio: orbit.ratio,
     sunOffset: orbit.sunOffset,
-    axisTurn: axisTurnOf(state.view, physics.leansToward, physics.tiltDegrees),
-    northPinAway: PIN_DISTANCE_FROM_SUN_POINT_DEGREES[physics.north.sunHeight],
-    southPinAway: PIN_DISTANCE_FROM_SUN_POINT_DEGREES[physics.south.sunHeight],
-    northWarmth: WARMTH[physics.north.pin],
-    southWarmth: WARMTH[physics.south.pin],
+    axisTurn: axisTurnOf(state.view, physics.leansToward, tiltDegrees),
+    ...pins,
     moonAngle: MOON_ANGLE[state.moonAt],
     moonPhased: state.moonAt !== 'off',
     focus: state.focus,

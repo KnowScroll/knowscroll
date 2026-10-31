@@ -28,6 +28,11 @@ export interface MemberRow {
   readonly membershipId: string;
   readonly membershipRevision: number;
   readonly readThroughSequence: number;
+  /**
+   * How far this person has read while their SEEN switch was on (D-150): never ahead of `readThroughSequence`, and the
+   * only position the other person can be told. Direct conversations only; a thread member's stays 0.
+   */
+  readonly sharedReadThroughSequence: number;
   readonly muted: boolean;
   readonly left: boolean;
 }
@@ -199,11 +204,16 @@ export interface ConversationStore {
     authorAccountId: string,
     commandId: string,
   ): Promise<MessageRow | undefined>;
+  /**
+   * Moves the member's own read position. With `alsoShared`, the shared position (SEEN) moves to the same number in
+   * the same statement; the caller passes it only while the reader's own switch is on.
+   */
   setReadThrough(
     reader: ConversationReader,
     conversationId: string,
     accountId: string,
     sequence: number,
+    alsoShared?: boolean,
   ): Promise<void>;
   setMuted(reader: ConversationReader, conversationId: string, accountId: string, muted: boolean): Promise<void>;
   /** Ends the caller's membership and closes the conversation. */

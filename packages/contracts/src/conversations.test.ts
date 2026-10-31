@@ -229,6 +229,39 @@ describe('direct conversation wire prerequisite (authored fixtures, no social ru
       false,
     );
   });
+  it('carries SEEN as a position the other person has read to, never a time, a name or a flag', () => {
+    const snapshot = {
+      ...read,
+      status: 'ready',
+      conversation,
+      peer: person,
+      own: { readThroughSequence: 2, muted: false },
+      latestMessageSequence: 2,
+      messages: [message(1), message(2)],
+      limit: 2,
+      history: { kind: 'end' },
+      catchUpCursor: cursor('kcc1'),
+    };
+    expect(DirectConversationSnapshotSchema.safeParse(snapshot).success).toBe(true);
+    for (const throughSequence of [0, 1, 2])
+      expect(DirectConversationSnapshotSchema.safeParse({ ...snapshot, peerRead: { throughSequence } }).success).toBe(
+        true,
+      );
+    for (const peerRead of [
+      { throughSequence: 3 },
+      { throughSequence: -1 },
+      { throughSequence: 1, readAt: '2026-10-22T00:00:00.000Z' },
+      { throughSequence: 1, shared: true },
+      {},
+    ])
+      expect(DirectConversationSnapshotSchema.safeParse({ ...snapshot, peerRead }).success).toBe(false);
+    const page = changes();
+    expect(ConversationChangesPageSchema.safeParse({ ...page, peerRead: { throughSequence: 9 } }).success).toBe(true);
+    expect(ConversationChangesPageSchema.safeParse({ ...page, peerRead: { throughSequence: 10 } }).success).toBe(false);
+    expect(
+      ConversationChangesPageSchema.safeParse({ ...page, peerRead: { throughSequence: 1, typing: true } }).success,
+    ).toBe(false);
+  });
   it('includes the latest committed bubble before handing off to catch-up, with bounded older history', () => {
     const snapshot = {
       ...read,

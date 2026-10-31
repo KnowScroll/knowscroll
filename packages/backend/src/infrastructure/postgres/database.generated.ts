@@ -1264,6 +1264,17 @@ export interface PlayCalls {
   universe_id: string;
 }
 
+export interface PlayLandmarks {
+  asset_id: string;
+  earned_at: Generated<Timestamp>;
+  landmark_key: string;
+  landmark_name: string;
+  privacy_epoch: number;
+  revision: number;
+  tier: string;
+  universe_id: string;
+}
+
 export interface PlayScrollResults {
   asset_id: string;
   calls_locked: number;
@@ -1811,6 +1822,7 @@ export interface SocialConversationMembers {
   muted: Generated<boolean>;
   pending: Generated<boolean>;
   read_through_sequence: Generated<Int8>;
+  shared_read_through_sequence: Generated<Int8>;
 }
 
 export interface SocialConversations {
@@ -1947,6 +1959,8 @@ export interface SocialVisibilitySettings {
   audience: Generated<string>;
   presence_preference: Generated<string>;
   presence_revision: Generated<Int8>;
+  read_state_revision: Generated<Int8>;
+  share_read_state: Generated<boolean>;
   visibility_revision: Generated<Int8>;
 }
 
@@ -2110,6 +2124,7 @@ export interface DB {
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
   "play.calls": PlayCalls;
+  "play.landmarks": PlayLandmarks;
   "play.scroll_results": PlayScrollResults;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;

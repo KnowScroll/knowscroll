@@ -4,15 +4,21 @@ import { plainText } from '../primitives.js';
 import {
   applyStagePatch,
   AXIAL_TILT_DEGREES,
+  describeStageAtTilt,
   describeStageState,
   INITIAL_STAGE_STATE,
   NORTH_LEAN_PERCENT,
+  physicsAtTilt,
+  PIN_LATITUDE_DEGREES,
   settleStageState,
   STAGE_ENUMS,
   STAGE_KEYS,
   stageParts,
   stagePhysics,
   StageStateSchema,
+  sunLatitudeDegrees,
+  TILT_RANGE,
+  tiltMatters,
   type StageState,
 } from './kit.js';
 import { FIELD_LIMITS_V2 } from './limits.js';
@@ -235,5 +241,107 @@ describe('describing a state', () => {
     expect(describeStageState({ view: 'earth-close', earthAt: 'mar', moonAt: 'off', focus: 'ray' })).toContain(
       'Neither half leans toward the Sun',
     );
+  });
+});
+
+describe('the tilt a reader turns at the Final call (D-187)', () => {
+  const MONTHS = STAGE_ENUMS.earthAt;
+  const TILTS = Array.from({ length: TILT_RANGE.max - TILT_RANGE.min + 1 }, (_, step) => TILT_RANGE.min + step);
+
+  it('puts the noon Sun over the tilt itself at the June solstice, minus it in December and over the equator at the equinoxes', () => {
+    for (const tilt of TILTS) {
+      expect(sunLatitudeDegrees('jun', tilt)).toBeCloseTo(tilt, 9);
+      expect(sunLatitudeDegrees('dec', tilt)).toBeCloseTo(-tilt, 9);
+      expect(sunLatitudeDegrees('mar', tilt)).toBeCloseTo(0, 9);
+      expect(sunLatitudeDegrees('sep', tilt)).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('is finite and inside the hemispheres over every month and every whole degree of the range, and clamps outside it', () => {
+    for (const month of MONTHS)
+      for (const tilt of TILTS) {
+        const latitude = sunLatitudeDegrees(month, tilt);
+        expect(Number.isFinite(latitude)).toBe(true);
+        expect(Math.abs(latitude)).toBeLessThanOrEqual(tilt + 1e-9);
+        const physics = physicsAtTilt({ earthAt: month }, tilt);
+        for (const distance of [physics.northDistance, physics.southDistance]) {
+          expect(Number.isFinite(distance)).toBe(true);
+          expect(distance).toBeGreaterThanOrEqual(0);
+          expect(distance).toBeLessThanOrEqual(90);
+        }
+      }
+    expect(sunLatitudeDegrees('jun', -40)).toBeCloseTo(0, 9);
+    expect(sunLatitudeDegrees('jun', 400)).toBeCloseTo(TILT_RANGE.max, 9);
+  });
+
+  it("agrees with the derived physics in every month at today's tilt, so turning the slider starts from the same picture", () => {
+    for (const month of MONTHS) {
+      const turned = physicsAtTilt({ earthAt: month }, AXIAL_TILT_DEGREES);
+      const derived = stagePhysics({ earthAt: month });
+      expect({ leansToward: turned.leansToward, north: turned.north, south: turned.south }).toEqual({
+        leansToward: derived.leansToward,
+        north: derived.north,
+        south: derived.south,
+      });
+    }
+  });
+
+  it('leans neither half toward the Sun, in any month, when the axis stands straight up', () => {
+    for (const month of MONTHS) {
+      const upright = physicsAtTilt({ earthAt: month }, 0);
+      expect(upright.leansToward).toBe('neither');
+      expect(upright.north).toEqual(upright.south);
+      expect(upright.north.pin).toBe('neutral');
+    }
+  });
+
+  it('brings the Sun nearer the northern pin as the tilt grows, up to the latitude of the pin, mirrored six months apart', () => {
+    let previous = Infinity;
+    for (const tilt of TILTS) {
+      const june = physicsAtTilt({ earthAt: 'jun' }, tilt);
+      if (tilt <= PIN_LATITUDE_DEGREES) {
+        expect(june.northDistance).toBeLessThanOrEqual(previous + 1e-9);
+        previous = june.northDistance;
+      }
+      const december = physicsAtTilt({ earthAt: 'dec' }, tilt);
+      expect(december.northDistance).toBeCloseTo(june.southDistance, 9);
+      expect(december.southDistance).toBeCloseTo(june.northDistance, 9);
+    }
+  });
+
+  it("describes today's tilt exactly as the stage does, and any other tilt in words that cannot contradict its picture", () => {
+    const state: StageState = { view: 'sun-earth', earthAt: 'jun', moonAt: 'off', focus: 'none' };
+    expect(describeStageAtTilt(state, AXIAL_TILT_DEGREES)).toBe(describeStageState(state));
+    const upright = describeStageAtTilt(state, 0);
+    expect(upright).toMatch(/stands straight up/u);
+    expect(upright).toMatch(/Neither half leans toward the Sun/u);
+    expect(upright).toMatch(/pin in the north is marked neither warm nor cool/u);
+    const steeper = describeStageAtTilt(state, 60);
+    expect(steeper).toMatch(/tilted by 60 degrees, more than the tilt it has now/u);
+    expect(describeStageAtTilt(state, 10)).toMatch(/less than the tilt it has now/u);
+    // Earth's axis is tilted or upright, never "sideways": that word belongs to another world.
+    for (const tilt of TILTS) expect(describeStageAtTilt(state, tilt)).not.toMatch(/sideways|on its side/iu);
+  });
+
+  it('matters where the view draws the axis and the season and the month has a lean to lose, and not at an equinox or on the Moon view', () => {
+    for (const state of EVERY_STATE.filter((candidate) => candidate.moonAt === 'off' && candidate.focus === 'none')) {
+      const drawsSeason = state.view !== 'moon-orbit';
+      const equinox = state.earthAt === 'mar' || state.earthAt === 'sep';
+      expect(tiltMatters(state), `${state.view} ${state.earthAt}`).toBe(drawsSeason && !equinox);
+    }
+  });
+
+  it('agrees with the pictures: where the tilt matters, turning it moves the pins; where it does not, it never does', () => {
+    for (const month of MONTHS) {
+      const state: StageState = { view: 'sun-earth', earthAt: month, moonAt: 'off', focus: 'none' };
+      const spread = new Set(TILTS.map((tilt) => physicsAtTilt(state, tilt).northDistance.toFixed(6)));
+      expect(spread.size > 1, month).toBe(tiltMatters(state));
+    }
+  });
+
+  it('describes only what the view draws: no axis, pins or Ray in the Moon view', () => {
+    const moon: StageState = { view: 'moon-orbit', earthAt: 'jun', moonAt: 'full', focus: 'none' };
+    const text = describeStageAtTilt(moon, 0);
+    expect(text).not.toMatch(/axis|pin|Ray/u);
   });
 });

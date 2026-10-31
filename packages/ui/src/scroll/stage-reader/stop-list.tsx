@@ -2,9 +2,10 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import type { CallItStop, FinalCallStop, ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import type { CallState } from './call-state';
-import { CallView } from './call-view';
+import { CallView, type FinalCallPlay } from './call-view';
 import { dataSet } from './data-set';
-import { EndTray, type NextPartPeek } from './end-tray';
+import { EndTray, type NextPartPeek, type SmallPrint } from './end-tray';
+import type { Payoff } from './payoff';
 import type { StageLock } from './stage-play';
 import type { SpineDot } from './spine';
 import { AsideView, ReadStopView } from './stop-view';
@@ -28,17 +29,22 @@ export interface StopListProps {
   readonly lock: (callId: string) => boolean;
   readonly opened: ReadonlySet<string>;
   readonly onToggleAside: (asideId: string) => void;
-  readonly onSmallPrint: (asideId: string) => void;
+  /** What the Final call says and hands the reader before it is locked (D-187). */
+  readonly final: FinalCallPlay;
+  /** How the person's play went, for the payoff at the end (D-189). */
+  readonly payoff: Payoff;
+  readonly smallPrint: SmallPrint | undefined;
   readonly nextPart: NextPartPeek | undefined;
   readonly related: NextPartPeek | undefined;
   readonly onDone: (() => void) | undefined;
   readonly onNextTopic: (() => void) | undefined;
+  readonly onUniverse: (() => void) | undefined;
+  readonly onPlayFinal: (() => void) | undefined;
 }
 
 /** The sections of the text: one per stop (with the asides beside it) and the end tray, stacked. */
 export function StopList(props: StopListProps) {
   const { document, dots, calls, sectionHeight, measureSection } = props;
-  const smallPrint = document.recap.smallPrintAside;
   return (
     <>
       {document.stops.map((stop, index) => (
@@ -59,6 +65,7 @@ export function StopList(props: StopListProps) {
               state={props.stateOf(stop.id)}
               lock={props.lockOf(stop.id)}
               paused={props.paused}
+              final={stop.kind === 'final_call' ? props.final : undefined}
               onRevealLayout={(height) => props.onRevealLayout(index, height + SECTION_PADDING)}
               onPick={(option) => props.pick(stop.id, option, stop.options.length)}
               onLockIn={() => props.lock(stop.id)}
@@ -86,11 +93,14 @@ export function StopList(props: StopListProps) {
         <EndTray
           recap={document.recap}
           hasStage={document.stage !== undefined}
+          payoff={props.payoff}
           nextPart={props.nextPart}
           related={props.related}
-          onSmallPrint={smallPrint === undefined ? undefined : () => props.onSmallPrint(smallPrint)}
+          smallPrint={props.smallPrint}
           onDone={props.onDone}
           onNextTopic={props.onNextTopic}
+          onUniverse={props.onUniverse}
+          onPlayFinal={props.onPlayFinal}
         />
       </View>
     </>

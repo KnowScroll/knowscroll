@@ -41,7 +41,9 @@ import type {
   SharingVisibilitySchema,
   SharingVisibilityAcceptanceSchema,
   OwnPresencePreferenceSchema,
+  OwnReadReceiptsSchema,
   PresencePreferenceAcceptanceSchema,
+  ReadReceiptsAcceptanceSchema,
   VisitorWorldSnapshotSchema,
   PublicPersonRef,
 } from '@knowscroll/contracts';
@@ -184,7 +186,8 @@ export const READ_INBOX_REVISION = Symbol('social.readInboxRevision');
 
 /**
  * What a person lets friends see (D-047): who may visit their universe and which systems, whether
- * they show as available, and a friend's visit. Every method takes the caller's claimed authority and
+ * they show as available, whether the people they talk with see how far they have read (SEEN, D-066),
+ * and a friend's visit. Every method takes the caller's claimed authority and
  * an unparsed body and rechecks authority itself. Reads create no evidence, and no method tells
  * anyone that a setting changed or that someone visited.
  */
@@ -199,6 +202,11 @@ export interface VisibilityUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof PresencePreferenceAcceptanceSchema>>>;
+  readOwnReadReceipts(authority: PersonalAuthority): Promise<Result<z.infer<typeof OwnReadReceiptsSchema>>>;
+  setReadReceipts(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ReadReceiptsAcceptanceSchema>>>;
   /** A friend's published universe. Anyone not allowed gets the same `unavailable` answer. */
   readVisit(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof VisitorWorldSnapshotSchema>>>;
 }

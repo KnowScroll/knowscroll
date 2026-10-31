@@ -6,16 +6,18 @@ import { newCommandId } from '../../platform/command-id';
 import { useAccountScopeIfPresent } from '../../providers/account-scope';
 import type { OpenedStageScroll } from './scroll-session';
 
-const NO_PLAY: PlaySnapshot = { locks: [], sparks: 0, combo: 0 };
+const NO_PLAY: PlaySnapshot = { locks: [], sparks: 0, combo: 0, landmark: undefined };
 const noSubscription = () => () => undefined;
 const noSnapshot = () => NO_PLAY;
 const noPolicy = () => undefined;
 
-/** The Call its of a document, as the play session judges them on the device. The Final call is played in a later slice. */
+/** The calls of a document, the Final call included, as the play session judges them on the device. */
 function playCallsOf(document: ScrollDocumentV2): readonly PlayCall[] {
-  return callsOf(document).flatMap((call) =>
-    call.kind === 'call_it' ? [{ stopId: call.id, answer: call.answer }] : [],
-  );
+  return callsOf(document).map((call) => ({
+    stopId: call.id,
+    answer: call.answer,
+    finalCall: call.kind === 'final_call',
+  }));
 }
 
 /**
@@ -38,6 +40,7 @@ export function useStagePlay(scroll: OpenedStageScroll): StagePlay | undefined {
             assetId,
             revision: assetRevision,
             calls: playCallsOf(document),
+            landmark: document.landmark,
             newId: newCommandId,
           }),
     [scope, assetId, assetRevision, document],

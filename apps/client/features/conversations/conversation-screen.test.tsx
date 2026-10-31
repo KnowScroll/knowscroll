@@ -221,6 +221,69 @@ describe('conversation thread screen (labelled in-memory server)', () => {
     await finish(server);
   });
 
+  describe('SEEN under the person’s latest message', () => {
+    const sendOwn = (text: string, commandId: number) =>
+      openedServer.scope.api.conversations.send({
+        version: 'direct-conversation.v1',
+        commandId: id(commandId),
+        conversation,
+        body: { kind: 'text', text },
+      });
+    let openedServer: ReturnType<typeof talkServer>;
+
+    it('says Sent under the latest own message, Seen once the server says the other person read to it, and never under older ones', async () => {
+      openedServer = talkServer();
+      openedServer.peerSays('part 1 dekha?');
+      await open(openedServer);
+      await screen.findByText('part 1 dekha?');
+      await sendOwn('haan, dekha', 901);
+      await openedServer.scope.queryClient.refetchQueries();
+      await screen.findByText('haan, dekha');
+      expect(await screen.findByText(/· Sent$/)).toBeOnTheScreen();
+      expect(screen.queryByText(/· Seen$/)).toBeNull();
+
+      // The other person reads to it (both share): the next read carries it, and no second message is needed.
+      openedServer.peerReadsThrough(2);
+      await openedServer.scope.queryClient.refetchQueries();
+      expect(await screen.findByText(/· Seen$/)).toBeOnTheScreen();
+      expect(screen.queryByText(/· Sent$/)).toBeNull();
+
+      // A newer own message is the one that carries the word, and it is not seen yet.
+      await sendOwn('tu bata', 902);
+      await openedServer.scope.queryClient.refetchQueries();
+      await screen.findByText('tu bata');
+      expect(await screen.findByText(/· Sent$/)).toBeOnTheScreen();
+      expect(screen.queryByText(/· Seen$/)).toBeNull();
+      await finish(openedServer);
+    });
+
+    it('goes back to Sent when either person hides theirs, because the server then says nothing', async () => {
+      openedServer = talkServer();
+      openedServer.peerSays('part 1 dekha?');
+      await open(openedServer);
+      await screen.findByText('part 1 dekha?');
+      await sendOwn('haan', 903);
+      openedServer.peerReadsThrough(2);
+      await openedServer.scope.queryClient.refetchQueries();
+      expect(await screen.findByText(/· Seen$/)).toBeOnTheScreen();
+      openedServer.peerReadsThrough(undefined);
+      await openedServer.scope.queryClient.refetchQueries();
+      expect(await screen.findByText(/· Sent$/)).toBeOnTheScreen();
+      expect(screen.queryByText(/· Seen$/)).toBeNull();
+      await finish(openedServer);
+    });
+
+    it('shows nothing about reading under the other person’s messages, and no typing indicator', async () => {
+      openedServer = talkServer();
+      openedServer.peerSays('who is on part 2?');
+      openedServer.peerReadsThrough(1);
+      await open(openedServer);
+      await screen.findByText('who is on part 2?');
+      expect(screen.queryByText(/Seen|Sent|typing/i)).toBeNull();
+      await finish(openedServer);
+    });
+  });
+
   describe('replies, reactions and the message menu', () => {
     const longPress = (text: string) => fireEvent(screen.getByText(text), 'longPress');
 

@@ -1,6 +1,7 @@
 import { ORPCError } from '@orpc/client';
 import { describe, expect, it, vi } from 'vitest';
 import { problemDetails, type CallLockRequest, type CallLockResponse, type ProblemCode } from '@knowscroll/contracts';
+import { tallyOf } from '@knowscroll/scroll-model';
 import { ScopeEndedError, type AccountScope } from './account-scope';
 import { createPlaySession, PLAY_RETRY_DELAYS_MS, playSessionFor } from './play-session';
 import type { OutboxTimers } from './recorder/outbox';
@@ -12,7 +13,9 @@ const assetId = id(1);
 const calls = [
   { stopId: 'call-june', answer: 1 },
   { stopId: 'call-angle', answer: 0 },
+  { stopId: 'call-final', answer: 2, finalCall: true },
 ];
+const landmark = { key: 'the-ci-landmark', name: 'The CI Landmark' };
 
 /** Timers the test moves by hand. */
 function manualTimers(): OutboxTimers & { advance(ms: number): void } {
@@ -48,13 +51,24 @@ const problem = (code: ProblemCode) => {
 /** What the server keeps, judged as the real one does: the first lock of a call stands. */
 function server() {
   const kept: { stopId: string; option: number; correct: boolean }[] = [];
-  const results = () => ({
-    assetId,
-    revision: 1,
-    calls: kept.map((call) => ({ ...call })),
-    sparks: kept.filter((call) => call.correct).length,
-    combo: 0,
-  });
+  const results = () => {
+    const tally = tallyOf(
+      kept.map((call) => ({
+        correct: call.correct,
+        finalCall: calls.find((c) => c.stopId === call.stopId)?.finalCall,
+      })),
+    );
+    const final = kept.find((call) => calls.find((c) => c.stopId === call.stopId)?.finalCall === true);
+    return {
+      assetId,
+      revision: 1,
+      calls: kept.map((call) => ({ ...call })),
+      ...tally,
+      ...(final === undefined
+        ? {}
+        : { landmark: { ...landmark, tier: final.correct ? ('gold' as const) : ('plain' as const) } }),
+    };
+  };
   const lockCall = vi.fn((request: CallLockRequest): Promise<CallLockResponse> => {
     const answer = calls.find((call) => call.stopId === request.stopId)!.answer;
     let standing = kept.find((call) => call.stopId === request.stopId);
@@ -80,7 +94,11 @@ function server() {
   return { kept, lockCall, readResults };
 }
 
-function fixture(api: { lockCall?: unknown; readResults?: unknown } = {}, recording: 'on' | 'paused' = 'on') {
+function fixture(
+  api: { lockCall?: unknown; readResults?: unknown } = {},
+  recording: 'on' | 'paused' = 'on',
+  named: { readonly key: string; readonly name: string } | undefined = undefined,
+) {
   const base = server();
   const ended: (() => void)[] = [];
   const policy = { on: recording === 'on', generation: recording === 'on' ? 1 : 2 };
@@ -105,7 +123,7 @@ function fixture(api: { lockCall?: unknown; readResults?: unknown } = {}, record
     },
   } as unknown as AccountScope & { active: boolean };
   const timers = manualTimers();
-  const session = createPlaySession({ scope, assetId, revision: 1, calls, newId, timers });
+  const session = createPlaySession({ scope, assetId, revision: 1, calls, landmark: named, newId, timers });
   return {
     base,
     scope,
@@ -314,6 +332,89 @@ describe('pausing and resuming in one sitting', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     end();
     expect(session.getSnapshot()).toEqual({ locks: [], sparks: 0, combo: 0 });
+  });
+});
+
+describe('the Final call and the landmark (D-187, D-188)', () => {
+  const lockAll = (session: ReturnType<typeof fixture>['session'], ...picks: [string, number][]) => {
+    for (const [stopId, option] of picks) session.lock(stopId, option);
+  };
+
+  it('judges the Final call on the device like any call, and doubles a right one after a combo of two', () => {
+    const { session } = fixture();
+    lockAll(session, ['call-june', 1], ['call-angle', 0], ['call-final', 2]);
+    expect(session.getSnapshot()).toMatchObject({
+      sparks: 4,
+      combo: 3,
+      locks: [
+        { stopId: 'call-june', earned: 1, finalCall: false },
+        { stopId: 'call-angle', earned: 1, finalCall: false },
+        { stopId: 'call-final', earned: 2, finalCall: true, combo: 3 },
+      ],
+    });
+    const broken = fixture().session;
+    lockAll(broken, ['call-june', 1], ['call-angle', 2], ['call-final', 2]);
+    expect(broken.getSnapshot()).toMatchObject({ sparks: 2, combo: 1 });
+    expect(broken.getSnapshot().locks.map((lock) => lock.earned)).toEqual([1, 0, 1]);
+  });
+
+  it('shows a gold landmark for a right Final call and a plain one for any other, only when the Scroll names one', () => {
+    const gold = fixture({}, 'on', landmark).session;
+    expect(gold.getSnapshot().landmark).toBeUndefined();
+    lockAll(gold, ['call-final', 2]);
+    expect(gold.getSnapshot().landmark).toEqual({ ...landmark, tier: 'gold' });
+    const plain = fixture({}, 'on', landmark).session;
+    lockAll(plain, ['call-final', 0]);
+    expect(plain.getSnapshot().landmark).toEqual({ ...landmark, tier: 'plain' });
+    const none = fixture().session;
+    lockAll(none, ['call-final', 2]);
+    expect(none.getSnapshot().landmark).toBeUndefined();
+    // A Call it never awards it.
+    const callIt = fixture({}, 'on', landmark).session;
+    lockAll(callIt, ['call-june', 1]);
+    expect(callIt.getSnapshot().landmark).toBeUndefined();
+  });
+
+  it('sends the Final call like any lock, with nothing the device judged, and the answer of the server wins', async () => {
+    const { session, base } = fixture({}, 'on', landmark);
+    lockAll(session, ['call-final', 0]);
+    await settled();
+    expect(Object.keys(base.lockCall.mock.calls[0]![0]).sort()).toEqual([
+      'assetId',
+      'commandId',
+      'option',
+      'recordingGeneration',
+      'revision',
+      'stopId',
+    ]);
+    expect(session.getSnapshot()).toMatchObject({ landmark: { tier: 'plain' }, locks: [{ keeping: 'saved' }] });
+  });
+
+  it('says on the device what it earned while recording is paused, and takes it back once recording resumes', async () => {
+    const { session, base, resume } = fixture({}, 'paused', landmark);
+    lockAll(session, ['call-final', 2]);
+    await settled();
+    expect(base.lockCall).not.toHaveBeenCalled();
+    expect(session.getSnapshot()).toMatchObject({
+      sparks: 1,
+      landmark: { tier: 'gold' },
+      locks: [{ keeping: 'recording_paused', finalCall: true }],
+    });
+    // The server never held it, so it is not shown as earned any more (D-083).
+    resume();
+    expect(session.getSnapshot()).toMatchObject({ sparks: 0, locks: [{ keeping: 'recording_paused' }] });
+    expect(session.getSnapshot().landmark).toBeUndefined();
+  });
+
+  it('shows the landmark that was kept when the Scroll is opened again', async () => {
+    const { session, base } = fixture({}, 'on', landmark);
+    base.kept.push({ stopId: 'call-final', option: 2, correct: true });
+    await session.load();
+    expect(session.getSnapshot()).toMatchObject({
+      sparks: 1,
+      landmark: { ...landmark, tier: 'gold' },
+      locks: [{ stopId: 'call-final', finalCall: true, keeping: 'saved' }],
+    });
   });
 });
 

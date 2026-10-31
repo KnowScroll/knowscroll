@@ -44,6 +44,8 @@ export function talkServer() {
   let closed = false;
   let peerDeleted = false;
   let readThrough = 0;
+  /** How far the peer has read, while the server may say so (both share, D-066); undefined says nothing. */
+  let peerRead: number | undefined;
   let muted = false;
   let availability: Body = { state: 'unknown' };
   let tokenCounter = 0;
@@ -145,6 +147,7 @@ export function talkServer() {
           conversation,
           peer: shownPeer(),
           own: { readThroughSequence: readThrough, muted },
+          ...(peerRead === undefined || ended ? {} : { peerRead: { throughSequence: peerRead } }),
           ...(ended ? { ended: true } : {}),
           latestMessageSequence: messages.length,
           messages: messages.slice(-Number(body['limit'])).map(view),
@@ -189,6 +192,7 @@ export function talkServer() {
           limit: body['limit'],
           requestCursor: body['cursor'],
           ...(ended ? { ended: true } : {}),
+          ...(peerRead === undefined || ended ? {} : { peerRead: { throughSequence: peerRead } }),
           fromChangeSequence: after,
           throughChangeSequence: changeCounter,
           changes: page.map((message) => ({ changeSequence: message.changeSequence, message: view(message) })),
@@ -528,6 +532,10 @@ export function talkServer() {
       const message = messages.find((candidate) => candidate.sequence === sequence)!;
       message.reactions.push({ kind, by: 'peer' });
       message.changeSequence = ++changeCounter;
+    },
+    /** The peer has read to this message and both share, so reads carry it (no change number moves). Undefined hides it. */
+    peerReadsThrough(sequence: number | undefined) {
+      peerRead = sequence;
     },
     reactionsOn: (sequence: number) => messages.find((candidate) => candidate.sequence === sequence)?.reactions ?? [],
     /** The server turns a message into a tombstone with a new change number. */

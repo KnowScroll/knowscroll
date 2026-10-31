@@ -1,7 +1,7 @@
 import type { CallLockNotSaved, CallLockRequest, CallLockSaved } from '@knowscroll/contracts';
 import type { PersonalAuthority, PersonalScopeTx, RecordingScopeTx } from '../../identity/public.js';
-import { afterLock, judgePick } from '../domain/results.js';
-import type { PlayPorts, ReceiptKey, ReceiptLookup, StoredCall, StoredPlay } from './ports.js';
+import { afterLock, judgePick, landmarkTierOf } from '../domain/results.js';
+import type { PlayPorts, ReceiptKey, ReceiptLookup, StoredCall, StoredLandmark, StoredPlay } from './ports.js';
 import { resultsOf } from './results.js';
 
 export const CALL_LOCK_OPERATION = 'play.call-lock';
@@ -68,18 +68,21 @@ function saved(command: CallLockRequest, lock: StoredOutcome, play: StoredPlay, 
 }
 
 /**
- * `POST /v1/play/calls/lock` (`call.lock`): stores what the person locked on one Call it of one
- * Scroll revision, with whether it was right and the spark and combo it earned.
+ * `POST /v1/play/calls/lock` (`call.lock`): stores what the person locked on one call of one Scroll
+ * revision, a Call it or the Final call, with whether it was right and the spark and combo it earned.
+ * Locking the Final call of a revision that names a landmark awards it, gold when the call was right
+ * and plain when it was not (D-187, D-188).
  *
  * Authority: the caller's account and universe at their privacy epoch, rechecked under the personal
  * root lock; the person must have an activated exposure of this exact revision. Correctness is
  * recomputed here from the immutable revision and never taken from the client.
  * Steps (one transaction): own-account fence, receipt lookup (an identical retry answers the stored
  * lock), the recording gate (paused or stale: nothing is stored, no receipt, and the answer says
- * so), exposure, the call and the option, then receipt, call, tally.
- * Effects: `play.calls`, `play.scroll_results` and the receipt, all or nothing. A second lock of a
- * call that already has one, by another command, stands as the first and changes nothing. It is no
- * evidence, enqueues nothing, and no other module reads it (D-063).
+ * so), exposure, the call and the option, then receipt, call, tally and, for a Final call, landmark.
+ * Effects: `play.calls`, `play.scroll_results`, `play.landmarks` and the receipt, all or nothing. A
+ * second lock of a call that already has one, by another command, stands as the first and changes
+ * nothing, and awards nothing again. It is no evidence, enqueues nothing, and no other module reads
+ * it (D-063).
  * Failure/retry: an exception rolls everything back; retrying with the same command ID is safe.
  */
 export function makeLockCall(ports: PlayPorts) {
@@ -133,9 +136,9 @@ async function recordLock(
   const scope = recording.personal;
   if (!(await ports.hasActivatedExposure(scope, command.assetId, command.revision)))
     return refused('exposure_required');
-  const calls = await ports.readCalls(scope, command.assetId, command.revision);
-  const call = calls?.find((candidate) => candidate.stopId === command.stopId && candidate.kind === 'call_it');
-  if (call === undefined) return refused('call_not_found');
+  const facts = await ports.readFacts(scope, command.assetId, command.revision);
+  const call = facts?.calls.find((candidate) => candidate.stopId === command.stopId);
+  if (facts === undefined || call === undefined) return refused('call_not_found');
   const judgement = judgePick(call, command.option);
   if (judgement.kind === 'option_out_of_range') return refused('option_invalid');
 
@@ -145,13 +148,37 @@ async function recordLock(
   if (standing !== undefined) return completed(ports, scope, command, { ...standing, newlyLocked: false }, before);
 
   const lock: StoredCall = { stopId: command.stopId, option: command.option, correct: judgement.correct };
-  const tally = afterLock(before.tally, lock.correct);
+  const outcome = { correct: lock.correct, finalCall: call.kind === 'final_call' };
+  const tally = afterLock(before.tally, outcome);
   await ports.store.insertCall(
     recording,
     { ...lock, assetId: command.assetId, revision: command.revision, commandId: command.commandId },
     tally,
   );
-  return completed(ports, scope, command, { ...lock, newlyLocked: true }, { calls: [...before.calls, lock], tally });
+  const landmark =
+    outcome.finalCall && facts.landmark !== undefined
+      ? await awardLandmark(ports, recording, command, facts.landmark, landmarkTierOf(outcome))
+      : before.landmark;
+  return completed(
+    ports,
+    scope,
+    command,
+    { ...lock, newlyLocked: true },
+    { calls: [...before.calls, lock], tally, landmark },
+  );
+}
+
+/** Stores the landmark a Final call earned, in the same transaction as the call, and says what was awarded. */
+async function awardLandmark(
+  ports: PlayPorts,
+  recording: RecordingScopeTx,
+  command: CallLockRequest,
+  named: { readonly key: string; readonly name: string },
+  tier: StoredLandmark['tier'],
+): Promise<StoredLandmark> {
+  const landmark: StoredLandmark = { key: named.key, name: named.name, tier };
+  await ports.store.insertLandmark(recording, { ...landmark, assetId: command.assetId, revision: command.revision });
+  return landmark;
 }
 
 /** Keeps the outcome on the receipt and answers it. */

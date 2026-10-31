@@ -160,13 +160,18 @@ const stops = [
   ),
   {
     kind: 'final_call',
-    id: 'final-sydney',
-    prompt: 'It is June. Is it warm or cool in Sydney, in the southern half?',
-    options: ['Cool, the southern half leans away', 'Warm, the southern half leans toward the Sun'],
+    id: 'final-tilt',
+    prompt: 'Turn Earth’s tilt to 0 degrees. What happens to the seasons?',
+    options: [
+      'Every day is like an equinox, and the seasons almost vanish',
+      'The north stays in summer all year',
+      'The seasons get stronger',
+    ],
     answer: 0,
-    explain: 'In June the southern half leans away from the Sun, so the light is low and the days are short there.',
-    twist: 'The north and the south take turns, so Sydney is in winter while Delhi is in summer.',
-    simple: 'June is winter in Sydney.',
+    explain: 'With no tilt, neither half ever leans toward the Sun, so sunlight lands the same way all year.',
+    twist: 'Most people guess that something dramatic happens. The tilt is the whole reason the year has seasons.',
+    simple: 'No tilt, no seasons.',
+    binding: { kind: 'tilt' },
   },
 ];
 
@@ -216,6 +221,7 @@ const unsigned = {
   dek: 'A tilted planet and a common wrong guess about distance, in short steps (a CI fixture).',
   framing: { kind: 'factual' },
   misconception: myth,
+  landmark: { key: 'the-leaning-axis', name: 'The Leaning Axis' },
   stage: { kit: 'earth-sky.v1', states },
   stops,
   asides: [tangent, aside],

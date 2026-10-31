@@ -25,6 +25,10 @@
       "reviewed": true
     }
   },
+  "landmark": {
+    "key": "the-leaning-axis",
+    "name": "The Leaning Axis"
+  },
   "stage": {
     "kit": "earth-sky.v1",
     "states": [
@@ -249,13 +253,20 @@
     },
     {
       "kind": "final_call",
-      "id": "final-sydney",
-      "prompt": "It is June. Is it warm or cool in Sydney, in the southern half?",
-      "options": ["Cool, the southern half leans away", "Warm, the southern half leans toward the Sun"],
+      "id": "final-tilt",
+      "prompt": "Turn Earth’s tilt to 0 degrees. What happens to the seasons?",
+      "options": [
+        "Every day is like an equinox, and the seasons almost vanish",
+        "The north stays in summer all year",
+        "The seasons get stronger"
+      ],
       "answer": 0,
-      "explain": "In June the southern half leans away from the Sun, so the light is low and the days are short there.",
-      "twist": "The north and the south take turns, so Sydney is in winter while Delhi is in summer.",
-      "simple": "June is winter in Sydney."
+      "explain": "With no tilt, neither half ever leans toward the Sun, so sunlight lands the same way all year.",
+      "twist": "Most people guess that something dramatic happens. The tilt is the whole reason the year has seasons.",
+      "simple": "No tilt, no seasons.",
+      "binding": {
+        "kind": "tilt"
+      }
     }
   ],
   "asides": [
@@ -286,7 +297,7 @@
     "version": "scroll-measures.v2",
     "readingSeconds": 181,
     "readingMinutes": 3,
-    "totalWeight": 691,
+    "totalWeight": 693,
     "recapWeight": 16,
     "stops": [
       {
@@ -334,13 +345,13 @@
         "weight": 55
       },
       {
-        "stopId": "final-sydney",
-        "weight": 104
+        "stopId": "final-tilt",
+        "weight": 106
       }
     ]
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "afd2053eee511a5dc226ab8db980c915a9cd7bf091290384766cda4af10a6b84"
+    "sha256": "1723cc104cc5945fa49b4437f23481018aca52653844f9a3265651183f6d07a1"
   }
 }

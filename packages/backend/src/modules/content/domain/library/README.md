@@ -39,6 +39,17 @@ served it (D-129, D-138). Today the four Seasons recipes carry it (D-137): `seas
 distance myth with its reviewed source; the other three have none because their pages do not document one. Marking a
 recipe is a person's decision, one recipe at a time, with its own decision entry; `library.test.ts` pins the list.
 
+## Landmarks and the Final call control
+
+A recipe with `scrollV2` may also carry `landmark: {key, name}` and `finalCall: {kind: 'tilt'}` (D-187, D-188). Both are
+plan data that code sets into the document; the writer never writes them (it is only told what a bound Final call is
+for). The four Seasons recipes name a landmark (`The Leaning Axis`, `The Turning Halves`, `The Near January`, `The
+Sideways Giant`: the first is the design's, the other three are authored and want a person's confirmation) and only
+`seasons` hands the reader the tilt. Every other recipe awards no landmark until S-6 names them, and that is safe: play
+awards nothing for a revision whose document has none. Keys are unique and fit the document's id shape, and
+`library.test.ts` pins which recipes name one. Changing either field changes what the next revision carries; stored
+revisions keep what they were published with.
+
 ## Rules for editing the plan
 
 - A recipe's `assetId` and `explanationUnitId` never change once a Scroll exists. Only the original

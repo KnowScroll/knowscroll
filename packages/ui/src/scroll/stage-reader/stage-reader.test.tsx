@@ -124,6 +124,8 @@ describe('the Stage + Spine reader', () => {
     expect(screen.getByText('Fixture part two')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Continue Part 2' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Done for today' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to the end' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Something new' }));
     expect([onPart, onDone, onTopic].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
   });

@@ -24,7 +24,7 @@ side, and nothing here transforms data: parse first, then convert in the receivi
 | `src/supply.ts` | Declaration-only topic/format-variant requests, immutable acceptance/cancel receipts and current private request status; topic/variant HTTP declarations in `apiContract.supply` (#239 prerequisite; adapters pending) |
 | `src/geography.ts` | Established geography pages, retained routes/aliases, typed applied universe deltas and the unlabelled dust cues (`geography.read`, `.deltas`, `.emerging`) |
 | `src/interactions.ts` | `interaction.v1`: the observation envelope, three `scroll.*` payloads and bounded paired `reel.playback` intervals; `observation-limits.v1` (shared with the recorder), `POST /v1/observations/batch` and the dev-only `GET /v1/diagnostics/exposures/{id}/evidence` |
-| `src/play.ts` | `play.v1` (D-180): `POST /v1/play/calls/lock` (`call.lock`: commandId, asset, revision, stop, option 0 to 2, recording generation; answers the stored lock with `correct`, `newlyLocked` and the Scroll's results, or `recorded: false` with a reason and nothing about the call) and `POST /v1/play/results/read` (the caller's calls in the order locked, sparks and combo for one revision). Correctness is never in a request; sparks belong to one Scroll and there is no total, level or rank in any schema (D-064) |
+| `src/play.ts` | `play.v1` (D-180): `POST /v1/play/calls/lock` (`call.lock`: commandId, asset, revision, stop, option 0 to 2, recording generation; answers the stored lock with `correct`, `newlyLocked` and the Scroll's results, or `recorded: false` with a reason and nothing about the call) and `POST /v1/play/results/read` (the caller's calls in the order locked, sparks, combo and the landmark the Final call awarded, for one revision), and `POST /v1/play/landmarks/read` (the caller's own landmarks, newest first). The Final call is locked like any call; the landmark is `{key, name, tier: gold | plain}` (D-187, D-188). Correctness is never in a request; sparks (at most five) belong to one Scroll and there is no total, level or rank in any schema (D-064) |
 | `src/media.ts` | `reel-document.v1` and `POST /v1/media/grants`: a session-scoped short-lived playback grant for an existing exposure |
 
 Reel targets and playback payloads use the media adapters (#233); declaring either creates no
@@ -395,8 +395,8 @@ prefix directory, address-book upload, private activity or fabricated contacts.
 Lookup and invite resolve are authenticated **POST** bodies with one coarse
 unavailable answer for absent/hidden/blocked/inactive identities.
 
-`apiContract.sharing` declares GET own profile, invites, visibility and presence
-preference; POST updates on profile/visibility/presence preference; POST
+`apiContract.sharing` declares GET own profile, invites, visibility, presence
+preference and read receipts (SEEN); POST updates on profile/visibility/presence preference/read receipts; POST
 `/v1/social/people/lookup`, `/pairs/read`, `/friends/read`, `/requests/read`,
 `/friends/request|accept|decline|cancel|remove|block|unblock`,
 `/invites/resolve|create|revoke` and `/visits/read`, all with `/v1/social` prefix.
@@ -964,6 +964,15 @@ the wanted state, so a repeat is accepted with `changed: false`. An available me
 original's author and first words, or `unavailable`) and `reactions` (each kind once: whether the reader is one and the
 people, never a time; people the reader blocked are left out). A reaction advances the message's change number, so
 `changes` sends it again. The thread contract reuses the same shapes.
+
+SEEN (v3 T-C, D-066, D-150): the direct conversation `read` snapshot and `changes` page may carry
+`peerRead { throughSequence }`, how far the other person has read while their own switch was on: a position, never a time, a name or a flag.
+It is present only while both people share their read position and the conversation stands, and absent in every
+other case, and its absence gives no reason. The inbox row, the thread contract and rooms have no
+such field (strict schemas refuse one), and a typing signal is never on the wire. The caller's own switch is
+`apiContract.sharing.readReceipts` (GET) and `setReadReceipts` (POST, `/v1/social/read-receipts`): a wanted state
+(`shared`) with its own `readReceiptsRevision`, on until turned off, independent of the audience and the availability
+choice. `sharing.test.ts` and `conversations.test.ts` hold the shapes.
 
 A future backend must enter the current personal root/account/epoch gates, then reuse the
 existing private pair aggregate as its **sole** shared locking authority for direct conversation

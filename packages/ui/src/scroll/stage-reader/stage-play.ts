@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { CallItStop, FinalCallStop } from '@knowscroll/scroll-model';
-import { talliesAfterEach } from '../model';
+import { landmarkTier, talliesAfterEach, type LandmarkTier } from '../model';
 
 /** Whether a lock is kept, in the words the screen needs (the app's play session says; the reader only shows). */
 export type StageKeeping =
@@ -15,14 +15,24 @@ export type StageKeeping =
   /** The server will not take it. */
   | 'refused';
 
-/** A Call it the person has locked: what they picked, whether it was right, and the run of right calls it ended at. */
+/** A call the person has locked: what they picked, whether it was right, and the run of right calls it ended at. */
 export interface StageLock {
   readonly stopId: string;
   /** Zero-based index of the option locked. */
   readonly option: number;
   readonly correct: boolean;
   readonly combo: number;
+  /** The sparks this lock earned: one for a right call, two for a right Final call after a combo of two or more (D-187). */
+  readonly earned: number;
+  readonly finalCall: boolean;
   readonly keeping: StageKeeping;
+}
+
+/** The landmark the Final call awarded: gold for a right answer, plain for any other (D-188). */
+export interface StageLandmark {
+  readonly key: string;
+  readonly name: string;
+  readonly tier: LandmarkTier;
 }
 
 /**
@@ -38,9 +48,11 @@ export interface StagePlay {
   readonly sparks: number;
   /** Right calls in a row. */
   readonly combo: number;
+  /** Present once the Final call is locked, when the Scroll names a landmark. */
+  readonly landmark: StageLandmark | undefined;
   /** Recording is paused: whatever is locked now stays on this device, and the screen says so. */
   readonly paused: boolean;
-  /** Locks an option of a Call it. A call already locked, or an option it does not have, changes nothing. */
+  /** Locks an option of a call, the Final call included. A call already locked, or an option it does not have, changes nothing. */
   readonly lock: (stopId: string, option: number) => void;
 }
 
@@ -52,27 +64,42 @@ export function lockOf(play: StagePlay, stopId: string): StageLock | undefined {
  * The reader's own play when the app gives it none (the gallery, tests): locks judged from the
  * document and kept in memory. Nothing is sent and nothing survives the screen.
  */
-export function useLocalStagePlay(calls: readonly (CallItStop | FinalCallStop)[]): StagePlay {
+export function useLocalStagePlay(
+  calls: readonly (CallItStop | FinalCallStop)[],
+  named: { readonly key: string; readonly name: string } | undefined,
+): StagePlay {
   const [picks, setPicks] = useState<
-    readonly { readonly stopId: string; readonly option: number; readonly correct: boolean }[]
+    readonly {
+      readonly stopId: string;
+      readonly option: number;
+      readonly correct: boolean;
+      readonly finalCall: boolean;
+    }[]
   >([]);
   const lock = useCallback(
     (stopId: string, option: number) => {
-      const call = calls.find((candidate) => candidate.kind === 'call_it' && candidate.id === stopId);
+      const call = calls.find((candidate) => candidate.id === stopId);
       if (call === undefined || !Number.isInteger(option) || option < 0 || option >= call.options.length) return;
       setPicks((all) =>
         all.some((pick) => pick.stopId === stopId)
           ? all
-          : [...all, { stopId, option, correct: option === call.answer }],
+          : [...all, { stopId, option, correct: option === call.answer, finalCall: call.kind === 'final_call' }],
       );
     },
     [calls],
   );
   const tallies = talliesAfterEach(picks);
+  const final = picks.find((pick) => pick.finalCall);
   return {
-    locks: picks.map((pick, index) => ({ ...pick, combo: tallies[index]!.combo, keeping: 'device_only' })),
+    locks: picks.map((pick, index) => ({
+      ...pick,
+      combo: tallies[index]!.combo,
+      earned: tallies[index]!.sparks - (tallies[index - 1]?.sparks ?? 0),
+      keeping: 'device_only',
+    })),
     sparks: tallies.at(-1)?.sparks ?? 0,
     combo: tallies.at(-1)?.combo ?? 0,
+    landmark: final === undefined || named === undefined ? undefined : { ...named, tier: landmarkTier(final.correct) },
     paused: false,
     lock,
   };

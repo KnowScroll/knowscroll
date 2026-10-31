@@ -761,7 +761,7 @@ Owner ruling (T3 Q6: "Yes inside a thread you joined on purpose, with a per-pers
 - **Members only.** Only people who joined that thread can read it. Each person has a "hide where I am" switch. Places are shown by default.
 - **Removed** on leave, block, Clear and account deletion. Exported as the person's own data.
 - **Wording.** "On Part 2" or "finished", never "watching".
-- **No clock times.** T3 draws party lines with a time ("Ravi finished Part 1 · 13:02"). They are not built: a place carries a day, so the line shows at most the day. Taken for the owner; listed under Waiting for owner on #462.
+- **No clock times.** T3 draws party lines with a time ("Ravi finished Part 1 · 13:02"). They are not built: a place carries a day, so the line shows at most the day. Taken for the owner; named in the PR for #462.
 - **Unchanged.** Availability (D-047) still carries no place. Branches, playheads and seen markers stay private. The J2 check holds for everything outside places.
 
 ## D-066 · 2026-10-30 · SEEN receipts in direct conversations are mutual and on by default (#463)
@@ -771,7 +771,7 @@ Owner ruling (T3 Q16: "On, with a privacy switch that works both ways: if you hi
 **Amends** D-042, "Read state stays private: each person's `read_through_sequence` is theirs, and the other person sees only 'Sent'".
 
 - **Rule.** In a direct conversation the sender sees SEEN under their last message once the other person has read it. The switch is per person. A person who hides theirs does not see the other's.
-- **Built for direct conversations only** (T3 Q16 asks about DMs). T3's thread and room screens also draw SEEN under your last message. It is not built there: a group has no single reader, and a per-member list would show each member's read state. Taken for the owner; listed under Waiting for owner on #462.
+- **Built for direct conversations only** (T3 Q16 asks about DMs). T3's thread and room screens also draw SEEN under your last message. It is not built there: a group has no single reader, and a per-member list would show each member's read state. Taken for the owner; named in the PR for #462.
 - **Meaning.** AGENTS "seen markers" means what a person has seen of content. SEEN here is message read state in a DM. Content seen markers stay private.
 - **Consequence.** A `social` change with a stored per-person setting, included in the export.
 
@@ -779,7 +779,7 @@ Owner ruling (T3 Q16: "On, with a privacy switch that works both ways: if you hi
 
 R3 says a resident never answers while someone is typing.
 
-**Amends** D-042, "No typing indicator". The indicator stays banned: no person is ever shown that someone is typing. The blueprint allows ephemeral typing signals (lines 269 and 1180). R3 and the T3 kit also draw a typing indicator between people; it is not built, because D-042 still holds for display. Taken for the owner; listed under Waiting for owner on #462.
+**Amends** D-042, "No typing indicator". The indicator stays banned: no person is ever shown that someone is typing. The blueprint allows ephemeral typing signals (lines 269 and 1180). R3 and the T3 kit also draw a typing indicator between people; it is not built, because D-042 still holds for display. Taken for the owner; named in the PR for #462.
 
 - **Rule.** The client sends a typing signal over the socket. The server uses it only to hold back an AI turn. It is never stored, never shown and never sent to another person.
 - **Re-check at fire time.** Before an AI turn posts, the room checks again that no new human message or typing signal has arrived.
@@ -897,7 +897,7 @@ The New Universe rules say "Never repeat a planet type inside one universe", yet
 - **Backfill.** Existing dev worlds are backfilled without moving any slot, seed or anchor.
 - **Related.** D-026: persist family, seed, generator and anchors before variation.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-078 · 2026-10-30 · "Not yet reached" land uses the exact facet sites plus decorative grey (#463)
 
@@ -907,7 +907,7 @@ The landed map (U04) shows grey land that is not reached yet. The globe (U03) sh
 - **Never** labelled, counted, interactive, or present in lists, search or the accessibility tree. Grey cells are not offers (D-026).
 - **Maths.** The generators live in `scene-core` with pinned maths and a generator version on the descriptor. The design's `buildWorld` is not copied: it seeds from the region count, which would move every border when a region forms.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-079 · 2026-10-30 · Lately keeps its 30-day window and gains a rules-only quiet sweep (#463)
 
@@ -917,7 +917,7 @@ In the design, quiet systems go calm without anything new being read.
 - **Decision.** The 30-day quiet window stays. `geography.state` stores `next_quiet_at`, and a scheduled job settles states that are due, with no model call.
 - **Unchanged.** Inactivity changes activity, never existence (AGENTS). "Everything is where you left it" stays on the device (`seenAt`).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-080 · 2026-10-30 · The ship marks the planet of the last place and stays on the device (#463)
 
@@ -927,7 +927,7 @@ The design parks a ship at the last place and offers "Return to <planet>".
 - **Related.** D-039: camera, Lately and the ship's place stay on the device.
 - **Map browsing writes no evidence.** The J3 check is extended to the 3D renderer.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-081 · 2026-10-30 · The room "Stage manager" is code, not a model (#463)
 
@@ -937,7 +937,7 @@ R3's behaviour table has a Stage manager that decides who speaks.
 - **Two semantic judgements.** "Is it a question?" and "is this claim overstated?" use a lexical pre-filter and the speaking role's own `nothing_to_add`. A classifier that only proposes may be added later.
 - **Why.** Models propose and code validates, with no autonomous loops (AGENTS). It also removes about half the cost of the table, and keeps its behaviour.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-082 · 2026-10-30 · Play data is erased by Clear and by account deletion, and exported (#463)
 
@@ -945,7 +945,7 @@ Taken for the owner; listed under Waiting for owner on #462.
 - **Why.** They describe what the person did in a Scroll, so they follow the same rule as the rest of their reading data.
 - **Not included.** Stars and constellations belong to a room, not to a person, and follow the rooms module (D-051).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-083 · 2026-10-30 · While recording is paused, play saves nothing on the server (#463)
 
@@ -954,14 +954,14 @@ Pause recording (D-057) means the server keeps no record of reading.
 - **Decision.** While recording is paused, play works on the device and saves nothing on the server. The screen says so.
 - **Consequence.** A landmark, a spark or an Orbit day earned while paused is not stored, and does not appear later.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-084 · 2026-10-30 · A landmark earned before its planet forms waits in a tray (#463)
 
 - **Decision.** A landmark earned before its planet exists waits in a tray, then attaches when the planet forms.
 - **No formation linkage.** A landmark never makes a planet form (D-063; V3 Q7).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-085 · 2026-10-30 · "Simpler" is written when the Scroll is produced (#463)
 
@@ -970,7 +970,7 @@ V3 D2 offers Simpler on a selected passage.
 - **Decision.** The simpler text is authored per stop at production and checked with the Scroll. Showing it is instant and free, and calls no model.
 - **Why.** No model call on the HTTP navigation path (AGENTS).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-086 · 2026-10-30 · "Quick answer" is a capped worker job (#463)
 
@@ -979,7 +979,7 @@ V3 D2 offers a Quick answer on a selected passage.
 - **Decision.** It is a worker job: an HTTP command, then pg-boss, then MiniMax, then a socket hint and a poll. It has a daily cap. It is labelled "Quick answer · not a checked Scroll", can be reported, is never evidence and never appears in the Universe.
 - **Why.** No model call on the HTTP path or inside a transaction (AGENTS).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-087 · 2026-10-30 · The weekly Orbit is shown as text, not as a ring on the map (#463)
 
@@ -987,7 +987,7 @@ V3 draws a weekly Orbit ring around the star. The New Universe file says no orbi
 
 - **Decision.** The Orbit shows in the Scroll recap, the play summary and the Universe panel or list text. It is not a ring on the map.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-088 · 2026-10-30 · Clear skies do not thin as Scrolls are finished (#463)
 
@@ -995,7 +995,7 @@ V3 says clear skies thin as you finish Scrolls. In the New Universe, clouds mean
 
 - **Decision.** Cloud thinning is not built.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-089 · 2026-10-30 · Landmarks are small painted markers on the globe and the map (#463)
 
@@ -1003,7 +1003,7 @@ Landmarks stand on planets. The Universe file governs how they look there (D-060
 
 - **Decision.** A landmark is a small painted marker on the planet's globe and map, in the Universe style. It is a read-only overlay from the `play` read API and has no effect on formation (D-063).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-090 · 2026-10-30 · A room's constellation is drawn with its station, in the Universe style (#463)
 
@@ -1011,7 +1011,7 @@ A room earns stars, up to a 7-star constellation the room names, and its station
 
 - **Decision.** The constellation is drawn with the station in the Universe style, with no sparkles. No Cartographer or Scenes change is needed: `rooms.stations` carries the sky state (D-051).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-091 · 2026-10-30 · Painted room backdrops wait for an approved image provider (#463)
 
@@ -1019,7 +1019,7 @@ R3 and T3 show painted room backdrops. The MiniMax key is text-only, and fal bel
 
 - **Decision.** Ship the drawn kit: a role returns closed-enum JSON and the app draws it. No painted backdrop is built until the owner approves an image provider and a budget.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-092 · 2026-10-30 · First open for an account that already has places (#463)
 
@@ -1028,7 +1028,7 @@ The first-open animation plays once in the lifetime of the account and is drawn 
 - **Decision.** It plays up to the moment the empty-state title, line and "Go to Explore" would rise in, then a 0.3 s cross-fade shows the real overview. It never claims the account is empty.
 - **Unchanged.** The seen flag lives on the account and is set when the animation starts. Skip and finishing both count as seen.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-093 · 2026-10-30 · Going back up uses a 0.3 s cross-fade (#463)
 
@@ -1036,7 +1036,7 @@ No reverse animations were designed.
 
 - **Decision.** Back goes up one level with a 0.3 s cross-fade, not the forward animation backwards. Long jumps, such as search to a region, go straight to the destination.
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-100 · 2026-10-30 · The three.js gate: both platforms draw, with two native fixes and four things not verified (v3 U-0, #464)
 
@@ -1126,7 +1126,7 @@ The design has three space levels. They are one scene seen from different places
 
 Confirmed by: `camera-rig.test.ts` (levels, limits, pan reach, pure time, fly endpoints), `universe-session.test.ts` (zoom limits), `separate-targets.test.ts` (targets touch, never below 24 px, how far hit areas move), `universe-space-smoke.spec.ts` (real WebGL: cadence, hidden tab, reduced motion), `universe-screen.test.tsx` (a fly inside one scene, Far picks first).
 
-Taken for the owner; listed under Waiting for owner on #462.
+Taken for the owner; named in the PR for #462.
 
 ## D-120 · 2026-10-30 · scroll-document.v2 is written as one flat list of items (S-0, #471)
 
@@ -1534,7 +1534,7 @@ Confirmed by: `router.test.ts`, `triggers.test.ts`, `rooms-residents.test.ts` (i
 
 ## D-165 · 2026-10-30 · Typing is a ten-second hold on a discussion, with no person in it (R-2, #488)
 
-**Amends** D-067: the typing signal is held ten seconds in an unlogged row with no account. D-067 says it is never stored; this keeps a discussion and a time for ten seconds and nothing else. Taken for the owner; listed under Waiting for owner on #462.
+**Amends** D-067: the typing signal is held ten seconds in an unlogged row with no account. D-067 says it is never stored; this keeps a discussion and a time for ten seconds and nothing else. Taken for the owner; named in the PR for #462.
 
 - **What the client says.** While a member types in a discussion, the device sends `room_typing {roomId, discussionId}` over the hint socket at most every 4 seconds. Nothing is sent when the draft is empty.
 - **What the server keeps.** One row in `rooms.typing_holds (discussion_id, held_until)`, rewritten in place to ten seconds ahead. The table is unlogged, holds no account and no text, is read by no API route and is never sent to anyone. A hint from a non-member, with a bad body or a stale session writes nothing, and the answer is the same `{ ok: true }` in every case, so it tells no one anything.
@@ -1780,3 +1780,72 @@ Confirmed by: `conversation-screen.test.tsx` ("swipes right past 60 px to reply,
 - **Left for later.** T3 also draws a "Thread started from your chat" line in the conversation. It needs a system message and waits for a later slice.
 
 Confirmed by: `conversation-screen.test.tsx` ("starts a thread from a shared card with Watch together, for the same two people, and leaves the chat as it is").
+
+## D-150 · 2026-10-31 · SEEN in a direct conversation is a mutual switch that only decides what a read returns (v3 T-C, #483)
+
+**Builds on** D-066 (the owner's ruling). **Amends** D-042 ("Read state stays private … the other person sees only 'Sent'") for direct conversations. D-067 stands: nobody is ever shown that someone is typing.
+
+- **One switch, per person, on by default.** `share_read_state` on `social.visibility_settings` (migration 0078), with its own `read_state_revision`, beside the audience and the availability choice. No row means on. It has its own command (`read-receipts.set`, a wanted state, so a repeat changes nothing) and its own read (`GET /v1/social/read-receipts`). The three settings never fence each other.
+- **Mutual.** A direct conversation's snapshot and changes page carry `peerRead { throughSequence }` only while both people share and the conversation stands. In every other case the field is absent and gives no reason: they hid theirs, I hid mine, or they left look the same on the wire. A person who expects a read and sees none can still guess the other hid theirs, which is what a mutual switch means. A blocked pair gets `unavailable` as for any read. Both switches are read under the pair lock on each read, so nothing is cached and the answer is never older than that read.
+- **A second position, strictly behind the first.** `conversation_members.read_through_sequence` still moves for every reader, for their own unread dot, whether or not they share it. SEEN uses a second number beside it, `shared_read_through_sequence` (migration 0078), that holds how far the person has read while their own switch was on. It moves in the same statement as the first and only while the switch is on, so it never passes it: it holds strictly less than the existing position, never more. It is the only position the other person is told. So what a person reads while SEEN is off is never shown, even after they turn it on again: they must read something new while it is on, and then it shows up to there. A repeated read of what they already read moves neither number. Reading a snapshot or a changes page writes nothing (a test compares the Social tables before and after a read). Existing direct conversations start with the shared position equal to the read position, because nobody could hide anything before this; threads keep 0. A first version of this decision returned the one position and said turning SEEN back on showed what was read while it was off. A review found that was false to the Off copy ("they won't see when you've read their messages"), and this replaces it.
+- **A position, never a time.** `peerRead` is a message position. The app draws the time the message was sent, as T3 does ("13:15 · SEEN"). No read time is stored, sent or drawn.
+- **The hint.** When a read moves the shared position while both people share, the other person's inbox head is bumped too (the same disposable hint as a message). When either hides, or the other person has left or deleted their account, only the reader's is, as before; nothing is created for a person who is gone. Turning the switch on or off tells nobody: the other person's open conversation follows at its next read (a hint, focus or the 20 s poll). The durable read is always right.
+- **Not in threads or rooms** (D-066). A thread's snapshot has no field for it and its strict schema refuses one. Content seen markers (what a person has seen of a Reel or Scroll) stay private (AGENTS).
+- **Clear, erasure, export.** Clear keeps the switch: it is a choice, like availability (D-047), not exploration history. Deleting the account deletes the row. The export says in words whether SEEN is on (`seenInDirectConversations`) and never anything about the other person.
+- **In the app.** Under the person's own latest message the time reads "13:15 · Sent", or "13:15 · Seen" once the other person has read to it. Only the latest own message carries the word. The switch is in Account, Privacy, Sharing & visibility: "Show SEEN in direct conversations", with "If you hide yours, you won't see theirs."
+
+Confirmed by: `social-seen.test.ts` ("is mutual: when either person hides theirs …", "tells the other person's inbox when a read moves while both share …", "shows nothing once the other person left, and nothing to a blocked person", "is never in a content thread …", "never shows what was read while the switch was off, even after it is turned on again", "shows nothing from a person who hid theirs before reading anything …", "still records a hidden reader's own position … and writes nothing more on a read", "tells only the reader's inbox once the other person left" and "… account is deleted", "starts every direct conversation with the shared position equal to the read position, and a thread member at 0", "keeps the switch and what was shared through Clear …", "exports the switch in words …"), `conversations.test.ts` and `sharing.test.ts` in `contracts`, `conversations.test.ts` (domain rule `visiblePeerRead`), `conversation-thread.test.ts`, `conversation-screen.test.tsx` ("SEEN under the person's latest message"), `visibility-panel.test.tsx`, `talk-seen-smoke.spec.ts`. Shown failing with the reader's switch ignored, with the other person's switch ignored, with the ended-conversation check removed, with the hint sent always or never, with the shared position recorded while hidden and with the peer's read position returned in place of the shared one.
+
+## D-151 · 2026-10-31 · The Talk theme is a device choice, like text size and motion (v3 T-C, #483)
+
+**Builds on** D-145 and D-057. Settles the change map's "per-person theme setting" and T3 Q1.
+
+- **A device preference.** `talkTheme` is `sky` (dark, the default) or `paper`, kept with the other device choices under the one key, read once at the root above the account scope. It survives signing out, switching account and Clear, and nothing is sent to the server. It is chosen in Account, Accessibility & playback, under Talk.
+- **Why the device and not the account.** It is a choice about how this screen reads (a bright room, a long conversation), like text size, so a person may want Paper on a phone in daylight and the sky on a laptop at night. A server setting would need a column, a command, an export line and an erasure line for a colour. D-057's rule holds: a setting that holds no account data lives with the device.
+- **Applied once.** `PreferredTalkTheme` at the root gives `TalkThemeProvider` the name. No component reads the setting, as D-145 intended. A damaged or unknown stored value falls back to the sky.
+- **What it covers.** What D-145 draws with the theme: bubbles, capsules, the header and message bar, shared cards, quote strips, reaction pills and the menu, in conversations and in a thread's chat. The Talk list, a thread's series panel and sheets keep their paper look, as D-145 says.
+- **Left alone.** It does not follow the person to another device. If the owner wants that, it is one column and one command, added later.
+
+Confirmed by: `device-preferences.test.ts` (the default, reading what was stored and falling back), `account-settings.test.tsx` ("starts Talk on the dark sky, offers Paper, and keeps the choice on this device only", "is the dark sky by default and Paper once chosen"), `talk-seen-smoke.spec.ts` ("Paper is chosen in Account, applies to the conversation at once and is kept on this device"; axe on the sky and on Paper at 390 × 844 and 1440 × 900).
+
+## D-187 · 2026-10-31 · The Final call is a call: server-judged, a combo bonus, and a tilt to turn (S-3, #474)
+
+**Builds on** D-064, D-126 and D-181. **Amends** D-180 ("The Final call stays on the device without a spark") and D-181 ("Final call refused").
+
+- **A call like the others.** The Final call is locked with the same `call.lock` command and judged on the server from the stored revision, once. Only a stop that is not a call of the revision is `call_not_found`. Its reveal is the Call it reveal: "Called it!" or "Plot twist!" (D-064).
+- **The combo bonus.** A right Final call that follows a run of two or more right calls earns two sparks, any other right call one, a wrong call none and ends the run. The design says "combo ×2 doubles the Final call"; its own examples disagree on where the bonus starts (page 6 shows "combo ready" after one right call, page 9 after two), so the rule starts at two. `COMBO_FOR_FINAL_BONUS` in `scroll-model` is the one number to change.
+- **One rule, two copies that must agree.** The screen works the tally out with `afterLock` in `scroll-model`. The server has its own copy in `play/domain` (a domain file imports no package), and a test runs both over every run of up to six calls, with each call in turn as the Final call, and checks they agree. A Scroll has at most five sparks (three Call its and a doubled Final call), so migration 0077 widens the stored bound from four to five. A combo is still at most four.
+- **Display only.** Sparks and the bonus are play features (D-063, D-064). They never reach Composer, Jev, Planner, Evidence, Personal Context, Geography or Scenes.
+- **A tilt to turn.** The design gives the Seasons Final call a tilt slider on the picture (page 6, frame 9; page 9). The library plan can bind it: `finalCall: {kind: 'tilt'}` on a recipe becomes `binding: {kind: 'tilt'}` on the document's Final call, set by code. The reader turns Earth's axis from 0 to 90 degrees in whole degrees, starting at 23.4 ("today"), and the pinned picture and its text version follow at once. The kit's physics works out the Sun's latitude (`asin(sin(tilt) · sin(season))`) and each pin's distance from it (`physicsAtTilt`), and at 23.4 it agrees with `stagePhysics` in every month. The value lives on the screen only: nothing about it is stored, sent or reported.
+- **What is not built.** No sin, cos or clamp formula kinds for v1 simulation blocks: the tilt is the kit's physics in code, not a formula in a document. No other binding (scale, sort, fork) until S-8.
+- **Admission and the writer.** A bound Final call needs a stage whose picture at that stop changes when the tilt is turned, so a stage that ends on the Moon view or at an equinox (March or September, where the Sun is over the equator at every tilt) is refused (`final_call_binding_invalid`, with a repair hint). The writer prompt is `scroll-writer.v16`: for a bound recipe it asks for a "what if the axis were not tilted" Final call, tells the writer the reader can turn the tilt and asks it to end on a June or December picture. The Seasons library has not been regenerated yet, so no stored revision carries a binding until it is.
+
+Confirmed by: `scroll-model` `play.test.ts`, `kit.test.ts` (tilt grid over every month and whole degree, agreement with `stagePhysics`), `validate.test.ts`, `assemble.test.ts`; `play/domain/results.test.ts` and `lock-call.test.ts`; `tests/integration/modules/play.test.ts` (the Final call judged on the server, doubled after a combo of two, once); `play.test.tsx` (the announcement, the tilt control, "+2 sparks"); `payoff-smoke.spec.ts` (the slider turns the picture and sends nothing).
+
+## D-188 · 2026-10-31 · A Scroll's landmark is recipe data, awarded once by the Final call, gold or plain (S-3, #474)
+
+**Builds on** D-063, D-082, D-083, D-084 and D-089.
+
+- **What a landmark is.** A trophy of one Scroll revision, like "The Leaning Axis". Its key and name come from the library plan and are set into the document by code (`landmark: {key, name}`), never from the model. A recipe with none awards none, and so does every stored revision made before this: a missing landmark is safe, and S-6 adds the rest. The four Seasons recipes are named (`The Leaning Axis`, `The Turning Halves`, `The Near January`, `The Sideways Giant`). The first is the design's; the other three are authored here and a person should confirm them.
+- **The finish.** Gold when the Final call was right when it was locked, plain otherwise (`landmarkTier`). A call is locked once, so "first try" is "right when locked". A wrong Final call still earns the landmark, in the plain finish, and the reveal says so.
+- **Awarded once, in the Final call's own transaction.** `play.landmarks` (0077) has one row for each person and revision: key, the name they saw, the finish, the time. It is written beside the call and the tally with `on conflict do nothing`, so a retry, a second lock by another command and a replay award nothing again and never upgrade a plain one. It needs the activated exposure that every lock needs, so a revision the person has not opened and activated awards nothing.
+- **Paused.** While recording is paused nothing is stored (D-083): no landmark row, and after recording resumes the screen does not show one that the server never held. The payoff says "Not saved while recording is paused."
+- **Erased, exported, read.** Clear and account deletion erase it (D-082). The export lists each in words: name, finish, day and the Scroll's title if it is still readable, with no identifier and no key. `readResults` carries the landmark of one Scroll, and `POST /v1/play/landmarks/read` lists the person's own, newest first, for the Universe overlay (S-4).
+- **No place is made or moved.** The row names no planet or system. S-4 attaches it where the Scroll's topic has formed (D-084) from the asset, and draws it as a marker (D-089). A landmark never makes a place form: gold and plain give Evidence, Personal Context and Geography the same input (D-063).
+
+Confirmed by: `tests/integration/modules/play.test.ts` (gold for a right Final call, plain for a wrong one, once; refused without an activated exposure; nothing while paused; erased by Clear; exported in words; listed for its owner only; the wall test plays the Final call right for one person and wrong for another and finds the same qualification, activity, contribution and places), `lock-call.test.ts`, `library.test.ts` (which recipes name one), `privacy-clear.test.ts` and `data-export.test.ts` over the every-store fixture.
+
+## D-189 · 2026-10-31 · The payoff ending: the picture, the score, the landmark and every way on at the same weight (S-3, #474)
+
+**Amends** D-134 (the end was "a simple one", the payoff "a later slice") and D-185 (the end card).
+
+- **What the end shows.** The stage keeps its last picture and the tray says "The picture you built" over the recap's three captions. Under them: the score of this Scroll (sparks, the best combo from two, how the Final call went), the landmark card (gold or plain, with its name), the peek at the next Part, then "Done for today" and "Something new" side by side at the same size, then another angle if one was admitted, then the "Small print" chip. A Final call still open says so and offers "Play the Final call" instead of a landmark.
+- **Nothing moves by itself.** Every way on is a button, a key or a swipe the person makes. A test waits on the end and finds the same Scroll and no further request.
+- **Done for today.** It opens "A good place to stop." in the tray with what was earned today and no streak or guilt. "Open your Universe" and "Close" (the same move as before) are there, and so is "Back to the end". The button that was pressed is gone, so focus moves to the panel, and "Back to the end" returns it to the start of the tray.
+- **Small print opens where it stands.** The chip opens the limits aside inside the tray, and says whether it is open (`aria-expanded`). It used to jump up the text to the aside's stop, away from the end.
+- **The peek is the next Part's title.** The context carries no teaser, so none is invented (D-072: only real numbers and text).
+- **Honest about where the landmark is.** The card does not say it flew to the Universe: the overlay is S-4 (D-084, D-089). "Open your Universe" opens the Universe and promises nothing about it.
+- **Reduced motion.** There is no flight to skip: the landmark card is drawn in its final state, and the picture follows the tilt at once. Haptics are not built (the app has no haptics module).
+- **Words.** "You learned" and mastery words stay out (D-072). The card shows no points beyond the sparks, and no rank.
+
+Confirmed by: `play.test.tsx` (the score row, gold and plain cards, the paused and waiting notes, the open Final call, Small print, Done for today), `stage-reader.test.tsx`, `payoff-smoke.spec.ts` (Seasons Part 1 to the end at 390 × 844 and 1440 × 900, 320 × 640, reduced motion, axe, no auto-advance, a reload that keeps the landmark, recording paused).
