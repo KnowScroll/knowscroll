@@ -55,10 +55,3 @@ export type FlawPayload = z.infer<typeof FlawPayloadSchema>;
 
 /** The UTC day of an instant, as `YYYY-MM-DD`: the unit rituals, stars' daily cap and Today are counted in. */
 export const dayOf = (at: Date): string => at.toISOString().slice(0, 10);
-
-/** The day `days` before `day`. */
-export function dayBefore(day: string, days: number): string {
-  const at = new Date(`${day}T00:00:00.000Z`);
-  at.setUTCDate(at.getUTCDate() - days);
-  return dayOf(at);
-}

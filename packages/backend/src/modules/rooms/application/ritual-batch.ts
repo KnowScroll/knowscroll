@@ -4,7 +4,15 @@ import type {
   WithProductionScope,
 } from '../../../reasoning/public.js';
 import type { ReadLibraryPassageText, ReadLibraryPassages } from '../../content/public.js';
-import { alterationProblem, citationHolds, flawPayload, planFlaw, seedOf, type FlawPlan } from '../domain/flaw.js';
+import {
+  alterationProblem,
+  citationHolds,
+  flawPayload,
+  planFlaw,
+  seedOf,
+  type FlawPlan,
+  type Sha256,
+} from '../domain/flaw.js';
 import { chooseQuestionSource, questionFrom } from '../domain/ritual-question.js';
 import { FlawPayloadSchema, QuestionPayloadSchema, RITUAL_VERSION, type RitualKind } from '../domain/rituals.js';
 import type { NewRitual, RitualDecision, RitualRoom, RitualRow, RitualStore } from './ritual-ports.js';
@@ -26,6 +34,7 @@ export interface RitualBatchPorts {
   /** A run ID that is the same for the same room, day and kind, so a retried batch never pays twice. */
   readonly runIdFor: (roomId: string, day: string, kind: RitualKind) => string;
   readonly newId: () => string;
+  readonly sha256: Sha256;
   readonly now: () => Date;
 }
 
@@ -148,7 +157,7 @@ export function makeRitualOperator(
           policyVersion: RITUAL_POLICY_VERSION,
         },
         role: ritualRole(plan.original),
-        context: ritualContext(plan, `${room.roomId}:${day}`),
+        context: ritualContext(plan, runId),
         limits: { allowRepair: true },
       },
       signal,
@@ -200,7 +209,7 @@ export function makeRitualOperator(
         flaw: has.has('flaw') ? { kind: 'exists' } : none,
       };
     }
-    const seed = seedOf(`${room.roomId}:${day}`);
+    const seed = seedOf(`${room.roomId}:${day}`, p.sha256);
     const recent = await p.store.recentSources(room.roomId, day, RECENT_DAYS);
     const question: { outcome: DraftOutcome; assetId: string | undefined } = has.has('question')
       ? { outcome: { kind: 'exists' }, assetId: undefined }
@@ -208,7 +217,7 @@ export function makeRitualOperator(
     if (has.has('flaw')) return { ...base, question: question.outcome, flaw: { kind: 'exists' } };
     // The puzzle is about another Scroll than the question when the library has one.
     const avoid = new Set([...recent, ...(question.assetId === undefined ? [] : [question.assetId])]);
-    const plan = planFlaw(sources, seed, avoid);
+    const plan = planFlaw(sources, seed, p.sha256, avoid);
     const flaw: DraftOutcome =
       plan === undefined ? { kind: 'no_source' } : await draftFlaw(room, day, plan, dryRun, signal);
     return { ...base, question: question.outcome, flaw };
@@ -229,7 +238,7 @@ export function makeRitualOperator(
     if (!parsed.success || row.payloadVersion !== RITUAL_VERSION) return 'invalid';
     const { assetId, assetRevision, blockId } = parsed.data.source;
     const text = await p.readPassageText({ assetId, assetRevision, blockId });
-    return text !== undefined && citationHolds(text, parsed.data);
+    return text !== undefined && citationHolds(text, parsed.data, p.sha256);
   }
 
   return {

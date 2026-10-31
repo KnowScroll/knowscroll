@@ -72,9 +72,9 @@ export function ritualRole(original: string): ReasoningRole<RitualAnswer> {
 }
 
 /** What the model may read: the Scroll's own passage, numbered, and which sentence to alter. No member, no room name. */
-export function ritualContext(plan: FlawPlan, runKey: string): ReasoningContext {
+export function ritualContext(plan: FlawPlan, runId: string): ReasoningContext {
   return {
-    bundleRef: `rooms-ritual:${runKey}`,
+    bundleRef: `rooms-ritual:${runId}`,
     items: [
       {
         ref: 'passage',

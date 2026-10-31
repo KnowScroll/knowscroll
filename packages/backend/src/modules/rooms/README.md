@@ -356,3 +356,34 @@ person who never took part in a room has no section.
   (naming needs a claimed profile and never undoes a removal; `--remove` only takes the role from a current member;
   a moderator who leaves and comes back is an ordinary member until named again)
   (`apps/worker/src/rooms-operator.ts`).
+
+## Today's ritual items (v3 R-5, D-176)
+
+Status: implemented (CI-verified; fixture model). Not runtime-verified: needs `KS_REASONING_ROOM_ENABLED`, a provider and an operator's approval.
+
+A room's day has two items, both grounded in an admitted library Scroll and both waiting for an operator before any member sees them
+(`rooms.rituals`, migration 0084, states `draft`, `approved`, `rejected`, unique by room, day and kind):
+
+- **The question** is a template over a Scroll's title and summary (`domain/ritual-question.ts`). It costs no model call.
+- **Spot the flaw** is a passage of three or four sentences of a Scroll with one sentence altered. **Code** picks the passage and the sentence
+  (`domain/flaw.ts`: a sentence that states a number, a comparison or a cause when there is one), keeps the Scroll's own sentence as the key, and
+  records the cited range with the SHA-256 of the quote. The model (`rooms.ambient-ritual`, version `ritual.1`, class `ambient`, one call and at
+  most one repair, no tool loop) writes **only the altered sentence**; `alterationProblem` refuses it unless it is one sentence, differs from the original, is
+  about the same length, keeps most of its words, has no link and no word that says it is wrong. A refusal carries a fixed repair hint; a second
+  failure stores nothing.
+
+`application/ritual-batch.ts` drafts a room's day: it skips a kind the room already has, prefers a Scroll the room has not cited in the last 14 days, and
+asks the model at most once per room and day (the run's ID is fixed by the room, the day and the kind, so a repeated batch finds the stored item or the
+ended run and pays nothing; an unknown outcome is never sent again). No open room with a member and no passage with three readable sentences means no call. The
+item and the end of its model run commit together in the room scope's transaction. The night's job `rooms.nightly-rituals` (cron `10 3 * * *`, only where
+the worker holds the rooms grant) drafts today's UTC day for every open room that has a member and throws when a room failed, so it retries
+(everything it stores is idempotent). Calls: at most one per room per day, none for an empty room.
+
+| Operator command | What it does |
+| --- | --- |
+| `rituals --room <slug> [--day YYYY-MM-DD] [--dry-run]` | Drafts one room's day (today by default). A dry run shows the passage and the sentence code chose and calls nothing |
+| `ritual-list [--state draft|approved|rejected]` | The items with their words and cited Scroll; never a person |
+| `ritual-review --ritual <uuid> --approve|--reject` | The decision, as `cli:<name>`. Approving reads the cited block again and refuses with `citation_changed` unless the Scroll still says it |
+
+Public names: `composeRitualOperator` and `roomsRitualProviders` (`adapters/nest-providers`), `RUN_NIGHTLY_RITUALS` and `nightlyRitualsQueue` (`public.ts`). A ritual
+item is room content with no account: neither a Clear nor an account deletion touches `rooms.rituals`. Nothing here writes to a personal schema.

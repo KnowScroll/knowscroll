@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { WorkerConfig } from '../../../infrastructure/config/index.js';
 import { stableUuid, uuidv7 } from '../../../infrastructure/ids/index.js';
@@ -43,6 +44,7 @@ export function composeRitualOperator(deps: {
       generation: deps.generation,
       runIdFor: (roomId, day, kind) => stableUuid(`rooms-ritual:${roomId}:${day}:${kind}`),
       newId: uuidv7,
+      sha256: (text) => createHash('sha256').update(text).digest('hex'),
       now: deps.now ?? (() => new Date()),
     },
     deps.harness,

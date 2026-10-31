@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { FlawPayloadSchema, type FlawPayload, type PassageCitation } from './rituals.js';
 
 /**
@@ -45,7 +44,7 @@ const ABBREVIATIONS = new Set([
 
 /** Whether a sentence may end where a terminator is followed by a space and then `next`. */
 function endsBefore(sentenceSoFar: string, next: string): boolean {
-  if (!/^[A-Z0-9"“‘'(\[]/.test(next)) return false;
+  if (!/^[A-Z0-9"“‘'([]/.test(next)) return false;
   const lastWord = sentenceSoFar.trim().split(/\s+/).at(-1)?.toLowerCase() ?? '';
   if (ABBREVIATIONS.has(lastWord)) return false;
   // An initial such as "J." or a single capital before a period is not an end.
@@ -73,9 +72,12 @@ export function splitSentences(text: string): readonly Sentence[] {
   return sentences;
 }
 
+/** SHA-256 of a text as 64 lowercase hex digits. Passed in, so this file stays free of Node's crypto. */
+export type Sha256 = (text: string) => string;
+
 /** A stable non-negative integer from a key, so the same room and day always choose the same passage. */
-export function seedOf(key: string): number {
-  return createHash('sha256').update(key).digest().readUInt32BE(0);
+export function seedOf(key: string, sha256: Sha256): number {
+  return Number.parseInt(sha256(key).slice(0, 8), 16);
 }
 
 /** A Scroll's prose as the content read gives it (the part of `LibraryPassageSource` a puzzle needs). */
@@ -95,6 +97,8 @@ export interface FlawPlan {
   readonly flawIndex: number;
   readonly original: string;
 }
+
+const isControl = (point: number): boolean => point < 32 || (point >= 127 && point <= 159);
 
 const wordsOf = (text: string): readonly string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
@@ -124,6 +128,7 @@ function windowsOf(sentences: readonly Sentence[]): readonly { readonly from: nu
 export function planFlaw(
   sources: readonly PassageSource[],
   seed: number,
+  sha256: Sha256,
   avoid: ReadonlySet<string> = new Set(),
 ): FlawPlan | undefined {
   const candidates = sources.flatMap((source) =>
@@ -154,7 +159,7 @@ export function planFlaw(
         blockId: chosen.block.blockId,
         start: first.start,
         end: last.end,
-        quoteHash: createHash('sha256').update(quote).digest('hex'),
+        quoteHash: sha256(quote),
       },
       sentences: shown.map((sentence) => sentence.text),
       flawIndex,
@@ -192,7 +197,7 @@ const LENGTH_RATIO = { min: 0.6, max: 1.5 };
 export function alterationProblem(original: string, altered: string): AlterationProblem | undefined {
   const text = altered.trim();
   if (text.length === 0) return 'empty';
-  if (/[\u0000-\u001f\u007f-\u009f]/u.test(text)) return 'control';
+  if ([...text].some((character) => isControl(character.codePointAt(0)!))) return 'control';
   if (text.length > SENTENCE_MAX_CHARS) return 'too_long';
   const originalWords = wordsOf(original);
   const alteredWords = wordsOf(text);
@@ -224,11 +229,11 @@ export function flawPayload(plan: FlawPlan, altered: string): FlawPayload {
  * quote, and, for a puzzle, the Scroll's own sentences are the shown ones with the original in the flaw's place. A Scroll that
  * was corrected since fails it.
  */
-export function citationHolds(blockText: string, payload: FlawPayload): boolean {
+export function citationHolds(blockText: string, payload: FlawPayload, sha256: Sha256): boolean {
   const { source } = payload;
   if (source.start >= source.end || source.end > blockText.length) return false;
   const quote = blockText.slice(source.start, source.end);
-  if (createHash('sha256').update(quote).digest('hex') !== source.quoteHash) return false;
+  if (sha256(quote) !== source.quoteHash) return false;
   const own = splitSentences(quote).map((sentence) => sentence.text);
   const expected = payload.sentences.map((sentence, index) =>
     index === payload.flawIndex ? payload.original : sentence,
