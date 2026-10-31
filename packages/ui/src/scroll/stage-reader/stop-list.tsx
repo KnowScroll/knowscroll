@@ -8,7 +8,8 @@ import { EndTray, type NextPartPeek, type SmallPrint } from './end-tray';
 import type { Payoff } from './payoff';
 import type { StageLock } from './stage-play';
 import type { SpineDot } from './spine';
-import { AsideView, ReadStopView } from './stop-view';
+import type { QuickAnswer } from './quick-answer';
+import { AsideView, ReadStopView, type QuickAnswerActions } from './stop-view';
 
 /** What the list needs from the reader around it. */
 export interface StopListProps {
@@ -40,6 +41,14 @@ export interface StopListProps {
   readonly onNextTopic: (() => void) | undefined;
   readonly onUniverse: (() => void) | undefined;
   readonly onPlayFinal: (() => void) | undefined;
+  /** Challenge a friend, at the end of the Scroll (D-245). */
+  readonly onChallenge: (() => void) | undefined;
+  /** The stops shown in their plainer words (V3 D2), and how to switch one. */
+  readonly simplerStops: ReadonlySet<string>;
+  readonly onToggleSimpler: (stopId: string) => void;
+  /** The Quick answer open under a stop, if any, and what can be done from it. */
+  readonly quick: QuickAnswer | undefined;
+  readonly quickActions: QuickAnswerActions;
 }
 
 /** The sections of the text: one per stop (with the asides beside it) and the end tray, stacked. */
@@ -54,10 +63,17 @@ export function StopList(props: StopListProps) {
           aria-label={dots[index]?.label}
           onLayout={measureSection(index)}
           style={[styles.section, { minHeight: sectionHeight }]}
-          {...dataSet({ ksStop: stop.id })}
+          {...dataSet({ ksStop: stop.id, ksKind: stop.kind === 'read' ? 'read' : 'call' })}
         >
           {stop.kind === 'read' ? (
-            <ReadStopView stop={stop} />
+            <ReadStopView
+              stop={stop}
+              simpler={props.simplerStops.has(stop.id)}
+              onToggleSimpler={() => props.onToggleSimpler(stop.id)}
+              quick={props.quick?.stopId === stop.id ? props.quick : undefined}
+              quickActions={props.quickActions}
+              onQuickLayout={(height) => props.onRevealLayout(index, height + SECTION_PADDING)}
+            />
           ) : (
             <CallView
               call={stop}
@@ -88,7 +104,7 @@ export function StopList(props: StopListProps) {
         aria-label={dots[dots.length - 1]?.label}
         onLayout={measureSection(document.stops.length)}
         style={[styles.section, { minHeight: sectionHeight }]}
-        {...dataSet({ ksStop: 'end' })}
+        {...dataSet({ ksStop: 'end', ksKind: 'end' })}
       >
         <EndTray
           recap={document.recap}
@@ -101,6 +117,7 @@ export function StopList(props: StopListProps) {
           onNextTopic={props.onNextTopic}
           onUniverse={props.onUniverse}
           onPlayFinal={props.onPlayFinal}
+          onChallenge={props.onChallenge}
         />
       </View>
     </>

@@ -54,6 +54,13 @@ export interface ThreadState {
   readonly offline: boolean;
   /** After a lost connection returned with new messages: the sequence the "While you were away" divider follows. */
   readonly awayAfterSequence: number | undefined;
+  /** The challenge card whose pick is on its way, so the card can show it is sending (D-245). */
+  readonly lockingChallenge: string | undefined;
+  /**
+   * Why the last pick on a challenge card was not kept, for that card to say: recording is paused (a pick is a play
+   * result and is stored only while recording is on, D-083), or no answer came and the person may press again.
+   */
+  readonly challengeNotice: { readonly messageId: string; readonly reason: 'paused' | 'failed' } | undefined;
 }
 
 export interface ThreadController {
@@ -71,6 +78,12 @@ export interface ThreadController {
    * back with the new count. The wanted state is the command, so pressing twice is harmless.
    */
   readonly react: (messageId: string, kind: MessageReactionKind, present: boolean) => Promise<void>;
+  /**
+   * Locks this person's pick on a challenge card (D-245). The first lock stands, so pressing again after a lost answer is
+   * safe. While recording is paused nothing is sent and the card says so. Never throws; the thread is caught up after
+   * every answer, so the card shows what the server holds (the friend's pick only once both have called).
+   */
+  readonly lockChallenge: (messageId: string, option: number) => Promise<void>;
   readonly retry: (commandId: string) => Promise<void>;
   readonly dismiss: (commandId: string) => void;
   /**
@@ -136,6 +149,8 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     peerReadThrough: undefined,
     offline: false,
     awayAfterSequence: undefined,
+    lockingChallenge: undefined,
+    challengeNotice: undefined,
   };
   let lostAfter: number | undefined;
   let catchUpCursor: string | undefined;
@@ -288,6 +303,21 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
     }
   }
 
+  /** Asks the server to keep the pick; says whether it did, or why not. */
+  async function sendPick(messageId: string, option: number): Promise<'kept' | 'paused' | 'stale' | 'failed'> {
+    const recordingGeneration = await scope.recording?.generation();
+    if (recordingGeneration === undefined) return 'failed';
+    const answer = await api.lockChallenge({
+      version: VERSION,
+      conversation,
+      messageId,
+      option,
+      recordingGeneration,
+    });
+    if (answer.recorded) return 'kept';
+    return answer.reason === 'recording_paused' ? 'paused' : 'stale';
+  }
+
   const setOutgoing = (commandId: string, patch: Partial<OutgoingMessage>) =>
     publish({
       outgoing: state.outgoing.map((entry) => (entry.commandId === commandId ? { ...entry, ...patch } : entry)),
@@ -380,6 +410,34 @@ export function createConversationThread(options: ThreadOptions): ThreadControll
         else failed(error);
         return;
       }
+      await catchUp();
+    },
+    async lockChallenge(messageId, option) {
+      if (state.lockingChallenge !== undefined) return;
+      // A pick is stored only while recording is on, and unknown counts as not on: nothing is sent.
+      if (scope.recording?.getState().policy?.on === false) {
+        publish({ challengeNotice: { messageId, reason: 'paused' } });
+        return;
+      }
+      publish({ lockingChallenge: messageId, challengeNotice: undefined });
+      let outcome: Awaited<ReturnType<typeof sendPick>> = 'failed';
+      try {
+        outcome = await sendPick(messageId, option);
+        if (outcome === 'stale') {
+          // The policy moved on since this device read it: read it again and send the same pick once more.
+          await scope.recording?.refresh();
+          outcome = await sendPick(messageId, option);
+        }
+      } catch (error) {
+        const failure = talkFailure(error);
+        if (failure === 'ended') return;
+        if (failure === 'unavailable') void load();
+      }
+      publish({
+        lockingChallenge: undefined,
+        challengeNotice:
+          outcome === 'kept' ? undefined : { messageId, reason: outcome === 'paused' ? 'paused' : 'failed' },
+      });
       await catchUp();
     },
     async retry(commandId) {

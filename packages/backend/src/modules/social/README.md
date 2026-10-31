@@ -22,6 +22,7 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; not runtime-verified on dev |
 | Party places in threads (T-D, D-065, D-152) | `thread_places`, and `conversation_members.place_hidden` (migration 0080) | `THREAD_USE_CASES`: `places` (read), `setPlace`, `setPlaceHidden` | Implemented; not runtime-verified |
 | Call it together in threads (T-E, D-155 to D-157) | `thread_calls` (migration 0083) | `THREAD_USE_CASES`: `calls` (read), `lockCall` | Implemented; not runtime-verified |
+| Challenge a friend in a direct conversation (S-9, D-245) | `messages.challenge_stop` (migration 0088); each person's pick is a `thread_calls` row keyed by the direct conversation | `CONVERSATION_USE_CASES`: `conversations.send` (a content card with `challenge: { stopId }`), `conversations.lockChallenge`; the card comes back on the messages of `read`, `history` and `changes` | Implemented; not runtime-verified |
 | Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented                              |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
@@ -253,6 +254,17 @@ here reads another member's Experience. _Implemented; not runtime-verified._
   write, FOR SHARE to read), then the member and place rows. The pair command deletes places without the thread lock;
   a place is only ever shown through the standing check, so a row that outlives a race is never visible.
 - **Export.** The person's own places (thread name, part, state, day) and how many threads they hide in, never anyone else.
+
+## Challenge a friend (S-9, D-244, D-245)
+
+A content card in a direct conversation can name one call of its exact Scroll revision (its Final call, else its first Call it). Each of the two people locks their own pick; nobody sees the other's pick or the right answer before they have locked theirs, and the same rule shows both once both have.
+
+- **Send** (`conversations/send`). The body is a content card plus `challenge: { stopId }`. The stop must be a call of that revision (`READ_SCROLL_PLAY_FACTS`), or the send is `invalid_input`. No pick travels with it. It is an ordinary message: receipt, inbox hints, no evidence for anyone.
+- **Lock** (`conversations/challenge/lock`, `lockChallenge`, `application/challenge-lock.ts`). Authority: the caller's personal scope, then the friendship's lock; the conversation must be open to the caller and the message must be a challenge of it that still stands, or the answer is `unavailable` (a stranger, a person who left, a blocked pair, another conversation and a plain card are the same). Recording must be on and the generation current (D-083), or nothing is stored and the answer says why. The first lock stands; a repeat answers `stands`. No receipt (D-156). A new pick gives the message a fresh change number and tells both inboxes.
+- **The card** (`application/challenge-cards.ts`, `domain/challenges.ts`). Built on every read from the immutable revision and the two people's pick rows: `open`, `locked` (own pick only) or `revealed` (both picks, the answer, why, and the twist after a wrong pick). A read writes nothing and works while recording is paused.
+- **Stored.** `messages.challenge_stop` and the pick rows of `thread_calls` (keyed by the conversation, revision and stop, so one set of picks per call per conversation). Never whether a pick was right.
+- **Removal.** Clear and account deletion erase the person's picks (`erasePicks`); a deleted sender's message becomes a tombstone and clears `challenge_stop`; the export lists the person's own pick in words with `challengeFromConversation`.
+- Covered by `social-challenges.test.ts` (real PostgreSQL), `domain/challenges.test.ts` and the wall tests below. _Implemented; not runtime-verified on dev._
 
 ## Call it together (T-E, D-155 to D-157)
 

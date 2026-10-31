@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { ConversationContentProjectionSchema, MessageReactionKind, PublicPersonRef } from '@knowscroll/contracts';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { ReadScrollPlayFacts } from '../../content/public.js';
+import type { FencePersonalRecording, PersonalScopeTx } from '../../identity/public.js';
 import type { PairLock, SharedLock, SocialPorts } from './ports.js';
 
 export type ContentCard = z.infer<typeof ConversationContentProjectionSchema>;
@@ -50,6 +51,8 @@ export interface MessageRow {
   readonly note: string | null;
   /** The earlier message of this conversation this one answers; null for a plain message and for a tombstone. */
   readonly replyToSequence: number | null;
+  /** Set when the card is a challenge (D-245): the stop of the card's exact revision that the friend is asked to call. */
+  readonly challengeStop: string | null;
 }
 
 /** The caller's own membership, found before any lock so the peer's account can be gated first. */
@@ -90,6 +93,21 @@ export interface NewMessage {
   readonly note?: string;
   /** The sequence of the message this one answers, already checked to be in the same conversation. */
   readonly replyToSequence?: number;
+  /** Makes a content card a challenge for this stop of its revision (D-245); the use case has checked the stop is a call. */
+  readonly challengeStop?: string;
+}
+
+/** The call a challenge asks about: one stop of one exact Scroll revision. */
+export interface ChallengeCall {
+  readonly assetId: string;
+  readonly revision: number;
+  readonly stopId: string;
+}
+
+/** One person's stored pick on a challenge's call, never whether it was right (D-156). */
+export interface ChallengePickStored extends ChallengeCall {
+  readonly accountId: string;
+  readonly option: number;
 }
 
 /** One person's reaction on one message, as the reader may see it (their blocks already left out). */
@@ -198,6 +216,32 @@ export interface ConversationStore {
     conversationId: string,
     sequences: readonly number[],
   ): Promise<readonly QuoteRow[]>;
+  /**
+   * The challenge a message of this conversation is, when it is one that still stands: the call it asks about. Never a
+   * tombstone and never a plain card.
+   */
+  challengeOf(
+    reader: ConversationReader,
+    conversationId: string,
+    messageId: string,
+  ): Promise<(ChallengeCall & { readonly sequence: number }) | undefined>;
+  /** The picks of these calls in this conversation (at most the two people's). */
+  picksOf(
+    reader: ConversationReader,
+    conversationId: string,
+    calls: readonly ChallengeCall[],
+  ): Promise<readonly ChallengePickStored[]>;
+  /** Stores the account's first pick of a call. A call the account already locked is left as it was. */
+  insertPick(
+    lock: SharedLock,
+    conversationId: string,
+    accountId: string,
+    call: ChallengeCall,
+    option: number,
+    day: string,
+  ): Promise<void>;
+  /** Gives the message the conversation's next change number, so catch-up carries its new state to both people. */
+  touchMessage(lock: SharedLock, conversationId: string, sequence: number): Promise<void>;
   messageOfCommand(
     reader: ConversationReader,
     conversationId: string,
@@ -284,6 +328,10 @@ export interface OpenMembership {
 export interface ConversationPorts extends SocialPorts {
   conversations: ConversationStore;
   shares: ShareStore;
+  /** The question, options, answer and reveal words of a Scroll revision (content's public read). */
+  readCallFacts: ReadScrollPlayFacts;
+  /** A pick is a play result, so it is stored only while recording is on (D-083). */
+  fenceRecording: FencePersonalRecording;
   /** A new share-link token (`kssh_` plus 43 random characters). */
   shareToken(): string;
 }

@@ -17,11 +17,13 @@ export function useShareSession(
   scope: AccountScope,
   target: ConversationContentRef,
   origin: string,
+  challenge?: { readonly stopId: string },
 ): { readonly session: ShareSession; readonly state: ShareState } {
   const [session] = useState(() =>
     createShareSession({
       scope,
       target,
+      challenge,
       origin,
       newId: newCommandId,
       copyText: async (text) => {

@@ -181,7 +181,7 @@ export const socialErasure = declareErasure({
         returning c.conversation_id, c.last_change_sequence as top, t.total
       )
       update social.messages m set author_account_id = null, command_id = null, body_text = null,
-        asset_id = null, asset_revision = null, note = null, reply_to_sequence = null,
+        asset_id = null, asset_revision = null, note = null, reply_to_sequence = null, challenge_stop = null,
         change_sequence = bumped.top - bumped.total + mine.position
       from mine join bumped on bumped.conversation_id = mine.conversation_id
       where m.conversation_id = mine.conversation_id and m.sequence = mine.sequence`.execute(trx);
@@ -358,6 +358,8 @@ const EXPORT_MESSAGE_LIMIT = 2000;
  */
 interface PickExportRow {
   readonly name: string | null;
+  /** `direct` for a challenge a friend was sent (D-245), `thread` for a call of a thread. */
+  readonly kind: string;
   readonly asset_id: string;
   readonly option: number;
   readonly day: string;
@@ -463,13 +465,14 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
         .orderBy('place.day', 'desc')
         .limit(500)
         .execute();
-      // Their own picks on a thread's call (D-156), in words: the thread, the question and the option they picked. Not
-      // whether it was right: nothing stores that, and the reveal is the thread's to give.
+      // Their own picks on a thread's call (D-156) or on a challenge a friend sent or answered (D-245), in words: where, the
+      // question and the option they picked. Not whether it was right: nothing stores that, and the reveal is the card's to give.
       const picks = await sql<PickExportRow>`
-        select thread.name, pick.asset_id, pick.option, to_char(pick.day, 'YYYY-MM-DD') as day,
+        select thread.name, conversation.kind, pick.asset_id, pick.option, to_char(pick.day, 'YYYY-MM-DD') as day,
           jsonb_path_query_first(revision.document, '$.stops[*] ? (@.id == $stop)', jsonb_build_object('stop', pick.stop_id)) as stop
         from social.thread_calls pick
-        join social.content_threads thread on thread.thread_id = pick.thread_id
+        join social.conversations conversation on conversation.conversation_id = pick.thread_id
+        left join social.content_threads thread on thread.thread_id = pick.thread_id
         left join content.asset_revisions revision
           on revision.asset_id = pick.asset_id and revision.revision = pick.revision
         where pick.account_id = ${person.accountId}::uuid
@@ -546,6 +549,7 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
           hidingWhereIAmIn: Number(hidingIn.n),
           // What they locked on a thread's "Call it together" (D-156): their own pick, in words, and the day.
           callsMade: picks.rows.map((pick) => ({
+            ...(pick.kind === 'direct' ? { challengeFromConversation: true } : {}),
             ...(pick.name === null ? {} : { thread: pick.name }),
             ...(reachable.has(pick.asset_id) && pick.stop?.prompt !== undefined ? { question: pick.stop.prompt } : {}),
             ...(reachable.has(pick.asset_id) && pick.stop?.options?.[pick.option] !== undefined

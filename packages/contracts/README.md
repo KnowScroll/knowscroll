@@ -1354,6 +1354,7 @@ places `places/read`, `places/set`, `places/hide`, and for Call it together `cal
   idempotent by their state, so they have no command ID, keep no receipt and answer with the scope and what they did,
   never a time (`threads.test.ts` refuses a command ID, a replay flag or a time). The thread view and list stay free of
   places. _Implemented._
+- **Challenge a friend (v3 S-9, D-245).** `SendConversationBody`'s content card may carry `challenge: { stopId }` (`ChallengeRequest`). A direct conversation's content message may carry `challenge`, a `ChallengeCard` in the stage the reader may see it: `open` (the question and options), `locked` (plus the reader's own `option`) or `revealed` (plus the friend's `theirs`, the right `answer`, `explain`, a `twist` only after a miss, `right` and `theirsRight`); a stage cannot carry what it must not. `LockChallengePick` is the conversation, the message, an option and the recording generation (no command ID, no stop, no correctness: the first lock stands); its acceptance is `recorded: true` with `locked` or `stands`, or `recorded: false` with `recording_paused` or `recording_generation_stale`. Route `/v1/social/conversations/challenge/lock`.
 - **Call it together (v3 T-E, D-155 to D-157).** `ThreadCall` is one call of a series part in the stage the caller may see it, a
   discriminated union so that a stage cannot carry what it must not: `open` (the question, the options, `called` and `of`),
   `locked` (plus the caller's own `option`), `closed` (counts and a reason) and `revealed` (the caller's `option`, the right

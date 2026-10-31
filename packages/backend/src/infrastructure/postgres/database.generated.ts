@@ -2009,6 +2009,7 @@ export interface SocialMessages {
   asset_revision: number | null;
   author_account_id: string | null;
   body_text: string | null;
+  challenge_stop: string | null;
   change_sequence: Int8;
   command_id: string | null;
   conversation_id: string;

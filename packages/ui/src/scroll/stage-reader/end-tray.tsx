@@ -42,6 +42,8 @@ export interface EndTrayProps {
   readonly onUniverse?: (() => void) | undefined;
   /** Takes the reader back to the Final call when it is still open. */
   readonly onPlayFinal?: (() => void) | undefined;
+  /** Challenge a friend with one of this Scroll's calls (D-245); absent where it cannot be sent. */
+  readonly onChallenge?: (() => void) | undefined;
 }
 
 /**
@@ -90,7 +92,14 @@ export function EndTray(props: EndTrayProps) {
       ) : (
         <WaysOn {...props} onDoneForToday={() => setClosing(true)} />
       )}
-      {props.smallPrint === undefined ? null : <SmallPrintChip smallPrint={props.smallPrint} />}
+      {props.smallPrint === undefined && props.onChallenge === undefined ? null : (
+        <View style={styles.extras}>
+          {props.smallPrint === undefined ? null : <SmallPrintChip smallPrint={props.smallPrint} />}
+          {props.onChallenge === undefined ? null : (
+            <Button label="Challenge a friend" variant="ghost" size="sm" onPress={props.onChallenge} />
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -282,6 +291,7 @@ const styles = StyleSheet.create({
   },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   smallPrint: { gap: spacing[2], alignItems: 'flex-start' },
+  extras: { gap: spacing[2], alignItems: 'flex-start' },
   limits: {
     gap: spacing[1],
     padding: spacing[3],

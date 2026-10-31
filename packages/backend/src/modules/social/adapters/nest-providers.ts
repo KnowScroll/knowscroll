@@ -138,11 +138,13 @@ export function conversationUseCases(
     db: Kysely<Database>;
     readContent: ReadShareableContent;
     readPublicContent: ReadPublicContent;
-  },
+  } & ThreadCallDeps,
 ): ConversationUseCases {
   const ports: ConversationPorts = {
     ...socialPorts(deps),
     conversations: conversationStore(deps.readContent),
+    readCallFacts: deps.readCallFacts,
+    fenceRecording: deps.fenceRecording,
     shares: shareStore(deps.db, deps.readContent, deps.readPublicContent),
     shareToken: () => `kssh_${randomBytes(32).toString('base64url')}`,
   };
@@ -365,6 +367,8 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
         tokens.database,
         READ_SHAREABLE_CONTENT,
         READ_PUBLIC_CONTENT,
+        READ_SCROLL_PLAY_FACTS,
+        FENCE_PERSONAL_RECORDING,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -373,7 +377,19 @@ export function socialProviders(tokens: { readonly withPersonalScope: symbol; re
         db: Kysely<Database>,
         readContent: ReadShareableContent,
         readPublicContent: ReadPublicContent,
-      ) => conversationUseCases({ withScope, fencePair, fenceOwn, db, readContent, readPublicContent }),
+        readCallFacts: ReadScrollPlayFacts,
+        fenceRecording: FencePersonalRecording,
+      ) =>
+        conversationUseCases({
+          withScope,
+          fencePair,
+          fenceOwn,
+          db,
+          readContent,
+          readPublicContent,
+          readCallFacts,
+          fenceRecording,
+        }),
     },
     {
       provide: THREAD_USE_CASES,

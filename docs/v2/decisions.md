@@ -2637,3 +2637,42 @@ Taken for the owner; named in the PR for #462. Confirmed by: `animation.test.ts`
 - **Not as drawn.** The overview's names vanish at the start instead of fading over 0.4 s; the destination header rises as one piece. A friend's universe derives its type, rings, moon, hue and haze on the visitor's device from the public ids (never the owner's): every type is used once before any repeats.
 
 **Amends** D-106 (a friend's visit no longer draws the plain look) and D-107 (a fly down into a system is the 5.3 s entering animation; a step up is still 0.3 s). Confirmed by: `animation.test.ts` (each animation starts and ends on the screens it joins, the planet lands within a pixel of the globe at three stage sizes, the player's cap and clamp), `step-animations.test.tsx` (steps up, the layers), `visitor-scene.test.ts`, `e2e/universe-animations-smoke.spec.ts` (at a phone's density of 3 the cap and the 1.5 pixel ratio hold through the first open, the glide into a system, into a planet and the world opening out).
+
+## D-244 · 2026-11-01 · Simpler and Quick answer are the Scroll's own words, with no model call at read time (v3 S-9, #480)
+
+**Amends** D-086 ("Quick answer is a capped worker job"), which this does not build. **Builds on** D-085 (Simpler is written when the Scroll is produced).
+
+- **Simpler.** A read stop shows its own `simple` text in place of its words, in a yellow box named "SIMPLER VERSION", with Undo. The button under each stop, the ••• item "Simpler (this screen)" and the "Simpler" item of the selection menu all do this. It is instant and free.
+- **Quick answer.** Selecting words in a read stop and choosing "Ask" draws a card under that stop. It says "About “the words”", gives the stop's own `simple` text, and adds the definitions and tangents the Scroll anchors to that stop. It reads the document alone: no model, no network and no queue. A test counts the requests and finds none.
+- **Label.** The card says "QUICK ANSWER · FROM THIS SCROLL" and "This is the Scroll's own wording for the passage. A new Scroll, made for your question, is checked." The design says "not a checked Scroll". Nothing unchecked is shown here, so that wording would be untrue. "Make it a full Scroll" opens Ask from here (D-218) at that stop with "Tell me more about “the words”" as a draft the person can change. "Ask a follow-up" opens it empty. "Report" opens the Scroll's own content-error report where the screen has one (Explore).
+- **Only a read stop.** A call, the Final call and the end are never offered Simpler or Ask. Their words could give the answer away before the person has locked it in. A Quick answer uses nothing from a later stop, and never the recap or the limits aside, so it cannot spoil a call.
+- **Never evidence.** A Quick answer is not an encounter and is not remembered: nothing is sent, stored or counted, and it never reaches the Universe.
+- **No cap.** Nothing is paid for, so there is no daily cap. A live Quick answer by a worker (D-086) stays a later slice, with the cap and the label the change map gives it.
+- **The menu.** On the web a small toolbar with "Simpler" and "Ask" sits above the selected words (a page cannot add items to the browser's own menu). A phone's own selection menu cannot be extended from here, so on a phone Simpler is on each stop and in ••• (planned: native selection items).
+
+Confirmed by: `quick-answer.test.ts` (the answer is the stop's words, never a call, nothing from a later stop, never the limits aside), `simpler.test.tsx`, `selection-menu.web.test.tsx`, `e2e/simpler-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe (no `/v1/content` or `/v1/play` request from a Quick answer; the draft question; a call offers no menu).
+
+## D-245 · 2026-11-01 · Challenge a friend is a card in a direct conversation, and each pick stays hidden until both have called (v3 S-9, #480)
+
+**Builds on** D-063, D-083, D-155 to D-157 and D-180. It settles the challenge snippet's shape, which the change map leaves open.
+
+- **The card.** A content message in a direct conversation can name one call of the exact Scroll revision it shows: its Final call, else its first Call it. Migration 0088 adds `social.messages.challenge_stop` (the stop id, only on a content message). The question and options are read from that immutable revision when the card is shown. The send carries the stop and no pick.
+- **The picks.** Each person locks their own pick with `conversations.lockChallenge` (message, option, recording generation). It is stored in `social.thread_calls`, keyed by the direct conversation, the revision and the stop. That table's key is a conversation and its member, so Clear, account deletion, export and the wall around picks (D-156) already cover it. The sender locks right after the card goes, as a second command, so no pick is in the send's receipt. The first pick stands. No receipt, no time finer than a day.
+- **What each person sees.** Before they call: the question and the options, and nothing of the friend, not even whether the friend has called. After they call and before the friend does: their own pick only. When both have called: both picks, the right answer, why, and the Scroll's warm second look after a wrong pick. The right answer is never stored and never sent before then. A right call is a spark, shown and not stored. A wrong one is a plot twist (D-064).
+- **Privacy.** A blocked or ended friendship closes the conversation, so neither person can read or lock (`unavailable`, as for every other message). A deleted friend's pick is erased and the other person's card stays "locked". A deleted sender's message becomes a tombstone and clears `challenge_stop`. The export lists a person's own pick in words with `challengeFromConversation`, never the friend's and never whether it was right.
+- **Recording paused** (D-083). The card is sent, the lock stores nothing and says so (`recording_paused`, or `recording_generation_stale` once, then the same pick is sent again).
+- **Not evidence, not ranking.** Sending, locking and reading a challenge add no row outside Social. Picks never reach Composer, Jev, Planner, Evidence, Personal Context, Geography or Scenes: the thread wall rule already allows only Social, feedback, rooms and scenarios to import Social.
+- **Once per call.** A second challenge for the same call in the same conversation shows the same card state, because the picks are keyed by the call.
+- **Not built.** A challenge in a thread or by link, a challenge on a Reel, and a wager (D3).
+
+Confirmed by: `social-challenges.test.ts` (real PostgreSQL: the card with no pick or answer, hidden until both have called, the first pick stands, a stranger, a plain card and another conversation are all `unavailable`, a block, recording paused and a stale generation, Clear, deletion of either person, export, no receipt, and the same tables outside Social before and after), `challenges.test.ts`, `challenge-client.test.ts`, `e2e/challenge-smoke.spec.ts` (two browsers at 390 by 844 and 1440 by 900 with axe). Shown failing with the reveal rule and the recording gate each broken once.
+
+## D-246 · 2026-11-01 · A Reel has the same two top buttons a Scroll has: Your Universe and Next topic (v3 S-9, #480)
+
+**Builds on** the V3 question 16 and D-185.
+
+- **Phone.** The Reel's top bar gains Your Universe at the left and Next topic at the right, in the same places as the Scroll reader's bar, for when a swipe does not work. The format switch is drawn without its state words so the bar stays one line at 390 px and 320 px. Next topic is the same vertical move as a swipe up, and Your Universe opens the Universe tab.
+- **Desktop.** The Reel card's top row gains Your Universe before Previous subject. Next subject stays below the card as it was.
+- **Nothing else changes.** Reel and Scroll keep equal standing: neither gets a control the other lacks. A v1 Scroll's article keeps Back.
+
+Confirmed by: `e2e/simpler-smoke.spec.ts` (the order of the buttons, 44 px targets, Next topic sends the vertical intent, Your Universe opens `/universe`, nothing clipped at 320 px, axe at 390 by 844 and 1440 by 900).

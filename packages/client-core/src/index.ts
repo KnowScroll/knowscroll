@@ -88,6 +88,7 @@ export {
   optionLetter,
   revealWords,
 } from './call-words';
+export { challengeNoticeWords, challengeRevealWords, challengeStatusWords } from './challenge-words';
 export {
   createThreadPlaces,
   placeProgress,
