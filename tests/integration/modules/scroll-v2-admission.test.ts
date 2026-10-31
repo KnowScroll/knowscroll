@@ -81,7 +81,7 @@ describe('Publishing a v2 Scroll (labelled CI fixtures, real PostgreSQL)', () =>
       .execute();
     expect(job).toEqual([
       { policy_version: 'scroll-production.v14', state: 'published' },
-      { policy_version: 'scroll-production.v18', state: 'published' },
+      { policy_version: 'scroll-production.v19', state: 'published' },
     ]);
 
     const [first, second] = await revisionsOf(recipe.assetId);

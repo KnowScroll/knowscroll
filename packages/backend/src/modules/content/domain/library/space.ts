@@ -102,6 +102,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.stars',
     facetId: 'space.stars.measurement',
+    // Colour from surface temperature, output from size and temperature together, dimming with distance and the
+    // chart of temperature against output with its main sequence, giants and white dwarfs are the views the kit has.
+    stageKit: 'starlight.v1',
     interactive: false,
     interactiveKind: null,
     brief:
@@ -129,6 +132,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.exoplanets',
     facetId: 'space.exoplanets.habitability',
+    // The zones of three stars of different output, and a planet's orbit across them, are the view the kit has.
+    // It draws where liquid water could be possible and never that a planet has water or life.
+    stageKit: 'starlight.v1',
     interactive: true,
     interactiveKind: 'simulation',
     brief:
@@ -141,6 +147,8 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.exoplanets',
     facetId: 'space.exoplanets.diversity',
+    // No kit: the subject is what the name "super-Earth" does not say (composition, temperature, orbit,
+    // habitability), and a ruler of masses would be a chart of real data, which is a later block (D-204).
     interactive: false,
     interactiveKind: null,
     brief:
@@ -153,6 +161,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.black-holes',
     facetId: 'space.black-holes.formation',
+    // A massive star's core collapsing when its fuel is gone, beside a star like the Sun that leaves a white dwarf,
+    // is the formation view. Supermassive black holes are told in words only.
+    stageKit: 'black-hole.v1',
     interactive: false,
     interactiveKind: null,
     brief:
@@ -165,6 +176,9 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.black-holes',
     facetId: 'space.black-holes.horizon',
+    // Two black holes to scale with their horizons, the light near an edge and the same pull from far away are the
+    // horizon and pull views. Spaghettification is told in words only.
+    stageKit: 'black-hole.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -177,6 +191,8 @@ export const spaceRecipes = {
     systemId: system,
     topicId: 'space.black-holes',
     facetId: 'space.black-holes.evidence',
+    // Stars orbiting an unseen mass, a glowing disc, the ripples of a merger and the shadow are the four clue views.
+    stageKit: 'black-hole.v1',
     interactive: false,
     interactiveKind: null,
     brief:

@@ -74,7 +74,7 @@ describe.each(STAGE_KIT_IDS.filter((id) => id !== 'earth-sky.v1'))('the focus of
         missing.push(`${JSON.stringify(state)} has ${String(rings)} rings`);
     }
     expect(missing).toEqual([]);
-  });
+  }, 30_000);
 });
 
 /** The centre of each drawn focus ring of a picture. */

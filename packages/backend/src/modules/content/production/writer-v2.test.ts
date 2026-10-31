@@ -31,12 +31,20 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v17 writer', () => {
+describe('the v19 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v18');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v19');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v18');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v19');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
+  });
+
+  it('tells the writer, for every recipe, to keep calls to what the pages state and to give an effect its size', () => {
+    for (const key of ['seasons', 'tides', 'stars-fusion', 'black-hole-horizon', 'dns-lookup'] as const) {
+      const text = writerInstructionsV2(spikeRecipeV2(key));
+      expect(text, key).toContain('a fact the passages do not state must never be the subject of a call');
+      expect(text, key).toContain('never “slightly” or “a little”');
+    }
   });
 
   it('compiles the recorded fixture answer for a stage recipe with a myth', () => {
@@ -301,9 +309,15 @@ const KIT_RECIPES = [
   ['transit.v1', 'exoplanet-transit', 'The picture is the transit method only'],
   ['circulation.v1', 'cardiac-cycle', 'The picture draws no heart rate, no blood pressure figure'],
   ['nerve.v1', 'action-potential', 'The picture draws no voltage figure, speed or time'],
+  ['starlight.v1', 'exoplanet-habitable-zone', 'A habitable zone is where liquid water could exist on a surface'],
+  [
+    'black-hole.v1',
+    'black-hole-horizon',
+    'The picture draws stellar-mass black holes made by a massive star’s collapse',
+  ],
 ] as const;
 
-describe.each(KIT_RECIPES)('the v17 writer for a recipe drawn with %s', (kit, key, sentence) => {
+describe.each(KIT_RECIPES)('the v19 writer for a recipe drawn with %s', (kit, key, sentence) => {
   const kitContext = (): WriterV2Context => ({
     ...context(),
     publication: publicationV2(key),
