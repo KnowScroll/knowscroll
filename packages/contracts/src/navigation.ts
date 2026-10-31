@@ -347,3 +347,30 @@ export const exposureContextContract = oc
   })
   .input(ExposureContextRequestSchema)
   .output(ExposureContextResponseSchema);
+
+/** No input: the answer comes from the caller's own reading and nothing else. */
+export const ReadResumeRequestSchema = z.strictObject({});
+
+/**
+ * The next Part of a series the person has started and not yet opened (D-215): "Resume Part 2 of 3". It
+ * is derived from the caller's own opened Scrolls and the admitted series, so it names no other
+ * person's position and no place inside a Scroll. `part` and `total` are counted from the admitted
+ * series, never declared (D-059). `resume` is null when there is nothing to pick up.
+ */
+export const ResumeResponseSchema = z.strictObject({
+  resume: z
+    .strictObject({
+      assetId: AssetIdSchema,
+      title: z.string().min(1).max(240),
+      part: z.number().int().min(1).max(99),
+      total: z.number().int().min(1).max(99),
+    })
+    .nullable(),
+});
+export type ResumeResponse = z.infer<typeof ResumeResponseSchema>;
+
+/** `POST /v1/experience/resume/read`: a read of the caller's own state. It opens, writes and enqueues nothing. */
+export const readResumeContract = oc
+  .route({ method: 'POST', path: '/v1/experience/resume/read', successStatus: 200, tags: ['experience'] })
+  .input(ReadResumeRequestSchema)
+  .output(ResumeResponseSchema);

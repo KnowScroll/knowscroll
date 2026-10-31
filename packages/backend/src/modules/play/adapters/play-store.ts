@@ -100,4 +100,27 @@ export const playStore: PlayStore = {
       earnedAt: row.earned_at,
     }));
   },
+
+  async readPlayDays(scope, timeZone) {
+    const db = transactionOf(scope);
+    const { universeId, privacyEpoch } = scope.authority;
+    const zone = await knownZone(db, timeZone);
+    const today = await sql<{ today: string }>`
+      select to_char((now() at time zone ${zone})::date, 'YYYY-MM-DD') as today`.execute(db);
+    // Eight days reach back past this week's Monday from any day of the week, in any zone.
+    const days = await sql<{ day: string }>`
+      select distinct to_char((locked_at at time zone ${zone})::date, 'YYYY-MM-DD') as day from play.calls
+      where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}
+        and locked_at >= now() - interval '9 days'`.execute(db);
+    return { today: today.rows[0]!.today, playedDays: days.rows.map((row) => row.day) };
+  },
 };
+
+/** The zone the database knows by that name, or UTC: a read answers whatever the device sent. */
+async function knownZone(db: ReturnType<typeof transactionOf>, name: string | undefined): Promise<string> {
+  if (name === undefined) return 'UTC';
+  const known = await sql<{ name: string }>`select name from pg_timezone_names where name = ${name} limit 1`.execute(
+    db,
+  );
+  return known.rows[0]?.name ?? 'UTC';
+}

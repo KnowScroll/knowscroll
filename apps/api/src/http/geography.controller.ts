@@ -6,9 +6,11 @@ import {
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
   READ_OWN_EMERGING,
+  READ_OWN_PLACE_CONCEPTS,
   type ReadOwnGeography,
   type ReadOwnDeltas,
   type ReadOwnEmerging,
+  type ReadOwnPlaceConcepts,
 } from '@knowscroll/backend/modules/geography';
 import { authorityOf } from './callers.js';
 import { problem } from './problems.js';
@@ -28,6 +30,7 @@ export class GeographyController {
     @Inject(READ_OWN_GEOGRAPHY) private readonly readGeography: ReadOwnGeography,
     @Inject(READ_OWN_DELTAS) private readonly readDeltas: ReadOwnDeltas,
     @Inject(READ_OWN_EMERGING) private readonly readEmerging: ReadOwnEmerging,
+    @Inject(READ_OWN_PLACE_CONCEPTS) private readonly readPlaceConcepts: ReadOwnPlaceConcepts,
   ) {}
 
   @Implement(apiContract.geography.read)
@@ -54,6 +57,15 @@ export class GeographyController {
       const result = await this.readEmerging(authorityOf(admittedCaller(request)), input);
       if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
       return result.emerging;
+    });
+  }
+
+  @Implement(apiContract.geography.placeConcepts)
+  placeConceptsRoute(@Req() request: Request) {
+    return implement(apiContract.geography.placeConcepts).handler(async ({ input }) => {
+      const result = await this.readPlaceConcepts(authorityOf(admittedCaller(request)), input);
+      if (result.kind === 'refused') throw problem(refusalProblems[result.reason]);
+      return result.concepts;
     });
   }
 }

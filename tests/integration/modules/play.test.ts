@@ -72,6 +72,11 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
   let calls: Awaited<ReturnType<typeof callsOfRevision>>;
   const callIt = () => calls.filter((call) => call.kind === 'call_it');
   const finalCall = () => calls.find((call) => call.kind === 'final_call')!;
+  const orbitDays = async (person: { authority: FixturePerson['authority'] }) => {
+    const result = await play.readOrbit(person.authority, { timeZone: 'UTC' });
+    if (result.kind !== 'orbit') throw new Error('CI expected an Orbit');
+    return result.orbit.days;
+  };
 
   beforeAll(async () => {
     database = await createTestDatabase<Database>('play');
@@ -328,10 +333,12 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
     expect(JSON.stringify(section)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
     expect(JSON.stringify(section)).not.toContain(LEANING_AXIS.key);
     expect(await rows(person)).toEqual({ landmarks: 1, calls: 3, results: 1 });
+    expect(await orbitDays(person)).toBe(1);
 
     await clearRecordingPerson(database, boss, person);
     expect(await rows(person)).toEqual({ landmarks: 0, calls: 0, results: 0 });
     const fresh = { ...person.authority, privacyEpoch: person.authority.privacyEpoch + 1 };
+    expect(await orbitDays({ authority: fresh })).toBe(0);
     expect(await play.readResults(fresh, { assetId: scroll.assetId, revision: scroll.revision })).toMatchObject({
       kind: 'results',
       results: { calls: [], sparks: 0, combo: 0 },
@@ -564,6 +571,7 @@ describe('The Final call and its landmark (real PostgreSQL, labelled CI fixtures
           ...LEANING_AXIS,
           tier: 'gold',
           earnedAt: expect.any(String) as string,
+          topicId: TOPICS.seasons.topicId,
         },
       ],
     });
@@ -572,6 +580,92 @@ describe('The Final call and its landmark (real PostgreSQL, labelled CI fixtures
     expect(
       await playFor(database).readResults(mine.authority, { assetId: scroll.assetId, revision: scroll.revision }),
     ).toMatchObject({ kind: 'results', results: { landmark: { ...LEANING_AXIS, tier: 'gold' } } });
+  });
+
+  const orbitOf = async (person: FixturePerson, timeZone?: string) => {
+    const result = await play.readOrbit(person.authority, timeZone === undefined ? {} : { timeZone });
+    if (result.kind !== 'orbit') throw new Error('CI expected an Orbit');
+    return result.orbit;
+  };
+  const lockedAt = (person: FixturePerson, daysAgo: number, stopId: string) =>
+    sql`update play.calls set locked_at = now() - make_interval(days => ${daysAgo})
+      where universe_id = ${person.universeId}::uuid and stop_id = ${stopId}`.execute(database.db);
+
+  it('keeps this week as text: no play is no days, a day played counts once, and the goal is three', async () => {
+    const person = await reader();
+    expect(await orbitOf(person)).toMatchObject({ days: 0, goal: 3, closed: false });
+    const [first, second] = callIt();
+    await lock(person, first!, picks(first!).right);
+    await lock(person, second!, picks(second!).wrong);
+    // Two calls on one day are one day.
+    expect(await orbitOf(person)).toMatchObject({ days: 1, goal: 3, closed: false });
+    // Three distinct days, the way a calendar counts them: the days since Monday are the most this week can hold.
+    await lockedAt(person, 1, second!.id);
+    const sinceMonday = (new Date().getUTCDay() + 6) % 7;
+    expect((await orbitOf(person, 'UTC')).days).toBe(Math.min(2, sinceMonday + 1));
+  });
+
+  it('removes nothing for a missed week: the Orbit starts again and the landmark stands', async () => {
+    const person = await reader();
+    const final = finalCall();
+    await lock(person, final, picks(final).right);
+    // The only call was played twenty days ago.
+    await lockedAt(person, 20, final.id);
+    expect(await orbitOf(person)).toMatchObject({ days: 0, closed: false });
+    expect(await play.readLandmarks(person.authority)).toMatchObject({
+      kind: 'landmarks',
+      landmarks: [{ ...LEANING_AXIS, tier: 'gold' }],
+    });
+  });
+
+  it("names the week in the person's own time zone, and reads an unknown zone as UTC", async () => {
+    const person = await reader();
+    await lock(person, callIt()[0]!, 0);
+    // UTC+14 and UTC-11 are never on the same calendar day, yet the call is on today's date in each.
+    const east = await orbitOf(person, 'Pacific/Kiritimati');
+    const west = await orbitOf(person, 'Pacific/Pago_Pago');
+    expect([east.days, west.days]).toEqual([1, 1]);
+    expect(east.weekStart >= west.weekStart).toBe(true);
+    // Not a zone the database knows: answered as UTC, never refused.
+    expect(await orbitOf(person, 'Mars/Olympus_Mons')).toEqual(await orbitOf(person, 'UTC'));
+  });
+
+  it("counts only the person's own days: another reader's play is not theirs", async () => {
+    const mine = await reader();
+    const other = await reader();
+    await lock(other, callIt()[0]!, 0);
+    expect((await orbitOf(mine)).days).toBe(0);
+    expect((await orbitOf(other)).days).toBe(1);
+  });
+
+  it('counts no day while recording is paused: nothing was stored', async () => {
+    const person = await reader();
+    await sql`update identity.universes set recording_on = false, recording_generation = 2 where id = ${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    await lock(person, callIt()[0]!, 0, { recordingGeneration: 2 });
+    expect((await orbitOf(person)).days).toBe(0);
+  });
+
+  it('is a read that writes nothing and works while recording is paused', async () => {
+    const person = await reader();
+    await lock(person, callIt()[0]!, 0);
+    const counts = async () =>
+      (
+        await sql<{
+          n: number;
+        }>`select (select count(*) from play.calls where universe_id = ${person.universeId}::uuid)::int
+          + (select count(*) from receipts.personal_commands where universe_id = ${person.universeId}::uuid)::int as n`.execute(
+          database.db,
+        )
+      ).rows[0]!.n;
+    const before = await counts();
+    await sql`update identity.universes set recording_on = false, recording_generation = 2 where id = ${person.universeId}::uuid`.execute(
+      database.db,
+    );
+    expect((await orbitOf(person)).days).toBe(1);
+    expect(await play.readLandmarks(person.authority)).toMatchObject({ kind: 'landmarks' });
+    expect(await counts()).toBe(before);
   });
 });
 
@@ -747,6 +841,18 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
       const result = await snapshot(person);
       return 'page' in result ? result.page.objects.map((place) => `${place.kind}:${place.label}`).sort() : [];
     };
+    // The landmark is earned before any planet exists: it waits, and names the topic it will belong to (D-084).
+    const planetsOf = async (person: FixturePerson) => {
+      const read = await world.placeConcepts(person.authority, {});
+      if (read.kind !== 'read') throw new Error('CI expected a read');
+      return read.concepts.planets;
+    };
+    const landmarksOf = async (person: FixturePerson) => {
+      const listed = await play.readLandmarks(person.authority);
+      return listed.kind === 'landmarks' ? listed.landmarks : [];
+    };
+    expect(await planetsOf(rightReader)).toEqual([]);
+    expect(await landmarksOf(rightReader)).toMatchObject([{ tier: 'gold', topicId: TOPICS.seasons.topicId }]);
     for (const person of [rightReader, wrongReader]) {
       await cartograph(person);
       for (const part of scrolls.slice(1)) {
@@ -757,5 +863,14 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
     const formed = await places(rightReader);
     expect(formed.filter((place) => place.startsWith('planet:'))).toHaveLength(1);
     expect(await places(wrongReader)).toEqual(formed);
+    // Once the planet forms, the landmark's topic names it, for a gold landmark and a plain one alike; the planets
+    // are the same for both, and each person's call stays on their own landmark.
+    const rightPlanets = (await planetsOf(rightReader)).map((planet) => planet.topicId);
+    expect(rightPlanets).toEqual([TOPICS.seasons.topicId]);
+    expect((await planetsOf(wrongReader)).map((planet) => planet.topicId)).toEqual(rightPlanets);
+    expect((await landmarksOf(rightReader))[0]).toMatchObject({ tier: 'gold', topicId: rightPlanets[0] });
+    expect((await landmarksOf(wrongReader))[0]).toMatchObject({ tier: 'plain', topicId: rightPlanets[0] });
+    // Reading the planets back is a read of one's own: a stranger sees none of them.
+    expect(await planetsOf(await seedPerson(world.database.db))).toEqual([]);
   });
 });

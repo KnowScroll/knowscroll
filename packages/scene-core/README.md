@@ -120,6 +120,15 @@ coordinates. A change to any constant, size, channel or draw order is a new gene
 | The same numbers on Hermes as in V8                               | planned (pure arithmetic; no device run) |
 | Land at every site, up to the cap of 32 sites                      | implemented (unit test, 2,400 planets) |
 
+## Landmark places (S-4, D-089, D-214)
+
+`landmarkSpots(seed, variant, world, chart, count)` says where a planet's earned landmarks stand, in the world's own
+units, for the globe and the map alike: on formed land first, then any land, clear of every name and of each other, at
+most `MAX_LANDMARK_SPOTS` (12). A place's rank is a fixed hash of the planet's seed, variant and the place, so the first
+`n` places of a longer list equal a list of `n` (a landmark never moves when another is earned) and a world is drawn from
+the planet alone. It takes no landmark, finish or play data, only a count. It lives in `world/` and obeys the same pinned
+maths test (`world.test.ts`). *Implemented; runtime-verified in the browser against authored fixtures.*
+
 ## Bounds and verification
 
 `SCENE_LIMITS` caps wire input at 262,144 UTF-8 bytes, object-input UTF-8/JSON-escape

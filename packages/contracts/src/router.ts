@@ -16,7 +16,12 @@ import { keepContract } from './keep.js';
 import { removeKeepEntryContract } from './keep-remove.js';
 import { sharingContract } from './sharing.js';
 import { readSceneManifestContract, readSceneChunkContract } from './scenes.js';
-import { readEmergingUniverseContract, readGeographyContract, readUniverseDeltasContract } from './geography.js';
+import {
+  readEmergingUniverseContract,
+  readGeographyContract,
+  readPlaceConceptsContract,
+  readUniverseDeltasContract,
+} from './geography.js';
 import { mediaGrantContract } from './media.js';
 import {
   cancelContentRequestContract,
@@ -25,7 +30,7 @@ import {
   listContentRequestsContract,
   readContentRequestContract,
 } from './supply.js';
-import { exposureContextContract, navigateExperienceContract } from './navigation.js';
+import { exposureContextContract, navigateExperienceContract, readResumeContract } from './navigation.js';
 import { previewRegionEncounterContract, openRegionEncounterContract } from './region-encounter.js';
 import {
   activateExposureContract,
@@ -71,6 +76,7 @@ export const apiContract: {
     read: typeof readGeographyContract;
     deltas: typeof readUniverseDeltasContract;
     emerging: typeof readEmergingUniverseContract;
+    placeConcepts: typeof readPlaceConceptsContract;
   };
   media: { grant: typeof mediaGrantContract };
   supply: {
@@ -97,6 +103,7 @@ export const apiContract: {
     activateExposure: typeof activateExposureContract;
     exposureDocument: typeof exposureDocumentContract;
     exposureContext: typeof exposureContextContract;
+    resume: typeof readResumeContract;
   };
   observations: {
     submit: typeof submitObservationsContract;
@@ -126,6 +133,7 @@ export const apiContract: {
     read: readGeographyContract,
     deltas: readUniverseDeltasContract,
     emerging: readEmergingUniverseContract,
+    placeConcepts: readPlaceConceptsContract,
   },
   media: { grant: mediaGrantContract },
   supply: {
@@ -152,6 +160,7 @@ export const apiContract: {
     activateExposure: activateExposureContract,
     exposureDocument: exposureDocumentContract,
     exposureContext: exposureContextContract,
+    resume: readResumeContract,
   },
   observations: {
     submit: submitObservationsContract,

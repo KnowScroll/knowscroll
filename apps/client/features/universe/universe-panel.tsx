@@ -24,6 +24,7 @@ export function UniversePanel({
   owner,
   simple,
   card,
+  collection,
   onSearch,
   onSimple,
   onStation,
@@ -38,6 +39,8 @@ export function UniversePanel({
   readonly simple: boolean;
   /** The card of the picked place, docked above the switches. */
   readonly card: ReactNode;
+  /** The person's landmarks, Orbit and next Part on paper; never given for a friend's universe. */
+  readonly collection?: ReactNode;
   readonly onSearch: () => void;
   readonly onSimple: (simple: boolean) => void;
   readonly onStation?: (roomId: string) => void;
@@ -88,6 +91,7 @@ export function UniversePanel({
       {/* With Simple drawing on, the map area is this same list: it is not drawn twice. */}
       {simple ? null : (
         <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+          {collection}
           <SystemSections
             session={session}
             listed={listed}

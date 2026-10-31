@@ -77,11 +77,15 @@ import {
   writeSession,
 } from './navigation-store.js';
 import { readNotInterested } from './not-interested-store.js';
+import { readRecentExposures } from './resume-store.js';
+import { readVisitedAssets } from './visited-assets.js';
+import { makeReadResume } from '../application/read-resume.js';
 import { insertExposure, markExposureActivated } from './postgres-store.js';
 export const NAVIGATION_PORTS = Symbol('experience.navigationPorts');
 export const NAVIGATE_ENCOUNTER = Symbol('experience.navigateEncounter');
 export const ACTIVATE_OFFER = Symbol('experience.activateOffer');
 export const READ_EXPOSURE_CONTEXT = Symbol('experience.readExposureContext');
+export const READ_RESUME = Symbol('experience.readResume');
 export function navigationProviders(
   t: { readonly withPersonalScope: symbol; readonly enqueueJob: symbol },
   options: {
@@ -218,6 +222,11 @@ export function navigationProviders(
       provide: READ_EXPOSURE_CONTEXT,
       inject: [NAVIGATION_PORTS],
       useFactory: (p: NavigationPorts) => makeReadExposureContext(p),
+    },
+    {
+      provide: READ_RESUME,
+      inject: [NAVIGATION_PORTS],
+      useFactory: (p: NavigationPorts) => makeReadResume({ ...p, readRecentExposures, readVisitedAssets }),
     },
   ];
 }

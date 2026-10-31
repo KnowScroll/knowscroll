@@ -440,6 +440,16 @@ Play asks it before it stores a lock, so a person can only play what they actual
 `experience.exposures` rows (the partial index on activated assets serves it), never another person's. *Implemented;
 runtime-verified locally.*
 
+## Resume (#475, D-216)
+
+`READ_RESUME` (`readResume(authority)`, `POST /v1/experience/resume/read`) answers "Resume Part 2 of 3": from the caller's own
+activated Scroll exposures of the last 30 days (the newest eight, `adapters/resume-store.ts`), the first whose series
+has a next Part (`readContinuations`) that is admitted, not hidden and not yet opened by the caller, with its title
+and the part and total counted from the admitted series. It reads only the caller's own `experience.exposures` and
+Content's public series reads, so it names no other person's position and no place inside a Scroll. A read: it opens,
+writes and enqueues nothing; the client opens the Part by its address. *Implemented; runtime-verified locally
+(`tests/integration/modules/universe-resume.test.ts`).*
+
 ## Not interested (#250, D-055)
 
 `POST /v1/feedback/not-interested` and `.../undo` (`NOT_INTERESTED_USE_CASES`, `setNotInterested` / `undoNotInterested`) keep one

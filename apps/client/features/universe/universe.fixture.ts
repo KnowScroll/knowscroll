@@ -20,6 +20,13 @@ const recordedAt = '2026-10-21T00:00:00.000Z';
  * `dust` is the number of unlabelled dust cues the emerging read returns. `moreRegions` adds regions
  * to the same planet as the first one (planet 2), each on the next site of that planet's world.
  */
+/** The reads of the person's own play that the Universe makes beside the map: none of them writes anything. */
+export const COLLECTION_READS: readonly string[] = [
+  '/v1/play/landmarks/read',
+  '/v1/play/orbit/read',
+  '/v1/experience/resume/read',
+];
+
 export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
   const geography = { revision: count ? 3 : 0, structureRevision: count ? 3 : 0, activityRevision: 0 };
   const objects: GeographyObject[] = Array.from({ length: count }, (_, n) => {
@@ -137,13 +144,41 @@ export function sceneFixture(count = 5, dust = 0, moreRegions = 0) {
   /** The room stations this map's reads answer with; a test pushes some to see them drawn. */
   const stations: RoomStation[] = [];
   const stationsOf = () => stations;
+  /**
+   * What the person's play reads answer with: nothing earned, no Orbit days and nothing to resume, until a test
+   * sets some. `planets` names the topic of each planet, as Geography does.
+   */
+  const collection: {
+    landmarks: Record<string, unknown>[];
+    orbit: { days: number; goal: 3; weekStart: string; closed: boolean };
+    resume: { assetId: string; title: string; part: number; total: number } | null;
+    planets: { id: string; topicId: string }[];
+  } = {
+    landmarks: [],
+    orbit: { days: 0, goal: 3, weekStart: '2026-11-02', closed: false },
+    resume: null,
+    planets: [],
+  };
   return {
     descriptors,
     looks,
     chunks,
     stations,
+    collection,
     reply(path: string, body: Record<string, unknown>) {
       const selection = { kind: 'universe' as const };
+      if (path === '/v1/play/landmarks/read') return { landmarks: collection.landmarks };
+      if (path === '/v1/play/orbit/read') return { orbit: collection.orbit };
+      if (path === '/v1/experience/resume/read') return { resume: collection.resume };
+      if (path === '/v1/universe/places/concepts/read')
+        return {
+          version: 'universe-place-concepts.v1',
+          universeId: fixtureAccount.universeId,
+          privacyEpoch: 1,
+          personalWatermark: 40,
+          geography,
+          planets: collection.planets,
+        };
       // The room stations of the map: a read of its own, answered with none unless a test names some.
       if (path === '/v1/rooms/stations')
         return {

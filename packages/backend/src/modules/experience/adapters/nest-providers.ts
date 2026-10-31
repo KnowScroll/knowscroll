@@ -320,6 +320,7 @@ export {
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
+  READ_RESUME,
 } from './navigation-providers.js';
 
 export { checkRequestSource } from './request-source.js';

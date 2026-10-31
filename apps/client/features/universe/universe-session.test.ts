@@ -6,7 +6,7 @@ import { ZOOM_LIMITS } from './space/camera-rig';
 import { createUniverseViewSession } from './universe-session';
 import { saveUniverseMemory } from './universe-memory';
 import { universeSessionFor } from './use-universe-session';
-import { fixtureId, fixtureAccount, sceneFixture, universeHarness } from './universe.fixture';
+import { COLLECTION_READS, fixtureId, fixtureAccount, sceneFixture, universeHarness } from './universe.fixture';
 // Authored valid UUIDs replace Expo's native Jest UUID stub; production IDs are unchanged.
 jest.mock('../../platform/command-id', () => {
   let next = 30000;
@@ -32,7 +32,7 @@ it('loads through the real core; hierarchy/travel/Back restore the precise priva
   expect(s.getState().frame).toEqual({ x: 21.5, y: -14, scale: 0.5 });
   expect(s.focus(fixtureId(999))).toBe(false);
   expect(s.travel(fixtureId(999))).toBe(false);
-  expect(h.calls.every((p) => p.startsWith('/v1/universe/'))).toBe(true);
+  expect(h.calls.every((p) => p.startsWith('/v1/universe/') || COLLECTION_READS.includes(p))).toBe(true);
   // Only the camera memory is kept on the device; it is purged with the scope.
   expect(h.store.keys().every((key) => key.endsWith('.universe.view.v1'))).toBe(true);
   h.scope.end();
@@ -77,7 +77,8 @@ it('fences late abort-ignoring replies after pause, capability replacement and s
   );
   const s = createUniverseViewSession(h.scope);
   s.setForeground(true);
-  await waitFor(() => expect(h.calls.length).toBe(1));
+  // The map's first read is the one in flight (Geography is read first); the person's own play is read beside it and held by the same gate.
+  await waitFor(() => expect(h.calls.filter((path) => path.endsWith('/geography/read'))).toHaveLength(1));
   s.setForeground(false);
   s.configure({ detail: 'low', reducedMotion: true });
   h.scope.end();
@@ -528,7 +529,7 @@ describe('landing on a planet (U03 to U04)', () => {
     expect(s.back()).toBe(true);
     expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: false });
     // Landing, choosing and stepping up read and write nothing but the map.
-    expect(h.calls.every((path) => path.startsWith('/v1/universe/'))).toBe(true);
+    expect(h.calls.every((path) => path.startsWith('/v1/universe/') || COLLECTION_READS.includes(path))).toBe(true);
     h.scope.end();
   });
 
