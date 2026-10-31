@@ -133,19 +133,19 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
           <Circle cx={centre.x} cy={centre.y} r={8} fill={WHITE_DWARF} stroke={INK} strokeWidth={OUTLINE} />
         </G>
       ) : null}
-      <Label at={{ x: 160, y: 164 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold />
-      <Line x1={90} y1={180} x2={230} y2={180} stroke={INK} strokeWidth={1.6} />
+      <Label at={{ x: 160, y: 154 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold />
+      <Line x1={90} y1={170} x2={230} y2={170} stroke={INK} strokeWidth={1.6} />
       {STAGE_NAMES.map((name, index) => (
         <G key={name}>
           <Circle
             cx={90 + index * 70}
-            cy={180}
+            cy={170}
             r={index === stage ? 6 : 4.5}
             fill={index === stage ? FOCUS : PAPER_DEEP}
             stroke={INK}
             strokeWidth={1.8}
           />
-          <Label at={{ x: 90 + index * 70, y: 196 }} text={name} bold={index === stage} />
+          <Label at={{ x: 90 + index * 70, y: 188 }} text={name} bold={index === stage} />
         </G>
       ))}
       {scene.focus === 'star' ? <FocusRing at={centre} radius={stage === 2 ? 72 : base + 10} /> : null}
@@ -194,9 +194,9 @@ function HorizonView({ scene }: { readonly scene: BlackHoleScene }) {
       />
       <Arrow from={outStart} to={outEnd} width={4} colour={BLUE} outlined />
       <Arrow from={inStart} to={inEnd} width={3} colour={PAPER} />
-      <Label at={{ x: Math.min(outStart.x + 17, 250), y: outStart.y - 12 }} text="LIGHT CAN GET AWAY" />
+      <Label at={{ x: Math.min((outStart.x + outEnd.x) / 2, 285), y: outStart.y - 20 }} text="LIGHT ESCAPES" />
       <Label at={{ x: Math.min(Math.max(target.at.x, 95), 225), y: 156 }} text="EVEN OUTWARD LIGHT FALLS IN" />
-      <Label at={{ x: 160, y: 192 }} text="HORIZON RADIUS GOES WITH THE MASS · NOTHING IS DRAWN AT THE CENTRE" />
+      <Label at={{ x: 160, y: 192 }} text="HORIZON GOES WITH MASS · NOTHING DRAWN AT THE CENTRE" />
       {scene.focus === 'horizon' ? <FocusRing at={target.at} radius={target.radius + 7} /> : null}
       {scene.focus === 'light-out' ? <FocusBox x={outStart.x - 6} y={outStart.y - 14} width={46} height={28} /> : null}
       {scene.focus === 'light-in' ? (
@@ -238,7 +238,7 @@ function PullView({ scene }: { readonly scene: BlackHoleScene }) {
       <Label at={{ x: 80, y: 36 }} text="PULL ON A FAR OBJECT" />
       <Label at={{ x: 240, y: 36 }} text="THE SAME PULL" />
       <Label at={{ x: 160, y: 168 }} text="FAR AWAY ONLY THE MASS AND THE DISTANCE MATTER" />
-      <Label at={{ x: 160, y: 184 }} text="NOT TO SCALE: THE BLACK HOLE IS MUCH SMALLER THAN THE STAR" />
+      <Label at={{ x: 160, y: 184 }} text="NOT TO SCALE: THE HOLE IS FAR SMALLER THAN THE STAR" />
       {scene.focus === 'star' ? <FocusRing at={star} radius={36} /> : null}
       {scene.focus === 'hole' ? <FocusRing at={hole} radius={16} /> : null}
     </G>
@@ -278,7 +278,7 @@ function OrbitsView({ scene }: { readonly scene: BlackHoleScene }) {
         );
       })}
       <Label at={{ x: 14, y: 16 }} text="ARROW: HOW FAST" anchor="start" />
-      <Label at={{ x: 160, y: 190 }} text="NOTHING SHINES AT THE CENTRE · ORBITS DRAWN AS CIRCLES" />
+      <Label at={{ x: 160, y: 190 }} text="NOTHING SHINES HERE · ORBITS DRAWN AS CIRCLES" />
       {scene.focus === 'centre' ? <FocusRing at={centre} radius={12} /> : null}
     </G>
   );
@@ -304,7 +304,7 @@ function DiscView({ scene }: { readonly scene: BlackHoleScene }) {
       <Label at={{ x: 160, y: 22 }} text="GAS FALLING IN FORMS A DISC" bold />
       <Label at={{ x: 160, y: 152 }} text="THE BLACK HOLE ITSELF GIVES OUT NO LIGHT" />
       <Label at={{ x: 160, y: 170 }} text="FALSE COLOUR: HOTTER IS BLUER" bold />
-      <Label at={{ x: 160, y: 184 }} text="THE HOT INNER GAS GLOWS IN X-RAYS, WHICH CANNOT BE SEEN" />
+      <Label at={{ x: 160, y: 184 }} text="THE HOTTEST GAS GLOWS IN X-RAYS (NOT VISIBLE)" />
       {scene.focus === 'disc' ? <FocusBox x={centre.x - 102} y={centre.y - 44} width={204} height={88} /> : null}
       {scene.focus === 'hole' ? <FocusRing at={centre} radius={12} /> : null}
     </G>
@@ -399,7 +399,7 @@ function ShadowView({ scene }: { readonly scene: BlackHoleScene }) {
       <LightLabel at={{ x: centre.x, y: centre.y + 3 }} text="HORIZON" />
       <LightLabel at={{ x: centre.x, y: centre.y + scene.shadowPx - 12 }} text="SHADOW" />
       <Label at={{ x: 160, y: 12 }} text="BRIGHT RING: GLOWING GAS" bold />
-      <Label at={{ x: 160, y: 190 }} text="THE SHADOW IS WIDER THAN THE HORIZON · NOT THE HORIZON ITSELF" />
+      <Label at={{ x: 160, y: 190 }} text="WIDER THAN THE HORIZON · NOT THE HORIZON ITSELF" />
       {scene.focus === 'ring' ? <FocusRing at={centre} radius={scene.shadowPx + 24} /> : null}
       {scene.focus === 'shadow' ? <FocusRing at={centre} radius={scene.shadowPx - 6} /> : null}
       {scene.focus === 'horizon' ? <FocusRing at={centre} radius={scene.shadowHorizonPx + 5} /> : null}

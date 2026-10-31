@@ -125,7 +125,7 @@
           "merger": "close",
           "focus": "signal"
         },
-        "alt": "Two black holes spiral close together, orbiting faster and faster. The ripples in space they make grow stronger and quicker, a rising chirp on the graph of wave strength over time. This is one clue to a black hole, but it does not prove one by itself. The picture draws the eye to the graph of wave strength."
+        "alt": "Two black holes spiral close together, orbiting faster and faster. The ripples in space they make grow stronger and quicker, a rising chirp on the graph of wave strength over time, not to scale. This is one clue to a black hole, but it does not prove one by itself. The picture draws the eye to the graph of wave strength."
       },
       {
         "stop": "shadow",
@@ -367,6 +367,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "009d08bdb1011830cbe5d87bd0d53708cb9e03c2bcd15d4fdbc02e80a2f276d6"
+    "sha256": "44c40b8f326a8fa889fc0f3d963c95214caf0a64b1fb66f8ad3c89a4901f5adc"
   }
 }

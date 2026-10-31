@@ -178,7 +178,7 @@ function OutputView({ scene }: { readonly scene: StarlightScene }) {
           strokeWidth={1.2}
         />
       ))}
-      <Label at={{ x: 14, y: 192 }} text="EACH STEP ON THE BARS IS TEN TIMES · SIZES STRETCHED" anchor="start" />
+      <Label at={{ x: 14, y: 190 }} text="EACH BAR STEP IS TEN TIMES · SIZES STRETCHED" anchor="start" />
       {scene.focus === 'star' ? <FocusRing at={markedAt} radius={scene.markedRadiusPx + 8} /> : null}
       {BAR_ROWS.map((row) =>
         scene.focus === row.focus ? <FocusBox key={row.focus} x={8} y={row.top - 4} width={296} height={20} /> : null,

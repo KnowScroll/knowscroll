@@ -55,7 +55,7 @@ const CLAIMS: Readonly<Record<'starlight.v1' | 'black-hole.v1', readonly (readon
     [/Nothing shines|where nothing shines/u, /NOTHING SHINES/u],
     [/can be a black hole/u, /A BLACK HOLE CAN FORM/u],
     [/white dwarf/u, /WHITE DWARF/u],
-    [/Light aimed straight outward from outside the horizon can get away/u, /LIGHT CAN GET AWAY/u],
+    [/Light aimed straight outward from outside the horizon can get away/u, /LIGHT ESCAPES/u],
   ],
 };
 
