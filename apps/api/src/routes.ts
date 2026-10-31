@@ -20,6 +20,7 @@ import { ScenesController } from './http/scenes.controller.js';
 import { SupplyController } from './http/supply.controller.js';
 import { GeographyController } from './http/geography.controller.js';
 import { MediaController } from './http/media.controller.js';
+import { RoomBackdropController } from './http/room-backdrop.controller.js';
 import { AuthController } from './http/auth.controller.js';
 import { ExperienceController } from './http/experience.controller.js';
 import { HealthController } from './http/health.controller.js';
@@ -39,6 +40,7 @@ export const apiControllers = [
   ObservationsController,
   RecordingController,
   MediaController,
+  RoomBackdropController,
   SupplyController,
   GeographyController,
   ScenesController,

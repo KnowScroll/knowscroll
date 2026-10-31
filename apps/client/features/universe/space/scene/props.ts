@@ -1,6 +1,9 @@
 import * as THREE from 'three';
+import { ROOM_SWATCHES } from '@knowscroll/contracts';
 import { hexToUnit } from '../paint';
 import { additive, hazeUniforms, type Built, type SceneContext } from './context';
+import type { StationEmblem } from '../space-definition';
+import { emblemImage } from './emblem-sprite';
 import { PLANET_FRAGMENT, WORLD_VERTEX } from './shaders';
 
 /** A flat-coloured, softly lit material for small props (the station and the ship). */
@@ -26,12 +29,14 @@ function solidMaterial(hex: string, context: SceneContext, sun: THREE.Vector3): 
 
 /**
  * A room's station (D-090 draws its constellation later): a small hub with a ring, two solar panels
- * and a blinking light, in the Universe's painted style. `context.calm` dims it under Lately.
+ * and a blinking light, in the Universe's painted style. `context.calm` dims it under Lately. A room with a face
+ * (D-170) wears its accent on the ring and its emblem over the hub, so the station is the room's own.
  */
-export function makeStation(context: SceneContext, sun: THREE.Vector3): Built {
+export function makeStation(context: SceneContext, sun: THREE.Vector3, emblem?: StationEmblem): Built {
   const group = new THREE.Group();
   group.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 12), solidMaterial('#EDE6D6', context, sun)));
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 8, 32), solidMaterial('#FFB347', context, sun));
+  const ringColour = emblem === undefined ? '#FFB347' : ROOM_SWATCHES[emblem.palette.accent];
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 8, 32), solidMaterial(ringColour, context, sun));
   ring.rotation.x = Math.PI / 2;
   group.add(ring);
   for (const side of [-1, 1]) {
@@ -50,6 +55,30 @@ export function makeStation(context: SceneContext, sun: THREE.Vector3): Built {
   light.position.y = 0.27;
   light.scale.setScalar(0.26);
   group.add(light);
+  // The emblem is a sprite, so it always faces the camera while the station turns beneath it.
+  const emblemMap = emblem === undefined ? undefined : context.trackTexture(emblemImage(emblem));
+  if (emblemMap !== undefined) {
+    // The pixels are the kit's own sRGB colours: without this the sprite would be lit as if they were linear and wash out.
+    emblemMap.colorSpace = THREE.SRGBColorSpace;
+    emblemMap.needsUpdate = true;
+  }
+  const plate =
+    emblemMap === undefined
+      ? undefined
+      : new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: emblemMap,
+            transparent: true,
+            opacity: context.calm ? 0.45 : 1,
+            depthWrite: false,
+          }),
+        );
+  if (plate !== undefined) {
+    plate.position.y = 0.95;
+    plate.scale.setScalar(0.9);
+    plate.name = 'room-emblem';
+    group.add(plate);
+  }
   const tick = (t: number): void => {
     group.rotation.y = t * 0.15;
     light.material.opacity = context.calm ? 0.1 : Math.sin(t * 2.6) > 0.4 ? 1 : 0.12;

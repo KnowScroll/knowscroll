@@ -1,8 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 import type { RoomHere } from '@knowscroll/contracts';
 import { hereView, quietPill, type HereFaceView } from '@knowscroll/client-core';
-import { borderWidth, content, radius, space, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
+import { useBandTone } from './identity/band-tone';
 import { useNow } from './use-now';
 
 /** Face colours: fixed, never a score, picked from the person's own ID so a face keeps its colour. */
@@ -14,12 +15,17 @@ const colourOf = (personId: string): string => {
 };
 
 function Face({ face }: { readonly face: HereFaceView }) {
+  const tone = useBandTone();
   return (
     <View
       accessible
       accessibilityRole="image"
       accessibilityLabel={face.you ? `${face.name}, you` : face.name}
-      style={[styles.face, { backgroundColor: colourOf(face.personId) }, face.you ? styles.faceYou : null]}
+      style={[
+        styles.face,
+        { backgroundColor: colourOf(face.personId), borderColor: tone.ground },
+        face.you ? styles.faceYou : null,
+      ]}
       testID={`here-face-${face.personId}`}
     >
       <Text variant="label" color={content.ink}>
@@ -42,6 +48,7 @@ export function HereStrip({
   readonly lastMessageAt: string | undefined;
 }) {
   const now = useNow(30_000);
+  const tone = useBandTone();
   const view = hereView(here);
   const pill = quietPill(lastMessageAt, now);
   return (
@@ -51,14 +58,18 @@ export function HereStrip({
           <Face key={face.personId} face={face} />
         ))}
         {view.caption === undefined ? null : (
-          <Text variant="metaS" color={space.label2} testID="here-caption">
+          <Text variant="metaS" color={tone.inkSoft} testID="here-caption">
             {view.caption}
           </Text>
         )}
       </View>
       {pill === undefined ? null : (
-        <View style={styles.pill} testID="quiet-pill" accessibilityLiveRegion="polite">
-          <Text variant="monoXs" color={space.label}>
+        <View
+          style={[styles.pill, { borderColor: tone.edge, backgroundColor: tone.wash }]}
+          testID="quiet-pill"
+          accessibilityLiveRegion="polite"
+        >
+          <Text variant="monoXs" color={tone.ink}>
             {pill}
           </Text>
         </View>
@@ -100,7 +111,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: borderWidth.regular,
-    borderColor: space.s0,
     marginRight: -spacing[1],
   },
   faceYou: { borderColor: content.accent },
@@ -110,7 +120,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[1],
     borderRadius: radius.pill,
     borderWidth: borderWidth.hairline,
-    borderColor: space.edge,
-    backgroundColor: space.s1,
   },
 });

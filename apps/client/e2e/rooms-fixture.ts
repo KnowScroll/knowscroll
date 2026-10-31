@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import type { RoomYou } from '@knowscroll/contracts';
+import type { RoomIdentity, RoomYou } from '@knowscroll/contracts';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { id } from './encounter-fixture';
 
@@ -27,6 +27,32 @@ export const room = {
   status: 'open' as const,
 };
 export const generalId = id(501);
+
+/** Labelled fixture faces (D-170), authored like R3 D's Space and History rooms; never provider output. */
+export const FACES = {
+  space: {
+    kit: {
+      version: 'station-kit.v1',
+      palette: { ground: 'midnight', accent: 'sun', ink: 'cream' },
+      emblem: { frame: 'circle', glyph: 'ringed-planet' },
+      motif: 'constellation',
+      motion: 'twinkle',
+      cast: { explainer: 'star', skeptic: 'atom' },
+    },
+  },
+  history: {
+    kit: {
+      version: 'station-kit.v1',
+      palette: { ground: 'paper', accent: 'rust', ink: 'soot' },
+      emblem: { frame: 'arch', glyph: 'hourglass' },
+      motif: 'waves',
+      motion: 'pan',
+      cast: { explainer: 'book', skeptic: 'gear' },
+    },
+  },
+} as const satisfies Record<string, RoomIdentity>;
+/** The address a fixture backdrop is served from; the test answers it with a labelled one-pixel image. */
+export const BACKDROP_PATH = `/media/room/${'ab'.repeat(32)}`;
 const inhabitants = [
   { inhabitant: 'explainer' as const, name: 'Nova', label: 'AI · Explainer', blurb: 'Answers when asked' },
   { inhabitant: 'skeptic' as const, name: 'Halley', label: 'AI · Skeptic', blurb: 'Pushes back on claims' },
@@ -62,6 +88,10 @@ export interface RoomFixtureOptions {
   readonly topics?: boolean;
   readonly welcome?: boolean;
   readonly away?: 'preparing' | 'ready' | 'folded';
+  /** R-4: the room's face. Default: the Space room's. `none` is a server that sends no face. */
+  readonly face?: keyof typeof FACES | 'none';
+  /** R-4: an operator approved a painted backdrop. */
+  readonly backdrop?: boolean;
 }
 
 /** Every request the fixture answered, in order, so a test can see what the screen asked for. */
@@ -76,6 +106,13 @@ export async function roomFixture(
   options: RoomFixtureOptions,
 ) {
   await page.setViewportSize(viewport);
+  const face = options.face ?? 'space';
+  const faced = {
+    ...room,
+    ...(face === 'none'
+      ? {}
+      : { identity: { ...FACES[face], ...(options.backdrop ? { backdrop: { path: BACKDROP_PATH } } : {}) } }),
+  };
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account, client: 'web', expiresAt: '2099-10-24T00:00:00.000Z' } }),
   );
@@ -207,13 +244,13 @@ export async function roomFixture(
     if (isInboxPath(path) && path !== '/v1/rooms/list')
       return route.fulfill({ json: emptyInbox(path, body, account.accountId) });
     if (path === '/v1/rooms/list')
-      return route.fulfill({ json: { ...base, status: 'ready', items: [{ room, standing: 'member' }] } });
+      return route.fulfill({ json: { ...base, status: 'ready', items: [{ room: faced, standing: 'member' }] } });
     if (path === '/v1/rooms/read')
       return route.fulfill({
         json: {
           ...base,
           status: 'member',
-          room,
+          room: faced,
           role: 'member',
           guidelines: 'Say where an idea came from. Be kind to newcomers.',
           hasModerator: true,
@@ -279,7 +316,7 @@ export async function roomFixture(
         json: {
           ...base,
           status: 'ready',
-          room,
+          room: faced,
           role: 'member',
           you: ravi,
           discussion: { discussionId: generalId, kind: 'general', title: 'General', pinned: false },

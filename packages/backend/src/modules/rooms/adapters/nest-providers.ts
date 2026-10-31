@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import type { ApiConfig, WorkerConfig } from '../../../infrastructure/config/index.js';
 import type { Database } from '../../../infrastructure/postgres/database.js';
@@ -8,6 +9,7 @@ import {
   REASONING_HARNESS,
   ROOM_REASONING_HARNESS,
   WITH_ROOM_SCOPE,
+  type ImagePort,
   type ProductionReasoningHarness,
   type ReasoningHarness,
   type WithProductionScope,
@@ -52,6 +54,8 @@ import { makeMemberCommands } from '../application/member-commands.js';
 import type { RoomPorts } from '../application/ports.js';
 import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
+import { BACKDROP_MONEY, makeFaceBackdropOperator, type BackdropMoney } from '../application/face-backdrop.js';
+import { makeFaceKitOperator } from '../application/face-kit.js';
 import { makeStationReads } from '../application/stations.js';
 import { makeSummarise, type SummarisePorts } from '../application/summarise.js';
 import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
@@ -60,6 +64,7 @@ import {
   DECIDE_CAST,
   HOLD_CAST,
   READ_REPORTABLE_ROOM_MESSAGE,
+  READ_ROOM_BACKDROP,
   READ_ROOM_MEMBERSHIP,
   READ_ROOM_REPORTS,
   ROOM_USE_CASES,
@@ -73,9 +78,11 @@ import {
   type RunCastPass,
   type Summarise,
 } from '../public.js';
+import { localBackdropMedia } from './backdrop-media.js';
 import { activityStore } from './postgres-activities.js';
 import { aiStore } from './postgres-ai.js';
 import { castStore } from './postgres-cast.js';
+import { faceStore, readApprovedBackdrop } from './postgres-face.js';
 import { holdCast } from './typing-holds.js';
 import { positionStore } from './postgres-positions.js';
 import { presenceStore } from './postgres-presence.js';
@@ -273,8 +280,54 @@ export function runSummarise(
   return makeSummarise(ports, deps.harness, deps.withRoomScope);
 }
 
+/**
+ * The operator's controls over every room's face (D-166, D-170, D-171): kit proposals and their review, painted backdrops
+ * inside the $1 cap, and the spend ledger. Composed by an operator command or a test with a database, the room scope's
+ * harness and, for pictures, an image port and a media root. A missing image port or media root only refuses the commands
+ * that need it.
+ */
+export function composeFaceOperator(deps: {
+  readonly db: Kysely<Database>;
+  readonly harness: ProductionReasoningHarness;
+  readonly withRoomScope: WithProductionScope;
+  readonly image: ImagePort | undefined;
+  readonly mediaRoot: string | undefined;
+  readonly model: string;
+  readonly generation: number;
+  /** Tests inject a smaller cap or another price; production uses the constants of the money rule. */
+  readonly money?: BackdropMoney;
+  readonly now?: () => Date;
+}) {
+  const store = faceStore(deps.db);
+  const now = deps.now ?? (() => new Date());
+  return {
+    kit: makeFaceKitOperator(
+      {
+        store,
+        model: deps.model,
+        generation: deps.generation,
+        runIdFor: (roomId, revision, sequence) =>
+          stableUuid(`rooms-kit:${roomId}:${String(revision)}:${String(sequence)}`),
+        now,
+      },
+      deps.harness,
+      deps.withRoomScope,
+    ),
+    backdrop: makeFaceBackdropOperator({
+      store,
+      media: deps.mediaRoot === undefined ? undefined : localBackdropMedia(deps.mediaRoot),
+      image: deps.image,
+      money: deps.money ?? BACKDROP_MONEY,
+      now,
+      newId: uuidv7,
+      sha256: (text) => createHash('sha256').update(text).digest('hex'),
+    }),
+  };
+}
+
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 export { holdCast } from './typing-holds.js';
+export { readApprovedBackdrop } from './postgres-face.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: {
@@ -286,6 +339,11 @@ export function roomsProviders(tokens: {
 }) {
   return [
     { provide: READ_REPORTABLE_ROOM_MESSAGE, useValue: readReportableRoomMessage },
+    {
+      provide: READ_ROOM_BACKDROP,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>) => readApprovedBackdrop(db),
+    },
     {
       provide: HOLD_CAST,
       inject: [tokens.database],
