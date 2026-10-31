@@ -305,6 +305,8 @@ export interface DiscussionStore {
   usefulAmong(lock: RoomLock, accountId: string, messageIds: readonly string[]): Promise<ReadonlySet<string>>;
   /** The room's General discussion; every room has one. */
   general(lock: RoomLock): Promise<DiscussionRow | undefined>;
+  /** The room's Today discussion: one per room, made with it (migration 0084). */
+  today(lock: RoomLock): Promise<DiscussionRow | undefined>;
   /** When the newest message a member can see was sent, anywhere in the room; none while nobody has written. */
   lastMessageAt(lock: RoomLock): Promise<Date | undefined>;
   /** The pinned discussion with the newest pin, if any. */
@@ -645,6 +647,123 @@ export interface ActivityStore {
   tally(lock: RoomLock, activityId: string, votersPerOption: number): Promise<readonly OptionTally[]>;
 }
 
+// --- The sky, debates and Today (migration 0084) ------------------------------------------
+
+export type StarActName = 'answer_useful' | 'debate_closed' | 'daily_solved';
+
+export interface StarRecord {
+  readonly starId: string;
+  readonly act: StarActName;
+  readonly sourceKey: string;
+  readonly at: Date;
+  readonly day: string;
+  readonly constellationNo: number;
+}
+
+export interface ConstellationRow {
+  readonly no: number;
+  readonly completedAt: Date;
+  readonly candidates: readonly [string, string, string];
+  readonly voteClosesAt: Date;
+  readonly name: string | null;
+}
+
+/** What a station needs of a room's sky, read without a room lock. */
+export interface SkyFigures {
+  readonly stars: number;
+  /** The latest finished constellation has a name. */
+  readonly latestIsNamed: boolean;
+  readonly latestName: string | undefined;
+}
+
+/**
+ * The room's stars and constellations. A star names no account. `lock` takes the room's sky lock, the last lock of a
+ * transaction: the daily count, the unique insert and the constellation check that follow are exact under it.
+ */
+export interface SkyStore {
+  lock(lock: RoomLock): Promise<void>;
+  hasStar(lock: RoomLock, act: StarActName, sourceKey: string): Promise<boolean>;
+  starsOn(lock: RoomLock, day: string): Promise<number>;
+  starTotal(lock: RoomLock): Promise<number>;
+  insertStar(lock: RoomLock, star: StarRecord): Promise<void>;
+  latestStars(
+    lock: RoomLock,
+    limit: number,
+  ): Promise<readonly { act: StarActName; day: string; constellation: number }[]>;
+  constellations(lock: RoomLock): Promise<readonly ConstellationRow[]>;
+  insertConstellation(lock: RoomLock, row: Omit<ConstellationRow, 'name'>): Promise<void>;
+  name(lock: RoomLock, no: number, name: string, at: Date): Promise<void>;
+  /** Votes for each of the three names of constellation `no`. */
+  votes(lock: RoomLock, no: number): Promise<readonly [number, number, number]>;
+  yourVote(lock: RoomLock, no: number, accountId: string): Promise<0 | 1 | 2 | undefined>;
+  setVote(lock: RoomLock, no: number, accountId: string, candidate: 0 | 1 | 2, now: Date): Promise<void>;
+  /**
+   * Deletes what a member contributed here that is theirs to take back when they leave or are removed: their votes on
+   * constellation names and debates and their taps on Spot the flaw. A star they earned has no account and stays.
+   */
+  forgetMember(lock: RoomLock, accountId: string): Promise<void>;
+  /** The sky of each of these rooms, for the stations of a map. */
+  figures(scope: PersonalScopeTx, roomIds: readonly string[]): Promise<ReadonlyMap<string, SkyFigures>>;
+}
+
+export interface DebateRow {
+  readonly discussionId: string;
+  readonly sides: readonly [string, string];
+  readonly closesAt: Date;
+  readonly state: 'open' | 'closed';
+  readonly winner: 'a' | 'b' | null;
+}
+
+export interface DebateStore {
+  insert(
+    lock: RoomLock,
+    debate: { discussionId: string; sides: readonly [string, string]; closesAt: Date },
+  ): Promise<void>;
+  load(lock: RoomLock, discussionId: string, rowLock: 'none' | 'share'): Promise<DebateRow | undefined>;
+  tally(lock: RoomLock, discussionId: string): Promise<{ readonly a: number; readonly b: number }>;
+  yourVote(lock: RoomLock, discussionId: string, accountId: string): Promise<'a' | 'b' | undefined>;
+  setVote(lock: RoomLock, discussionId: string, accountId: string, side: 'a' | 'b', now: Date): Promise<void>;
+  /**
+   * Closes every open debate of the room whose time has come, and answers the ones this call closed with their tallies,
+   * so each earns its star once even when two members' commands meet it together.
+   */
+  closeDue(
+    lock: RoomLock,
+    now: Date,
+    decide: (tally: { readonly a: number; readonly b: number }) => { readonly winner: 'a' | 'b' | undefined },
+  ): Promise<readonly { readonly discussionId: string; readonly voters: number }[]>;
+}
+
+export interface RitualRow {
+  readonly ritualId: string;
+  readonly day: string;
+  readonly kind: 'question' | 'flaw';
+  /** The stored shape as written (`ritual.v1`); the use case parses it before serving. */
+  readonly payload: unknown;
+}
+
+export interface TodayStore {
+  /** The room's approved items for a day. */
+  approvedOn(lock: RoomLock, day: string): Promise<readonly RitualRow[]>;
+  /** One approved item of this room, any day. */
+  approved(lock: RoomLock, ritualId: string): Promise<RitualRow | undefined>;
+  /** The approved questions of the days before `day`, newest first. */
+  pastQuestions(lock: RoomLock, day: string, limit: number): Promise<readonly RitualRow[]>;
+  solveOf(
+    lock: RoomLock,
+    ritualId: string,
+    accountId: string,
+  ): Promise<{ readonly picked: number; readonly correct: boolean } | undefined>;
+  /** Records the person's one tap; false when they already tapped (the first stands). */
+  insertSolve(
+    lock: RoomLock,
+    solve: { ritualId: string; accountId: string; picked: number; correct: boolean; now: Date },
+  ): Promise<boolean>;
+  found(lock: RoomLock, ritualId: string): Promise<number>;
+  /** How many messages by people, shown and with words, Today has had since `since`. */
+  answersSince(lock: RoomLock, discussionId: string, since: Date): Promise<number>;
+}
+
 // --- What the application needs from outside ----------------------------------------------
 
 /** A person the caller can name: a public profile, by account. */
@@ -703,6 +822,9 @@ export interface RoomPorts {
   readonly positions: PositionStore;
   readonly summaries: SummaryStore;
   readonly activities: ActivityStore;
+  readonly sky: SkyStore;
+  readonly debates: DebateStore;
+  readonly today: TodayStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
   readonly blocked: BlockedLookup;
@@ -725,6 +847,8 @@ export interface RoomPorts {
    * leaves residents off queues no job.
    */
   readonly residentsEnabled: boolean;
+  /** The most stars a room earns on one UTC day (D-174); the same in every process of a world. */
+  readonly starsPerDay: number;
   /** Queues the check that decides whether a resident answers a message, to run at `startAfter`. */
   enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
   /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */

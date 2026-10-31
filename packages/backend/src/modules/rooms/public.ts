@@ -5,11 +5,14 @@ import type {
   ActivityModerationAcceptanceSchema,
   ActivityViewSchema,
   AwayDismissalSchema,
+  ConstellationVoteAcceptanceSchema,
+  DebateVoteAcceptanceSchema,
   DiscussionChangesPageSchema,
   DiscussionCreationSchema,
   DiscussionHistoryPageSchema,
   DiscussionPinAcceptanceSchema,
   DiscussionViewSchema,
+  FlawSolvedAcceptanceSchema,
   InhabitantAskAcceptanceSchema,
   PollVoteAcceptanceSchema,
   RoomInviteAcceptanceSchema,
@@ -22,8 +25,10 @@ import type {
   RoomPreferencesAcceptanceSchema,
   RoomPresenceAckSchema,
   RoomReportsSchema,
+  RoomSkyViewSchema,
   RoomSnippetOpeningSchema,
   RoomStationsSchema,
+  RoomTodaySchema,
   RoomTopicsSchema,
   RoomViewSchema,
   UsefulAcceptanceSchema,
@@ -62,6 +67,19 @@ export type { RoomSeed } from './application/seeds.js';
  * of a room names who is here (a number only from three), the member total and the last message (D-069).
  */
 export interface RoomUseCases {
+  /** Today for a member: the day's approved question and Spot the flaw, its answers so far and the days before (v3 R-5). */
+  today(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomTodaySchema>>>;
+  /** The member's one, final tap on today's Spot the flaw; a right first tap earns the room a star (D-174). */
+  solveFlaw(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof FlawSolvedAcceptanceSchema>>>;
+  /** The room's sky for a member: stars, the constellation and the name vote while one is open (D-174, D-175). */
+  sky(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomSkyViewSchema>>>;
+  /** The member's vote for a constellation's name, changeable until the vote closes. */
+  nameConstellation(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof ConstellationVoteAcceptanceSchema>>>;
+  /** The member's vote on a debate's side, changeable until it closes (D-176). */
+  voteDebate(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DebateVoteAcceptanceSchema>>>;
   list(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomListSchema>>>;
   read(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomViewSchema>>>;
   join(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomJoinAcceptanceSchema>>>;

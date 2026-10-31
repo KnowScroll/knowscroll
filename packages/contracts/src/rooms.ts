@@ -224,6 +224,7 @@ export const RoomTodayQuestionSchema = z.strictObject({
   /** How many people's messages in Today answer it so far: a real count, shown only as a number of answers. */
   answers: Counter,
 });
+export type RoomTodayQuestion = z.infer<typeof RoomTodayQuestionSchema>;
 
 const FlawBase = { ritualId: UuidSchema, by: AiAuthorSchema, sentences: z.array(Sentence).min(3).max(5) };
 

@@ -13,6 +13,7 @@ import { openWindowOnReturn } from './away.js';
 import { receiptBase, runCommand } from './command.js';
 import { enterRoom } from './gate.js';
 import { ok, refuse, roomEnvelope, type Result, type RoomPorts } from './ports.js';
+import { settleDue } from './sky.js';
 import { youOf } from './view.js';
 
 /**
@@ -126,6 +127,8 @@ export function makeMemberCommands(p: RoomPorts) {
               ? (await p.presence.renew(lock, owner.accountId, now, ROOM_PRESENCE_LEASE_MS)) === 'began'
               : await p.presence.clear(lock, owner.accountId);
           if (changed) await p.rooms.announce(lock, now);
+          // What time made due since anyone last looked (a debate's close, a constellation's name) settles with this beat (D-175).
+          if (state === 'here') await settleDue(p, lock, entered.standing.room.topic.id, now);
           if (state === 'here' && changed && previous !== undefined)
             await openWindowOnReturn(
               p,

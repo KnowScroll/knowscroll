@@ -17,6 +17,7 @@ import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.j
 import { askDecision, hourBefore, utcDayStart, type InhabitantId } from '../domain/contribution.js';
 import { changesCursor, historyCursor } from '../domain/cursors.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
+import { debateViewOf } from './debates.js';
 import { titlesFor } from './discussion-titles.js';
 import { discussionEpisodes, viewRoomMessages } from './discussion-view.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
@@ -184,6 +185,10 @@ export function makeDiscussionReads(p: RoomPorts) {
               : (await p.discussions.messageInRoom(lock, discussion.originMessageId))?.message;
           const [origin] =
             originRow === undefined ? [] : await viewRoomMessages(p, scope, lock, [originRow], viewerOf(entered));
+          const debate =
+            discussion.tag === 'debate'
+              ? await debateViewOf(p, lock, discussion.discussionId, entered.owner.accountId, p.now())
+              : undefined;
           const title = (await titlesFor(p, scope, lock, entered.owner.accountId, [discussion])).get(
             discussion.discussionId,
           )!;
@@ -203,6 +208,7 @@ export function makeDiscussionReads(p: RoomPorts) {
               ...(starter === undefined ? {} : { startedBy: starter }),
             },
             ...(origin === undefined ? {} : { origin }),
+            ...(debate === undefined ? {} : { debate }),
             ...(content === undefined || discussion.root === null
               ? {}
               : {
