@@ -53,7 +53,7 @@ function isSocialRequest(request: Pick<Request, 'method' | 'path'>): boolean {
     (request.method === 'GET' &&
       /^\/v1\/social\/(?:profile|invites|visibility|presence\/preference|read-receipts)\/?$/i.test(request.path)) ||
     (request.method === 'POST' &&
-      /^\/v1\/social\/(?:profile|visibility|presence\/preference|read-receipts|visits\/read|friends\/page|requests\/page|people\/lookup|pairs\/read|invites\/(?:resolve|create|revoke)|friends\/(?:request|accept|decline|cancel|remove|block|unblock)|conversations\/(?:start|inbox|read|history|changes|send|send\/read|react|mark-read|mute|leave)|threads\/(?:create|read|history|changes|send|react|respond|mark-read|leave|inbox|snippets\/open)|content-shares\/(?:create|revoke|read|list|resolve))\/?$/i.test(
+      /^\/v1\/social\/(?:profile|visibility|presence\/preference|read-receipts|visits\/read|friends\/page|requests\/page|people\/lookup|pairs\/read|invites\/(?:resolve|create|revoke)|friends\/(?:request|accept|decline|cancel|remove|block|unblock)|conversations\/(?:start|inbox|read|history|changes|send|send\/read|react|mark-read|mute|leave)|threads\/(?:create|read|history|changes|send|react|respond|mark-read|leave|inbox|snippets\/open|places\/(?:read|set|hide))|content-shares\/(?:create|revoke|read|list|resolve))\/?$/i.test(
         request.path,
       )) ||
     (request.method === 'POST' && /^\/s\/preview\/?$/i.test(request.path))

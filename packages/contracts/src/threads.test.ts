@@ -6,8 +6,14 @@ import {
   ReactToThreadMessageSchema,
   SendThreadBodySchema,
   SendThreadMessageSchema,
+  SetThreadPlaceHiddenSchema,
+  SetThreadPlaceSchema,
   SnippetAnchorSchema,
   ThreadMessageSchema,
+  ThreadPlaceAcceptanceSchema,
+  ThreadPlaceHiddenAcceptanceSchema,
+  ThreadPlaceSchema,
+  ThreadPlacesSchema,
   ThreadSummarySchema,
 } from './threads.js';
 
@@ -199,5 +205,93 @@ describe('replies and reactions in a thread (v3 T-B)', () => {
       replyTo: { messageId: id(71), sequence: 1, original: { status: 'unavailable' } },
     };
     expect(ThreadMessageSchema.safeParse(message).success).toBe(true);
+  });
+});
+
+describe('party places (v3 T-D, D-065)', () => {
+  const place = { person, you: false, part: 2, state: 'on', day: '2026-10-31' };
+  const answer = { version: 'content-thread.v1', readId: id(80), scope, status: 'ready', thread: ref, hidden: false };
+
+  it('is a part, on or finished, and a calendar day', () => {
+    expect(ThreadPlaceSchema.safeParse(place).success).toBe(true);
+    expect(ThreadPlaceSchema.safeParse({ ...place, state: 'finished' }).success).toBe(true);
+    expect(ThreadPlaceSchema.safeParse({ ...place, part: 0 }).success).toBe(false);
+    expect(ThreadPlaceSchema.safeParse({ ...place, part: 100 }).success).toBe(false);
+    expect(ThreadPlaceSchema.safeParse({ ...place, state: 'watching' }).success).toBe(false);
+  });
+
+  it('cannot carry a time finer than a day, a playhead, a branch or a selected episode', () => {
+    for (const day of ['2026-10-31T13:02:00.000Z', '2026-10-31T13:02', '13:02', '2026-10-31 13:02', '1730379720000'])
+      expect(ThreadPlaceSchema.safeParse({ ...place, day }).success).toBe(false);
+    for (const extra of [
+      { playbackPositionMs: 5 },
+      { positionMs: 5 },
+      { branch: id(9) },
+      { selectedEpisode: id(30) },
+      { seenAt: '2026-10-31T13:02:00.000Z' },
+      { updatedAt: '2026-10-31T13:02:00.000Z' },
+    ])
+      expect(ThreadPlaceSchema.safeParse({ ...place, ...extra }).success).toBe(false);
+  });
+
+  it('lists each person once, at most the thread’s members', () => {
+    expect(ThreadPlacesSchema.safeParse({ ...answer, places: [place] }).success).toBe(true);
+    expect(ThreadPlacesSchema.safeParse({ ...answer, places: [place, place] }).success).toBe(false);
+    const people = Array.from({ length: MAX_THREAD_FRIENDS + 2 }, (_, index) => ({
+      ...place,
+      person: { ...person, personId: id(100 + index) },
+    }));
+    expect(ThreadPlacesSchema.safeParse({ ...answer, places: people }).success).toBe(false);
+    expect(ThreadPlacesSchema.safeParse({ ...answer, status: 'unavailable', thread: undefined }).success).toBe(false);
+    expect(
+      ThreadPlacesSchema.safeParse({ version: 'content-thread.v1', readId: id(80), scope, status: 'unavailable' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('is reported as a part and a state, with no time and nothing else', () => {
+    const set = { version: 'content-thread.v1', thread: ref, part: 2, state: 'finished' };
+    expect(SetThreadPlaceSchema.safeParse(set).success).toBe(true);
+    for (const patch of [
+      { part: 0 },
+      { state: 'watching' },
+      { day: '2026-10-31' },
+      { positionMs: 5 },
+      { recordedAt: '2026-10-31T13:02:00.000Z' },
+      // Idempotent by state: there is no command ID to key a receipt by.
+      { commandId: id(81) },
+    ])
+      expect(SetThreadPlaceSchema.safeParse({ ...set, ...patch }).success).toBe(false);
+  });
+
+  it('is answered with the scope and what it did, and no time, command ID or replay flag', () => {
+    const answered = { version: 'content-thread.v1', scope, operation: 'thread.place', thread: ref, result: 'stored' };
+    expect(ThreadPlaceAcceptanceSchema.safeParse(answered).success).toBe(true);
+    for (const extra of [
+      { recordedAt: '2026-10-31T13:02:00.000Z' },
+      { commandId: id(81) },
+      { replayed: false },
+      { outcome: 'accepted' },
+    ])
+      expect(ThreadPlaceAcceptanceSchema.safeParse({ ...answered, ...extra }).success).toBe(false);
+    const hidden = {
+      version: 'content-thread.v1',
+      scope,
+      operation: 'thread.place-hidden',
+      thread: ref,
+      hidden: true,
+      changed: true,
+    };
+    expect(ThreadPlaceHiddenAcceptanceSchema.safeParse(hidden).success).toBe(true);
+    expect(
+      ThreadPlaceHiddenAcceptanceSchema.safeParse({ ...hidden, recordedAt: '2026-10-31T13:02:00.000Z' }).success,
+    ).toBe(false);
+  });
+
+  it('states a wanted hide', () => {
+    const hide = { version: 'content-thread.v1', thread: ref, hidden: true };
+    expect(SetThreadPlaceHiddenSchema.safeParse(hide).success).toBe(true);
+    expect(SetThreadPlaceHiddenSchema.safeParse({ ...hide, commandId: id(82) }).success).toBe(false);
+    expect(SetThreadPlaceHiddenSchema.safeParse({ ...hide, hidden: 'yes' }).success).toBe(false);
   });
 });

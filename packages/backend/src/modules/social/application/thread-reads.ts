@@ -91,7 +91,8 @@ function openedAnchor(
  * a hint, the caller's thread list and the opening of a snippet. Every read checks current authority
  * (account gate, thread root, membership and the friendship it rests on) and answers `unavailable`
  * identically for a stranger, a removed member and a missing thread. Reading creates no evidence,
- * receipt or notice, and no answer carries another member's position, current episode or seen marker.
+ * receipt or notice, and no answer carries another member's position, current episode or seen marker. A member's
+ * coarse place is the one exception and is read separately (`thread-places.ts`).
  */
 export function makeThreadReads(p: ThreadPorts) {
   return {

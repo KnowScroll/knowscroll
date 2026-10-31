@@ -63,6 +63,7 @@ export interface MemberColumns {
   stands: boolean;
   read_through_sequence: string;
   muted: boolean;
+  place_hidden: boolean;
   invited_by_account_id: string | null;
   person_id: string;
   handle: string;
@@ -88,6 +89,7 @@ export const memberOf = (row: MemberColumns): ThreadMember => ({
   stands: row.stands,
   readThroughSequence: Number(row.read_through_sequence),
   muted: row.muted,
+  placeHidden: row.place_hidden,
   inviterAccountId: row.invited_by_account_id,
 });
 
@@ -96,7 +98,7 @@ export function selectMembers(trx: Kysely<Database>, threadIds: readonly string[
   return sql<MemberColumns & { conversation_id: string }>`
     select member.conversation_id, member.account_id, universe.id as universe_id, member.membership_id,
       member.membership_revision, member.pending, member.left_at, ${memberStands} as stands,
-      member.read_through_sequence, member.muted, member.invited_by_account_id,
+      member.read_through_sequence, member.muted, member.place_hidden, member.invited_by_account_id,
       profile.person_id, profile.handle, profile.display_name
     from social.conversation_members member
     join social.profiles profile on profile.account_id = member.account_id
