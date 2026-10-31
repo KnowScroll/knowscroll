@@ -98,7 +98,7 @@ describe('Resume on the Universe (real PostgreSQL, labelled CI fixtures)', () =>
     await readPart(person, parts.one);
     expect(await resumeOf(person)).toEqual({
       assetId: parts.two.assetId,
-      title: expect.any(String),
+      title: expect.any(String) as string,
       part: 2,
       total: 3,
     });
