@@ -20,6 +20,8 @@ export interface UniverseMemory {
   readonly landed: boolean;
   readonly frame: UniverseFrame;
   readonly lately: boolean;
+  /** Simple drawing: the tab is two plain lists instead of the 3D views (D-111). A choice about this device. */
+  readonly simple: boolean;
   readonly lastPlace: LastPlace | undefined;
   /** Epoch milliseconds when the screen was last on show. */
   readonly seenAt: number;
@@ -62,6 +64,7 @@ export function loadUniverseMemory(scope: AccountScope): UniverseMemory | undefi
         scale: Number(frame['scale']),
       }),
       lately: value['lately'] === true,
+      simple: value['simple'] === true,
       lastPlace,
       seenAt: value['seenAt'],
     };

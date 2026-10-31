@@ -77,8 +77,8 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
   await page.goBack();
   await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
-  await page.getByRole('button', { name: 'List view', exact: true }).click();
-  await page.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0', exact: true }).click();
+  await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
+  await page.getByRole('button', { name: 'CI region 4, a region', exact: true }).click();
   await expect(page.getByText('Encounters from this region aren’t available yet.')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('universe-region-card')).toHaveCount(0);
@@ -249,8 +249,10 @@ test('canonical region card opens displayed A through actual activation, then Ba
     await route.fulfill({ json: value });
   });
   await page.goto('/universe');
-  // From 1024 px the outline sits beside the map, always open (D02).
-  await page.getByRole('button', { name: 'CI region 4, region in CI planet 2, CI system 0', exact: true }).click();
+  // From 1024 px the panel sits beside the map, always open (D02): a planet's row opens its globe, Land its map.
+  await page.getByRole('button', { name: 'CI planet 2, a planet in CI system 0', exact: true }).click();
+  await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
+  await page.getByRole('button', { name: 'CI region 4, a region', exact: true }).click();
   const pin = page.getByRole('button', { name: 'CI region 4, a region', exact: true });
   const map = page.getByTestId('universe-map');
   await map.focus();

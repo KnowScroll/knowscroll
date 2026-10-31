@@ -410,6 +410,7 @@ describe('what a person does on the map', () => {
       landed: false,
       frame: { x: 3, y: 4, scale: 2 },
       lately: false,
+      simple: false,
       lastPlace: { id: fixtureId(999), label: 'Gone', kind: 'planet' },
       seenAt: Date.now(),
     });
@@ -555,6 +556,7 @@ describe('landing on a planet (U03 to U04)', () => {
       landed: true,
       frame: { x: 0, y: 0, scale: 1 },
       lately: false,
+      simple: false,
       lastPlace: { id: fixtureId(12), label: 'CI planet 2', kind: 'planet' },
       seenAt: Date.now(),
     });
@@ -589,4 +591,97 @@ it('stops the zoom of the 3D views where their camera stops, and gives the plane
   s.camera({ x: 0, y: 0, scale: 0.1 });
   expect(s.getState().frame.scale).toBe(PLANET_ZOOM.min);
   h.scope.end();
+});
+
+describe('Escape, Simple drawing and landing straight from a card (v3 U-5)', () => {
+  it('Escape closes what is open first, then steps up one level at a time, and does nothing on the whole map', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    expect(s.escape()).toBe(false);
+    s.focus(fixtureId(14));
+    expect(s.getState().overlay).toBe('place');
+    // The card first, then the planet's map, then its system, then the whole map.
+    expect(s.escape()).toBe(true);
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(14), overlay: null });
+    expect(s.escape()).toBe(true);
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: true });
+    expect(s.escape()).toBe(true);
+    expect(s.getState().focusId).toBe(fixtureId(10));
+    expect(s.escape()).toBe(true);
+    expect(s.getState().focusId).toBeNull();
+    expect(s.escape()).toBe(false);
+    // A picked system is closed by Escape before anything else.
+    s.select(fixtureId(10));
+    expect(s.escape()).toBe(true);
+    expect(s.getState().selectedId).toBeNull();
+    h.scope.end();
+  });
+
+  it('Escape does nothing while the screen is not in front', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.focus(fixtureId(12));
+    s.setForeground(false);
+    expect(s.escape()).toBe(false);
+    expect(s.getState().focusId).toBe(fixtureId(12));
+    h.scope.end();
+  });
+
+  it('lands straight on a planet’s map from a card, with one Back step to where the person was', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    s.focus(fixtureId(10));
+    s.focus(fixtureId(12), { land: true });
+    expect(s.getState()).toMatchObject({ focusId: fixtureId(12), landed: true });
+    s.back();
+    expect(s.getState().focusId).toBe(fixtureId(10));
+    // Landing is only for a planet: a system asked to land is just entered.
+    s.focus(fixtureId(10), { land: true });
+    expect(s.getState().landed).toBe(false);
+    h.scope.end();
+  });
+
+  it('remembers Simple drawing on this device, reads again with the lighter capability, and forgets it with the account', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    expect(s.getState().detail).toBe('full');
+    s.setSimple(true);
+    expect(s.getState().detail).toBe('low');
+    expect(h.scope.storage.get('universe.view.v1')).toContain('"simple":true');
+    await ready(s);
+    const manifest = h.requests.filter((request) => request.path.endsWith('/manifest/read')).at(-1)!;
+    expect(manifest.body.capabilities).toMatchObject({ detail: 'low' });
+    s.setForeground(false);
+    // The next screen opens as the lists again.
+    const next = createUniverseViewSession(h.scope);
+    expect(next.getState().detail).toBe('low');
+    next.setForeground(true);
+    await ready(next);
+    next.setSimple(false);
+    expect(h.scope.storage.get('universe.view.v1')).toContain('"simple":false');
+    h.scope.end();
+    expect(h.store.keys()).toEqual([]);
+  });
+
+  it('keeps searching on the device: the places are already here and no read or write is made for them', async () => {
+    const h = universeHarness(),
+      s = createUniverseViewSession(h.scope);
+    s.setForeground(true);
+    await ready(s);
+    const before = h.calls.length;
+    s.showOverlay('search');
+    expect(s.places().length).toBeGreaterThan(0);
+    s.focus(fixtureId(12));
+    s.back();
+    expect(h.calls.length).toBe(before);
+    h.scope.end();
+  });
 });

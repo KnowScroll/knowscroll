@@ -1,20 +1,25 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomStation } from '@knowscroll/contracts';
 import { content, layout, space, spacing } from '@knowscroll/design-tokens';
 import { IconButton, Tag, Text, useDisplay } from '@knowscroll/ui';
+import { OrbitDial } from './dial/orbit-dial';
+import { SimpleUniverse } from './simple/simple-universe';
 import { UniverseBackdrop } from './universe-backdrop';
-import { RegionCard, SystemCard } from './universe-cards';
+import { PlanetCard, RegionCard, SystemCard } from './universe-cards';
 import { UniverseHeader } from './universe-header';
 import { isQuiet, viewFor, type UniverseIndex } from './universe-layout';
-import { DrawingToggle, OutlineList, UniverseListSheet } from './universe-outline';
+import { countOf } from './universe-lists';
+import { UniversePanel } from './universe-panel';
 import { UniverseSearchPanel } from './universe-search-panel';
 import { SpaceChip } from './space-chip';
 import { UniverseStage } from './universe-stage';
 import { paletteOf } from './planet/planet-palette';
-import { planPlanet, type PlanetPlan } from './planet/planet-plan';
+import { planPlanet } from './planet/planet-plan';
+import { lowMemoryDevice } from './space/low-memory-device';
 import { looksById } from './space/space-model';
+import type { SpaceFailure } from './space/space-surface';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 /** The colour of the globe's hint, from the design. */
@@ -62,36 +67,65 @@ export function UniverseSurface({
   const places = session.places();
   const panel = wide && places.length > 0;
   const focused = places.find((place) => place.id === state.focusId);
-  const selectedSystem = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
+  const picked = state.selectedId ? places.find((place) => place.id === state.selectedId) : undefined;
   const regionCard = state.overlay === 'place' && focused?.kind === 'region' ? focused : undefined;
   const [dustNote, setDustNote] = useState(false);
   const [refusedPlanetId, setRefusedPlanetId] = useState<string | null>(null);
+  // Why 3D cannot be drawn, if it cannot: the tab is then the Simple lists, by itself (D-111).
+  const [unavailable, setUnavailable] = useState<SpaceFailure | null>(() => (lowMemoryDevice() ? 'low-memory' : null));
   const searching = state.overlay === 'search';
   const openSearch = () => session.showOverlay('search');
   // A planet in view: what its globe and map are drawn from, which also gives the plain list its order.
   const looks = state.read.snapshot?.read.looks;
   const planet = view.kind === 'planet' ? view.planet : undefined;
-  const plan = useMemo(
-    () => (planet ? planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)) : undefined),
-    [planet, index, looks],
-  );
-  const palette = useMemo(() => (plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined), [plan]);
-  // A planet whose world cannot be drawn, or low detail, falls back to the plain list of its regions.
-  const simple = view.kind === 'planet' && (state.detail === 'low' || refusedPlanetId === view.planet.objectId);
+  const plan = planet ? planPlanet(planet, index.regions.get(planet.objectId) ?? [], looksById(looks)) : undefined;
+  const palette = plan ? paletteOf(plan.spec.type, plan.look?.hueShift ?? 0) : undefined;
+  // The whole tab is the two plain lists: by the setting, because 3D failed, or for one planet whose world cannot be drawn.
+  const simpleDrawing = state.detail === 'low' || unavailable !== null;
+  const simple = simpleDrawing || (view.kind === 'planet' && refusedPlanetId === view.planet.objectId);
+  const turnSimple = (on: boolean) => {
+    if (!on) setUnavailable(null);
+    session.setSimple(on);
+  };
   // A globe only turns: there is nothing to zoom.
   const globe = view.kind === 'planet' && !view.landed && !simple;
+  const dialOpen = !wide && !simple && state.overlay === 'outline';
+  const stationsOfOwn = visitor ? undefined : stations;
+  // D02 names what a system holds under its title.
+  const systemFacts =
+    wide && view.kind === 'system'
+      ? [
+          countOf(index.planets.get(view.system.objectId)?.length ?? 0, 'planet'),
+          ...(stationsOfOwn
+            ? [countOf(stationsOfOwn.filter((s) => s.placement.systemId === view.system.objectId).length, 'room')]
+            : []),
+        ].join(' · ')
+      : undefined;
 
   const card: ReactNode = regionCard ? (
-    <RegionCard session={session} state={state} place={regionCard} {...(palette ? { palette } : {})} />
-  ) : selectedSystem && !searching ? (
-    <SystemCard session={session} place={selectedSystem} />
+    <RegionCard session={session} state={state} place={regionCard} solid={simple} {...(palette ? { palette } : {})} />
+  ) : picked?.kind === 'planet' && !searching ? (
+    <PlanetCard
+      session={session}
+      place={picked}
+      system={places.find((place) => place.id === picked.parentId)?.label}
+      countries={index.regions.get(picked.id)?.length ?? 0}
+      hereRegion={hereRegionName(index, state.youWereHere, picked.id)}
+    />
+  ) : picked?.kind === 'system' && !searching ? (
+    <SystemCard session={session} place={picked} />
   ) : dustNote && view.kind === 'universe' && state.dust.cues.length > 0 ? (
     <DustNote onClose={() => setDustNote(false)} />
   ) : null;
   const bottomInset = wide ? spacing[5] : layout.tabBarSlot + insets.bottom;
 
   const header = searching ? (
-    <UniverseSearchPanel session={session} {...(visitor ? { owner: visitor.ownerName } : {})} />
+    <UniverseSearchPanel
+      session={session}
+      {...(visitor ? { owner: visitor.ownerName } : {})}
+      {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
+      {...(onStation ? { onStation } : {})}
+    />
   ) : (
     <UniverseHeader
       session={session}
@@ -100,6 +134,8 @@ export function UniverseSurface({
       hasPlaces={places.length > 0}
       onSearch={openSearch}
       {...(visitor ? { visitor: { ownerName: visitor.ownerName } } : {})}
+      {...(systemFacts ? { systemFacts } : {})}
+      searchInPanel={panel}
     />
   );
 
@@ -175,58 +211,102 @@ export function UniverseSurface({
       </View>
     ) : null;
 
-  const stage = (
+  const stage = simple ? (
+    <View style={styles.stageHost}>
+      <SimpleUniverse
+        session={session}
+        state={state}
+        index={index}
+        looks={looks}
+        {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
+        {...(visitor ? { owner: visitor.ownerName } : {})}
+        top={insets.top + spacing[3]}
+        bottom={bottomInset + (card && !panel ? 200 : 0)}
+        banner={
+          visitor?.bar || status ? (
+            <>
+              {visitor?.bar}
+              {status ? <Tag label={status} variant="onDark" /> : null}
+            </>
+          ) : undefined
+        }
+        onSearch={openSearch}
+        {...(onStation ? { onStation } : {})}
+        {...(simpleDrawing ? { onTurnOff: () => turnSimple(false) } : {})}
+        {...(searching ? { searchPanel: header } : {})}
+        {...(panel || !card ? {} : { card })}
+        {...(refusedPlanetId !== null && !simpleDrawing && view.kind === 'planet'
+          ? { forcedPlanetId: refusedPlanetId }
+          : {})}
+      />
+    </View>
+  ) : (
     <View style={styles.stageHost}>
       <UniverseBackdrop glow={false} />
-      {simple && view.kind === 'planet' && plan ? (
-        <SimplePlanet session={session} index={index} view={view} state={state} plan={plan} />
-      ) : (
-        <UniverseStage
+      {/* The dial takes the place of the map while it is open, so nothing under it can be reached. */}
+      {dialOpen ? (
+        <OrbitDial
           session={session}
           state={state}
           index={index}
-          onSearch={openSearch}
-          onDust={() => setDustNote(true)}
-          stations={stations}
-          onStation={onStation}
-          visitor={visitor !== undefined}
-          onRefused={setRefusedPlanetId}
+          looks={looks}
+          {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
+          {...(visitor ? { owner: visitor.ownerName } : {})}
+          top={insets.top + spacing[3]}
+          bottom={bottomInset}
+          onSimple={() => turnSimple(true)}
         />
-      )}
-      <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
-        {visitor?.bar}
-        {header}
-        {status ? (
-          <View style={styles.status}>
-            <Tag label={status} variant="onDark" />
+      ) : (
+        <>
+          <UniverseStage
+            session={session}
+            state={state}
+            index={index}
+            onSearch={openSearch}
+            onDust={() => setDustNote(true)}
+            stations={stations}
+            onStation={onStation}
+            visitor={visitor !== undefined}
+            onRefused={setRefusedPlanetId}
+            onUnavailable={setUnavailable}
+            pickPlanets={wide && visitor === undefined}
+          />
+          <View pointerEvents="box-none" style={[styles.top, { paddingTop: insets.top + spacing[3] }]}>
+            {visitor?.bar}
+            {header}
+            {status ? (
+              <View style={styles.status}>
+                <Tag label={status} variant="onDark" />
+              </View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
-      {caption}
-      <View pointerEvents="box-none" style={[styles.bottom, { paddingBottom: bottomInset }]}>
-        {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
-          <DormantNote session={session} index={index} systemId={view.system.objectId} />
-        ) : null}
-        {panel ? null : card}
-        {chips}
-      </View>
-      {wide && !globe ? (
-        <View pointerEvents="box-none" style={styles.zoomControls}>
-          <IconButton
-            icon="plus"
-            label="Zoom in"
-            variant="onSpace"
-            onPress={() => session.camera({ ...state.frame, scale: state.frame.scale * 1.25 })}
-          />
-          <IconButton
-            icon="minus"
-            label="Zoom out"
-            variant="onSpace"
-            onPress={() => session.camera({ ...state.frame, scale: state.frame.scale / 1.25 })}
-          />
-        </View>
-      ) : null}
-      {wide ? <KeyHints globe={globe} /> : null}
+          {caption}
+          <View pointerEvents="box-none" style={[styles.bottom, { paddingBottom: bottomInset }]}>
+            {view.kind === 'system' && state.lately && isDormant(index, view.system.objectId) ? (
+              <DormantNote session={session} index={index} systemId={view.system.objectId} />
+            ) : null}
+            {panel ? null : card}
+            {chips}
+          </View>
+          {wide && !globe ? (
+            <View pointerEvents="box-none" style={styles.zoomControls}>
+              <IconButton
+                icon="plus"
+                label="Zoom in"
+                variant="onSpace"
+                onPress={() => session.camera({ ...state.frame, scale: state.frame.scale * 1.25 })}
+              />
+              <IconButton
+                icon="minus"
+                label="Zoom out"
+                variant="onSpace"
+                onPress={() => session.camera({ ...state.frame, scale: state.frame.scale / 1.25 })}
+              />
+            </View>
+          ) : null}
+          {wide ? <KeyHints globe={globe} /> : null}
+        </>
+      )}
     </View>
   );
 
@@ -236,25 +316,18 @@ export function UniverseSurface({
         <View style={styles.desktopRow}>
           {stage}
           {panel ? (
-            <View style={styles.panel} role="complementary" aria-label="Outline">
-              <Text variant="label" color={content.ink2} style={styles.panelEyebrow}>
-                Outline · List view
-              </Text>
-              <View style={styles.panelTools}>
-                <DrawingToggle session={session} state={state} />
-              </View>
-              <View style={styles.panelList}>
-                <OutlineList
-                  session={session}
-                  state={state}
-                  index={index}
-                  {...(stations ? { stations } : {})}
-                  {...(onStation ? { onStation } : {})}
-                  {...(visitor ? { label: `Places in ${visitor.ownerName}’s universe` } : {})}
-                />
-              </View>
-              {card ? <View style={styles.panelCard}>{card}</View> : null}
-            </View>
+            <UniversePanel
+              session={session}
+              state={state}
+              index={index}
+              {...(stationsOfOwn ? { stations: stationsOfOwn } : {})}
+              {...(visitor ? { owner: visitor.ownerName } : {})}
+              simple={simpleDrawing}
+              card={card}
+              onSearch={openSearch}
+              onSimple={turnSimple}
+              {...(onStation ? { onStation } : {})}
+            />
           ) : null}
         </View>
       </View>
@@ -262,18 +335,14 @@ export function UniverseSurface({
   return (
     <View style={styles.ground} testID="universe-screen" role="main">
       {stage}
-      {state.overlay === 'outline' ? (
-        <UniverseListSheet
-          session={session}
-          state={state}
-          index={index}
-          {...(stations ? { stations } : {})}
-          {...(onStation ? { onStation } : {})}
-          {...(visitor ? { owner: visitor.ownerName } : {})}
-        />
-      ) : null}
     </View>
   );
+}
+
+/** The name of the region the person left from, when it is on this planet. */
+function hereRegionName(index: UniverseIndex, hereRegionId: string | null, planetId: string): string | undefined {
+  const region = hereRegionId ? index.byId.get(hereRegionId) : undefined;
+  return region?.parentId === planetId ? region.label : undefined;
 }
 
 /** Where the ship is parked: the last place, or the planet of a region. A system is its own place. */
@@ -340,51 +409,10 @@ function KeyHints({ globe }: { globe: boolean }) {
   );
   return (
     <View pointerEvents="none" style={styles.hints}>
-      {hint('Arrows', globe ? 'turn' : 'pan')}
-      {globe ? null : hint('+ −', 'zoom')}
-      {hint('/', 'search')}
-    </View>
-  );
-}
-
-/**
- * The plain drawing of a planet (low detail, or a world that cannot be drawn): its name and a list of
- * its regions, in the same order as the map names them. Every region stays one tap away.
- */
-function SimplePlanet({
-  session,
-  index,
-  view,
-  state,
-  plan,
-}: {
-  session: UniverseMapSession;
-  index: UniverseIndex;
-  view: Extract<ReturnType<typeof viewFor>, { kind: 'planet' }>;
-  state: UniverseViewState;
-  plan: PlanetPlan;
-}) {
-  return (
-    <View style={styles.simple}>
-      <View style={styles.simpleTitle}>
-        <Text variant="displayL" heading={1} color={space.label} style={styles.captionTitle}>
-          {view.planet.label}
-        </Text>
-        <Text variant="label" color={space.label2}>
-          {`A planet in ${index.byId.get(view.planet.parentId)?.label ?? 'your universe'}`}
-        </Text>
-      </View>
-      <View style={styles.simpleList}>
-        {plan.regions.map(({ descriptor }) => (
-          <SpaceChip
-            key={descriptor.objectId}
-            label={descriptor.label}
-            variant={descriptor.objectId === state.focusId ? 'solid' : 'ghost'}
-            trailingIcon="forward"
-            onPress={() => void session.focus(descriptor.objectId)}
-          />
-        ))}
-      </View>
+      {hint('← → ↑ ↓', globe ? 'Turn' : 'Pan')}
+      {globe ? null : hint('+ −', 'Zoom')}
+      {hint('/', 'Search')}
+      {hint('Esc', 'Back up a level')}
     </View>
   );
 }
@@ -431,18 +459,4 @@ const styles = StyleSheet.create({
   hints: { position: 'absolute', left: spacing[6], bottom: spacing[5], flexDirection: 'row', gap: spacing[4] },
   hint: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   key: { paddingHorizontal: spacing[2], paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: space.edge },
-  panel: {
-    width: 378,
-    backgroundColor: content.paper,
-    paddingTop: spacing[6],
-    paddingHorizontal: spacing[4],
-    gap: spacing[3],
-  },
-  panelEyebrow: { paddingHorizontal: spacing[2] },
-  panelList: { flex: 1 },
-  panelTools: { paddingHorizontal: spacing[2], alignItems: 'flex-start' },
-  panelCard: { paddingBottom: spacing[4] },
-  simple: { flex: 1, paddingTop: 132, gap: spacing[4] },
-  simpleTitle: { paddingHorizontal: spacing[5], gap: 2 },
-  simpleList: { paddingHorizontal: spacing[5], gap: spacing[2], alignItems: 'flex-start' },
 });

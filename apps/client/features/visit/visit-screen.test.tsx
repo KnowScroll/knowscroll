@@ -116,6 +116,28 @@ describe('friend visit screen (labelled in-memory server)', () => {
     server.scope.end();
   });
 
+  it('shows a friend’s universe as the plain lists too: their name, only what they share, no rooms and no regions', async () => {
+    const server = visitServer();
+    mockScope = server.scope;
+    const rendered = await render(view(true));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'List view' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'List view' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Simple view' }));
+    await screen.findByTestId('universe-simple');
+    expect(screen.getByText('Ravi fixture’s universe')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Hardware, a planet in Machine learning' })).toBeOnTheScreen();
+    // Regions are never shared, so no row counts them, and a visit has no rooms.
+    expect(screen.queryByText(/countr/i)).toBeNull();
+    expect(screen.queryByText('Rooms')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Lately' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Hardware, a planet in Machine learning' }));
+    expect(screen.getByRole('header', { name: 'Hardware' })).toBeOnTheScreen();
+    expect(screen.queryByText('Countries')).toBeNull();
+    expect(server.requests.map((request) => request.path)).toEqual(['/v1/social/visits/read']);
+    await rendered.unmount();
+    server.scope.end();
+  });
+
   it('explains private parts the same way every time, without saying whether any exist', async () => {
     const server = visitServer();
     mockScope = server.scope;
