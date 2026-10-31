@@ -381,6 +381,8 @@ export {
   PLAY_RETRY_DELAYS_MS,
   type PlayCall,
   type PlayKeeping,
+  type PlayLandmark,
+  type PlayLandmarkName,
   type PlayLock,
   type PlaySession,
   type PlaySessionOptions,

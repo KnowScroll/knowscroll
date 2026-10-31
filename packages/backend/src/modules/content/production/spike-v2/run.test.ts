@@ -114,7 +114,7 @@ describe('the writer spike: one topic', () => {
       outcome: 'accepted_first_take',
       variant: 'stage',
       misconception: 'myth',
-      promptVersion: 'scroll-writer.v15',
+      promptVersion: 'scroll-writer.v16',
       requests: 1,
       findings: [],
       stops: 9,

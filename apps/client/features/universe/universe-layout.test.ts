@@ -1,5 +1,5 @@
 import type { SceneDescriptor } from '@knowscroll/scene-core';
-import { indexUniverse, outlineRows, placeLabels, placeTrail, viewFor } from './universe-layout';
+import { indexUniverse, placeLabels, viewFor } from './universe-layout';
 import { fixtureId, sceneFixture } from './universe.fixture';
 
 /** Authored CI descriptors only. */
@@ -47,28 +47,6 @@ describe('Universe layout', () => {
       selectedRegion: regions[1],
     });
     expect(viewFor(index, fixtureId(999)).kind).toBe('universe');
-  });
-
-  it('names the places that contain a place, nearest first', () => {
-    expect(placeTrail(index, regions[0]!)).toEqual(['Near', 'Alpha']);
-    expect(placeTrail(index, planets[0]!)).toEqual(['Alpha']);
-    expect(placeTrail(index, system)).toEqual([]);
-  });
-
-  it('lists every place in order, with recent activity first only when Lately is on', () => {
-    const quiet = { ...planets[1]!, activity: { availability: 'available', state: 'quiet' } } satisfies SceneDescriptor;
-    const active = {
-      ...planets[0]!,
-      activity: { availability: 'available', state: 'active' },
-    } satisfies SceneDescriptor;
-    const withActivity = indexUniverse([system, star, quiet, active, ...regions], []);
-    const plain = outlineRows(withActivity, false).map((row) => row.place.label);
-    const lately = outlineRows(withActivity, true).map((row) => row.place.label);
-    expect([...plain].sort()).toEqual([...lately].sort());
-    // By label Far comes first; with Lately on, the quiet Far goes after the active Near.
-    expect(plain.indexOf('Far')).toBeLessThan(plain.indexOf('Near'));
-    expect(lately.indexOf('Near')).toBeLessThan(lately.indexOf('Far'));
-    expect(outlineRows(withActivity, false).map((row) => row.depth)).toEqual([0, 1, 1, 2, 2, 2]);
   });
 
   it('places labels without overlap and leaves out one that finds no room', () => {

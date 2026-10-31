@@ -14,7 +14,9 @@ const phone = { width: 390, height: 844 };
 /** The Scroll with its stage taken away: a plain v2 Scroll. */
 const plain = (() => {
   const { stage: _stage, ...rest } = seasons as unknown as Record<string, unknown>;
-  return rest;
+  // With no picture there is nothing for the Final call to turn, so it is no longer bound to one (D-187).
+  const stops = (rest['stops'] as Record<string, unknown>[]).map(({ binding: _binding, ...stop }) => stop);
+  return { ...rest, stops };
 })();
 
 /** Opens the first Part of a series on its own address, as a person who followed a link does. */

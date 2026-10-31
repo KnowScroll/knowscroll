@@ -12,7 +12,7 @@ describe('the stage state at a stop', () => {
     // A call sets no state: it keeps the one before it, so the picture never shows an answer.
     expect(stageEntryAt(stage, document.stops, 'call-delhi').stop).toBe('same-direction');
     expect(stageEntryAt(stage, document.stops, 'long-days').stop).toBe('steeper-light');
-    expect(stageEntryAt(stage, document.stops, 'final-sydney').stop).toBe('the-year');
+    expect(stageEntryAt(stage, document.stops, 'final-tilt').stop).toBe('the-year');
   });
 
   it('is the first state for a stop it does not know', () => {

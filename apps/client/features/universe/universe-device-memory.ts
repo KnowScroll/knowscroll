@@ -14,6 +14,7 @@ export interface RememberedView {
   readonly landed: boolean;
   readonly frame: UniverseFrame;
   readonly lately: boolean;
+  readonly simple: boolean;
   readonly lastPlace: LastPlace | undefined;
 }
 export interface Restored {
@@ -44,12 +45,14 @@ export function createDeviceMemory(scope: AccountScope, now: () => number, live:
       landed: view.landed,
       frame: view.frame,
       lately: view.lately,
+      simple: view.simple,
       lastPlace: view.lastPlace,
       seenAt: now(),
     } satisfies UniverseMemory);
   };
   return {
     lately: remembered?.lately ?? false,
+    simple: remembered?.simple ?? false,
     lastPlace: remembered?.lastPlace,
     /** Who supplies the current view when a write happens. */
     keep(view: () => RememberedView) {

@@ -23,6 +23,7 @@ export const V2_REASON_CODES = [
   'call_answer_invalid',
   'call_options_duplicate',
   'final_call_restates_call',
+  'final_call_binding_invalid',
   'common_guess_invalid',
   'common_guess_missing',
   'common_guess_unexpected',

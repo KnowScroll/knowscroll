@@ -112,6 +112,8 @@ export interface ButtonProps {
   readonly fullWidth?: boolean;
   /** A two-state button (Like, Save in the large-text grid): announced as pressed or not. */
   readonly toggled?: boolean;
+  /** A button that opens or closes something in place (a disclosure): announced as expanded or collapsed. */
+  readonly expanded?: boolean;
   /** A dashed outline: the look of another angle on the same idea (the related move), against the solid Part. */
   readonly dashed?: boolean;
   /** The surface the button sits on decides the focus-ring colour (D-006 n). */
@@ -140,6 +142,7 @@ export function Button({
   href,
   fullWidth = false,
   toggled,
+  expanded,
   surface,
   dashed = false,
   testID,
@@ -173,6 +176,7 @@ export function Button({
       accessibilityHint={accessibilityHint}
       aria-disabled={disabled}
       aria-busy={busy}
+      aria-expanded={expanded}
       style={({ pressed }) => {
         const pressedNow = pressed && !inert;
         const frame: ViewStyle[] = [

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, IconButton, Text } from '@knowscroll/ui';
 import type { PlanetPalette } from './planet/planet-palette';
+import { countOf } from './universe-lists';
 import type { UniversePlace, UniverseMapSession, UniverseViewState } from './universe-session';
 
 /** The paper card the map shows for one place (U04 "Regions & topic card", U08 selection). */
@@ -13,6 +14,8 @@ function CardFrame({
   eyebrowColour = content.ink2,
   accent,
   glass = false,
+  solid = false,
+  docked = false,
   onClose,
   children,
   testID,
@@ -24,6 +27,10 @@ function CardFrame({
   accent?: string;
   /** Dark glass over the map instead of paper. */
   glass?: boolean;
+  /** Simple drawing: the glass becomes the plain solid fill (D-111). */
+  solid?: boolean;
+  /** Docked in the desktop panel: a sunken paper card with no outline (D02). */
+  docked?: boolean;
   onClose: () => void;
   children: ReactNode;
   testID: string;
@@ -38,7 +45,12 @@ function CardFrame({
     }
   }, []);
   return (
-    <View testID={testID} role="dialog" accessibilityLabel={title} style={[styles.card, glass ? styles.glass : null]}>
+    <View
+      testID={testID}
+      role="dialog"
+      accessibilityLabel={title}
+      style={[styles.card, glass ? styles.glass : null, solid ? styles.solid : null, docked ? styles.docked : null]}
+    >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitle}>
           {accent ? <View style={[styles.kindDot, { backgroundColor: accent, shadowColor: accent }]} /> : null}
@@ -75,10 +87,71 @@ export function SystemCard({ session, place }: { session: UniverseMapSession; pl
   );
 }
 
+/**
+ * A planet picked on the desktop map (D02): its card docks at the top of the panel with Land, which
+ * goes straight to its map, and Close. It says how many countries have formed and where the person
+ * was last, from what the device already holds; it carries no scores.
+ */
+export function PlanetCard({
+  session,
+  place,
+  system,
+  countries,
+  hereRegion,
+}: {
+  session: UniverseMapSession;
+  place: UniversePlace;
+  /** The name of the planet's system. */
+  system: string | undefined;
+  countries: number;
+  hereRegion: string | undefined;
+}) {
+  return (
+    <CardFrame
+      testID="universe-planet-card"
+      eyebrow={system === undefined ? 'A planet' : `A planet · ${system}`}
+      title={place.label}
+      docked
+      onClose={() => session.select(null)}
+    >
+      <Text variant="bodyS" color={content.ink2}>
+        {`${countOf(countries, 'country')}.`}
+      </Text>
+      {hereRegion ? (
+        <View style={styles.hereLine}>
+          <View style={styles.hereDot} />
+          <Text variant="bodyS" color={content.ink2}>{`You were here last: ${hereRegion}.`}</Text>
+        </View>
+      ) : null}
+      <View style={styles.actions}>
+        {countries > 0 ? (
+          <Button
+            label="Land"
+            variant="ink"
+            accessibilityLabel={`Land on ${place.label}`}
+            onPress={() => session.focus(place.id, { land: true })}
+          />
+        ) : (
+          // Nothing has formed to land on: open the planet from orbit instead.
+          <Button
+            label="Open"
+            variant="ink"
+            accessibilityLabel={`Open ${place.label}`}
+            onPress={() => session.focus(place.id)}
+          />
+        )}
+        <Button label="Close" variant="ghost" onPress={() => session.select(null)} />
+      </View>
+    </CardFrame>
+  );
+}
+
 /** The dark glass of the region card (U04): what it is, where it is, what it offers. */
 const GLASS = 'rgba(6,26,38,0.92)';
 const GLASS_EDGE = 'rgba(255,255,255,0.15)';
 const GLASS_TEXT = 'rgba(214,238,245,0.85)';
+/** The fill that replaces the glass in Simple drawing. */
+const SOLID = '#0D2230';
 const DEFAULT_ACCENT = '#33c4b4';
 const DEFAULT_KIND = '#8edbe0';
 
@@ -92,11 +165,14 @@ export function RegionCard({
   state,
   place,
   palette,
+  solid = false,
 }: {
   session: UniverseMapSession;
   state: UniverseViewState;
   place: UniversePlace;
   palette?: PlanetPalette;
+  /** Simple drawing: no glass. */
+  solid?: boolean;
 }) {
   const router = useRouter();
   const [blocked, setBlocked] = useState(false);
@@ -134,6 +210,7 @@ export function RegionCard({
       title={title}
       onClose={close}
       glass
+      solid={solid}
     >
       {displayed ? (
         <>
@@ -200,6 +277,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: spacing[4],
   },
+  solid: { backgroundColor: SOLID },
+  docked: { backgroundColor: content.paper2, borderWidth: 0, borderRadius: 24, maxWidth: undefined },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   kindDot: {
@@ -210,5 +289,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 0 },
   },
+  hereLine: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  hereDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF684C' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[2], marginTop: spacing[2] },
 });

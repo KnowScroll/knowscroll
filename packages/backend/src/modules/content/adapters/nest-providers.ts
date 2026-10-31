@@ -25,7 +25,7 @@ import {
   FIND_ASSET_FOR_ACTION,
   FIND_OPENABLE_ASSET,
   READ_SCROLL_READING_FACTS,
-  READ_SCROLL_CALLS,
+  READ_SCROLL_PLAY_FACTS,
   READ_ADMITTED_COVERAGE_MAPPING,
   LOCK_CURRENT_COVERAGE_AUTHORITIES,
   READ_REGION_ENCOUNTER_CANDIDATES,
@@ -57,7 +57,7 @@ import {
   readPlayLevel,
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
-import { readScrollCalls } from './scroll-calls.js';
+import { readScrollPlayFacts } from './scroll-play-facts.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
@@ -102,7 +102,7 @@ export function contentProviders() {
     { provide: RECORD_MADE_TO_ORDER_SCROLL, useValue: recordMadeToOrderScroll },
     { provide: READ_SCROLL_SOURCE_PAGES, useValue: readScrollSourcePages },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
-    { provide: READ_SCROLL_CALLS, useValue: readScrollCalls },
+    { provide: READ_SCROLL_PLAY_FACTS, useValue: readScrollPlayFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
@@ -238,7 +238,7 @@ export { lockKeepPositionTarget } from './keep-position-target.js';
 export { readSavedPageMetadata } from './discovery-store.js';
 export { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 export { readContentSequence } from './content-sequence.js';
-export { readScrollCalls } from './scroll-calls.js';
+export { readScrollPlayFacts } from './scroll-play-facts.js';
 export { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 
 /** The operator's Reel commands over real adapters (#240, D-041). */

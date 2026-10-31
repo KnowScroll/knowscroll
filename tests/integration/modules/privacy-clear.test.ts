@@ -1209,6 +1209,18 @@ describe('durable selective Clear', () => {
           })
           .execute();
         await tx
+          .insertInto('play.landmarks')
+          .values({
+            universe_id: person.universeId,
+            privacy_epoch: 1,
+            asset_id: starter.assetId,
+            revision: starter.revision,
+            landmark_key: 'ci-erasure-landmark',
+            landmark_name: 'The CI Erasure Landmark',
+            tier: 'plain',
+          })
+          .execute();
+        await tx
           .insertInto('planner.runs')
           .values({
             universe_id: person.universeId,

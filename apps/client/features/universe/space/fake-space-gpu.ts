@@ -17,6 +17,10 @@ interface FakeGpuControls {
   far: boolean;
   /** Makes the next renderer creation throw, as a device without WebGL does. */
   failToCreate: boolean;
+  /** Makes every frame throw, as a driver that fails mid-draw does. */
+  failToDraw: boolean;
+  /** Tells the host the context was lost, as a browser does when it takes the GPU back. */
+  readonly loseContext: () => void;
 }
 
 export interface FakeRenderer extends SpaceRenderer {
@@ -34,12 +38,16 @@ export interface FakeGpu extends FakeGpuControls {
 }
 
 export function createFakeGpu(): FakeGpu {
+  let reportFailure: SpaceCanvasProps['onFailure'] | undefined;
   const gpu: FakeGpu = {
     renderers: [],
     far: false,
     failToCreate: false,
+    failToDraw: false,
+    loseContext: () => reportFailure?.('context-lost'),
     Canvas(props) {
       useEffect(() => {
+        reportFailure = props.onFailure;
         props.onSurface({ canvas: {}, width: 390, height: 640, pixelRatio: 1 });
         // The host reports once per mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps -- a test double
@@ -50,7 +58,11 @@ export function createFakeGpu(): FakeGpu {
       Promise.resolve({
         createSpaceRenderer: (_surface: unknown, definition: SpaceDefinition) => {
           if (gpu.failToCreate) throw new Error('Error creating WebGL context.');
-          const created = makeRenderer(definition, () => gpu.far);
+          const created = makeRenderer(
+            definition,
+            () => gpu.far,
+            () => gpu.failToDraw,
+          );
           gpu.renderers.push(created);
           return created;
         },
@@ -59,13 +71,16 @@ export function createFakeGpu(): FakeGpu {
   return gpu;
 }
 
-function makeRenderer(definition: SpaceDefinition, far: () => boolean): FakeRenderer {
+function makeRenderer(definition: SpaceDefinition, far: () => boolean, failing: () => boolean): FakeRenderer {
   const renderer: FakeRenderer = {
     draws: [],
     cameras: [],
     definition,
     highlighted: null,
-    draw: (t) => void renderer.draws.push(t),
+    draw: (t) => {
+      if (failing()) throw new Error('A frame failed.');
+      renderer.draws.push(t);
+    },
     resize: () => undefined,
     setDefinition: (next) => void (renderer.definition = next),
     setCamera: (spec, animate) => void renderer.cameras.push({ spec, animate }),
@@ -112,4 +127,5 @@ export function resetFakeGpu(): void {
   fakeGpu.renderers.length = 0;
   fakeGpu.far = false;
   fakeGpu.failToCreate = false;
+  fakeGpu.failToDraw = false;
 }

@@ -8,6 +8,7 @@
 import './schema-runtime';
 
 export {
+  AXIAL_TILT_DEGREES,
   BLOCK_TYPES,
   BLOCK_VERSIONS,
   ILLUSTRATIVE_NOTICE,
@@ -22,10 +23,12 @@ export {
   curveUsable,
   defaultBlockState,
   deriveGesture,
+  describeStageAtTilt,
   displayFraction,
   displayRange,
   evaluateSimulation,
   fallbackTextOf,
+  finalBonusReady,
   findBlock,
   formatNumber,
   formatWithUnit,
@@ -33,10 +36,12 @@ export {
   isGraphemeBoundary,
   isIllustrative,
   isInteractiveBlock,
+  landmarkTier,
   negotiate,
   outputsUsable,
   parseBlock,
   parseDocument,
+  physicsAtTilt,
   readoutBand,
   renderTemplate,
   resolveParams,
@@ -45,11 +50,13 @@ export {
   stageParts,
   stagePhysics,
   talliesAfterEach,
+  TILT_RANGE,
   walkBlocks,
 } from '@knowscroll/scroll-model';
 
 export type {
   AnyBlock,
+  LandmarkTier,
   ScrollDocumentV2,
   StagePart,
   StageState,

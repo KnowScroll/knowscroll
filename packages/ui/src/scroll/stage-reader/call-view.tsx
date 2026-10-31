@@ -9,6 +9,22 @@ import { Text } from '../../text/text';
 import { keepingNote, resultOf, type CallResult, type CallState } from './call-state';
 import { PlayChip } from './play-chips';
 import type { StageLock } from './stage-play';
+import { TiltControl } from './tilt-control';
+
+/** What the Final call says and offers beyond a Call it (D-187, D-188). */
+export interface FinalCallPlay {
+  /** The Scroll names a landmark: the Final call is announced as the way to its gold finish, and a miss is told it still earns it. */
+  readonly hasLandmark: boolean;
+  /** The combo the person holds going in; two or more means a right answer earns a second spark. */
+  readonly bonusReady: boolean;
+  readonly combo: number;
+  /** The tilt the reader may turn on the picture, when the Scroll hands it over. */
+  readonly tilt?: {
+    readonly value: number;
+    readonly onChange: (degrees: number) => void;
+    readonly onDragging: (dragging: boolean) => void;
+  };
+}
 
 interface OptionProps {
   readonly number: number;
@@ -53,13 +69,16 @@ function Reveal({
   result,
   picked,
   lock,
+  landmarkNote,
   onLayout,
 }: {
   readonly call: CallItStop | FinalCallStop;
   readonly result: CallResult;
   readonly picked: number;
-  /** Present for a Call it that play holds; the Final call is not played here yet. */
+  /** Present for a call that play holds. */
   readonly lock: StageLock | undefined;
+  /** A Final call that missed is told, in the reveal, that the landmark is still earned. */
+  readonly landmarkNote: boolean;
   readonly onLayout: (event: LayoutChangeEvent) => void;
 }) {
   const note = lock === undefined ? undefined : keepingNote(lock.keeping);
@@ -71,7 +90,9 @@ function Reveal({
         ) : (
           <PlayChip label="Plot twist!" tone="plot_twist" />
         )}
-        {lock !== undefined && result.correct ? <PlayChip label="+1 spark" tone="earned" /> : null}
+        {lock !== undefined && result.correct ? (
+          <PlayChip label={lock.earned === 1 ? '+1 spark' : `+${String(lock.earned)} sparks`} tone="earned" />
+        ) : null}
         {lock !== undefined && result.correct && lock.combo >= 2 ? (
           <PlayChip label={`Combo ×${String(lock.combo)}`} tone="earned" />
         ) : null}
@@ -97,6 +118,11 @@ function Reveal({
           )}
         </View>
       )}
+      {landmarkNote && !result.correct ? (
+        <Text variant="meta" color={content.ink2} testID="landmark-still-earned">
+          You still earn the landmark, in the plain finish.
+        </Text>
+      ) : null}
       {note === undefined ? null : (
         <Text variant="meta" color={content.ink2} testID="play-note">
           {note}
@@ -112,6 +138,10 @@ function Reveal({
  * (D-064). What was picked and whether it was right stay with the play layer; the only thing reported
  * is that the answer was shown, by kind (D-063). A Plot twist shows the reviewed source of the common
  * guess when that is what was picked. While recording is paused the screen says nothing is saved.
+ *
+ * The Final call is the same view with its own words before the lock: the way to the gold landmark,
+ * whether the combo doubles it, and, when the Scroll hands it over, the tilt of Earth's axis to turn
+ * on the picture (D-187). A miss still earns the landmark, in the plain finish (D-188).
  */
 export function CallView({
   call,
@@ -119,6 +149,7 @@ export function CallView({
   state,
   lock,
   paused,
+  final,
   onRevealLayout,
   onPick,
   onLockIn,
@@ -127,10 +158,12 @@ export function CallView({
   /** "1 of 3": the call's place among the Scroll's calls. */
   readonly position: string;
   readonly state: CallState;
-  /** What play holds of this call (a Call it that was locked); absent before the lock and for the Final call. */
+  /** What play holds of this call; absent before the lock. */
   readonly lock: StageLock | undefined;
   /** Recording is paused: whatever is locked stays on this device. */
   readonly paused: boolean;
+  /** Present for the Final call. */
+  readonly final?: FinalCallPlay | undefined;
   /** The reveal was laid out, this tall: the reader brings it on screen. */
   readonly onRevealLayout: (height: number) => void;
   readonly onPick: (option: number) => void;
@@ -140,9 +173,13 @@ export function CallView({
   return (
     <View style={styles.call}>
       <Tag label={call.kind === 'final_call' ? 'Final call' : `Call it · ${position}`} variant="part" />
+      {final === undefined || state.revealed ? null : <FinalCallAnnouncement final={final} />}
       <Text variant="title" heading={2}>
         {call.prompt}
       </Text>
+      {final?.tilt === undefined ? null : (
+        <TiltControl value={final.tilt.value} onChange={final.tilt.onChange} onDragging={final.tilt.onDragging} />
+      )}
       <View {...radioGroupSemantics(call.prompt)} style={styles.options}>
         {call.options.map((text, index) =>
           // Once the answer is shown only what was called and what was right stay: the reveal needs the room.
@@ -162,7 +199,7 @@ export function CallView({
       {state.revealed ? null : (
         <Button label="Lock it in" variant="primary" disabled={state.picked === undefined} onPress={onLockIn} />
       )}
-      {state.revealed || !paused || call.kind === 'final_call' ? null : (
+      {state.revealed || !paused ? null : (
         <Text variant="meta" color={content.ink2} testID="play-note">
           Not saved while recording is paused.
         </Text>
@@ -173,9 +210,26 @@ export function CallView({
           result={result}
           picked={state.picked}
           lock={lock}
+          landmarkNote={final?.hasLandmark === true}
           onLayout={(event) => onRevealLayout(event.nativeEvent.layout.height)}
         />
       )}
+    </View>
+  );
+}
+
+/** Before the lock: what this call is for, said plainly, so the reward is earned and never gambled. */
+function FinalCallAnnouncement({ final }: { readonly final: FinalCallPlay }) {
+  return (
+    <View style={styles.chips}>
+      {final.hasLandmark ? (
+        <Text variant="label" color={content.ink2} testID="final-call-gold-note">
+          Get it first try for the gold landmark
+        </Text>
+      ) : null}
+      {final.bonusReady ? (
+        <PlayChip label={`Combo ×${String(final.combo)} doubles this one`} tone="earned" testID="final-call-combo" />
+      ) : null}
     </View>
   );
 }

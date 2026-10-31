@@ -2,7 +2,12 @@ import { Controller, Header, Inject, Req } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
 import { apiContract, type ProblemCode } from '@knowscroll/contracts';
-import type { CallLockRefusal, PlayUseCases, ReadResultsResult } from '@knowscroll/backend/modules/play';
+import type {
+  CallLockRefusal,
+  PlayUseCases,
+  ReadLandmarksResult,
+  ReadResultsResult,
+} from '@knowscroll/backend/modules/play';
 import { PLAY_USE_CASES } from '../modules/play.js';
 import { authorityOf } from './callers.js';
 import { problem } from './problems.js';
@@ -19,13 +24,17 @@ const lockProblems: Record<CallLockRefusal, ProblemCode> = {
   outcome_from_newer_release: 'SERVICE_UNAVAILABLE',
 };
 
-const readProblems: Record<Extract<ReadResultsResult, { kind: 'refused' }>['reason'], ProblemCode> = {
+const readProblems: Record<
+  Extract<ReadResultsResult | ReadLandmarksResult, { kind: 'refused' }>['reason'],
+  ProblemCode
+> = {
   epoch_changed: 'PRIVACY_EPOCH_CHANGED',
   universe_unavailable: 'UNIVERSE_UNAVAILABLE',
 };
 
 /**
- * `/v1/play/*`: locking a Call it and reading the person's own results (D-180). Handlers only
+ * `/v1/play/*`: locking a call (a Call it or the Final call), and reading the person's own results and
+ * landmarks (D-180, D-187, D-188). Handlers only
  * authenticate (the scope guard already admitted the caller) and map the use cases' outcomes; each
  * use case rechecks authority. Every answer is private to the caller and none is cacheable.
  */
@@ -50,6 +59,16 @@ export class PlayController {
       const result = await this.play.readResults(authorityOf(admittedCaller(request)), input);
       if (result.kind === 'refused') throw problem(readProblems[result.reason]);
       return result.results;
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.play.readLandmarks)
+  readLandmarksRoute(@Req() request: Request) {
+    return implement(apiContract.play.readLandmarks).handler(async () => {
+      const result = await this.play.readLandmarks(authorityOf(admittedCaller(request)));
+      if (result.kind === 'refused') throw problem(readProblems[result.reason]);
+      return { landmarks: result.landmarks };
     });
   }
 }
