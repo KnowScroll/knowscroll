@@ -610,6 +610,19 @@ direct conversations and threads together; a thread row shows its people, the la
   sheet, docking, Full screen and the snippet viewer tell nothing. Single-item threads have none of it. No clock time is
   drawn: a place carries a day. Covered by `party.test.tsx` and `e2e/thread-party-smoke.spec.ts` (two people in two browser
   contexts; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
+- **Call it together (v3 T-E, D-155 to D-157).** `call-together.tsx` draws `CallCard` (T3 frames 4 and 5: a yellow band "CALL IT
+  TOGETHER · BEFORE PART 2", the question, options as a radio group, "n of m have called · answers stay hidden until you call",
+  and Lock it in; keys 1 to 3 choose and Enter locks), the same card locked (the person's own call, and what it waits for) and
+  revealed (a green "CALLED IT!" band with the spark, or an orange "PLOT TWIST!" band with the warm second look and no spark;
+  each option with the initials of who called it, a tick on the right answer, "PLOT TWIST" on the person's own miss, why, and
+  the common guess once the server sends it), `CallBar` (a yellow pill above the composer for the first call the person can make,
+  then the first they wait on, then a reveal not yet opened here) and `CallChip` (on a part's row in the Series sheet and panel).
+  `use-thread-calls.ts` reads the calls (first read, hints, focus, a 20 s poll) only for a series thread and keeps which reveals
+  were opened in the account scope's storage on this device; nothing about that is sent. A pick is sent only while recording is
+  on: paused, the card says so and nothing is sent (D-156). The card shows counts and the person's own pick until the reveal, and
+  no screen holds another member's pick before it: the contract carries picks only in the revealed stage. Covered by
+  `call-together.test.tsx` and `e2e/thread-calls-smoke.spec.ts` (two people in two browser contexts and a third member; the
+  reveal, a member who hides, paused recording; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and
   activates an exposure and mounts the ordinary `ReelPlayer`. The full-screen `snippet-viewer.tsx` does the same for a
   moment ("Watch from here") and always has a Back to thread button that returns to the same message.

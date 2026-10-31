@@ -1,8 +1,8 @@
 # modules/play
 
 The play layer of a Scroll: the calls a person locks, the Final call included, whether they were right, the sparks and
-combo they earn, and the landmark the Final call awards (D-063, D-064, D-180 to D-182, D-187, D-188). Rooms and threads
-will share it later; today only Scrolls use it.
+combo they earn, and the landmark the Final call awards (D-063, D-064, D-180 to D-182, D-187, D-188). Threads play a call together too, but a
+pick in a thread is stored by Social, behind a wall like this one (D-156); rooms will share it later.
 
 Status: **implemented** and CI-verified against real PostgreSQL (`tests/integration/modules/play.test.ts`). Calls,
 sparks and combo are on dev (S-2). The Final call, the combo bonus and landmarks (S-3) are implemented here; they reach
@@ -82,12 +82,15 @@ option and `newlyLocked: false`, and nothing changes. A landmark is awarded once
 
 ## Planned
 
-The weekly Orbit and the Universe overlay with the landmark tray (S-4), play in threads and rooms. None of them changes
-the wall. A landmark is shown on a planet only after the Universe reads `readLandmarks`; until S-4 it is stored and
+The weekly Orbit and the Universe overlay with the landmark tray (S-4), and play in rooms. None of them changes
+the wall. Call it together in threads is built (T-E): a pick there lives in `social.thread_calls`, because it needs the thread's
+lock, standing, places and blocks, which play may not import (D-180); `social` is walled by the allow-list
+`thread-pick-wall-only-listed-modules-import-social` and `social/wall.test.ts` (D-156). It reads this module's source of truth, a
+Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now also gives a call's words. A landmark is shown on a planet only after the Universe reads `readLandmarks`; until S-4 it is stored and
 shown on the Scroll's own end.
 
 ## Related
 
-Decisions D-063, D-064, D-082, D-083, D-180 to D-182, D-187, D-188. Contracts: `packages/contracts/src/play.ts`. Client:
+Decisions D-063, D-064, D-082, D-083, D-155 to D-157 (play in threads), D-180 to D-182, D-187, D-188. Contracts: `packages/contracts/src/play.ts`. Client:
 `packages/client-core/src/play-session.ts`, `packages/ui/src/scroll/stage-reader/` (the call view, sparks chip),
 `apps/client/features/scroll/use-stage-play.ts`. Tally rule shared with the device: `packages/scroll-model/src/v2/play.ts`.

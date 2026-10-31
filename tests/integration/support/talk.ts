@@ -3,11 +3,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Kysely, type KyselyPlugin, type PluginTransformResultArgs, type UnknownRow } from 'kysely';
 import { expect } from 'vitest';
 import type { PublicPersonRef } from '@knowscroll/contracts';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
 import { accountAccessUseCases } from '@knowscroll/backend/modules/identity/nest-providers';
 import {
   makeReadPublicContent,
   readContentSequence,
+  readScrollPlayFacts,
   readShareableContent,
   resolveSnippetAnchor,
   validateSnippetAnchor,
@@ -42,6 +47,8 @@ export function talkCases(db: Kysely<Database>, clock: { now: Date } = { now: ne
     readVisited: readVisitedAssets,
     validateSnippet: validateSnippetAnchor,
     resolveSnippet: resolveSnippetAnchor,
+    readCallFacts: readScrollPlayFacts,
+    fenceRecording: fencePersonalRecording,
   };
   return {
     clock,

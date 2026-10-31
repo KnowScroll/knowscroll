@@ -11,6 +11,7 @@ import {
   MessageReactionKindSchema,
 } from './conversations.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
+import { RecordingGenerationSchema } from './recording.js';
 import { PublicPersonRefSchema } from './sharing.js';
 import { socialPost } from './social-problems.js';
 
@@ -19,7 +20,8 @@ import { socialPost } from './social-problems.js';
  * conversation about it, on one surface. The thread owns membership and messages. Each person's
  * playback position, current episode and seen markers are their own and never appear here. The one
  * thing a member may choose to tell the others is a coarse place: a part, `on` or `finished`, and a
- * day (D-065). It has its own read and commands, and no other answer carries it.
+ * day (D-065). It has its own read and commands, and no other answer carries it. The same goes for a call
+ * ("Call it together", D-155): a pick on a part's authored question, hidden from the others until the reveal.
  */
 const Version = z.literal('content-thread.v1');
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -524,6 +526,141 @@ export const ThreadPlaceHiddenAcceptanceSchema = z.strictObject({
   changed: z.boolean(),
 });
 
+/** A call has two or three options (`scroll-limits.v2`); this is the zero-based index of one. */
+const CallOption = z.number().int().min(0).max(2);
+
+/** One member's pick, shown only after the reveal and only to a member who locked their own. */
+export const ThreadCallPickSchema = z.strictObject({
+  person: PublicPersonRefSchema,
+  you: z.boolean(),
+  option: CallOption,
+  right: z.boolean(),
+});
+export type ThreadCallPick = z.infer<typeof ThreadCallPickSchema>;
+
+/** What every stage shows: the question, which part it comes before, and how many of the thread have called. */
+const ThreadCallBase = {
+  part: PartNumber,
+  assetId: UuidSchema,
+  assetRevision: Revision,
+  prompt: z.string().min(1).max(200),
+  options: z.array(z.string().min(1).max(120)).min(2).max(3),
+  /** Members the caller may count (they take part, no block either way) who have locked. */
+  called: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_THREAD_FRIENDS + 1),
+  /** Members the caller may count. */
+  of: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_THREAD_FRIENDS + 1),
+};
+
+/**
+ * The caller's view of one call (D-155). Where it is in its life decides what it carries, so a stage that must
+ * not show a pick, the right answer or who called cannot carry one:
+ * - `open`: the caller has not locked and may. The question, the options and counts.
+ * - `locked`: they locked. Their own option, and counts. The others' picks and the right answer stay hidden.
+ * - `revealed`: they locked and the party has finished the part (or two days passed since the first lock). The
+ *   right answer, why, everyone's picks the caller may see, and the common guess once there are 30 calls.
+ * - `closed`: they never locked and now may not: they started the part, or it was revealed without them. Counts only.
+ */
+export const ThreadCallSchema = z.discriminatedUnion('stage', [
+  z.strictObject({ ...ThreadCallBase, stage: z.literal('open') }),
+  z.strictObject({ ...ThreadCallBase, stage: z.literal('locked'), option: CallOption }),
+  z.strictObject({
+    ...ThreadCallBase,
+    stage: z.literal('revealed'),
+    /** The caller's own pick. */
+    option: CallOption,
+    /** The right option. */
+    answer: CallOption,
+    /** Why the answer is what it is, written with the Scroll. */
+    explain: z.string().min(1).max(600),
+    /** The warm second look; present only when the caller's own pick was not the right one. */
+    twist: z.string().min(1).max(600).optional(),
+    /** Whether the caller's own pick was right. A right call is one spark; a wrong one costs nothing. */
+    right: z.boolean(),
+    picks: z
+      .array(ThreadCallPickSchema)
+      .min(1)
+      .max(MAX_THREAD_FRIENDS + 1)
+      .refine((picks) => new Set(picks.map((pick) => pick.person.personId)).size === picks.length),
+    rightCount: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_THREAD_FRIENDS + 1),
+    /** The most common pick across every thread, past 30 calls (D-157): an option and a whole percent, no one's pick. */
+    commonGuess: z.strictObject({ option: CallOption, percent: z.number().int().min(1).max(100) }).optional(),
+  }),
+  z.strictObject({ ...ThreadCallBase, stage: z.literal('closed'), reason: z.enum(['started', 'revealed']) }),
+]);
+export type ThreadCall = z.infer<typeof ThreadCallSchema>;
+
+/**
+ * The calls of a thread's series as the caller may see them: one for each part whose Scroll has an authored
+ * Call it, in part order. A thread that is not a series has none, and neither does a part that is a Reel or a
+ * Scroll without a call. A stranger gets `unavailable`.
+ */
+export const ReadThreadCallsSchema = z.strictObject({ ...Read, thread: ContentThreadRefSchema });
+export const ThreadCallsSchema = z.discriminatedUnion('status', [
+  z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
+  z.strictObject({
+    ...ScopedRead,
+    status: z.literal('ready'),
+    thread: ContentThreadRefSchema,
+    calls: z
+      .array(ThreadCallSchema)
+      .max(99)
+      .refine((calls) => new Set(calls.map((call) => call.part)).size === calls.length),
+  }),
+]);
+export type ThreadCalls = z.infer<typeof ThreadCallsSchema>;
+
+/**
+ * Locks the caller's pick on the call of one part. The first lock stands: a repeat, or another pick, answers
+ * `stands` and changes nothing, so there is no command ID and no receipt (D-156). `recordingGeneration` is the
+ * generation of the person's recording policy the client last read: a pick is a play result, so while recording
+ * is paused nothing is stored (D-083). The command carries no correctness and no stop: the server finds the call
+ * in the thread's series and judges it from the immutable revision.
+ */
+export const LockThreadCallSchema = z.strictObject({
+  version: Version,
+  thread: ContentThreadRefSchema,
+  part: PartNumber,
+  option: CallOption,
+  recordingGeneration: RecordingGenerationSchema,
+});
+const CallLockAcceptance = {
+  version: Version,
+  scope: ConversationScopeSchema,
+  operation: z.literal('thread.call-lock'),
+};
+export const ThreadCallLockAcceptanceSchema = z.discriminatedUnion('recorded', [
+  z.strictObject({
+    ...CallLockAcceptance,
+    recorded: z.literal(true),
+    thread: ContentThreadRefSchema,
+    part: PartNumber,
+    /**
+     * `locked`: stored now. `stands`: the caller had already locked, and that pick stands. `closed`: the call
+     * is closed to them (they started the part, or it was revealed), and nothing was stored.
+     */
+    result: z.enum(['locked', 'stands', 'closed']),
+  }),
+  z.strictObject({
+    ...CallLockAcceptance,
+    recorded: z.literal(false),
+    reason: z.enum(['recording_paused', 'recording_generation_stale']),
+    currentGeneration: RecordingGenerationSchema,
+  }),
+]);
+export type ThreadCallLockAcceptance = z.infer<typeof ThreadCallLockAcceptanceSchema>;
+
 /**
  * Opens a snippet: where it points now. `ready` names the content to open and the anchor in it;
  * `mapped` is true when a correction moved the anchor through an explicit compatible mapping, and
@@ -600,4 +737,6 @@ export const threadsContract = {
     SetThreadPlaceHiddenSchema,
     ThreadPlaceHiddenAcceptanceSchema,
   ),
+  calls: socialPost('/v1/social/threads/calls/read', ReadThreadCallsSchema, ThreadCallsSchema),
+  lockCall: socialPost('/v1/social/threads/calls/lock', LockThreadCallSchema, ThreadCallLockAcceptanceSchema),
 };

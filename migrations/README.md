@@ -243,3 +243,5 @@ foreign key) and `social.conversation_members.place_hidden` (the member's own "h
 Additive: older writers never touch the table and the column defaults. Apply with the new binary; the generated database types change by
 the same table and column. Clear deletes the places and keeps the switch; deleting the account deletes the places before the membership
 rows.
+
+0083 is Call it together (v3 T-E, #485, D-155 to D-157): `social.thread_calls` (one row per member, thread and call: the option locked and a `date`, so nothing finer than a day can be stored; the row follows the member's membership row through a composite foreign key, and the call is an exact Scroll revision and stop). Additive: older writers never touch the table. Apply with the new binary; the generated database types change by the same table. Leaving, an ended friendship, Clear and deleting the account delete the picks. Numbered 0083 on the branch; the coordinator renumbers at merge if another migration lands first.

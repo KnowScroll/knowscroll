@@ -21,6 +21,7 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 | Replies and reactions (T-B, D-146, D-147)        | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message)                                                                               | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react`                                                    | Implemented; not runtime-verified on dev |
 | SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; not runtime-verified on dev |
 | Party places in threads (T-D, D-065, D-152) | `thread_places`, and `conversation_members.place_hidden` (migration 0080) | `THREAD_USE_CASES`: `places` (read), `setPlace`, `setPlaceHidden` | Implemented; not runtime-verified |
+| Call it together in threads (T-E, D-155 to D-157) | `thread_calls` (migration 0083) | `THREAD_USE_CASES`: `calls` (read), `lockCall` | Implemented; not runtime-verified |
 | Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented                              |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
@@ -34,7 +35,7 @@ Dependency direction: `domain/` (pure rules and cursors) <- `application/` (use 
 Content metadata for cards comes from the Content module's `READ_SHAREABLE_CONTENT` and
 `READ_PUBLIC_CONTENT` (never its tables), and the systems and planets a person can share from Geography's
 `READ_GEOGRAPHY_SCENE_INPUT`. Threads also use Content's `READ_CONTENT_SEQUENCE`, `VALIDATE_SNIPPET_ANCHOR` and
-`RESOLVE_SNIPPET_ANCHOR` and Experience's `READ_VISITED_ASSETS`. The module has no queue of its own: the worker calls
+`RESOLVE_SNIPPET_ANCHOR`, Content's `READ_SCROLL_PLAY_FACTS` (a call's words and answer), Identity's `FENCE_PERSONAL_RECORDING` and Experience's `READ_VISITED_ASSETS`. The module has no queue of its own: the worker calls
 `REFRESH_VISIT_PUBLICATION` after each scene projection (see "Visibility, availability and the friend visit").
 
 ## Friends
@@ -253,6 +254,44 @@ here reads another member's Experience. _Implemented; not runtime-verified._
   a place is only ever shown through the standing check, so a row that outlives a race is never visible.
 - **Export.** The person's own places (thread name, part, state, day) and how many threads they hide in, never anyone else.
 
+## Call it together (T-E, D-155 to D-157)
+
+Before a part whose Scroll has an authored question, each member of a series thread locks a pick, and nobody sees
+another's pick until they have locked their own and the party has finished the part. A pick is a play result (D-063):
+it is shown to the thread's members after the reveal and to the person in their export, and nothing reads it for
+ranking, planning, evidence, formation or the Composer. It is stored here, and not in `play`, because it needs the
+thread's lock, the member's standing, the places that decide the reveal and the blocks between members (D-156).
+No model is called. _Implemented; not runtime-verified._
+
+- **The call of a part** is the first Call it of the part's Scroll (`threadCallOf`), found through Content's
+  `READ_CONTENT_SEQUENCE` and `READ_SCROLL_PLAY_FACTS`. A Reel, a Scroll without a call and a single-item thread have none.
+- **Read** (`threads/calls/read`, `calls`). Under the thread's lock (FOR SHARE): one call per part that has one, in
+  the stage this reader may see (`open`, `locked`, `revealed`, `closed`). The stage decides what the answer can carry:
+  counts only before the reader locks, their own pick after, and everyone's picks, the right answer, why, and the common
+  guess only at the reveal. A stranger, a leaver and a stale reference get `unavailable`. It works while recording is paused.
+- **Lock** (`threads/calls/lock`, `lockCall`). Authority: the caller's personal scope, the thread's lock, and
+  `FENCE_PERSONAL_RECORDING` with the generation the client sends (paused or stale: nothing is stored and the answer says
+  why, D-083). The part must have a call and the option must be one of its options (`invalid_input` otherwise). The first
+  lock stands; a repeat or another pick answers `stands`; a call that is revealed, or on a part the caller's own place says
+  they started, answers `closed`. The command carries no correctness and no stop, and keeps no receipt: it is idempotent by
+  its key and a receipt would keep the time of the lock (D-156). A new lock tells every taking-part member's inbox (a
+  disposable hint carrying nothing).
+- **The rules** are pure, in `domain/calls.ts` (`viewCall`): the reveal opens when every member the reader can see who
+  shares a place has finished the part, or on the second UTC day after the first lock (`REVEAL_AFTER_DAYS`), and never
+  waits for a pick (D-155). `commonGuess` gives an option and a whole percent once a call has 30 locks across all threads
+  and one option leads (D-157).
+- **Stored** as one `thread_calls` row per member and call: the option and a UTC `date`. Never whether it was right
+  (worked out from the immutable revision when a reveal is built), never a time of day.
+- **Removed** on leave (`thread-commands.ts`), when the friendship that carried a member in ends (`forgetPartyBetween`),
+  when an inviter leaves and their invitees' standing had ended (`releaseInvitees`), on Clear and on account deletion
+  (before the membership rows). A block hides a member's pick, count and progress from the blocker and the blocked and does not
+  hold either reveal; it deletes nothing.
+- **The wall.** `thread-pick-wall-only-listed-modules-import-social` (an allow-list of who may import this module),
+  `wall.test.ts` (no file outside this module names `social.thread_calls`), and the integration check that a lock, a
+  reveal, a read, a leave and an export change no table outside Social.
+- **Export.** The person's own picks in words (thread name, the question, the option picked, the day), never whether they
+  were right and never another member's pick.
+
 ## Visibility, availability and the friend visit
 
 A person decides what friends may see (F02, D-047). Everything starts off: nobody may visit, no system is
@@ -310,11 +349,12 @@ and the installed API (`tests/integration/release/visits-http.test.ts`). Not run
 | content_shares                                                                    | kept                                                         | deleted                                                                                                                                                                                                                                 |
 | content_threads                                                                   | kept                                                         | the starter link is cleared; the thread stays for the others                                                                                                                                                                            |
 | thread_places | **deleted** (a place is drawn from the person's own exploring) | deleted with the account, before the membership rows |
+| thread_calls | **deleted** (a pick is a play result, D-082) | deleted with the account, before the membership rows |
 | message_snippets                                                                  | kept                                                         | deleted with the author's tombstoned message                                                                                                                                                                                            |
 | visibility_settings (audience, availability, SEEN), visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too. The export names the SEEN switch in words (`seenInDirectConversations`) and never the other person's                                                             |
 | visit_publications, visit_systems, visit_planets                                  | deleted (friends who visit then see an empty universe)       | deleted with the universe                                                                                                                                                                                                               |
 
-Clear never removes messages, cards, snippets, reactions, threads or links, but it deletes the person's party places (`erasePlaces`). `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), delete their party places (`erasePlaces`), tombstone
+Clear never removes messages, cards, snippets, reactions, threads or links, but it deletes the person's party places (`erasePlaces`) and picks on thread calls (`erasePicks`). `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), delete their party places (`erasePlaces`) and their picks on thread calls (`erasePicks`), tombstone
 their messages, pick the peers, close conversations, delete their membership and heads, hint the peers, then
 the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
 invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`; a reply is marked `wasAReply`), their own reactions (kind, when, and whether on their own message or someone else's; newest 2,000, with `reactionsGiven` and `reactionsTruncated`) and
@@ -336,8 +376,8 @@ the systems they share (never a heartbeat, a public ID or who the friends are). 
 ## Related
 
 - Blueprint 02d sections 14 and 17; decisions D-049 (what other modules may do in a thread), D-042 (conversations and links), D-043 (deleted accounts), D-046
-  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit), D-066 and D-150 (SEEN), D-065, D-152 and D-153 (party places).
+  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit), D-066 and D-150 (SEEN), D-065, D-152 and D-153 (party places), D-155 to D-157 (Call it together).
 - Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`,
   `friend-pages.ts`, `socket.ts` (`presence_heartbeat`).
-- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`; SEEN: `social-seen`; party places: `social-places`),
+- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`; SEEN: `social-seen`; party places: `social-places`; Call it together: `social-calls`),
   `tests/integration/release/conversations-http.test.ts`, `threads-http.test.ts`, `visits-http.test.ts`.

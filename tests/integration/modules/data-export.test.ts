@@ -251,6 +251,7 @@ describe('personal data export (real database)', () => {
       'availability',
       'blocked',
       'calls',
+      'callsMade',
       'combo',
       'connections',
       'conversations',

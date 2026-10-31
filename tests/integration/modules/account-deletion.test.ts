@@ -399,6 +399,20 @@ describe('account deletion (real database)', () => {
         .insertInto('social.thread_places')
         .values({ thread_id: scenarioThreadId, account_id: erased.accountId, part: 1, state: 'on', day: '2026-10-24' })
         .execute();
+      // What they locked on a thread's call (D-156): a labelled fixture row for the same reason; `social-calls.test.ts`
+      // proves the real path.
+      await database.db
+        .insertInto('social.thread_calls')
+        .values({
+          thread_id: scenarioThreadId,
+          account_id: erased.accountId,
+          asset_id: talkContent.assetId,
+          revision: 1,
+          stop_id: 'call-one',
+          option: 1,
+          day: '2026-10-24',
+        })
+        .execute();
       await seedScenarioRows(erased, scenarioThreadId);
       // A room: the person joined, started a discussion, wrote in it, invited their friend and asked an inhabitant.
       const rooms = await roomWorld(database);

@@ -7,7 +7,7 @@ import type { ReadScrollPlayFacts, ScrollCallFacts } from '../public.js';
 /**
  * See `ReadScrollPlayFacts`. Reads the stored consumer document of one Scroll revision (never its
  * provenance), on the client path (structure and bounds; admission already proved the rest), and
- * keeps only what judging a pick and awarding the landmark need. A revision the review gate holds or rejected reads as
+ * keeps only what judging a pick, showing a call to a thread and awarding the landmark need. A revision the review gate holds or rejected reads as
  * absent, like every read that takes an exact revision from its caller (D-138). No lock and no
  * network. A person locks at most four calls a Scroll, so nothing is cached: every read asks the
  * gate again.
@@ -33,7 +33,11 @@ export const readScrollPlayFacts: ReadScrollPlayFacts = async (scope, assetId, r
     stopId: call.id,
     kind: call.kind,
     optionCount: call.options.length,
+    prompt: call.prompt,
+    options: call.options,
     answer: call.answer,
+    explain: call.explain,
+    twist: call.twist,
   }));
   return { calls, landmark: parsed.document.landmark };
 };

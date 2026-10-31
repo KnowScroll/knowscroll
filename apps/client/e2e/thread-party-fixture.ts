@@ -73,14 +73,90 @@ interface StoredPlace {
 
 const progress = (place: { part: number; state: PlaceState }) => place.part * 2 + (place.state === 'finished' ? 1 : 0);
 
-export function partyWorld() {
+/**
+ * The call before Part 2 (D-155): a labelled fixture question, as a Scroll's authored Call it would be. The real
+ * server finds it in the part's Scroll; this fixture's parts are Reels the browser can play to the end, so it says
+ * which part has one.
+ */
+export const PARTY_CALL = {
+  part: 2,
+  prompt: 'CI fixture: when are tides biggest?',
+  options: ['CI full and new moon', 'CI half moon', 'CI always the same'],
+  answer: 0,
+  explain: 'CI fixture explanation: spring tides come at full and new moon.',
+  twist: 'CI fixture twist: half moon gives the smaller neap tides.',
+} as const;
+
+/** `call`: the thread has a call before Part 2 (D-155). The places-only tests of T-D leave it off, so their layout is unchanged. */
+export function partyWorld(options: { readonly call?: boolean } = {}) {
   const places = new Map<Member, StoredPlace>();
   const hidden: Record<Member, boolean> = { asha: false, ravi: false, meera: false };
   /** Whose recording is paused (D-057): the policy the device reads says so. */
   const paused: Record<Who, boolean> = { asha: false, ravi: false };
   const calls: { who: Who; path: string; body: Record<string, unknown> }[] = [];
+  /** What each member locked on the call before Part 2: an option, and nothing else (D-156). */
+  const locks = new Map<Member, number>();
+  const everyone = ['asha', 'ravi', 'meera'] as const;
+  /**
+   * What the real server shows one member of the call (D-155), by the same rule: hidden until they lock, and the reveal
+   * waits for every member who shares where they are to finish the part. The clock rule is not modelled: the fixture's
+   * day does not move.
+   */
+  function callOf(who: Member) {
+    const sharing = everyone.filter((member) => !hidden[member] && places.has(member));
+    const partyDone =
+      sharing.length > 0 && sharing.every((member) => progress(places.get(member)!) >= PARTY_CALL.part * 2 + 1);
+    const revealed = locks.size > 0 && partyDone;
+    const base = {
+      part: PARTY_CALL.part,
+      assetId: episodes[PARTY_CALL.part - 1]!.assetId,
+      assetRevision: 1,
+      prompt: PARTY_CALL.prompt,
+      options: [...PARTY_CALL.options],
+      called: locks.size,
+      of: everyone.length,
+    };
+    const own = locks.get(who);
+    if (own === undefined) {
+      const ownPlace = places.get(who);
+      if (revealed) return { ...base, stage: 'closed', reason: 'revealed' };
+      if (ownPlace !== undefined && !hidden[who] && progress(ownPlace) >= PARTY_CALL.part * 2)
+        return { ...base, stage: 'closed', reason: 'started' };
+      return { ...base, stage: 'open' };
+    }
+    if (!revealed) return { ...base, stage: 'locked', option: own };
+    const right = own === PARTY_CALL.answer;
+    const picks = [...locks]
+      .map(([member, option]) => ({
+        person: people[member],
+        you: member === who,
+        option,
+        right: option === PARTY_CALL.answer,
+      }))
+      .toSorted((a, b) => a.option - b.option || a.person.displayName.localeCompare(b.person.displayName));
+    return {
+      ...base,
+      stage: 'revealed',
+      option: own,
+      answer: PARTY_CALL.answer,
+      explain: PARTY_CALL.explain,
+      ...(right ? {} : { twist: PARTY_CALL.twist }),
+      right,
+      picks,
+      rightCount: picks.filter((pick) => pick.right).length,
+    };
+  }
   const world = {
     calls,
+    /** What a member locked on the call before Part 2, as the server holds it. */
+    lockOf: (member: Member) => locks.get(member),
+    /** Gives a member with no browser (Meera) a lock, as their own client would have. */
+    lock(member: Member, option: number) {
+      if (!locks.has(member)) locks.set(member, option);
+    },
+    /** The requests this page made to the call routes, so a test can say what was sent and what was not. */
+    callCalls: (who: Who, name: 'calls/read' | 'calls/lock') =>
+      calls.filter((call) => call.who === who && call.path === `/v1/social/threads/${name}`),
     /** The stored place of a member, as the server holds it. */
     placeOf: (member: Member) => places.get(member),
     isHidden: (member: Member) => hidden[member],
@@ -203,6 +279,42 @@ export function partyWorld() {
             const changed = hidden[who] !== wanted;
             world.hide(who, wanted);
             return { json: { ...answered('thread.place-hidden'), hidden: wanted, changed } };
+          }
+          case '/v1/social/threads/calls/read':
+            return {
+              json: {
+                ...base(body),
+                status: 'ready',
+                thread: membership(who),
+                calls: options.call === true ? [callOf(who)] : [],
+              },
+            };
+          case '/v1/social/threads/calls/lock': {
+            if (paused[who])
+              return {
+                json: {
+                  version: 'content-thread.v1',
+                  scope,
+                  operation: 'thread.call-lock',
+                  recorded: false,
+                  reason: 'recording_paused',
+                  currentGeneration: 2,
+                },
+              };
+            const stage = (callOf(who) as { stage: string }).stage;
+            const result = stage === 'open' ? 'locked' : stage === 'closed' ? 'closed' : 'stands';
+            if (result === 'locked') locks.set(who, Number(body['option']));
+            return {
+              json: {
+                version: 'content-thread.v1',
+                scope,
+                operation: 'thread.call-lock',
+                recorded: true,
+                thread: membership(who),
+                part: body['part'],
+                result,
+              },
+            };
           }
           case '/v1/privacy/recording/read':
             return {

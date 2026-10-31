@@ -32,10 +32,25 @@ const recordingScope = { personal: scope, generation: 1 } as unknown as Recordin
 const assetId = id(10);
 
 /** The calls of a labelled CI Scroll: two Call its (answers 1 and 0), and a Final call. */
+const callFacts = (
+  stopId: string,
+  kind: ScrollCallFacts['kind'],
+  optionCount: number,
+  answer: number,
+): ScrollCallFacts => ({
+  stopId,
+  kind,
+  optionCount,
+  prompt: `CI question ${stopId}`,
+  options: Array.from({ length: optionCount }, (_unused, index) => `CI option ${String(index)}`),
+  answer,
+  explain: 'CI explanation.',
+  twist: 'CI twist.',
+});
 const calls: readonly ScrollCallFacts[] = [
-  { stopId: 'call-one', kind: 'call_it', optionCount: 3, answer: 1 },
-  { stopId: 'call-two', kind: 'call_it', optionCount: 2, answer: 0 },
-  { stopId: 'final', kind: 'final_call', optionCount: 3, answer: 2 },
+  callFacts('call-one', 'call_it', 3, 1),
+  callFacts('call-two', 'call_it', 2, 0),
+  callFacts('final', 'final_call', 3, 2),
 ];
 
 const landmarkNamed = { key: 'the-ci-landmark', name: 'The CI Landmark' };
