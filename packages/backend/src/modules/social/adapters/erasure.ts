@@ -66,6 +66,7 @@ export const socialStoreLifecycle = {
   'social.content_shares': { clear: 'preserve', onAccountErasure: 'delete with the account' },
   'social.thread_places': { clear: 'erase', onAccountErasure: 'delete with the account' },
   'social.thread_calls': { clear: 'erase', onAccountErasure: 'delete with the account' },
+  'social.thread_call_reveals': { clear: 'preserve', onAccountErasure: 'kept with the thread: no person, no pick' },
   ...visibilityLifecycle,
 } as const;
 
@@ -95,6 +96,7 @@ export const socialErasure = declareErasure({
     { schema: 'social', table: 'content_shares', ownerColumn: 'owner_account_id' },
     { schema: 'social', table: 'thread_places', ownerColumn: 'account_id' },
     { schema: 'social', table: 'thread_calls', ownerColumn: 'account_id' },
+    { schema: 'social', table: 'thread_call_reveals', ownerColumn: 'thread_id' },
   ],
   accountColumns: [
     ...visibilityAccountColumns,
@@ -382,7 +384,7 @@ function exportSocial(declaration: ModuleErasure): ModuleExport {
       'social.visibility_audience',
       'social.visit_systems',
     ],
-    'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping; the heartbeat time is a signal that lapses within minutes and is never exported; visit planets and the publication header are copies of places the universe section already lists.',
+    'Pair and request records are shared with the other person; roster heads, inbox heads and command bindings are internal bookkeeping; the heartbeat time is a signal that lapses within minutes and is never exported; thread call reveals are thread state that name no person and hold no pick; visit planets and the publication header are copies of places the universe section already lists.',
     async (scope, person) => {
       const trx = transactionOf(scope);
       const profile = await trx

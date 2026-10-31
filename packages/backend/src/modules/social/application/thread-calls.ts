@@ -80,30 +80,24 @@ export function makeThreadCalls(p: ThreadCallPorts) {
   type Party = Awaited<ReturnType<typeof partyOf>>;
 
   /**
-   * The day a call revealed for the thread, or none. The first time the rule holds for the whole thread the day is
-   * recorded, so a call that has revealed stays revealed when the earliest locker leaves or clears (D-155). A read may
-   * write it, once, to a row of its own.
+   * Whether the call has revealed for the whole thread. The first time the rule holds for the thread (`revealedForThread`:
+   * nobody masked) the fact is recorded, so that a call that has revealed stays revealed for a reader no block
+   * touches when the earliest locker leaves or clears (D-155). The record is the row's existence: no day, no person,
+   * no pick. A read may write it, once, to a row of its own. It is recorded whoever reads, because it is a fact about
+   * the thread; what a block does is in `viewCall`, which does not honour it for a reader with a block.
    */
-  async function revealedOn(
-    entered: EnteredThread,
-    target: PartCall,
-    party: Party,
-    now: Date,
-  ): Promise<string | undefined> {
+  async function latchedReveal(entered: EnteredThread, target: PartCall, party: Party, now: Date): Promise<boolean> {
     const key = keyOf(target);
-    const stored = party.reveals.find((row) => sameCall(row, key));
-    if (stored !== undefined) return stored.day;
-    const today = dayOf(now);
+    if (party.reveals.some((row) => sameCall(row, key))) return true;
     const revealed = revealedForThread({
       part: target.part,
       members: entered.members,
       locks: party.locks.filter((row) => sameCall(row, key)),
       places: party.places,
-      today,
+      today: dayOf(now),
     });
-    if (!revealed) return undefined;
-    await p.calls.markRevealed(entered.lock, key, today);
-    return today;
+    if (revealed) await p.calls.markRevealed(entered.lock, key);
+    return revealed;
   }
 
   /** What one reader may see of one call now, from the rows of the thread read under its lock. */
@@ -123,7 +117,7 @@ export function makeThreadCalls(p: ThreadCallPorts) {
       places: party.places,
       blockedWithReader: party.blocked,
       today: dayOf(now),
-      revealedOn: await revealedOn(entered, target, party, now),
+      latched: await latchedReveal(entered, target, party, now),
       nameOf: (member) => member.person.displayName,
     });
   }
@@ -243,6 +237,10 @@ export function makeThreadCalls(p: ThreadCallPorts) {
             (candidate) => candidate.part === command.part,
           );
           if (target === undefined || command.option >= target.call.optionCount) return refuse('invalid_input');
+          // This may record that the call revealed (see `latchedReveal`) before a "stands" or "closed" outcome that
+          // writes nothing else. That is acceptable: the record is a fact about the thread, the same row any read of
+          // the call would write at this moment, it names no person and no pick, and it does not depend on this
+          // caller's lock.
           const view = await viewOf(entered, target, await partyOf(entered), now);
           if (view.stage === 'locked' || view.stage === 'revealed')
             return ok({ write: () => Promise.resolve(accepted('stands')), announce: [] });

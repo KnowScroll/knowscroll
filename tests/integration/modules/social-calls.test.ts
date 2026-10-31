@@ -841,10 +841,10 @@ describe('Call it together (real PostgreSQL)', () => {
       try {
         cases.clock.now = day('2026-10-26');
         expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed', called: 2 });
-        // The day it revealed is on record, and names no person and no pick.
+        // That it revealed is on record: a row with no day, no person and no pick.
         const [row] = await reveals(refs.a);
         expect(row).toMatchObject({ thread_id: refs.a.threadId });
-        expect(Object.keys(row!).sort()).toEqual(['asset_id', 'day', 'revision', 'stop_id', 'thread_id']);
+        expect(Object.keys(row!).sort()).toEqual(['asset_id', 'revision', 'stop_id', 'thread_id']);
         await leave(b, refs.b);
         const after = await call(a, refs.a, 2);
         expect(after).toMatchObject({ stage: 'revealed', called: 1 });
@@ -870,21 +870,43 @@ describe('Call it together (real PostgreSQL)', () => {
       }
     });
 
-    it('writes the day once, the first time anyone finds the call revealed, and never moves it', async () => {
+    it('records that it revealed once, the first time anyone finds it so, and a repeat adds nothing', async () => {
       const { a, b, refs } = await lockedOnTwoDays();
       try {
         // Reading a call that has not revealed writes nothing.
         expect(await reveals(refs.a)).toEqual([]);
         cases.clock.now = day('2026-10-26');
         await call(b, refs.b, 2);
+        expect(await reveals(refs.a)).toHaveLength(1);
         cases.clock.now = day('2026-10-29');
         await call(a, refs.a, 2);
-        const rows = await sql<{
-          day: string;
-        }>`select to_char(day, 'YYYY-MM-DD') as day from social.thread_call_reveals where thread_id = ${refs.a.threadId}::uuid`.execute(
+        expect(await reveals(refs.a)).toHaveLength(1);
+        // The table has no column for a day or a time: only that it revealed.
+        const columns = await sql<{ column_name: string }>`
+          select column_name from information_schema.columns
+          where table_schema = 'social' and table_name = 'thread_call_reveals' order by column_name`.execute(
           database.db,
         );
-        expect(rows.rows).toEqual([{ day: '2026-10-26' }]);
+        expect(columns.rows.map((column) => column.column_name)).toEqual([
+          'asset_id',
+          'revision',
+          'stop_id',
+          'thread_id',
+        ]);
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+    });
+
+    it('may be recorded by a lock that stands, and then stays a fact about the thread alone', async () => {
+      const { a, b, refs } = await lockedOnTwoDays();
+      try {
+        cases.clock.now = day('2026-10-26');
+        // Asha's repeat lock finds the call revealed: it answers stands, and the thread's record is written.
+        expect(unwrap(await lock(a, refs.a, 2, 1))).toMatchObject({ result: 'stands' });
+        expect(await reveals(refs.a)).toHaveLength(1);
+        expect((await rowsOf(a)).map((row) => row.option)).toEqual([0]);
+        expect((await rowsOf(b)).map((row) => row.option)).toEqual([1]);
       } finally {
         cases.clock.now = day('2026-10-24');
       }
@@ -905,6 +927,102 @@ describe('Call it together (real PostgreSQL)', () => {
       await hideNow(c, refs.c, false);
       unwrap(await place(c, refs.c, 1, 'on'));
       expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed' });
+    });
+  });
+
+  describe('a block never lets another member move a reader’s card (D-155)', () => {
+    const day = (value: string) => new Date(`${value}T08:00:00Z`);
+    const revealsOf = (thread: ContentThreadRef) =>
+      database.db
+        .selectFrom('social.thread_call_reveals')
+        .selectAll()
+        .where('thread_id', '=', thread.threadId)
+        .execute();
+    /** What a card says, without the ids that differ between two parties. */
+    const shape = (card: ThreadCall) => ({
+      stage: card.stage,
+      called: card.called,
+      of: card.of,
+      ...('option' in card ? { option: card.option } : {}),
+    });
+
+    /**
+     * Kenji blocked Ravi; both joined on Asha's invitation, so both stay in the thread. Ravi called on the 24th,
+     * unless the option says nobody did.
+     */
+    async function blockedParty(options: { readonly ravi: boolean }) {
+      const world = await party();
+      expect((await friendCommand(cases.friends, world.c, world.b, 'block')).kind).toBe('ok');
+      try {
+        cases.clock.now = day('2026-10-24');
+        if (options.ravi) unwrap(await lock(world.b, world.refs.b, 2, 1));
+        cases.clock.now = day('2026-10-26');
+      } catch (error) {
+        cases.clock.now = day('2026-10-24');
+        throw error;
+      }
+      return world;
+    }
+
+    it('leaves the blocker’s card open, and lets them call, when the blocked member called and the thread has revealed', async () => {
+      const { a, c, refs } = await blockedParty({ ravi: true });
+      try {
+        // Asha is touched by no block: for her the call has revealed (the clock from Ravi's lock), and the record is written.
+        expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'closed', reason: 'revealed' });
+        expect(await revealsOf(refs.a)).toHaveLength(1);
+        // Kenji blocked Ravi: Ravi's lock is not in his view, so his card is open and he may still call.
+        expect(await call(c, refs.c, 2)).toMatchObject({ stage: 'open', called: 0, of: 2 });
+        expect(unwrap(await lock(c, refs.c, 2, 0))).toMatchObject({ result: 'locked' });
+        // His own lock opens the clock from his own day, not Ravi's: the card stays hidden, and shows only his count.
+        expect(await call(c, refs.c, 2)).toMatchObject({ stage: 'locked', option: 0, called: 1, of: 2 });
+        expect((await rowsOf(c)).map((row) => row.option)).toEqual([0]);
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+    });
+
+    it('gives the blocker the same card whether or not the blocked member called, so reading tells nothing of them', async () => {
+      const withRavi = await blockedParty({ ravi: true });
+      const cards: ReturnType<typeof shape>[] = [];
+      try {
+        // Asha reads first, so the thread's record exists before Kenji looks.
+        await call(withRavi.a, withRavi.refs.a, 2);
+        expect(await revealsOf(withRavi.refs.a)).toHaveLength(1);
+        cards.push(shape(await call(withRavi.c, withRavi.refs.c, 2)));
+        unwrap(await lock(withRavi.c, withRavi.refs.c, 2, 1));
+        cards.push(shape(await call(withRavi.c, withRavi.refs.c, 2)));
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+      const without = await blockedParty({ ravi: false });
+      const control: ReturnType<typeof shape>[] = [];
+      try {
+        control.push(shape(await call(without.c, without.refs.c, 2)));
+        unwrap(await lock(without.c, without.refs.c, 2, 1));
+        control.push(shape(await call(without.c, without.refs.c, 2)));
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
+      expect(cards).toEqual(control);
+    });
+
+    it('still honours the latch for a reader no block touches, though two others block each other', async () => {
+      const { a, b, c, refs } = await party();
+      expect((await friendCommand(cases.friends, c, b, 'block')).kind).toBe('ok');
+      try {
+        cases.clock.now = day('2026-10-24');
+        unwrap(await lock(b, refs.b, 2, 1));
+        cases.clock.now = day('2026-10-25');
+        unwrap(await lock(a, refs.a, 2, 0));
+        cases.clock.now = day('2026-10-26');
+        expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed', called: 2 });
+        expect(await revealsOf(refs.a)).toHaveLength(1);
+        // The earliest locker leaves: the clock would now count from Asha's own lock, but the call stays revealed for her.
+        await leave(b, refs.b);
+        expect(await call(a, refs.a, 2)).toMatchObject({ stage: 'revealed', called: 1 });
+      } finally {
+        cases.clock.now = day('2026-10-24');
+      }
     });
   });
 });

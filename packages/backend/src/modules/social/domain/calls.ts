@@ -82,8 +82,11 @@ export interface CallInput<M extends PlaceMember> {
   readonly blockedWithReader: ReadonlySet<string>;
   /** The server's own UTC day. */
   readonly today: string;
-  /** The day this call first revealed for the thread, once a read or a lock has found it so: it stays revealed. */
-  readonly revealedOn: string | undefined;
+  /**
+   * Whether a read or a lock has already found this call revealed for the whole thread (`revealedForThread`): the
+   * stored latch. It is honoured only for a reader with no block, either way, with a member who takes part.
+   */
+  readonly latched: boolean;
   readonly nameOf: (member: M) => string;
 }
 
@@ -108,7 +111,9 @@ function partyHasFinished(input: {
 /**
  * Whether the call is revealed for the whole thread: the same rule with nobody masked, which is what is stored the
  * first time it holds so that the earliest locker leaving, a Clear or a place that moves cannot hide it again.
- * Nobody's block is read: the day it records names no person and no pick.
+ * Nobody's block is read, so what is stored names no person and no pick; and it is honoured only for a reader
+ * a block does not touch (`viewCall`), so one member's block never lets another member's lock or progress move a
+ * reader's card.
  */
 export function revealedForThread<M extends PlaceMember>(input: {
   readonly part: number;
@@ -140,7 +145,11 @@ export function revealedForThread<M extends PlaceMember>(input: {
  * shares a place but never finishes holds them for two days at most. A member who hides, left, was removed
  * or is blocked either way with the reader is not waited for. Locking closes once the party has revealed or
  * the reader's own place says they started the part, so a pick is always a guess made before the part. A call
- * that has revealed for the thread stays revealed (`revealedOn`), whoever leaves or clears afterwards.
+ * that has revealed for the thread stays revealed (`latched`), whoever leaves or clears afterwards, for a reader
+ * with no block with a member who takes part. A reader with one keeps the live rule above, which leaves the
+ * blocked member out: honouring the latch would let that member's lock day and progress move the reader's card (to
+ * revealed, or from open to closed) and let the reader learn of them by reading. For that reader alone the card can
+ * therefore go back to locked if the live conditions move back.
  */
 export function viewCall<M extends PlaceMember>(input: CallInput<M>): CallView<M> {
   const { readerAccountId, part } = input;
@@ -160,7 +169,12 @@ export function viewCall<M extends PlaceMember>(input: CallInput<M>): CallView<M
     blockedWithReader: input.blockedWithReader,
     nameOf: input.nameOf,
   });
-  const revealed = input.revealedOn !== undefined || partyHasFinished({ part, sharing, locks, today: input.today });
+  const blockedAmongThem = input.members.some(
+    (member) =>
+      canTakePart(member) && member.accountId !== readerAccountId && input.blockedWithReader.has(member.accountId),
+  );
+  const revealed =
+    (input.latched && !blockedAmongThem) || partyHasFinished({ part, sharing, locks, today: input.today });
 
   if (own === undefined) {
     if (revealed) return { stage: 'closed', reason: 'revealed', ...counted };

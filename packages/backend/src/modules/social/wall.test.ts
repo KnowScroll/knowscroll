@@ -24,8 +24,11 @@ const ALLOWED = [
   /^packages\/backend\/src\/modules\/social\//,
   /^packages\/backend\/src\/infrastructure\/postgres\/database\.generated\.ts$/,
 ];
-/** Social's own migrations. A later Social migration that alters the table is added here, on purpose. */
-const SOCIAL_MIGRATIONS = [/^migrations\/0083_thread_calls\.sql$/];
+/**
+ * Social's own migrations, found by name so that renumbering one does not break this test. A later Social migration
+ * that alters the table is added here, on purpose.
+ */
+const SOCIAL_MIGRATIONS = [/^migrations\/\d{4}_thread_calls\.sql$/];
 
 function filesUnder(folder: string, wanted: RegExp): string[] {
   return readdirSync(join(repository, folder), { withFileTypes: true }).flatMap((entry) => {
@@ -79,7 +82,9 @@ describe('who can read the picks on a thread’s calls', { timeout: 30_000 }, ()
   });
 
   it('can fail in SQL: Social’s own migration is found, and a view or a bare name elsewhere would be', () => {
-    expect(mentioning(sqlUnder('migrations'), read, PICK_TABLE_IN_SQL)).toEqual(['migrations/0083_thread_calls.sql']);
+    const own = mentioning(sqlUnder('migrations'), read, PICK_TABLE_IN_SQL);
+    expect(own).toHaveLength(1);
+    expect(SOCIAL_MIGRATIONS.some((pattern) => pattern.test(own[0]!))).toBe(true);
     const planted = 'create view ops.pick_counts as select option, count(*) from social.thread_calls group by option';
     expect(mentioning(['migrations/9999_view.sql'], () => planted, PICK_TABLE_IN_SQL)).toEqual([
       'migrations/9999_view.sql',

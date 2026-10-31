@@ -26,12 +26,16 @@
 --
 -- social.thread_call_reveals (owner: social, authoritative). One row per thread and call, written the first time a read
 -- or a lock finds the call revealed for the whole thread (every member who takes part and shares a place has finished
--- the part, or two days passed since the first lock): the UTC day. It is what makes a reveal stay revealed, so that
--- the earliest locker leaving or clearing cannot move it back to hidden (D-155). It names no person and holds no pick,
--- so no erasure applies to it; it is thread state, like the thread's own row.
+-- the part, or two days passed since the first lock): the row's existence means "revealed", and nothing else is kept,
+-- so no day: a day would only record when a group finished. It is what makes a reveal stay revealed for a reader who has
+-- no block with anyone in the thread, so that the earliest locker leaving or clearing cannot move it back to hidden
+-- (D-155); a reader with a block keeps the live rule, which hides the blocked member. It names no person and holds no
+-- pick. It is thread state: the erasure registry lists it as kept with the thread (Clear and account deletion leave
+-- it), and its foreign key to the thread is why it is declared there.
 -- Query shapes: one thread's reveals by thread (under the thread's lock).
 -- Writes: one insert, once, on conflict do nothing (a read may write it, under the thread's lock taken FOR SHARE: the
--- row is its own, so two readers cannot deadlock).
+-- row is its own, so two readers cannot deadlock; a lock that ends as "stands" or "closed" may write it too, because
+-- it records a fact about the thread that any read would record).
 -- Growth: one row per thread and call that has revealed. Retention: for the life of the thread.
 -- Rollout: additive. Older writers never write either table.
 set local lock_timeout = '5s';
@@ -54,13 +58,10 @@ create table social.thread_calls (
 create index thread_calls_account on social.thread_calls(account_id);
 
 create table social.thread_call_reveals (
-  -- No foreign key to the thread: a table that reaches a personal root through one must be declared to the erasure
-  -- registry, and this one names no person. Threads are never deleted, so nothing can be orphaned.
-  thread_id uuid not null,
+  thread_id uuid not null references social.content_threads(thread_id) on delete restrict,
   asset_id uuid not null,
   revision integer not null check (revision >= 1),
   stop_id text not null check (stop_id ~ '^[a-z][a-z0-9-]{1,39}$'),
-  day date not null,
   primary key (thread_id, asset_id, revision, stop_id),
   foreign key (asset_id, revision) references content.asset_revisions(asset_id, revision) on delete restrict
 );

@@ -41,7 +41,7 @@ const base = (patch: Partial<CallInput<Member>> = {}): CallInput<Member> => ({
   places: [],
   blockedWithReader: new Set(),
   today: '2026-10-30',
-  revealedOn: undefined,
+  latched: false,
   nameOf: (candidate) => candidate.name,
   ...patch,
 });
@@ -232,8 +232,8 @@ describe('a reveal that has happened stays', () => {
     expect(viewCall(timed({ locks: [lock('asha', 0, '2026-10-31')] })).stage).toBe('locked');
   });
 
-  it('stays revealed once the day it revealed is on record, whoever leaves or clears afterwards', () => {
-    const left = timed({ locks: [lock('asha', 0, '2026-10-31')], revealedOn: '2026-11-01' });
+  it('stays revealed once it is on record, whoever leaves or clears afterwards', () => {
+    const left = timed({ locks: [lock('asha', 0, '2026-10-31')], latched: true });
     expect(viewCall(left)).toMatchObject({ stage: 'revealed', option: 0, called: 1 });
   });
 
@@ -243,13 +243,52 @@ describe('a reveal that has happened stays', () => {
     const places = [...finished, place('newcomer', 1, 'on')];
     const input = base({ locks: [lock('asha', 0)], members: joined, places });
     expect(viewCall(input).stage).toBe('locked');
-    expect(viewCall({ ...input, revealedOn: '2026-10-30' }).stage).toBe('revealed');
+    expect(viewCall({ ...input, latched: true }).stage).toBe('revealed');
   });
 
   it('closes the call for someone who never locked, for good', () => {
-    const closed = viewCall(base({ locks: [lock('ravi', 0)], revealedOn: '2026-10-30' }));
+    const closed = viewCall(base({ locks: [lock('ravi', 0)], latched: true }));
     expect(closed).toMatchObject({ stage: 'closed', reason: 'revealed' });
     expect(JSON.stringify(closed)).not.toContain('ravi');
+  });
+});
+
+describe('a block keeps the reader on the live rule', () => {
+  /** Ravi called on the 29th and finished Part 2. Kenji, who blocked him, has not called; the latch is on record. */
+  const blocked = (patch: Partial<CallInput<Member>> = {}) =>
+    base({
+      readerAccountId: 'kenji',
+      locks: [lock('ravi', 1, '2026-10-29')],
+      places: [place('ravi', 2, 'finished'), place('asha', 2, 'finished')],
+      blockedWithReader: new Set(['ravi']),
+      latched: true,
+      today: '2026-10-31',
+      ...patch,
+    });
+
+  it('does not let the blocked member’s lock or finish close or open anything for the blocker', () => {
+    // Honouring the latch would turn Kenji's open card into closed, and he could no longer call.
+    expect(viewCall(blocked())).toMatchObject({ stage: 'open', called: 0, of: 3 });
+    expect(viewCall(blocked({ latched: false }))).toEqual(viewCall(blocked({ latched: true })));
+  });
+
+  it('does not reveal to the blocker on the blocked member’s earlier lock', () => {
+    // Asha blocks Ravi; Ravi called on the 29th, Asha on the 30th. Ravi's day would open the clock on the 31st.
+    const asha = base({
+      readerAccountId: 'asha',
+      locks: [lock('ravi', 1, '2026-10-29'), lock('asha', 0, '2026-10-30')],
+      blockedWithReader: new Set(['ravi']),
+      today: '2026-10-31',
+    });
+    expect(viewCall({ ...asha, latched: true })).toMatchObject({ stage: 'locked', called: 1, of: 3 });
+    expect(viewCall({ ...asha, latched: false })).toMatchObject({ stage: 'locked' });
+  });
+
+  it('is the same for a block in either direction, and honours the latch for a reader no block touches', () => {
+    expect(viewCall(blocked({ readerAccountId: 'meera', blockedWithReader: new Set() })).stage).toBe('closed');
+    // A block with someone who has left touches nobody who takes part.
+    const gone = [member('asha'), member('ravi', { left: true }), member('kenji'), member('meera')];
+    expect(viewCall(blocked({ members: gone })).stage).toBe('closed');
   });
 });
 

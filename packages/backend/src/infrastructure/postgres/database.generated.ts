@@ -2020,7 +2020,6 @@ export interface SocialRosterHeads {
 
 export interface SocialThreadCallReveals {
   asset_id: string;
-  day: Timestamp;
   revision: number;
   stop_id: string;
   thread_id: string;

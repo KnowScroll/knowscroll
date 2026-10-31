@@ -57,16 +57,16 @@ export const callStore: CallStore = {
   async reveals(lock) {
     const rows = await sharedTransactionOf(lock.shared)
       .selectFrom('social.thread_call_reveals')
-      .select(['asset_id', 'revision', 'stop_id', sql<string>`to_char(day, 'YYYY-MM-DD')`.as('day')])
+      .select(['asset_id', 'revision', 'stop_id'])
       .where('thread_id', '=', lock.threadId)
       .execute();
-    return rows.map((row) => ({ assetId: row.asset_id, revision: row.revision, stopId: row.stop_id, day: row.day }));
+    return rows.map((row) => ({ assetId: row.asset_id, revision: row.revision, stopId: row.stop_id }));
   },
 
-  async markRevealed(lock, call, day) {
+  async markRevealed(lock, call) {
     await sharedTransactionOf(lock.shared)
       .insertInto('social.thread_call_reveals')
-      .values({ thread_id: lock.threadId, asset_id: call.assetId, revision: call.revision, stop_id: call.stopId, day })
+      .values({ thread_id: lock.threadId, asset_id: call.assetId, revision: call.revision, stop_id: call.stopId })
       .onConflict((conflict) => conflict.doNothing())
       .execute();
   },
