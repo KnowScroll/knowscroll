@@ -111,6 +111,11 @@ including observed zero; not_observed default rows remain absent so missing-hist
 neutral. It copies A/Q/O and actual routing recent/established/Hide without new score arithmetic.
 The existing Composer type is a compatibility boundary, not another personal projection.
 
+Since v3 S-5 (D-192) it also copies the play-level format cells of Evidence (`cells`: kind, level, measured, qualified)
+and the non-incidental topic IDs of each recent encounter (`recent[].topicIds`). Both are copied field by field, so
+nothing else Evidence or Experience held can ride along: in particular no pick, result, spark or tier, which `play`
+keeps behind the D-063 wall. Status: implemented, unit-tested; not yet run on dev.
+
 `personalContextProviders({ readCurrentPlan })` optionally injects the Planner's stored plan reader
 (`ReadCurrentPlan`). The read then carries `plan` beside the context, and the watermark gains
 `:plan-<revision>` so a buffer prepared under an older plan is not served as current. Without a plan

@@ -387,11 +387,22 @@ export interface EvidenceTopicContributions {
   channel_values: Json;
   exposure_id: string;
   measured: number;
+  play_level: Generated<string>;
   privacy_epoch: number;
   qualified: number;
   topic_id: string;
   universe_id: string;
   value: number;
+}
+
+export interface EvidenceTopicFormatCells {
+  kind: string;
+  measured: number;
+  play_level: string;
+  privacy_epoch: number;
+  qualified: number;
+  topic_id: string;
+  universe_id: string;
 }
 
 export interface ExperienceActionLinks {
@@ -2124,6 +2135,7 @@ export interface DB {
   "evidence.recording_sessions": EvidenceRecordingSessions;
   "evidence.topic_context": EvidenceTopicContext;
   "evidence.topic_contributions": EvidenceTopicContributions;
+  "evidence.topic_format_cells": EvidenceTopicFormatCells;
   "experience.action_links": ExperienceActionLinks;
   "experience.action_state": ExperienceActionState;
   "experience.actions": ExperienceActions;

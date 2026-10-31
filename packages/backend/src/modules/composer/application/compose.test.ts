@@ -2,6 +2,7 @@ import { fc, test } from '@fast-check/vitest';
 import { describe, expect, it } from 'vitest';
 import { composeEncounter, type ComposerSnapshot } from '../public.js';
 import { score } from '../domain/features.js';
+import { COMPOSER_POLICY_V0 } from '../domain/policy.js';
 function ref(value: { readonly assetId: string; readonly assetRevision: number }) {
   return { assetId: value.assetId, assetRevision: value.assetRevision };
 }
@@ -131,8 +132,8 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
       recentRepetition: 0.1,
       continuity: 0.4,
     };
-    expect(score(f, false)).toBeCloseTo(0.735);
-    expect(score(f, true)).toBeCloseTo(0.58);
+    expect(score(f, false, COMPOSER_POLICY_V0)).toBeCloseTo(0.735);
+    expect(score(f, true, COMPOSER_POLICY_V0)).toBeCloseTo(0.58);
   });
   it('unknown history and semantic assessment are explicit neutral baseline inputs', () => {
     const d = composeEncounter(fixture(1));

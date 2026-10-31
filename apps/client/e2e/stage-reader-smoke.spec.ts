@@ -328,8 +328,8 @@ test('a call is played on the device: pick, lock in, the answer and the Plot twi
   await expect(page.getByText(/The common guess\. Source: A Private Universe/)).toBeVisible();
   await expect(page.getByRole('radio', { name: /Earth is closer/ })).toBeDisabled();
   // The reveal is reported by kind, never by the option that was picked.
-  await flushObservations(page);
-  expect(reported(observed)).toContain('revealed');
+  await fireReport(page);
+  await expect.poll(() => reported(observed)).toContain('revealed');
   for (const event of observed.filter((entry) => entry.kind === 'scroll.block_interaction'))
     expect(Object.keys(event.payload).sort()).toEqual(['atMs', 'blockId', 'kind']);
 
@@ -381,10 +381,14 @@ function visibleMs(observed: { kind: string; payload: Record<string, unknown> }[
   return totals;
 }
 
-async function flushObservations(page: Page) {
+/**
+ * Fires the recorder's periodic report. The batch reaches the fixture a moment later (the outbox sends it
+ * after the page's own async work, and a loaded runner makes that long), so a caller waits for what it
+ * expects to have arrived, never for a fixed time.
+ */
+async function fireReport(page: Page) {
   // The recorder reports every 15 s while it has something to say.
   await page.clock.fastForward(16_000);
-  await page.waitForTimeout(200);
 }
 
 test('reading all of Part 1 produces the facts that qualify it: every stop for its own reading time, every call revealed', async ({
@@ -408,12 +412,15 @@ test('reading all of Part 1 produces the facts that qualify it: every stop for i
     }
     await page.keyboard.press('ArrowDown');
   }
-  await flushObservations(page);
-  expect(observed.length).toBeGreaterThan(0);
-  const read = visibleMs(observed);
-  for (const stop of readStops)
-    expect(read.get(stop.id) ?? 0, `read stop ${stop.id}`).toBeGreaterThanOrEqual(minVisibleMs(stopWords(stop)));
-  expect(reported(observed).sort()).toEqual(calls.map(() => 'revealed'));
+  await fireReport(page);
+  // The batches arrive in order, the last one carrying the stops read since the previous report: wait until
+  // every read stop has its time and every call its reveal (what the assertions below then state).
+  const stopsReadTooShort = (): string[] => {
+    const read = visibleMs(observed);
+    return readStops.filter((stop) => (read.get(stop.id) ?? 0) < minVisibleMs(stopWords(stop))).map((stop) => stop.id);
+  };
+  await expect.poll(stopsReadTooShort, { timeout: 15_000 }).toEqual([]);
+  await expect.poll(() => reported(observed).sort(), { timeout: 15_000 }).toEqual(calls.map(() => 'revealed'));
   // Every event is one the server's intake schema accepts, so the facts above are what it would store.
   for (const event of observed)
     InteractionEventSchema.parse({ ...envelope(), kind: event.kind, payload: event.payload });
@@ -432,7 +439,10 @@ test('tapping through every dot without dwelling does not read the Scroll', asyn
     await page.clock.fastForward(250);
   }
   await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
-  await flushObservations(page);
+  // The first report is always sent, so a batch must arrive; only then is "nothing was read" a fact about it.
+  const batchesBefore = observed.length;
+  await fireReport(page);
+  await expect.poll(() => observed.length, { timeout: 15_000 }).toBeGreaterThan(batchesBefore);
   const read = visibleMs(observed);
   for (const stop of readStops)
     expect(read.get(stop.id) ?? 0, `read stop ${stop.id}`).toBeLessThan(minVisibleMs(stopWords(stop)));

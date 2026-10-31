@@ -25,7 +25,14 @@ export type {
 } from './application/read-evidence-diagnostics.js';
 export type { EvidenceDiagnostics } from './application/ports.js';
 
-export { ACTIVITY_POLICY, type ActivityChannels } from './domain/activity.js';
+export {
+  ACTIVITY_POLICY,
+  ACTIVITY_POLICY_V0,
+  continuationCredit,
+  type ActivityChannels,
+  type ActivityPolicy,
+  type ActivityPolicyVersion,
+} from './domain/activity.js';
 export type {
   ProjectEncounterActivity,
   ReconcileEncounterActivity,
@@ -42,6 +49,7 @@ export type {
   LegacyActivityDerivedEffect,
   ActivityDerivedEffect,
   ActivityStatistics,
+  FormatCell,
   ReadActivityStatistics,
   ReadObservationTail,
   ReadRecentTopicIds,

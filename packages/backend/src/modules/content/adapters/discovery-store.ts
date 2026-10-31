@@ -1,4 +1,5 @@
-import type { ReadEncounterAttribution } from '../public.js';
+import type { ReadEncounterAttribution, ReadPlayLevel } from '../public.js';
+import { traitsOfDocument } from '../domain/traits.js';
 import { createHash } from 'node:crypto';
 import { ClientCapabilities, ReelDocumentSchema } from '@knowscroll/contracts';
 import { sql, type Kysely } from 'kysely';
@@ -33,7 +34,7 @@ type Row = {
   document: unknown;
   topics: EncounterSnapshot['topics'];
   siblings: EncounterSnapshot['siblings'];
-  series: EncounterSnapshot['series'] | null;
+  series: (NonNullable<EncounterSnapshot['series']> & { total: number }) | null;
 };
 function canRender(row: Row, capabilities: unknown): boolean {
   if (row.kind === 'reel') {
@@ -64,6 +65,10 @@ async function olderV1Rows(db: Kysely<Database>, assetIds: readonly string[]): P
 }
 function snapshot(row: Row): EncounterSnapshot {
   validateTopics(row.topics);
+  const series = row.series
+    ? { seriesId: row.series.seriesId, seriesRevision: row.series.seriesRevision, part: row.series.part }
+    : undefined;
+  const seriesTotal = row.series?.total ?? 0;
   return {
     assetId: row.asset_id,
     assetRevision: row.asset_revision,
@@ -73,7 +78,8 @@ function snapshot(row: Row): EncounterSnapshot {
     topics: row.topics,
     facets: row.facets,
     siblings: row.siblings,
-    ...(row.series ? { series: row.series } : {}),
+    ...(series ? { series } : {}),
+    traits: { ...traitsOfDocument(row.document), ...(seriesTotal > 0 ? { seriesTotal } : {}) },
     catalogWatermark: createHash('sha256')
       .update(
         JSON.stringify([
@@ -82,7 +88,7 @@ function snapshot(row: Row): EncounterSnapshot {
           row.topics.map((t) => [t.topicId, t.role, t.weight]),
           row.facets,
           row.siblings.map((s) => [s.assetId, s.assetRevision, s.kind]),
-          row.series ? [row.series.seriesId, row.series.seriesRevision, row.series.part] : null,
+          series ? [series.seriesId, series.seriesRevision, series.part] : null,
         ]),
       )
       .digest('hex'),
@@ -95,7 +101,7 @@ async function rows(db: Kysely<Database>, filter: ReturnType<typeof sql>, limit:
     await sql<Row>`select r.asset_id,r.revision as asset_revision,a.kind,r.explanation_unit_id,r.title,d.summary,r.language,d.facets,d.attribution_version,r.document_sha256,r.document,
     coalesce((select jsonb_agg(jsonb_build_object('topicId',t.topic_id,'role',t.role,'weight',t.weight) order by t.topic_id) from content.encounter_topics t where t.asset_id=r.asset_id and t.asset_revision=r.revision),'[]') as topics,
     coalesce((select jsonb_agg(s.value order by s.kind) from (select distinct on (aa.kind) aa.kind,jsonb_build_object('assetId',rr.asset_id,'assetRevision',rr.revision,'kind',aa.kind) as value from content.asset_revisions rr join content.assets aa on aa.id=rr.asset_id and aa.revision=rr.revision and aa.status='admitted' where rr.explanation_unit_id=r.explanation_unit_id and aa.kind<>a.kind order by aa.kind,rr.asset_id limit 2) s),'[]') as siblings,
-    (select jsonb_build_object('seriesId',u.series_id,'seriesRevision',u.series_revision,'part',u.part) from content.series_units u where u.asset_id=r.asset_id and u.asset_revision=r.revision order by u.series_revision desc,u.series_id limit 1) as series
+    (select jsonb_build_object('seriesId',u.series_id,'seriesRevision',u.series_revision,'part',u.part,'total',(select count(*) from content.series_units t where t.series_id=u.series_id and t.series_revision=u.series_revision)) from content.series_units u where u.asset_id=r.asset_id and u.asset_revision=r.revision order by u.series_revision desc,u.series_id limit 1) as series
     from content.assets a join content.asset_revisions r on r.asset_id=a.id join content.discovery_revisions d on d.asset_id=r.asset_id and d.asset_revision=r.revision
     where a.status='admitted' and ${notUnderReview('r.asset_id', 'r.revision')} and ${filter} order by r.asset_id,r.revision limit ${limit}`.execute(
       db,
@@ -296,4 +302,17 @@ export const readEncounterAttribution: ReadEncounterAttribution = async (scope, 
       )
       .digest('hex'),
   };
+};
+
+/** See `ReadPlayLevel`. One row by its key; the review gate hides what it holds, like every exact read. */
+export const readPlayLevel: ReadPlayLevel = async (scope, ref) => {
+  const row = (
+    await sql<{
+      document: unknown;
+    }>`select r.document from content.asset_revisions r join content.assets a on a.id=r.asset_id
+    where r.asset_id=${ref.assetId}::uuid and r.revision=${ref.assetRevision} and a.kind='scroll' and ${notUnderReview('r.asset_id', 'r.revision')}`.execute(
+      transactionOf(scope),
+    )
+  ).rows[0];
+  return row === undefined ? 'plain' : traitsOfDocument(row.document).playLevel;
 };

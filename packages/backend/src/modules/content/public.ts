@@ -21,9 +21,11 @@ import type { AccountAccess, PersonalAuthority, PersonalScopeTx, ReadOn } from '
 import type { AssetKind } from './domain/provenance.js';
 import type { CoverageAuthority } from './domain/coverage.js';
 import type { ReadingFacts } from './domain/reading-facts.js';
+import type { PlayLevel } from './domain/traits.js';
 
 export { PROVENANCE_KINDS, type AssetKind, type ProvenanceKind } from './domain/provenance.js';
 export { type ReadingFacts } from './domain/reading-facts.js';
+export { PLAY_LEVELS, type EncounterTraits, type PlayLevel } from './domain/traits.js';
 export {
   makeImportEditorialScroll,
   type ImportEditorialScroll,
@@ -312,6 +314,14 @@ export type ReadEncounterAttribution = (
   ref: EncounterRef,
 ) => Promise<EncounterAttribution | undefined>;
 export const READ_ENCOUNTER_ATTRIBUTION = Symbol('content.readEncounterAttribution');
+
+/**
+ * The play level of one exact revision, derived from its stored document (D-192). A Reel, a revision the
+ * review gate holds and one that does not exist read as `plain`. Shared content only: it says nothing
+ * of the reader, and it is read at a projection, not served to a client.
+ */
+export type ReadPlayLevel = (scope: PersonalScopeTx, ref: EncounterRef) => Promise<PlayLevel>;
+export const READ_PLAY_LEVEL = Symbol('content.readPlayLevel');
 
 /** Current-head authority for one-time Supply binding, separate from legacy historical reads.
  * Personal root first; locks all existing asset rows SHARE in UUID order and holds them to commit.

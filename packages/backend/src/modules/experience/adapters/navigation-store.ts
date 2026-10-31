@@ -275,9 +275,12 @@ type RecentRoutingRow = {
   sortAt: string;
   explanationUnitId: string;
   facets: unknown;
+  /** Non-incidental topic ids from the frozen attribution; null where the row has none (the legacy lineage). */
+  topicIds: unknown;
   generation: number;
 };
 const RoutingFacets = z.array(z.string().min(1).max(160)).max(16);
+const RoutingTopicIds = z.array(z.string().min(1).max(160)).max(16);
 export const readRoutingHistory: ReadRoutingHistory = async (scope, query) => {
   // Select the owned query fields: prepared-input callers also carry unrelated topic fields.
   const q = RoutingReadQuery.parse({
@@ -289,18 +292,24 @@ export const readRoutingHistory: ReadRoutingHistory = async (scope, query) => {
   // Each index-backed lane has its own fixed RAW budget, before deduplication. No refill.
   const legacy = await sql<RecentRoutingRow>`select exposure_id as "exposureId",activated_at as "activatedAt",
     to_char(activated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "sortAt",
-    explanation_unit_id as "explanationUnitId",facets,0 as generation
+    explanation_unit_id as "explanationUnitId",facets,null::jsonb as "topicIds",0 as generation
     from experience.encounter_lineage where universe_id=${u}::uuid and privacy_epoch=${e}
     and activated_at<=${q.evaluatedAt}::timestamptz and activated_at>=${q.evaluatedAt}::timestamptz-interval '24 hours'
     order by activated_at desc,exposure_id limit 20`.execute(db);
   const recording =
     await sql<RecentRoutingRow>`select exposure_id as "exposureId",first_eligible_activation_at as "activatedAt",
     to_char(first_eligible_activation_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "sortAt",
-    explanation_unit_id as "explanationUnitId",attribution_payload->'facets' as facets,recording_generation as generation
+    explanation_unit_id as "explanationUnitId",attribution_payload->'facets' as facets,
+    (select coalesce(jsonb_agg(topic->>'topicId' order by topic->>'topicId'),'[]'::jsonb) from jsonb_array_elements(coalesce(attribution_payload->'topics','[]'::jsonb)) topic where topic->>'role'<>'incidental') as "topicIds",
+    recording_generation as generation
     from experience.recording_segments where universe_id=${u}::uuid and privacy_epoch=${e}
     and first_eligible_activation_at is not null and first_eligible_activation_at<=${q.evaluatedAt}::timestamptz
     and first_eligible_activation_at>=${q.evaluatedAt}::timestamptz-interval '24 hours'
     order by first_eligible_activation_at desc,exposure_id,recording_generation limit 20`.execute(db);
+  // The legacy lineage keeps no topics. An exposure that also has a recording segment takes its topics from it.
+  const topicsOf = new Map(
+    recording.rows.filter((r) => r.topicIds !== null).map((r) => [r.exposureId, RoutingTopicIds.parse(r.topicIds)]),
+  );
   const seen = new Set<string>();
   const recent = [...legacy.rows, ...recording.rows]
     .sort((a, b) =>
@@ -321,6 +330,7 @@ export const readRoutingHistory: ReadRoutingHistory = async (scope, query) => {
       activatedAt: new Date(r.activatedAt).toISOString(),
       explanationUnitId: r.explanationUnitId,
       facets: RoutingFacets.parse(r.facets),
+      ...(topicsOf.has(r.exposureId) ? { topicIds: topicsOf.get(r.exposureId)! } : {}),
     }));
   const established = await sql<{
     explanationUnitId: string;
