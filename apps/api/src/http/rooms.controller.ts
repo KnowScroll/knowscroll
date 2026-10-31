@@ -333,4 +333,36 @@ export class RoomsController {
       value(await this.useCases.finishLaunch(this.authority(request), input)),
     );
   }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.replay)
+  replayRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.replay).handler(async ({ input }) =>
+      value(await this.useCases.replay(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.replayRound)
+  replayRoundRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.replayRound).handler(async ({ input }) =>
+      value(await this.useCases.replayRound(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.leaveQuestion)
+  leaveQuestionRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.leaveQuestion).handler(async ({ input }) =>
+      value(await this.useCases.leaveQuestion(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.questionNotice)
+  questionNoticeRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.questionNotice).handler(async ({ input }) =>
+      value(await this.useCases.questionNotice(this.authority(request), input)),
+    );
+  }
 }

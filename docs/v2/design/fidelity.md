@@ -201,9 +201,36 @@ R3 pages p-04 (end to end, steps 4 and 7), p-10 (E, game feel: the Launch and th
 | R3 E 1, the timer | A ring with "8 s" | matches | The ring steps with the seconds and the words are the reading, so reduced motion needs no change. The ring counts the server's milliseconds, not the device's date. |
 | R3 E 2, the podium | Three steps, "+1 star for the room", the share card of squares, Share, Copy and Back to chat | matches | Share goes into General and posts the squares only. The line under the steps says "N others played too" with no names. A person with no right answer is not on it. |
 | R3 E 2, the podium | "Lena and Ravi played too" | differs | A count only: nobody below third is named. |
-| R3 E 2, the share card | "Copies as text: ■■■□■. No answers in it, so it can't spoil the replay." | differs | "so it can't spoil anything": there is no replay yet (R-7). |
+| R3 E 2, the share card | "Copies as text: ■■■□■. No answers in it, so it can't spoil the replay." | differs | "so it can't spoil anything": the podium keeps R-6's words; a replay exists now (R-7) and the squares still hold no answer. |
 | R3 p-04 step 7 and p-09, the station | A red pulse and "LAUNCH LIVE" on the room's station | matches | The light turns red and pulses while a Launch is on (steady under reduced motion), and the caption says "Launch live". Members see it on their own map; an outsider's station says nothing. |
 | R3 p-04 step 4, the band | "LIVE · LAUNCH" in the room's band | matches | A small red tag beside the room's line; the faces of who is here are as before. |
 | R3 B, Now strip | A Launch chip ("Launch 9:30 pm" or "Launch now · 3 playing") | differs | The chip says what can be done now (Start a quiz, Starting now, Live now, Podium) with no clock time and no number: a Launch has no schedule yet. |
 | R3 E 1, the stage | General turns into a stage and the chat becomes the crowd | differs | The stage card sits above the conversation, so while a Launch runs the messages have 18 % of a 390 × 844 phone, against 68 % the rest of the time (D-224). |
-| R3 F, "Replay" | Last night's Launch against the real answers | missing | R-7. |
+| R3 F, "Replay" | Last night's Launch against the real answers | built in R-7 | See the R-7 table below. |
+
+## v3 R-7: the quiet room and the replay (#493)
+
+R3 page p-11 (F, "The quiet room": frames 1 to 4). 390 × 844 and 1440 × 900, production export, labelled fixtures with two browsers (`rooms-quiet-smoke.spec.ts`), axe on every step. Screenshots in the PR.
+
+| Frame | What | Status | Why |
+|---|---|---|---|
+| F 1, the band | "QUIET · LAST MESSAGE 3 H AGO" and "JUST YOU" beside the faces | differs | The pill is the same words. Faces are people only (D-069): the AI cast is not drawn among them, and "just you" is the caption for a room where only the reader is here. |
+| F 1, the strip | A Today chip and a "REPLAY Last night's Launch" chip | matches | The chip names the night ("Launch of 31 Oct"), never "last night": the night is the server's UTC day. |
+| F 1, today's question | A card in the stream with "2 people answered today · yesterday's had 4" | differs | Today's question is in the Today channel (R-5); the stream carries no card for it. |
+| F 1, the sky | A card "The room's sky · 5 of 7" with the last star | differs | The sky is the chip and its sheet (R-5). |
+| F 1, the offer | Ray: "Quiet evening. Want a 2-minute warm-up? Three quick calls on what this room talked about this week." | differs | The host (Pixel, labelled AI) offers a replay of a real Launch, as a card at the end of the conversation, from a template (D-243). A quiz made from chat would be generated while someone waits (D-070). |
+| F 2, the banner | A black banner "Replay. These answers were given last night by the 5 people who played. Your sparks count; the podium and the room's star don't." | differs | The same banner with the night's date and the real count. No sparks: they are the play module's (D-241). |
+| F 2, the host | T-minus, "REPLAY" tag | differs | Pixel, as in the Launch (D-219). |
+| F 2, the question | "QUESTION 2 OF 5", a timer ring, the prompt | matches | "REPLAY 2 OF 5", a ring and the seconds in words. |
+| F 2, the options | Right option in green with "KENJI · 3 S, ASHA · 4 S"; "Nobody picked this last night" under another | differs | The faces of those who got it right, with no seconds and no per-option counts (D-241, D-222). |
+| F 2, the verdict | "Called it! +1 spark ... You'd have been 2nd fastest" | differs | "Called it!" and "You'd have been 2nd fastest", with no spark. |
+| F 2, the header chips | "REPLAY 2 of 5", "LAST NIGHT 5 played · Kenji won" | differs | The banner carries the count. No winner is named: the podium is read for a day (D-178). |
+| F 2, the footer | "Leave replay" and "Next question" | matches | After the fifth: "See how you did", then the score and squares, with "Play it again" and "Done" (not drawn). |
+| F 3, the question | The message with "OPEN FOR PEOPLE" and "QUESTION" tags, in General | differs | A question is a topic with its first message; its card in General carries "Question" and "Open for people". |
+| F 3, the answer | Ray's answer, "AI ANSWER · A PERSON MAY ADD MORE" | differs | The resident's answer is in the topic, labelled AI, with "Asked by you" from the ask (D-167). The shelf and the sheet say a question stays open for people whatever a resident said; "a person may add more" is not drawn under the answer. |
+| F 3, the dashed card | "Your question stays open for people ... [Notify me · on] [Make it a topic]" | differs | The same words and the switch are in the sheet that leaves the question ("Tell me when a person answers", then "Your question is open for people ..."). "Make it a topic" is not needed: it is one. |
+| F 3, the strip | "OPEN 3 questions waiting" | matches | A real count, with "Ask · Leave a question" when none waits. |
+| F 4, the notice | A white pill "Lena answered your question · 2 days later" above the room | matches | A card under the band with the same words, "Read it" and "Got it". In the room only: there is no push. |
+| F 4, the chip | "NEW Lena answered you" | differs | The card is the notice; the strip has no second one. |
+| F 4, the answer | "FLAIR · FIRST ANSWER", Useful, Reply | differs | Flair is not built (D-242). Useful is as in R-3. |
+| F 4, the star | Echo: "+1 star for the room: a person answered an open question" | differs | The star is the sky chip's; no AI card says it (D-242). |

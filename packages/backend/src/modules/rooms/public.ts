@@ -19,9 +19,13 @@ import type {
   LaunchJoinedAcceptanceSchema,
   LaunchStartedAcceptanceSchema,
   PollVoteAcceptanceSchema,
+  QuestionLeftAcceptanceSchema,
+  QuestionNoticeAcceptanceSchema,
   RoomInviteAcceptanceSchema,
   RoomJoinAcceptanceSchema,
+  ReplayRoundSchema,
   RoomLaunchSchema,
+  RoomReplaySchema,
   RoomLeaveAcceptanceSchema,
   RoomListSchema,
   RoomMessageAcceptanceSchema,
@@ -111,6 +115,23 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof LaunchFinishedAcceptanceSchema>>>;
+  /**
+   * The finished Launch this member may replay and its five questions without their keys, or none (v3 R-7, D-241). Writes nothing:
+   * nothing about the person replaying is kept.
+   */
+  replay(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReplaySchema>>>;
+  /** One question of the replay answered: the key and reason, who got it right, and how many were quicker. Writes nothing. */
+  replayRound(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ReplayRoundSchema>>>;
+  /** Leaves a question for the next person: a topic, a card in General and, when asked, a resident's answer (v3 R-7, D-242). */
+  leaveQuestion(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof QuestionLeftAcceptanceSchema>>>;
+  /** The asker's own switch for being told when a person answers a question, and their acknowledgement of an answer. */
+  questionNotice(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof QuestionNoticeAcceptanceSchema>>>;
   /** The member's vote on a debate's side, changeable until it closes (D-176). */
   voteDebate(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DebateVoteAcceptanceSchema>>>;
   list(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomListSchema>>>;

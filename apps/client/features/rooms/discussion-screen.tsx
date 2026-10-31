@@ -191,6 +191,7 @@ function ReadyDiscussion({
   header,
   topics,
   listHeader,
+  listFooter,
   startAtEnd,
   focusSignal,
 }: {
@@ -206,6 +207,8 @@ function ReadyDiscussion({
   readonly topics: readonly RoomDiscussionSummary[] | undefined;
   /** What stands first in the list of messages: Today's cards, or the Now strip. */
   readonly listHeader: ReactNode | undefined;
+  /** What stands after the newest message. */
+  readonly listFooter: ReactNode | undefined;
   /** The list opens at the newest message even with a header (General); without it a list with a header opens at the top. */
   readonly startAtEnd: boolean | undefined;
   readonly focusSignal: number | undefined;
@@ -352,6 +355,7 @@ function ReadyDiscussion({
         onOpenTopic={(topicId) => router.push(discussionHref(roomId, topicId))}
         canAsk={view.canPost && skeptic?.ask === 'available'}
         onAskAbout={askAbout}
+        footer={listFooter}
         header={
           listHeader === undefined && view.debate === undefined && view.origin === undefined ? undefined : (
             <>
@@ -487,6 +491,7 @@ export function OpenDiscussion({
   header,
   topics,
   listHeader,
+  listFooter,
   startAtEnd,
   focusSignal,
 }: {
@@ -497,6 +502,7 @@ export function OpenDiscussion({
   /** The room's own list of discussions, for the cards of topics begun from messages here. */
   readonly topics?: readonly RoomDiscussionSummary[];
   readonly listHeader?: ReactNode;
+  readonly listFooter?: ReactNode;
   readonly startAtEnd?: boolean;
   /** Each new value puts the cursor in the composer. */
   readonly focusSignal?: number;
@@ -547,6 +553,7 @@ export function OpenDiscussion({
       header={header}
       topics={topics}
       listHeader={listHeader}
+      listFooter={listFooter}
       startAtEnd={startAtEnd}
       focusSignal={focusSignal}
     />

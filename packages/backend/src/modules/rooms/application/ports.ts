@@ -17,6 +17,7 @@ import type {
 } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
 import type { LaunchRow, ReadyDeck, StoredAnswer } from './launch-ports.js';
+import type { UnnoticedQuestion } from './question-ports.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
@@ -208,6 +209,8 @@ export interface NewDiscussion {
   readonly root: ContentRef | undefined;
   readonly originMessageId: string | undefined;
   readonly startedByAccountId: string;
+  /** The starter is told when a person answers: true only for a question (migration 0089). */
+  readonly notifyAnswer?: boolean;
   readonly now: Date;
 }
 
@@ -315,7 +318,10 @@ export interface DiscussionStore {
   general(lock: RoomLock): Promise<DiscussionRow | undefined>;
   /** The room's Today discussion: one per room, made with it (migration 0085). */
   today(lock: RoomLock): Promise<DiscussionRow | undefined>;
-  /** When the newest message a member can see was sent, anywhere in the room; none while nobody has written. */
+  /**
+   * When the newest message **a person** wrote that a member can see was sent, anywhere in the room; none while no person has written.
+   * A resident's words are not counted: the quiet pill must not make a room look busy because an AI answered (D-243).
+   */
   lastMessageAt(lock: RoomLock): Promise<Date | undefined>;
   /** The pinned discussion with the newest pin, if any. */
   pinned(lock: RoomLock): Promise<DiscussionRow | undefined>;
@@ -783,6 +789,14 @@ export interface LaunchStore {
   unfinished(lock: RoomLock, rowLock: 'none' | 'share' | 'update'): Promise<LaunchRow | undefined>;
   /** The room's newest Launch, finished or not. */
   latest(lock: RoomLock): Promise<LaunchRow | undefined>;
+  /**
+   * The room's newest Launch whose play time has ended and whose answers are still kept: it started between the two times given, both
+   * included (`replayWindow`). Whether it is `finished` yet does not matter: its answers are complete once its play time is over.
+   */
+  replayable(
+    lock: RoomLock,
+    window: { readonly startedBefore: Date; readonly startedAfter: Date },
+  ): Promise<LaunchRow | undefined>;
   /** The newest approved deck dated from `fromDay` to `toDay` (UTC days, both included) that no Launch has used. */
   readyDeck(lock: RoomLock, fromDay: string, toDay: string): Promise<ReadyDeck | undefined>;
   insert(
@@ -819,6 +833,32 @@ export interface LaunchStore {
   forgetMember(lock: RoomLock, accountId: string): Promise<void>;
   /** Which of these rooms have an unfinished Launch whose play time has not passed at `now`, for a station on a map. */
   liveRooms(scope: PersonalScopeTx, roomIds: readonly string[], now: Date): Promise<ReadonlySet<string>>;
+}
+
+// --- Questions left for people (migration 0089) -------------------------------------------
+
+/**
+ * The notice state of the questions left for people. Every method is one explicit query inside the room's lock; none decides access. Whether
+ * a question is still open is read from its messages, never stored.
+ */
+export interface QuestionStore {
+  /** How many of the room's questions no person but their starter has spoken in. A question whose starter's account is gone is not waiting for anyone. */
+  waiting(lock: RoomLock): Promise<number>;
+  /** The caller's own questions they asked to be told about, have not noticed, and another person has spoken in; newest first, at most `limit`. */
+  unnoticed(lock: RoomLock, accountId: string, limit: number): Promise<readonly UnnoticedQuestion[]>;
+  /**
+   * Sets whether the starter is told and/or records that they noticed an answer. Undefined when the discussion is not a question in this
+   * room that this account started, so a refusal never says which.
+   */
+  setNotice(
+    lock: RoomLock,
+    input: {
+      readonly discussionId: string;
+      readonly accountId: string;
+      readonly notify?: boolean;
+      readonly noticedAt?: Date;
+    },
+  ): Promise<{ readonly notify: boolean } | undefined>;
 }
 
 // --- What the application needs from outside ----------------------------------------------
@@ -886,6 +926,8 @@ export interface RoomPorts {
   readonly today: TodayStore;
   /** The Launch's rows (migration 0088). */
   readonly launches: LaunchStore;
+  /** The notice state of the questions left for people (migration 0089). */
+  readonly questions: QuestionStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
   readonly blocked: BlockedLookup;
