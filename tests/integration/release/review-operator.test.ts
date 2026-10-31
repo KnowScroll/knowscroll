@@ -208,14 +208,14 @@ describe('the review gate commands from the built release', () => {
   });
 
   it('plans a regeneration without sending anything, needs --only, and skips a recipe that is not a served v2 Scroll', async () => {
-    const dry = await operator(['regenerate', '--only', 'seasons-hemispheres,tides', '--dry-run']);
+    const dry = await operator(['regenerate', '--only', 'seasons-hemispheres,exoplanet-kinds', '--dry-run']);
     expect(dry.code).toBe(0);
     expect(lastLine(dry.stdout)).toMatchObject({
       command: 'content regenerate',
       dryRun: true,
       requestBoundPerTake: 6,
       wouldQueue: [{ recipe: 'seasons-hemispheres', take: 2 }],
-      skipped: [{ recipe: 'tides', reason: 'not_v2' }],
+      skipped: [{ recipe: 'exoplanet-kinds', reason: 'not_v2' }],
     });
     for (const args of [['regenerate'], ['regenerate', '--dry-run'], ['regenerate', '--only', 'no-such-recipe']]) {
       const refused = await operator(args);

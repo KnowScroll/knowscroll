@@ -43,6 +43,7 @@ import { realRecordPlannedDemand } from '../support/planned-demand.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases, starterSource, textCapabilities } from '../support/scroll.js';
 import { activatedAgo, coverage, dwell, event, openActive } from '../support/observations.js';
+import { markRecipesV1 } from '../support/scroll-v2.js';
 
 const GREENHOUSE = 'earth.greenhouse-effect';
 const TIDES = 'earth.tides';
@@ -54,6 +55,9 @@ const TIDES = 'earth.tides';
  * evidence, queues, plans, demand and decisions are produced by the real use cases.
  */
 describe('Planner loop: evidence, plan, Composer and supply (real PostgreSQL, authored CI fixtures)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1('tides', 'greenhouse');
+  afterAll(restoreRecipes);
   let database: TestDatabase<Database>, c: Awaited<ReturnType<typeof scrollUseCases>>;
   let failMaterialEnqueue = false;
   let ports: PlannerPorts;

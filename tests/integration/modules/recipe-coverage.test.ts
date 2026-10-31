@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
@@ -29,12 +29,16 @@ import {
 } from '../support/generated-scroll.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { baselineCapabilities } from '../support/scroll.js';
+import { markRecipesV1 } from '../support/scroll-v2.js';
 
 /**
  * Publishing a generated Scroll admits its topic and facet coverage in the same transaction, decided
  * by code from the recipe. The model is a labelled CI fixture; nothing here is provider output.
  */
 describe('Generated Scroll coverage at publication (CI fixture transport, real PostgreSQL)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1('tides', 'tides-coasts', 'greenhouse');
+  afterAll(restoreRecipes);
   let database: TestDatabase<Database>;
   beforeEach(async () => {
     database = await createTestDatabase<Database>('recipe_coverage');
