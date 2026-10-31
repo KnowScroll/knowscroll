@@ -4,10 +4,11 @@ import { CONCEPTS } from '../../content/public.js';
 import type { EncounterSnapshot } from '../../content/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { WAIT_LIMIT_MS, waitStartOf } from './commission.js';
+import { typicalSeconds } from '../domain/ask-order.js';
 import type { CanonicalBrief, SupplyPorts, Demand, Source } from './ports.js';
 
 export const sourceOf = (command: CreateContentRequest): Source | undefined =>
-  command.intent.kind === 'variant' ? command.intent.source : command.intent.context;
+  command.intent.kind === 'variant' || command.intent.kind === 'ask' ? command.intent.source : command.intent.context;
 export const sameRef = (
   a: { readonly assetId: string; readonly assetRevision: number },
   b: { readonly assetId: string; readonly assetRevision: number },
@@ -30,6 +31,8 @@ export function briefOf(c: CreateContentRequest, source: EncounterSnapshot | und
           },
         }
       : undefined;
+  // An ask from here carries a person's own question: it never has a deterministic shared brief.
+  if (c.intent.kind === 'ask') return undefined;
   // A contextual ask has additional meaning that this deterministic catalogue matcher cannot admit.
   if (c.intent.context || c.intent.subject.kind !== 'catalogue') return undefined;
   const subject = c.intent.subject;
@@ -118,7 +121,11 @@ export async function inventory(
         ? await catalogueCandidates(p, scope, c, { ...brief, subject: brief.subject })
         : [];
   const serving = candidates.filter((x) => brief && matches(brief, x));
-  const skipExplanations = typeof skip === 'function' ? await skip(serving.map((x) => x.explanationUnitId)) : skip;
+  const decidedSkip = typeof skip === 'function' ? await skip(serving.map((x) => x.explanationUnitId)) : skip;
+  // A question asked from a Scroll asked for something else: it never binds to the explanation it was asked from (D-230).
+  // Every way into this read (placing, polling, Try again) takes the same rule, so none can return the Scroll being read.
+  const asked = c.intent.kind === 'ask' ? sourceSnapshot?.explanationUnitId : undefined;
+  const skipExplanations = asked === undefined ? decidedSkip : new Set([...decidedSkip, asked]);
   const heads = await p.lockCurrent(scope, {
     refs: [...(source ? [source] : []), ...serving.filter((x) => !skipExplanations.has(x.explanationUnitId))],
     capabilities: c.capabilities,
@@ -129,13 +136,18 @@ export async function inventory(
   );
   return { heads, sourceHead, ready };
 }
+/** How many of the latest finished ask orders the "usually" time is measured from. */
+const TYPICAL_SAMPLE_WINDOW = 20;
+
 export function checkedRevision(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new Error('SUPPLY_REVISION_INVALID');
   return value;
 }
 /** Current status is a read-only projection; global Content changes do not create personal hints. */
 export async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand) {
-  const source = sourceOf(d.command);
+  // An ask order depends on its source only until the order is made: its words and its research pages are fixed then,
+  // so a source that was corrected or withdrawn since does not take the Scroll made for the person away.
+  const source = d.askOrder ? undefined : sourceOf(d.command);
   const heads =
     d.status === 'ready' || d.status === 'requested' || d.status === 'deferred' || d.status === 'matching'
       ? await p.lockCurrent(scope, {
@@ -179,12 +191,19 @@ export async function snapshot(p: SupplyPorts, scope: PersonalScopeTx, d: Demand
       status: 'unavailable',
       reason: 'could_not_prepare',
     });
+  // How long an ask order usually takes: said only of a request that is one (a question still being placed, or one
+  // the library answers, is not an order), and only when finished orders measured it (never a guess).
+  const typical =
+    d.askOrder !== undefined && d.status !== 'ready'
+      ? typicalSeconds(await p.askLedger.recentWaitsSeconds(scope, TYPICAL_SAMPLE_WINDOW))
+      : undefined;
+  const usually = typical === undefined ? {} : { typicalSeconds: typical };
   // `requested` means a request nothing has started yet: a free-text ask still being matched. Once
   // a group stands behind it, production is real durable work and the request is preparing.
   if (d.status === 'matching')
-    return ContentRequestStatusSchema.parse({ ...base, status: 'preparing', phase: 'requested' });
+    return ContentRequestStatusSchema.parse({ ...base, status: 'preparing', phase: 'requested', ...usually });
   if (d.status === 'requested' || d.status === 'deferred')
-    return ContentRequestStatusSchema.parse({ ...base, status: 'preparing', phase: 'preparing' });
+    return ContentRequestStatusSchema.parse({ ...base, status: 'preparing', phase: 'preparing', ...usually });
   const e = contentHead!.encounter!;
   return ContentRequestStatusSchema.parse({
     ...base,

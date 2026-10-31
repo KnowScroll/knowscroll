@@ -2155,7 +2155,15 @@ export interface SocialVisitSystems {
   universe_id: string;
 }
 
+export interface SupplyAskOrders {
+  created_at: Generated<Timestamp>;
+  order_id: string;
+  ready_at: Timestamp | null;
+}
+
 export interface SupplyRequests {
+  ask_asset_id: string | null;
+  ask_order_id: string | null;
   brief: Json | null;
   command: Json;
   content: Json | null;
@@ -2366,6 +2374,7 @@ export interface DB {
   "social.visit_planets": SocialVisitPlanets;
   "social.visit_publications": SocialVisitPublications;
   "social.visit_systems": SocialVisitSystems;
+  "supply.ask_orders": SupplyAskOrders;
   "supply.requests": SupplyRequests;
   "supply.scenario_orders": SupplyScenarioOrders;
   "supply.work": SupplyWork;

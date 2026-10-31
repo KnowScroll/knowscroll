@@ -15,9 +15,17 @@ import {
   READ_EXACT_ENCOUNTER,
   READ_REGION_ENCOUNTER_CANDIDATES,
   READ_SCROLL_PRODUCTION,
+  READ_SCROLL_ASK_FACTS,
+  READ_SCROLL_SOURCE_PAGES,
+  READ_MADE_TO_ORDER_PRODUCTION_IN,
+  READ_ASK_ORDER_AUDIENCE,
   LOCK_CURRENT_ENCOUNTERS,
   RECORD_MADE_TO_ORDER_SCROLL,
   type RecordMadeToOrderScroll,
+  type ReadScrollAskFacts,
+  type ReadScrollSourcePages,
+  type ReadMadeToOrderProductionIn,
+  type ReadOrderAudience,
   produceScrollJob,
   produceScrollSingletonKey,
   produceScrollQueue,
@@ -36,6 +44,8 @@ import {
 } from '../../personal-context/public.js';
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
+  FENCE_PERSONAL_RECORDING,
+  type FencePersonalRecording,
   type CheckPersonalOwnerActive,
   type PersonalScopeTx,
   type WithPersonalScope,
@@ -65,6 +75,9 @@ import { makeResolveRequest } from '../application/resolve.js';
 import { resolveSupplyQueue } from '../events.js';
 import type { SupplyPorts } from '../application/ports.js';
 import { supplyStore } from './postgres-store.js';
+import { askOrderLedger, makeReadAskOrderAudience } from './postgres-ask-orders.js';
+import type { Kysely } from 'kysely';
+import type { Database } from '../../../infrastructure/postgres/database.js';
 export const SUPPLY_PORTS = Symbol('supply.ports');
 /** What Supply reads from a process's configuration (the API's and the worker's both carry it). */
 export interface SupplySettings {
@@ -72,6 +85,10 @@ export interface SupplySettings {
   readonly supplyCreateDailyCap: number;
   /** Productions the Planner's demand may start per UTC day; never above the cap for people. */
   readonly supplyPlannerCreateDailyCap: number;
+  /** Ask orders (a short Scroll made for a person's question) Create may make per UTC day for the world; 0 turns them off. */
+  readonly supplyAskDailyCap: number;
+  /** Ask orders one person may have made per UTC day. */
+  readonly supplyAskPersonDailyCap: number;
 }
 
 /** What scenario Create reads from the API's configuration. */
@@ -125,6 +142,11 @@ export function supplyProviders(t: {
         LOCK_CURRENT_ENCOUNTERS,
         CHECK_REQUEST_SOURCE,
         CHECK_PERSONAL_OWNER_ACTIVE,
+        READ_SCROLL_ASK_FACTS,
+        READ_SCROLL_SOURCE_PAGES,
+        RECORD_MADE_TO_ORDER_SCROLL,
+        READ_MADE_TO_ORDER_PRODUCTION_IN,
+        FENCE_PERSONAL_RECORDING,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -139,6 +161,11 @@ export function supplyProviders(t: {
         lockCurrent: LockCurrentEncounters,
         checkSource: CheckRequestSource,
         ownerActive: CheckPersonalOwnerActive,
+        readAskFacts: ReadScrollAskFacts,
+        readSourcePages: ReadScrollSourcePages,
+        recordOrder: RecordMadeToOrderScroll,
+        readOrderProduction: ReadMadeToOrderProductionIn,
+        fenceRecording: FencePersonalRecording,
       ): SupplyPorts => ({
         withScope,
         ownerActive,
@@ -150,6 +177,13 @@ export function supplyProviders(t: {
           person: settings.supplyCreateDailyCap,
           planner: Math.min(settings.supplyPlannerCreateDailyCap, settings.supplyCreateDailyCap),
         },
+        askCaps: { perDay: settings.supplyAskDailyCap, perPersonPerDay: settings.supplyAskPersonDailyCap },
+        askLedger: askOrderLedger,
+        readAskFacts,
+        readSourcePages,
+        recordOrder,
+        readOrderProduction,
+        fenceRecording,
         readMetUnits: async (scope, query) => {
           const snapshot = await readExploration(scope, {
             evaluatedAt: new Date().toISOString(),
@@ -230,6 +264,19 @@ export function supplyProviders(t: {
       provide: RECORD_PLANNED_DEMAND,
       inject: [SUPPLY_PORTS],
       useFactory: (p: SupplyPorts) => makeRecordPlannedDemand(p),
+    },
+  ];
+}
+/**
+ * Who may open the Scroll of an ask order (`READ_ASK_ORDER_AUDIENCE`, which Content asks): the person who asked. Both
+ * processes that serve a person's reads compose it, like the branch audience (`orderAudienceProviders` of scenarios).
+ */
+export function askOrderAudienceProviders(tokens: { readonly database: symbol }) {
+  return [
+    {
+      provide: READ_ASK_ORDER_AUDIENCE,
+      inject: [tokens.database],
+      useFactory: (db: Kysely<Database>): ReadOrderAudience => makeReadAskOrderAudience(db),
     },
   ];
 }

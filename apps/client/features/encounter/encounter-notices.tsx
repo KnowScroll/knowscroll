@@ -31,7 +31,8 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
     state.status?.status === 'cancelled'
   )
     return null;
-  const what = state.mode === 'topic' ? 'request' : FORMAT_WORD[state.mode];
+  const asked = state.mode === 'ask';
+  const what = state.mode === 'topic' || asked ? 'request' : FORMAT_WORD[state.mode];
   const dismissed = state.receipt !== undefined && state.dismissedRequestId === state.receipt.requestId;
   if (state.status?.status === 'ready') {
     // Notifications > Ready requests: off, the notice stays away; the request is still in Keep.
@@ -43,7 +44,9 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
         </View>
         <View style={styles.readyCopy}>
           <Text variant="uiS">
-            Ready: your {what} of “{state.status.content.metadata.title}”.
+            {asked
+              ? `Your answer is ready: “${state.status.content.metadata.title}”.`
+              : `Ready: your ${what} of “${state.status.content.metadata.title}”.`}
           </Text>
           <View style={styles.row}>
             <Button label="Later" size="sm" onPress={() => session.requests.dismissNotice()} />
@@ -76,7 +79,9 @@ function RequestNotice({ entry, session }: { readonly entry: EncounterEntry; rea
       <PendingStripe />
       <Text variant="uiS" style={styles.chipText}>
         {state.phase === 'accepted' || state.status?.status === 'preparing'
-          ? `We'll let you know when the ${what} is ready`
+          ? asked
+            ? "We'll let you know when your answer is ready"
+            : `We'll let you know when the ${what} is ready`
           : 'Sending your request'}
       </Text>
       {state.phase === 'accepted' && state.status?.status === 'preparing' ? (

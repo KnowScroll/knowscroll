@@ -31,7 +31,7 @@ import type {
 } from '@knowscroll/contracts';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import type { AnyOpenedScroll } from '../scroll/scroll-session';
-import { createRequestSession, type RequestMode } from '../requests/request-session';
+import { createRequestSession, type AskAnchor, type RequestMode } from '../requests/request-session';
 import { savedRemovalFor, type SavedRemovalState } from '../saved/saved-query';
 import type { EncounterGestureMove } from './gestures/arbitration';
 import { ENCOUNTER_CAPABILITIES } from './capabilities';
@@ -914,9 +914,9 @@ export function createEncounterSession(scope: AccountScope, newId: () => string)
     },
     leaveChoices,
     requests,
-    openRequest(mode: RequestMode = 'topic') {
+    openRequest(mode: RequestMode = 'topic', anchor?: AskAnchor) {
       if (!valid() || state.phase !== 'active' || busy || work || actionRunning) return;
-      if (requests.show(mode)) setOverlay(true, 'request');
+      if (requests.show(mode, anchor)) setOverlay(true, 'request');
     },
     /** The share sheet: an overlay like the menu, so playback pauses under it and Back closes it. */
     openShare() {

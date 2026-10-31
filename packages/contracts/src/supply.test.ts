@@ -355,3 +355,73 @@ describe('Supply prerequisite wire contracts', () => {
       expect(RetryContentRequestReceiptSchema.safeParse(result).success).toBe(false);
   });
 });
+
+describe('Ask from here (D1, D-218)', () => {
+  const askIntent = {
+    kind: 'ask',
+    source,
+    anchor: { kind: 'stop', stopId: 'call-delhi' },
+    question: 'Why do we not feel the change in distance at all?',
+    recordingGeneration: 1,
+  };
+  const ask = { ...create, intent: askIntent };
+
+  it('declares a question from one stop of the exact Scroll the person is reading, with the recording generation', () => {
+    expect(CreateContentRequestSchema.parse(ask)).toEqual(ask);
+    expect(
+      CreateContentRequestSchema.safeParse({
+        ...ask,
+        intent: { ...askIntent, source: { ...source, session: { sessionId, expectedIntentRevision: 4 } } },
+      }).success,
+    ).toBe(true);
+    for (const missing of ['source', 'anchor', 'question', 'recordingGeneration'])
+      expect(
+        CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, [missing]: undefined } }).success,
+      ).toBe(false);
+  });
+
+  it('bounds the words and the stop, and keeps format, topic, scope and anything the model decides out of it', () => {
+    for (const question of ['', ' ', 'ab', 'x'.repeat(281)])
+      expect(CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, question } }).success).toBe(false);
+    expect(
+      CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, question: 'x'.repeat(280) } }).success,
+    ).toBe(true);
+    for (const anchor of [
+      { kind: 'stop', stopId: '' },
+      { kind: 'stop', stopId: 'x'.repeat(65) },
+      { kind: 'passage', text: 'a quote' },
+      { kind: 'stop' },
+    ])
+      expect(CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, anchor } }).success).toBe(false);
+    for (const extra of [
+      { format: 'reel' },
+      { topicId: 'earth.tides' },
+      { scope: 'here' },
+      { model: 'x' },
+      { prompt: 'x' },
+      { context: source },
+    ])
+      expect(CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, ...extra } }).success).toBe(false);
+    expect(
+      CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, recordingGeneration: 0 } }).success,
+    ).toBe(false);
+    expect(
+      CreateContentRequestSchema.safeParse({ ...ask, intent: { ...askIntent, source: { ...source, playheadMs: 1 } } })
+        .success,
+    ).toBe(false);
+  });
+
+  it('shows a usual time only as measured whole seconds on a preparing request, never as a promise', () => {
+    expect(ContentRequestStatusSchema.parse({ ...preparing, typicalSeconds: 130 })).toMatchObject({
+      typicalSeconds: 130,
+    });
+    expect(ContentRequestStatusSchema.safeParse(preparing).success).toBe(true);
+    for (const typicalSeconds of [0, -1, 1.5, 86_401, '2 min', null])
+      expect(ContentRequestStatusSchema.safeParse({ ...preparing, typicalSeconds }).success).toBe(false);
+    // A closed or ready request has no time to wait.
+    expect(ContentRequestStatusSchema.safeParse({ ...ready, typicalSeconds: 130 }).success).toBe(false);
+    expect(
+      ContentRequestStatusSchema.safeParse({ ...snapshot, status: 'cancelled', typicalSeconds: 130 }).success,
+    ).toBe(false);
+  });
+});

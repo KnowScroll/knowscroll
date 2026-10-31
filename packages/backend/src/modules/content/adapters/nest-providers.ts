@@ -26,6 +26,7 @@ import {
   FIND_OPENABLE_ASSET,
   READ_SCROLL_READING_FACTS,
   READ_SCROLL_PLAY_FACTS,
+  READ_SCROLL_ASK_FACTS,
   READ_ADMITTED_COVERAGE_MAPPING,
   LOCK_CURRENT_COVERAGE_AUTHORITIES,
   READ_REGION_ENCOUNTER_CANDIDATES,
@@ -35,6 +36,7 @@ import {
   READ_SCROLL_PRODUCTION,
   RECORD_MADE_TO_ORDER_SCROLL,
   READ_MADE_TO_ORDER_PRODUCTION,
+  READ_MADE_TO_ORDER_PRODUCTION_IN,
   READ_SCROLL_EVIDENCE,
   READ_SCROLL_SOURCE_PAGES,
   CHECK_ASSET_AUDIENCE,
@@ -61,12 +63,14 @@ import {
 } from './discovery-store.js';
 import { makeRenderScroll } from './render-scroll.js';
 import { readScrollPlayFacts } from './scroll-play-facts.js';
+import { readScrollAskFacts } from './scroll-ask-facts.js';
 import { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 import { compileEditorialSource, parseEditorialSource } from './scroll-compiler.js';
 import { findAssetForAction, findOpenableAsset, makeAdmissionStore, readScrollReadingFacts } from './postgres-store.js';
 import {
   makeCheckAssetAudience,
   makeReadMadeToOrderProduction,
+  readMadeToOrderProductionIn,
   readScrollEvidence,
   readScrollSourcePages,
   recordMadeToOrderScroll,
@@ -106,9 +110,11 @@ export function contentProviders() {
     { provide: FIND_OPENABLE_ASSET, useValue: findOpenableAsset },
     { provide: RECORD_MADE_TO_ORDER_SCROLL, useValue: recordMadeToOrderScroll },
     { provide: READ_SCROLL_SOURCE_PAGES, useValue: readScrollSourcePages },
+    { provide: READ_MADE_TO_ORDER_PRODUCTION_IN, useValue: readMadeToOrderProductionIn },
     { provide: READ_SCROLL_EVIDENCE, useValue: readScrollEvidence },
     { provide: READ_SCROLL_READING_FACTS, useValue: readScrollReadingFacts },
     { provide: READ_SCROLL_PLAY_FACTS, useValue: readScrollPlayFacts },
+    { provide: READ_SCROLL_ASK_FACTS, useValue: readScrollAskFacts },
     { provide: READ_ADMITTED_COVERAGE_MAPPING, useValue: readAdmittedCoverageMapping },
     { provide: LOCK_CURRENT_COVERAGE_AUTHORITIES, useValue: lockCurrentCoverageAuthorities },
     { provide: CHOOSE_SCROLL_RECIPE, useValue: chooseScrollRecipe },
@@ -116,15 +122,16 @@ export function contentProviders() {
   ];
 }
 
-/** The audience of an order when no module claims it: nobody. */
-const denyOrderAudience: ReadOrderAudience = () => Promise.resolve(new Set());
-
 /**
  * Reads of Scrolls ordered from code that need the database handle: where an order's production
  * stands (the resolver, in the worker) and whether a caller may read an asset (the API's document
- * read). `orderAudience` names the token of the module that orders Scrolls.
+ * read). `orderAudiences` names the token of each module that orders Scrolls; an order none of them claims is
+ * open to nobody.
  */
-export function madeToOrderProviders(tokens: { readonly database: symbol; readonly orderAudience?: symbol }) {
+export function madeToOrderProviders(tokens: {
+  readonly database: symbol;
+  readonly orderAudiences?: readonly symbol[];
+}) {
   return [
     {
       provide: READ_MADE_TO_ORDER_PRODUCTION,
@@ -133,9 +140,9 @@ export function madeToOrderProviders(tokens: { readonly database: symbol; readon
     },
     {
       provide: CHECK_ASSET_AUDIENCE,
-      inject: [tokens.database, ...(tokens.orderAudience === undefined ? [] : [tokens.orderAudience])],
-      useFactory: (db: Kysely<Database>, audience?: ReadOrderAudience): CheckAssetAudience =>
-        makeCheckAssetAudience(db, audience ?? denyOrderAudience),
+      inject: [tokens.database, ...(tokens.orderAudiences ?? [])],
+      useFactory: (db: Kysely<Database>, ...audiences: ReadOrderAudience[]): CheckAssetAudience =>
+        makeCheckAssetAudience(db, audiences),
     },
   ];
 }
@@ -265,6 +272,7 @@ export { readSavedPageMetadata } from './discovery-store.js';
 export { makeReadPublicContent, readShareableContent } from './shareable-content.js';
 export { readContentSequence } from './content-sequence.js';
 export { readScrollPlayFacts } from './scroll-play-facts.js';
+export { readScrollAskFacts } from './scroll-ask-facts.js';
 export { resolveSnippetAnchor, validateSnippetAnchor } from './snippet-anchors.js';
 
 /** The operator's Reel commands over real adapters (#240, D-041). */

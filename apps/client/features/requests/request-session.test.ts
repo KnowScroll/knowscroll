@@ -339,3 +339,127 @@ describe('request consumer over actual scoped HTTP fixture transport', () => {
     }
   });
 });
+
+describe('Ask from here (D1) in the request consumer', () => {
+  const stop = { stopId: 'call-delhi' };
+  const askFromHere = (h: ReturnType<typeof requestHarness>, question = '  Why is the far side cold?  ') => {
+    h.session.show('ask', stop);
+    h.session.edit({ text: question });
+    h.session.submit();
+  };
+
+  it('sends the question with the exact source, the stop it came from and the recording generation, and nothing else', async () => {
+    const h = requestHarness();
+    try {
+      askFromHere(h);
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      expect(posts(h)).toHaveLength(1);
+      expect(posts(h)[0]!.body).toMatchObject({
+        version: 'content-request.v1',
+        intent: {
+          kind: 'ask',
+          source: { exposureId: id(4), assetId: id(5), assetRevision: 2 },
+          anchor: { kind: 'stop', stopId: 'call-delhi' },
+          question: 'Why is the far side cold?',
+          recordingGeneration: 1,
+        },
+      });
+      // No format, no topic, no guess: the sheet decides none of it.
+      expect(Object.keys((posts(h)[0]!.body as { intent: object }).intent).sort()).toEqual([
+        'anchor',
+        'kind',
+        'question',
+        'recordingGeneration',
+        'source',
+      ]);
+      expect(h.store.keys()).toEqual([]);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('is off while recording is paused: nothing is sent, and the sheet is told why', async () => {
+    const h = requestHarness();
+    try {
+      h.setRecording({ on: false, generation: 2 });
+      await h.scope.recording?.refresh();
+      askFromHere(h);
+      await waitFor(() => expect(h.session.getState().error).toBe('paused'));
+      expect(posts(h)).toEqual([]);
+      expect(h.session.getState()).toMatchObject({
+        phase: 'draft',
+        text: '  Why is the far side cold?  '.slice(0, 500),
+      });
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('believes the server when it says recording is paused, though the device had not heard', async () => {
+    const h = requestHarness();
+    try {
+      h.setCreateFailure('recording_paused');
+      askFromHere(h);
+      await waitFor(() => expect(h.session.getState().phase).toBe('refused'));
+      expect(h.session.getState().error).toBe('paused');
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('sends "Something new" as a free-text ask with no source, and keeps the question a question when asked again', async () => {
+    const h = requestHarness();
+    try {
+      h.session.show('ask', stop);
+      h.session.edit({ about: false, text: 'How do tides work?' });
+      h.session.submit();
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      expect(posts(h)[0]!.body).toMatchObject({
+        intent: { kind: 'topic', subject: { kind: 'text', text: 'How do tides work?' }, format: 'scroll' },
+      });
+      expect((posts(h)[0]!.body as { intent: object }).intent).not.toHaveProperty('context');
+      h.setStatus({ ...h.fields, requestRevision: 2, status: 'unavailable', reason: 'unsupported_request' });
+      await h.session.refresh();
+      h.session.startAgain();
+      expect(h.session.getState()).toMatchObject({ mode: 'ask', about: true, anchor: stop, text: '' });
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('moves an unsent question to the stop the person is on now, and refuses a source that changed under it', async () => {
+    const h = requestHarness();
+    try {
+      h.session.show('ask', stop);
+      h.session.edit({ text: 'Why is the far side cold?' });
+      h.session.show('ask', { stopId: 'long-days' });
+      expect(h.session.getState()).toMatchObject({
+        anchor: { stopId: 'long-days' },
+        text: 'Why is the far side cold?',
+      });
+      h.changeSource();
+      h.session.submit();
+      await waitFor(() => expect(h.session.getState().error).toBe('source'));
+      expect(posts(h)).toEqual([]);
+    } finally {
+      h.scope.end();
+    }
+  });
+
+  it('sends nothing for words that are too short, and is not sent twice by a double press', async () => {
+    const h = requestHarness();
+    try {
+      h.session.show('ask', stop);
+      h.session.edit({ text: 'ab' });
+      h.session.submit();
+      expect(posts(h)).toEqual([]);
+      h.session.edit({ text: 'Why is the far side cold?' });
+      h.session.submit();
+      h.session.submit();
+      await waitFor(() => expect(h.session.getState().status?.status).toBe('preparing'));
+      expect(posts(h)).toHaveLength(1);
+    } finally {
+      h.scope.end();
+    }
+  });
+});

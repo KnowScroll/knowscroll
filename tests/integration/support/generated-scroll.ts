@@ -112,6 +112,7 @@ function formatBlock(format: WriterFormat) {
       return COMPARISON;
     case 'sequence':
       return SEQUENCE;
+    case 'plain':
     case 'chart':
     case 'simulation':
     case 'timeline':
@@ -135,7 +136,7 @@ export function fixtureAuthored(
       { type: 'heading', text: 'The upkeep' },
       { type: 'paragraph', cites: ['e1', 'e6'], text: prose[2] },
       { type: 'paragraph', cites: ['e4'], text: prose[3] },
-      formatBlock(format),
+      ...(format === 'plain' ? [] : [formatBlock(format)]),
       { type: 'heading', text: 'Putting it together' },
       { type: 'paragraph', cites: ['e5'], text: prose[4] },
       { type: 'paragraph', cites: ['e3', 'e5'], text: prose[5] },

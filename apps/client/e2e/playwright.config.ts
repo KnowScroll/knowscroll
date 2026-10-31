@@ -55,6 +55,7 @@ export default defineConfig({
         'play-smoke.spec.ts',
         'payoff-smoke.spec.ts',
         'reader-nav-smoke.spec.ts',
+        'ask-smoke.spec.ts',
       ],
       use: { baseURL: `http://127.0.0.1:${production}` },
     },

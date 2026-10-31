@@ -983,7 +983,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       const shared = await scope(a.authority, (tx) => readShareableContent(tx, [{ assetId, assetRevision: 1 }]));
       expect(shared.kind === 'entered' ? shared.value[0] : undefined).toMatchObject({ status: 'unavailable' });
 
-      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const audience = makeCheckAssetAudience(database.db, [orderAudience]);
       const mayRead = async (who: Friend, id: string) => (await audience({ pool: true }, who.authority, [id])).has(id);
       expect(await mayRead(a, assetId)).toBe(true);
       unwrap(
@@ -1085,7 +1085,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
     it('is quoted by a snippet only to the members of its thread', async () => {
       const { b, bRef, target } = await readyBranch();
       const stranger = await seedFriend(database.db, friends);
-      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const audience = makeCheckAssetAudience(database.db, [orderAudience]);
       const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
       const anchor = {
         kind: 'scroll_block',
@@ -1122,7 +1122,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       });
       expect(opened.kind).toBe('opened');
 
-      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const audience = makeCheckAssetAudience(database.db, [orderAudience]);
       const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
       const exported = async (who: Friend) => {
         const out = await withScope(who.authority, (scope) =>
@@ -1161,7 +1161,7 @@ describe('What if and Another perspective (real PostgreSQL, CI fixture models)',
       const [entry] = await savedOf(b);
       expect(entry).toMatchObject({ assetId: target.assetId, availability: 'withdrawn' });
       expect(entry?.metadata).toBeUndefined();
-      const audience = makeCheckAssetAudience(database.db, orderAudience);
+      const audience = makeCheckAssetAudience(database.db, [orderAudience]);
       const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
       const page = await withScope(b.authority, (scope) =>
         gateSavedPageMetadata(readSavedPageMetadata, audience)(scope, [target]),

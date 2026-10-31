@@ -11,6 +11,7 @@ import { FeedbackSheetBody } from '../feedback/feedback-sheet';
 import { NotInterestedRow } from '../feedback/feedback-parts';
 import { ShareSheetBody } from '../sharing/share-sheet-body';
 import { RequestPanel } from '../requests/request-panel';
+import { isStageScroll } from '../scroll/scroll-session';
 import { continuationIntent, continuationLabel, type ReadyContinuation } from './continuation-intent';
 import { EncounterOverlay } from './encounter-overlay';
 import type { EncounterEntry } from './encounter-history';
@@ -336,7 +337,15 @@ export function EncounterSheets({
   return (
     <EncounterOverlay label={label} presentation="sheet" onClose={() => session.back()}>
       {owner === 'request' ? (
-        <RequestPanel session={session.requests} onClose={() => session.setOverlay(false)} />
+        <RequestPanel
+          session={session.requests}
+          onClose={() => session.setOverlay(false)}
+          ask={
+            state.entry.kind === 'scroll' && isStageScroll(state.entry.scroll)
+              ? { scroll: state.entry.scroll }
+              : undefined
+          }
+        />
       ) : owner === 'share' ? (
         <ShareSheet state={state} session={session} />
       ) : owner === 'feedback' ? (

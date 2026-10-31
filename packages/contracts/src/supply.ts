@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ClientCapabilities } from './content.js';
 import { AssetIdSchema, CommandIdSchema, UuidSchema } from './ids.js';
 import { EncounterMetadataSchema, ExperienceSessionRefSchema } from './navigation.js';
+import { RecordingGenerationSchema } from './recording.js';
 
 const Revision = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const Watermark = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -22,6 +23,16 @@ const SourceEncounter = z.strictObject({
   assetRevision: Revision,
   session: ExperienceSessionRefSchema.optional(),
 });
+
+/**
+ * Where in the Scroll the person asked from: one stop of the exact immutable revision the source names.
+ * The backend checks that the stop is in that revision; the stop's text is private context for the
+ * writer, never part of a shared key.
+ */
+const AskAnchor = z.strictObject({ kind: z.literal('stop'), stopId: z.string().min(1).max(64) });
+
+/** The most characters a person's question may have; the sheet shows a counter only near it. */
+export const ASK_QUESTION_MAX = 280;
 
 const TopicSubject = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -63,6 +74,24 @@ export const CreateContentRequestSchema = z.strictObject({
       context: SourceEncounter.optional(),
     }),
     z.strictObject({ kind: z.literal('variant'), source: SourceEncounter, to: Format }),
+    /**
+     * Ask from here (D1): a question about the Scroll the person is reading, from one of its stops. Code decides
+     * what happens: a question the Scroll itself suggests, or one about the subject being read, becomes an ask
+     * order (a short Scroll made for this person alone); one that clearly names another catalogue topic is
+     * served from the library. The words are private, never an input of a shared key. An ask is refused while
+     * recording is paused (D-083): it is tied to what the person has read.
+     */
+    z.strictObject({
+      kind: z.literal('ask'),
+      source: SourceEncounter,
+      anchor: AskAnchor,
+      question: z
+        .string()
+        .min(3)
+        .max(ASK_QUESTION_MAX)
+        .refine((text) => text.trim().length >= 3, 'An ask cannot be blank.'),
+      recordingGeneration: RecordingGenerationSchema,
+    }),
   ]),
   language: z
     .string()
@@ -121,6 +150,11 @@ export const ContentRequestStatusSchema = z.discriminatedUnion('status', [
     ...StatusFields,
     status: z.literal('preparing'),
     phase: z.enum(['requested', 'preparing']),
+    /**
+     * How long an ask order usually takes, in seconds, measured from the orders that finished. Present only on a
+     * request that is an ask order, and only once at least five orders have finished, so a time is never guessed.
+     */
+    typicalSeconds: z.number().int().min(1).max(86_400).optional(),
   }),
   z.strictObject({
     ...StatusFields,

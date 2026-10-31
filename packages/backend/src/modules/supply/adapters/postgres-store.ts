@@ -21,6 +21,9 @@ function demandOf(r: Selectable<SupplyRequests>): Demand {
     ...(r.wait_started_at ? { waitStartedAt: r.wait_started_at.toISOString() } : {}),
     ...(r.brief ? { brief: r.brief as unknown as Demand['brief'] } : {}),
     ...(r.work_id ? { workId: r.work_id } : {}),
+    ...(r.ask_order_id !== null && r.ask_asset_id !== null
+      ? { askOrder: { orderId: r.ask_order_id, assetId: r.ask_asset_id } }
+      : {}),
     ...(r.reason ? { reason: r.reason as Demand['reason'] } : {}),
     ...(r.content ? { content: r.content as unknown as Demand['content'] } : {}),
     ...(r.content_availability_revision ? { contentAvailabilityRevision: r.content_availability_revision } : {}),
@@ -60,6 +63,8 @@ export const supplyStore: SupplyStore = {
         revision: d.revision,
         decision: d.decision,
         work_id: d.workId ?? null,
+        ask_order_id: d.askOrder?.orderId ?? null,
+        ask_asset_id: d.askOrder?.assetId ?? null,
         brief: d.brief ? JSON.stringify(d.brief) : null,
         reason: d.reason ?? null,
         content: d.content ? JSON.stringify(d.content) : null,
@@ -77,6 +82,8 @@ export const supplyStore: SupplyStore = {
         state: d.status,
         decision: d.decision,
         work_id: d.workId ?? null,
+        ask_order_id: d.askOrder?.orderId ?? null,
+        ask_asset_id: d.askOrder?.assetId ?? null,
         brief: d.brief ? JSON.stringify(d.brief) : null,
         request_revision: d.requestRevision,
         revision: d.revision,
@@ -169,6 +176,17 @@ export const supplyStore: SupplyStore = {
       .where('privacy_epoch', '=', scope.authority.privacyEpoch)
       .where('origin', '=', 'person')
       .where('state', 'in', ['requested', 'matching'])
+      .executeTakeFirstOrThrow();
+    return Number(row.count);
+  },
+  async countAskOrdersSince(scope, since) {
+    const row = await transactionOf(scope)
+      .selectFrom('supply.requests as request')
+      .innerJoin('supply.ask_orders as ask_order', 'ask_order.order_id', 'request.ask_order_id')
+      .select(sql<string>`count(*)`.as('count'))
+      .where('request.universe_id', '=', scope.authority.universeId)
+      .where('request.privacy_epoch', '=', scope.authority.privacyEpoch)
+      .where('ask_order.created_at', '>=', since)
       .executeTakeFirstOrThrow();
     return Number(row.count);
   },
