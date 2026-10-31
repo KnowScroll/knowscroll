@@ -181,6 +181,18 @@ describe('laying out the universe for the space views', () => {
     expect(plain!).not.toHaveProperty('sky');
   });
 
+  it('carries a live Launch to a member’s station, and none to a station that is not live', () => {
+    const live = {
+      ...station(320, system.objectId),
+      sky: { lit: 3, of: 7, state: 'forming', finished: 0 },
+      live: true,
+    } as unknown as RoomStation;
+    const [lit, quiet] = layOutUniverse(input({ stations: [live, station(321, system.objectId)] })).definition
+      .stations!;
+    expect(lit!.live).toBe(true);
+    expect(quiet!).not.toHaveProperty('live');
+  });
+
   it('draws one large dust cloud at the centre before any place exists, else small ones past the systems', () => {
     const empty = indexUniverse([], []);
     const lone = layOutUniverse(input({ index: empty, dustCueIds: [fixtureId(1)] })).definition.dust!;

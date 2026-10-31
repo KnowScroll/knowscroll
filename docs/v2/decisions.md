@@ -2637,3 +2637,96 @@ Taken for the owner; named in the PR for #462. Confirmed by: `animation.test.ts`
 - **Not as drawn.** The overview's names vanish at the start instead of fading over 0.4 s; the destination header rises as one piece. A friend's universe derives its type, rings, moon, hue and haze on the visitor's device from the public ids (never the owner's): every type is used once before any repeats.
 
 **Amends** D-106 (a friend's visit no longer draws the plain look) and D-107 (a fly down into a system is the 5.3 s entering animation; a step up is still 0.3 s). Confirmed by: `animation.test.ts` (each animation starts and ends on the screens it joins, the planet lands within a pixel of the globe at three stage sizes, the player's cap and clamp), `step-animations.test.tsx` (steps up, the layers), `visitor-scene.test.ts`, `e2e/universe-animations-smoke.spec.ts` (at a phone's density of 3 the cap and the 1.5 pixel ratio hold through the first open, the glide into a system, into a planet and the world opening out).
+
+## D-178 · 2026-10-31 · The Launch is a scored room activity with its own rules: the server's clock, a score, a podium for one Launch (R-6, #492)
+
+**Implements** D-070. **Amends** D-051 on R03, "never scored", for the Launch only: a moderator's poll or quiz is as it was.
+
+- **A kind of its own.** The Launch has its own tables (`rooms.launches`, `launch_players`, `launch_answers`, migration 0088) and its own use cases. It is not a row of `rooms.activities`, so nothing a poll or a quiz promises is changed.
+- **Five questions, one clock.** A member starts one. A lobby of 20 seconds follows, then five rounds: a question open for 8 seconds, then its answer shown for 5. Every time is the start plus a fixed number of seconds, so the server's clock alone says what is open. A read carries the time left in milliseconds, never a time of day, and a device counts it with a steady clock, so a fast, slow or mis-set clock changes nothing. An answer says the round and the option and has no field for a time: the server measures from the question's opening to the moment it took the answer. An answer after the close, or for a round that is not the open one, is refused.
+- **The score.** One point for each right answer. A tie goes to the less total time over the right answers, then to who joined first, so the order is the same on every device. A wrong answer or none costs nothing: it is not a point, and its time is not held against anyone. The first answer to a round stands.
+- **The podium** is the first three people with at least one right answer, for this Launch only. Nobody below third is listed and nobody is listed for scoring nothing. It is read for 24 hours and then it is gone. There is no total, level or rank across Launches or weeks.
+- **No tick job.** A phase is worked out when it is read, from the stored start and the clock. The Launch is marked finished by the first member command after its end (a presence beat, a start, or the device's own "it is over"), guarded by the row it changes, as D-175 settles a constellation's name. A room nobody opens settles nothing.
+- **Finished is when it ended, not when it was noticed.** A Launch that ended on Monday and is settled by a beat on Thursday is finished on Monday: its podium is read for a day from Monday's end (so it is already gone), its star counts against Monday's day and its answers are kept seven days from Monday. A settlement is bookkeeping, not an event of the game.
+- **Starting.** A current member of an open room, with two people having the room open (R3), an approved deck (D-179), and the room's rest since the last Launch over (two hours, `KS_ROOMS_LAUNCH_GAP_MINUTES`). The room is locked FOR UPDATE, so two starts make one Launch.
+
+Confirmed by: `launch.test.ts` (the phases at each millisecond of the edge, the timing rule, the score, the tie, the podium), `rooms-launch.test.ts` ("a game on the server clock", "tie", "accepts an answer only while its question is open", "starting one").
+
+## D-179 · 2026-10-31 · Launch questions are library Scroll calls that code chooses and an operator approves, and no model is asked (R-6, #492)
+
+**Builds on** D-070, D-138 and D-176. **Amends** D-070 only in that the nightly batch makes no model call for a deck.
+
+- **The source.** A `call_it` or `final_call` of an admitted library Scroll under the room's topic, with its options, right answer and reason exactly as its authors wrote them. Those calls passed the review gate (D-138) and the second model's key check (D-198) when the Scroll was made. So a Launch never shows unreviewed model text, and a Scroll made for a thread is never used (D-049).
+- **The deck.** Five questions, from different Scrolls where the library allows and at most two from one, preferring calls this room was not asked in the last 14 days. The reason keeps its first whole sentences up to 280 characters. A library with fewer than five usable calls makes no deck: nothing is made up. It is a `launch` item of `rooms.rituals`, drafted by the night's batch beside the day's question and Spot the flaw and by `rooms rituals`, and it costs no call.
+- **Approval.** An operator approves a deck. Approving re-reads each cited Scroll's exact revision and refuses with `citation_changed` unless every question still says what the deck says. A deck is played once (`launches.deck_ritual_id` is unique) and is offered for today and the day before.
+- **Starting checks again.** The deck is frozen onto the Launch, and the start refuses unless every cited revision is still the current one anyone may be served. It reads through the caller's own scope, so no network wait runs inside the transaction.
+- **Never generated live.** No model is called on a Launch's path, and its queue holds no job.
+
+Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call, approval, a corrected Scroll), `content-library-calls.test.ts` (a real admitted v2 Scroll; held and withdrawn ones are not read), `rooms-launch.test.ts` (a deck whose Scroll is gone does not start).
+
+## D-219 · 2026-10-31 · The host is Pixel: labelled AI, template lines, no cast row, no message (R-6, #492)
+
+**Amends** D-163, which gave the Quizmaster a place in the cast table when the Launch arrived.
+
+- **Why not a cast resident.** A resident speaks as messages and every message is an `ai_turns` row. The host never posts: it says short lines on the stage, drawn from the state of the game ("Question three. Go.", "Called it!"). So it has no turn to log, no cap to decide, no job and no model.
+- **Always labelled.** The view carries the host as `{ name: 'Pixel', label: 'AI · Quizmaster' }`, fixed by the contract. The screen draws the name, a square mark and the label; a screen reader hears "AI, Quizmaster". No line speaks of a wrong answer.
+- **An AI never plays.** A player is an account, and the contract's faces and podium entries hold only a public person. An AI has no place to stand on a podium, in a count or among the people who called a question.
+- **The ledger rule still holds.** A Launch writes no `ai_turns` row, no AI message and queues nothing; a test counts them around a whole game.
+
+Confirmed by: `rooms-launch.test.ts` (nothing queued, no turn, around five rounds), `room-launch.test.ts` (the host and the faces), `launch.test.tsx` (the label on the stage and the start sheet), `client-core/room-launch.test.ts` (the lines).
+
+## D-220 · 2026-10-31 · A Launch answer is a play result: walled from evidence and ranking, refused while recording is paused, erased by Clear, exported as the person's own (R-6, #492)
+
+**Builds on** D-063, D-082, D-083 and D-182.
+
+- **The wall.** An answer and its score reach no evidence, ranking, planning or formation. Rooms writes to none of those schemas (`write-boundary.test.ts`, and the run-time row counts around a whole game). Two checks keep the tables inside Rooms: an import rule (`launch-wall-only-listed-modules-import-rooms`, an allow-list with probes) and a scan that no production file outside Rooms names a Launch table (`launch-wall.test.ts`).
+- **Paused.** Starting, joining and answering carry the device's recording generation. While recording is paused, or the generation is out of date, nothing is stored, no receipt is written, and the answer is `not_saved` with its reason. This is stricter than a call in a Scroll, which plays on the device: a round does not wait and the key is on the server, so a paused person cannot play a Launch. The stage and the start sheet say so before any tap, from the person's own recording policy (kept fresh while the screen is open), and offer no Start, Join or answer to press.
+- **Erased.** A Clear deletes the person's place and answers (play data, D-082). Leaving or being removed deletes them too, and so does deleting the account. A star the Launch earned has no account and stays. The players and answers of a Launch are also deleted seven days after it ended, by the first member command in the room after that (a presence beat, a start or a settlement), so a room that stops playing does not keep them; the Launch row stays. The count is from the end of the play time, not from when anyone settled it.
+- **Exported.** The person's file lists each Launch they played to its end: the room, the day, how many questions they got right and how many they answered. Never what they picked and never another person. A Launch still running is not listed.
+
+Confirmed by: `rooms-launch.test.ts` (paused, stale, Clear, deletion and export, leave and removal, seven days, the personal-schema row counts), `launch-wall.test.ts`, `pnpm boundaries:probe`, the erasure inventory checks.
+
+## D-221 · 2026-10-31 · A finished Launch earns the room one star when two people answered (R-6, #492)
+
+**Implements** the fourth act D-174 left for R-6.
+
+- **The act.** `launch_finished`, once per Launch (the star is unique by room, act and the Launch). It is awarded in the transaction that marks the Launch finished, under the Launch row held FOR UPDATE and then the room's sky lock, last, as everywhere. That wait means the finished Launch holds every answer accepted before its end. The star carries the moment the play time ended and counts against that day's three, even when a later command settles it; a constellation it finishes starts its name vote from the settlement, when members can first choose.
+- **Why two.** A Launch played by one person is not something the room did together, so it earns nothing (the same reason a debate needs two voters). It still has a podium and a share card.
+- **The day's three.** The star counts against the room's three a day (D-174). A full day earns nothing and is not remembered; the Launch says so by showing no star line.
+- **Never an AI, never a replay.** The host has no account. When R-7 adds a replay it earns sparks, never a star.
+
+Confirmed by: `rooms-launch.test.ts` ("the star": one for two players, none for one, none from a full day, none for the same Launch twice or from two commands at once), `domain/launch.test.ts`.
+
+## D-222 · 2026-10-31 · What a Launch shows, and to whom (R-6, #492)
+
+**Builds on** D-160 and D-176.
+
+- **Members only.** Every Launch read and command answers `unavailable` to a stranger, an invitee and a person who left. A room's preview says nothing of one. The room's own view carries a word for it (ready, starting, on, just finished) and a member's or moderator's station carries `live`; an outsider's station and a friend's visit carry neither.
+- **While a question is open** a reader gets its words, the time left and their own answer. The contract has no field there for the key, the reason, a count or a name, so no client can show one.
+- **When it closes** the reader gets the key, the reason, how many answered, how many were right and the faces of those who were right. Nobody is named as wrong; the count and the faces let a reader work it out for themselves, as R3 draws it.
+- **Blocks.** For a reader who blocked someone, that person is left out of the counts and the faces, and keeps their place on the podium as a place without a name, so the order is true and nobody moves up. The blocked person and everyone else see the room as before.
+- **The numbers.** The allow-list names them: a reveal's `locked` and `right`, the podium's `played` and each score, and `players` in the lobby. Each is a real count; with no data there is no number.
+- **The share card** is the person's own squares, one for each question, with no question and no answer, so it cannot spoil a Launch. Sharing it into General is a button, and posts an ordinary message.
+
+Confirmed by: `rooms-launch.test.ts` ("who can take part", "draws a person the reader blocked", "says on a member's station"), `room-launch.test.ts`, `launch.test.tsx`.
+
+## D-223 · 2026-10-31 · Real time: the server's clock decides, hints are disposable, a read recovers everything (R-6, #492)
+
+**Builds on** D-160.
+
+- **The screen reads** when the room's hint arrives (a start, a join, an end), on focus, on a 20-second poll, and by itself the moment the phase it shows has ended. Between reads it counts down the milliseconds the last read gave, so it is never ahead of the server and a lost hint costs a few seconds, not a wrong answer.
+- **No hint says what was answered.** A start, a join and a settlement announce the room. A first answer by someone who had not joined puts them in the Launch and announces that, like a join; a later answer by someone already in announces nothing. A hint names the room and nothing else, and an open question has no field for who has answered or how many, so a re-read learns nothing before it closes.
+- **A device says the Launch is over** once (`finish`) when its read finds it so. The server refuses while its own clock says it is not, so a fast clock cannot end one early. It settles once whoever asks.
+- **The podium opens by itself** only for a person who watched that Launch go by in this session; arriving later shows a Podium chip and nothing pops up. Digit keys pick an option on the web (R3: "keys 1-4"; a call has two or three options), and the timer is a ring and the words "8 s": the ring steps and never needs motion.
+
+Confirmed by: `client-core/room-launch.test.ts` (time left, the next read, the one `finish`, the retry as the same command), `campfire.test.tsx` (the podium), `e2e/rooms-launch-smoke.spec.ts` (two people in two browser contexts, five rounds, at 390 and 1440, axe).
+
+## D-224 · 2026-10-31 · While a Launch runs the stage takes the top of the phone; the conversation keeps 68 percent the rest of the time (R-6, #492)
+
+**Amends** D-140 ("the conversation keeps over 60 percent of a phone") for the time a Launch runs. **Builds on** the R-5 measurement of the Now strip.
+
+- **The stage sits above General**, not in its list, so the question stays on screen while the chat below it scrolls as the crowd (R3 E 1, A2). The Launch chip is a chip of the Now strip, which scrolls with the messages, so a room with no Launch running keeps 68 percent of a 390 × 844 phone for its messages, as before (measured in `rooms-launch-smoke.spec.ts`).
+- **While a Launch runs** the messages have 18 percent of that phone (154 px: the band, the stage with three options, the Now strip, the AI bar and the composer share the rest). The design draws the same trade (a question card, then two or three crowd messages). It lasts about a minute and a half, once a night, and a person who wants the room back can scroll the stage's place or wait for the podium. The 60 percent rule is for a conversation that is not interrupted by a timed game.
+- **On a desktop** the stage keeps the reading measure, centred above the conversation, and the band's "Launch live" tag sits in the rail.
+
+Confirmed by: `e2e/rooms-launch-smoke.spec.ts` (both numbers are printed by the run).

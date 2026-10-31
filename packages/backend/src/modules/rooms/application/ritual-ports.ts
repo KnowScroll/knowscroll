@@ -52,6 +52,8 @@ export interface RitualStore {
   kindsOn(roomId: string, day: string): Promise<ReadonlySet<RitualKind>>;
   /** The Scrolls the room's items cited on the `days` days before `day`, in any state but rejected. */
   recentSources(roomId: string, day: string, days: number): Promise<ReadonlySet<string>>;
+  /** The calls the room's Launch decks asked on the `days` days before `day`, in any state but rejected, as `assetId:stopId`. */
+  recentCalls(roomId: string, day: string, days: number): Promise<ReadonlySet<string>>;
   /** Stores a draft; false when the room already has an item of that kind for the day (the unique key is the cap). */
   insertDraft(item: NewRitual): Promise<boolean>;
   /** The same, inside the room scope's transaction, so the item and the end of its model run commit together. */

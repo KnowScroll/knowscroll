@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   importEditorialScrollUseCase,
+  makeReadLibraryCalls,
   makeReadLibraryPassageText,
   makeReadLibraryPassages,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -99,6 +100,7 @@ describe('a room’s daily items (real PostgreSQL, CI fixture model)', () => {
       withRoomScope: withScope,
       readPassages: options.readPassages ?? makeReadLibraryPassages(world.db),
       readPassageText: makeReadLibraryPassageText(world.db),
+      readCalls: makeReadLibraryCalls(world.db),
       model: model.model,
       generation: 1,
       now: () => world.clock.now,

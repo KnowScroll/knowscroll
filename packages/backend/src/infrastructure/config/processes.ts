@@ -109,6 +109,8 @@ export interface ApiConfig extends ReleaseIdentity {
    * is on, so a world that leaves it off queues nothing. The worker reads the same variable.
    */
   readonly roomResidentsEnabled: boolean;
+  /** `KS_ROOMS_LAUNCH_GAP_MINUTES`: the rest between the start of one Launch and the next in a room (D-178); two hours unless a world changes it. */
+  readonly roomLaunchGapMinutes: number;
   /** `KS_ROOMS_STARS_PER_DAY`: the most stars one room earns on a UTC day (D-174); three unless a world raises it. */
   readonly roomStarsPerDay: number;
   /** `KS_COMPOSER_POLICY`: the policy navigation ranks new decisions under (D-190). */
@@ -335,6 +337,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: supplyScenarioThreadCapVariable,
       KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
       KS_ROOMS_STARS_PER_DAY: positiveInteger(3, 50),
+      KS_ROOMS_LAUNCH_GAP_MINUTES: positiveInteger(120, 1440),
       KS_COMPOSER_POLICY: composerPolicyVariable,
     }),
     pick(env, [
@@ -357,6 +360,7 @@ export function readApiConfig(env: Environment): ApiConfig {
       'KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP',
       'KS_REASONING_ROOM_ENABLED',
       'KS_ROOMS_STARS_PER_DAY',
+      'KS_ROOMS_LAUNCH_GAP_MINUTES',
       'KS_COMPOSER_POLICY',
     ]),
   );
@@ -400,6 +404,7 @@ export function readApiConfig(env: Environment): ApiConfig {
     supplyScenarioThreadDailyCap: parsed.KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP,
     roomResidentsEnabled: parsed.KS_REASONING_ROOM_ENABLED === '1',
     roomStarsPerDay: parsed.KS_ROOMS_STARS_PER_DAY,
+    roomLaunchGapMinutes: parsed.KS_ROOMS_LAUNCH_GAP_MINUTES,
     composerPolicy: parsed.KS_COMPOSER_POLICY,
     ...(parsed.KS_MEDIA_ROOT === undefined ? {} : { mediaRoot: parsed.KS_MEDIA_ROOT }),
   };

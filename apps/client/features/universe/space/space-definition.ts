@@ -54,6 +54,8 @@ export interface SpaceStationDefinition {
   readonly emblem?: StationEmblem;
   /** The room's sky, for a station of a room the person is in (D-174): the constellation drawn around it. Absent for an outsider's. */
   readonly sky?: StationSky;
+  /** A Launch is on in the room (D-178), for a station of a room the person is in: the station pulses red and says so. */
+  readonly live?: boolean;
 }
 
 /** A cloud of dust: recent reading that has not formed a place. Never a place, never named. */

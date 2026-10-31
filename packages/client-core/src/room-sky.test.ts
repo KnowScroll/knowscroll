@@ -9,6 +9,7 @@ import {
   currentConstellation,
   skyLine,
   starsOfCurrent,
+  stationCaption,
   stationSkyLine,
 } from './room-sky';
 
@@ -87,6 +88,17 @@ describe('the words of the sky', () => {
     expect(
       starsOfCurrent({ sky: sky({ lit: 7, state: 'naming', finished: 1 }), stars }).map((star) => star.day),
     ).toEqual(['2026-10-29', '2026-10-30']);
+  });
+});
+
+describe('a station caption on the map', () => {
+  it('adds Launch live while the room is playing one, keeping the sky line and the name', () => {
+    expect(stationCaption(sky(), true)).toBe('3 of 7 · Launch live');
+    expect(stationCaption(sky(), false)).toBe('3 of 7');
+    expect(stationCaption(sky(), undefined)).toBe('3 of 7');
+    expect(stationCaption(sky({ lit: 7, state: 'named', finished: 1, constellationName: 'The Lantern' }), true)).toBe(
+      '7 of 7 · The Lantern · Launch live',
+    );
   });
 });
 

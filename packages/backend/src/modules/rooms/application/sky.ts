@@ -44,7 +44,9 @@ export type AwardOutcome = 'awarded' | 'duplicate' | 'day_full';
  * (same source) earns once; a full day earns nothing more and the act is not remembered; the seventh star of a
  * constellation finishes it and offers its three names. A star names no person. The caller decided that the act is one that
  * earns (a human answer marked useful, a debate with voters, the first right answer); this decides only whether the room has
- * room for it.
+ * room for it. `earnedAt` is the moment of the act when it is settled later (a Launch that ended before anyone asked it to be
+ * settled): the star counts against that moment's day and carries that time, while the constellation it may finish starts its vote
+ * from `now`, when members can first choose a name.
  */
 export async function awardStar(
   p: RoomPorts,
@@ -53,9 +55,10 @@ export async function awardStar(
   act: StarActName,
   sourceKey: string,
   now: Date,
+  earnedAt: Date = now,
 ): Promise<AwardOutcome> {
   await p.sky.lock(lock);
-  const day = dayOf(now);
+  const day = dayOf(earnedAt);
   const decision = starDecision({
     alreadyAwarded: await p.sky.hasStar(lock, act, sourceKey),
     earnedToday: await p.sky.starsOn(lock, day),
@@ -67,7 +70,7 @@ export async function awardStar(
     starId: p.newId(),
     act,
     sourceKey,
-    at: now,
+    at: earnedAt,
     day,
     constellationNo: constellationOfStar(before),
   });
