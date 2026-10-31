@@ -5,6 +5,21 @@ import { EXPORT_LIST_LIMIT, boundedSection, exportReading } from '../../../infra
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import { deleteJobPayloads, deleteClearJobPayloads } from '../../../infrastructure/jobs/erasure.js';
 import { resolveSupplyQueue } from '../events.js';
+
+/**
+ * Wipes the words a person typed from the orders made for their questions, before their requests (and so the link to
+ * those orders) are deleted. The order stays, so its Scroll is never read as a public one: with no request left it is
+ * open to nobody (D-218). This is the one write supply makes into Content's table: an order is the only place a person's
+ * words leave the request, and nothing else knows which order is theirs.
+ */
+async function scrubQuestionOrders(trx: ReturnType<typeof transactionOf>, universeId: string): Promise<void> {
+  await sql`update content.made_to_order_scrolls set brief = ''
+    where mode = 'question' and asset_id in (
+      select ask_asset_id from supply.requests where universe_id = ${universeId}::uuid and ask_asset_id is not null)`.execute(
+    trx,
+  );
+}
+
 /** Shared work contains public briefs only; erase private asks/waiters and every retained job ID. */
 export const supplyErasure = declareErasure({
   module: 'supply',
@@ -16,6 +31,7 @@ export const supplyErasure = declareErasure({
     },
   ],
   async erase(scope) {
+    await scrubQuestionOrders(transactionOf(scope), scope.authority.universeId);
     const removed = await transactionOf(scope)
       .deleteFrom('supply.requests')
       .where('universe_id', '=', scope.authority.universeId)
@@ -29,6 +45,7 @@ export const supplyErasure = declareErasure({
   clear: {
     defaultDisposition: 'erase',
     async erase(scope) {
+      await scrubQuestionOrders(clearCoreTransactionOf(scope), scope.binding.universeId);
       const removed = await clearCoreTransactionOf(scope)
         .deleteFrom('supply.requests')
         .where('universe_id', '=', scope.binding.universeId)
@@ -57,9 +74,10 @@ export const supplyErasure = declareErasure({
         }>`
           select created_at, state,
             command #>> '{intent,kind}' as kind,
-            command #>> '{intent,subject,text}' as text,
+            coalesce(command #>> '{intent,subject,text}', command #>> '{intent,question}') as text,
             command #>> '{intent,subject,topicId}' as topic,
-            coalesce(command #>> '{intent,format}', command #>> '{intent,to}') as format
+            coalesce(command #>> '{intent,format}', command #>> '{intent,to}',
+              case when command #>> '{intent,kind}' = 'ask' then 'scroll' end) as format
           from supply.requests
           where universe_id = ${scope.authority.universeId}::uuid and origin = 'person'
             and command #>> '{intent,kind}' is not null

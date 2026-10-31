@@ -95,6 +95,12 @@ ks_v2_supply_create_daily_cap: { dev: 10 }
 # counted apart from people's requests and never exceeds the cap above, so a person's explicit ask is
 # not starved by the Planner. A world not listed gets the default of 5.
 ks_v2_supply_planner_create_daily_cap: { dev: 5 }
+# Ask orders (a short Scroll made for one person's question, #478, D-218) that Quartermaster may make per
+# UTC day, per world (KS_SUPPLY_ASK_DAILY_CAP), counted apart from every cap above. Each is one writer take of
+# at most two paid requests. A world not listed gets 0, which turns ask orders off.
+ks_v2_supply_ask_daily_cap: { dev: 8 }
+# The ask orders one person may have made per UTC day (KS_SUPPLY_ASK_PERSON_DAILY_CAP). A world not listed gets 5.
+ks_v2_supply_ask_person_daily_cap: { dev: 5 }
 # Branches of content threads (a what-if or another perspective, #244, D-049) that Quartermaster may
 # order per UTC day, per world (KS_SUPPLY_SCENARIO_DAILY_CAP), counted apart from the caps above. Each is
 # one writer call and at most one repair. A world not listed gets 0, which turns scenario Create off.

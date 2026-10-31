@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { stationSkyLine } from '@knowscroll/client-core';
+import { stationCaption } from '@knowscroll/client-core';
 import { content, spacing, target } from '@knowscroll/design-tokens';
 import { Text } from '@knowscroll/ui';
 import type { SpaceDefinition } from './space-definition';
@@ -77,12 +77,14 @@ export function SpaceSimpleLists({
             <Pressable
               key={station.id}
               accessibilityRole="button"
-              accessibilityLabel={`${station.name}, a room station${station.sky === undefined ? '' : `, ${stationSkyLine(station.sky)}`}`}
+              accessibilityLabel={`${station.name}, a room station${station.sky === undefined ? '' : `, ${stationCaption(station.sky, station.live)}`}`}
               onPress={() => onChoose?.({ id: station.id, kind: 'station', name: station.name })}
               style={styles.row}
             >
               <Text variant="body" color={content.paper}>
-                {station.sky === undefined ? station.name : `${station.name} · ${stationSkyLine(station.sky)}`}
+                {station.sky === undefined
+                  ? station.name
+                  : `${station.name} · ${stationCaption(station.sky, station.live)}`}
               </Text>
             </Pressable>
           ))}

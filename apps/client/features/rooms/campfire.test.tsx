@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
-import type { RoomView } from '@knowscroll/contracts';
+import type { AccountScope, RoomController, RoomLaunchState, RoomState } from '@knowscroll/client-core';
+import { LAUNCH_HOST, type LaunchView, type RoomLaunch, type RoomView } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { AiHere } from './ai-here';
 import { AiNoticeCard } from './ai-notice';
@@ -22,13 +22,35 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 // The discussion itself is read elsewhere; General here is only the place the stage puts it.
 jest.mock('./discussion-screen', () => ({
-  OpenDiscussion: ({ discussionId }: { discussionId: string }) => {
+  OpenDiscussion: ({ discussionId, listHeader }: { discussionId: string; listHeader?: React.ReactNode }) => {
     const { Text } = jest.requireActual<{ Text: React.ComponentType<{ testID: string; children: string }> }>(
       'react-native',
     );
-    return <Text testID="general-discussion">{discussionId}</Text>;
+    return (
+      <>
+        <Text testID="general-discussion">{discussionId}</Text>
+        {listHeader}
+      </>
+    );
   },
 }));
+// The Launch is read elsewhere (launch.test.tsx); General here only needs it to say there is none.
+const mockLaunch: { current: { controller: object; state: RoomLaunchState } } = {
+  current: {
+    controller: {},
+    state: {
+      phase: 'ready',
+      view: undefined,
+      receivedAt: 0,
+      offline: false,
+      working: false,
+      refused: false,
+      notSaved: undefined,
+      recordingPaused: false,
+    },
+  },
+};
+jest.mock('./use-launch', () => ({ useRoomLaunch: () => mockLaunch.current, useSteadyNow: () => 0 }));
 jest.mock('./use-room', () => ({
   ...jest.requireActual<object>('./use-room'),
   useRoomActivities: () => ({ controller: {}, state: { activities: [], canCreate: false } }),
@@ -348,5 +370,101 @@ describe('the room menu', () => {
     await open(member(), c);
     await fireEvent.press(screen.getByTestId('leave-room'));
     expect(c.leave).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the Launch in the room', () => {
+  type ReadyLaunch = Extract<RoomLaunch, { status: 'ready' }>;
+  const players = [{ person: person(10, 'Ravi'), you: true }];
+  const lobby: LaunchView = { phase: 'lobby', launchId: id(70), startsInMs: 12_000, players, youIn: true };
+  const finished: LaunchView = {
+    phase: 'finished',
+    launchId: id(70),
+    played: 2,
+    podium: [{ place: 1, score: 3, person: person(10, 'Ravi'), blockedByYou: false, you: true }],
+    you: { score: 3, squares: [true, true, true, false, false], place: 1 },
+    star: true,
+    day: '2026-10-26',
+    youIn: true,
+  };
+  const serve = (launch: LaunchView | undefined, start?: ReadyLaunch['start'], actions: object = {}) => {
+    mockLaunch.current = {
+      controller: actions,
+      state: {
+        phase: 'ready',
+        view: {
+          status: 'ready',
+          host: LAUNCH_HOST,
+          ...(launch === undefined ? {} : { launch }),
+          ...(start === undefined ? {} : { start }),
+        } as unknown as ReadyLaunch,
+        receivedAt: 0,
+        offline: false,
+        working: false,
+        refused: false,
+        notSaved: undefined,
+        recordingPaused: false,
+      },
+    };
+  };
+  const stage = (view: Member) => (
+    <GeneralStage scope={scope} view={view} controller={controller()} state={roomState()} header={null} />
+  );
+
+  it('puts the stage above General while a Launch is on, with the conversation still there as the crowd, and a mark on the band', async () => {
+    serve(lobby);
+    const view = member({
+      launch: { state: 'lobby' },
+      you: { aiLevel: 'lively', keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' },
+    });
+    await wrap(stage(view));
+    expect(screen.getByTestId('launch-stage')).toBeOnTheScreen();
+    expect(screen.getByTestId('general-discussion')).toHaveTextContent(id(5));
+    await wrap(<CampfireHeader view={view} onBack={jest.fn()} onMenu={jest.fn()} />);
+    expect(screen.getByTestId('band-live')).toBeOnTheScreen();
+    expect(screen.getByLabelText('A Launch is live')).toBeOnTheScreen();
+  });
+
+  it('shows no stage and no mark when there is no Launch, and no mark for one that can only start', async () => {
+    serve(undefined);
+    await wrap(stage(member({ launch: { state: 'ready' } })));
+    expect(screen.queryByTestId('launch-stage')).not.toBeOnTheScreen();
+    await wrap(<CampfireHeader view={member({ launch: { state: 'ready' } })} onBack={jest.fn()} onMenu={jest.fn()} />);
+    expect(screen.queryByTestId('band-live')).not.toBeOnTheScreen();
+  });
+
+  it('opens the start sheet from the chip when one can start, and starts it from there', async () => {
+    const actions = { start: jest.fn(() => Promise.resolve(true)), load: jest.fn() };
+    serve(undefined, { allowed: true }, actions);
+    await wrap(stage(member({ launch: { state: 'ready' } })));
+    await fireEvent.press(screen.getByTestId('now-launch'));
+    expect(actions.load).toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId('launch-start'));
+    expect(actions.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the podium by itself for someone who watched the Launch end, and not for someone who arrives after it', async () => {
+    serve(lobby);
+    const view = member({ launch: { state: 'live' } });
+    const { rerender } = await wrap(stage(view));
+    serve(finished);
+    await rerender(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        {stage(member({ launch: { state: 'finished' } }))}
+      </DisplayProvider>,
+    );
+    expect(screen.getByTestId('launch-podium')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('launch-close'));
+    expect(screen.queryByTestId('launch-podium')).not.toBeOnTheScreen();
+    // The chip brings it back for anyone, as many times as they like.
+    await fireEvent.press(screen.getByTestId('now-launch'));
+    expect(screen.getByTestId('launch-podium')).toBeOnTheScreen();
+  });
+
+  it('does not pop the podium for a Launch that was over before this screen saw it', async () => {
+    serve(finished);
+    await wrap(stage(member({ launch: { state: 'finished' } })));
+    expect(screen.queryByTestId('launch-podium')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('now-launch')).toHaveTextContent(/Podium/);
   });
 });

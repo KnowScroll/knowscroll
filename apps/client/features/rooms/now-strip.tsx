@@ -2,9 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { AccountScope } from '@knowscroll/client-core';
-import { skyLine } from '@knowscroll/client-core';
-import type { RoomSky, RoomTodayStrip } from '@knowscroll/contracts';
-import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
+import { launchChip, skyLine } from '@knowscroll/client-core';
+import type { RoomLaunchStrip, RoomSky, RoomTodayStrip } from '@knowscroll/contracts';
+import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
 import { todayHref } from './room-links';
 import { SkySheet } from './sky-sheet';
@@ -17,6 +17,7 @@ function Chip({
   testID,
   accessibilityLabel,
   star,
+  live,
 }: {
   readonly label: string;
   readonly detail?: string | undefined;
@@ -24,6 +25,8 @@ function Chip({
   readonly testID: string;
   readonly accessibilityLabel: string;
   readonly star?: boolean;
+  /** A Launch is on: a small red mark with the word, never colour alone (R3 E). */
+  readonly live?: boolean;
 }) {
   return (
     <Pressable
@@ -34,6 +37,7 @@ function Chip({
       testID={testID}
     >
       {star === true ? <Icon name="star" size={16} color={content.ink} /> : null}
+      {live === true ? <View style={styles.liveDot} aria-hidden /> : null}
       <Text variant="label">{label}</Text>
       {detail === undefined ? null : (
         <Text variant="bodyS" color={content.ink2} numberOfLines={1} style={styles.detail}>
@@ -45,25 +49,41 @@ function Chip({
 }
 
 /**
- * The Now strip under the room's band (R3 A): Today, with its question when an operator approved one, and the room's sky.
- * Neither is a count of people. Today opens the daily channel; the sky opens the constellation and its name vote.
+ * The Now strip under the room's band (R3 A): the Launch when one can start, is on or just finished, Today, with its question when an
+ * operator approved one, and the room's sky. None is a count of people. The Launch opens its start sheet or its podium, Today the daily
+ * channel, the sky the constellation and its name vote.
  */
 export function NowStrip({
   scope,
   roomId,
   today,
   sky,
+  launch,
+  onLaunch,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
   readonly today: RoomTodayStrip | undefined;
   readonly sky: RoomSky;
+  readonly launch?: RoomLaunchStrip | undefined;
+  readonly onLaunch?: () => void;
 }) {
+  const chip = launchChip(launch);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   return (
     <View testID="now-strip" role="group" accessibilityLabel="Now in this room">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+        {chip === undefined ? null : (
+          <Chip
+            label={chip.label}
+            detail={chip.detail}
+            live={chip.live}
+            accessibilityLabel={`Launch, ${chip.detail}`}
+            onPress={() => onLaunch?.()}
+            testID="now-launch"
+          />
+        )}
         {today === undefined ? null : (
           <Chip
             label="Today"
@@ -101,4 +121,5 @@ const styles = StyleSheet.create({
     backgroundColor: content.paper,
   },
   detail: { flexShrink: 1 },
+  liveDot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: status.danger.fill },
 });

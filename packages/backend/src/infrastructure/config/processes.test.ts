@@ -135,6 +135,25 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_SCENARIO_DAILY_CAP: '501' })).toThrow();
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: '0' })).toThrow();
   });
+  it('bounds ask orders by their own daily cap for the world, off outside local, and by a cap for each person, in both processes (D-218)', () => {
+    const api = (env: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
+    const worker = (env: Record<string, string>) =>
+      readWorkerConfig({ ...production, ...release, DATABASE_URL: secretUrl, ...env });
+    for (const read of [api, worker]) {
+      expect(read({ KS_WORLD: 'local' }).supplyAskDailyCap).toBe(20);
+      for (const world of ['dev', 'stage', 'ci']) expect(read({ KS_WORLD: world }).supplyAskDailyCap).toBe(0);
+      expect(read({ KS_WORLD: 'dev', KS_SUPPLY_ASK_DAILY_CAP: '8' }).supplyAskDailyCap).toBe(8);
+      expect(read({ KS_WORLD: 'dev' }).supplyAskPersonDailyCap).toBe(5);
+      expect(read({ KS_WORLD: 'dev', KS_SUPPLY_ASK_PERSON_DAILY_CAP: '3' }).supplyAskPersonDailyCap).toBe(3);
+      expect(() => read({ KS_WORLD: 'local', KS_SUPPLY_ASK_DAILY_CAP: '501' })).toThrow();
+      expect(() => read({ KS_WORLD: 'local', KS_SUPPLY_ASK_PERSON_DAILY_CAP: '0' })).toThrow();
+    }
+    // The other Create caps are not what turns ask orders on.
+    expect(
+      api({ KS_WORLD: 'dev', KS_SUPPLY_CREATE_DAILY_CAP: '8', KS_SUPPLY_SCENARIO_DAILY_CAP: '6' }).supplyAskDailyCap,
+    ).toBe(0);
+  });
   it('names the operator accounts from the list, or from the sign-in pattern on dev only', () => {
     const api = (env: Record<string, string>) =>
       readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });

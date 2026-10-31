@@ -165,6 +165,20 @@ module.exports = {
       to: { path: '^packages/backend/src/modules/social/' },
     },
     {
+      name: 'launch-wall-only-listed-modules-import-rooms',
+      comment:
+        "The wall around a Launch answer (D-063, D-178, D-220), an allow-list. Rooms stores which option a person picked and whether it was right (`rooms.launch_answers`) because the Launch needs the room's lock, its members and the blocks between them, so the wall that `play` has cannot surround it. That is a play result: no module that ranks, plans, remembers or forms places may import Rooms, whatever it is called today or tomorrow, and a path through a module that is not on the list would go unseen if the rule named the modules to fear. Only Rooms itself, Feedback (which reads whether a person may report a room's message: no answer is in it), the job-queue declarations and the erasure registry may import it; a later module must be added here on purpose. The tables are not named outside Rooms: see `rooms/launch-wall.test.ts`.",
+      severity: 'error',
+      from: {
+        path: '^packages/',
+        pathNot: [
+          '^packages/backend/src/modules/(?:rooms|feedback)/',
+          '^packages/backend/src/(?:erasure-registry|job-queues)\\.ts$',
+        ],
+      },
+      to: { path: '^packages/backend/src/modules/rooms/' },
+    },
+    {
       name: 'play-wall-play-imports-three-public-surfaces',
       comment:
         "The other side of the wall, also an allow-list: play imports only the public surfaces of identity (the personal scope and the recording gate), content (the immutable revision's calls) and experience (the activated exposure), plus infrastructure and contracts. It imports none of the modules that derive from behaviour, the reasoning engine, or any module added later, so it cannot write to them or read their state to decide what a pick is worth.",

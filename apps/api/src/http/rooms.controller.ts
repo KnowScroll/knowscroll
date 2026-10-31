@@ -293,4 +293,44 @@ export class RoomsController {
       value(await this.useCases.voteDebate(this.authority(request), input)),
     );
   }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.launch)
+  launchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.launch).handler(async ({ input }) =>
+      value(await this.useCases.launch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.startLaunch)
+  startLaunchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.startLaunch).handler(async ({ input }) =>
+      value(await this.useCases.startLaunch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.joinLaunch)
+  joinLaunchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.joinLaunch).handler(async ({ input }) =>
+      value(await this.useCases.joinLaunch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.answerLaunch)
+  answerLaunchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.answerLaunch).handler(async ({ input }) =>
+      value(await this.useCases.answerLaunch(this.authority(request), input)),
+    );
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.rooms.finishLaunch)
+  finishLaunchRoute(@Req() request: Request) {
+    return implement(apiContract.rooms.finishLaunch).handler(async ({ input }) =>
+      value(await this.useCases.finishLaunch(this.authority(request), input)),
+    );
+  }
 }

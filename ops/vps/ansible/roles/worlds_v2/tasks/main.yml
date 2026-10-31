@@ -194,6 +194,10 @@
       # (#239). 0 turns Create off.
       KS_SUPPLY_CREATE_DAILY_CAP={{ ks_v2_supply_create_daily_cap[item.name] | default(0) }}
       KS_SUPPLY_PLANNER_CREATE_DAILY_CAP={{ ks_v2_supply_planner_create_daily_cap[item.name] | default(5) }}
+      # API and worker: the day's cap on ask orders (a short Scroll made for one person's question, #478, D-218)
+      # and the cap for one person. 0 turns ask orders off.
+      KS_SUPPLY_ASK_DAILY_CAP={{ ks_v2_supply_ask_daily_cap[item.name] | default(0) }}
+      KS_SUPPLY_ASK_PERSON_DAILY_CAP={{ ks_v2_supply_ask_person_daily_cap[item.name] | default(5) }}
       # API only: the day's cap and a thread's cap on branches of content threads (#244, D-049).
       KS_SUPPLY_SCENARIO_DAILY_CAP={{ ks_v2_supply_scenario_daily_cap[item.name] | default(0) }}
       KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP={{ ks_v2_supply_scenario_thread_daily_cap[item.name] | default(5) }}

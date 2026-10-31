@@ -141,6 +141,29 @@ export type ReadScrollPlayFacts = (
 
 export const READ_SCROLL_PLAY_FACTS = Symbol('content.readScrollPlayFacts');
 
+/** What "Ask from here" needs of one stop of a Scroll revision: where it is and what the Scroll itself suggests asking. */
+export interface ScrollAskFacts {
+  /** The Scroll's own title: public, shown to the writer as the subject. */
+  readonly title: string;
+  /** The words of the stop the question was asked from. */
+  readonly stopText: string;
+  /** The questions the Scroll invites, authored with it and checked with it (one to three). */
+  readonly suggestions: readonly string[];
+}
+
+/**
+ * Port: the ask facts of one stop of an exact Scroll revision, read from its immutable document inside the caller's
+ * personal transaction. `undefined` when the revision does not exist, is not a `scroll-document.v2`, is held or
+ * rejected by the review gate (D-138), or has no stop with that ID: an anchor that is not in the revision is no anchor.
+ */
+export type ReadScrollAskFacts = (
+  scope: PersonalScopeTx,
+  ref: ContentRef,
+  stopId: string,
+) => Promise<ScrollAskFacts | undefined>;
+
+export const READ_SCROLL_ASK_FACTS = Symbol('content.readScrollAskFacts');
+
 /** Shared semantic catalogue and exact-revision sidecars; no wire or personal coverage consumer. */
 export { CONCEPT_CATALOGUE_VERSION, CONCEPTS, conceptLabel } from './domain/concepts.js';
 /** Which Scene family draws a system, star or planet, and a system's haze family; defined by the library plan. */
@@ -438,6 +461,37 @@ export type ReadLibraryPassageText = (ref: ContentRef & { readonly blockId: stri
 export const READ_LIBRARY_PASSAGE_TEXT = Symbol('content.readLibraryPassageText');
 
 /**
+ * One admitted library Scroll's calls, for a room's Launch (v3 R-6): the current revision of a `scroll-document.v2` that anyone may
+ * be served (the same Scrolls as `LibraryPassageSource`), with each call's question, options, right answer and reason as its authors
+ * wrote and reviewed them. Shared public content: no person, no scope. A Scroll with no call is not listed.
+ */
+export interface LibraryCallSource {
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly title: string;
+  readonly calls: readonly {
+    readonly stopId: string;
+    readonly prompt: string;
+    readonly options: readonly string[];
+    /** Zero-based index of the right option. Never sent to another module's ranking or planning (D-063). */
+    readonly answer: number;
+    readonly explain: string;
+  }[];
+}
+
+/**
+ * The library Scrolls under a topic with their calls: a system covers every planet of it, a planet is its own. At most `limit` (1 to
+ * 100), by asset ID. With `only` the read is for that one exact revision, found only while it is still a served library Scroll under
+ * the topic, so a check of one Scroll never depends on how many others the topic has.
+ */
+export type ReadLibraryCalls = (
+  topic: { readonly kind: 'system' | 'planet'; readonly id: string },
+  limit: number,
+  only?: { readonly assetId: string; readonly assetRevision: number },
+) => Promise<readonly LibraryCallSource[]>;
+export const READ_LIBRARY_CALLS = Symbol('content.readLibraryCalls');
+
+/**
  * Scrolls ordered from code (D-049). A module that holds shared work (a scenario branch) builds a
  * brief, a framing and the research pages itself and orders a Scroll. Content stores the order,
  * researches the pages, writes the Scroll through the same production job and admits it, and adds
@@ -450,8 +504,8 @@ export interface MadeToOrderScroll {
   readonly orderId: string;
   /** The Scroll's identity, allocated by the caller. */
   readonly assetId: string;
-  readonly mode: 'what_if' | 'perspective';
-  /** What the writer is told: subject, premise and direction. Built by the caller from validated parts. */
+  readonly mode: 'what_if' | 'perspective' | 'question';
+  /** What the writer is told: subject, premise and direction, or a person's question. Built by the caller from validated parts. */
   readonly brief: string;
   /** One to three public pages the caller chose by code; research fetches them like any recipe's. */
   readonly pages: readonly string[];
@@ -475,6 +529,10 @@ export interface MadeToOrderStanding extends ScrollProductionReading {
 /** Where an order's production stands. Reads shared tables on the pool; a key that is no order is `stopped`. */
 export type ReadMadeToOrderProduction = (recipe: string) => Promise<MadeToOrderStanding>;
 export const READ_MADE_TO_ORDER_PRODUCTION = Symbol('content.readMadeToOrderProduction');
+
+/** The same read on the caller's own personal transaction, for a use case that already holds one (no second connection). */
+export type ReadMadeToOrderProductionIn = (scope: PersonalScopeTx, recipe: string) => Promise<MadeToOrderStanding>;
+export const READ_MADE_TO_ORDER_PRODUCTION_IN = Symbol('content.readMadeToOrderProductionIn');
 
 /**
  * Sends the production job of one take of a recipe or order outside any transaction. The queue keeps
@@ -523,6 +581,8 @@ export type ReadOrderAudience = (
   assetIds: readonly string[],
 ) => Promise<ReadonlySet<string>>;
 export const READ_ORDER_AUDIENCE = Symbol('content.readOrderAudience');
+/** The same port for the Scrolls ordered by a person's question (ask orders): only the person who asked may open one. */
+export const READ_ASK_ORDER_AUDIENCE = Symbol('content.readAskOrderAudience');
 
 /**
  * Which of these assets may this caller open, read, act on or see in a list: every asset that is not

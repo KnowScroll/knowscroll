@@ -188,3 +188,22 @@ The card, the bar and the chip are built from T3 page 4 (frames 2, 4 and 5 and t
 | 4, where it sits | The card sits above the "What if" bar and the composer and opens from a yellow bar or a part's chip; it does not open by itself. | The conversation keeps over 60 % of a phone (D-140). |
 | 2, the chip | "★ Call it first · 2 of 4 in" on a part's row; the desktop panel's "Call it together for Part 3 · 0 of 4" reads the same way. | One chip for both widths. |
 | 5, the party | "ALL 4 FINISHED PART 2 · 12:40" in the stream is not built. | The server keeps no history of places (D-153). |
+
+## v3 R-6: the Launch (#492)
+
+R3 pages p-04 (end to end, steps 4 and 7), p-10 (E, game feel: the Launch and the podium) and p-09 (the station on the map). 390 × 844 and 1440 × 900, production export, labelled fixtures (`rooms-launch-smoke.spec.ts`). Screenshots in the PR.
+
+| Frame | What | Status | Why |
+|---|---|---|---|
+| R3 E 1, the Launch | The host card with a question, a timer ring, options, "Called it!", who called it, with General's conversation below as the crowd | matches | Pixel (T3 residents) hosts, not T-minus (R3); the card sits above General and the conversation keeps going below it. |
+| R3 E 1, the options | A 2 × 2 grid of four options with keys 1 to 4 | differs | A Scroll's call has two or three options, so a vertical list of 52 px buttons with a letter; keys 1 to 3. Every option names itself ("Option B: 8 minutes, Right answer"). |
+| R3 E 1, "Called it! +1" | A spark on a right answer, and "Ravi said 8 hours" | differs | No spark: a Launch keeps no spark ledger (D-064). The reveal says "n of m called it" with the faces of those who got it right, and names nobody as wrong (the host never shames, R3 C). |
+| R3 E 1, the timer | A ring with "8 s" | matches | The ring steps with the seconds and the words are the reading, so reduced motion needs no change. The ring counts the server's milliseconds, not the device's date. |
+| R3 E 2, the podium | Three steps, "+1 star for the room", the share card of squares, Share, Copy and Back to chat | matches | Share goes into General and posts the squares only. The line under the steps says "N others played too" with no names. A person with no right answer is not on it. |
+| R3 E 2, the podium | "Lena and Ravi played too" | differs | A count only: nobody below third is named. |
+| R3 E 2, the share card | "Copies as text: ■■■□■. No answers in it, so it can't spoil the replay." | differs | "so it can't spoil anything": there is no replay yet (R-7). |
+| R3 p-04 step 7 and p-09, the station | A red pulse and "LAUNCH LIVE" on the room's station | matches | The light turns red and pulses while a Launch is on (steady under reduced motion), and the caption says "Launch live". Members see it on their own map; an outsider's station says nothing. |
+| R3 p-04 step 4, the band | "LIVE · LAUNCH" in the room's band | matches | A small red tag beside the room's line; the faces of who is here are as before. |
+| R3 B, Now strip | A Launch chip ("Launch 9:30 pm" or "Launch now · 3 playing") | differs | The chip says what can be done now (Start a quiz, Starting now, Live now, Podium) with no clock time and no number: a Launch has no schedule yet. |
+| R3 E 1, the stage | General turns into a stage and the chat becomes the crowd | differs | The stage card sits above the conversation, so while a Launch runs the messages have 18 % of a 390 × 844 phone, against 68 % the rest of the time (D-224). |
+| R3 F, "Replay" | Last night's Launch against the real answers | missing | R-7. |

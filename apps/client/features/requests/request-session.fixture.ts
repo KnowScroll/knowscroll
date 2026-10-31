@@ -24,7 +24,9 @@ export function requestHarness() {
     updatedAt: createdAt,
   } as const;
   let status: ContentRequestStatus = { ...fields, status: 'preparing', phase: 'requested' };
-  let createFailure: boolean | 'too_many_open' = false;
+  let createFailure: boolean | 'too_many_open' | 'recording_paused' = false;
+  /** The recording policy the server reads back; an ask from here carries its generation (D-083). */
+  let recording = { on: true, generation: 1 };
   let cancelFailure = false;
   let retryFailure: 'unknown' | 'refused' | 'too_many_open' | false = false;
   let retryOutcome: 'retrying' | 'already_open' | 'not_retryable' = 'retrying';
@@ -42,6 +44,14 @@ export function requestHarness() {
     fetch: async (request) => {
       const path = new URL(request.url).pathname;
       const body = request.method === 'POST' ? ((await request.json()) as CreateContentRequest) : undefined;
+      if (path === '/v1/privacy/recording/read')
+        return json({
+          version: 'recording-policy.v1',
+          ...body,
+          scope: { accountId: id(1), privacyEpoch: 1 },
+          revision: 0,
+          policy: recording,
+        });
       calls.push({ path, method: request.method, body });
       if (path === '/v1/content/requests/cancel') {
         if (cancelFailure) throw new Error('unknown_cancel');
@@ -88,6 +98,11 @@ export function requestHarness() {
             status: 429,
             headers: { 'content-type': 'application/problem+json' },
           });
+        if (createFailure === 'recording_paused')
+          return new Response(JSON.stringify(problemDetails('RECORDING_PAUSED')), {
+            status: 409,
+            headers: { 'content-type': 'application/problem+json' },
+          });
         if (createFailure) throw new Error('unknown_create');
         return json({
           version: 'content-request-receipt.v1',
@@ -130,8 +145,11 @@ export function requestHarness() {
     session,
     calls,
     opens,
-    setCreateFailure: (value: boolean | 'too_many_open') => {
+    setCreateFailure: (value: boolean | 'too_many_open' | 'recording_paused') => {
       createFailure = value;
+    },
+    setRecording: (value: { on: boolean; generation: number }) => {
+      recording = value;
     },
     setCancelFailure: (value: boolean) => {
       cancelFailure = value;

@@ -7,15 +7,18 @@ import type { Demand, ListRequests, SupplyPorts } from './ports.js';
 export const LIST_LIMIT = 20;
 
 function formatOf(command: CreateContentRequest): 'reel' | 'scroll' | 'either' {
+  // An ask from here is always a short Scroll: Reels have no production path.
+  if (command.intent.kind === 'ask') return 'scroll';
   return command.intent.kind === 'topic' ? command.intent.format : command.intent.to;
 }
 
 /** The most a list title may hold (the contract's bound); a longer title is cut, never refused. */
 const TITLE_LIMIT = 160;
 
-/** The person's own words, the catalogue topic they chose, or the Scroll that is ready: never an internal brief. */
+/** The person's own words (an ask's question), the catalogue topic they chose, or the Scroll that is ready: never an internal brief. */
 function titleOf(d: Demand): string {
   const { intent } = d.command;
+  if (intent.kind === 'ask') return intent.question.trim().slice(0, TITLE_LIMIT);
   const title = d.content
     ? d.content.metadata.title
     : intent.kind === 'variant'

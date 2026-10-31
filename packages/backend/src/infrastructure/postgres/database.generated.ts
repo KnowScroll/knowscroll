@@ -1626,6 +1626,35 @@ export interface RoomsInvitations {
   room_id: string;
 }
 
+export interface RoomsLaunchAnswers {
+  account_id: string;
+  answered_at: Timestamp;
+  choice: number;
+  correct: boolean;
+  elapsed_ms: number;
+  launch_id: string;
+  round: number;
+}
+
+export interface RoomsLaunches {
+  created_at: Timestamp;
+  deck_ritual_id: string;
+  finished_at: Timestamp | null;
+  launch_id: string;
+  played: number | null;
+  questions: Json;
+  room_id: string;
+  star: boolean | null;
+  starts_at: Timestamp;
+  state: string;
+}
+
+export interface RoomsLaunchPlayers {
+  account_id: string;
+  joined_at: Timestamp;
+  launch_id: string;
+}
+
 export interface RoomsMembers {
   account_id: string;
   ai_level: Generated<string>;
@@ -2155,7 +2184,15 @@ export interface SocialVisitSystems {
   universe_id: string;
 }
 
+export interface SupplyAskOrders {
+  created_at: Generated<Timestamp>;
+  order_id: string;
+  ready_at: Timestamp | null;
+}
+
 export interface SupplyRequests {
+  ask_asset_id: string | null;
+  ask_order_id: string | null;
   brief: Json | null;
   command: Json;
   content: Json | null;
@@ -2317,6 +2354,9 @@ export interface DB {
   "rooms.debates": RoomsDebates;
   "rooms.discussions": RoomsDiscussions;
   "rooms.invitations": RoomsInvitations;
+  "rooms.launch_answers": RoomsLaunchAnswers;
+  "rooms.launch_players": RoomsLaunchPlayers;
+  "rooms.launches": RoomsLaunches;
   "rooms.members": RoomsMembers;
   "rooms.message_snippets": RoomsMessageSnippets;
   "rooms.message_useful": RoomsMessageUseful;
@@ -2366,6 +2406,7 @@ export interface DB {
   "social.visit_planets": SocialVisitPlanets;
   "social.visit_publications": SocialVisitPublications;
   "social.visit_systems": SocialVisitSystems;
+  "supply.ask_orders": SupplyAskOrders;
   "supply.requests": SupplyRequests;
   "supply.scenario_orders": SupplyScenarioOrders;
   "supply.work": SupplyWork;

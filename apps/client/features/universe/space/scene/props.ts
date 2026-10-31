@@ -38,6 +38,7 @@ export function makeStation(
   sun: THREE.Vector3,
   emblem?: StationEmblem,
   sky?: StationSky,
+  live = false,
 ): Built {
   // A room that has finished a constellation is lit: a heavier ring and a light that stays on instead of blinking.
   const lit = sky !== undefined && sky.finished >= 1;
@@ -58,7 +59,8 @@ export function makeStation(
   const light = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: context.sprites.glow,
-      color: new THREE.Color(1, 0.5, 0.7),
+      // A live Launch turns the light red and makes it pulse (R3 E): the caption on the map says the same in words.
+      color: live ? new THREE.Color(1, 0.18, 0.12) : new THREE.Color(1, 0.5, 0.7),
       opacity: 1,
       ...additive,
     }),
@@ -105,6 +107,11 @@ export function makeStation(
   }
   const tick = (t: number): void => {
     group.rotation.y = t * 0.15;
+    if (live) {
+      light.scale.setScalar(0.26 * (1.25 + 0.45 * Math.sin(t * 4)));
+      light.material.opacity = 1;
+      return;
+    }
     light.material.opacity = context.calm ? 0.1 : lit || Math.sin(t * 2.6) > 0.4 ? 1 : 0.12;
   };
   tick(0);

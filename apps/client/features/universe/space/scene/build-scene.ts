@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { stationSkyLine } from '@knowscroll/client-core';
+import { stationCaption } from '@knowscroll/client-core';
 import type { PixelImage } from '../texture-data';
 import { distanceOf, FIELD_OF_VIEW, type CameraPose } from '../camera-rig';
 import { planetGenome } from '../planet-genome';
@@ -212,7 +212,13 @@ function buildStation(
 ): { built: Built; anchor: WorldAnchor } {
   const home = systems.get(station.systemId);
   const sun = new THREE.Vector3(home?.position.x ?? 0, 0, home?.position.z ?? 0);
-  const built = makeStation({ ...context, calm: station.calm === true }, sun, station.emblem, station.sky);
+  const built = makeStation(
+    { ...context, calm: station.calm === true },
+    sun,
+    station.emblem,
+    station.sky,
+    station.live === true,
+  );
   built.object.position.set(station.position.x, station.position.y, station.position.z);
   // Stations are small beside a sun: they are a doorway, not a place.
   built.object.scale.setScalar(0.7);
@@ -222,7 +228,7 @@ function buildStation(
       id: station.id,
       kind: 'station',
       name: station.name,
-      ...(station.sky === undefined ? {} : { caption: stationSkyLine(station.sky) }),
+      ...(station.sky === undefined ? {} : { caption: stationCaption(station.sky, station.live) }),
       systemId: station.systemId,
       object: built.object,
       radius: 0.6,
