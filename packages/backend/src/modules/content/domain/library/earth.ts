@@ -93,7 +93,7 @@ export const earthRecipes = {
     interactive: true,
     interactiveKind: 'sequence',
     brief:
-      'Why the two hemispheres always have opposite seasons: through the year each hemisphere in turn tips toward the Sun and then away from it. Step through the two solstices and the two equinoxes and say what each means for daylight in each hemisphere. Do not suggest that distance from the Sun sets the seasons, and give no invented dates or temperatures.',
+      'Why the two hemispheres always have opposite seasons: through the year each hemisphere in turn tips toward the Sun and then away from it. Step through the two solstices and the two equinoxes and say what each means for daylight in each hemisphere. Daylight in a hemisphere starts to grow at its winter solstice and starts to shrink at its summer solstice; an equinox is when day and night are about equal, not when daylight starts to change, and from December to March the north is in winter and the south in summer. Do not suggest that distance from the Sun sets the seasons, and give no invented dates or temperatures.',
     pages: ['https://en.wikipedia.org/wiki/Season'],
     scrollV2: {
       variant: 'stage',
@@ -128,7 +128,7 @@ export const earthRecipes = {
     interactive: false,
     interactiveKind: null,
     brief:
-      'Seasons on other planets, and why Earth is not the template. Say what the supplied passages state about seasons on Mars and on Uranus: Mars’s axis is tilted much as Earth’s is, so it has distinct seasons, but they last longer, while Uranus’s axis lies nearly at a right angle to its orbit, which gives it the most extreme seasons in the Solar System. Compare each with Earth’s seasons and say what the tilt does in each case. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
+      'Seasons on other planets, and why Earth is not the template. Say what the supplied passages state about seasons on Mars and on Uranus: Mars’s axis is tilted much as Earth’s is, so it has distinct seasons, but they last longer, while Uranus’s axis lies nearly at a right angle to its orbit, which gives it the most extreme seasons in the Solar System. Compare each with Earth’s seasons and say what the tilt does in each case. Earth’s orbit is slightly elliptical too, so its seasons are close to equal but not exactly equal; never say they are equal or exactly three months long. Give Martian lengths in sols when the passages do. Give no invented dates, temperatures or season lengths beyond those in the supplied passages.',
     pages: ['https://science.nasa.gov/mars/facts/', 'https://science.nasa.gov/uranus/facts/'],
     scrollV2: {
       variant: 'plain',
