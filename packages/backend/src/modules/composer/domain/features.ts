@@ -37,7 +37,7 @@ export function playLevelOf(encounter: Pick<EncounterSnapshot, 'traits'>): PlayL
 }
 
 /**
- * Format fit of one topic for a candidate (blueprint �8, "Personal interest and format fit"). The
+ * Format fit of one topic for a candidate (blueprint §8, "Personal interest and format fit"). The
  * (topic, kind) parent is the qualified-response rate with a uniform prior, `(1 + Q) / (2 + O)`. Policy
  * v1 reads the candidate's play-level cell instead, shrunk toward the parent with prior strength `m`:
  * `(Q + m * parent) / (O + m)`. A cell with no encounters equals its parent, and a cell with many moves to
