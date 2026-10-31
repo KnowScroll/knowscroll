@@ -52,10 +52,10 @@ export interface LibrarySystem {
 
 /**
  * The drawing kits a Scroll's pinned picture can be made from. A kit draws one family of subjects, and a
- * recipe names a kit only where that kit draws what the recipe is about (D-125). `scroll-model` owns
- * the kits themselves; this list names them for the plan, and a test keeps the two in step.
+ * recipe names a kit only where that kit draws what the recipe is about (D-125, D-194). `scroll-model`
+ * owns the kits themselves; this list names them for the plan, and a test keeps the two in step.
  */
-export const STAGE_KIT_IDS = ['earth-sky.v1'] as const;
+export const STAGE_KIT_IDS = ['earth-sky.v1', 'tides.v1', 'greenhouse.v1', 'star.v1', 'transit.v1'] as const;
 export type StageKitId = (typeof STAGE_KIT_IDS)[number];
 
 type Interactivity =

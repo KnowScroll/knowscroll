@@ -87,7 +87,8 @@ describe('what a call reports', () => {
 describe('takes are counted per production version, so a writer bump gives new ones (D-197)', () => {
   /** Each v2 writer version and the production version that goes with it. Adding a writer version without a row fails. */
   const PRODUCTION_VERSION_OF_WRITER: Readonly<Record<string, string>> = {
-    'scroll-writer.v16': 'scroll-production.v16',
+    'scroll-writer.v16': 'scroll-production.v15',
+    'scroll-writer.v17': 'scroll-production.v17',
   };
 
   it('pairs the v2 writer’s instructions with the v2 production version, so a new writer cannot reuse the old writer’s takes', () => {

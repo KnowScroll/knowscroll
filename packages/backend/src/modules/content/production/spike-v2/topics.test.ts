@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TOPICS, type ScrollTopic } from '../topics.js';
-import { parseSpikeTopics, SEASONS_SPIKE_TOPICS_V2, SPIKE_TOPICS_V2, spikeRecipeV2 } from './topics.js';
+import {
+  parseSpikeTopics,
+  SEASONS_SPIKE_TOPICS_V2,
+  SKY_SPIKE_TOPICS_V2,
+  SPIKE_TOPICS_V2,
+  spikeRecipeV2,
+} from './topics.js';
 
 describe('the twenty topics of the writer spike', () => {
   it('are twenty distinct library recipes, the three Seasons parts first', () => {
@@ -21,20 +27,49 @@ describe('the twenty topics of the writer spike', () => {
     expect(new Set(rest.map(systemOf))).toEqual(new Set(['computing', 'machine-learning', 'history']));
   });
 
-  it('give a stage only to the recipes a kit draws: the Seasons parts, never tides, stars, exoplanets or the greenhouse', () => {
+  it('give a stage only to the recipes a kit draws: the Seasons parts and the Earth & sky and Space recipes of D-194, never a recipe without a kit', () => {
     const stage = SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).variant === 'stage');
-    expect(stage).toEqual(['seasons', 'seasons-hemispheres', 'seasons-limits']);
-    for (const topic of SPIKE_TOPICS_V2)
-      expect(spikeRecipeV2(topic).variant === 'stage', topic).toBe(TOPICS[topic].stageKit !== undefined);
-    for (const topic of [
+    expect(stage).toEqual([
+      'seasons',
+      'seasons-hemispheres',
+      'seasons-limits',
       'tides',
       'tides-spring-neap',
-      'stars-fusion',
-      'exoplanet-habitable-zone',
       'greenhouse-radiation',
       'greenhouse-balance',
-    ] as const)
-      expect(spikeRecipeV2(topic).variant, topic).toBe('plain');
+      'stars-fusion',
+    ]);
+    for (const topic of SPIKE_TOPICS_V2)
+      expect(spikeRecipeV2(topic).variant === 'stage', topic).toBe(TOPICS[topic].stageKit !== undefined);
+    // The habitable zone has no kit yet, so it stays a plain Scroll.
+    expect(spikeRecipeV2('exoplanet-habitable-zone').variant).toBe('plain');
+    expect(spikeRecipeV2('exoplanet-habitable-zone')).not.toHaveProperty('kit');
+  });
+
+  it('draw every stage recipe with the kit its library entry names', () => {
+    for (const topic of Object.keys(TOPICS) as ScrollTopic[]) {
+      const recipe = spikeRecipeV2(topic);
+      expect(recipe.kit, topic).toBe(TOPICS[topic].stageKit);
+    }
+  });
+
+  it('measure the eight recipes the drawing kits of D-194 give a picture, with one command line, the one the runbook prints', () => {
+    expect(SKY_SPIKE_TOPICS_V2).toHaveLength(8);
+    expect(new Set(SKY_SPIKE_TOPICS_V2).size).toBe(8);
+    expect(parseSpikeTopics(SKY_SPIKE_TOPICS_V2.join(','))).toEqual(SKY_SPIKE_TOPICS_V2);
+    const kits = new Map<string, string[]>();
+    for (const topic of SKY_SPIKE_TOPICS_V2) {
+      const recipe = spikeRecipeV2(topic);
+      expect(recipe.variant, topic).toBe('stage');
+      expect(['earth', 'space']).toContain(TOPICS[topic].systemId);
+      kits.set(recipe.kit ?? '', [...(kits.get(recipe.kit ?? '') ?? []), topic]);
+    }
+    expect([...kits.keys()].sort()).toEqual(['greenhouse.v1', 'star.v1', 'tides.v1', 'transit.v1']);
+    const runbook = readFileSync(
+      new URL('../../../../../../../docs/v2/operations/scroll-production.md', import.meta.url),
+      'utf8',
+    );
+    expect(runbook).toContain(`--topics ${SKY_SPIKE_TOPICS_V2.join(',')}`);
   });
 
   it('measure the three Seasons stages and the plain "Seasons elsewhere" with one command line, the one the runbook prints', () => {
@@ -80,7 +115,11 @@ describe('the twenty topics of the writer spike', () => {
     for (const topic of SPIKE_TOPICS_V2) {
       const planned = TOPICS[topic].scrollV2;
       if (planned === undefined) continue;
-      expect(spikeRecipeV2(topic), topic).toEqual({ ...planned, defaulted: false });
+      expect(spikeRecipeV2(topic), topic).toEqual({
+        ...planned,
+        ...(TOPICS[topic].stageKit === undefined ? {} : { kit: TOPICS[topic].stageKit }),
+        defaulted: false,
+      });
     }
     expect(spikeRecipeV2('seasons-elsewhere')).toEqual({
       variant: 'plain',

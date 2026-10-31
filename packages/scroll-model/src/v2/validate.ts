@@ -4,7 +4,8 @@ import { issueFromSchema } from '../issues.js';
 import { countWords } from '../text.js';
 import { callsOf, ScrollDocumentV2, type CallItStop, type FinalCallStop, type Stop } from './document.js';
 import { uniqueIssuesV2, type IssueV2 } from './issues.js';
-import { describeStageState, settleStageState, tiltMatters } from './kit.js';
+import { EARTH_SKY_KIT, tiltMatters } from './kit.js';
+import { kitDefinition } from './kits/index.js';
 import { LIMITS_V2 } from './limits.js';
 import { computeMeasuresV2, READING_SECONDS_V2 } from './measures.js';
 import { restates } from './similarity.js';
@@ -140,7 +141,12 @@ function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
   if (final?.kind !== 'final_call' || final.binding === undefined) return [];
   const invalid: IssueV2[] = [{ code: 'final_call_binding_invalid', path: `stops.${finalIndex}.binding` }];
   const stopIndex = new Map(document.stops.map((stop, index) => [stop.id, index]));
-  const held = document.stage?.states.filter((entry) => (stopIndex.get(entry.stop) ?? Infinity) <= finalIndex).at(-1);
+  const stage = document.stage;
+  // Only the Earth & sky kit draws an axis to turn; a stage of any other kit cannot honour a tilt.
+  const held =
+    stage?.kit === EARTH_SKY_KIT
+      ? stage.states.filter((entry) => (stopIndex.get(entry.stop) ?? Infinity) <= finalIndex).at(-1)
+      : undefined;
   return held !== undefined && tiltMatters(held.state) ? [] : invalid;
 }
 
@@ -179,6 +185,7 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
   const stage = document.stage;
   if (stage === undefined) return [];
   const issues: IssueV2[] = [];
+  const kit = kitDefinition(stage.kit);
   const stopIndex = new Map(document.stops.map((stop, index) => [stop.id, index]));
   let previousIndex = -1;
   stage.states.forEach((entry, index) => {
@@ -191,9 +198,9 @@ function stageIssues(document: ScrollDocumentV2): IssueV2[] {
     }
     if (at !== undefined && document.stops[at]?.kind !== 'read')
       issues.push({ code: 'stage_state_on_call', path: `${path}.stop` });
-    if (canonicalJson(settleStageState(entry.state)) !== canonicalJson(entry.state))
+    if (canonicalJson(kit.settle(entry.state)) !== canonicalJson(entry.state))
       issues.push({ code: 'stage_state_unsettled', path: `${path}.state` });
-    if (entry.alt !== describeStageState(entry.state)) issues.push({ code: 'stage_alt_mismatch', path: `${path}.alt` });
+    if (entry.alt !== kit.describe(entry.state)) issues.push({ code: 'stage_alt_mismatch', path: `${path}.alt` });
     const before = stage.states[index - 1];
     if (before !== undefined && canonicalJson(before.state) === canonicalJson(entry.state))
       issues.push({ code: 'stage_state_repeated', path });

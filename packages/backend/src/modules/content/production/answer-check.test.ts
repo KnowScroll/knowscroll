@@ -202,7 +202,7 @@ describe('a draft with no call to check', () => {
     });
     const outcome = await step.check({
       jobId: 'a'.repeat(8),
-      policyVersion: 'scroll-production.v16',
+      policyVersion: 'scroll-production.v17',
       draft: 1,
       calls: [],
       signal: new AbortController().signal,

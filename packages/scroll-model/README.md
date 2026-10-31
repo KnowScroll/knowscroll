@@ -486,7 +486,7 @@ A header like v1's (`assetId`, `revision`, `language`, `explanationUnitId`, `ser
 |---|---|---|
 | `misconception` | the recipe, by code | `{kind: 'myth', claim, source: {label, reviewed}}` or `{kind: 'none'}`. The source is a human-reviewed label, never model text. |
 | `landmark` (optional) | the recipe, by code | `{key, name}`: what a locked Final call awards, like "The Leaning Axis" (D-188). Absent: the Scroll awards none. Never model text. |
-| `stage` (optional) | the model's choices, settled by code | `{kit: 'earth-sky.v1', states[{stop, state, alt}]}`: the read stops that change the picture. `state` is `{view, earthAt, moonAt, focus}`, settled to what the view draws. Tilt, pins and Ray are derived from it and never stored. `alt` is derived by code. A plain Scroll has none. |
+| `stage` (optional) | the model's choices, settled by code | `{kit, states[{stop, state, alt}]}`: the read stops that change the picture. `kit` is one of five (D-194) and `state` holds that kit's words only (for `earth-sky.v1` `{view, earthAt, moonAt, focus}`), settled to what the view draws. What follows by physics (Earth's tilt, the pins and Ray; a bulge, an energy flow, a lifetime, a dip) is derived from it and never stored. `alt` is derived by code. A plain Scroll has none. |
 | `stops[]` | the model | `read` (optional heading, paragraph, optional line; `simple`), `call_it` (prompt, 2 or 3 options, `answer`, `explain`, `twist`, optional `commonGuess`, `simple`) and `final_call` (the same without a common guess, and with an optional `binding: {kind: 'tilt'}` that code sets from the recipe: the control the reader turns on the picture, D-187). Ids `s1`, `s2`, … by code. |
 | `asides[]` | the model | `tangent`, `limits` or `definition`, with `anchorStop` (the stop it opens next to) and `collapsed`. |
 | `recap` | the model | Up to 3 captions and `smallPrintAside`, the limits aside the "Small print" chip links to. |
@@ -504,7 +504,7 @@ The design's block table lists 12 new, 5 kept and 6 changed blocks. *Implemented
 | `paragraph` | kept | implemented, inside a stop |
 | `heading` | changed | implemented, inside a stop (level 1 or 2, rare) |
 | `aside` | new | implemented (a limits aside is required and never last) |
-| `stage` | new | model implemented (Earth & sky kit; the physics is derived by code, D-124); stage engine and drawing planned (S-1b) |
+| `stage` | new | implemented: five kits (Earth & sky, D-124; tides, greenhouse, star and transit, D-194), each with its physics derived by code (D-195), drawn by the stage engine (S-1c) |
 | `call_it` | new | implemented as a stop; locking in, sparks, combo and the Plot twist reveal are play, implemented (S-2: `modules/play`, `packages/client-core/src/play-session.ts`) |
 | `final_call` | new | implemented as the last stop (S-3): judged on the server like a Call it, a combo bonus (`sparksEarned`, D-187), an optional `binding: tilt` that hands the reader Earth's tilt on the stage, and the document's `landmark` it awards (D-188). No `bind_stage` for other kits and no simulation formulas for it: the tilt is the kit's physics in code |
 | `recap` | new | implemented |
@@ -551,7 +551,21 @@ Status: **implemented**, unit-tested.
 
 ### The kit
 
-`EARTH_SKY_KIT` (`earth-sky.v1`) is the one kit: the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in each hemisphere and the Moon. A writer chooses only four things, from closed word lists (D-124):
+A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194). Five kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
+
+| Kit | Draws | The writer chooses | Code derives (D-195) |
+|---|---|---|---|
+| `earth-sky.v1` | Sun, Earth and its tilted axis, orbit, Ray, pins, Moon | view, month, Moon phase, focus | tilt, which half leans, pins, Ray (D-124) |
+| `tides.v1` | Earth in an ocean, the Moon, the Sun, the Moon's pull, the bulges | view, Moon phase, focus | the two bulges and their line, spring or neap, the size of each phase's tide, the pull at three places |
+| `greenhouse.v1` | sunlight, reflected sunlight, the ground, one layer of gas, infrared, two energy bars, a thermometer | view, layer (none, thin, thick), settled or just thickened, focus | every flow of energy, the balance or the imbalance, the ground's warmth |
+| `star.v1` | a star cut open with gravity and pressure, three stars by mass with lifetime bars, one star through its life | view, balance, mass class, stage, focus | shrink, hold or swell, colour, size, lifetime, and the end that fits the mass |
+| `transit.v1` | a star, a planet crossing it, its orbit from above, the graph of the light | view, planet (small or large), place along the crossing, focus | how much of the star is covered, the depth of the dip, the whole curve, whether the planet blocks light |
+
+Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`). Status: **implemented** (unit tests, and the stage reader draws each in the web export); none has run on real MiniMax yet. The Final call's `binding: tilt` is Earth & sky's alone.
+
+#### Earth & sky
+
+`EARTH_SKY_KIT` (`earth-sky.v1`): the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in each hemisphere and the Moon. A writer chooses only four things, from closed word lists (D-124):
 
 | Key | Words |
 |---|---|

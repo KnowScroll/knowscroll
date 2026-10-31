@@ -277,25 +277,29 @@ describe('compileAuthoredV2: the stage', () => {
     expect(codes(still)).toContain('stage_too_static@items');
   });
 
-  it('refuses a word that is not in the kit, so the writer cannot invent a picture', () => {
-    const parsed = AuthoredScrollV2.safeParse({
-      ...authoredV2(),
-      items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: { view: 'a-castle' } } : item)),
-    });
-    expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues[0]?.path.join('.')).toBe('items.0.stage.view');
-    for (const oldWord of [{ axis: 'sideways' }, { northPin: 'warm' }, { ray: 'low' }, { orbit: 'exaggerated' }]) {
-      const old = AuthoredScrollV2.safeParse({
-        ...authoredV2(),
-        items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: oldWord } : item)),
+  it('refuses a word or a key that is not in the recipe’s kit, so the writer cannot invent a picture', () => {
+    const withStage = (stage: Record<string, unknown>) =>
+      changed((draft) => {
+        draft.items[0] = { ...draft.items[0], stage };
       });
-      expect(old.success, JSON.stringify(oldWord)).toBe(false);
-    }
-    const unknownKey = AuthoredScrollV2.safeParse({
-      ...authoredV2(),
-      items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: { x: 4 } } : item)),
-    });
-    expect(unknownKey.success).toBe(false);
+    for (const invented of [
+      { view: 'a-castle' },
+      { view: 'sun-earth', alt: 'Anything' },
+      { axis: 'sideways' },
+      { northPin: 'warm' },
+      { ray: 'low' },
+      { orbit: 'exaggerated' },
+      { x: 'four' },
+      { earthAt: 'july' },
+    ])
+      expect(codes(withStage(invented)), JSON.stringify(invented)).toContain('stage_choice_invalid@items.0.stage');
+    // A number, which the schema's own bounds refuse before any rule runs.
+    expect(
+      AuthoredScrollV2.safeParse({
+        ...authoredV2(),
+        items: authoredV2().items.map((item, index) => (index === 0 ? { ...item, stage: { view: 4 } } : item)),
+      }).success,
+    ).toBe(false);
   });
 });
 
