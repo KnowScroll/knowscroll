@@ -7,6 +7,10 @@ jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof React>('react');
   return { useFocusEffect: (effect: EffectCallback) => useEffect(effect, [effect]) };
 });
+// The hook only asks `ui` which marker to write; the claim itself is tested in `ui` (overlay-history.web.test.tsx).
+jest.mock('@knowscroll/ui', () => ({
+  claimOverlayEntry: (state: unknown) => ({ state: { ...(state as object) }, replace: false }),
+}));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 describe('browser Back consumes a local encounter step, overlays first', () => {
   it('never treats overlay Back as another encounter step and does not write private data into history', async () => {
