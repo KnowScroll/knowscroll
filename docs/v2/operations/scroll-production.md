@@ -340,7 +340,7 @@ Nothing in the gate edits a revision: a Scroll is released as it was read. To co
 
 ## Running a library wave (S-6a, D-197 to D-199)
 
-A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199); the kit recipes of S-8a are marked after that PR lands.
+A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199); the eight kit recipes of S-8a (D-194) are marked after their spike is read.
 
 Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time.
 
