@@ -85,6 +85,7 @@ export {
   callKey,
   callPartLabel,
   callSummaryWords,
+  callUpdateWords,
   optionLetter,
   revealWords,
 } from './call-words';
@@ -176,7 +177,15 @@ export {
   type RoomState,
   type StartDiscussion,
 } from './room';
-export { QUIET_AFTER_MS, agoWords, hereView, quietPill, type HereFaceView, type HereView } from './room-presence';
+export {
+  QUIET_AFTER_MS,
+  agoWords,
+  hereView,
+  initialsOf,
+  quietPill,
+  type HereFaceView,
+  type HereView,
+} from './room-presence';
 export {
   createRoomActivities,
   createRoomActivity,
@@ -195,6 +204,7 @@ export {
   currentConstellation,
   skyLine,
   starsOfCurrent,
+  stationCaption,
   stationSkyLine,
   type RoomSkyController,
   type RoomSkyState,
@@ -202,6 +212,24 @@ export {
   type RoomTodayOptions,
   type RoomTodayState,
 } from './room-sky';
+export {
+  START_BLOCK_WORDS,
+  createRoomLaunch,
+  hostLine,
+  launchChip,
+  launchDayWords,
+  launchStripOf,
+  launchShareText,
+  msUntilNextRead,
+  secondsLeft,
+  shareLaunchResult,
+  squaresOf,
+  timeLeftMs,
+  type LaunchPhase,
+  type RoomLaunchController,
+  type RoomLaunchOptions,
+  type RoomLaunchState,
+} from './room-launch';
 export {
   createRoomDiscussion,
   mergeRoomMessages,

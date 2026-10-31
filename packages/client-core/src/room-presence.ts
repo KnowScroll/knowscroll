@@ -23,7 +23,7 @@ export interface HereView {
   readonly caption: string | undefined;
 }
 
-const initialsOf = (name: string): string => {
+export const initialsOf = (name: string): string => {
   const parts = name
     .trim()
     .split(/\s+/u)

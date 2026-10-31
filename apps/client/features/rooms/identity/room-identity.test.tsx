@@ -6,7 +6,7 @@ import { DisplayProvider } from '@knowscroll/ui';
 import { BandTag } from './band-tag';
 import { useBandTone } from './band-tone';
 import { RoomBandView } from './room-band';
-import { RoomEmblem, ResidentMark } from './room-emblem';
+import { RoomEmblem, ResidentMark, residentColourOf } from './room-emblem';
 import { ResidentHeader } from '../resident-message';
 import { RoomRow } from '../room-row';
 
@@ -152,6 +152,11 @@ describe('the emblem and the residents’ marks', () => {
     expect(screen.getByLabelText('AI, Explainer')).toBeTruthy();
     expect(screen.getByText('Nova')).toBeTruthy();
     expect(art('skeptic-mark').props['aria-hidden']).toBe(true);
+  });
+
+  it('gives the Explainer the room’s accent and the Skeptic its ink, the colours of their marks', () => {
+    expect(residentColourOf(kit, 'explainer')).toBe(ROOM_SWATCHES.rust);
+    expect(residentColourOf(kit, 'skeptic')).toBe(ROOM_SWATCHES.soot);
   });
 
   it('draws no mark for a room without a face', async () => {

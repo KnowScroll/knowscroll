@@ -6,6 +6,7 @@ import {
   callKey,
   callPartLabel,
   callSummaryWords,
+  callUpdateWords,
   optionLetter,
   revealWords,
 } from './call-words';
@@ -32,6 +33,18 @@ const revealed = (patch: Partial<Revealed> = {}): Revealed => ({
   picks: [{ person, you: true, option: 0, right: true }],
   rightCount: 1,
   ...patch,
+});
+
+describe('the words for a Scroll that was updated since the call began (D-233)', () => {
+  it('says the call keeps the question the thread called on, or asks the new one afresh, and nothing when it is current', () => {
+    expect(callUpdateWords({ part: 1, updated: 'held' })).toBe(
+      'Part 1 has been updated since your thread started calling. The call keeps the question your thread called on, so everyone answers the same one.',
+    );
+    expect(callUpdateWords({ part: 3, updated: 'restarted' })).toBe(
+      'Part 3 has been updated, and the question your thread called on can’t be shown any more. This call asks the new question afresh.',
+    );
+    expect(callUpdateWords({ part: 2 })).toBeUndefined();
+  });
 });
 
 describe('the words of a call', () => {

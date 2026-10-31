@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { AccountScope, RoomController, RoomState } from '@knowscroll/client-core';
-import { hereView } from '@knowscroll/client-core';
+import { hereView, launchStripOf } from '@knowscroll/client-core';
 import type { RoomView } from '@knowscroll/contracts';
-import { layout, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, IconButton, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
 import { AiNoticeCard } from './ai-notice';
@@ -14,11 +14,15 @@ import { RoomBand } from './identity/room-band';
 import { AwayCard } from './away-card';
 import { OpenDiscussion } from './discussion-screen';
 import { HereStrip } from './here-strip';
+import { LaunchPodium } from './launch-podium';
+import { LaunchStage } from './launch-stage';
+import { LaunchStartSheet } from './launch-start-sheet';
 import { NowStrip } from './now-strip';
 import { discussionHref } from './room-links';
 import { RoomMenu } from './room-menu';
 import { RULE_WORDS } from './room-parts';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
+import { useRoomLaunch } from './use-launch';
 
 type Member = Extract<RoomView, { status: 'member' }>;
 
@@ -66,9 +70,18 @@ export function CampfireHeader({
             </View>
             <IconButton icon="menu" label="Room menu" variant="onSpace" onPress={onMenu} />
           </View>
-          <Text variant="monoXs" color={tone.inkSoft} testID="campfire-subline">
-            {count === undefined ? RULE_WORDS[view.room.joinRule] : `A room · ${count}`}
-          </Text>
+          <View style={styles.subline}>
+            <Text variant="monoXs" color={tone.inkSoft} testID="campfire-subline">
+              {count === undefined ? RULE_WORDS[view.room.joinRule] : `A room · ${count}`}
+            </Text>
+            {view.launch?.state === 'lobby' || view.launch?.state === 'live' ? (
+              <View style={styles.live} accessible accessibilityLabel="A Launch is live" testID="band-live">
+                <Text variant="monoXs" color={content.paper}>
+                  LIVE · LAUNCH
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <HereStrip here={view.here} lastMessageAt={view.lastMessageAt} />
         </>
       )}
@@ -150,9 +163,35 @@ export function GeneralStage({
   readonly state: RoomState;
   readonly header: ReactNode;
 }) {
+  const roomId = view.room.roomId;
+  // The Launch is read only while the room says there is one to read: a room with no deck and no Launch asks nothing.
+  const { controller: launchController, state: launchState } = useRoomLaunch(scope, roomId, view.launch !== undefined);
+  const launch = launchState.view?.launch;
+  const [starting, setStarting] = useState(false);
+  const [podiumFor, setPodiumFor] = useState<string>();
+  const sawLive = useRef(new Set<string>());
+  // The podium opens by itself only for a person who watched this Launch go by: coming back to a room hours later does not.
+  useEffect(() => {
+    if (launch === undefined) return;
+    if (launch.phase !== 'finished') sawLive.current.add(launch.launchId);
+    else if (launch.youIn && sawLive.current.has(launch.launchId)) {
+      sawLive.current.delete(launch.launchId);
+      setPodiumFor(launch.launchId);
+    }
+  }, [launch]);
+  const strip = launchStripOf(launch, view.launch);
+  const onLaunch = () => {
+    if (strip?.state === 'ready') {
+      void launchController.load();
+      setStarting(true);
+    } else if (strip?.state === 'finished' && launch?.phase === 'finished') setPodiumFor(launch.launchId);
+  };
   return (
     <View style={styles.stage}>
       {header}
+      {launch === undefined || launch.phase === 'finished' || launchState.view === undefined ? null : (
+        <LaunchStage launch={launch} host={launchState.view.host} state={launchState} controller={launchController} />
+      )}
       {view.you.noticeSeenAt === undefined ? (
         <AiNoticeCard
           busy={state.working}
@@ -176,15 +215,55 @@ export function GeneralStage({
         header={null}
         topics={view.discussions}
         // The Now strip stands first in the list, so it scrolls away with the conversation and the messages keep the screen (D-140).
-        listHeader={<NowStrip scope={scope} roomId={view.room.roomId} today={view.today} sky={view.sky} />}
+        listHeader={
+          <NowStrip
+            scope={scope}
+            roomId={roomId}
+            today={view.today}
+            sky={view.sky}
+            launch={strip}
+            onLaunch={onLaunch}
+          />
+        }
         startAtEnd
       />
+      {launchState.view === undefined ? null : (
+        <LaunchStartSheet
+          visible={starting}
+          host={launchState.view.host}
+          view={launchState.view}
+          state={launchState}
+          onStart={() => void launchController.start().then((began) => began && setStarting(false))}
+          onClose={() => setStarting(false)}
+        />
+      )}
+      {launch?.phase !== 'finished' ? null : (
+        <LaunchPodium
+          scope={scope}
+          launch={launch}
+          roomId={roomId}
+          roomName={view.room.name}
+          generalId={view.general.discussionId}
+          sky={view.sky}
+          visible={podiumFor === launch.launchId}
+          onClose={() => setPodiumFor(undefined)}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   stage: { flex: 1 },
+  subline: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
+  live: {
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing['0.5'],
+    borderRadius: radius.pill,
+    borderWidth: borderWidth.hairline,
+    borderColor: content.paper,
+    backgroundColor: status.danger.fill,
+  },
   band: {
     gap: spacing[2],
     paddingHorizontal: layout.gutter,

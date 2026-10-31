@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import type { CallItStop, FinalCallStop, ScrollDocumentV2 } from '@knowscroll/scroll-model';
@@ -42,6 +43,8 @@ export interface StopListProps {
   readonly onNextTopic: (() => void) | undefined;
   readonly onUniverse: (() => void) | undefined;
   readonly onPlayFinal: (() => void) | undefined;
+  /** Drawn in the end tray, before the ways on. */
+  readonly endSlot?: ReactNode;
 }
 
 /** The sections of the text: one per stop (with the asides beside it) and the end tray, stacked. */
@@ -103,6 +106,7 @@ export function StopList(props: StopListProps) {
           onNextTopic={props.onNextTopic}
           onUniverse={props.onUniverse}
           onPlayFinal={props.onPlayFinal}
+          endSlot={props.endSlot}
         />
       </View>
     </>

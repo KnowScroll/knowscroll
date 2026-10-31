@@ -155,6 +155,20 @@ R3 pages p-04 (end to end), p-07 (Today channel), p-09 (on the Universe map) and
 | R3 p-04 step 7 and p-09, the station | A card under the map with "Enter room" and "Remind me"; the constellation named on the map ("THE PRESS"); a Launch pulse | differs | The station shows its constellation and a steadier ring once finished, with "Name · n of 7" in the label (a name is kept while the next constellation forms). No card, no reminder and no Launch pulse (R-6). The sky is for members: an outsider's station is drawn as before. |
 | R3 B, Now strip | Today and Launch chips on top of General | differs | Today and the sky chips; no Launch chip. The strip is the first thing in the conversation list, not pinned: it scrolls away with the messages so they keep over 60 % of a phone (68 % with the strip and 64.5 % in a quiet room, measured at 390 × 844 in `rooms-sky-smoke.spec.ts`; with the strip pinned they were 60.9 % and 57.3 %; D-140). Today and Room sky are also rows in the room menu. |
 
+## v3 dev check, round 2 (#570)
+
+Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 1440 × 900.
+
+| Screen | What | Status | Why |
+|---|---|---|---|
+| T3 p4 frames 3 to 5, reading a part | Reading plays in place, then docks, and the finish and the reveal follow. | differs | A Scroll opens as the thread's own reader, a screen with "Back to thread", not in place with a dock. The finish is in its end tray. The next Part is chosen in the thread (D-234). |
+| T3 p4, sharing from a v2 Scroll | A passage of the part shared back into the thread. | missing | A snippet names a v1 block and a v2 Scroll has stops (D-234). |
+| T3 p4 frame 8, branch card | "Reply", "Call it first" and "2 replies in this branch". | missing | There is no scope for a message in a branch, and a made-to-order Scroll has no authored call (D-213). |
+| R3 C1, an AI reply | An ordinary message with a 4px colour edge, no dotted box, no footnote. | matches | The edge is 5 px, in the resident's colour; the label and Challenge stay (D-237). |
+| R3, "while you were away" card | A card from Halley. | differs | Still a dotted card: R3 does not draw it as a message, and the card is a summary, not a reply (D-237). |
+| R3, who is here | The face strip and a count from three. | matches | Gone a minute after a device's last beat, and at once on `away` (D-239). |
+| R1, R3, finding a room | How a new account reaches a room. | missing | The design draws no list to browse. A room is reached from its station on the person's own map, an invitation or a link (D-240). |
+
 ## Honest limits
 
 - No VoiceOver or TalkBack run. Real devices were not used; the engine is desktop Chromium at the artboard's width.
@@ -174,3 +188,22 @@ The card, the bar and the chip are built from T3 page 4 (frames 2, 4 and 5 and t
 | 4, where it sits | The card sits above the "What if" bar and the composer and opens from a yellow bar or a part's chip; it does not open by itself. | The conversation keeps over 60 % of a phone (D-140). |
 | 2, the chip | "★ Call it first · 2 of 4 in" on a part's row; the desktop panel's "Call it together for Part 3 · 0 of 4" reads the same way. | One chip for both widths. |
 | 5, the party | "ALL 4 FINISHED PART 2 · 12:40" in the stream is not built. | The server keeps no history of places (D-153). |
+
+## v3 R-6: the Launch (#492)
+
+R3 pages p-04 (end to end, steps 4 and 7), p-10 (E, game feel: the Launch and the podium) and p-09 (the station on the map). 390 × 844 and 1440 × 900, production export, labelled fixtures (`rooms-launch-smoke.spec.ts`). Screenshots in the PR.
+
+| Frame | What | Status | Why |
+|---|---|---|---|
+| R3 E 1, the Launch | The host card with a question, a timer ring, options, "Called it!", who called it, with General's conversation below as the crowd | matches | Pixel (T3 residents) hosts, not T-minus (R3); the card sits above General and the conversation keeps going below it. |
+| R3 E 1, the options | A 2 × 2 grid of four options with keys 1 to 4 | differs | A Scroll's call has two or three options, so a vertical list of 52 px buttons with a letter; keys 1 to 3. Every option names itself ("Option B: 8 minutes, Right answer"). |
+| R3 E 1, "Called it! +1" | A spark on a right answer, and "Ravi said 8 hours" | differs | No spark: a Launch keeps no spark ledger (D-064). The reveal says "n of m called it" with the faces of those who got it right, and names nobody as wrong (the host never shames, R3 C). |
+| R3 E 1, the timer | A ring with "8 s" | matches | The ring steps with the seconds and the words are the reading, so reduced motion needs no change. The ring counts the server's milliseconds, not the device's date. |
+| R3 E 2, the podium | Three steps, "+1 star for the room", the share card of squares, Share, Copy and Back to chat | matches | Share goes into General and posts the squares only. The line under the steps says "N others played too" with no names. A person with no right answer is not on it. |
+| R3 E 2, the podium | "Lena and Ravi played too" | differs | A count only: nobody below third is named. |
+| R3 E 2, the share card | "Copies as text: ■■■□■. No answers in it, so it can't spoil the replay." | differs | "so it can't spoil anything": there is no replay yet (R-7). |
+| R3 p-04 step 7 and p-09, the station | A red pulse and "LAUNCH LIVE" on the room's station | matches | The light turns red and pulses while a Launch is on (steady under reduced motion), and the caption says "Launch live". Members see it on their own map; an outsider's station says nothing. |
+| R3 p-04 step 4, the band | "LIVE · LAUNCH" in the room's band | matches | A small red tag beside the room's line; the faces of who is here are as before. |
+| R3 B, Now strip | A Launch chip ("Launch 9:30 pm" or "Launch now · 3 playing") | differs | The chip says what can be done now (Start a quiz, Starting now, Live now, Podium) with no clock time and no number: a Launch has no schedule yet. |
+| R3 E 1, the stage | General turns into a stage and the chat becomes the crowd | differs | The stage card sits above the conversation, so while a Launch runs the messages have 18 % of a 390 × 844 phone, against 68 % the rest of the time (D-224). |
+| R3 F, "Replay" | Last night's Launch against the real answers | missing | R-7. |

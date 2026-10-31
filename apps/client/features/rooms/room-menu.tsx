@@ -207,7 +207,7 @@ export function RoomMenu({
         </PageFrame>
       ) : page === 'pins' ? (
         <PageFrame title="Pins" onBack={() => setPage('root')}>
-          <TopicsList scope={scope} view={view} controller={controller} state={state} pinnedOnly />
+          <TopicsList scope={scope} view={view} controller={controller} state={state} pinnedOnly closeSheet={close} />
         </PageFrame>
       ) : page === 'sky' ? (
         <PageFrame title="Room sky" onBack={() => setPage('root')}>
@@ -215,7 +215,14 @@ export function RoomMenu({
         </PageFrame>
       ) : page === 'topics' ? (
         <PageFrame title="Topics" onBack={() => setPage('root')}>
-          <TopicsList scope={scope} view={view} controller={controller} state={state} canShare={false} />
+          <TopicsList
+            scope={scope}
+            view={view}
+            controller={controller}
+            state={state}
+            canShare={false}
+            closeSheet={close}
+          />
         </PageFrame>
       ) : (
         <PageFrame title="Moderation" onBack={() => setPage('root')}>

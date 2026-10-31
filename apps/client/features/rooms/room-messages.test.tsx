@@ -1,6 +1,7 @@
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { RoomDiscussionController, RoomDiscussionState } from '@knowscroll/client-core';
-import type { RoomMessage } from '@knowscroll/contracts';
+import { ROOM_SWATCHES, type RoomKit, type RoomMessage } from '@knowscroll/contracts';
 import { DisplayProvider } from '@knowscroll/ui';
 import { actionsFor, RoomMessages } from './room-messages';
 
@@ -50,6 +51,10 @@ const card: RoomMessage = {
   },
 };
 
+/** The flattened style of a rendered view, for the two things the tests read from it. */
+const styleOf = (node: { props: Record<string, unknown> }) =>
+  StyleSheet.flatten(node.props['style'] as object) as { borderStyle?: string; borderLeftColor?: string };
+
 const state = (messages: RoomMessage[], patch: Partial<RoomDiscussionState> = {}): RoomDiscussionState => ({
   phase: 'ready',
   view: undefined,
@@ -91,14 +96,56 @@ async function show(messages: RoomMessage[], role: 'member' | 'moderator' = 'mem
 }
 
 describe('room messages', () => {
-  it('labels an AI inhabitant before its words, names the kind, and says nothing is made unless chosen', async () => {
+  it('labels an AI inhabitant before its words and names the kind, as an ordinary message with no suggestion box (R3 C1)', async () => {
     await show([text(1, asha, 'More traffic means a bigger bill?'), skeptic]);
     expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
     expect(screen.getByText('Does that assume requests arrive in bursts?')).toBeOnTheScreen();
     expect(screen.getByText('An assumption to check')).toBeOnTheScreen();
-    expect(screen.getByText('A suggestion. Nothing is made unless someone chooses it.')).toBeOnTheScreen();
+    // R3 drops the dotted suggestion box and its footnote; the label, and the buttons that ask for more, stay.
+    expect(screen.queryByText('A suggestion. Nothing is made unless someone chooses it.')).not.toBeOnTheScreen();
+    expect(styleOf(screen.getByTestId('ai-message')).borderStyle).not.toBe('dotted');
+    expect(screen.getByTestId(`challenge-${skeptic.messageId}`)).toBeOnTheScreen();
     // A person's message carries no AI label, and the caller's own is not named.
     expect(screen.queryByText('Asha')).not.toBeOnTheScreen();
+  });
+
+  it('draws a resident’s edge in its colour in a room with a face, and the label stays whatever the colour', async () => {
+    const kit: RoomKit = {
+      version: 'station-kit.v1',
+      palette: { ground: 'paper', accent: 'rust', ink: 'soot' },
+      emblem: { frame: 'arch', glyph: 'hourglass' },
+      motif: 'chalk-lines',
+      motion: 'pan',
+      cast: { explainer: 'book', skeptic: 'gear' },
+    };
+    const nova: RoomMessage = {
+      ...skeptic,
+      messageId: id(201),
+      sequence: 4,
+      author: { kind: 'ai', inhabitant: 'explainer', name: 'Nova', label: 'AI · Explainer' },
+    };
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <RoomMessages
+          state={state([skeptic, nova], { view: { room: { identity: { kit } } } as never })}
+          controller={controller}
+          role="member"
+          ownPersonId={asha.personId}
+          episodes={[]}
+          series={false}
+          scrollRef={{ current: null }}
+          onScroll={() => undefined}
+          onOpenSnippet={() => undefined}
+          onStartThread={() => undefined}
+          onActions={() => undefined}
+        />
+      </DisplayProvider>,
+    );
+    const [halley, explainer] = screen.getAllByTestId('ai-message').map(styleOf);
+    expect(halley?.borderLeftColor).toBe(ROOM_SWATCHES.soot);
+    expect(explainer?.borderLeftColor).toBe(ROOM_SWATCHES.rust);
+    expect(screen.getByRole('text', { name: 'AI, Skeptic' })).toBeOnTheScreen();
+    expect(screen.getByRole('text', { name: 'AI, Explainer' })).toBeOnTheScreen();
   });
 
   it('names a resident beside its label and says why it spoke when it was not asked', async () => {

@@ -59,6 +59,8 @@ export interface StageReaderProps {
    * one backed by its play session; without one the reader keeps it on the device alone.
    */
   readonly play?: StagePlay | undefined;
+  /** Drawn at the end of the Scroll, before the ways on: what the screen it is read on adds (a thread's finish). */
+  readonly endSlot?: ReactNode;
 }
 
 const MIN_STAGE = 176;
@@ -116,6 +118,7 @@ export function StageReader({
   related,
   onDone,
   play: appPlay,
+  endSlot,
 }: StageReaderProps) {
   const { reducedMotion, breakpoint } = useDisplay();
   const { height: windowHeight } = useWindowDimensions();
@@ -246,6 +249,7 @@ export function StageReader({
               final={final}
               payoff={payoffOf(calls, play)}
               smallPrint={smallPrint}
+              endSlot={endSlot}
               nextPart={nextPart}
               related={related}
               onDone={onDone}
