@@ -23,7 +23,8 @@ import { ResolvedSnippetAnchorSchema, SnippetAnchorSchema, SnippetCardSchema, Th
  * Counts and presence follow D-069. The only count or activity fields a room may carry are these, each
  * on a member's own view of the room: `here.faces` (who has the room open, by public profile, never an AI
  * inhabitant), `here.count` (only from three people here), `memberTotal` and `lastMessageAt`. A list, a
- * preview and a station carry none of them, and no field says "online" with a number below three.
+ * preview and a station carry none of them, and no field says "online" with a number below three. The room's sky
+ * (stars lit, finished constellations) is on a member's view and on a member's station only (D-176).
  *
  * AI inhabitants are labelled authors of their own kind (`kind: 'ai'`), never a person. They answer when a member
  * asks and, under the room's caps, speak on their own (D-068); a message they wrote on their own carries why. Each

@@ -74,15 +74,20 @@ describe('idea rooms (real PostgreSQL)', () => {
           .execute();
         expect(rows, table).toEqual([]);
       }
-      // The only thing a seeded room holds besides itself is an empty General with no starter.
+      // The only things a seeded room holds besides itself are an empty General and an empty Today, with no starter.
       const discussions = await world.db
         .selectFrom('rooms.discussions')
         .select(['discussion_id', 'kind', 'title', 'started_by_account_id', 'last_sequence'])
         .where('room_id', 'in', roomIds)
         .execute();
-      expect(discussions).toHaveLength(seeds.length);
+      expect(discussions).toHaveLength(seeds.length * 2);
       for (const discussion of discussions)
-        expect(discussion).toMatchObject({ kind: 'general', title: 'General', started_by_account_id: null });
+        expect(discussion).toMatchObject({
+          kind: discussion.title === 'Today' ? 'today' : 'general',
+          started_by_account_id: null,
+        });
+      expect(discussions.filter((discussion) => discussion.kind === 'general')).toHaveLength(seeds.length);
+      expect(discussions.filter((discussion) => discussion.title === 'Today')).toHaveLength(seeds.length);
       expect(discussions.map((discussion) => Number(discussion.last_sequence))).toEqual(discussions.map(() => 0));
     });
 

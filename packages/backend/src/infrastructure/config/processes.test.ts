@@ -225,6 +225,15 @@ describe('process configuration', () => {
     expect(api({ KS_REASONING_ROOM_ENABLED: '1' }).roomResidentsEnabled).toBe(true);
   });
 
+  it('lets a world raise the stars a room earns in a day from three, within fifty', () => {
+    const api = (extra: Record<string, string>) =>
+      readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', KS_WORLD: 'local', ...extra });
+    expect(api({}).roomStarsPerDay).toBe(3);
+    expect(api({ KS_ROOMS_STARS_PER_DAY: '12' }).roomStarsPerDay).toBe(12);
+    for (const bad of ['0', '51', '2.5', 'many'])
+      expect(configurationError(() => api({ KS_ROOMS_STARS_PER_DAY: bad })).problems).toHaveLength(1);
+  });
+
   it('keeps half of every daily cap for roles a person asks for, and reads the share as whole percent', () => {
     const env = { DATABASE_URL: secretUrl, KS_WORLD: 'local' };
     expect(readWorkerConfig(env).reasoning.backgroundSharePercent).toBe(50);

@@ -10,7 +10,8 @@ import { roomSummary } from './view.js';
  * The room stations of the caller's own map (U01, U02): the rooms of topics their Geography has
  * established, each placed beside that system or planet. It reads the caller's own map through
  * Geography's public port and the room rows without locking any room: a station is a doorway to the
- * preview, so it shows no member, count or activity. A person with no map has no stations, and no
+ * preview, so it shows no member, count or activity. A member's or moderator's station also carries the room's sky
+ * (stars lit, finished constellations, the name), which names no person (D-176). A person with no map has no stations, and no
  * placement is stored: it is read afresh from the map each time, so it never drifts from it.
  */
 export function makeStationReads(p: RoomPorts) {

@@ -1,5 +1,10 @@
-import type { NewDebate } from '@knowscroll/contracts';
 import { DEBATE_MIN_VOTERS } from './sky.js';
+
+/** What a person gives to start a debate; the contract's `NewDebate` has the same shape. */
+export interface NewDebate {
+  readonly sides: readonly [string, string];
+  readonly closesInHours: number;
+}
 
 /**
  * Debates (R3 B and E, D-176): a topic tagged `debate` carries two sides and a close time. Pure rules only.

@@ -2168,3 +2168,44 @@ Confirmed by: `library.test.ts` (the thirty-five and the four Seasons recipes ar
 - **Not yet measured.** Whether full bleed removes the margin marks. The coordinator re-makes the four rejected backdrops after deploy and records the result on #490. A cream ground or cream ink may still invite a mark in a corner; if so, the ink words are the next thing to look at.
 
 Confirmed by: `backdrop-prompt.test.ts` (the prompt asks for full bleed and no paper border, and never says "band").
+
+## D-174 · 2026-10-31 · A room earns a star from three acts, three a day, never from an AI, and nobody owns it (R-5, #491)
+
+**Builds on** D-064, D-068 and R3 E ("Game feel in rooms"). **Implements** the star rule of the change map: a different person gives Useful, a replay earns no star, an AI never earns, at most three a day per room.
+
+- **The acts today.** (1) A person's words in a room's Today channel, or in a question topic by someone other than the person who asked it, that another member marked Useful. (2) A debate that closed by vote with at least two different voters. (3) The first right tap on the day's Spot the flaw. The fourth act of R3, a finished Launch, comes with R-6. There is no replay yet, so no replay can earn.
+- **Never a star.** A resident's words, a mark on one's own message, a card, General chat, a debate or a share topic, a debate with one voter, and a second right tap on the same Spot the flaw.
+- **Once per act.** A star is unique per room, act and source (the message, the debate or the ritual item). A retry, two people finishing together, and a mark taken back and given again earn one star. The unique row is the guard, so the award is exact without a job.
+- **Three a day.** At most three stars per room per UTC day (`KS_ROOMS_STARS_PER_DAY`, 1 to 50, default 3). An act that meets a full day earns nothing and is not remembered, so the same act can earn on a later day. A dev world may raise the number so a journey can fill a constellation in one day.
+- **In the act's transaction.** The star is written in the transaction of the Useful mark, the tap or the debate's close, under a per-room advisory lock taken last in the lock order (personal root, own account, room root, discussion rows, sky lock). A room read never writes a star.
+- **Nobody owns a star.** A star holds an act, a source id, a UTC day and the constellation it counts toward. It holds no account, no message text and no title, so taking a mark back, leaving a room, a Clear and an account deletion never remove a star. What a person can take back is their own votes and taps (D-176).
+- **Not evidence.** A star, a tap and a vote are play results and conversation. They are never read by Composer, Jev, Planner, Evidence, Personal Context, Geography or Scenes (D-063). No rooms command writes to those modules, and a test counts the rows of their schemas around every act.
+
+Confirmed by: `rooms-sky.test.ts` ("what earns a star": the acts, the refusals, the cap and the next day, two at once; "a debate closed by vote"; "Spot the flaw"; "writes nothing to a person's own universe"), `sky.test.ts`. The cap, the AI refusal and the member-only sky were each made to fail by breaking the rule.
+
+## D-175 · 2026-10-31 · Seven stars finish a constellation; the room names it by a 24-hour vote that the next member command settles (R-5, #491)
+
+**Builds on** R3 E, R3 question 11 ("a lit station changes the room cosmetically: yes"), D-090 and D-174.
+
+- **Seven.** The seventh star finishes a constellation and offers three names. The next star starts the next constellation. A room that has finished one keeps its station lit (`finished` of one or more), whatever it is making next. Inactivity changes activity, never existence: nothing ever dims a finished constellation.
+- **Three names from code.** The names come from fixed lists by library system, from a place the room and the constellation's number choose, skipping names the room already uses while others remain. No model writes a name and no member types one, so a name needs no moderation.
+- **The vote.** Every current member may choose one name and change it until the vote closes, 24 hours after the seventh star. Counts show only to a member who has voted, as for a poll, and never say who chose what.
+- **The rule.** The name with the most votes wins, a tie goes to the earlier name in the list, and no votes at all go to the first. Anyone can compute it from the counts.
+- **No job settles it.** A vote that has closed, and a debate whose time has passed (D-176), are settled by the first member command in that room after the moment: a presence beat, which an open room sends every 25 seconds, or a vote. Each settlement is guarded by the row it changes, so two commands at once settle once. A room nobody opens settles nothing, which costs nobody anything. A vote after the close is refused. The room reads a debate as closed from its close time even before the star lands.
+- **Why not a cron.** A job needs a person's authority to take the room lock (D-164), and a deleted starter would strand the room. A member's own command already holds the lock and the authority.
+
+Confirmed by: `rooms-sky.test.ts` ("a constellation and its name": finish at seven, three names, a changed vote, the name by votes after a day, no votes, a tie, the second constellation, the station on two maps), `sky.test.ts` (the naming rule).
+
+## D-176 · 2026-10-31 · The room's sky is members' to read, and the count ban of D-051 is lifted for stars and a few tallies (R-5, #491)
+
+**Amends** D-051 ("no member, count, online or activity field" on a station), as D-069 already did for faces and the member total. **Builds on** D-090 and D-160.
+
+- **Who reads it.** `sky` is on a member's own view of a room and on the station of a member or moderator on their own map. An outsider's or an invitee's station and a room's preview carry none, so a room's activity is not shown to people who have not joined it. The sky read is a member's only, and every other caller gets `unavailable`.
+- **What it says.** Stars lit of seven, how many constellations are finished, whether the latest is being named or is named, and its name. A star that is tapped shows an act and a UTC day. It names no person, message, title or time of day, so a block changes nothing in it and there is nothing to mask.
+- **The allow-list.** The new numbers are named here and in the contract's comments (none of their names is one the allow-list test looks for): `sky.lit`, `sky.of`, `sky.finished`, a debate side's `votes` (only after the reader voted or it closed), a name vote's counts (only after the reader voted), a Today question's `answers` (people's messages in Today since UTC midnight) and a Spot the flaw's `found` (only after the reader tapped). Each is a real count. With no data there is no number.
+- **Friend visit.** The visit copy still holds systems and planets only. A room's sky is never added to it.
+- **What a person takes back.** Leaving or being removed deletes their votes (names, debates) and taps. An account deletion deletes the same and exports them first. A Clear erases their Spot the flaw taps, which are a play result (D-082), and keeps their votes, which are conversation (D-042), as it keeps poll votes.
+- **Debates.** A topic tagged Debate carries two different sides of up to 60 characters and a close time from 1 hour to 7 days. A vote may change until then. A tie has no winner. Only counts are shown, never which side a person chose.
+- **Today's items.** A day's question is a template over a library Scroll's title and summary (no model call). A Spot the flaw is a passage of the same Scroll with one sentence altered: code chooses the sentence and keeps the original as the key, and the model writes only the altered sentence, which code checks. Both wait for an operator's approval, as D-070 requires, and are made by a nightly job or an operator command, never while someone waits.
+
+Confirmed by: `rooms-sky.test.ts` ("who can read the sky": an outsider, a stranger and a person who left; a station shows an outsider none; the same sky for someone who blocked a member; no person in a star; "what a person takes back": leave, Clear, deletion, export) and `room-sky.test.ts` (a sky with no place for a person).

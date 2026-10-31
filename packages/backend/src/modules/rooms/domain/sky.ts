@@ -1,10 +1,26 @@
-import { ROOM_NAMING_HOURS, ROOM_STARS_PER_CONSTELLATION, type RoomSky, type RoomStarAct } from '@knowscroll/contracts';
-
 /**
  * The room's sky: what earns a star, when one is refused, how stars become a constellation and how a constellation is
  * named (D-174, D-175). Pure: no database, clock or crypto beyond the arguments. Stars are room-level facts that name no
  * person; a person's own acts only decide whether a star is earned.
  */
+
+/** Stars in a constellation. The contract names the same number (`ROOM_STARS_PER_CONSTELLATION`); the contract's schema refuses any other number, so a disagreement fails every read. */
+export const STARS_PER_CONSTELLATION = 7;
+
+/** How long the name vote of a finished constellation stays open, in hours (the contract's `ROOM_NAMING_HOURS`). */
+export const NAMING_HOURS = 24;
+
+/** What earns a star (the contract's `RoomStarAct`). */
+export type StarAct = 'answer_useful' | 'debate_closed' | 'daily_solved';
+
+/** The sky as a station draws it; the contract's `RoomSky` has the same shape. */
+export interface Sky {
+  readonly lit: number;
+  readonly of: typeof STARS_PER_CONSTELLATION;
+  readonly state: 'forming' | 'naming' | 'named';
+  readonly finished: number;
+  readonly constellationName?: string;
+}
 
 /** The most stars a room earns on one UTC day unless a world configures another number (R3: nobody can farm the sky). */
 export const STARS_PER_DAY_DEFAULT = 3;
@@ -65,11 +81,11 @@ export function usefulEarnsStar(facts: UsefulStarFacts): boolean {
  * constellation 1, the next seven constellation 2.
  */
 export const constellationOfStar = (starsBefore: number): number =>
-  Math.floor(starsBefore / ROOM_STARS_PER_CONSTELLATION) + 1;
+  Math.floor(starsBefore / STARS_PER_CONSTELLATION) + 1;
 
 /** Whether the star just earned (the room now has `starsNow`) finished a constellation. */
 export const finishesConstellation = (starsNow: number): boolean =>
-  starsNow > 0 && starsNow % ROOM_STARS_PER_CONSTELLATION === 0;
+  starsNow > 0 && starsNow % STARS_PER_CONSTELLATION === 0;
 
 /**
  * The sky as a station draws it, from the room's star count and what its constellations are named. `lit` is the stars of
@@ -82,31 +98,23 @@ export function skyOf(input: {
   readonly latestIsNamed: boolean;
   /** The name of the room's latest named constellation, if any. */
   readonly latestName: string | undefined;
-}): RoomSky {
-  const finished = Math.floor(input.stars / ROOM_STARS_PER_CONSTELLATION);
-  const lit = input.stars === 0 ? 0 : ((input.stars - 1) % ROOM_STARS_PER_CONSTELLATION) + 1;
-  const full = lit === ROOM_STARS_PER_CONSTELLATION;
+}): Sky {
+  const finished = Math.floor(input.stars / STARS_PER_CONSTELLATION);
+  const lit = input.stars === 0 ? 0 : ((input.stars - 1) % STARS_PER_CONSTELLATION) + 1;
+  const full = lit === STARS_PER_CONSTELLATION;
   return {
     lit,
-    of: ROOM_STARS_PER_CONSTELLATION,
+    of: STARS_PER_CONSTELLATION,
     state: !full ? 'forming' : input.latestIsNamed ? 'named' : 'naming',
     finished,
     ...(input.latestName === undefined ? {} : { constellationName: input.latestName }),
   };
 }
 
-/** The act's own words for a person tapping a star: fixed, never from a model or a member. */
-export const STAR_ACT_WORDS: Record<RoomStarAct, string> = {
-  answer_useful: 'An answer someone found useful',
-  debate_closed: 'A debate closed by vote',
-  daily_solved: 'The day’s Spot the flaw found',
-};
-
 // --- Naming ---------------------------------------------------------------------------------
 
 /** When a constellation's name vote closes, from when its seventh star landed. */
-export const namingClosesAt = (completedAt: Date): Date =>
-  new Date(completedAt.getTime() + ROOM_NAMING_HOURS * 3_600_000);
+export const namingClosesAt = (completedAt: Date): Date => new Date(completedAt.getTime() + NAMING_HOURS * 3_600_000);
 
 /**
  * Names a constellation may be offered under: short, plain, and shaped like the design's own ("The Press"). Lists are by

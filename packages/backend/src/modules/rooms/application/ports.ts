@@ -15,6 +15,7 @@ import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
 import type { AiLevel, EarlierPlace, JoinRule, RoomRole, RoomStatus } from '../domain/membership.js';
 import type { CapCounts, RefusalCap } from '../domain/router.js';
+import type { StarAct } from '../domain/sky.js';
 import type { SpeechTrigger } from '../domain/triggers.js';
 import type { CastDueJob, CastPassJob, SummariseJob } from '../events.js';
 
@@ -649,7 +650,7 @@ export interface ActivityStore {
 
 // --- The sky, debates and Today (migration 0084) ------------------------------------------
 
-export type StarActName = 'answer_useful' | 'debate_closed' | 'daily_solved';
+export type StarActName = StarAct;
 
 export interface StarRecord {
   readonly starId: string;
