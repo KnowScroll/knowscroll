@@ -4,7 +4,7 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { libraryRoomSeeds } from '@knowscroll/backend/modules/rooms';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
-import { FACE_COMMANDS, FACE_USAGE, roomsFaceCommand, type FaceCommand } from './rooms-face-operator.js';
+import { FACE_COMMANDS, FACE_USAGE, roomsFaceCommand } from './rooms-face-operator.js';
 
 type Print = (result: Record<string, unknown>) => void;
 
@@ -53,7 +53,7 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
   const faceCommand = FACE_COMMANDS.find((candidate) => candidate === command);
   if (faceCommand !== undefined && parsed.positionals.length === 1)
     return roomsFaceCommand(
-      faceCommand satisfies FaceCommand,
+      faceCommand,
       {
         room: values.room,
         revision: values.revision,
