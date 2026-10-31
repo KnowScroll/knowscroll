@@ -130,7 +130,7 @@ Only where behaviour differs (blueprint §18):
 | `display/semantics(.web).ts` | `togglebutton` + checked, `radio` + checked, `tab` + selected, `tablist`, accessibility hint, dialog on the sheet's panel | `button` + `aria-pressed`, `radio` + `aria-checked`, `link` + `aria-current` (button without an `href`), `navigation` landmark, `aria-describedby`, `aria-level`, the dialog name on the Modal |
 | `display/link(.web).ts` | `onPress` only | `href` plus a press handler that leaves modified and middle clicks to the browser |
 | `scroll/stage-reader/part-swipe(.web).tsx`, `reader-focus(.web).tsx`, `snap(.web).ts`, `data-set(.web).ts` | A `PanResponder` for the sideways swipe, no key layer, scroll snap offsets, no data attributes | Pointer and touch events with `touch-action: pan-y`, the keyboard group, the script that settles on a stop, `data-ks-*` attributes |
-| `overlay/overlay-history(.web).ts` | Nothing (Android Back reaches `onRequestClose`) | The transient history entry that makes browser Back close an open overlay |
+| `overlay/overlay-history(.web).ts` | Nothing (Android Back reaches `onRequestClose`); `claimOverlayEntry` returns the state unchanged | The transient history entry that makes browser Back close an open overlay. `claimOverlayEntry(state)` is for a screen with a history marker of its own that opens in the same commit an overlay closes (the encounter's sheet opening from a ••• sheet): it says which state the marker should carry and whether to replace the closing overlay's entry, so the overlay does not call Back and pop the new marker |
 
 ## Icons
 
@@ -257,7 +257,9 @@ Related: #242.
 `RowLink` is one list row that is a link to a destination (Talk's conversations). It is at least 48 px tall, shows
 the focus ring on paper and, with `href`, is a real `<a>` on the web (Enter, middle-click, new tab). `label` is its
 whole accessible name. `current` marks the row whose destination is open beside the list (`aria-current="page"` and a
-tint). It draws no content of its own; the caller supplies the row.
+tint). `tint` sets that colour (the highlight on paper; a cream wash on the dark sky), and `focusTone` picks the ring
+for the ground the row sits on: `onLight` (cobalt) on paper, `onDark` (yellow) on the sky (D-006 n, 3:1 under 1.4.11). It
+draws no content of its own; the caller supplies the row.
 
 ### Keyboard on the web
 
