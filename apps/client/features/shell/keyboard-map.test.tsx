@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { DisplayProvider, READER_KEY_NAMES } from '@knowscroll/ui';
 import { KEYBOARD_MAP, KeyboardMapSheet } from './keyboard-map';
+import { UNIVERSE_MAP_KEY_NAMES } from '../universe/universe-stage';
 
 async function show(onClose = jest.fn()) {
   await render(
@@ -52,6 +53,21 @@ describe('the keyboard map', () => {
       Enter: 'Enter',
     };
     for (const name of READER_KEY_NAMES) expect(listed).toContain(drawn[name] ?? name.toUpperCase());
+  });
+
+  it('lists every key the Universe map listens to, and Escape, so a new key cannot go unlisted', () => {
+    const group = KEYBOARD_MAP.find((entry) => entry.title === 'Universe');
+    const listed = new Set(group?.shortcuts.flatMap((shortcut) => shortcut.keys));
+    const drawn: Record<string, string> = {
+      ArrowLeft: '←',
+      ArrowRight: '→',
+      ArrowUp: '↑',
+      ArrowDown: '↓',
+      '=': '+',
+      '-': '−',
+    };
+    for (const name of UNIVERSE_MAP_KEY_NAMES) expect(listed).toContain(drawn[name] ?? name);
+    expect(listed).toContain('Esc');
   });
 
   it('closes from its own Close control', async () => {

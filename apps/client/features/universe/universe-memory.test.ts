@@ -21,6 +21,7 @@ describe('what the Universe remembers on this device', () => {
       landed: true,
       frame: { x: 4, y: -2, scale: 1.5 },
       lately: true,
+      simple: false,
       lastPlace: { id: fixtureId(12), label: 'CI planet', kind: 'planet' as const },
       seenAt: 1_000,
     };
@@ -51,6 +52,7 @@ describe('what the Universe remembers on this device', () => {
       landed: false,
       frame: { x: 10000, y: 0, scale: 0.125 },
       lately: false,
+      simple: false,
       lastPlace: undefined,
       seenAt: 5,
     });
@@ -64,6 +66,7 @@ describe('what the Universe remembers on this device', () => {
       landed: false,
       frame: { x: 0, y: 0, scale: 1 },
       lately: false,
+      simple: false,
       lastPlace: undefined,
       seenAt: 0,
     };

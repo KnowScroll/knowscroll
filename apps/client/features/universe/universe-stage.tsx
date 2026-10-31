@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
 import { PlanetStage } from './planet/planet-stage';
 import { SpaceStage } from './space/space-stage';
+import type { SpaceFailure } from './space/space-surface';
 import { viewFor, type Size, type UniverseIndex } from './universe-layout';
 import type { UniverseFrame } from './universe-camera';
 import type { SceneProps } from './scene-parts';
@@ -9,6 +10,27 @@ import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
 const KEY_PAN = 60;
 const KEY_ZOOM = 1.25;
+
+/** What a key does on the focused map. The single source of the keys the map listens to: the keyboard map lists each (D-053). */
+interface MapActions {
+  readonly pan: (dx: number, dy: number) => void;
+  readonly zoom: (factor: number) => void;
+  readonly fit: () => void;
+  readonly search: () => void;
+}
+const MAP_KEYS: Readonly<Record<string, (actions: MapActions) => void>> = {
+  ArrowLeft: (map) => map.pan(-KEY_PAN, 0),
+  ArrowRight: (map) => map.pan(KEY_PAN, 0),
+  ArrowUp: (map) => map.pan(0, -KEY_PAN),
+  ArrowDown: (map) => map.pan(0, KEY_PAN),
+  '+': (map) => map.zoom(KEY_ZOOM),
+  '=': (map) => map.zoom(KEY_ZOOM),
+  '-': (map) => map.zoom(1 / KEY_ZOOM),
+  Home: (map) => map.fit(),
+  '/': (map) => map.search(),
+};
+/** The keys the focused map listens to. */
+export const UNIVERSE_MAP_KEY_NAMES: readonly string[] = Object.keys(MAP_KEYS);
 
 /**
  * Drag pans and pinch zooms the current view. Taps still reach the places beneath, because the
@@ -54,6 +76,8 @@ export function UniverseStage({
   onStation,
   visitor,
   onRefused,
+  onUnavailable,
+  pickPlanets,
 }: {
   readonly session: UniverseMapSession;
   readonly state: UniverseViewState;
@@ -66,6 +90,10 @@ export function UniverseStage({
   readonly visitor?: boolean;
   /** A planet whose world could not be drawn: the screen swaps in the plain list. */
   readonly onRefused: (planetId: string) => void;
+  /** 3D cannot be drawn: the screen swaps in the Simple lists. */
+  readonly onUnavailable: (reason: SpaceFailure) => void;
+  /** A tap on a planet picks it (D02) instead of flying to it. */
+  readonly pickPlanets: boolean;
 }) {
   const [size, setSize] = useState<Size>({ width: 390, height: 640 });
   const view = viewFor(index, state.focusId, state.landed);
@@ -97,21 +125,10 @@ export function UniverseStage({
     const modified = event.nativeEvent as { altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean };
     if (modified.altKey === true || modified.ctrlKey === true || modified.metaKey === true) return;
     const key = event.nativeEvent.key;
-    const moves: Record<string, () => void> = {
-      ArrowLeft: () => pan(-KEY_PAN, 0),
-      ArrowRight: () => pan(KEY_PAN, 0),
-      ArrowUp: () => pan(0, -KEY_PAN),
-      ArrowDown: () => pan(0, KEY_PAN),
-      '+': () => zoom(KEY_ZOOM),
-      '=': () => zoom(KEY_ZOOM),
-      '-': () => zoom(1 / KEY_ZOOM),
-      Home: () => session.fit(),
-      '/': onSearch,
-    };
-    const move = moves[key];
+    const move = Object.hasOwn(MAP_KEYS, key) ? MAP_KEYS[key] : undefined;
     if (move) {
       event.preventDefault();
-      move();
+      move({ pan, zoom, fit: () => session.fit(), search: onSearch });
     }
   };
   const sceneProps = { session, state, index, size, onDust, stations, onStation };
@@ -139,7 +156,9 @@ export function UniverseStage({
       {...responder.panHandlers}
     >
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        {view.kind !== 'planet' ? <SpaceStage {...sceneProps} view={view} /> : null}
+        {view.kind !== 'planet' ? (
+          <SpaceStage {...sceneProps} view={view} onUnavailable={onUnavailable} pickPlanets={pickPlanets} />
+        ) : null}
         {view.kind === 'planet' ? (
           <PlanetStage
             {...sceneProps}

@@ -3,7 +3,7 @@ import { BackHandler } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import type { UniverseViewSession } from './universe-session';
 export function useUniverseBack(
-  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'getState' | 'subscribe'>,
+  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'escape' | 'getState' | 'subscribe'>,
   enabled: boolean,
 ) {
   useFocusEffect(
