@@ -4,7 +4,7 @@ import type { UniverseViewSession } from './universe-session';
 let sequence = 0;
 /** One same-address marker; no private IDs, frame or navigation tree in browser history. */
 export function useUniverseBack(
-  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'getState' | 'subscribe'>,
+  session: Pick<UniverseViewSession, 'back' | 'canBack' | 'escape' | 'getState' | 'subscribe'>,
   enabled: boolean,
 ) {
   const marker = useRef(`universe-${String(++sequence)}`),
@@ -16,7 +16,9 @@ export function useUniverseBack(
       const sync = () => {
         if (session.canBack() && !hasMarker())
           window.history.pushState({ ...window.history.state, ksUniverse: marker.current }, '', window.location.href);
-        else if (!session.canBack() && hasMarker()) {
+        // One step back per marker: a second notice before the browser has moved (a change that publishes
+        // twice) must not take the page back past the Universe.
+        else if (!session.canBack() && hasMarker() && !ignored.current) {
           ignored.current = true;
           window.history.back();
         }
@@ -31,10 +33,10 @@ export function useUniverseBack(
         sync();
       };
       const key = (event: KeyboardEvent) => {
-        if (event.key === 'Escape' && (session.getState().overlay || session.getState().selectedId)) {
+        // Escape closes what is open, and with nothing open steps up one level (D02).
+        if (event.key === 'Escape' && session.escape()) {
           event.preventDefault();
           event.stopImmediatePropagation();
-          session.back();
         }
       };
       sync();

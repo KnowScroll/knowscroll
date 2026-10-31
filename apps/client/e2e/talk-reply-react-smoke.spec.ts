@@ -16,15 +16,22 @@ const desktop = { width: 1440, height: 900 };
 /** A long conversation: the first message is far above what a phone shows at the end. */
 function conversation(): PairWorld {
   const world = pairWorld();
-  world.say('ravi', 'part 1 dekha?', { minutesAgo: 60 * 26 });
-  world.say('asha', 'haan, moon ka bulge samajh aaya', { minutesAgo: 60 * 26 - 1 });
+  // Day capsules depend on the calendar day, so the fixture is anchored to today's midnight, not to
+  // 'now': yesterday's two messages sit at yesterday noon, and today's never cross back over midnight.
+  const now = new Date();
+  const sinceMidnight = Math.floor(
+    (now.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 60_000,
+  );
+  const today = (minutes: number) => Math.min(minutes, sinceMidnight);
+  world.say('ravi', 'part 1 dekha?', { minutesAgo: sinceMidnight + 12 * 60 });
+  world.say('asha', 'haan, moon ka bulge samajh aaya', { minutesAgo: sinceMidnight + 12 * 60 - 1 });
   for (let n = 0; n < 14; n++) {
     world.say(n % 2 === 0 ? 'ravi' : 'asha', `filler message ${String(n + 1)} to push the first ones out of view`, {
-      minutesAgo: 90 - n * 5,
+      minutesAgo: today(90 - n * 5),
     });
   }
-  world.say('ravi', 'who is on part 2?', { minutesAgo: 3 });
-  world.say('ravi', 'asking again, the far side bulge?', { minutesAgo: 2 });
+  world.say('ravi', 'who is on part 2?', { minutesAgo: today(3) });
+  world.say('ravi', 'asking again, the far side bulge?', { minutesAgo: today(2) });
   return world;
 }
 

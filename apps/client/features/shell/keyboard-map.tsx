@@ -80,6 +80,30 @@ export const KEYBOARD_MAP: readonly ShortcutGroup[] = [
       { keys: ['+', '−'], spoken: 'Plus and minus', action: 'Zoom in and out' },
       { keys: ['Home'], spoken: 'Home', action: 'Fit the whole map' },
       { keys: ['/'], spoken: 'Slash', action: 'Search places' },
+      {
+        keys: ['Esc'],
+        spoken: 'Escape',
+        action: 'Close the card or sheet that is open; with none open, step up one level (region, planet, system, map)',
+      },
+    ],
+  },
+  {
+    title: 'Universe search',
+    where: 'While the search field is focused',
+    shortcuts: [
+      { keys: ['↑', '↓'], spoken: 'Up and down arrow', action: 'Move to the previous or next result' },
+      { keys: ['Enter'], spoken: 'Enter', action: 'Fly to the lit result, or open the room' },
+    ],
+  },
+  {
+    title: 'Universe orbit dial',
+    where: 'While a wheel of the dial is focused (Tab to it)',
+    shortcuts: [
+      {
+        keys: ['←', '→'],
+        spoken: 'Left and right arrow',
+        action: 'Turn the wheel to the previous or next system or planet',
+      },
     ],
   },
   {

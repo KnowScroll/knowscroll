@@ -10,7 +10,7 @@ draws everything from `@knowscroll/design-tokens` and `@knowscroll/ui`.
 | ---------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `/`                                            | `app/index.tsx`                               | Redirects to `/explore`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | —                                                     |
 | `/explore` | `app/(tabs)/explore.tsx` | Signed in: the current encounter as E01 (a full-bleed Reel) or E02 (a Scroll), with its one action set, format switch, ⋯ menu, share sheet, request sheet, continuation (edge tabs on a Reel, the end-of-article card on a Scroll), E08 ending and the plain states between (opening, waiting, offline, a path that changed, a saved place that needs a choice). Signed out: the first-arrival hint and the existing email sign-in route. | Explore |
-| `/universe`                                    | `app/(tabs)/universe.tsx`                     | U01 to U08 and D02: empty, dust, the map of systems, a system, a planet with its regions, the region card, list view, search, Lately, formation; `?focus=last` flies to the ship's place                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Universe                                              |
+| `/universe`                                    | `app/(tabs)/universe.tsx`                     | U01 to U08 and D02: empty, dust, the map of systems, a system, a planet with its regions, the region card, orbit dial, search, Simple drawing, Lately, formation; `?focus=last` flies to the ship's place                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Universe                                              |
 | `/conversations`                               | `app/(tabs)/conversations.tsx`                | C01 Talk: the person's conversations, newest first, with the last message, unread dot and a muted mark; "No conversations yet" with Share something and Invite a friend when there are none; signed out shows the empty state                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Talk                                                  |
 | `/conversations/<id>`                          | `app/conversations/[conversationId].tsx`      | C02 one conversation (`?m=<membership>&r=<revision>` from the inbox, the share sheet or the landing; without them it is found through the inbox): messages and Reel/Scroll cards by day, live over the Talk hint, a composer, mute, leave and block in the menu, "Deleted account" when the other account is gone                                                                                                                                                                                                                                                                                                                                                                               | the friend's name                                     |
 | `/friends`                                     | `app/friends/index.tsx`                       | Real profile, exact handle lookup, bounded Friends/requests/blocked rosters, current pair actions and revocable invite links (#377); availability words only while their lease holds, and a Visit button (#241) | Friends                                               |
@@ -283,11 +283,14 @@ Geography and Scenes path and the CI fixture model; not on dev).
 | Planet globe (U03), landed map (U04), region card and Open/return, from the world generator (v3 U-4, D-108 to D-110) | runtime-verified (web); native: not driven |
 | Land not reached yet: grey outlines on the map only, never named, counted or chosen (D-109)  | runtime-verified (web, accessibility snapshot) |
 | Dust cues and their note                                                                     | runtime-verified                 |
-| Lately lens, search, list view, simple drawing                                               | runtime-verified                 |
+| Lately lens | runtime-verified |
+| Search over systems, planets, regions and rooms, on the device only: best match, mono path, fly-to, Back restores the camera (v3 U-5, D-112) | runtime-verified (web, fixture stack) |
+| Orbit dial: wheel of systems, big planet, dial of planets, filters All / Lately / With rooms / A–Z, system and planet search (replaces List view; v3 U-5, D-112) | runtime-verified (web, fixture stack); native: not driven |
+| Simple drawing: the whole tab as two plain lists, by the setting or by itself when 3D fails (v3 U-5, D-111) | runtime-verified (web, fixture stack); native: not driven |
 | Camera, lens and ship memory; after-absence framing; `?focus=last`                           | runtime-verified (web)           |
 | Formation story (U05), all five beats                                                        | runtime-verified                 |
 | Routes between planets: a "Route to ..." chip on a planet, never a line (D-074)               | implemented                      |
-| Desktop outline panel (D02)                                                                  | runtime-verified                 |
+| Desktop D02: panel with the picked planet's card, switches, key hints, zoom buttons; Escape steps up a level (v3 U-5, D-112) | runtime-verified (web, fixture stack) |
 | Native persistence of the camera (memory only today)                                         | planned                          |
 | Room stations in 3D beside their systems, a "Rooms" section in the list view (D-051)         | runtime-verified (web: target and list; the 3D drawing is the gallery sample) |
 | The ship parked at the planet of the last place (unit-tested), "Return to <planet>" (D-080)   | implemented (the chip is runtime-verified, web) |
@@ -306,7 +309,7 @@ float over it.
   Positions come from the persisted anchors and the seed; size never from reading.
 - **Labels and targets stay views.** `space-overlay.tsx` places a 48 px button and a label (`placeLabels`) at each
   projected point (a target shrinks, never below 24 px, only where bodies crowd each other: D-107); the canvas is hidden from assistive technology. Where 3D cannot run (no WebGL, a lost context, a
-  failed frame, low memory) `SpaceSimpleLists` shows the same names in the same order and every place still opens.
+  failed frame, low memory) the Simple drawing (`simple/`) shows the same names in the same order and every place still opens.
 - **Planet globe (U03) and landed map (U04)** (`planet/`, D-108 to D-110). A planet opens as a globe: every continent in
   full colour under clouds, turning once in 70 s, with the ring and the moon its look gives it, and the names of the
   regions that have formed written on it. A drag turns it (the camera's pan, in reduced motion the only thing that does);
@@ -333,10 +336,27 @@ float over it.
   (one large at the centre when nothing else exists, small ones past the systems), never labelled, never a
   destination; a tap explains them in one sentence. U01 "Empty", loading and Offline draw the quiet sky only
   (`space/sky-backdrop.tsx`; the old still stars are its fallback).
-- **Lately, search, list.** Lately dims quiet places and sorts recent ones first (activity, never
-  existence). Search runs on the device over the person's own places and the query is not kept.
-  The list view is the full outline (the screen-reader primary); from 1024 px it is a permanent
-  panel (D02).
+- **Lately.** Lately dims quiet places and sorts recent ones first (activity, never existence).
+- **Search** (`universe-search.ts`, `universe-search-panel.tsx`, D-112). The field replaces the header over the live
+  map. It searches the places already on the device and, for the person's own universe, the rooms of the stations read
+  (`/v1/rooms/stations`): systems, planets, regions and rooms, best match first, each with the letters that matched and
+  a mono path ("Region · Inference & serving · Machine learning"). A tap, or Enter on the lit row (arrow keys move it),
+  flies to the place and Back restores the camera; a room opens its room. It makes no request, keeps no query and never
+  offers land that has not formed. `/` opens it from the focused map.
+- **The orbit dial** (`dial/`, D-112) replaces the List view on phones and tablets. Touch the system row to open the
+  wheel of systems, turn it (drag, or the arrow keys on the focused wheel), let go to choose; the chosen system's
+  planet at the top of its dial is shown big as its real globe, and a tap lands on its map. Filters All, Lately (not
+  quiet), With rooms and A–Z; one search for systems (wheel open) and one for planets (in this system or everywhere).
+  It is built from the reads the Universe holds (`buildDial`): nothing is fetched or written, and land not reached yet
+  is neither listed nor counted. The design's "N uncharted" chip is not drawn (D-109).
+- **Simple drawing** (`simple/`, D-111). The whole tab as the two lists of `simple-views-finalized.html`. It is on by
+  the setting ("Simple view" on the dial, "Simple drawing" in the desktop panel; remembered on the device with the
+  camera) and by itself when WebGL is missing, the context is lost, a frame fails, the system warns of low memory or
+  the browser says it has 1 GB or less. Turning the switch off tries 3D again.
+- **Desktop D02** (`universe-panel.tsx`). From 1024 px the panel is always open: counts, search, the picked planet's
+  card (Land goes straight to its map, Close), the Lately and Simple drawing switches, then the same lists as the
+  Simple view (systems with planets and rooms). On a system a tap on a planet picks it and it glows; key hints and
+  zoom buttons are on the map. Escape closes what is open and then steps up one level.
 - **Return.** The camera, lens and ship's place persist per device in the account scope's storage
   (purged on logout, account switch and privacy reset). The ship is parked on the planet of the last place
   (hidden under Lately). After three days away the camera starts framed on everything and a "Return to <planet>" chip
@@ -347,7 +367,7 @@ float over it.
 - **Never evidence.** Looking, panning, searching and choosing a pin create no observation, exposure
   or command. Only the Reel or Scroll that Open starts is an encounter.
 
-Accessibility: every place is a 48 px button named "Name, a planet"; keyboard on the web pans with
+Accessibility: every place is a 48 px button named "Name, a planet" (", hypothetical" when it is); keyboard on the web pans with
 arrows (on a globe they turn it), zooms with + and - (or the wheel), Home refits, "/" searches; focus rings use the dark-surface
 token; reduced motion stops drift and plays the formation as one still.
 
@@ -370,9 +390,9 @@ tab's own layout of a labelled sample universe, for the frame numbers).
 | Loop stops when the route is unfocused, the app is not active or the tab is hidden | runtime-verified (web); native: implemented (unit tests, not driven on a device) |
 | Loop stops when the canvas is scrolled off screen | runtime-verified (web only; native does not report it, see D-100) |
 | Reduced motion: one frame, no loop, a fly is a jump | runtime-verified (web, Android emulator) |
-| No WebGL, context creation failure, context loss or a failed frame: the plain lists (`SpaceSimpleLists`) | runtime-verified (web; on the emulator a failed context creation showed the lists) |
+| No WebGL, context creation failure, context loss or a failed frame: the Simple drawing, the whole tab as two plain lists (D-111; the developer gallery keeps the dark `SpaceSimpleLists`) | runtime-verified (web; on the emulator a failed context creation showed the lists) |
 | A new native surface after resume replaces the renderer and loop; unmount releases them | implemented (unit tests, not driven on a device) |
-| Low memory (`AppState` `memoryWarning`) shows the plain lists | implemented (unit test; raised by iOS, not known on Android; device-memory check deferred to the Simple drawing slice) |
+| Low memory: `AppState` `memoryWarning` shows the Simple drawing; a browser with `deviceMemory` of 1 GB or less opens as the lists (D-111) | implemented (unit tests; the warning is raised by iOS, not known on Android; no device-memory reading on native) |
 | Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web, Android emulator) |
 | Landmark markers, constellations, the entering animations, a friend's own look | planned (later slices) |
 
@@ -390,7 +410,8 @@ Files (`features/universe/`): `universe-session.ts` (state, history, memory, dus
 (pure placement of labels and the outline), `space/` (the 3D views, above), `planet/` (the SVG globe and landed
 map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the formation story's star and planet),
 `universe-surface.tsx` (phone and desktop layout),
-`universe-header.tsx`, `universe-cards.tsx`, `universe-outline.tsx`, `universe-search-panel.tsx`,
+`universe-panel.tsx` (D02 panel), `universe-lists.ts` (the lists the panel, the Simple view and the dial share), `simple/`, `dial/`,
+`universe-header.tsx`, `universe-cards.tsx`, `universe-search.ts`, `universe-search-panel.tsx`,
 `formation-presentation.tsx`. Choices are in D-039, D-108 to D-110.
 
 ## Mounted Keep lifecycle
@@ -636,8 +657,7 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
 - Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
 - Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes
   the stations to `UniverseSurface`, which draws a 3D station beside the system it names (angle from the room's ID, just
-  outside the outermost orbit; its ring in the room's accent and its emblem as a sprite over the hub, dimmed under Lately, and the emblem beside the
-  name in the list view, D-170), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
+  outside the outermost orbit; its ring in the room's accent and its emblem as a sprite over the hub, dimmed under Lately, D-170; the Simple views are a final design and draw no emblem), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
   room on a tap. A read that fails leaves the map as it was. A visit to a friend's map passes none.
 - A room's face (v3 R-4, D-170; `features/rooms/identity/`): `RoomBand` draws the kit's ground, its faint motif with one slow loop
   (`band-motion.ts`: opacity and transform only; **reduced motion is a still frame**) and, when an operator approved one, the painted backdrop

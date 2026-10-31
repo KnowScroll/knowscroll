@@ -101,6 +101,15 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
     return true;
   }
 
+  function up(): boolean {
+    if (!live()) return false;
+    const parentId = places.find((place) => place.objectId === state.focusId)?.parentId;
+    const parent = places.find((place) => place.objectId === parentId && place.kind !== 'star');
+    history.push(here());
+    publish({ focusId: parent?.objectId ?? null, frame: { ...INITIAL_FRAME }, overlay: null, selectedId: null });
+    return true;
+  }
+
   return {
     getState: () => state,
     subscribe(listener) {
@@ -125,6 +134,13 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       geometryCache.clear();
       publish({ detail, reducedMotion });
     },
+    // Simple drawing is this screen's own choice while it is open; a visit remembers nothing on the device.
+    setSimple(simple) {
+      if (!live()) return;
+      detail = simple ? 'low' : 'full';
+      geometryCache.clear();
+      publish({ detail });
+    },
     showOverlay(overlay) {
       // The place card belongs to regions, which a visitor is never shown.
       if (!live() || overlay === 'place') return;
@@ -143,13 +159,11 @@ export function createVisitMapSession(options: VisitMapOptions): VisitMapSession
       if (!live() || (id !== null && !exists(id))) return;
       publish({ selectedId: id });
     },
-    up() {
+    up,
+    escape() {
       if (!live()) return false;
-      const parentId = places.find((place) => place.objectId === state.focusId)?.parentId;
-      const parent = places.find((place) => place.objectId === parentId && place.kind !== 'star');
-      history.push(here());
-      publish({ focusId: parent?.objectId ?? null, frame: { ...INITIAL_FRAME }, overlay: null, selectedId: null });
-      return true;
+      if (state.overlay || state.selectedId) return back();
+      return state.focusId !== null && up();
     },
     focusLast: () => false,
     // A friend's planets turn but never land: a visit shows only what the friend shares, and regions are never shared.
