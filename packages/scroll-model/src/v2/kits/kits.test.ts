@@ -25,6 +25,16 @@ function everyState(kit: KitDefinition): WordState[] {
 const anyState = (kit: KitDefinition): fc.Arbitrary<WordState> =>
   fc.record(Object.fromEntries(kitKeys(kit).map((key) => [key, fc.constantFrom(...(kit.enums[key] ?? []))])));
 
+/** The settled states of a kit, each once: what a stored document can hold. A kit with many words has far fewer of these than states. */
+function settledStates(kit: KitDefinition, states: readonly WordState[]): WordState[] {
+  const seen = new Map<string, WordState>();
+  for (const state of states) {
+    const settled = kit.settle(state);
+    seen.set(JSON.stringify(settled), settled);
+  }
+  return [...seen.values()];
+}
+
 describe.each(STAGE_KIT_IDS)('the generic rules of the kit %s', (id) => {
   const kit = kitDefinition(id);
   const states = everyState(kit);
@@ -42,22 +52,37 @@ describe.each(STAGE_KIT_IDS)('the generic rules of the kit %s', (id) => {
 
   it('settles every state to a state of its own words, idempotently, and keeps the view', () => {
     expect(states.length).toBeGreaterThan(10);
+    // Collected and asserted once: a kit with many words has over a hundred thousand states, and an assertion each is slow.
+    const problems: string[] = [];
     for (const state of states) {
       const settled = kit.settle(state);
-      expect(kit.settle(settled), JSON.stringify(state)).toEqual(settled);
-      expect(settled['view']).toBe(state['view']);
-      for (const key of kitKeys(kit)) expect(kit.enums[key], JSON.stringify(state)).toContain(settled[key]);
+      const again = kit.settle(settled);
+      if (kitKeys(kit).some((key) => again[key] !== settled[key]))
+        problems.push(`not idempotent: ${JSON.stringify(state)}`);
+      if (settled['view'] !== state['view']) problems.push(`view changed: ${JSON.stringify(state)}`);
+      for (const key of kitKeys(kit)) {
+        const words: readonly string[] = kit.enums[key] ?? [];
+        if (!words.includes(settled[key] ?? '')) problems.push(`${key} not a word: ${JSON.stringify(state)}`);
+      }
     }
+    expect(problems).toEqual([]);
   });
 
   it('describes every state in plain, bounded sentences that the document accepts, the same for states that settle alike', () => {
-    for (const state of states) {
+    for (const state of settledStates(kit, states)) {
       const text = kit.describe(state);
       expect(text.length, JSON.stringify(state)).toBeGreaterThan(10);
       expect(text.length).toBeLessThanOrEqual(FIELD_LIMITS_V2.stateDescriptionChars);
       expect(plainText(10, FIELD_LIMITS_V2.stateDescriptionChars).safeParse(text).success, text).toBe(true);
-      expect(text).toBe(kit.describe(kit.settle(state)));
     }
+    // A state that settles to another is described as that one, whichever words it was chosen with. Every state is
+    // checked up to 20,000 of them; only a kit with more (the nerve kit has about 120,000) is checked at an even stride,
+    // and each of its settled states is described above.
+    const stride = Math.max(1, Math.ceil(states.length / 20_000));
+    const different = states.filter(
+      (state, index) => index % stride === 0 && kit.describe(state) !== kit.describe(kit.settle(state)),
+    );
+    expect(different).toEqual([]);
   });
 
   it('never mentions a prompt, a source, a score or a model', () => {
