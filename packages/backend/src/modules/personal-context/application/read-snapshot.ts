@@ -35,6 +35,7 @@ export function makeReadExplorationSnapshot(p: ContextPorts): ReadExplorationSna
           { kind: 'reel' as const, measured: 0, qualified: 0, fit: 0.5 },
           { kind: 'scroll' as const, measured: 0, qualified: 0, fit: 0.5 },
         ],
+        cells: [],
         ...topics.find((t) => t.topicId === topicId),
         qualifiedExplanationUnits: 0,
         coveredFacets: 0,

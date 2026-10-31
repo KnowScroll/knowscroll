@@ -13,6 +13,7 @@ const tables = [
   'topic_contributions',
   'activity_current',
   'activity_revisions',
+  'topic_format_cells',
   'topic_context',
   'encounter_evidence',
   'observations',

@@ -169,6 +169,8 @@
       KS_PLANNER_ENABLED={{ '1' if item.name in ks_v2_planner_enabled_worlds else '0' }}
       # Worker only: the Cartographer forms places from qualified reading (#237).
       KS_CARTOGRAPHER_ENABLED={{ '1' if item.name in ks_v2_cartographer_enabled_worlds else '0' }}
+      # API and worker: the Composer policy new decisions are made under (v3 S-5, D-190). v0 until the numbers of v1 are chosen.
+      KS_COMPOSER_POLICY={{ ks_v2_composer_policy[item.name] | default('v0') }}
       # Worker only: Jev assesses Explore buffer shortlists (#234).
       KS_JEV_ENABLED={{ '1' if item.name in ks_v2_jev_enabled_worlds else '0' }}
       # Worker and production operator only: the share of the global and per-person daily model caps that

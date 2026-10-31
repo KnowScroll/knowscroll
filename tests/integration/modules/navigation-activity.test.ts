@@ -372,6 +372,144 @@ describe('Experience navigation and actual routing activity (real PostgreSQL CI 
     );
     expect(ctx).toMatchObject({ kind: 'entered', value: { established: { units: [{ encountered: true }] } } });
   });
+  it('activity.v1: a deliberate continuation credits its source only when the source was read (D-191)', async () => {
+    const c = current;
+    const p = await recordingPerson(database),
+      source = await fixtureAsset(c),
+      target = await fixtureAsset(c),
+      linkId = randomUUID(),
+      topic = `ci.topic.${randomUUID()}`;
+    await database.db
+      .insertInto('content.encounter_topics')
+      .values({ asset_id: source.assetId, asset_revision: 1, topic_id: topic, role: 'primary', weight: 1 })
+      .execute();
+    await makeAdmissionStore(database.db).inAdmission((tx) =>
+      admitContinuity(tx, {
+        authorityReference: 'ci.explicit.related',
+        series: [],
+        links: [
+          {
+            linkId,
+            revision: 1,
+            source: { assetId: source.assetId, assetRevision: 1 },
+            target: { assetId: target.assetId, assetRevision: 1 },
+            direction: 'related',
+            relation: { kind: 'related_move', label: 'CI related perspective' },
+            strength: 1,
+            authorityReference: 'ci.explicit.related',
+          },
+        ],
+      }),
+    );
+    const first = ready(
+      await c.navigate(p.authority, {
+        ...discovery(),
+        target: { kind: 'return', assetId: source.assetId, assetRevision: 1 },
+      }),
+    );
+    const active = await c.activateOffer(p.authority, activation(first));
+    if (active.kind !== 'accepted') throw new Error('fixture');
+    const exposureId = active.outcome.exposureId;
+    const swiped = ready(
+      await c.navigate(p.authority, {
+        commandId: randomUUID(),
+        sessionId: first.sessionId,
+        expectedIntentRevision: 0,
+        from: { offerId: first.offer.offerId, exposureId },
+        intent: {
+          mode: 'related' as const,
+          expectedContinuation: { linkId, assetId: target.assetId, assetRevision: 1 },
+        },
+      }),
+    );
+    expect((await c.activateOffer(p.authority, activation(swiped))).kind).toBe('accepted');
+    const flag = await database.db
+      .selectFrom('experience.recording_segment_inputs')
+      .select('horizontal')
+      .where('exposure_id', '=', exposureId)
+      .executeTakeFirst();
+    expect(flag).toEqual({ horizontal: true });
+
+    const latest = async () =>
+      database.db
+        .selectFrom('evidence.activity_revisions')
+        .select(['channels', 'activity', 'policy_version'])
+        .where('universe_id', '=', p.universeId)
+        .where('exposure_id', '=', exposureId)
+        .orderBy('revision', 'desc')
+        .executeTakeFirstOrThrow();
+    const topicActivity = async () =>
+      (
+        await database.db
+          .selectFrom('evidence.topic_context')
+          .select('channel_values')
+          .where('universe_id', '=', p.universeId)
+          .where('topic_id', '=', topic)
+          .executeTakeFirstOrThrow()
+      ).channel_values as { H: number };
+    const payload = job(p.universeId, exposureId);
+    const factsRow = await database.db
+      .selectFrom('content.asset_revisions')
+      .select('reading_facts')
+      .where('asset_id', '=', source.assetId)
+      .where('revision', '=', 1)
+      .executeTakeFirstOrThrow();
+    const facts = factsRow.reading_facts as { blocks: { id: string }[]; estimatedReadingMs: number };
+    const blockIds = facts.blocks.map((block) => block.id);
+    const opened = { exposureId, assetId: source.assetId, assetRevision: 1 };
+    await activatedAgo(database.db, exposureId, 30);
+
+    // Swiped on with nothing read: the move happened, and it credits nothing.
+    expect(await c.projectActivity(payload)).toMatchObject({ kind: 'applied' });
+    expect(await latest()).toMatchObject({ channels: { H: false }, activity: 0, policy_version: 'activity.v1' });
+    expect((await topicActivity()).H).toBe(0);
+
+    // A glance at two blocks: not enough to count, so still nothing for the move.
+    await c.ingestObservations(p.authority, {
+      instrumentationVersion: 1,
+      events: [event(opened, coverage(blockIds.slice(0, 2), 3000)), event(opened, dwell([0, 6000]))],
+    });
+    expect(await c.projectScrollReading(payload)).toMatchObject({ kind: 'applied' });
+    expect(await c.projectActivity(payload)).toMatchObject({ kind: 'applied' });
+    expect(await latest()).toMatchObject({ channels: { H: false }, policy_version: 'activity.v1' });
+    expect((await topicActivity()).H).toBe(0);
+
+    // Read through: the same move now credits the part it left.
+    await c.ingestObservations(p.authority, {
+      instrumentationVersion: 1,
+      events: [
+        event(opened, coverage(blockIds, 4000, 6000)),
+        event(opened, dwell([0, 6000 + 4000 * blockIds.length + facts.estimatedReadingMs])),
+      ],
+    });
+    expect(await c.projectScrollReading(payload)).toMatchObject({ kind: 'applied', qualification: 'qualified' });
+    expect(await c.projectActivity(payload)).toMatchObject({ kind: 'applied' });
+    const read = await latest();
+    expect(read).toMatchObject({ channels: { H: true }, policy_version: 'activity.v1' });
+    expect(read.activity).toBeGreaterThan(1.5);
+    // The channel is the move itself (1, weighted by the topic); the +1.5 is applied by the activity sum.
+    expect((await topicActivity()).H).toBeGreaterThan(0.9);
+
+    // What Composer is handed for its next move: the topics of the encounter just left (for the recent-topic penalty,
+    // D-190) and the play-level cell the reading was counted in (D-192).
+    const context = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 })(p.authority, (s) =>
+      c.readPrepared(s, {
+        evaluatedAt: new Date().toISOString(),
+        topicIds: [topic],
+        candidates: [{ explanationUnitId: source.unit, facets: [] }],
+        candidateAssetIds: [],
+      }),
+    );
+    expect(context).toMatchObject({
+      kind: 'entered',
+      value: {
+        recent: expect.arrayContaining([
+          expect.objectContaining({ explanationUnitId: source.unit, topicIds: [topic] }),
+        ]) as unknown,
+        topics: [{ topicId: topic, cells: [{ kind: 'scroll', level: 'plain', measured: 1, qualified: 1 }] }],
+      },
+    });
+  });
   it('replaces late qualification/action/attribution deltas, excludes unknown Q/O, preserves topic weight bounds and scoped candidate Hide', async () => {
     const c = current;
     const p = await recordingPerson(database),

@@ -33,6 +33,7 @@ function snapshot(): ExplorationSnapshot {
       interest: topicId === 'positive' ? 2 / 3 : 0,
       channels: { q: 1, L: 0, B: 0, S: 0, H: 0, R: 0 },
       formats: [{ kind: 'scroll', measured: 1, qualified: 1, fit: 2 / 3 }],
+      cells: topicId === 'positive' ? [{ kind: 'scroll', level: 'game', measured: 1, qualified: 1 }] : [],
       qualifiedExplanationUnits: 99,
       coveredFacets: 0,
     })),
@@ -55,6 +56,15 @@ function snapshot(): ExplorationSnapshot {
   };
 }
 describe('PC to Composer compatibility read (labelled fixtures)', () => {
+  it('passes a cell as its four fields only, so nothing else Evidence held can ride along (D-063)', async () => {
+    const s = snapshot();
+    const smuggled = { kind: 'scroll', level: 'game', measured: 1, qualified: 1, correct: true, sparks: 3 };
+    (s.topics[0] as unknown as { cells: unknown[] }).cells = [smuggled];
+    const output = await makeReadComposerContext(() => Promise.resolve(s))(scope, query);
+    expect(output?.topics[0]?.cells).toEqual([{ kind: 'scroll', level: 'game', measured: 1, qualified: 1 }]);
+    expect(JSON.stringify(output)).not.toMatch(/correct|sparks/);
+  });
+
   it('keeps observed zero, omits absent history, preserves Q/O and routing, and excludes provisional/structural arithmetic', async () => {
     const s = snapshot(),
       read = vi.fn(() => Promise.resolve(s));
@@ -65,8 +75,13 @@ describe('PC to Composer compatibility read (labelled fixtures)', () => {
       watermark: 'personal-context-composer.v0:4:12:10:not_asserted',
     });
     expect(output?.topics).toEqual([
-      { topicId: 'positive', activity: 2, formats: [{ kind: 'scroll', measured: 1, qualified: 1 }] },
-      { topicId: 'zero', activity: 0, formats: [{ kind: 'scroll', measured: 1, qualified: 1 }] },
+      {
+        topicId: 'positive',
+        activity: 2,
+        formats: [{ kind: 'scroll', measured: 1, qualified: 1 }],
+        cells: [{ kind: 'scroll', level: 'game', measured: 1, qualified: 1 }],
+      },
+      { topicId: 'zero', activity: 0, formats: [{ kind: 'scroll', measured: 1, qualified: 1 }], cells: [] },
     ]);
     expect(output).not.toHaveProperty('provisional');
     expect(output).not.toHaveProperty('qualified');

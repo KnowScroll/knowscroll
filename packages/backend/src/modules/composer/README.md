@@ -13,6 +13,9 @@ a private store of every decision, and **worker-prepared buffers** with an optio
 | A vertical move leaves the series the person is in (`same_series`, D-131) and its related move (`related_target`, D-136), and stays in the format they are in (`format_sticky`, D-132) | implemented, CI-tested against real PostgreSQL; not yet run on dev |
 | Jev reuse: a person's pool of recent assessments, `composer.jev_assessments`; a call only for candidates without one (D-058) | implemented, CI-tested against real PostgreSQL; run locally with the real model (12 activations: 1 call instead of 12); not yet run on dev |
 | Jev is a background role: it stops at its share of the daily model budgets and falls back to the deterministic ranking (D-058) | implemented, CI-tested; not yet run on dev |
+| Policy v1 (`composer-policy.v1`, D-190): Intent 0.35 to 0.15, a recent-topic penalty, Format per play level (D-192), exploration per play level; v0 decisions replay byte for byte | implemented, CI-tested (60 frozen v0 hashes); **off unless `KS_COMPOSER_POLICY=v1`** (default `v0`), and the numbers are provisional until the replay has been read on stored dev decisions |
+| `composer replay-policy`: stored vertical decisions re-run under v0 and v1, counts only | implemented, CI-tested; not yet run on dev |
+| Jev `jev.2` (D-193): kind, play level, minutes, series part n of m and the myth a Scroll corrects; never play | implemented, unit-tested; one real run on dev still to do |
 
 `composeEncounter(snapshot)` takes an already authorized, immutable prepared snapshot. It performs
 no writes, Nest calls, clock reads or network I/O. Experience prepares it
@@ -22,9 +25,15 @@ A decision/offer/buffer is not an activated encounter and contributes no persona
 
 ## Inputs and experimental policy
 
-`composer-policy.v0` fixes maximum retrieval 100, chosen plus two buffers (maximum 3), MMR lambda 0.2,
-vertical exploration 0.10, and last 20 actual activated encounters within 24 hours of explicit
-`evaluatedAt`. These are code-selected experimental defaults, not calibrated learned parameters.
+A policy is versioned data (`domain/policy.ts`): `composer-policy.v0` and `composer-policy.v1` share maximum
+retrieval 100, chosen plus two buffers (maximum 3), MMR lambda 0.2, vertical exploration 0.10, and last 20 actual
+activated encounters within 24 hours of explicit `evaluatedAt`. These are code-selected experimental defaults, not
+calibrated learned parameters. A decision names its policy and replays under exactly that policy
+(`policyOf(decision.policyVersion)`), which `persistComposerDecision` checks byte for byte, so an old decision never
+changes with a newer policy. Which policy new decisions are made under is configuration, `KS_COMPOSER_POLICY` (`v0` or
+`v1`, default `v0`, read by the API and the worker): v1 is not used by a world until its numbers are chosen. A stored
+decision replays under its own policy whatever the setting, and the replay command always runs both. A change to v1's
+numbers after v1 decisions are stored needs `composer-policy.v2` and a migration (D-190).
 Seed and all inputs/watermarks are saved; ties use immutable asset/revision lexical order.
 
 Eligibility precedes scoring: admission/access/renderability, language, explicit format, exact
@@ -34,13 +43,24 @@ incidental attribution never satisfies a required topic. Return requires an exac
 requires exact explanation identity and explicit format. Horizontal requires a real admitted
 link bound to the exact source and candidate target; an expected link ID is hard eligibility.
 
-The equations are exactly blueprint §9:
+The equations are blueprint §9 under v0, and v1 for a vertical move (D-190):
 
-- Vertical: `.35Intent+.20Interest+.15Format+.15Novelty+.15SemanticFit-.25RecentRepetition`.
-- Horizontal: `.45Continuity+.25Intent+.15Format+.15SemanticFit-.25RecentRepetition`.
+- Vertical v0: `.35Intent+.20Interest+.15Format+.15Novelty+.15SemanticFit-.25RecentRepetition`.
+- Vertical v1: `.15Intent+.20Interest+.15Format+.15Novelty+.15SemanticFit-.25RecentRepetition-.25RecentTopic`.
+- Horizontal (both): `.45Continuity+.25Intent+.15Format+.15SemanticFit-.25RecentRepetition`.
+
+`RecentTopic` (v1, vertical only) is the share of the person's newest three encounters in the recent window that share
+a non-incidental topic with the candidate, weighted 3, 2 and 1 out of 6; a missing history is 0. The topics of a recent
+encounter come from its frozen attribution (`recent[].topicIds`); the legacy lineage keeps none and counts as neutral.
 
 Every feature is bounded [0,1]. Interest uses prepared actual activity `A/(1+A)`. Format is per
-admitted topic and kind `(1+Q)/(2+O)`; unknown measurements do not enter O/Q. Evidence owns the illustrative 14-day interest half-life and same-time replacement deltas;
+admitted topic and kind `(1+Q)/(2+O)` under v0; unknown measurements do not enter O/Q. Under v1 it is read per play
+level of the candidate (`plain`, `stage`, `game`, derived by Content, D-192): `(Q + m*prior)/(O + m)` with the cell's
+counts, prior strength `m = 4` and `prior` the rate `(1+Q)/(2+O)` of the person's other levels (the (topic, kind) parent
+above less the cell, which the parent counts too, so the cell is not counted twice). A cell with no encounters equals its
+parent, and a person with history in one level only is shrunk toward even odds. The
+counts are about reading (a qualified response is q >= 0.6) and never about correctness, a pick, a spark or a tier
+(D-063): the snapshot schema takes four fields per cell and nothing else. Evidence owns the illustrative 14-day interest half-life and same-time replacement deltas;
 Personal Context owns its revisioned snapshot and qualified structural support. Composer changes
 neither. Its existing backend-only `ReadPreparedEvidenceInput` capability is implemented by the
 PC compatibility adapter without a second aggregate or scoring equation. Missing topic history/format/continuity/semantic assessment
@@ -68,7 +88,9 @@ missing overlap inputs are neutral 0.5. MMR repeatedly takes score minus 0.2 tim
 to the chosen buffer and deduplicates explanation identity, including format twins.
 
 Vertical first-slot choice is a seeded mixture: ranked winner with mass 0.9 plus uniform eligible
-exploration pool with mass 0.1. FNV-1a/xorshift32 seed policy and rejection-sampled bounded integer
+exploration pool with mass 0.1 (v1: a member is drawn uniformly and, only when it is a Scroll, replaced by a draw of a
+play level present among the pool's Scrolls and then of a Scroll of it, so no level is crowded out while the Reel/Scroll
+share of the pool is unchanged; the logged probability is epsilon times that share). FNV-1a/xorshift32 seed policy and rejection-sampled bounded integer
 choices are pinned in v0. Logged first-choice probability is `(rankedWinner ? 1-epsilon : 0) +
 (inPool ? epsilon/poolSize : 0)`, with epsilon 0 for an empty pool or nonvertical mode. Ties are
 deterministic, so no tie mass is invented. Buffers are deterministic conditional on the first
@@ -155,7 +177,7 @@ make a vertical move say the second.
 - **Buffers.** The worker passes the source's own format, series and related assets, so a buffer is the next topic in the
   source's format. Experience serves it only to a move that names that format.
 
-These fields are optional inputs, so the label stays `composer-policy.v0` (migration 0017 pins it) and every
+These fields are optional inputs, so they did not move the label (policy v1 moved it for its own reasons, D-190) and every
 stored decision replays unchanged. A move inside a region (Experience) takes none of the rules.
 
 ## Prepared buffers and Jev
@@ -207,7 +229,7 @@ has moved on does nothing (`session_superseded`), so a newer activation supersed
 The primary key (universe, mode) keeps one buffer per person: preparing replaces the previous one and
 deletes its decision. A redelivery finds the buffer already prepared and does nothing.
 
-**Jev.** `composer.jev` (role version `jev.1`) runs on the shared reasoning harness (`REASONING_HARNESS`)
+**Jev.** `composer.jev` (role version `jev.2`, D-193) runs on the shared reasoning harness (`REASONING_HARNESS`)
 inside the buffer job, outside any transaction. For up to 20 of the best eligible candidates by the
 deterministic baseline it returns three criteria per candidate, each in [0,1]: relevance to the current
 step, appropriateness as a next explanation and redundancy with the current step. Code combines them:
@@ -215,7 +237,11 @@ step, appropriateness as a next explanation and redundancy with the current step
 repeated candidate are dropped. Provider failure, refusal, a budget stop or an unusable answer is the absence
 of an assessment: with none at all the lexical baseline applies as before, and nothing is judged negatively.
 The harness run ID is the queue job ID, so a redelivery answers from the attempt ledger and a possibly sent
-request is never resent. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1 on dev. Limit: the generic
+request is never resent. `jev.2` describes each item by public facts of its content only: its kind, how much play it
+has, its reading minutes, `Series: part n of m` and the common myth it corrects (so two Scrolls that bust the same myth
+are seen as redundant), with the summary cut to fit 900 characters before any of that is. Which option anyone picked,
+whether it was right, sparks and tiers are not in the context and have no field in it (D-063). A stored assessment
+made under `jev.1` is not reused. `KS_JEV_ENABLED` defaults to 0 and is meant to be 1 on dev. Limit: the generic
 personal harness only runs while recording is at its initial generation (a person who has used Pause has no
 Jev until the recording-aware harness accepts a Composer purpose).
 
@@ -263,7 +289,7 @@ logs the same.
 | Notices | none; the next navigation reads the durable row |
 | Lock order | personal root first in both worker transactions; the model call is between them |
 | Erasure | Clear and full erasure delete `composer.buffers` before `composer.decisions`, `composer.jev_assessments` (it references nothing), and the queue payloads (`pgboss/composer.prepare-buffer`) |
-| Config | `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
+| Config | `KS_COMPOSER_POLICY` (API and worker, D-190); `KS_JEV_ENABLED` (worker); `KS_REASONING_BACKGROUND_SHARE_PERCENT` (worker, shared with the other background roles); the model is the harness's configured model |
 
 **Failure and recovery.** A job for a changed epoch, an unactivated offer or a superseded revision is
 skipped. A thrown error rolls back both transactions and pg-boss retries. A crash after the model call
@@ -293,3 +319,28 @@ evaluation in the decision carries `plan` with the revision, opportunity positio
 the value before and after. When every same-topic candidate already has Intent 1 (a source with topics),
 the plan changes nothing among them. Capability state: implemented, CI-verified, run locally against the
 real model; not yet runtime-verified on dev.
+
+## Policy replay (D-190)
+
+Status: implemented, CI-tested; not yet run on dev.
+
+`node dist/operator.js composer replay-policy --since <ISO date> [--limit <1-20000>] [--intent-weight <0-1>]
+[--recent-topic-penalty <0-1>] [--sweep]` (worker release, server shell) re-runs the retained vertical decisions
+recorded since a date, newest first (default 2000), under `composer-policy.v0` and v1 on the same inputs, to choose
+the numbers of a policy from real decisions. Read-only: no model, no network, no write. It reads the decisions of
+every account in memory and prints one JSON line of **counts and shares only** (no person, universe, session, asset,
+title or text):
+
+- `stored (as served)`, then one row per policy: the vertical decisions replayed, those with nothing to offer, and for
+  the first offer (the one a pull-up lands on) how many stay on the source's topic, are another part of its series, and
+  move to another Jev subject (language and primary topic; each is a possible Jev call under D-058). The same three
+  counts for every offer, and how many decisions kept the person's format or fell back from it (`stickyFormat`).
+- `skipped`: decisions that are not vertical, whose source is not among their candidates, or that the current schema
+  cannot read. `storedPolicies` counts the labels found.
+- `--intent-weight` and `--recent-topic-penalty` replay v1 with other numbers; `--sweep` replays v1 over a grid of
+  Intent weights {0.35, 0.25, 0.15, 0.10, 0.05} and penalties {0, 0.1, 0.25, 0.4}.
+
+A stored input is first named as today's assembly would name it (`normaliseForReplay`): the series and format the
+person was in, and the topics of each recent encounter, taken from candidates the input already holds. Old inputs lack
+them, and without them the report would mix the rules of D-131 and D-132 with the weights. The decision table is
+unchanged; the command adds no table.

@@ -5,6 +5,8 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import type { ActivityPorts } from '../application/activity.js';
 import type { ActivityChannels } from '../domain/activity.js';
 import { activity, decay, replaceContribution } from '../domain/activity.js';
+import { moveCellCounts, readCells } from './cell-store.js';
+import type { PlayLevel } from '../../content/public.js';
 export const readQualification: ActivityPorts['readQualification'] = async (cap, id, domain, initializedAt) => {
   const scope = cap.personal;
   const rows = await sql<{
@@ -13,9 +15,10 @@ export const readQualification: ActivityPorts['readQualification'] = async (cap,
     revision: number;
     qualification: 'qualified' | 'not_qualified' | 'unknown';
     q: number;
+    coverage: number;
     asset_id: string;
     asset_revision: number;
-  }>`select id,recording_generation,revision,qualification,q,asset_id,asset_revision from evidence.encounter_evidence
+  }>`select id,recording_generation,revision,qualification,q,coverage,asset_id,asset_revision from evidence.encounter_evidence
     where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${cap.generation} and created_at>=${initializedAt}::timestamptz
     and (${domain === 'legacy'} and policy_version in('scroll-qualification.v0','reel-qualification.v0') and id=(select nullif(source_vector->>'legacyQualificationId','')::uuid from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and exposure_id=${id}::uuid and recording_generation=${cap.generation}) or ${domain === 'session'} and policy_version in('scroll-qualification.recording.v1','reel-qualification.recording.v1') and id=(select qualification_id from evidence.recording_segment_heads where universe_id=${scope.authority.universeId}::uuid and exposure_id=${id}::uuid and recording_generation=${cap.generation})) order by revision desc limit 1`.execute(
     recordingTransactionOf(cap),
@@ -28,6 +31,7 @@ export const readQualification: ActivityPorts['readQualification'] = async (cap,
         revision: r.revision,
         qualification: r.qualification,
         q: r.q,
+        coverage: r.coverage,
         assetId: r.asset_id,
         assetRevision: r.asset_revision,
       }
@@ -78,11 +82,12 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     value: number;
     measured: number;
     qualified: number;
-  }>`select topic_id,channel_values,value,measured,qualified from evidence.topic_contributions where universe_id=${u}::uuid and privacy_epoch=${e} and exposure_id=${x.exposure.exposureId}::uuid limit 17`.execute(
+    play_level: PlayLevel;
+  }>`select topic_id,channel_values,value,measured,qualified,play_level from evidence.topic_contributions where universe_id=${u}::uuid and privacy_epoch=${e} and exposure_id=${x.exposure.exposureId}::uuid limit 17`.execute(
     db,
   );
   if (old.rows.length > 16) throw new Error('ACTIVITY_TOPIC_LIMIT');
-  await sql`insert into evidence.activity_revisions(universe_id,privacy_epoch,id,exposure_id,revision,input_sha256,input_vector,channels,activity,policy_version,recording_generation) values(${u}::uuid,${e},${x.id}::uuid,${x.exposure.exposureId}::uuid,${revision},${x.inputHash},${JSON.stringify(x.inputVector)}::jsonb,${JSON.stringify(x.segmentChannels)}::jsonb,${activity(x.segmentChannels)},'activity.v0',${cap.generation})`.execute(
+  await sql`insert into evidence.activity_revisions(universe_id,privacy_epoch,id,exposure_id,revision,input_sha256,input_vector,channels,activity,policy_version,recording_generation) values(${u}::uuid,${e},${x.id}::uuid,${x.exposure.exposureId}::uuid,${revision},${x.inputHash},${JSON.stringify(x.inputVector)}::jsonb,${JSON.stringify(x.segmentChannels)}::jsonb,${activity(x.segmentChannels)},${x.policyVersion},${cap.generation})`.execute(
     db,
   );
   // The old contribution FK requires this exposure parent. Preserve an existing legacy head;
@@ -144,6 +149,13 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     const reel = x.exposure.kind === 'reel';
     const m = measured - (before?.measured ?? 0),
       q = qualified - (before?.qualified ?? 0);
+    // The play level of the Scroll read decides which cell this encounter counts in (D-192).
+    await moveCellCounts(
+      db,
+      { universeId: u, privacyEpoch: e, topicId, kind: x.exposure.kind },
+      before ? { level: before.play_level, measured: before.measured, qualified: before.qualified } : undefined,
+      { level: x.playLevel, measured, qualified },
+    );
     await sql`insert into evidence.topic_context(universe_id,privacy_epoch,topic_id,channel_values,activity,evaluated_at,reel_measured,reel_qualified,scroll_measured,scroll_qualified) values(${u}::uuid,${e},${topicId},${JSON.stringify(channelValues)}::jsonb,${activity},${x.evaluatedAt}::timestamptz,${(a?.reel_measured ?? 0) + (reel ? m : 0)},${(a?.reel_qualified ?? 0) + (reel ? q : 0)},${(a?.scroll_measured ?? 0) + (reel ? 0 : m)},${(a?.scroll_qualified ?? 0) + (reel ? 0 : q)}) on conflict(universe_id,topic_id) do update set channel_values=excluded.channel_values,activity=excluded.activity,evaluated_at=excluded.evaluated_at,reel_measured=excluded.reel_measured,reel_qualified=excluded.reel_qualified,scroll_measured=excluded.scroll_measured,scroll_qualified=excluded.scroll_qualified,privacy_epoch=excluded.privacy_epoch`.execute(
       db,
     );
@@ -152,7 +164,7 @@ export const persistActivity: ActivityPorts['persist'] = async (cap, x) => {
     db,
   );
   for (const t of x.metadata.topics)
-    await sql`insert into evidence.topic_contributions(universe_id,privacy_epoch,exposure_id,topic_id,channel_values,value,measured,qualified) values(${u}::uuid,${e},${x.exposure.exposureId}::uuid,${t.topicId},${JSON.stringify(contributionChannels(x.channels, t.weight))}::jsonb,${t.weight * x.value},${t.role !== 'incidental' && x.measured ? 1 : 0},${t.role !== 'incidental' && x.qualified ? 1 : 0})`.execute(
+    await sql`insert into evidence.topic_contributions(universe_id,privacy_epoch,exposure_id,topic_id,channel_values,value,measured,qualified,play_level) values(${u}::uuid,${e},${x.exposure.exposureId}::uuid,${t.topicId},${JSON.stringify(contributionChannels(x.channels, t.weight))}::jsonb,${t.weight * x.value},${t.role !== 'incidental' && x.measured ? 1 : 0},${t.role !== 'incidental' && x.qualified ? 1 : 0},${x.playLevel})`.execute(
       db,
     );
 };
@@ -169,6 +181,7 @@ export const readTopicContext: ActivityPorts['readTopicContext'] = async (scope,
   }>`select * from evidence.topic_context where universe_id=${scope.authority.universeId}::uuid and privacy_epoch=${scope.authority.privacyEpoch} and topic_id=any(${ids}::text[]) and (activity>0 or reel_measured+scroll_measured>0) limit 100`.execute(
     transactionOf(scope),
   );
+  const cells = await readCells(scope, ids);
   return rows.rows.map((r) => ({
     topicId: r.topic_id,
     activity: r.activity * decay(new Date(r.evaluated_at).getTime(), Date.parse(at)),
@@ -176,6 +189,7 @@ export const readTopicContext: ActivityPorts['readTopicContext'] = async (scope,
       { kind: 'reel', measured: r.reel_measured, qualified: r.reel_qualified },
       { kind: 'scroll', measured: r.scroll_measured, qualified: r.scroll_qualified },
     ],
+    cells: cells.get(r.topic_id) ?? [],
   }));
 };
 export const pendingActivity: ActivityPorts['pending'] = async (cap, id) => {

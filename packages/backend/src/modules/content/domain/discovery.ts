@@ -1,3 +1,5 @@
+import type { EncounterTraits } from './traits.js';
+
 /** Shared admitted facts only; never personal activity or model guesses. */
 export interface EncounterRef {
   readonly assetId: string;
@@ -21,6 +23,8 @@ export interface EncounterSnapshot extends EncounterRef {
   readonly facets: readonly string[];
   readonly siblings: readonly (EncounterRef & { readonly kind: 'reel' | 'scroll' })[];
   readonly series?: { readonly seriesId: string; readonly seriesRevision: number; readonly part: number };
+  /** Derived from the stored document (D-192); a snapshot read from storage always carries it. */
+  readonly traits?: EncounterTraits;
   readonly catalogWatermark: string;
   readonly attributionVersion: string;
 }
