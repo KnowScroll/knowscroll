@@ -1,6 +1,7 @@
 # MediaStore
 
-Local content-addressed MP4 storage behind logical keys. Imports stream to exclusive temporary files
+Local content-addressed storage behind logical keys, for Reel MP4 video and, since v3 R-4 (D-166), the painted stills of room backdrops (JPEG, PNG
+or WebP, at most 8 MiB; the type decides the key's extension and the size bound, and the same bytes as another type are another object). Imports stream to exclusive temporary files
 under an owner-only configured root, hash and bound bytes, fsync, validate in the worker, then atomically
 rename and fsync the containing directory. Existing digests are verified before idempotent replacement.
 Directories and files refuse symlinks; no absolute location crosses a consumer contract. A crash can

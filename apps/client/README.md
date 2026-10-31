@@ -627,8 +627,16 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
 - Which episode is selected, and whether the player is folded, stay on the device, as in a friend thread.
 - Room stations (U01, U02): `useRoomStationsOnMap` reads `rooms.stations` each time the Universe regains focus and passes
   the stations to `UniverseSurface`, which draws a 3D station beside the system it names (angle from the room's ID, just
-  outside the outermost orbit), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
+  outside the outermost orbit; its ring in the room's accent and its emblem as a sprite over the hub, dimmed under Lately, and the emblem beside the
+  name in the list view, D-170), adds a target "Name, a room station" and a "Rooms" section to the list view, and opens the
   room on a tap. A read that fails leaves the map as it was. A visit to a friend's map passes none.
+- A room's face (v3 R-4, D-170; `features/rooms/identity/`): `RoomBand` draws the kit's ground, its faint motif with one slow loop
+  (`band-motion.ts`: opacity and transform only; **reduced motion is a still frame**) and, when an operator approved one, the painted backdrop
+  (`scope.mediaSource` of `/media/room/<digest>`) under a wash of the ground. What stands on a band reads the kit's ink (`useBandTone`, `BandTag`).
+  `CampfireHeader` and `RoomHeader` (the preview and D04's rail) stand on it with the room's emblem (`RoomEmblem`, SVG from `shapes.ts`, the
+  one description of every frame and glyph); the Talk row shows the emblem; `ResidentHeader` shows the resident's mark (`ResidentMark`, a glyph on
+  a square-cornered tile, hidden from screen readers; the AI label stays). The art is hidden from screen readers. A server that sends no face
+  (`identity` absent) keeps the dark band. `emblem-raster.ts` draws the same outlines into pixels for the station on the map (below).
 - R03 (`activities-section.tsx`, `activity-screen.tsx`, `poll-card.tsx`, `quiz-flow.tsx`, `start-activity-sheet.tsx`): the
   room's page lists its polls and quizzes as "Optional" (nothing at all when there are none and the person is not a
   moderator; no count or badge). A poll is a radio group; results (with the voters' names) show once the person has voted or

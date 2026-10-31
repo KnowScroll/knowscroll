@@ -4,14 +4,16 @@ import type { LogEvent } from '@knowscroll/backend/infrastructure/observability'
 import { createDatabase, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import { libraryRoomSeeds } from '@knowscroll/backend/modules/rooms';
 import { seedRooms, setRoomModerator } from '@knowscroll/backend/modules/rooms/nest-providers';
+import { FACE_COMMANDS, FACE_USAGE, roomsFaceCommand, type FaceCommand } from './rooms-face-operator.js';
 
 type Print = (result: Record<string, unknown>) => void;
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * `rooms <command>`: the operator's two controls over idea rooms (D-051). Both write room rows only;
- * neither calls a provider, touches a personal root or writes a message.
+ * `rooms <command>`: the operator's controls over idea rooms (D-051). `seed` and `moderator` write room rows only; neither
+ * calls a provider, touches a personal root or writes a message. The face commands (kits, painted backdrops and their spend,
+ * D-166, D-170) are in `rooms-face-operator.ts`.
  *
  *   rooms seed [--dry-run]                                  one room for each library system; rooms that exist stay as they are
  *   rooms moderator --room <slug> --account <uuid> [--remove]   names an account a moderator of a room, or takes the role back
@@ -28,6 +30,13 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
         room: { type: 'string' },
         account: { type: 'string' },
         remove: { type: 'boolean', default: false },
+        revision: { type: 'string' },
+        backdrop: { type: 'string' },
+        attempt: { type: 'string' },
+        reason: { type: 'string' },
+        charged: { type: 'string' },
+        approve: { type: 'boolean', default: false },
+        reject: { type: 'boolean', default: false },
       },
       allowPositionals: true,
       strict: true,
@@ -35,12 +44,30 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
   } catch {
     print({
       result: 'usage',
-      usage: 'rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]',
+      usage: `rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | ${FACE_USAGE}`,
     });
     return 2;
   }
   const [command] = parsed.positionals;
   const { values } = parsed;
+  const faceCommand = FACE_COMMANDS.find((candidate) => candidate === command);
+  if (faceCommand !== undefined && parsed.positionals.length === 1)
+    return roomsFaceCommand(
+      faceCommand satisfies FaceCommand,
+      {
+        room: values.room,
+        revision: values.revision,
+        backdrop: values.backdrop,
+        attempt: values.attempt,
+        reason: values.reason,
+        charged: values.charged,
+        approve: values.approve,
+        reject: values.reject,
+        dryRun: values['dry-run'],
+      },
+      print,
+      logEvent,
+    );
   const isSeed = command === 'seed' && parsed.positionals.length === 1;
   const isModerator =
     command === 'moderator' &&
@@ -51,7 +78,7 @@ export async function roomsCommand(args: readonly string[], print: Print, logEve
   if (!isSeed && !isModerator) {
     print({
       result: 'usage',
-      usage: 'rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove]',
+      usage: `rooms seed [--dry-run] | rooms moderator --room <slug> --account <uuid> [--remove] | ${FACE_USAGE}`,
     });
     return 2;
   }

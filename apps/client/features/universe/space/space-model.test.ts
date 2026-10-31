@@ -153,6 +153,25 @@ describe('laying out the universe for the space views', () => {
     expect(space.systemFocus(system.objectId)!.radius).toBeGreaterThan(reach(round!));
   });
 
+  it('carries a room’s emblem and palette to its station, and nothing else of its face', () => {
+    const kit = {
+      version: 'station-kit.v1',
+      palette: { ground: 'forest', accent: 'amber', ink: 'cream' },
+      emblem: { frame: 'shield', glyph: 'centre-circle' },
+      motif: 'chalk-lines',
+      motion: 'draw',
+      cast: { explainer: 'star', skeptic: 'gear' },
+    };
+    const faced = {
+      ...station(310, system.objectId),
+      room: { roomId: fixtureId(310), name: 'Room 310', identity: { kit } },
+    } as unknown as RoomStation;
+    const [withFace, plain] = layOutUniverse(input({ stations: [faced, station(311, system.objectId)] })).definition
+      .stations!;
+    expect(withFace!.emblem).toEqual({ emblem: kit.emblem, palette: kit.palette });
+    expect(plain!.emblem).toBeUndefined();
+  });
+
   it('draws one large dust cloud at the centre before any place exists, else small ones past the systems', () => {
     const empty = indexUniverse([], []);
     const lone = layOutUniverse(input({ index: empty, dustCueIds: [fixtureId(1)] })).definition.dust!;

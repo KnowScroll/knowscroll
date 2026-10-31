@@ -64,6 +64,15 @@ const SHOWN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     'created_at',
   ],
   geography_runs: ['run_id', 'status', 'outcome', 'desired_revision', 'created_at', 'updated_at'],
+  room_faces: [
+    'kits_pending',
+    'kits_approved',
+    'backdrops_pending',
+    'backdrops_approved',
+    'backdrop_attempts',
+    'backdrop_unresolved',
+    'backdrop_spent_micro_usd',
+  ],
   room_turns: [
     'turn_id',
     'room_id',

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomStation } from '@knowscroll/contracts';
 import { borderWidth, content, dimension, layer, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, dialogHostSemantics, dialogSemantics, IconButton, Scrim, Text, usePageInert } from '@knowscroll/ui';
+import { RoomEmblem } from '../rooms/identity/room-emblem';
 import { outlineRows, placeTrail, type OutlineRow, type UniverseIndex } from './universe-layout';
 import type { UniverseMapSession, UniverseViewState } from './universe-session';
 
@@ -132,7 +133,16 @@ function StationRows({
             onPress={() => onStation?.(station.room.roomId)}
             style={[styles.row, styles.stationRow]}
           >
-            <Text variant="bodyS">{station.room.name}</Text>
+            <View style={styles.stationName}>
+              {station.room.identity === undefined ? null : (
+                <RoomEmblem
+                  kit={station.room.identity.kit}
+                  size={24}
+                  testID={`universe-outline-emblem-${station.room.roomId}`}
+                />
+              )}
+              <Text variant="bodyS">{station.room.name}</Text>
+            </View>
             <Text variant="label" color={content.ink2}>
               Room
             </Text>
@@ -295,6 +305,7 @@ const styles = StyleSheet.create({
   },
   rooms: { gap: spacing[1], paddingTop: spacing[3] },
   stationRow: { paddingLeft: spacing[3] },
+  stationName: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], flexShrink: 1 },
   roomsHeading: { paddingHorizontal: spacing[3] },
   ancestor: { backgroundColor: content.paper2 },
   current: { backgroundColor: content.continue },

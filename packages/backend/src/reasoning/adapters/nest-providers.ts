@@ -18,6 +18,7 @@ import {
 } from '../application/personal-recording.js';
 import { canonicalSha256 } from '@knowscroll/scroll-model';
 import { IDLE_RUN_CLOSES_AFTER_SECONDS, makeReasoningOperator } from '../application/operator.js';
+import type { ImagePort } from '../application/image-port.js';
 import type { HarnessPorts, HarnessSettings, ModelPort, ExecutionPorts } from '../application/ports.js';
 import { makeReasoningHarness, makeScopedReasoningHarness } from '../application/propose.js';
 import {
@@ -35,6 +36,8 @@ import {
   type SweepDispatchedAttempts,
 } from '../public.js';
 import { guardedModelPort } from './guarded-model.js';
+import { guardedImagePort } from './guarded-image.js';
+import { makeMiniMaxImagePort } from './minimax/minimax-image.js';
 import { makeMiniMaxModelPort } from './minimax/minimax-model.js';
 import { makeAttemptLedger } from './postgres-ledger.js';
 import { makeProductionAttemptLedger } from './postgres-production-ledger.js';
@@ -75,6 +78,8 @@ export {
   type StopReason,
 } from '../application/ports.js';
 export { guardedModelPort } from './guarded-model.js';
+export { guardedImagePort };
+export { makeMiniMaxImagePort, type MiniMaxImageSettings } from './minimax/minimax-image.js';
 export { makeMiniMaxModelPort, type MiniMaxSettings } from './minimax/minimax-model.js';
 export { makeAttemptLedger } from './postgres-ledger.js';
 export { makeProductionAttemptLedger } from './postgres-production-ledger.js';
@@ -139,6 +144,24 @@ export function configuredModelPort(settings: ReasoningSettings): ModelPort | un
     maxReplyBytes: 524_288,
     maxRequestBytes: settings.maxRequestBytes,
   });
+}
+
+/** An image is made in well under a minute; a longer wait is treated as an unknown outcome and never sent again. */
+const IMAGE_REQUEST_TIMEOUT_MS = 120_000;
+
+/**
+ * The configured image transport (the same MiniMax key as the text model), already guarded against running inside a
+ * transaction, or `undefined` when no provider is configured (D-166).
+ */
+export function configuredImagePort(settings: ReasoningSettings): ImagePort | undefined {
+  if (settings.provider === 'none' || settings.minimax === undefined) return undefined;
+  return guardedImagePort(
+    makeMiniMaxImagePort({
+      apiKey: settings.minimax.apiKey,
+      requestTimeoutMs: Math.min(settings.minimax.requestTimeoutMs, IMAGE_REQUEST_TIMEOUT_MS),
+      maxReplyBytes: 16 * 1024 * 1024,
+    }),
+  );
 }
 
 /**
