@@ -275,17 +275,15 @@ export function useRoomToday(
   return { controller, state };
 }
 
-/** The room's sky for a member, read only while its sheet is open. */
+/** The room's sky for a member: read on mount, so it is only mounted while its sheet is open. */
 export function useRoomSky(
   scope: AccountScope,
   roomId: string,
-  open: boolean,
 ): { controller: RoomSkyController; state: RoomSkyState } {
   const [controller] = useState(() => createRoomSky({ scope, roomId, newId: newCommandId }));
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
   useQuery({
     queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-sky', roomId),
-    enabled: open,
     queryFn: async () => {
       await controller.load();
       return Date.now();

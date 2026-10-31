@@ -55,6 +55,16 @@ describe('the lists the Simple view, the panel and the dial share', () => {
     expect(systems.map((system) => system.rooms.length)).toEqual([0, 1]);
   });
 
+  it('puts a room’s sky beside its name only when the station carries one (a member’s)', () => {
+    const member = {
+      ...station('m', 's-b'),
+      sky: { lit: 7, of: 7, state: 'named', finished: 1, constellationName: 'The Lantern' },
+    } as unknown as RoomStation;
+    const { rooms } = listUniverse(index, [member, station('o', 's-b')], null);
+    expect(rooms.find((room) => room.id === 'm')?.caption).toBe('7 of 7 · The Lantern');
+    expect(rooms.find((room) => room.id === 'o')).not.toHaveProperty('caption');
+  });
+
   it('puts places with recent activity first only when Lately is on, and lists the same places either way', () => {
     const plain = listUniverse(index, [], null, false);
     const lately = listUniverse(index, [], null, true);

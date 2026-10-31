@@ -125,12 +125,17 @@ export function SkySheet({
   readonly visible: boolean;
   readonly onClose: () => void;
 }) {
-  const { controller, state } = useRoomSky(scope, roomId, visible);
   return (
     <BottomSheet visible={visible} title="Room sky" onClose={onClose} testID="sky-sheet">
-      <SkyBody state={state} controller={controller} />
+      <SkyContent scope={scope} roomId={roomId} />
     </BottomSheet>
   );
+}
+
+/** Reads the sky while the sheet is open: a closed sheet mounts nothing, so a room that never opens it never asks. */
+function SkyContent({ scope, roomId }: { readonly scope: AccountScope; readonly roomId: string }) {
+  const { controller, state } = useRoomSky(scope, roomId);
+  return <SkyBody state={state} controller={controller} />;
 }
 
 const styles = StyleSheet.create({
