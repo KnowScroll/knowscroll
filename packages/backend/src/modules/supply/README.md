@@ -6,7 +6,8 @@ production of a library Scroll. Blueprint §3, §11, §15 and §19; decisions D-
 
 Status: **implemented**, CI-verified, and **runtime-verified** on a local database with the real
 `MiniMax-M3.1-Flash` model (a free-text ask matched to the catalogue, produced and opened in the
-client). Not yet running on dev.
+client). Not yet running on dev. Ask orders (below, D-218) are **implemented** and CI-verified with labelled fixture
+models; the real-model run of five ask orders is **planned** (the coordinator's, on dev).
 
 ## What a person can do
 
@@ -16,6 +17,7 @@ client). Not yet running on dev.
 - Ask for the same explanation in the other format (a variant).
 - Read the state of one request or of their recent requests, and cancel one that is still preparing.
 - Try again a request that closed as "could not prepare" (`RetryRequest`, below).
+- Ask a question from a Scroll they are reading (D1) and get a short Scroll made for them alone (ask orders, below).
 
 States a person sees: preparing (`requested` while their words are matched, `preparing` once work is
 under way), ready, unavailable with a coarse reason, cancelled. No percentages, no waiting times.
@@ -50,6 +52,29 @@ for something new: when it resolves it binds only to content outside the explana
 met, derived again at that moment under their scope (a Scroll they read since the plan, or one that was
 already there while the paid job is still queued, never stands in). If proof of what they met is
 unavailable, nothing is bound.
+
+## Ask from here and ask orders (D-218, D-230, D-231; v3 S-7)
+
+A person reading a v2 Scroll asks a question from one of its stops: `intent: { kind: 'ask', source, anchor: { kind: 'stop', stopId }, question, recordingGeneration }`.
+It is the same request row, the same states (E07), polling, cancel and retry; only where it goes differs.
+
+1. **Gate.** The create transaction refuses an ask while recording is paused or its generation is stale (`recording_paused`, `recording_stale`; no receipt),
+   checks the exact activated source, and reads the anchor from the exact immutable revision (`READ_SCROLL_ASK_FACTS`): a stop that is not there is `source_unavailable`.
+2. **A suggested question** (the exact words of the Scroll's own `askSuggestions`) is about that Scroll by construction. `commissionAskOrder` runs in the same transaction: no model call.
+3. **A typed question** waits as `matching`. The worker's `supply.resolve-request` runs the scope step (`ask-scope.1`, one call and one repair on the personal harness):
+   `here` makes an ask order; `catalogue` goes to the library path (Reuse, Join, Create) like a free-text ask, never binding to the explanation asked from;
+   `none` closes `unsupported_request`; a failure or an unknown outcome closes `could_not_prepare` and is never resent.
+4. **The order** (`application/ask-orders.ts`). Under the commissioning lock: the world's day cap (`KS_SUPPLY_ASK_DAILY_CAP`, from `supply.ask_orders`) and the person's
+   (`KS_SUPPLY_ASK_PERSON_DAILY_CAP`, from their own requests) are checked; the research pages come from the source Scroll's provenance (`READ_SCROLL_SOURCE_PAGES`); Content records
+   the order (`RECORD_MADE_TO_ORDER_SCROLL`, mode `question`, kicker "You asked", factual framing); the ledger row is written; the production job for take 1 is sent. A full cap is `budget_unavailable`.
+5. **Waiting** (`application/ask-resolve.ts`). The waiter reads the order's standing on its own transaction (`READ_MADE_TO_ORDER_PRODUCTION_IN`): admitted and readable becomes `ready` (and the ledger notes, once, how long it took);
+   queued or running within the wait limit looks again in 20 seconds; anything else is `could_not_prepare`. Nothing sends a second take by itself.
+6. **Try again** (`application/ask-retry.ts`) re-drives the same request and order: a Scroll admitted meanwhile makes it ready; otherwise the next take is sent (three in all). Nothing else can start: `not_retryable`.
+7. **The Scroll is open to its asker only** (`READ_ASK_ORDER_AUDIENCE`, `adapters/postgres-ask-orders.ts`): an account whose own request, not cancelled, names the asset. Erasing the request (Clear, account deletion) first sets the order's brief empty
+   (`adapters/erasure.ts`), so a later take finds no order and the Scroll opens to nobody.
+8. **The "usually" time.** `snapshot` adds `typicalSeconds` to a preparing ask: the median of the last 20 finished orders, and only from five (`domain/ask-order.ts`).
+
+*Implemented.* Not built: Reel asks (no production path), a v2 ask order (the review gate, D-138, would have to be skipped for a private audience), asking from a passage (D2) and as a wager (D3).
 
 ## Waiting for production
 
@@ -154,6 +179,11 @@ transaction that makes the branch, so a retry never gets here twice. The scenari
 | `pgboss/supply.resolve-request` | IDs only (`universeId`, `privacyEpoch`, `requestId`). Four at a time, 360 s expiry, three retries. A recovery job uses the same payload. | The eraser removes every queued, active, retained and dead-lettered payload of the owner. |
 | `pgboss/content.produce-scroll` | Owned by Content; names a recipe, never a person. | Nothing personal to erase. |
 | `supply.scenario_orders` | The ledger of a thread's branch orders that the scenario caps count: order ID, thread ID, time. | Names no person; survives erasure. |
+| `supply.ask_orders` | The ledger of ask orders: order ID, when it was made and when its Scroll was first seen admitted. The world's cap and the "usually" time read it (D-218). | Names no person and no words; survives erasure. |
+| `supply.requests.ask_order_id`, `ask_asset_id` | The link from a person's ask to the order and the Scroll made for it. It is also the audience of that Scroll. | Erased with the request; the order's brief is set empty first. |
+
+An ask from here also writes one row in Content's `made_to_order_scrolls` (mode `question`) and reads the production jobs of the order; supply's erasure sets that row's brief empty (the one write it makes outside its own tables).
+Erasure ownership: the request (the person's words) is erased by Clear and by account deletion and is exported under "requests"; the ledger is not personal.
 
 States of `supply.requests`: `matching`, `requested`, `deferred` (Planner), `ready`, `unavailable`,
 `cancelled`.
@@ -184,10 +214,12 @@ catch-up watermark.
 - `tests/integration/modules/supply-planned.test.ts`, `planner-loop.test.ts`: the Planner's demand.
 - `tests/integration/release/requests-http.test.ts`: the installed API.
 - `application/scenario-orders.test.ts`, `tests/integration/modules/scenarios.test.ts`: the order, both caps and idempotence.
+- `tests/integration/modules/supply-ask.test.ts`: ask from here on real PostgreSQL with labelled fixture models: a suggested question orders at once with no model call; a typed question placed here, in the catalogue or nowhere; the order, brief, pages and ledger; produced, bound and opened by the asker alone; both caps and zero; a refused take, Try again, three takes; cancel; paused and stale refused; a stop that is not in the Scroll; export, erasure and Clear; no exposure, observation or action written.
+- `domain/ask-order.test.ts`, `application/ask-scope.test.ts`: the brief, the suggestion rule, the median, and the scope answer.
 
 CI fixtures only; real-provider runs are summarised in the pull request for #239.
 
 ## Related
 
 Production jobs and recipes: `../content/production/README.md`. Decisions: `docs/v2/decisions.md` D-035,
-D-037. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.
+D-037, D-218, D-230 to D-232. Client: `apps/client/features/requests/`. Operator runbook: `docs/v2/operations/scroll-production.md`.

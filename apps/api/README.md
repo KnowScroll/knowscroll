@@ -382,7 +382,7 @@ routes. Each handler calls `SCENARIO_USE_CASES` and maps a refusal to the closed
 (`invalid_input` to `INVALID_REQUEST`, `stale_revision` to `SHARING_REVISION_STALE`, `command_key_reused` to
 `COMMAND_KEY_REUSED`, `budget_unavailable` to `TOO_MANY_REQUESTS`, `unsupported` to `UNPROCESSABLE_REQUEST`,
 `unavailable` to `SHARING_UNAVAILABLE`). Membership, the parent's revision, the caps and idempotence are decided in the use
-cases; no handler waits for a model. The API also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (five a day per thread, D-158).
+cases; no handler waits for a model. The API also reads `KS_SUPPLY_ASK_DAILY_CAP` and `KS_SUPPLY_ASK_PERSON_DAILY_CAP` (a question the Scroll itself suggests makes its ask order in the create transaction, D-218), serves `READ_ASK_ORDER_AUDIENCE` beside the branch audience (an ask order's Scroll opens for the person who asked), and maps `recording_paused` and `recording_stale` on a create to `RECORDING_PAUSED` and `RECORDING_POLICY_STALE` (409). It also reads `KS_SUPPLY_SCENARIO_DAILY_CAP` and `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (five a day per thread, D-158).
 Tests: `tests/integration/modules/scenarios.test.ts`. *Implemented. Not yet run on dev.*
 
 ### Play (#473, D-180)

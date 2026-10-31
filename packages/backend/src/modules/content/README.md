@@ -587,15 +587,17 @@ Content owns the order, the production and the access rule; the `scenarios` modu
 
 | Store | Role |
 | --- | --- |
-| `content.made_to_order_scrolls` | One row per order: recipe `order-<32 hex of the branch id>`, the asset it will become, mode (`what_if` or `perspective`), the code-built brief, one to three research pages, the kicker and the framing (the Hypothetical label with its premises, or the lens). No person and no words of a member. |
+| `content.made_to_order_scrolls` | One row per order: recipe `order-<32 hex of the branch id>`, the asset it will become, mode (`what_if`, `perspective` or `question`), the code-built brief, one to three research pages, the kicker and the framing (the Hypothetical label with its premises, the lens, or factual for an answer). A branch's order holds no person and no words of a member; a `question` order (S-7, D-218) holds the person's own question in its brief until supply's erasure sets it empty. |
 
 | Port (`public.ts`) | Where it runs | Used for |
 | --- | --- | --- |
 | `RECORD_MADE_TO_ORDER_SCROLL` | inside the caller's personal transaction | record an order (idempotent per order ID); returns its recipe and asset |
 | `READ_MADE_TO_ORDER_PRODUCTION` | on the pool | the standing of one order: not started, running, published (asset revision and title), retryable (next take) or stopped |
+| `READ_MADE_TO_ORDER_PRODUCTION_IN` | inside the caller's personal transaction | the same standing, for a use case that already holds a transaction (a person's ask waiting on its order): no second connection |
+| `READ_SCROLL_ASK_FACTS` | inside the caller's transaction | for "Ask from here": the title, the words of one stop and the questions the Scroll suggests, from the exact immutable v2 revision; absent for a stop that is not there, a held or rejected revision, or a v1 document |
 | `READ_SCROLL_SOURCE_PAGES` | inside the caller's transaction | up to three research pages chosen by code for a branch: the provenance sources of the root Scroll, else the same explanation's other Scroll, else the library recipe's pages |
 | `READ_SCROLL_EVIDENCE` | inside the caller's transaction | up to 24 claims (passages of public sources) that the root Scroll's provenance records, else the same explanation's other Scroll's: what a what-if's short answer may cite (D-212). Stored text only, under the same review gate as the source pages; nothing is fetched |
-| `CHECK_ASSET_AUDIENCE` | Experience and Social, wherever an ID reaches or quotes a Scroll: open, document read, save, like, hide, navigation, the saved list and page, snippets, the data export | given `ReadOn` (the caller's open transaction, or the pool for the lock-free document read) and the IDs, answers the subset the caller may reach; an ordered Scroll is in it only if `READ_ORDER_AUDIENCE` (provided by the scenarios module: members of the branch's thread, now) says so; any other asset always is |
+| `CHECK_ASSET_AUDIENCE` | Experience and Social, wherever an ID reaches or quotes a Scroll: open, document read, save, like, hide, navigation, the saved list and page, snippets, the data export | given `ReadOn` (the caller's open transaction, or the pool for the lock-free document read) and the IDs, answers the subset the caller may reach; an ordered Scroll is in it only if an ordering module's audience says so: `READ_ORDER_AUDIENCE` (the scenarios module: members of the branch's thread, now) or `READ_ASK_ORDER_AUDIENCE` (the supply module: the person whose own, not cancelled, request made it). Each answers only for the orders it made, and the answers are joined. Any other asset always is |
 
 An ordered Scroll is published with **no topic attribution and no coverage**: it adds no planet, region or lane, is
 left out of every discovery candidate read and out of the shareable card read (it reads as unavailable there).

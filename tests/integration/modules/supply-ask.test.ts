@@ -483,6 +483,27 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toHaveLength(1);
     });
 
+    it('is ready again at once when its Scroll was admitted while the request read as closed', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
+      const order = await orderOf(requestId);
+      // The Scroll is made, but the waiter never looked (a lost poll): the request closed on its wait limit.
+      await publish(order.recipe);
+      await sql`update supply.requests set state = 'unavailable', reason = 'could_not_prepare' where id = ${requestId}::uuid`.execute(
+        database.db,
+      );
+      const tried = await retry(person.authority, {
+        version: 'content-request-retry.v1',
+        commandId: randomUUID(),
+        requestId,
+      });
+      expect(tried).toMatchObject({ kind: 'ok', value: { outcome: 'retrying' } });
+      expect(await status(person, requestId)).toMatchObject({ status: 'ready', content: { assetId: order.assetId } });
+      // Nothing was produced again: the one take that was made is the one that is served.
+      expect((await queuedProduction()).filter((queued) => queued.take > 1)).toEqual([]);
+    });
+
     it('cannot be tried again once its takes are used, and a ready request is already open', async () => {
       await setup();
       const { person, exposure } = await reader();

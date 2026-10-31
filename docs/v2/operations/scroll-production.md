@@ -22,6 +22,8 @@ KS_REASONING_PRODUCTION_REQUESTS_PER_DAY=200 # the production scope's own caps (
 KS_REASONING_PRODUCTION_TOKENS_PER_DAY=3000000
 KS_SUPPLY_CREATE_DAILY_CAP=10                # API and worker: productions people's requests may start per day
 KS_SUPPLY_PLANNER_CREATE_DAILY_CAP=5         # API and worker: the part the Planner's demand may use (default 5)
+KS_SUPPLY_ASK_DAILY_CAP=8                    # API and worker: ask orders (a short Scroll for one person's question) per day (D-218)
+KS_SUPPLY_ASK_PERSON_DAILY_CAP=5             # API and worker: ask orders one person may have made per day (default 5; D-218)
 KS_SUPPLY_SCENARIO_DAILY_CAP=6               # API: branches of content threads (What if, perspectives) per day (D-049)
 KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP=5        # API: branches one thread may have ordered per UTC day (default 5; D-158)
 
