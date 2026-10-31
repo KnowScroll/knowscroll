@@ -134,6 +134,32 @@ describe('after the person locked, before the reveal', () => {
   });
 });
 
+describe('a Scroll that was updated since the call began (D-233)', () => {
+  it('says the call keeps the question the thread called on, on an open call, a locked call and a reveal', async () => {
+    for (const call of [
+      { ...base, stage: 'open', updated: 'held' } as ThreadCall,
+      { ...base, stage: 'locked', option: 1, updated: 'held' } as ThreadCall,
+      revealed({ updated: 'held' }),
+    ]) {
+      const { element } = card(call);
+      const view = await render(element);
+      expect(screen.getByTestId('call-updated')).toHaveTextContent(
+        /^Part 2 has been updated since your thread started calling\. The call keeps the question your thread called on/,
+      );
+      await view.unmount();
+    }
+  });
+
+  it('says the new question is asked afresh when the earlier one cannot be shown, and says nothing for a current call', async () => {
+    const afresh = card({ ...open, updated: 'restarted' });
+    const view = await render(afresh.element);
+    expect(screen.getByTestId('call-updated')).toHaveTextContent(/This call asks the new question afresh\.$/);
+    await view.unmount();
+    await render(card(open).element);
+    expect(screen.queryByTestId('call-updated')).toBeNull();
+  });
+});
+
 describe('the reveal (T3 frame 5)', () => {
   it('shows a right call as Called it! with a spark for the party, the answer, the explanation and who called what', async () => {
     const { element } = card(revealed());

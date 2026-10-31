@@ -16,7 +16,13 @@ import { clearExplorationFor, deleteAccountFor } from '@knowscroll/backend/modul
 import { clearReasoning } from '@knowscroll/backend/reasoning/nest-providers';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { befriend, friendCommand, seedFriend, talkCases, type Friend } from '../support/talk.js';
-import { GUESS_SOURCE, TIDES_CALL, seedCallScroll, type CallFixture } from '../support/thread-calls.js';
+import {
+  GUESS_SOURCE,
+  TIDES_CALL,
+  seedCallRevision,
+  seedCallScroll,
+  type CallFixture,
+} from '../support/thread-calls.js';
 import { activateFor, declareSeries, seedReel } from '../support/thread-fixtures.js';
 
 const version = 'content-thread.v1' as const;
@@ -52,7 +58,7 @@ describe('Call it together (real PostgreSQL)', () => {
    * Asha started a thread on a series of three: two Scrolls that each have an authored call (the right answer is
    * option 0) and a Reel, which has none. Ravi and Kenji both joined.
    */
-  async function party(options: { readonly part2?: CallFixture } = {}) {
+  async function party(options: { readonly part2?: CallFixture; readonly rootPart?: 1 | 2 } = {}) {
     const [a, b, c] = [
       await seedFriend(database.db, cases.friends),
       await seedFriend(database.db, cases.friends),
@@ -62,8 +68,9 @@ describe('Call it together (real PostgreSQL)', () => {
     await befriend(cases.friends, a, c);
     const scrolls = [await seedCallScroll(database.db), await seedCallScroll(database.db, options.part2)];
     const reel = await seedReel(database.db);
-    await declareSeries(database.db, `ci-series-${randomUUID()}`, [...scrolls, reel]);
-    const root = { assetId: scrolls[0]!.assetId, assetRevision: 1 };
+    const seriesId = `ci-series-${randomUUID()}`;
+    await declareSeries(database.db, seriesId, [...scrolls, reel]);
+    const root = { assetId: scrolls[options.rootPart === 2 ? 1 : 0]!.assetId, assetRevision: 1 };
     const started = unwrap(
       await threads().create(a.authority, {
         version,
@@ -86,7 +93,7 @@ describe('Call it together (real PostgreSQL)', () => {
       unwrap(
         await threads().respond(person.authority, { version, commandId: randomUUID(), thread: ref, response: 'join' }),
       );
-    return { a, b, c, scrolls, reel, refs };
+    return { a, b, c, scrolls, reel, refs, seriesId };
   }
 
   const lock = (actor: Friend, thread: ContentThreadRef, part: number, option: number, generation = 1) =>
@@ -1023,6 +1030,158 @@ describe('Call it together (real PostgreSQL)', () => {
       } finally {
         cases.clock.now = day('2026-10-24');
       }
+    });
+  });
+
+  describe('a part whose Scroll gets a new revision (D-233)', () => {
+    const SECOND_REVISION_CALL: CallFixture = {
+      prompt: 'CI fixture question, second revision: what mainly causes tides?',
+      options: ['CI the Moon alone', 'CI the Moon and the Sun', 'CI the wind'],
+      answer: 1,
+      explain: 'CI fixture explanation, second revision.',
+      twist: 'CI fixture twist, second revision.',
+    };
+
+    /**
+     * Asha's thread rests on Part 2. Part 1 is then replaced by revision 2 and the series is declared again with it, which is
+     * how a thread whose root did not change comes to hold a newer Part 1 (the root's own revision is still in both).
+     */
+    async function releaseSecondRevision(world: Awaited<ReturnType<typeof party>>) {
+      const [first, second] = world.scrolls as [{ assetId: string }, { assetId: string }];
+      await seedCallRevision(database.db, first.assetId, 2, SECOND_REVISION_CALL);
+      await declareSeries(
+        database.db,
+        world.seriesId,
+        [{ assetId: first.assetId, assetRevision: 2 }, second, world.reel],
+        2,
+      );
+    }
+    const revisionsLocked = async (person: Friend) => (await rowsOf(person)).map((row) => row.revision);
+
+    it('keeps the question the party called on, every pick and the count, and says the Scroll was updated', async () => {
+      const world = await party({ rootPart: 2 });
+      const { a, b, c, refs } = world;
+      unwrap(await lock(a, refs.a, 1, 1));
+      unwrap(await lock(b, refs.b, 1, 0));
+      await releaseSecondRevision(world);
+
+      // Those who called still see their pick, on the question they answered, with the count unchanged.
+      expect(await call(a, refs.a, 1)).toMatchObject({
+        stage: 'locked',
+        option: 1,
+        assetRevision: 1,
+        prompt: TIDES_CALL.prompt,
+        called: 2,
+        of: 3,
+        updated: 'held',
+      });
+      expect(await call(b, refs.b, 1)).toMatchObject({ stage: 'locked', option: 0, called: 2, updated: 'held' });
+      // Kenji has not called: he is asked the same question as the rest, not a new one, and his pick goes with it.
+      expect(await call(c, refs.c, 1)).toMatchObject({
+        stage: 'open',
+        assetRevision: 1,
+        prompt: TIDES_CALL.prompt,
+        updated: 'held',
+      });
+      expect(unwrap(await lock(c, refs.c, 1, 0))).toMatchObject({ result: 'locked' });
+      expect(await revisionsLocked(c)).toEqual([1]);
+      expect(await call(a, refs.a, 1)).toMatchObject({ stage: 'locked', called: 3, of: 3 });
+    });
+
+    it('reveals the picks of the revision the party called on, judged by that revision’s answer', async () => {
+      const world = await party({ rootPart: 2 });
+      const { a, b, c, refs } = world;
+      // Revision 1 says option 0 is right; revision 2 says option 1 is.
+      unwrap(await lock(a, refs.a, 1, 0));
+      unwrap(await lock(b, refs.b, 1, 1));
+      unwrap(await lock(c, refs.c, 1, 0));
+      await releaseSecondRevision(world);
+      for (const [person, ref] of [
+        [a, refs.a],
+        [b, refs.b],
+        [c, refs.c],
+      ] as const) {
+        unwrap(await place(person, ref, 1, 'on'));
+        unwrap(await place(person, ref, 1, 'finished'));
+      }
+      expect(await call(a, refs.a, 1)).toMatchObject({
+        stage: 'revealed',
+        assetRevision: 1,
+        answer: 0,
+        right: true,
+        rightCount: 2,
+        explain: TIDES_CALL.explain,
+        updated: 'held',
+      });
+      expect(await call(b, refs.b, 1)).toMatchObject({ stage: 'revealed', answer: 0, right: false });
+    });
+
+    it('starts the question afresh on the new revision for a thread whose members had not called, and says nothing of an update', async () => {
+      const world = await party({ rootPart: 2 });
+      await releaseSecondRevision(world);
+      const card = await call(world.a, world.refs.a, 1);
+      expect(card).toMatchObject({ stage: 'open', assetRevision: 2, prompt: SECOND_REVISION_CALL.prompt, called: 0 });
+      expect(card).not.toHaveProperty('updated');
+      expect(unwrap(await lock(world.a, world.refs.a, 1, 1))).toMatchObject({ result: 'locked' });
+      expect(await revisionsLocked(world.a)).toEqual([2]);
+    });
+
+    it('lists a pick in an export under the question it was made on', async () => {
+      const world = await party({ rootPart: 2 });
+      unwrap(await lock(world.b, world.refs.b, 1, 2));
+      await releaseSecondRevision(world);
+      const withScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 });
+      const outcome = await withScope(world.b.authority, (scope) =>
+        socialErasure.export!.read(scope, {
+          accountId: world.b.accountId,
+          reach: (ids) => Promise.resolve(new Set(ids)),
+        }),
+      );
+      if (outcome.kind !== 'entered') throw new Error('CI export');
+      const exported = outcome.value as { threads: { callsMade: Record<string, unknown>[] } };
+      expect(exported.threads.callsMade).toEqual([
+        { question: TIDES_CALL.prompt, picked: TIDES_CALL.options[2], day: '2026-10-24' },
+      ]);
+    });
+
+    it('asks the current question afresh, and says so, when the revision the picks are on can no longer be read', async () => {
+      const world = await party({ rootPart: 2 });
+      unwrap(await lock(world.a, world.refs.a, 1, 1));
+      await releaseSecondRevision(world);
+      await database.db
+        .insertInto('content.revision_reviews')
+        .values({
+          asset_id: world.scrolls[0]!.assetId,
+          revision: 1,
+          state: 'rejected',
+          decided_at: new Date(),
+          decided_by: 'ci',
+          reason: 'CI fixture: the first revision was rejected',
+        })
+        .execute();
+      expect(await call(world.a, world.refs.a, 1)).toMatchObject({
+        stage: 'open',
+        assetRevision: 2,
+        prompt: SECOND_REVISION_CALL.prompt,
+        called: 0,
+        updated: 'restarted',
+      });
+      // The pick on the earlier revision is not deleted, and a new one can be made on the current question.
+      expect(unwrap(await lock(world.a, world.refs.a, 1, 0))).toMatchObject({ result: 'locked' });
+      expect((await revisionsLocked(world.a)).toSorted()).toEqual([1, 2]);
+    });
+
+    it('lets a block move nothing: a member the reader blocked cannot decide which question the reader is shown', async () => {
+      const world = await party({ rootPart: 2 });
+      const { a, b, c, refs } = world;
+      expect((await friendCommand(cases.friends, c, b, 'block')).kind).toBe('ok');
+      // Only Ravi called, on revision 1. Kenji blocked Ravi, so for Kenji nobody has called.
+      unwrap(await lock(b, refs.b, 1, 1));
+      await releaseSecondRevision(world);
+      expect(await call(a, refs.a, 1)).toMatchObject({ assetRevision: 1, updated: 'held' });
+      const kenji = await call(c, refs.c, 1);
+      expect(kenji).toMatchObject({ stage: 'open', assetRevision: 2, prompt: SECOND_REVISION_CALL.prompt, called: 0 });
+      expect(kenji).not.toHaveProperty('updated');
     });
   });
 });

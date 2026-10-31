@@ -4,6 +4,7 @@ import {
   callChipWords,
   callPartLabel,
   callSummaryWords,
+  callUpdateWords,
   joinNames,
   optionLetter,
   revealWords,
@@ -288,6 +289,11 @@ export function CallCard({
               ),
             )}
           </View>
+        )}
+        {call.updated === undefined ? null : (
+          <Text variant="metaS" color={content.ink2} testID="call-updated">
+            {callUpdateWords(call)}
+          </Text>
         )}
         <View style={styles.summary}>
           {/* Before the reveal nobody is named: a "?" stands for each caller. After it the picks name them. */}

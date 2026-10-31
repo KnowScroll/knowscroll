@@ -129,13 +129,14 @@ export async function declareSeries(
   db: Kysely<Database>,
   seriesId: string,
   units: readonly { readonly assetId: string; readonly assetRevision?: number }[],
+  seriesRevision = 1,
 ): Promise<void> {
   for (const [index, unit] of units.entries())
     await db
       .insertInto('content.series_units')
       .values({
         series_id: seriesId,
-        series_revision: 1,
+        series_revision: seriesRevision,
         part: index + 1,
         asset_id: unit.assetId,
         asset_revision: unit.assetRevision ?? 1,

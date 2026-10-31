@@ -35,6 +35,33 @@ export function threadCallOf<C extends { readonly kind: 'call_it' | 'final_call'
   return calls.find((call) => call.kind === 'call_it');
 }
 
+/**
+ * The revisions of a part's Scroll whose call the thread may be about, in the order to try them (D-233). A pick belongs to
+ * the revision it was locked on, and a call is one question for the whole party, so while anyone in the thread has a
+ * lock on an earlier revision the call stays with the earliest of them: the party keeps the question it called on when
+ * the Scroll gets a new revision. The current revision comes last, and is the only one when nothing is locked. A later
+ * candidate is tried only when an earlier one can no longer be read (held or rejected by review).
+ */
+export function callRevisionCandidates(current: number, locked: readonly number[]): readonly number[] {
+  const lockedRevisions = [...new Set(locked)].toSorted((left, right) => left - right);
+  return lockedRevisions.includes(current) ? lockedRevisions : [...lockedRevisions, current];
+}
+
+/**
+ * What the card must tell the person when the Scroll has a newer revision than the call it shows: `held`, the party
+ * called on an earlier revision and the card keeps that question; `restarted`, picks exist on an earlier revision that
+ * can no longer be read, so the card asks the current question afresh. Nothing when the call is the current one and
+ * nothing was locked on another revision.
+ */
+export function callUpdateOf(
+  chosen: number,
+  current: number,
+  locked: readonly number[],
+): 'held' | 'restarted' | undefined {
+  if (chosen < current) return 'held';
+  return chosen === current && locked.some((revision) => revision < current) ? 'restarted' : undefined;
+}
+
 /** A member's pick as the reader may see it after the reveal. */
 export interface ShownPick<M> {
   readonly member: M;
@@ -138,6 +165,18 @@ export function revealedForThread<M extends PlaceMember>(input: {
   });
 }
 
+/** The members a reader may count in a call: they take part, and neither side of a block with the reader. */
+export function presentMembers<M extends PlaceMember>(
+  readerAccountId: string,
+  members: readonly M[],
+  blockedWithReader: ReadonlySet<string>,
+): M[] {
+  return members.filter(
+    (member) =>
+      canTakePart(member) && (member.accountId === readerAccountId || !blockedWithReader.has(member.accountId)),
+  );
+}
+
 /**
  * The reveal rule (D-155). The party reveals when everyone the reader can see who shares where they are has
  * finished the part, or on the second UTC day after the first lock, whichever is first, and only once someone
@@ -153,10 +192,7 @@ export function revealedForThread<M extends PlaceMember>(input: {
  */
 export function viewCall<M extends PlaceMember>(input: CallInput<M>): CallView<M> {
   const { readerAccountId, part } = input;
-  const present = input.members.filter(
-    (member) =>
-      canTakePart(member) && (member.accountId === readerAccountId || !input.blockedWithReader.has(member.accountId)),
-  );
+  const present = presentMembers(readerAccountId, input.members, input.blockedWithReader);
   const presentIds = new Set(present.map((member) => member.accountId));
   const locks = input.locks.filter((lock) => presentIds.has(lock.accountId));
   const counted = { of: present.length, called: locks.length };

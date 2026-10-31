@@ -379,6 +379,14 @@ describe('Call it together (v3 T-E, D-155 to D-157)', () => {
     expect(ThreadCallSchema.safeParse({ ...revealed, guessSource: 62 }).success).toBe(false);
   });
 
+  it('says a Scroll was updated since the thread called only as held or restarted, in every stage', () => {
+    for (const updated of ['held', 'restarted'])
+      for (const call of [{ ...base, stage: 'open' }, { ...base, stage: 'locked', option: 1 }, revealed])
+        expect(ThreadCallSchema.safeParse({ ...call, updated }).success).toBe(true);
+    for (const updated of ['current', true, 2, ''])
+      expect(ThreadCallSchema.safeParse({ ...base, stage: 'open', updated }).success).toBe(false);
+  });
+
   it('is read for a thread, with one call at most for each part', () => {
     const answer = { version: 'content-thread.v1', readId: id(80), scope, status: 'ready', thread: ref };
     const open = { ...base, stage: 'open' };

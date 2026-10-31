@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays,
+  callRevisionCandidates,
+  callUpdateOf,
+  presentMembers,
   REVEAL_AFTER_DAYS,
   revealedForThread,
   threadCallOf,
@@ -64,6 +67,38 @@ describe('the call a part offers', () => {
     expect(threadCallOf(calls)?.id).toBe('one');
     expect(threadCallOf([{ kind: 'final_call' as const }])).toBeUndefined();
     expect(threadCallOf([])).toBeUndefined();
+  });
+});
+
+describe('the revision a part’s call is about (D-233)', () => {
+  it('is the current revision when nobody has locked, and the revision the thread locked on when someone has', () => {
+    expect(callRevisionCandidates(3, [])).toEqual([3]);
+    expect(callRevisionCandidates(3, [3, 3])).toEqual([3]);
+    expect(callRevisionCandidates(3, [1, 1, 1])).toEqual([1, 3]);
+  });
+
+  it('tries the earliest locked revision first, then later ones, and the current revision last', () => {
+    expect(callRevisionCandidates(4, [3, 1, 3])).toEqual([1, 3, 4]);
+  });
+
+  it('says the call is held when the Scroll moved on, restarted when the picks cannot be read, and nothing otherwise', () => {
+    expect(callUpdateOf(1, 2, [1])).toBe('held');
+    expect(callUpdateOf(2, 2, [1])).toBe('restarted');
+    expect(callUpdateOf(2, 2, [])).toBeUndefined();
+    expect(callUpdateOf(2, 2, [2])).toBeUndefined();
+  });
+
+  it('counts the members the reader may see: those who take part and have no block with the reader', () => {
+    const everyone = [member('asha'), member('ravi'), member('kenji', { left: true }), member('meera')];
+    expect(presentMembers('asha', everyone, new Set()).map((candidate) => candidate.accountId)).toEqual([
+      'asha',
+      'ravi',
+      'meera',
+    ]);
+    expect(presentMembers('asha', everyone, new Set(['ravi'])).map((candidate) => candidate.accountId)).toEqual([
+      'asha',
+      'meera',
+    ]);
   });
 });
 

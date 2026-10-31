@@ -557,6 +557,13 @@ const ThreadCallBase = {
     .int()
     .min(1)
     .max(MAX_THREAD_FRIENDS + 1),
+  /**
+   * Present when the part's Scroll has a newer revision than this question (D-233). `held`: the thread called on an earlier
+   * revision, so the card keeps that question and every pick stays with it. `restarted`: picks exist on an earlier revision
+   * that can no longer be read, so the card asks the current question afresh. Absent when the question is the Scroll's current
+   * one and nothing was locked on another revision.
+   */
+  updated: z.enum(['held', 'restarted']).optional(),
 };
 
 /**

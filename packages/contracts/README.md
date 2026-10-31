@@ -1359,7 +1359,7 @@ places `places/read`, `places/set`, `places/hide`, and for Call it together `cal
   `locked` (plus the caller's own `option`), `closed` (counts and a reason) and `revealed` (the caller's `option`, the right
   `answer`, `explain`, a `twist` only when the caller missed, `right`, every `pick` the caller may see, `rightCount` and, when the caller's pick
   was the Scroll's authored common guess, its reviewed `guessSource`; nothing numeric about other threads). `ReadThreadCalls` -> `ThreadCalls` (`unavailable`, or `ready` with at most one call
-  for each part). `LockThreadCall` is a part, an option and the recording generation: no stop, no correctness, no command ID
+  for each part). A call may carry `updated` (`held` or `restarted`) when the part's Scroll has a newer revision than its question (D-233). `LockThreadCall` is a part, an option and the recording generation: no stop, no correctness, no command ID
   (the first lock stands, so there is no receipt), and its answer is `locked`, `stands` or `closed`, or `recorded: false` with
   `recording_paused` or `recording_generation_stale` (D-083). Nothing carries who is waiting, a time, a position or a score
   (`threads.test.ts` tries each). _Implemented._

@@ -265,6 +265,11 @@ No model is called. _Implemented; not runtime-verified._
 
 - **The call of a part** is the first Call it of the part's Scroll (`threadCallOf`), found through Content's
   `READ_CONTENT_SEQUENCE` and `READ_SCROLL_PLAY_FACTS`. A Reel, a Scroll without a call and a single-item thread have none.
+  It is about the revision the thread's members locked on, and only when none did, about the series' current revision
+  (`callRevisionCandidates`, D-233), so a new revision of a Scroll never takes a pick away: the card keeps that question,
+  and says `updated: 'held'` so the person is told. If the revision the picks are on can no longer be read, the card asks
+  the current question afresh and says `updated: 'restarted'`. Only the locks the reader may count choose the revision
+  (`presentMembers`), so a block never moves which question a reader is shown.
 - **Read** (`threads/calls/read`, `calls`). Under the thread's lock (FOR SHARE): one call per part that has one, in
   the stage this reader may see (`open`, `locked`, `revealed`, `closed`). The stage decides what the answer can carry:
   counts only before the reader locks, their own pick after, and everyone's picks, the right answer, why, and, for a member
