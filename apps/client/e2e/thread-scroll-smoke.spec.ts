@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { id } from './encounter-fixture';
 import { PARTY_CALL, openParty, partyWorld, type PartyWorld, type Who } from './thread-party-fixture';
 
 /**
@@ -196,4 +197,93 @@ test('while recording is paused opening a part tells nothing, and the button sti
   await ravi.page.getByRole('button', { name: 'I’ve finished this part' }).click();
   await expect.poll(() => world.placeOf('ravi')).toMatchObject({ part: 1, state: 'finished' });
   await closeAll(ravi.context);
+});
+
+/** A person's page with the clock held, so the recorder's periodic report is fired by the test and never by chance. */
+async function readerPage(browser: Browser, world: PartyWorld, who: Who) {
+  const context = await browser.newContext({ viewport: phone, hasTouch: false });
+  const page = await context.newPage();
+  await page.clock.install();
+  await openParty(page, world, who, phone);
+  await expect(page.getByRole('heading', { level: 1, name: 'CI series' })).toBeVisible();
+  return { context, page };
+}
+
+/** Reads the open Scroll the way a person does: some time on its first stop, then on to its end, then the report is due. */
+async function readAndReport(page: Page) {
+  await page.clock.fastForward(4_000);
+  await page.getByRole('button', { name: 'The end of this Scroll', exact: true }).click();
+  await page.clock.fastForward(3_000);
+  // The recorder reports every 15 s while it has something to say.
+  await page.clock.fastForward(16_000);
+}
+
+const batchesOf = (world: PartyWorld, who: Who) =>
+  world.calls.filter((call) => call.who === who && call.path === '/v1/observations/recording-batch');
+
+/** What a reader reported to the recorder, without the numbers that depend on when it was looked at. */
+function reportedBy(world: PartyWorld, who: Who) {
+  const batches = batchesOf(world, who);
+  const events = batches.flatMap(
+    (batch) =>
+      batch.body['events'] as { exposureId: string; kind: string; payload: { blocks?: { blockId: string }[] } }[],
+  );
+  const unique = <T>(values: T[]) => [...new Set(values)].toSorted();
+  return {
+    generations: unique(batches.map((batch) => batch.body['recordingGeneration'])),
+    exposures: unique(events.map((event) => event.exposureId)),
+    kinds: unique(events.map((event) => event.kind)),
+    stopsCovered: unique(
+      events
+        .filter((event) => event.kind === 'scroll.block_coverage')
+        .flatMap((event) => (event.payload.blocks ?? []).map((block) => block.blockId)),
+    ),
+  };
+}
+
+test('the thread’s reader reports its reading to the recorder exactly as /scroll/<id> does', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const world = partyWorld({ scrolls: true });
+  const asha = await readerPage(browser, world, 'asha');
+  const ravi = await readerPage(browser, world, 'ravi');
+
+  // Asha reads Part 1 in the thread's own reader; Ravi reads the same Scroll on its own address.
+  await choosePart(asha.page, 1);
+  await read(asha.page);
+  await readAndReport(asha.page);
+  await ravi.page.goto(`/scroll/${id(301)}`);
+  await expect(ravi.page.getByTestId('stop-scroller')).toBeVisible();
+  await readAndReport(ravi.page);
+  await expect.poll(() => batchesOf(world, 'asha').length, { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(() => batchesOf(world, 'ravi').length, { timeout: 15_000 }).toBeGreaterThan(0);
+
+  const inThread = reportedBy(world, 'asha');
+  // Not an empty comparison: the opened exposure, the generation of the policy, coverage events and the stops read.
+  expect(inThread.exposures).toEqual([id(401)]);
+  expect(inThread.generations).toEqual([1]);
+  expect(inThread.kinds).toContain('scroll.block_coverage');
+  expect(inThread.stopsCovered.length).toBeGreaterThan(0);
+  expect(inThread).toEqual(reportedBy(world, 'ravi'));
+  await closeAll(asha.context, ravi.context);
+});
+
+test('while recording is paused the thread’s reader reports nothing, where an unpaused one reports', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const world = partyWorld({ scrolls: true });
+  world.pauseRecording('ravi', true);
+  const asha = await readerPage(browser, world, 'asha');
+  const ravi = await readerPage(browser, world, 'ravi');
+  for (const { page } of [asha, ravi]) {
+    await choosePart(page, 1);
+    await read(page);
+    await readAndReport(page);
+  }
+  await expect.poll(() => batchesOf(world, 'asha').length, { timeout: 15_000 }).toBeGreaterThan(0);
+  // Give a wrongly sent batch time to arrive.
+  await ravi.page.clock.fastForward(16_000);
+  await ravi.page.waitForTimeout(500);
+  expect(batchesOf(world, 'ravi')).toHaveLength(0);
+  await closeAll(asha.context, ravi.context);
 });
