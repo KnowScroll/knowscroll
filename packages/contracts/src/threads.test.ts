@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ContentThreadViewSchema,
   CreateContentThreadSchema,
+  LockThreadCallSchema,
   MAX_THREAD_FRIENDS,
   ReactToThreadMessageSchema,
   SendThreadBodySchema,
@@ -9,6 +10,9 @@ import {
   SetThreadPlaceHiddenSchema,
   SetThreadPlaceSchema,
   SnippetAnchorSchema,
+  ThreadCallLockAcceptanceSchema,
+  ThreadCallSchema,
+  ThreadCallsSchema,
   ThreadMessageSchema,
   ThreadPlaceAcceptanceSchema,
   ThreadPlaceHiddenAcceptanceSchema,
@@ -293,5 +297,147 @@ describe('party places (v3 T-D, D-065)', () => {
     expect(SetThreadPlaceHiddenSchema.safeParse(hide).success).toBe(true);
     expect(SetThreadPlaceHiddenSchema.safeParse({ ...hide, commandId: id(82) }).success).toBe(false);
     expect(SetThreadPlaceHiddenSchema.safeParse({ ...hide, hidden: 'yes' }).success).toBe(false);
+  });
+});
+
+describe('Call it together (v3 T-E, D-155 to D-157)', () => {
+  const base = {
+    part: 2,
+    assetId: id(40),
+    assetRevision: 3,
+    prompt: 'When are tides biggest?',
+    options: ['Full and new moon', 'Half moon', 'Always the same'],
+    called: 2,
+    of: 4,
+  };
+  const revealed = {
+    ...base,
+    stage: 'revealed' as const,
+    option: 0,
+    answer: 0,
+    explain: 'Spring tides come at full and new moon.',
+    right: true,
+    picks: [
+      { person, you: true, option: 0, right: true },
+      { person: { ...person, personId: id(11) }, you: false, option: 1, right: false },
+    ],
+    rightCount: 1,
+  };
+
+  it('carries only what its stage may show: a pick, the right answer and who called appear only once revealed', () => {
+    expect(ThreadCallSchema.safeParse({ ...base, stage: 'open' }).success).toBe(true);
+    expect(ThreadCallSchema.safeParse({ ...base, stage: 'locked', option: 1 }).success).toBe(true);
+    expect(ThreadCallSchema.safeParse({ ...base, stage: 'closed', reason: 'started' }).success).toBe(true);
+    expect(ThreadCallSchema.safeParse(revealed).success).toBe(true);
+    for (const stage of ['open', 'closed'] as const)
+      for (const extra of [{ option: 1 }, { answer: 0 }, { picks: revealed.picks }, { explain: 'x' }, { right: true }])
+        expect(
+          ThreadCallSchema.safeParse({ ...base, stage, ...(stage === 'closed' ? { reason: 'started' } : {}), ...extra })
+            .success,
+          `${stage} with ${Object.keys(extra).join(',')}`,
+        ).toBe(false);
+    for (const extra of [{ answer: 0 }, { picks: revealed.picks }, { explain: 'x' }, { right: true }, { twist: 'x' }])
+      expect(ThreadCallSchema.safeParse({ ...base, stage: 'locked', option: 1, ...extra }).success).toBe(false);
+  });
+
+  it('cannot say who was waiting, when anyone called, a time, a playhead or a score', () => {
+    for (const extra of [
+      { waitingFor: [person] },
+      { calledBy: [person] },
+      { lockedAt: '2026-10-31T13:02:00.000Z' },
+      { day: '2026-10-31' },
+      { positionMs: 5 },
+      { sparks: 1 },
+      { total: 41 },
+    ])
+      for (const call of [{ ...base, stage: 'open' }, { ...base, stage: 'locked', option: 1 }, revealed])
+        expect(ThreadCallSchema.safeParse({ ...call, ...extra }).success).toBe(false);
+  });
+
+  it('keeps a call to two or three options, and every pick to one of them', () => {
+    expect(ThreadCallSchema.safeParse({ ...base, stage: 'open', options: ['only'] }).success).toBe(false);
+    expect(ThreadCallSchema.safeParse({ ...base, stage: 'open', options: ['a', 'b', 'c', 'd'] }).success).toBe(false);
+    expect(ThreadCallSchema.safeParse({ ...base, stage: 'locked', option: 3 }).success).toBe(false);
+    expect(ThreadCallSchema.safeParse({ ...revealed, picks: [{ ...revealed.picks[0]!, option: 3 }] }).success).toBe(
+      false,
+    );
+  });
+
+  it('lists each person once in a reveal, and the common guess is only the Scroll’s reviewed source', () => {
+    expect(ThreadCallSchema.safeParse({ ...revealed, picks: [revealed.picks[0], revealed.picks[0]] }).success).toBe(
+      false,
+    );
+    expect(ThreadCallSchema.safeParse({ ...revealed, guessSource: 'A Private Universe' }).success).toBe(true);
+    // Nothing counted from other threads can be said: no percent, no number of calls, no person.
+    for (const extra of [
+      { commonGuess: { option: 1, percent: 62 } },
+      { percent: 62 },
+      { calls: 41 },
+      { guessSource: 'A Private Universe', people: [person] },
+    ])
+      expect(ThreadCallSchema.safeParse({ ...revealed, ...extra }).success).toBe(false);
+    expect(ThreadCallSchema.safeParse({ ...revealed, guessSource: 62 }).success).toBe(false);
+  });
+
+  it('is read for a thread, with one call at most for each part', () => {
+    const answer = { version: 'content-thread.v1', readId: id(80), scope, status: 'ready', thread: ref };
+    const open = { ...base, stage: 'open' };
+    expect(ThreadCallsSchema.safeParse({ ...answer, calls: [open] }).success).toBe(true);
+    expect(ThreadCallsSchema.safeParse({ ...answer, calls: [open, open] }).success).toBe(false);
+    expect(
+      ThreadCallsSchema.safeParse({ version: 'content-thread.v1', readId: id(80), scope, status: 'unavailable' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('is locked with a part and a pick, and nothing that says whether it was right', () => {
+    const lock = { version: 'content-thread.v1', thread: ref, part: 2, option: 1, recordingGeneration: 1 };
+    expect(LockThreadCallSchema.safeParse(lock).success).toBe(true);
+    for (const patch of [
+      { option: 3 },
+      { part: 0 },
+      { recordingGeneration: 0 },
+      { correct: true },
+      { stopId: 'call-one' },
+      { assetId: id(40) },
+      { commandId: id(81) },
+      { day: '2026-10-31' },
+    ])
+      expect(LockThreadCallSchema.safeParse({ ...lock, ...patch }).success).toBe(false);
+    expect(LockThreadCallSchema.safeParse({ ...lock, recordingGeneration: undefined }).success).toBe(false);
+  });
+
+  it('answers a lock with what it did, or that recording is paused, and never a pick, a time or a result', () => {
+    const answered = {
+      version: 'content-thread.v1',
+      scope,
+      operation: 'thread.call-lock',
+      recorded: true,
+      thread: ref,
+      part: 2,
+      result: 'locked',
+    };
+    for (const result of ['locked', 'stands', 'closed'])
+      expect(ThreadCallLockAcceptanceSchema.safeParse({ ...answered, result }).success).toBe(true);
+    for (const extra of [
+      { option: 1 },
+      { right: true },
+      { correct: true },
+      { recordedAt: '2026-10-31T13:02:00.000Z' },
+      { commandId: id(81) },
+      { replayed: false },
+    ])
+      expect(ThreadCallLockAcceptanceSchema.safeParse({ ...answered, ...extra }).success).toBe(false);
+    const paused = {
+      version: 'content-thread.v1',
+      scope,
+      operation: 'thread.call-lock',
+      recorded: false,
+      reason: 'recording_paused',
+      currentGeneration: 2,
+    };
+    expect(ThreadCallLockAcceptanceSchema.safeParse(paused).success).toBe(true);
+    expect(ThreadCallLockAcceptanceSchema.safeParse({ ...paused, reason: 'thread_gone' }).success).toBe(false);
+    expect(ThreadCallLockAcceptanceSchema.safeParse({ ...paused, part: 2 }).success).toBe(false);
   });
 });

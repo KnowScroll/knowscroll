@@ -1,12 +1,14 @@
 import type { PublicPersonRef } from '@knowscroll/contracts';
 import type {
   ReadContentSequence,
+  ReadScrollPlayFacts,
   ResolveSnippetAnchor,
   StoredSnippetAnchor,
   ValidateSnippetAnchor,
 } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
-import type { PersonalScopeTx } from '../../identity/public.js';
+import type { FencePersonalRecording, PersonalScopeTx } from '../../identity/public.js';
+import type { CallLockRow } from '../domain/calls.js';
 import type { PlaceRow, StoredPlace } from '../domain/places.js';
 import type { ContentRef, ConversationStore, MessageRow } from './conversation-ports.js';
 import type { SharedLock, SocialPorts } from './ports.js';
@@ -151,14 +153,51 @@ export interface PlaceStore {
   blockedWith(lock: ThreadLock, readerAccountId: string, accountIds: readonly string[]): Promise<ReadonlySet<string>>;
 }
 
+/** The call of one part: one stop of one exact Scroll revision. */
+export interface CallKey {
+  readonly assetId: string;
+  readonly revision: number;
+  readonly stopId: string;
+}
+
+/** A stored lock with the call it is for. */
+export interface ThreadCallRow extends CallLockRow, CallKey {}
+
+/**
+ * Thread calls (D-155 to D-157). Each method is one statement; none decides access. Writes and locked reads take
+ * the thread's `ThreadLock`, obtained by the use case after the actor's gates. A pick is only ever written for
+ * the account that is acting, from that account's own command, and never carries whether it was right.
+ */
+export interface CallStore {
+  /** Every lock in the thread. The caller picks a call's rows and filters them with the pure rule `viewCall`. */
+  list(lock: ThreadLock): Promise<readonly ThreadCallRow[]>;
+  /** Stores the account's first lock of a call. A call the account already locked is left as it was. */
+  insert(lock: ThreadLock, accountId: string, call: CallKey, option: number, day: string): Promise<void>;
+  /** Deletes every pick the account made in this thread; nothing is left to find. */
+  removeOf(lock: ThreadLock, accountId: string): Promise<void>;
+  /** The thread's calls that have revealed: a key and nothing else, never a person, a pick or a day (D-155). */
+  reveals(lock: ThreadLock): Promise<readonly CallKey[]>;
+  /** Records that a call revealed for the thread, once: a call already recorded is left as it was. */
+  markRevealed(lock: ThreadLock, call: CallKey): Promise<void>;
+}
+
 export interface ThreadPorts extends SocialPorts {
   conversations: ConversationStore;
   threads: ThreadStore;
   places: PlaceStore;
+  calls: CallStore;
   /** The thread a command lands on: derived from the starter and the command, so a retry finds it. */
   threadIdFor(accountId: string, commandId: string): string;
   readSequence: ReadContentSequence;
   readVisited: ReadVisitedAssets;
   validateSnippet: ValidateSnippetAnchor;
   resolveSnippet: ResolveSnippetAnchor;
+}
+
+/** The thread ports plus what the call commands need: the calls of a Scroll revision and the recording gate. */
+export interface ThreadCallPorts extends ThreadPorts {
+  /** The question, options, answer and reveal words of a Scroll revision (content's public read). */
+  readCallFacts: ReadScrollPlayFacts;
+  /** A pick is a play result, so it is stored only while recording is on (D-083). */
+  fenceRecording: FencePersonalRecording;
 }

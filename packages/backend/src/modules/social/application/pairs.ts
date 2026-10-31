@@ -135,7 +135,7 @@ export function makePairCommand(p: SocialPorts) {
         // old "may visit" can never come back with a new friendship (D-047).
         if (operation === 'accept' || operation === 'remove' || operation === 'block') {
           await p.visibility.forgetChoiceBetween(locked.shared, gate.owner.accountId, gate.peer.accountId);
-          await p.store.forgetPlacesBetween(locked, gate.owner.accountId, gate.peer.accountId);
+          await p.store.forgetPartyBetween(locked, gate.owner.accountId, gate.peer.accountId);
         }
         await p.store.bind(locked, gate.owner.accountId, operation, command.commandId, {
           epoch: scope.authority.privacyEpoch,

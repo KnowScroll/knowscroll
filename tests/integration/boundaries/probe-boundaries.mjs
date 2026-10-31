@@ -27,6 +27,21 @@ const playFolders = [
   'reasoning',
   ...playOthers.map((name) => `modules/${name}`),
 ];
+/**
+ * The wall around a pick on a thread's call (D-156) is the same allow-list: Social stores it, so no module that is
+ * not on the rule's short list may import Social. One forbidden import from every walled module, the reasoning
+ * engine, and the modules a deny-list would forget (supply, play and the three Play depends on).
+ */
+const socialForbidden = [
+  ...playWalled.map((name) => `modules/${name}`),
+  'reasoning',
+  'modules/supply',
+  'modules/play',
+  'modules/identity',
+  'modules/content',
+  'modules/experience',
+];
+const importsSocial = 'thread-pick-wall-only-listed-modules-import-social';
 const importsPlay = 'play-wall-only-roots-import-play';
 const playImports = 'play-wall-play-imports-three-public-surfaces';
 
@@ -254,6 +269,14 @@ const probes = [
     source: `import * as surface from '${posix.relative(`${B}/modules/play/application`, `${B}/${folder}/public.js`)}';\nexport const probe = surface;\n`,
     expect: [[`${B}/${folder}/public.ts`, playImports]],
   })),
+  // D-156: only Social and the three modules that already use its reads (feedback, rooms, scenarios) import Social ...
+  ...socialForbidden.map((folder) => ({
+    file: `${B}/${folder}/application/zz-probe-social.ts`,
+    source: `import * as social from '${posix.relative(`${B}/${folder}/application`, `${B}/modules/social/public.js`)}';
+export const probe = social;
+`,
+    expect: [[`${B}/modules/social/public.ts`, importsSocial]],
+  })),
   // Apps never import each other; no cycles.
   {
     file: 'apps/api/src/zz-probe-cross-app.ts',
@@ -416,6 +439,20 @@ try {
     }
   }
   if (!failed) console.log(`boundaries:probe: the ${wallProbes.length} play probes fail when the wall is loosened`);
+
+  // The Social probes must be able to fail too: loosen the rule and run the same files again.
+  const socialProbes = probes.filter((probe) => probe.expect.some(([, rule]) => rule === importsSocial));
+  const socialLoosened = cruise(
+    loosenedConfig([{ rule: importsSocial, side: 'from', pathNot: '.' }]),
+    socialProbes.map((probe) => probe.file),
+  );
+  for (const probe of socialProbes)
+    for (const edge of probe.expect)
+      if (rejects(socialLoosened, probe, edge)) {
+        failed = true;
+        console.error(`STILL REJECTED with the Social wall loosened (the probe cannot fail): ${probe.file}`);
+      }
+  if (!failed) console.log(`boundaries:probe: the ${socialProbes.length} Social probes fail when the wall is loosened`);
 } finally {
   for (const probe of probes) rmSync(probe.file, { force: true });
   for (const directory of createdDirectories) rmSync(directory, { recursive: true, force: true });

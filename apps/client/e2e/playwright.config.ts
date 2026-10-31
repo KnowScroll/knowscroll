@@ -40,6 +40,7 @@ export default defineConfig({
         'thread-phone-smoke.spec.ts',
         'thread-party-smoke.spec.ts',
         'thread-whatif-smoke.spec.ts',
+        'thread-calls-smoke.spec.ts',
         'reflow-smoke.spec.ts',
         'keyboard-smoke.spec.ts',
         'privacy-smoke.spec.ts',
