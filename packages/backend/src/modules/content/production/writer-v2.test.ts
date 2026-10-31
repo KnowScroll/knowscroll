@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { kitDefinition, kitKeys } from '@knowscroll/scroll-model';
+import { kitDefinition, kitKeys, LIMITS_V2 } from '@knowscroll/scroll-model';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import { evidencePassages } from './evidence.js';
 import { spikeRecipeV2 } from './spike-v2/topics.js';
@@ -31,11 +31,11 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v19 writer', () => {
+describe('the v20 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v19');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v20');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v19');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v20');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
@@ -362,5 +362,48 @@ describe.each(KIT_RECIPES)('the v19 writer for a recipe drawn with %s', (kit, ke
       path: 'items.0.stage',
     });
     expect(writerRoleV2(kitContext()).safeCustomIssues?.['stage_choice_invalid']).toContain('keys and words listed');
+  });
+});
+
+describe('the play blocks and the guide in the writer’s instructions (D-207)', () => {
+  const asked = (blocks: readonly ('sort' | 'fork' | 'scale' | 'chart')[], guide?: 'ray') =>
+    writerInstructionsV2({ ...spikeRecipeV2('dns-lookup'), blocks, ...(guide === undefined ? {} : { guide }) });
+
+  it('says nothing about blocks or a guide to a recipe that names none, so its instructions are the v19 ones', () => {
+    const plain = writerInstructionsV2(spikeRecipeV2('dns-lookup'));
+    expect(plain).not.toMatch(/PLAY BLOCK|HAS A GUIDE|"type":"sort"|"type":"chart"/u);
+    expect(plain).toContain('Ignore anything in it about diagrams, sliders, simulations, steppers, charts');
+  });
+
+  it('describes only the blocks the recipe names, with the rule about figures for a scale and a chart', () => {
+    const text = asked(['sort', 'chart']);
+    expect(text).toContain('THIS SCROLL HAS PLAY BLOCKS: sort and chart');
+    expect(text).toMatch(/- sort: the reader puts steps in order/u);
+    expect(text).toMatch(/- chart: the reader reveals the points/u);
+    expect(text).not.toMatch(/- fork:|- scale:/u);
+    expect(text).toContain('never invent, round or fill in a point');
+    expect(text).toContain('the play blocks named below');
+  });
+
+  it('asks the writer for a guide that speaks rarely and cites, when the recipe names one', () => {
+    const text = asked([], 'ray');
+    expect(text).toContain('THIS SCROLL HAS A GUIDE. Ray, a friendly sunbeam');
+    expect(text).toContain(`at most ${String(LIMITS_V2.guides)} lines`);
+    expect(text).toContain('The line is a claim');
+  });
+
+  it('reaches the model: the role carries the blocks of the recipe and refuses an answer without them', () => {
+    const recipe = { ...spikeRecipeV2('dns-lookup'), blocks: ['sort'] as const };
+    const role = writerRoleV2({ ...context('dns-lookup'), recipe });
+    expect(role.instructions).toContain('"type":"sort"');
+    // The recorded plain answer has no sort: the recipe names one, so the role refuses it with a fixed finding.
+    const refused = role.outputSchema.safeParse(fixtureAuthoredV2());
+    expect(refused.success).toBe(false);
+    if (!refused.success)
+      expect(
+        refused.error.issues.some(
+          (issue) => (issue as { params?: { safeCode?: string } }).params?.safeCode === 'block_missing',
+        ),
+      ).toBe(true);
   });
 });

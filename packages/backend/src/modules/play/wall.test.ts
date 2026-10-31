@@ -58,3 +58,31 @@ describe('who can read the play tables', () => {
     expect(mentioning(['somewhere/else.ts'], () => 'select 1 from experience.play_counts')).toEqual([]);
   });
 });
+
+/**
+ * The play blocks of a Scroll (a sort, a fork, a scale, a growing chart, D-207) are played on the device and
+ * store nothing, so they sit behind the same wall by having nowhere to cross it: the play schema holds the
+ * calls, the Scroll results and the landmarks, and no table for a block. A table added for one would have to
+ * be named here, and so be seen.
+ */
+describe('what the play schema stores (D-063, D-209)', () => {
+  const migrations = join(repository, 'migrations');
+
+  it('is calls, Scroll results and landmarks: no table for a sort, a fork, a scale or a chart', () => {
+    const created = readdirSync(migrations)
+      .filter((name) => name.endsWith('.sql'))
+      .flatMap((name) => [
+        ...readFileSync(join(migrations, name), 'utf8').matchAll(/create table (?:if not exists )?play\.(\w+)/giu),
+      ])
+      .map((match) => match[1])
+      .sort();
+    expect(created).toEqual(['calls', 'landmarks', 'scroll_results']);
+  });
+
+  it('can fail: a migration that created a table for a block would be found', () => {
+    const planted = 'create table play.sort_attempts (id uuid);';
+    expect([...planted.matchAll(/create table (?:if not exists )?play\.(\w+)/giu)].map((match) => match[1])).toEqual([
+      'sort_attempts',
+    ]);
+  });
+});

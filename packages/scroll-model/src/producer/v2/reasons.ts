@@ -44,6 +44,23 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   stage_too_static: `The stage must change at least ${LIMITS_V2.minStageStates} times as the stops go by. Add stage changes that follow the explanation.`,
   stage_states_unordered: 'Stage changes follow the order of the stops.',
   reading_length_out_of_brief: `The Scroll must take ${READING_SECONDS_V2.min / 60} to ${READING_SECONDS_V2.max / 60} minutes to read: about 650 to 900 words in all, plus ten seconds for every call.`,
+  // The play blocks and the guide (D-207).
+  block_unexpected:
+    'Use only the play block the instructions name for this Scroll, and only once. Remove this block and keep its lead-in as a plain stop if it is needed.',
+  block_missing: 'This Scroll has a play block named in the instructions (sort, fork, scale or chart): add it once.',
+  block_value_invalid:
+    'Write each value as the passage writes the figure: digits, with commas or a decimal point, and no units. If the passage writes "million" or "billion" after the figure, give that word as "magnitude" and keep the figure as written. The unit goes in "unit".',
+  interactive_budget_exceeded: `Use at most ${LIMITS_V2.otherInteractives} play blocks (sort, fork, scale, chart) in a Scroll.`,
+  sort_items_duplicate: 'Every item of a sort must be different.',
+  fork_branches_duplicate: 'The two paths of a fork need different labels.',
+  fork_branch_too_long: `Each path of a fork is at most ${LIMITS_V2.branchWords} words.`,
+  scale_values_invalid: 'The points of a scale need different values, and a log scale has no zero.',
+  scale_here_invalid: '"here" must be the label of one of the points, written exactly as there.',
+  chart_labels_duplicate: 'Every point of a scale or a chart needs its own label.',
+  guide_unexpected: 'This Scroll has no guide: remove the guide from this stop.',
+  guide_budget_exceeded: `The guide speaks at most ${LIMITS_V2.guides} times in a Scroll.`,
+  guide_too_close: 'The guide speaks rarely: leave at least two stops between its lines.',
+  guide_too_long: `A guide line is at most ${LIMITS_V2.guideWords} words.`,
   // Checks shared with v1.
   copied_passage:
     'Nine or more words in a row match a passage. Rewrite only the text of this item in your own words, with a different sentence structure.',
@@ -58,6 +75,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
   schema_invalid_value: 'A value is not one of the allowed words.',
   document_too_large: 'The Scroll is too big; shorten it.',
   // Checks that only a defect in the assembler can fail; kept so a finding is never silent.
+  sort_order_invalid: 'The order of a sort is set by code.',
+  sort_already_ordered: 'The order of a sort is set by code.',
   common_guess_invalid: 'The common guess is the second option of the first call_it of a myth Scroll; code sets it.',
   common_guess_missing: 'The common guess is the second option of the first call_it of a myth Scroll; code sets it.',
   common_guess_unexpected: 'Only the first call_it of a myth Scroll has a common guess; code sets it.',

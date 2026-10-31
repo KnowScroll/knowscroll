@@ -52,6 +52,7 @@ export default defineConfig({
         'rooms-sky-smoke.spec.ts',
         'stage-reader-smoke.spec.ts',
         'kit-stage-smoke.spec.ts',
+        'blocks-smoke.spec.ts',
         'play-smoke.spec.ts',
         'payoff-smoke.spec.ts',
         'reader-nav-smoke.spec.ts',

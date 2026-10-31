@@ -13,6 +13,7 @@ import {
 } from '@knowscroll/backend/reasoning/nest-providers';
 import {
   makeWriterSpikeV2,
+  parseSpikeBlocks,
   parseSpikeTopics,
   runSpikeBatch,
   SPIKE_MAX_CONCURRENCY,
@@ -24,6 +25,8 @@ type Print = (result: Record<string, unknown>) => void;
 
 export interface WriterSpikeOptions {
   readonly topics: string | undefined;
+  /** `--blocks <recipe>=<sort|fork|scale|chart|ray>[+…],…`: the play blocks and guide to ask the writer for (D-207). */
+  readonly blocks?: string | undefined;
   readonly out: string | undefined;
   readonly concurrency: string | undefined;
   readonly spikeId: string | undefined;
@@ -46,7 +49,7 @@ function documentLine(spikeId: string, result: SpikeResult): string | undefined 
 }
 
 /**
- * `content writer-spike-v2 --topics <k1,k2,…> [--out <file>] [--concurrency <1-4>] [--spike-id <id>]`:
+ * `content writer-spike-v2 --topics <k1,k2,…> [--blocks <k=sort+ray,…>] [--out <file>] [--concurrency <1-4>] [--spike-id <id>]`:
  * runs the v15 writer (`scroll-authoring.v2`) on real library recipes through the production
  * reasoning harness and reports what it cost and what was refused (S-0, D-120). It admits and
  * publishes nothing and creates no table: the only records are the harness's own run, attempts and
@@ -68,15 +71,18 @@ export async function writerSpikeCommand(
 ): Promise<number> {
   const topics = options.topics === undefined ? undefined : parseSpikeTopics(options.topics);
   const concurrency = options.concurrency === undefined ? 1 : Number(options.concurrency);
+  const blocks = options.blocks === undefined ? new Map() : parseSpikeBlocks(options.blocks);
   if (
     topics === undefined ||
+    blocks === undefined ||
+    [...blocks.keys()].some((key) => !topics.includes(key)) ||
     !Number.isInteger(concurrency) ||
     concurrency < 1 ||
     concurrency > SPIKE_MAX_CONCURRENCY
   ) {
     print({
       result: 'usage',
-      usage: `content writer-spike-v2 --topics <recipe key,…> [--out <file>] [--concurrency <1-${SPIKE_MAX_CONCURRENCY}>] [--spike-id <id>]`,
+      usage: `content writer-spike-v2 --topics <recipe key,…> [--blocks <recipe=sort|fork|scale|chart|ray,…>] [--out <file>] [--concurrency <1-${SPIKE_MAX_CONCURRENCY}>] [--spike-id <id>]`,
     });
     return 2;
   }
@@ -129,6 +135,7 @@ export async function writerSpikeCommand(
         authority: { scopeId: 'scroll-supply', generation: config.productionGeneration },
         model: model.model,
         spikeId,
+        blocks,
         newRunId: uuidv7,
         findingsOf: async (attemptId) => {
           const shown = await reasoning.showRejectedAnswer(attemptId);

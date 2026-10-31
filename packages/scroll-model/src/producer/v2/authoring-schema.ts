@@ -1,4 +1,5 @@
 import { z } from '../../zod.js';
+import { CHART_SHAPES, GUIDE_POSES, MAGNITUDES, SCALE_AXES } from '../../v2/blocks.js';
 import { ASIDE_KINDS, STOP_EMPHASES } from '../../v2/document.js';
 import { LIMITS_V2 } from '../../v2/limits.js';
 
@@ -28,8 +29,8 @@ const cites = z.array(prose(1, 12)).min(1).max(8);
  */
 const stagePatch = z.record(prose(1, 24), prose(1, 24)).optional();
 
-const stopItem = z.strictObject({
-  type: z.literal('stop'),
+/** What every read stop has, a stop that carries a play block included. */
+const readFields = {
   cites,
   /** A rare section label; most stops have none. Up to twice its limit is cut at a word boundary. */
   heading: prose(1, 120).optional(),
@@ -40,6 +41,63 @@ const stopItem = z.strictObject({
   stage: stagePatch,
   /** The same idea in simpler words. */
   simple: prose(1, 600),
+};
+
+/**
+ * A line from the Scroll's guide character. The recipe names the character, so the writer gives only the
+ * pose and the words (D-207). Allowed only where the recipe gives the Scroll a guide.
+ */
+const guideFields = z.strictObject({ pose: z.enum(GUIDE_POSES), line: prose(1, 300) });
+
+const stopItem = z.strictObject({ type: z.literal('stop'), ...readFields, guide: guideFields.optional() });
+
+/**
+ * A figure of a scale or a chart, written as the cited passage writes it. A bare number is accepted too:
+ * the authoring rules read both the same way, and a figure the passages do not state is refused.
+ */
+const point = z.strictObject({
+  label: prose(1, 80),
+  value: z.union([prose(1, 24), z.number()]),
+  /** The word the passage puts after the figure ("8.3 million"): the value is the figure times it. */
+  magnitude: z.enum(Object.keys(MAGNITUDES) as [keyof typeof MAGNITUDES, ...(keyof typeof MAGNITUDES)[]]).optional(),
+});
+
+/**
+ * The play blocks (D-207). Each is a read stop (`readFields`: the lead-in the reader sees first) with one
+ * block under its text, filled from words and cited figures only. Allowed only where the recipe names the
+ * block, and each named block is used once.
+ */
+const sortItem = z.strictObject({
+  type: z.literal('sort'),
+  ...readFields,
+  /** The items in the CORRECT order: code shuffles what the reader sees and keeps the order as the answer. */
+  items: z.array(prose(1, 120)).min(LIMITS_V2.sortItems.min).max(LIMITS_V2.sortItems.max),
+  explain: prose(1, 600),
+});
+const forkItem = z.strictObject({
+  type: z.literal('fork'),
+  ...readFields,
+  prompt: prose(1, 200),
+  branches: z
+    .array(z.strictObject({ label: prose(1, 80), text: prose(1, 600) }))
+    .min(2)
+    .max(2),
+});
+const scaleItem = z.strictObject({
+  type: z.literal('scale'),
+  ...readFields,
+  axis: z.enum(SCALE_AXES),
+  unit: prose(1, 60),
+  points: z.array(point).min(LIMITS_V2.scalePoints.min).max(LIMITS_V2.scalePoints.max),
+  /** The label of the point that is "you are here". */
+  here: prose(1, 80).optional(),
+});
+const chartItem = z.strictObject({
+  type: z.literal('chart'),
+  ...readFields,
+  shape: z.enum(CHART_SHAPES),
+  unit: prose(1, 60),
+  points: z.array(point).min(LIMITS_V2.chartPoints.min).max(LIMITS_V2.chartPoints.max),
 });
 
 const callFields = {
@@ -71,7 +129,16 @@ const asideItem = z.strictObject({
   collapsed: z.boolean().optional(),
 });
 
-export const AuthoredItemV2 = z.discriminatedUnion('type', [stopItem, callItem, finalCallItem, asideItem]);
+export const AuthoredItemV2 = z.discriminatedUnion('type', [
+  stopItem,
+  sortItem,
+  forkItem,
+  scaleItem,
+  chartItem,
+  callItem,
+  finalCallItem,
+  asideItem,
+]);
 export type AuthoredItemV2 = z.infer<typeof AuthoredItemV2>;
 
 export const AuthoredScrollV2 = z.strictObject({

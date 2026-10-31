@@ -281,6 +281,31 @@ export {
   type ZoneStar,
   type ZoneVerdict,
 } from './kits/index.js';
+export {
+  CHART_SHAPES,
+  GrowingChart,
+  describeChart,
+  describeFork,
+  describePoint,
+  describeScale,
+  formatFigure,
+  ForkBlock,
+  Guide,
+  GUIDE_CHARACTERS,
+  GUIDE_POSES,
+  Interactive,
+  INTERACTIVE_KINDS,
+  interactiveWords,
+  isSortRight,
+  SCALE_AXES,
+  ScaleBlock,
+  SeriesPoint,
+  SortBlock,
+  sortedItems,
+  sortPlacedRight,
+  type GuideCharacter,
+  type InteractiveKind,
+} from './blocks.js';
 export { FIELD_LIMITS_V2, LIMITS_V2, SCROLL_LIMITS_V2_VERSION } from './limits.js';
 export {
   Aside,
@@ -310,6 +335,7 @@ export { V2_REASON_CODES, uniqueIssuesV2, type IssueV2, type V2ReasonCode } from
 export {
   computeMeasuresV2,
   READING_SECONDS_V2,
+  SECONDS_PER_INTERACTIVE,
   readingWords,
   SECONDS_PER_CALL,
   stopWeight,

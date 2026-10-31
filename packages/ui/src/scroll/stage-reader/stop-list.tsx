@@ -13,6 +13,8 @@ import { AsideView, ReadStopView } from './stop-view';
 /** What the list needs from the reader around it. */
 export interface StopListProps {
   readonly document: ScrollDocumentV2;
+  /** The reader's "Text version": the play blocks and the guide follow it. */
+  readonly textVersion: boolean;
   /** The dot of each section (a stop, then the end): the accessible name of its group. */
   readonly dots: readonly SpineDot[];
   readonly calls: readonly (CallItStop | FinalCallStop)[];
@@ -57,7 +59,7 @@ export function StopList(props: StopListProps) {
           {...dataSet({ ksStop: stop.id })}
         >
           {stop.kind === 'read' ? (
-            <ReadStopView stop={stop} />
+            <ReadStopView stop={stop} textVersion={props.textVersion} />
           ) : (
             <CallView
               call={stop}

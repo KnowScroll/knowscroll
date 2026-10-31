@@ -2637,3 +2637,55 @@ Taken for the owner; named in the PR for #462. Confirmed by: `animation.test.ts`
 - **Not as drawn.** The overview's names vanish at the start instead of fading over 0.4 s; the destination header rises as one piece. A friend's universe derives its type, rings, moon, hue and haze on the visitor's device from the public ids (never the owner's): every type is used once before any repeats.
 
 **Amends** D-106 (a friend's visit no longer draws the plain look) and D-107 (a fly down into a system is the 5.3 s entering animation; a step up is still 0.3 s). Confirmed by: `animation.test.ts` (each animation starts and ends on the screens it joins, the planet lands within a pixel of the globe at three stage sizes, the player's cap and clamp), `step-animations.test.tsx` (steps up, the layers), `visitor-scene.test.ts`, `e2e/universe-animations-smoke.spec.ts` (at a phone's density of 3 the cap and the 1.5 pixel ratio hold through the first open, the glide into a system, into a planet and the world opening out).
+
+## D-207 · 2026-11-01 · A read stop may carry one play block and a guide line, and `scroll-document.v2` gains them without changing for any Scroll that has none (v3 S-8d, #479)
+
+**Builds on** D-120, D-121 and D-124.
+
+- **Where a block lives.** A read stop has two optional members: `interactive` (a sort, a fork, a scale or a growing chart) and `guide` (a line from the Scroll's character). They are not new stop kinds, so every rule that counts calls, finds the Final call or binds a facet to a read stop still holds. The stop's text is the lead-in the reader sees first.
+- **The schema is the same.** The document stays `scroll-document.v2` and the limits stay `scroll-limits.v2`: the members are optional and strict, and a document without them has the same bytes, measures and hash as before. The server serves v2 only to a reader that declares it (D-129), and this reader and these documents ship together.
+- **The budget.** At most two play blocks in a Scroll (the limit that has been a constant since D-121, `otherInteractives`), besides at most four calls and one stage. A sort has three to five items, a scale three to six points, a chart three to eight, a fork exactly two paths of at most 40 words. A guide speaks at most twice, in at most 25 words, with two stops at least between lines.
+- **The reading estimate.** A block's words count like a stop's (a fork counts its longer path, as a call counts the longer one), and each block adds ten seconds, like a call. A read stop that holds a block asks for the time its words, the block's included, take to read (D-128).
+- **Who chooses.** A person, per recipe: `blocks` (each used once) and `guide` (the character) on the recipe's `scrollV2` plan. The writer is told which to write and may add none: a block the recipe does not name, a second of one it does, and a named block that is missing are all refused, and the one repair can fix them. The guide's character is the recipe's; the writer gives the pose and the line.
+- **Code owns what the model could get wrong.** The writer lists a sort's items in the right order; code shuffles them by a stable seed, never leaving them in the right order, and keeps the order as the answer. Code sorts a scale's points, finds "you are here" and derives each zoom view from the points (each point from the second on is a wider view). It writes every id, the text versions, the measures and the hash. Nothing is model-written markup, layout or a coordinate.
+- **Shapes.** `sort {items, order, explain}`, `fork {prompt, branches[2]}`, `scale {axis, unit, points[], here?}`, `chart {shape, unit, points[]}`, `guide {character, pose, line}`. The design's `scene` is not here (D-210).
+- **Not as drawn.** A sort is moved with arrow buttons on each card, not by dragging. A chart grows as the reader steps through its points, not as the stops go by. Both stay usable by keyboard and screen reader.
+
+Confirmed by: `producer/v2/blocks-compile.test.ts` (each block compiles; the sort is never shown in order; unnamed and missing blocks; guide limits), `v2/blocks.test.ts` (admission of each block, the budget, the reading estimate, the sort check), `v2/blocks-fixtures.test.ts`.
+
+## D-208 · 2026-11-01 · A scale or a chart shows only figures that a cited passage states, written as the passage writes them (v3 S-8d, #479)
+
+**Builds on** D-120 (a figure in reader text must be in a passage the item cites).
+
+- **Why a rule of its own.** A chart is a picture of numbers, and a made-up number in a picture looks like a fact. The writer must never fill in a point, round a figure or convert a unit.
+- **The figure is text.** The writer gives each value as the passage writes it (`"8.3"`, `"1,000"`), with no word or unit; the unit is its own field. A text that is not a figure is refused (`block_value_invalid`). A bare number is read the same way.
+- **The existing check does the work.** Every value, label and unit is reader text of the item, so each figure must appear in a passage the item cites (`authoring_number_not_in_evidence`). A figure that only another item cites does not count.
+- **"8.3 million".** A passage often writes a figure with a word after it. The writer gives that word as `magnitude` (thousand, million, billion, trillion) and code multiplies. With a word, a cited passage must have that figure followed by that word. Without one, the figure must not always be followed by such a word in the cited passages, or a chart would show a million times too little. A figure written both ways ("17 million people" and "17 sheep") may be given either way.
+- **Limits that stay.** The rule proves that a figure is in a cited passage, not that it means what its label says. Every Scroll is still read by a person before release (D-138), and the review text shows each figure and each answer key. A unit the passage never names is not caught by code; the writer is told never to convert.
+
+Confirmed by: `producer/v2/blocks-compile.test.ts` (an invented figure, a figure the item does not cite, a value written with words, a wrong or a missing magnitude, the sheep case, and a value with its word as an exact number), `adapters/review-text.test.ts`.
+
+## D-209 · 2026-11-01 · Play blocks are played on the device and record nothing, so they stay behind the play wall (v3 S-8d, #479)
+
+**Builds on** D-063, D-083 and D-180.
+
+- **Nothing is sent, stored or counted.** A sort's order, a fork's path, a scale's zoom and a chart's steps are state in the block on screen. No interaction kind, event field, table, command or export names them: `INTERACTION_KINDS_V2` still has only the call kinds `locked` and `revealed`, and the play schema still has only calls, Scroll results and landmarks.
+- **Reading is unchanged.** A stop with a block counts as read by being visible for the time its words take (D-128). Playing the block neither adds to that nor is needed for it. Composer, Jev, Planner, Evidence, Personal Context and the Universe cannot see how a block was played.
+- **Recording paused.** There is nothing to refuse, because nothing is recorded. The blocks work the same while recording is paused and say nothing about saving.
+- **No sparks yet.** A sort could be a small Final call (design page 7), but a spark is judged on the server from the stored revision (D-181), which needs a second call kind, its own stored shape and a migration. That is a later slice; until then a sort says "In order!" and no more.
+- **Text version.** The reader's text version (T key) and each block's own switch swap a block for its words, derived from its data: a sort lists its items and offers the order, a fork shows both paths, a scale and a chart list their points. Nothing in these blocks moves by itself, so reduced motion has nothing to remove; the end-to-end test runs every block under reduced motion too.
+
+Confirmed by: `ui/src/scroll/play-blocks/play-blocks.test.tsx` (playing each block calls no observer; the text version of each), `play/wall.test.ts` (the play schema holds exactly calls, Scroll results and landmarks, and the check finds a planted table), `adapters/reading-facts-v2.test.ts` (a block's stop is read by being visible, and the only interaction kinds accepted are the calls'), `e2e/blocks-smoke.spec.ts` (no request while a block is played; axe at 390 and 1440, also under reduced motion).
+
+## D-210 · 2026-11-01 · Which blocks ship, the writer is `scroll-writer.v20`, and the first spike (v3 S-8d, #479)
+
+**Builds on** D-196, D-197 and D-203.
+
+- **Shipped:** sort, fork, scale, growing chart and guide. Each is built, played on the device, has a text version, and is filled by the writer from JSON.
+- **Deferred: scene** (a picture with numbered hotspots). A scene needs a drawing whose parts a hotspot can name. The nine kits draw their parts as one picture and expose no anchors, so hotspots would be coordinates the writer chose, or anchors drawn for one picture that no recipe is about. Both are the model-drawn geometry D-124 rules out. It returns with a kit built to be tapped.
+- **Deferred: dragging a sort, pinch on a scale, a slider on a chart, sparks for a sort, and the rest of the page-8 kit** (landmarks and people as drawings, thermometers, map-lite). None is needed for a block to work, and each is a slice of its own.
+- **Writer `scroll-writer.v20`, production `scroll-production.v20`.** For a recipe that names them, the prompt adds a section for each block, with the rules of D-208, and a guide section. A recipe that names none gets the v19 text unchanged. The pair is in `versions.test.ts`, so every recipe has three fresh takes (D-197).
+- **Nothing is marked.** The plan holds no block or guide on any recipe. The spike asks for them with `--blocks <recipe>=<sort|fork|scale|chart|ray>[+...]`, and a person marks a recipe after reading it.
+- **The first spike: four recipes, one block each.** `hybrid-sorting` a sort (the steps of Timsort), `industrial-causes` a chart (the population figures of its page), `black-hole-formation` a scale (the masses its page states), `seasons-elsewhere` a fork between Mars and Uranus with Ray as the guide. Each is one write and at most one repair, as always.
+
+Confirmed by: `writer-v2.test.ts` (each block's rules reach the prompt only for a recipe that names it; a plain recipe's text is unchanged; the role refuses an answer without the recipe's block), `versions.test.ts`, `spike-v2/topics.test.ts` (`--blocks`, the four recipes, none marked), `domain/library/library.test.ts`.

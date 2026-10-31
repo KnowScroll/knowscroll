@@ -68,6 +68,14 @@ function stageHeightFor(windowHeight: number, wide: boolean): number {
   return Math.round(Math.min(wide ? 340 : 300, Math.max(MIN_STAGE, windowHeight * 0.34)));
 }
 
+/** A picture or a play block has a text version, so the reader's switch and the T key have something to swap. */
+function hasTextVersion(document: ScrollDocumentV2): boolean {
+  return (
+    document.stage !== undefined ||
+    document.stops.some((stop) => stop.kind === 'read' && (stop.interactive !== undefined || stop.guide !== undefined))
+  );
+}
+
 function indexOfStop(stops: ScrollDocumentV2['stops'], stopId: string | undefined): number {
   return stops.findIndex((stop) => stop.id === stopId);
 }
@@ -184,7 +192,7 @@ export function StageReader({
   const onKey = (key: ReaderKey): boolean =>
     actOnKey(key, {
       stops: document.stops,
-      hasStage: document.stage !== undefined,
+      hasTextVersion: hasTextVersion(document),
       commands,
       jump,
       heading: text.heading,
@@ -222,6 +230,7 @@ export function StageReader({
           >
             <StopList
               document={document}
+              textVersion={textVersion}
               dots={dots}
               calls={calls}
               sectionHeight={text.viewport > 0 ? Math.round(text.viewport * 0.8) : 320}
