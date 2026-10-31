@@ -1,0 +1,410 @@
+{
+  "schemaVersion": "scroll-document.v2",
+  "assetId": "ci-fixture-nerve-stage",
+  "revision": 1,
+  "language": "en",
+  "explanationUnitId": "ci-fixture-nerve-stage-unit",
+  "theme": {
+    "family": "worlds"
+  },
+  "kicker": "CI fixture · not product content",
+  "title": "A nerve signal (a CI fixture)",
+  "dek": "A spike, the all-or-none rule, a synapse and a reflex, in short steps (a CI fixture).",
+  "framing": {
+    "kind": "factual"
+  },
+  "misconception": {
+    "kind": "none"
+  },
+  "stage": {
+    "kit": "nerve.v1",
+    "states": [
+      {
+        "stop": "rest",
+        "state": {
+          "view": "spike",
+          "phase": "rest",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "trace"
+        },
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. At rest the inside of the cell is negative. The sodium channels are shut but ready, and the potassium channels are mostly shut. The picture draws the eye to the voltage graph."
+      },
+      {
+        "stop": "threshold",
+        "state": {
+          "view": "spike",
+          "phase": "threshold",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "threshold"
+        },
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. A push has lifted the voltage to the threshold, the point beyond which the cell fires by itself. The sodium channels begin to open, and the potassium channels are mostly shut. The picture draws the eye to the threshold."
+      },
+      {
+        "stop": "rising",
+        "state": {
+          "view": "spike",
+          "phase": "rising",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "channels"
+        },
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage shoots up toward positive. Sodium channels are open and sodium ions rush in, and the potassium channels are mostly shut. The picture draws the eye to the channels."
+      },
+      {
+        "stop": "falling",
+        "state": {
+          "view": "spike",
+          "phase": "falling",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "channels"
+        },
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage falls back. The sodium channels are shutting themselves, so less sodium flows in, and potassium channels are open and potassium ions flow out. A fresh push that would normally make the cell fire does not. The picture draws the eye to the channels."
+      },
+      {
+        "stop": "undershoot",
+        "state": {
+          "view": "spike",
+          "phase": "undershoot",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "trace"
+        },
+        "alt": "The voltage across a nerve cell’s membrane during one spike, as a graph with the resting level, the threshold and zero marked, and a marker for now. Beneath it, a sketch of the two kinds of channel in the membrane. The voltage dips below rest. The sodium channels are still recovering, and the potassium channels are slow to close, so potassium still flows out. A fresh push that would normally make the cell fire does not. The picture draws the eye to the voltage graph."
+      },
+      {
+        "stop": "all",
+        "state": {
+          "view": "all-or-none",
+          "phase": "rest",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "weak-push"
+        },
+        "alt": "Three pushes of different strength, each as a graph of the cell’s voltage with the threshold marked. The weak push lifts the voltage but not to the threshold, and it dies away. The two stronger pushes each give a full spike of about the same height, and the strongest reaches the threshold sooner. A spike is all or nothing: a stronger push does not make a bigger one. The picture draws the eye to the weak push."
+      },
+      {
+        "stop": "axon",
+        "state": {
+          "view": "axon",
+          "phase": "rest",
+          "along": "middle",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "recovering"
+        },
+        "alt": "A spike running along a nerve cell’s axon, away from the cell body, drawn as the voltage along the axon at one instant. Ahead of the spike the membrane is at rest and ready. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction. The spike keeps its size as it goes. It is a wave of voltage change across the membrane, not electricity flowing down a wire. The spike’s length against the axon is not to scale. The spike is halfway along the axon. The picture draws the eye to the recovering stretch."
+      },
+      {
+        "stop": "release",
+        "state": {
+          "view": "synapse",
+          "phase": "rest",
+          "along": "start",
+          "synapseAt": "release",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "vesicles"
+        },
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out. The packets join the membrane and release their neurotransmitter into the gap. The picture draws the eye to the packets."
+      },
+      {
+        "stop": "bind",
+        "state": {
+          "view": "synapse",
+          "phase": "rest",
+          "along": "start",
+          "synapseAt": "binding",
+          "effect": "excite",
+          "arcAt": "sensor",
+          "focus": "receptors"
+        },
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside less negative, so the voltage moves toward the threshold. The size of the change is illustrative; a cell adds up many inputs. This connection excites the next cell; that depends on its receptors. The picture draws the eye to the receptors."
+      },
+      {
+        "stop": "inhibit",
+        "state": {
+          "view": "synapse",
+          "phase": "rest",
+          "along": "start",
+          "synapseAt": "binding",
+          "effect": "inhibit",
+          "arcAt": "sensor",
+          "focus": "receptors"
+        },
+        "alt": "The end of one nerve cell, the gap beside it and the next cell, drawn simply, with a small graph of the next cell’s voltage against its threshold. The calcium that lets the packets release is left out. It binds receptors on the next cell and opens their channels. Ions flow through them that make the inside more negative, so the voltage moves away from the threshold. The size of the change is illustrative; a cell adds up many inputs. This connection inhibits the next cell; that depends on its receptors. The picture draws the eye to the receptors."
+      },
+      {
+        "stop": "reflex",
+        "state": {
+          "view": "reflex",
+          "phase": "rest",
+          "along": "start",
+          "synapseAt": "arrives",
+          "effect": "excite",
+          "arcAt": "muscle",
+          "focus": "muscle"
+        },
+        "alt": "A simple plan of a reflex: a sensor, a sensory neuron into the spinal cord, a motor neuron out to a muscle, and a branch up to the brain. Most reflexes also use a relay neuron in the cord, which is left out. The muscle responds. News of it is still on its way up to the brain. The picture draws the eye to the muscle."
+      }
+    ]
+  },
+  "stops": [
+    {
+      "kind": "read",
+      "id": "rest",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "At rest the inside of a nerve cell is negative compared with the outside. Most sodium channels are shut but ready."
+        }
+      ],
+      "simple": "At rest the inside of the cell is negative.",
+      "emphasis": "hook"
+    },
+    {
+      "kind": "read",
+      "id": "threshold",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A push lifts the voltage. At the threshold the cell fires by itself, and the sodium channels begin to open."
+        }
+      ],
+      "simple": "At the threshold the cell fires by itself."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-threshold",
+      "prompt": "What happens once the voltage passes the threshold?",
+      "options": ["The cell fires a full spike by itself", "The voltage rises in proportion to the push"],
+      "answer": 0,
+      "explain": "Past the threshold, opening sodium channels let in more sodium, which opens more channels, so the spike runs on by itself.",
+      "twist": "In proportion is the natural guess, but a spike is all or nothing.",
+      "simple": "It fires a full spike by itself."
+    },
+    {
+      "kind": "read",
+      "id": "rising",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Sodium channels are open and sodium ions rush in. The inside of the cell turns positive."
+        }
+      ],
+      "simple": "Sodium rushes in and the voltage shoots up."
+    },
+    {
+      "kind": "read",
+      "id": "falling",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The sodium channels shut themselves and the potassium channels are open, so potassium ions flow out and the voltage falls."
+        }
+      ],
+      "simple": "Potassium flows out and the voltage falls."
+    },
+    {
+      "kind": "read",
+      "id": "undershoot",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The potassium channels are slow to close, so the voltage dips below rest. For a moment the cell cannot fire again."
+        }
+      ],
+      "simple": "The voltage dips below rest."
+    },
+    {
+      "kind": "read",
+      "id": "all",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A weak push dies away. Two stronger pushes each give a spike of the same height: a spike is all or nothing."
+        }
+      ],
+      "simple": "A weak push gives nothing; a strong one gives a full spike."
+    },
+    {
+      "kind": "call_it",
+      "id": "call-same",
+      "prompt": "A push twice as strong as one that already fires the cell gives…",
+      "options": ["A spike of the same size", "A spike twice as big"],
+      "answer": 0,
+      "explain": "A spike is all or nothing. Once the cell fires, a stronger push does not make the spike bigger.",
+      "twist": "Bigger input, bigger output is the usual guess, but not for a spike.",
+      "simple": "A spike of the same size."
+    },
+    {
+      "kind": "read",
+      "id": "axon",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The spike runs along the axon, away from the cell body. Behind it the membrane is recovering and cannot fire again yet, so the signal runs on in one direction."
+        }
+      ],
+      "simple": "The spike runs one way along the axon."
+    },
+    {
+      "kind": "read",
+      "id": "release",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "At the end of the axon the spike makes small packets release neurotransmitter into the gap."
+        }
+      ],
+      "simple": "The packets release neurotransmitter."
+    },
+    {
+      "kind": "read",
+      "id": "bind",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "The neurotransmitter binds receptors on the next cell. If their channels let in ions that make the inside less negative, the voltage moves toward the threshold."
+        }
+      ],
+      "simple": "This receptor moves the next cell toward the threshold."
+    },
+    {
+      "kind": "read",
+      "id": "inhibit",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A different receptor can let in ions that make the inside more negative, so the voltage moves away from the threshold."
+        }
+      ],
+      "simple": "Another receptor moves it away from the threshold."
+    },
+    {
+      "kind": "read",
+      "id": "reflex",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "A reflex loops through the spinal cord, so the muscle responds while the news is still on its way up to the brain."
+        }
+      ],
+      "simple": "The muscle responds before the brain is told."
+    },
+    {
+      "kind": "final_call",
+      "id": "final-reflex",
+      "prompt": "A reflex moves a hand away from something hot. When does the brain get the news, compared with when the muscle starts to respond?",
+      "options": ["A moment later", "Before the muscle responds"],
+      "answer": 0,
+      "explain": "The signal goes out to the muscle from the spinal cord straight away, and the news also climbs to the brain, which takes longer.",
+      "twist": "The brain feels in charge, but the loop through the spinal cord is shorter.",
+      "simple": "The muscle responds first; the brain is told a moment later."
+    }
+  ],
+  "asides": [
+    {
+      "id": "where-this-stops",
+      "kind": "limits",
+      "title": "Where this stops",
+      "text": "The shapes come from a standard model of the membrane. A human neuron has other channels and numbers, and no figure is shown here.",
+      "anchorStop": "axon",
+      "collapsed": true
+    }
+  ],
+  "recap": {
+    "captions": [
+      "Past the threshold a spike runs by itself.",
+      "A spike is all or nothing and runs one way.",
+      "A reflex loops through the spinal cord."
+    ],
+    "smallPrintAside": "where-this-stops"
+  },
+  "askSuggestions": ["What would change if the numbers were different?", "Where does this picture stop being true?"],
+  "limitsVersion": "scroll-limits.v2",
+  "measures": {
+    "version": "scroll-measures.v2",
+    "readingSeconds": 153,
+    "readingMinutes": 2.6,
+    "totalWeight": 585,
+    "recapWeight": 25,
+    "stops": [
+      {
+        "stopId": "rest",
+        "weight": 21
+      },
+      {
+        "stopId": "threshold",
+        "weight": 20
+      },
+      {
+        "stopId": "call-threshold",
+        "weight": 96
+      },
+      {
+        "stopId": "rising",
+        "weight": 16
+      },
+      {
+        "stopId": "falling",
+        "weight": 20
+      },
+      {
+        "stopId": "undershoot",
+        "weight": 21
+      },
+      {
+        "stopId": "all",
+        "weight": 22
+      },
+      {
+        "stopId": "call-same",
+        "weight": 94
+      },
+      {
+        "stopId": "axon",
+        "weight": 57
+      },
+      {
+        "stopId": "release",
+        "weight": 16
+      },
+      {
+        "stopId": "bind",
+        "weight": 26
+      },
+      {
+        "stopId": "inhibit",
+        "weight": 21
+      },
+      {
+        "stopId": "reflex",
+        "weight": 23
+      },
+      {
+        "stopId": "final-reflex",
+        "weight": 107
+      }
+    ]
+  },
+  "integrity": {
+    "method": "canonical-json-sha256.v1",
+    "sha256": "ffa28ecd47ed2a2da17b9ef94abba617f4464d60a2d2e2a8466c21ac02097fb9"
+  }
+}

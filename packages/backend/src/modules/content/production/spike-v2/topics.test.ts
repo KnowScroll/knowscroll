@@ -4,6 +4,7 @@ import { TOPICS, type ScrollTopic } from '../topics.js';
 import {
   parseSpikeTopics,
   SEASONS_SPIKE_TOPICS_V2,
+  BODY_SPIKE_TOPICS_V2,
   SKY_SPIKE_TOPICS_V2,
   SPIKE_TOPICS_V2,
   spikeRecipeV2,
@@ -27,7 +28,7 @@ describe('the twenty topics of the writer spike', () => {
     expect(new Set(rest.map(systemOf))).toEqual(new Set(['computing', 'machine-learning', 'history']));
   });
 
-  it('give a stage only to the recipes a kit draws: the Seasons parts and the Earth & sky and Space recipes of D-194, never a recipe without a kit', () => {
+  it('give a stage only to the recipes a kit draws: the Seasons parts, the Earth & sky and Space recipes of D-194 and the heart and nerve recipes of D-201, never a recipe without a kit', () => {
     const stage = SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).variant === 'stage');
     expect(stage).toEqual([
       'seasons',
@@ -38,6 +39,9 @@ describe('the twenty topics of the writer spike', () => {
       'greenhouse-radiation',
       'greenhouse-balance',
       'stars-fusion',
+      'cardiac-cycle',
+      'blood-pressure',
+      'reflex-arc',
     ]);
     for (const topic of SPIKE_TOPICS_V2)
       expect(spikeRecipeV2(topic).variant === 'stage', topic).toBe(TOPICS[topic].stageKit !== undefined);
@@ -70,6 +74,29 @@ describe('the twenty topics of the writer spike', () => {
       'utf8',
     );
     expect(runbook).toContain(`--topics ${SKY_SPIKE_TOPICS_V2.join(',')}`);
+  });
+
+  it('measure the six Human body recipes the drawing kits of D-201 give a picture, with one command line, the one the runbook prints', () => {
+    expect(BODY_SPIKE_TOPICS_V2).toHaveLength(6);
+    expect(new Set(BODY_SPIKE_TOPICS_V2).size).toBe(6);
+    expect(parseSpikeTopics(BODY_SPIKE_TOPICS_V2.join(','))).toEqual(BODY_SPIKE_TOPICS_V2);
+    const kits = new Map<string, string[]>();
+    for (const topic of BODY_SPIKE_TOPICS_V2) {
+      const recipe = spikeRecipeV2(topic);
+      expect(recipe.variant, topic).toBe('stage');
+      expect(TOPICS[topic].systemId).toBe('human-body');
+      kits.set(recipe.kit ?? '', [...(kits.get(recipe.kit ?? '') ?? []), topic]);
+    }
+    expect(Object.fromEntries(kits)).toEqual({
+      'circulation.v1': ['cardiac-cycle', 'blood-pressure', 'oxygen-transport'],
+      'nerve.v1': ['action-potential', 'synapse-signalling', 'reflex-arc'],
+    });
+    const runbook = readFileSync(
+      new URL('../../../../../../../docs/v2/operations/scroll-production.md', import.meta.url),
+      'utf8',
+    );
+    expect(runbook).toContain(`--topics ${BODY_SPIKE_TOPICS_V2.join(',')}`);
+    expect(runbook).toContain('--spike-id body-kits-v18');
   });
 
   it('measure the three Seasons stages and the plain "Seasons elsewhere" with one command line, the one the runbook prints', () => {
