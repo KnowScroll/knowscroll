@@ -306,7 +306,7 @@ test('search, the orbit dial and the Simple view work over the real map; search 
   page,
 }) => {
   const requests: Request[] = [];
-  await openUniverse(page, requests, { station: true });
+  await openUniverse(page, requests, { station: true, calm: true });
   const system = page.getByRole('button', { name: 'CI system 0, a system', exact: true });
   await expect(system).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'CI room, a room station', exact: true })).toBeVisible();

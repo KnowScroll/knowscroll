@@ -73,17 +73,22 @@ export function Reveal({
   rising,
   children,
   style,
+  inert = false,
 }: {
   readonly player: AnimationPlayer;
   readonly rising: ((t: number) => Rising) | undefined;
   readonly children: ReactNode;
   readonly style?: StyleProp<ViewStyle>;
+  /** A copy of what is being left: it takes no touch and is hidden from assistive technology, so nothing is there twice. */
+  readonly inert?: boolean;
 }) {
   const opacity = usePlayerValue(player, useMemoRead(rising, 'opacity'), 1);
   const offset = usePlayerValue(player, useMemoRead(rising, 'offset'), 0);
   return (
     <Animated.View
-      pointerEvents="box-none"
+      pointerEvents={inert ? 'none' : 'box-none'}
+      aria-hidden={inert}
+      importantForAccessibility={inert ? 'no-hide-descendants' : 'auto'}
       style={[styles.reveal, style, { opacity, transform: [{ translateY: offset }] }]}
     >
       {children}

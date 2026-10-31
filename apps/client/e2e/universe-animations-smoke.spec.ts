@@ -50,6 +50,11 @@ async function openUniverse(page: Page, options: Options = {}): Promise<Written>
     const ratios: number[] = [];
     (window as unknown as { __ksFrames: number[]; __ksRatios: number[] }).__ksFrames = frames;
     (window as unknown as { __ksRatios: number[] }).__ksRatios = ratios;
+    // Which canvas drew each frame: two scenes may draw in the same animation frame, and each is capped on its own.
+    const canvasOf: number[] = [];
+    (window as unknown as { __ksCanvas: number[] }).__ksCanvas = canvasOf;
+    const canvasIds = new WeakMap<object, number>();
+    let nextCanvas = 0;
     let frameStamp: number | null = null;
     // The stamp of the last animation-frame callback, for what is watched from outside it (a style the animation moves).
     const windowStamps = window as unknown as { __ksLastStamp: number };
@@ -69,6 +74,13 @@ async function openUniverse(page: Page, options: Options = {}): Promise<Written>
     const clear = WebGL2RenderingContext.prototype.clear;
     WebGL2RenderingContext.prototype.clear = function (this: WebGL2RenderingContext, mask: number): void {
       frames.push(frameStamp ?? performance.now());
+      let id = canvasIds.get(this.canvas);
+      if (id === undefined) {
+        id = nextCanvas;
+        nextCanvas += 1;
+        canvasIds.set(this.canvas, id);
+      }
+      canvasOf.push(id);
       ratios.push(this.drawingBufferWidth / (this.canvas as HTMLCanvasElement).clientWidth);
       clear.call(this, mask);
     };
@@ -125,10 +137,21 @@ const ratios = (page: Page): Promise<number[]> =>
  */
 async function expectCapped(page: Page, from: number, to?: number): Promise<void> {
   const stamps = (await frames(page)).slice(from, to);
-  expect(stamps.length).toBeGreaterThan(8);
-  const gaps = stamps.slice(1).map((at, index) => at - stamps[index]!);
-  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(32);
+  const canvases = (await page.evaluate(() => [...(window as unknown as { __ksCanvas: number[] }).__ksCanvas])).slice(
+    from,
+    to,
+  );
   const density = (await ratios(page)).slice(from, to);
+  // Each canvas is capped on its own: two scenes can draw in one animation frame, one after the other.
+  const ids = [...new Set(canvases)];
+  let longest = 0;
+  for (const id of ids) {
+    const own = stamps.filter((_, at) => canvases[at] === id);
+    longest = Math.max(longest, own.length);
+    const gaps = own.slice(1).map((at, index) => at - own[index]!);
+    if (gaps.length > 0) expect(Math.min(...gaps)).toBeGreaterThanOrEqual(32);
+  }
+  expect(longest).toBeGreaterThan(8);
   for (const ratio of density) expect(ratio).toBeLessThanOrEqual(1.5 + 1e-6);
   expect(Math.max(...density)).toBeGreaterThan(1.4);
 }

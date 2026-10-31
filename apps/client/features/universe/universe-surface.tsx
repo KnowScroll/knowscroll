@@ -450,7 +450,7 @@ function ChromeSlot({
         {now}
       </Reveal>
       {was === undefined ? null : (
-        <Reveal player={player} rising={out} style={styles.leaving}>
+        <Reveal player={player} rising={out} style={styles.leaving} inert>
           {was}
         </Reveal>
       )}

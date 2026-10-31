@@ -236,10 +236,10 @@ describe('going back up', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
     await settle(() => expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen());
     // The system's chrome is still on screen, fading, and the gate is closed.
-    expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'CI system 0', ...hidden })).toBeOnTheScreen();
     expect(universeSessionFor(mockScope).focus('x')).toBe(false);
     await playFor(0.5);
-    expect(screen.queryByRole('header', { name: 'CI system 0' })).toBeNull();
+    expect(screen.queryByRole('header', { name: 'CI system 0', ...hidden })).toBeNull();
     await view.unmount();
   });
 
