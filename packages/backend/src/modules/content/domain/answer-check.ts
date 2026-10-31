@@ -4,13 +4,29 @@
  * what a verdict changes. Pure; the production job asks the model and records what it said.
  */
 
-/** What the checker said about one call. `problem` is present exactly when the call is flagged. */
+/**
+ * A flagged call as the checker was shown it: the question, the options in the order a reader sees them,
+ * which option the answer key marks, and the explanation. Kept with the flag so an operator can read what
+ * was flagged even when that draft was not stored (the writer repaired it, or the take was refused). Never
+ * the rest of the draft.
+ */
+export interface FlaggedCall {
+  readonly prompt: string;
+  readonly options: readonly string[];
+  /** Index of the option the answer key marks as correct. */
+  readonly answer: number;
+  readonly explain: string;
+}
+
+/** What the checker said about one call. `problem` and `call` are present exactly when the call is flagged. */
 export interface CallVerdict {
   /** The call's id in the document (`c1`, `final`...). */
   readonly id: string;
   readonly consistent: boolean;
   /** One or two plain sentences: what disagrees with what. Operator-only; never shown to a reader. */
   readonly problem?: string;
+  /** The call that was flagged (see {@link FlaggedCall}). Absent on a consistent call. */
+  readonly call?: FlaggedCall;
 }
 
 /**
@@ -47,6 +63,24 @@ export type AnswerCheckSummary =
       readonly firstDraftFlags: readonly CallVerdict[];
     }
   | { readonly outcome: 'unchecked'; readonly code: string; readonly firstDraftFlags: readonly CallVerdict[] };
+
+/**
+ * The summary without the text of the flagged calls (their questions, options and explanations), for a
+ * list that carries counts and titles and never body text. The problems and ids stay. Pure.
+ */
+export function withoutCallText(summary: AnswerCheckSummary): AnswerCheckSummary {
+  const bare = (flags: readonly CallVerdict[]): CallVerdict[] => flags.map(({ call: _call, ...verdict }) => verdict);
+  switch (summary.outcome) {
+    case 'passed':
+      return summary;
+    case 'repaired':
+      return { ...summary, firstDraftFlags: bare(summary.firstDraftFlags) };
+    case 'flagged':
+      return { ...summary, flags: bare(summary.flags), firstDraftFlags: bare(summary.firstDraftFlags) };
+    case 'unchecked':
+      return { ...summary, firstDraftFlags: bare(summary.firstDraftFlags) };
+  }
+}
 
 /**
  * Reads a job's checks, in draft order, into the one thing the operator needs. `undefined` when no check

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { flaggedCalls, summariseAnswerChecks, type AnswerCheckRecord, type CallVerdict } from './answer-check.js';
+import {
+  flaggedCalls,
+  summariseAnswerChecks,
+  withoutCallText,
+  type AnswerCheckRecord,
+  type CallVerdict,
+} from './answer-check.js';
 
 const ok = (id: string): CallVerdict => ({ id, consistent: true });
 const flag = (id: string, problem = 'The key says B but the explanation says A.'): CallVerdict => ({
@@ -61,5 +67,29 @@ describe('what an operator is told about a job’s answer check', () => {
 
   it('lists only the flagged calls', () => {
     expect(flaggedCalls([ok('a'), flag('b'), ok('c'), flag('d')]).map((verdict) => verdict.id)).toEqual(['b', 'd']);
+  });
+});
+
+describe('a summary for a list', () => {
+  const withCall: CallVerdict = {
+    ...flag('c2'),
+    call: { prompt: 'Why is it so?', options: ['Because', 'Never'], answer: 1, explain: 'The reason is given here.' },
+  };
+
+  it('keeps the ids and the problems of the flags and drops the text of the calls', () => {
+    const bare = withoutCallText({ outcome: 'flagged', flags: [withCall], firstDraftFlags: [withCall] });
+    expect(bare).toEqual({ outcome: 'flagged', flags: [flag('c2')], firstDraftFlags: [flag('c2')] });
+    expect(JSON.stringify(bare)).not.toContain('Why is it so?');
+    expect(withoutCallText({ outcome: 'repaired', calls: 2, firstDraftFlags: [withCall] })).toEqual({
+      outcome: 'repaired',
+      calls: 2,
+      firstDraftFlags: [flag('c2')],
+    });
+    expect(withoutCallText({ outcome: 'unchecked', code: 'provider_failed', firstDraftFlags: [withCall] })).toEqual({
+      outcome: 'unchecked',
+      code: 'provider_failed',
+      firstDraftFlags: [flag('c2')],
+    });
+    expect(withoutCallText({ outcome: 'passed', calls: 3 })).toEqual({ outcome: 'passed', calls: 3 });
   });
 });

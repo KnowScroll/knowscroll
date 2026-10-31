@@ -57,9 +57,10 @@ flags are not yet seen on a real model).
   once for each of the two drafts, each with at most one repair of an unusable reply. A v1 recipe and an order stay at two.
 - **Runs and receipts.** The checker's runs and the repair's run have ids derived from the job (`stableUuid`), so a redelivery asks the
   ledger instead of paying again. The job closes them all in the transaction that stores or ends it, and when the repair's answer is
-  stored it names the repair run as its writer run (`store.useWriterRun`), so provenance and the lineage check agree. Receipts
+  stored it names the repair run as its writer run (`store.useWriterRun`, inside the publication, so a refused publication leaves the job as it was), so provenance and the lineage check agree. Receipts
   (`answer_check`, `draft_flagged` with the superseded run's id) are code-only except the checker's short problems, which are operator
-  notes on the private job. `answerChecksOf` reads them back; `review-list`, `review-show` and `production-status` show the summary.
+  notes on the private job. A flagged call also keeps its question, options, marked answer and explanation (`FlaggedCall`, nothing else of the draft), so the operator can read what was flagged although that draft is not stored. `answerChecksOf` reads the receipts back; `review-show` and `production-status` show the summary with those calls, and `review-list` the summary without their text.
+- **The claim.** `content.produce-scroll` holds its claim `PRODUCE_SCROLL_CLAIM_SECONDS` (`events.ts`): the six-request bound times the largest request timeout the transport accepts (`MINIMAX_REQUEST_TIMEOUT_MAX_MS`) plus 300 s, 2,100 s today.
 - **Regeneration.** `content regenerate --only <keys>` sends the next take of a v2 recipe whose Scroll is served. `store.create` lets a
   take of a v2 recipe follow a take that was rejected or whose Scroll was released, never one still held or of unknown outcome. A
   recipe has three takes to a **production version**, which is the budget: `SCROLL_PRODUCTION_V2_VERSION` changes whenever the v2

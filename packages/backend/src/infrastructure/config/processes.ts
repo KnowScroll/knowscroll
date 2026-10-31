@@ -547,6 +547,12 @@ export function readOperatorConfig(env: Environment): OperatorConfig {
   };
 }
 
+/**
+ * The largest request timeout the model transport accepts (`KS_MINIMAX_REQUEST_TIMEOUT_MS`). A job that
+ * chains requests must outlast this many of them, so its queue derives its claim time from it.
+ */
+export const MINIMAX_REQUEST_TIMEOUT_MAX_MS = 300_000;
+
 const reasoningVariables = z.object({
   KS_REASONING_PRODUCTION_ENABLED: z.enum(['0', '1']).default('0'),
   KS_REASONING_ROOM_ENABLED: z.enum(['0', '1']).default('0'),
@@ -556,7 +562,7 @@ const reasoningVariables = z.object({
   KS_MINIMAX_MODEL: z.enum(MINIMAX_MODELS).default('MiniMax-M3.1-Flash'),
   // A reasoning model thinks before it answers: Scroll writer requests took up to 126 s, so a shorter
   // default would turn a healthy attempt into `unknown` (never resent) after the request left.
-  KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(240_000, 300_000),
+  KS_MINIMAX_REQUEST_TIMEOUT_MS: positiveInteger(240_000, MINIMAX_REQUEST_TIMEOUT_MAX_MS),
   // At least 1: a floor of 0 would switch the quota check off.
   KS_MINIMAX_QUOTA_FLOOR_PERCENT: z.coerce.number().int().min(1).max(100).default(25),
   KS_REASONING_GLOBAL_REQUESTS_PER_DAY: positiveInteger(300, 1_000_000),

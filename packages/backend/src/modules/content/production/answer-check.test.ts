@@ -131,11 +131,32 @@ describe('the checker’s answer is strict JSON in a closed shape', () => {
     ).toBe(false);
   });
 
-  it('turns an accepted answer into the verdicts a job records', () => {
+  it('turns an accepted answer into the verdicts a job records, keeping the flagged call and only that call', () => {
     const answer = schema.parse({ calls: [consistent('c1'), flagged('c2'), consistent('final')] });
-    expect(verdictsOf(answer)).toEqual([
+    const shown = ids.map((id, index) => ({
+      id,
+      kind: 'call_it' as const,
+      stopBefore: `The text before ${id}.`,
+      prompt: `Question of ${id}?`,
+      options: [`First option of ${id}`, `Second option of ${id}`],
+      answer: index % 2,
+      explain: `Why ${id} is what it is.`,
+      twist: `A twist for ${id}.`,
+    }));
+    expect(verdictsOf(answer, shown)).toEqual([
       { id: 'c1', consistent: true },
-      { id: 'c2', consistent: false, problem: 'The explanation says A is right, but B is marked.' },
+      {
+        id: 'c2',
+        consistent: false,
+        problem: 'The explanation says A is right, but B is marked.',
+        // The question, the options, the marked answer and the explanation: not the twist, nor the stop before.
+        call: {
+          prompt: 'Question of c2?',
+          options: ['First option of c2', 'Second option of c2'],
+          answer: 1,
+          explain: 'Why c2 is what it is.',
+        },
+      },
       { id: 'final', consistent: true },
     ]);
   });
@@ -182,6 +203,16 @@ describe('reading the checks back from a job’s outcomes', () => {
     ).toEqual([
       { draft: 1, kind: 'unchecked', code: 'invalid_output' },
       { draft: 2, kind: 'checked', verdicts },
+    ]);
+    // A flagged call's question, options, marked answer and explanation survive the round trip.
+    const flag = {
+      id: 'c2',
+      consistent: false,
+      problem: 'The key and the explanation disagree.',
+      call: { prompt: 'Why?', options: ['One', 'Two'], answer: 1, explain: 'Because.' },
+    };
+    expect(answerChecksOf([{ role: 'answer_check', kind: 'checked', draft: 1, verdicts: [flag] }])).toEqual([
+      { draft: 1, kind: 'checked', verdicts: [flag] },
     ]);
     expect(answerChecksOf(null)).toEqual([]);
     expect(answerChecksOf({})).toEqual([]);

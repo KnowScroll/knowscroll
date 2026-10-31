@@ -296,11 +296,11 @@ Before a v2 library Scroll is stored, a second model checks that the answer key 
 | What `review-list` and `review-show` say | What happened | What you do |
 |---|---|---|
 | `passed` | Every call was consistent in the first draft. | Read it as usual. |
-| `repaired` | The first draft had a flagged call. The writer corrected it once, and the stored draft passed. The first draft's flags are printed. | Read those calls first: check the repair did not swap one problem for another. |
+| `repaired` | The first draft had a flagged call. The writer corrected it once, and the stored draft passed. The first draft's flags are printed, each with the question, the options (the marked one is named) and the explanation as the checker saw them, because that draft is not stored. | Read those calls first in the stored draft: check the repair did not swap one problem for another. |
 | `NOT CHECKED (<code>)` | The checker gave no usable answer (`provider_failed`, `outcome_unknown`, `invalid_output`, `refused_…`). The Scroll is held with no verdict. | Read every call's answer key yourself. For `outcome_unknown`, the attempt is listed by `reasoning unknown`. |
 | _not run_ | The revision was made before the check existed. | Read every call. |
 
-A Scroll still flagged after the one repair is not stored: its take is spent, `production-status` shows the recipe `retryable` (or `stopped` after three) with `check.outcome: flagged` and the checker's problem for each flagged call. A draft the validator had already repaired has no repair left, so a flag on it ends the take at once. The check is a model's opinion: if a flagged problem looks wrong to you, the recipe's next take is the remedy, and three such takes is the signal to read the brief.
+A Scroll still flagged after the one repair is not stored: its take is spent, `production-status` shows the recipe `retryable` (or `stopped` after three) with `check.outcome: flagged` and, for each flagged call, the checker's problem and the call itself (`check.flags[].call`: question, options, marked answer index, explanation), because no draft was stored. `review-list` carries the problems and call ids only. A draft the validator had already repaired has no repair left, so a flag on it ends the take at once. The check is a model's opinion: if a flagged problem looks wrong to you, the recipe's next take is the remedy, and three such takes is the signal to read the brief.
 
 ### What to read for
 
@@ -342,7 +342,7 @@ Nothing in the gate edits a revision: a Scroll is released as it was read. To co
 
 A wave is a set of recipes produced, read and released together. The goal of the first waves: at least 20 stage Scrolls and 30 with calls, all admitted, each series whole, each read by a person. The plan marks the Seasons recipes and the thirty-five recipes of Human body, Computing, Machine learning and History (D-199); the eight kit recipes of S-8a (D-194) are marked after their spike is read.
 
-Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time.
+Size it first. A recipe costs one writer request and one small check request when all goes well, and up to six requests in the worst case. The earlier seeding of the library used about 20,000 tokens a writer request (about 70 requests, 1.4M tokens); the check reads only the calls, so it adds little. The production scope's daily cap (`KS_REASONING_PRODUCTION_REQUESTS_PER_DAY`, default 200) and the five-hour MiniMax window decide how many recipes run before a pause. Run a wave of about a dozen recipes at a time. A take can hold its worker claim for up to 35 minutes (six requests at the largest request timeout, 300 s, plus a margin); a job whose worker died is retried only after that, so do not expect a quick retry of a stuck take (`production-status` shows it as `running`).
 
 The thirty-five recipes of D-199 go in four waves, one for each system. Every series is inside one wave, so each can be admitted whole once its parts are released.
 

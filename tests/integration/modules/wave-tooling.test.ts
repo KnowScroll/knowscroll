@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '@knowscroll/backend/infrastructure/postgres';
 import { planLibraryProduction, planRegeneration } from '@knowscroll/backend/modules/content';
 import { makeReviewGate, readLibraryStatus } from '@knowscroll/backend/modules/content/nest-providers';
+import type { ProductionReasoningHarness } from '@knowscroll/backend/reasoning';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import {
   answerCheckRunId,
@@ -327,7 +328,12 @@ describe('regenerating a served v2 Scroll and checking its answers (labelled CI 
       expect(JSON.stringify(job!.outcomes)).not.toContain('coverage_');
       expect(JSON.stringify(job!.outcomes)).not.toContain('attribution_');
 
-      const receipts = job!.outcomes as { role: string; kind: string; runId?: string }[];
+      const receipts = job!.outcomes as {
+        role: string;
+        kind: string;
+        runId?: string;
+        verdicts?: { id: string; call?: { prompt: string; options: string[]; answer: number; explain: string } }[];
+      }[];
       expect(receipts.filter((receipt) => receipt.role === 'writer')).toHaveLength(1);
       expect(receipts.filter((receipt) => receipt.role === 'answer_check')).toHaveLength(2);
       expect(receipts).toContainEqual(expect.objectContaining({ role: 'checks', kind: 'draft_flagged' }));
@@ -339,6 +345,23 @@ describe('regenerating a served v2 Scroll and checking its answers (labelled CI 
       if (shown.kind !== 'shown') throw new Error('CI expected the text');
       expect(shown.text).toContain('Answer check: repaired');
       expect(shown.text).toContain(problem);
+      // What was flagged is readable although that draft was not stored: the question, the options with
+      // the marked one, and the explanation of the first draft.
+      expect(shown.text).toContain('Question: Why is the north of Orrin warm in midsummer?');
+      expect(shown.text).toContain('(marked correct)');
+      expect(shown.text).toContain('Orrin is actually nearest to its star during the southern summer');
+      const flaggedReceipt = receipts
+        .find((receipt) => receipt.role === 'answer_check')
+        ?.verdicts?.find((verdict) => verdict.id === firstCallId);
+      expect([...flaggedReceipt!.call!.options].sort()).toEqual([
+        'Its northern half leans toward Vael',
+        'Orrin is closest to Vael at that moment',
+      ]);
+      expect(flaggedReceipt!.call!.options[flaggedReceipt!.call!.answer]).toBe('Its northern half leans toward Vael');
+      // Only the flagged call, not the draft: no other call and no stop text rides on the job, and a list holds none.
+      expect(JSON.stringify(job!.outcomes)).not.toContain('A beam hits the ground at a low angle');
+      expect(JSON.stringify(job!.outcomes)).not.toContain('Meet Ray');
+      expect(JSON.stringify(await gate().list({ all: false }))).not.toContain('Why is the north of Orrin warm');
 
       // All four runs are closed; none is left to resume.
       const firstDraft = receipts.find((receipt) => receipt.kind === 'draft_flagged') as { runId?: string };
@@ -383,6 +406,12 @@ describe('regenerating a served v2 Scroll and checking its answers (labelled CI 
         takes: 1,
         check: { outcome: 'flagged', flags: [{ problem }], firstDraftFlags: [{ problem }] },
       });
+      // The refused take keeps no draft, so the flagged call is read here: question, options, marked answer, explanation.
+      const flagged = status.check?.outcome === 'flagged' ? status.check.flags[0]!.call : undefined;
+      expect(flagged!.prompt).toBe('A beam hits the ground at a low angle. What happens to the patch it lights?');
+      expect(flagged!.explain).toContain('A slanted beam is stretched across the ground');
+      expect(flagged!.options).toHaveLength(3);
+      expect(flagged!.options[flagged!.answer]).toBe('It spreads over a wider patch');
       expect(planLibraryProduction([status], { interactiveFirst: false }).queue).toEqual([{ recipe: key, take: 2 }]);
       const [job] = await jobsOf(key);
       expect(
@@ -395,6 +424,55 @@ describe('regenerating a served v2 Scroll and checking its answers (labelled CI 
           ])
         ).every((state) => state.closed),
       ).toBe(true);
+    });
+
+    it('leaves the job as it was when publication is refused after a check repair, and the retry stores the repair', async () => {
+      const draft = fixtureAuthoredV2();
+      const fixed = JSON.parse(JSON.stringify(draft)) as { items: { type: string; explain?: string }[] };
+      fixed.items[1]!.explain =
+        'The north runs warm because its half of the planet leans toward Vael and the sunlight lands steeply there. Meanwhile Orrin sits nearest its star in the southern summer, when the north has winter.';
+      const worker = fixtureProductionWorker(
+        database,
+        (sequence) => answerWith(sequence === 1 ? draft : AuthoredScrollV2.parse(fixed)),
+        {
+          research: (url) => Promise.resolve(orrinResearchFor(url)),
+          checker: (check, ids) =>
+            check === 1
+              ? verdicts(ids, { [ids[0]!]: 'The key marks the nearness option, but the explanation says the lean.' })
+              : verdicts(ids),
+        },
+      );
+      // A harness that will not close the writer's run the first time, as a revoked scope would: the
+      // closure is what publication needs, so the publication is refused after the repair was accepted.
+      let refuse = true;
+      const refusing: ProductionReasoningHarness = {
+        readProductionRunAccounting: (scope, runId) => worker.harness.readProductionRunAccounting(scope, runId),
+        proposeProduction: (input, abort) => worker.harness.proposeProduction(input, abort),
+        closeProductionRun: (scope, run) =>
+          refuse && run.state === 'completed'
+            ? Promise.resolve('not_open')
+            : worker.harness.closeProductionRun(scope, run),
+      };
+      const produce = worker.producer({ harness: refusing });
+
+      expect(await produce(key, false, signal(), true, 1)).toMatchObject({ outcome: 'in_progress' });
+      const [stuck] = await jobsOf(key);
+      expect(stuck).toMatchObject({ state: 'writer' });
+      // The job still names its own writer run, not the repair's, and nothing was stored.
+      expect(stuck!.writer_run_id).not.toBe(checkRepairRunId(stuck!.id));
+      expect(await assetOf(key)).toBeUndefined();
+      expect(await jobsOf(key)).toHaveLength(1);
+      expect(worker.writerCalls).toHaveLength(2);
+      expect(worker.checkerCalls).toHaveLength(2);
+
+      // Once publication is allowed, the retry answers from the ledger and stores the repair.
+      refuse = false;
+      expect(await produce(key, false, signal(), true, 1)).toMatchObject({ outcome: 'published', held: true });
+      const [done] = await jobsOf(key);
+      expect(done!.writer_run_id).toBe(checkRepairRunId(done!.id));
+      expect(worker.writerCalls).toHaveLength(2);
+      expect(worker.checkerCalls).toHaveLength(2);
+      expect(await assetOf(key)).toEqual({ status: 'held', revision: 1 });
     });
 
     it('has no repair to give a draft the validator already repaired: a flag on it ends the job at once', async () => {

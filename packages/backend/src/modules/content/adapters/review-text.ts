@@ -39,7 +39,18 @@ function quoteLines(evidence: ReviewEvidence | undefined, part: string): string[
   return (evidence?.quotesByPart.get(part) ?? []).map((quote) => `  > source passage: ${quote}`);
 }
 
-const flagLine = (flag: CallVerdict): string => `    [${flag.id}] ${flag.problem ?? 'flagged'}`;
+/** A flag with the call as the checker saw it, when the job kept it, so it can be read without the draft. */
+function flagLines(flag: CallVerdict): string[] {
+  const lines = [`    [${flag.id}] ${flag.problem ?? 'flagged'}`];
+  if (flag.call === undefined) return lines;
+  lines.push(`      Question: ${flag.call.prompt}`);
+  flag.call.options.forEach((option, index) => {
+    const mark = index === flag.call?.answer ? ' (marked correct)' : '';
+    lines.push(`        ${OPTION_LABELS[index] ?? String(index + 1)}. ${option}${mark}`);
+  });
+  lines.push(`      Explanation: ${flag.call.explain}`);
+  return lines;
+}
 
 /**
  * What the answer check said, in words an operator can act on (D-198). It is a model's opinion about
@@ -58,15 +69,17 @@ export function answerCheckLines(check: AnswerCheckSummary | null): string[] {
       return [
         `Answer check: repaired. The first draft had ${String(check.firstDraftFlags.length)} flagged call(s); the writer corrected them once and this draft's ${String(check.calls)} calls passed.`,
         'First-draft flags:',
-        ...check.firstDraftFlags.map(flagLine),
+        ...check.firstDraftFlags.flatMap(flagLines),
       ];
     case 'unchecked':
       return [
         `Answer check: NOT CHECKED (${check.code}). The checker gave no usable answer, so no call has a verdict. Read every call's answer key yourself.`,
-        ...(check.firstDraftFlags.length === 0 ? [] : ['First-draft flags:', ...check.firstDraftFlags.map(flagLine)]),
+        ...(check.firstDraftFlags.length === 0
+          ? []
+          : ['First-draft flags:', ...check.firstDraftFlags.flatMap(flagLines)]),
       ];
     case 'flagged':
-      return ['Answer check: FLAGGED. These calls were flagged and not cleared:', ...check.flags.map(flagLine)];
+      return ['Answer check: FLAGGED. These calls were flagged and not cleared:', ...check.flags.flatMap(flagLines)];
   }
 }
 

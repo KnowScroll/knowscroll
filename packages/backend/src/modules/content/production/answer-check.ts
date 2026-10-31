@@ -144,13 +144,24 @@ export function answerCheckRole(callIds: readonly string[]): ReasoningRole<Answe
   };
 }
 
-/** The verdicts of an accepted answer, as the job records them. */
-export function verdictsOf(answer: AnswerCheckAnswer): readonly CallVerdict[] {
-  return answer.calls.map((verdict) => ({
-    id: verdict.id,
-    consistent: verdict.consistent,
-    ...(verdict.problem === undefined ? {} : { problem: verdict.problem }),
-  }));
+/**
+ * The verdicts of an accepted answer, as the job records them. A flagged call keeps its question, its
+ * options, the marked answer and its explanation, so the operator can read what was flagged without the
+ * draft (D-198).
+ */
+export function verdictsOf(answer: AnswerCheckAnswer, calls: readonly CallUnderCheck[]): readonly CallVerdict[] {
+  const callOf = new Map(calls.map((call) => [call.id, call]));
+  return answer.calls.map((verdict) => {
+    const call = verdict.consistent ? undefined : callOf.get(verdict.id);
+    return {
+      id: verdict.id,
+      consistent: verdict.consistent,
+      ...(verdict.problem === undefined ? {} : { problem: verdict.problem }),
+      ...(call === undefined
+        ? {}
+        : { call: { prompt: call.prompt, options: call.options, answer: call.answer, explain: call.explain } }),
+    };
+  });
 }
 
 /** The record of a check that gave verdicts. */
@@ -203,7 +214,19 @@ export function checkRepairItems(
   ];
 }
 
-const RecordedVerdict = z.object({ id: z.string(), consistent: z.boolean(), problem: z.string().optional() });
+const RecordedVerdict = z.object({
+  id: z.string(),
+  consistent: z.boolean(),
+  problem: z.string().optional(),
+  call: z
+    .object({
+      prompt: z.string(),
+      options: z.array(z.string()),
+      answer: z.number().int(),
+      explain: z.string(),
+    })
+    .optional(),
+});
 const RecordedCheck = z.object({
   role: z.literal('answer_check'),
   kind: z.enum(['checked', 'unchecked']),

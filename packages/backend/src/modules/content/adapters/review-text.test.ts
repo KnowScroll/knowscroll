@@ -104,6 +104,24 @@ describe('what an operator is told about the answer check before reading the cal
     expect(line).toContain('Read every call');
   });
 
+  it('prints the flagged call as the checker saw it: the question, the options with the marked one, and the explanation', () => {
+    const call = {
+      prompt: 'Why is the north warm in midsummer?',
+      options: ['Its half leans toward the star', 'It is closest to the star'],
+      answer: 1,
+      explain: 'The lean is the cause, not the distance.',
+    };
+    const lines = answerCheckLines({
+      outcome: 'repaired',
+      calls: 3,
+      firstDraftFlags: [{ ...flag, call }],
+    });
+    expect(lines).toContain('      Question: Why is the north warm in midsummer?');
+    expect(lines).toContain('        A. Its half leans toward the star');
+    expect(lines).toContain('        B. It is closest to the star (marked correct)');
+    expect(lines).toContain('      Explanation: The lean is the cause, not the distance.');
+  });
+
   it('lists the flags that stood', () => {
     const lines = answerCheckLines({ outcome: 'flagged', flags: [flag], firstDraftFlags: [] });
     expect(lines[0]).toContain('FLAGGED');

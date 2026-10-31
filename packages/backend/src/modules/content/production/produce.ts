@@ -201,27 +201,36 @@ export function makeProduceScroll(deps: ProduceScrollDependencies) {
           ]);
           return false;
         }
-        if (writerRunId !== row.writer_run_id) await store.useWriterRun(tx, row.id, writerRunId);
-        return completeWriterPublication(scope, deps.harness, row.id, writerRunId, subject.attribution, async () => {
-          await closeRuns(scope, alsoClose);
-          await admission.storeRevision(admissionTx, {
-            assetId: subject.identity.assetId,
-            revision: row.target_revision,
-            provenanceKind: 'generated',
-            compiled,
-            createsAsset: asset.kind === 'absent',
-            ...(held ? { held } : {}),
-          });
-          await store.finish(
-            tx,
-            row.id,
-            'writer',
-            'published',
-            held ? [...receipts, { role: 'checks', kind: 'published', code: HELD_FOR_REVIEW_CODE }] : receipts,
-            { assetId: subject.identity.assetId, revision: row.target_revision },
-            { authored, claims: compiled.provenance['claims'] },
-          );
-        });
+        return completeWriterPublication(
+          scope,
+          deps.harness,
+          row.id,
+          writerRunId,
+          subject.attribution,
+          async () => {
+            // The job names the repair's run only now that publication has completed.
+            if (writerRunId !== current.writer_run_id) await store.useWriterRun(tx, row.id, writerRunId);
+            await closeRuns(scope, alsoClose);
+            await admission.storeRevision(admissionTx, {
+              assetId: subject.identity.assetId,
+              revision: row.target_revision,
+              provenanceKind: 'generated',
+              compiled,
+              createsAsset: asset.kind === 'absent',
+              ...(held ? { held } : {}),
+            });
+            await store.finish(
+              tx,
+              row.id,
+              'writer',
+              'published',
+              held ? [...receipts, { role: 'checks', kind: 'published', code: HELD_FOR_REVIEW_CODE }] : receipts,
+              { assetId: subject.identity.assetId, revision: row.target_revision },
+              { authored, claims: compiled.provenance['claims'] },
+            );
+          },
+          current.writer_run_id,
+        );
       });
     });
     if (applied.kind !== 'entered') return scopeRefused(subject.key, row.id);

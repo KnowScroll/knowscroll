@@ -153,7 +153,7 @@ export function makeAnswerCheckStep(deps: AnswerCheckStepDependencies) {
       return { kind: 'paused', code: pauseCode(result) };
     const record =
       result.kind === 'proposed'
-        ? checkedRecord(input.draft, verdictsOf(result.output))
+        ? checkedRecord(input.draft, verdictsOf(result.output, input.calls))
         : uncheckedRecord(input.draft, uncheckedCode(result));
     const receipt: RoleReceipt = withAccounting(
       {

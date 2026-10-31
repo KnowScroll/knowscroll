@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isReadingInteractionAllowed } from '../public.js';
-import { produceScrollJob } from './events.js';
+import { produceScrollJob, produceScrollQueue, PRODUCE_SCROLL_CLAIM_SECONDS } from './events.js';
+import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { makeRunScrollProduction } from './job.js';
 import {
   MAX_TAKES_PER_RECIPE,
@@ -107,5 +108,15 @@ describe('takes are counted per production version, so a writer bump gives new o
     expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
     expect(requestBoundOf('tides')).toBe(REQUEST_BOUND_PER_TOPIC);
     expect(requestBoundOf(`order-${'a'.repeat(32)}`)).toBe(REQUEST_BOUND_PER_TOPIC);
+  });
+});
+
+describe('how long a production delivery may hold its claim (D-198)', () => {
+  it('outlasts the worst case of a take: every request it may send, one after the other, at the largest timeout, plus a margin', () => {
+    const worstCaseRequestsSeconds = (REQUEST_BOUND_V2_PER_TOPIC * MINIMAX_REQUEST_TIMEOUT_MAX_MS) / 1000;
+    expect(worstCaseRequestsSeconds).toBe(1800);
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBeGreaterThan(worstCaseRequestsSeconds);
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(2100);
+    expect(produceScrollQueue.policy.expireInSeconds).toBe(PRODUCE_SCROLL_CLAIM_SECONDS);
   });
 });

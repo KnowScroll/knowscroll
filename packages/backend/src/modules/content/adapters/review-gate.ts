@@ -3,7 +3,7 @@ import { parseDocumentV2, readingWords } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
-import { summariseAnswerChecks, type AnswerCheckSummary } from '../domain/answer-check.js';
+import { summariseAnswerChecks, withoutCallText, type AnswerCheckSummary } from '../domain/answer-check.js';
 import { RECIPE_KEYS, RECIPES, type RecipeKey } from '../domain/library/index.js';
 import { answerChecksOf } from '../production/answer-check.js';
 import {
@@ -39,7 +39,8 @@ export interface ReviewListing {
   readonly reason: string | null;
   /**
    * What the answer check said about the calls (D-198), or `null` when no check ran for the revision.
-   * `unchecked` means the checker gave no usable answer: read every call.
+   * `unchecked` means the checker gave no usable answer: read every call. The flags carry the checker's
+   * problem and the call's id but not the text of the call: a list holds no body text. `review-show` prints it.
    */
   readonly answerCheck: AnswerCheckSummary | null;
 }
@@ -86,7 +87,13 @@ export function recipeKeyOfAsset(assetId: string): RecipeKey | null {
   return recipeOfAsset.get(assetId.toLowerCase()) ?? null;
 }
 
+/** What the answer check said about the job that made a revision, with the text of its flagged calls; `null` when no check ran. */
+function answerCheckOf(outcomes: unknown): AnswerCheckSummary | null {
+  return summariseAnswerChecks(answerChecksOf(outcomes)) ?? null;
+}
+
 function listingOf(row: ListingRow): ReviewListing | undefined {
+  const check = answerCheckOf(row.outcomes);
   const parsed = parseDocumentV2(row.document);
   if (parsed.kind !== 'valid') return undefined;
   const { document } = parsed;
@@ -107,7 +114,7 @@ function listingOf(row: ListingRow): ReviewListing | undefined {
     decidedAt: row.decided_at?.toISOString() ?? null,
     decidedBy: row.decided_by,
     reason: row.reason,
-    answerCheck: summariseAnswerChecks(answerChecksOf(row.outcomes)) ?? null,
+    answerCheck: check === null ? null : withoutCallText(check),
   };
 }
 
@@ -209,7 +216,7 @@ async function showRevision(
   const parsed = parseDocumentV2(row.document);
   if (listing === undefined || parsed.kind !== 'valid') return { kind: 'refused', reason: 'document_unreadable' };
   const evidence = request.withSources ? await readEvidence(db, row.asset_id, row.revision) : undefined;
-  return { kind: 'shown', listing, text: reviewTextOf(parsed.document, evidence, listing.answerCheck) };
+  return { kind: 'shown', listing, text: reviewTextOf(parsed.document, evidence, answerCheckOf(row.outcomes)) };
 }
 
 /**
