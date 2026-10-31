@@ -41,6 +41,7 @@ import { ShareMomentSheet } from '../threads/share-moment-sheet';
 import { ThreadEncounter } from '../threads/thread-encounter';
 import { ThreadHeader } from '../threads/thread-chrome';
 import { AiLabel } from './ai-label';
+import { DebateCard } from './debate-card';
 import { topicTitleFrom } from './ask-words';
 import { InhabitantBar } from './inhabitant-bar';
 import { FeedbackSheet } from '../feedback/feedback-sheet';
@@ -189,6 +190,8 @@ function ReadyDiscussion({
   onBack,
   header,
   topics,
+  listHeader,
+  focusSignal,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
@@ -200,6 +203,9 @@ function ReadyDiscussion({
   readonly header: ReactNode | undefined;
   /** The room's own list of discussions, read with the room: what a topic card says about its topic. */
   readonly topics: readonly RoomDiscussionSummary[] | undefined;
+  /** What stands first in the list of messages: Today's cards. */
+  readonly listHeader: ReactNode | undefined;
+  readonly focusSignal: number | undefined;
 }) {
   const router = useRouter();
   const { breakpoint } = useDisplay();
@@ -337,7 +343,21 @@ function ReadyDiscussion({
         onOpenTopic={(topicId) => router.push(discussionHref(roomId, topicId))}
         canAsk={view.canPost && skeptic?.ask === 'available'}
         onAskAbout={askAbout}
-        header={view.origin === undefined ? undefined : <TopicOrigin origin={view.origin} />}
+        header={
+          listHeader === undefined && view.debate === undefined && view.origin === undefined ? undefined : (
+            <>
+              {listHeader}
+              {view.debate === undefined ? null : (
+                <DebateCard
+                  debate={view.debate}
+                  canVote={view.canPost}
+                  onVote={(side) => void controller.voteDebate(side)}
+                />
+              )}
+              {view.origin === undefined ? null : <TopicOrigin origin={view.origin} />}
+            </>
+          )
+        }
       />
       {view.canPost ? (
         <>
@@ -352,6 +372,7 @@ function ReadyDiscussion({
             name={view.discussion.kind === 'general' ? 'General' : 'this discussion'}
             value={draft}
             onChange={typeDraft}
+            focusSignal={focusSignal}
             onSend={(text) => {
               keepDraft('');
               follow();
@@ -445,6 +466,8 @@ export function OpenDiscussion({
   discussionId,
   header,
   topics,
+  listHeader,
+  focusSignal,
 }: {
   readonly scope: AccountScope;
   readonly roomId: string;
@@ -452,6 +475,9 @@ export function OpenDiscussion({
   readonly header?: ReactNode;
   /** The room's own list of discussions, for the cards of topics begun from messages here. */
   readonly topics?: readonly RoomDiscussionSummary[];
+  readonly listHeader?: ReactNode;
+  /** Each new value puts the cursor in the composer. */
+  readonly focusSignal?: number;
 }) {
   const router = useRouter();
   const { controller, state } = useRoomDiscussion(scope, roomId, discussionId);
@@ -498,6 +524,8 @@ export function OpenDiscussion({
       onBack={backToRoom}
       header={header}
       topics={topics}
+      listHeader={listHeader}
+      focusSignal={focusSignal}
     />
   );
 }

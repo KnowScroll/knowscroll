@@ -88,6 +88,7 @@ const member = (patch: Partial<Member> = {}): Member => ({
   you: { aiLevel: 'lively', keepOut: false, noticeSeenAt: '2026-10-24T08:00:00.000Z' },
   here: { faces: [] },
   memberTotal: 3,
+  sky: { lit: 0, of: 7 as const, state: 'forming' as const, finished: 0 },
   limits: {
     asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
     unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
