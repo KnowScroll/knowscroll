@@ -25,6 +25,14 @@ describe('the prompt of a painted backdrop', () => {
     expect(prompt).toContain('nothing written in the corners');
   });
 
+  it('asks for a full-bleed picture, because a signed print keeps its signature in the paper margin', () => {
+    const prompt = backdropPrompt({ topicLabel: 'Space', kit });
+    expect(prompt).toContain('full bleed');
+    expect(prompt).toContain('no paper border, margin or mount');
+    // A 'band' reads as a strip on a sheet, which is a picture with a margin; the 21:9 shape is sent as the ratio.
+    expect(prompt).not.toContain('band');
+  });
+
   it('paints the Earth seen from space for the globe and a living cell for the cell', () => {
     const subject = (glyph: 'globe' | 'cell') =>
       backdropPrompt({ topicLabel: 'Earth', kit: { ...kit, emblem: { ...kit.emblem, glyph } } });
