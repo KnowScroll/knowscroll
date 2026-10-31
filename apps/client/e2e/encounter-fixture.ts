@@ -22,6 +22,16 @@ export interface EncounterFixtureOptions {
     readonly kept?: readonly { readonly stopId: string; readonly option: number }[];
     readonly recordingPaused?: boolean;
   };
+  /**
+   * The content-request routes (Ask from here, D1): what the status read answers for a request made on this page. The
+   * answers are authored here, so this proves what the screen does with them, not what the server decides.
+   */
+  readonly requests?: {
+    /** Where the request stands: preparing (the default), ready, or closed as could-not-prepare. */
+    readonly outcome?: 'preparing' | 'ready' | 'could_not_prepare';
+    /** A measured usual wait in seconds; absent, as it is until five orders have finished. */
+    readonly typicalSeconds?: number;
+  };
 }
 
 /** Actual production-export UI with explicitly labelled HTTP fixtures, not backend/provider acceptance. */
@@ -59,6 +69,38 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
       ...(final === undefined || playable?.landmark === undefined
         ? {}
         : { landmark: { ...playable.landmark, tier: final.correct ? ('gold' as const) : ('plain' as const) } }),
+    };
+  };
+  /** What the request routes answer, and what the page asked of them. */
+  const requestState = { outcome: options.requests?.outcome ?? 'preparing', requestId: id(900), retried: false };
+  const requestStatus = () => {
+    const base = {
+      version: 'content-request-status.v1',
+      requestId: requestState.requestId,
+      privacyEpoch: 1,
+      requestRevision: requestState.retried ? 3 : 1,
+      revision: 1,
+      createdAt: '2026-10-20T10:00:00.000Z',
+      updatedAt: '2026-10-20T10:00:00.000Z',
+    };
+    if (requestState.outcome === 'ready')
+      return {
+        ...base,
+        status: 'ready',
+        content: {
+          assetId: id(950),
+          assetRevision: document.revision,
+          explanationUnitId: 'ci-ask-order',
+          metadata: { kind: 'scroll', title: 'Why the far side stays cold', summary: 'CI ask order', language: 'en' },
+        },
+      };
+    if (requestState.outcome === 'could_not_prepare' && !requestState.retried)
+      return { ...base, status: 'unavailable', reason: 'could_not_prepare' };
+    return {
+      ...base,
+      status: 'preparing',
+      phase: 'preparing',
+      ...(options.requests?.typicalSeconds === undefined ? {} : { typicalSeconds: options.requests.typicalSeconds }),
     };
   };
   const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
@@ -139,6 +181,59 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
           scope: { accountId: id(1), privacyEpoch: 1 },
           revision: 0,
           policy: recording,
+        },
+      });
+      return;
+    }
+    if (path === '/v1/content/requests' && request.method() === 'POST') {
+      commands.push({ path, body });
+      await route.fulfill({
+        json: {
+          version: 'content-request-receipt.v1',
+          commandId: body.commandId,
+          requestId: requestState.requestId,
+          recordedAt: '2026-10-20T10:00:00.000Z',
+          privacyEpoch: 1,
+          revision: 1,
+          replayed: false,
+          outcome: 'accepted',
+        },
+      });
+      return;
+    }
+    if (path.startsWith('/v1/content/requests/') && request.method() === 'GET') {
+      await route.fulfill({ json: requestStatus() });
+      return;
+    }
+    if (path === '/v1/content/requests/retry') {
+      commands.push({ path, body });
+      requestState.retried = true;
+      await route.fulfill({
+        json: {
+          version: 'content-request-retry-receipt.v1',
+          commandId: body.commandId,
+          requestId: body.requestId,
+          recordedAt: '2026-10-20T10:00:00.000Z',
+          privacyEpoch: 1,
+          revision: 2,
+          replayed: false,
+          outcome: 'retrying',
+        },
+      });
+      return;
+    }
+    if (path === '/v1/content/requests/cancel') {
+      commands.push({ path, body });
+      await route.fulfill({
+        json: {
+          version: 'content-request-cancel-receipt.v1',
+          commandId: body.commandId,
+          requestId: body.requestId,
+          recordedAt: '2026-10-20T10:00:00.000Z',
+          privacyEpoch: 1,
+          revision: 2,
+          replayed: false,
+          outcome: 'cancelled',
         },
       });
       return;

@@ -13,12 +13,25 @@ import {
 } from '@knowscroll/design-tokens';
 import { Button, IconButton, RequestStatusChip, Text, useTypeStyle } from '@knowscroll/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { OpenedStageScroll } from '../scroll/scroll-session';
+import { AskSheet } from './ask-sheet';
 import { RequestChoices } from './request-choices';
 import { unavailableCopy } from './request-copy';
 import { suggestions, type RequestSession } from './request-session';
 
-/** E04/E06 bounded composer inside the encounter's single accessible overlay host. */
-export function RequestPanel({ session, onClose }: { readonly session: RequestSession; readonly onClose: () => void }) {
+/**
+ * E04/E06 bounded composer inside the encounter's single accessible overlay host. A question asked from a Scroll with
+ * stops (`ask`, D1) is drawn by the Ask sheet instead; `ask` carries the Scroll it is asked from.
+ */
+export function RequestPanel({
+  session,
+  onClose,
+  ask,
+}: {
+  readonly session: RequestSession;
+  readonly onClose: () => void;
+  readonly ask?: { readonly scroll: OpenedStageScroll } | undefined;
+}) {
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   const type = useTypeStyle('body');
   const insets = useSafeAreaInsets();
@@ -30,6 +43,8 @@ export function RequestPanel({ session, onClose }: { readonly session: RequestSe
   // makes another closed request.
   const couldBePreparedAgain =
     state.phase === 'accepted' && status?.status === 'unavailable' && status.reason === 'could_not_prepare';
+  if (state.mode === 'ask' && ask !== undefined)
+    return <AskSheet session={session} scroll={ask.scroll} onClose={onClose} />;
   return (
     <KeyboardAvoidingView
       style={styles.host}

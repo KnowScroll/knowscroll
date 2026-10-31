@@ -88,7 +88,12 @@ export function StageEncounter({
           universe: () => router.navigate('/universe'),
           nextTopic: () => session.navigate({ mode: 'vertical', direction: 'next' }),
           ...moves,
-          ask: () => session.openRequest(),
+          // Ask from here (D1): the question is anchored to the stop on screen, or the last one at the end of the Scroll.
+          ask: () => {
+            const stopId = reader.current?.capture()?.stopId ?? entry.scroll.document.stops.at(-1)?.id;
+            if (stopId === undefined) session.openRequest();
+            else session.openRequest('ask', { stopId });
+          },
           formatSwitch: <EncounterFormatSwitch entry={entry} session={session} showIcons={!narrow} terse={narrow} />,
           format: () =>
             reel?.status === 'ready' ? session.navigate({ mode: 'variant', to: 'reel' }) : session.openRequest('reel'),
