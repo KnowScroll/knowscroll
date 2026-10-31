@@ -10,7 +10,8 @@ import {
   premiseTextsOf,
   type AnswerVerdict,
 } from './answer-role.js';
-import type { AnswerWorkerPorts } from './ports.js';
+import { servableAnswerOf } from './cards.js';
+import type { AnswerWorkerPorts, AnswerSettlement } from './ports.js';
 
 /** Writes the short answer of one waiting what-if branch; the worker's consumer calls it. */
 export type WriteAnswerStep = (job: WriteAnswerJob, signal: AbortSignal) => Promise<void>;
@@ -95,11 +96,15 @@ export function makeWriteAnswer(p: AnswerWorkerPorts, harness: ReasoningHarness)
     if (node === undefined || node.status === 'removed' || node.answer?.state !== 'making') return undefined;
     // The starter's allowance paid for it: if they left while the model thought, the answer is not shown.
     const stands = await p.standing({ scope }, node.startedByAccountId ?? '', node.threadId);
-    const settlement =
-      verdict.kind === 'ready' && stands
-        ? ({ kind: 'ready', stored: verdict.stored } as const)
-        : ({ kind: 'unavailable' } as const);
-    return (await p.store.finishAnswer(scope, nodeId, settlement, p.now())) ? node.threadId : undefined;
+    const settledAt = p.now();
+    // A card the contract would refuse is never stored as ready: it would fail every member's list.
+    const settlement: AnswerSettlement =
+      verdict.kind === 'ready' &&
+      stands &&
+      servableAnswerOf({ state: 'ready', settledAt, stored: verdict.stored }) !== undefined
+        ? { kind: 'ready', stored: verdict.stored }
+        : { kind: 'unavailable' };
+    return (await p.store.finishAnswer(scope, nodeId, settlement, settledAt)) ? node.threadId : undefined;
   }
 
   return async (job, signal) => {

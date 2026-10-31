@@ -1,11 +1,12 @@
 import {
+  ScenarioAnswerSchema,
   ScenarioCardSchema,
   type PublicPersonRef,
   type ScenarioAnswer,
   type ScenarioCard,
 } from '@knowscroll/contracts';
 import { readableAnswerOf } from '../domain/answer-card.js';
-import type { NodeRow } from './ports.js';
+import type { NodeAnswer, NodeRow } from './ports.js';
 
 /**
  * A removed branch as a bare placeholder: where it stood in the tree and when it was made, and nothing of what it
@@ -31,17 +32,31 @@ function removedCardOf(node: NodeRow): ScenarioCard {
   });
 }
 
-/** The short answer as the thread reads it: a wait, nothing coming, or the checked card without its citations. */
+/**
+ * The short answer as the thread reads it: a wait, nothing coming, or the checked card without its citations. Only an
+ * answer the contract accepts is served (`undefined` otherwise), so a card is never shown that a list could not carry.
+ */
+export function servableAnswerOf(answer: NodeAnswer): ScenarioAnswer | undefined {
+  const candidate =
+    answer.state === 'ready'
+      ? {
+          status: 'ready',
+          madeBy: 'knowscroll',
+          ...readableAnswerOf(answer.stored),
+          readyAt: answer.settledAt.toISOString(),
+        }
+      : { status: answer.state };
+  const parsed = ScenarioAnswerSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * A stored answer that no longer serves reads as no short answer, never as an error: one row that fails the contract
+ * (a limit moved since it was stored) must not make the list throw for every member of the thread.
+ */
 function answerOf(node: NodeRow): ScenarioAnswer | undefined {
-  const { answer } = node;
-  if (answer === undefined) return undefined;
-  if (answer.state !== 'ready') return { status: answer.state };
-  return {
-    status: 'ready',
-    madeBy: 'knowscroll',
-    ...readableAnswerOf(answer.stored),
-    readyAt: answer.settledAt.toISOString(),
-  };
+  if (node.answer === undefined) return undefined;
+  return servableAnswerOf(node.answer) ?? { status: 'unavailable' };
 }
 
 /**

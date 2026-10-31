@@ -3,7 +3,9 @@ import { AnswerAssumptionSchema, AnswerClaimTextSchema, AnswerNumberSchema } fro
 
 /**
  * The shapes of the short answer card's writer (D-211, D-159): what a model may send, and what a checked card stores.
- * The text limits are the contract's, so a card the writer proposes and the rules accept is one the thread can be served.
+ * The text limits are the contract's, so a card the writer proposes and the rules accept is one the thread can be
+ * served: two claims of at least 20 characters make an answer of at least 41 (the contract's answer needs 40), and
+ * three of at most 300 make at most 902 of its 1000. One short claim would not be servable, so a card has two or three.
  */
 const Handle = z.string().regex(/^e[1-9][0-9]?$/u);
 const Cites = z.array(Handle).min(1).max(3);
@@ -14,7 +16,7 @@ export const AnswerDraftSchema = z.strictObject({
   assumption: AnswerAssumptionSchema,
   claims: z
     .array(z.strictObject({ text: AnswerClaimTextSchema, cites: Cites }))
-    .min(1)
+    .min(2)
     .max(3),
   numbers: z.array(z.strictObject({ ...AnswerNumberSchema.shape, cites: Cites })).max(3),
 });
@@ -25,7 +27,7 @@ export const StoredAnswerSchema = z.strictObject({
   assumption: AnswerAssumptionSchema,
   claims: z
     .array(z.strictObject({ text: AnswerClaimTextSchema, claimIds: ClaimIds }))
-    .min(1)
+    .min(2)
     .max(3),
   numbers: z.array(z.strictObject({ ...AnswerNumberSchema.shape, claimIds: ClaimIds })).max(3),
 });

@@ -59,8 +59,12 @@ function answerOf(row: NodeColumns): NodeAnswer | undefined {
   if (row.answer_state === 'making') return { state: 'making' };
   if (row.answer_state === 'unavailable' && row.answer_settled_at !== null)
     return { state: 'unavailable', settledAt: new Date(row.answer_settled_at) };
-  if (row.answer_state === 'ready' && row.answer_settled_at !== null)
-    return { state: 'ready', settledAt: new Date(row.answer_settled_at), stored: StoredAnswerSchema.parse(row.answer) };
+  if (row.answer_state === 'ready' && row.answer_settled_at !== null) {
+    // A stored card that no longer reads (a limit moved since) is no short answer, not an error for the whole thread.
+    const stored = StoredAnswerSchema.safeParse(row.answer);
+    const settledAt = new Date(row.answer_settled_at);
+    return stored.success ? { state: 'ready', settledAt, stored: stored.data } : { state: 'unavailable', settledAt };
+  }
   return undefined;
 }
 

@@ -16,7 +16,7 @@ const answer: ScenarioAnswer = {
   madeBy: 'knowscroll',
   assumption: 'We read “twice the size” as twice as wide, about the same rock.',
   answer: 'Tides would likely be much stronger, because a heavier moon pulls harder on the sea.',
-  numbers: [{ label: 'Typical range today', value: 'about 2 m' }],
+  numbers: [{ label: 'Typical range today', value: '2 m' }],
   readyAt: '2026-10-24T10:00:26.000Z',
 };
 const card = (patch: Partial<ScenarioCard> = {}): ScenarioCard => ({
@@ -67,6 +67,7 @@ async function show(value: ScenarioCard, options: { starterIsYou?: boolean; open
 describe('a what-if while its short answer is being made', () => {
   it('says it is made by KnowScroll, waits for about 30 s, and checks before it posts', async () => {
     await show(card({ answer: { status: 'making' } }));
+    expect(screen.getByText('Hypothetical')).toBeOnTheScreen();
     expect(
       screen.getByLabelText(/What-if · made by KnowScroll: What if the Moon were twice its current size\?, being made/),
     ).toBeOnTheScreen();
@@ -97,6 +98,8 @@ describe('a what-if with its short answer', () => {
   it('shows the assumption line, what changed and stayed, the answer and a sourced figure, labelled as made by KnowScroll', async () => {
     await show(card({ answer, status: 'ready', content: scroll }));
     expect(screen.getByTestId('what-if-label')).toHaveTextContent('What-if · made by KnowScroll');
+    // D-006 a: the one status label a branch has stays on the card with its answer.
+    expect(screen.getByText('Hypothetical')).toBeOnTheScreen();
     expect(screen.getByTestId('what-if-ready-line')).toHaveTextContent(/^WHAT-IF READY · MADE IN 26 S · /);
     expect(screen.getByText('FROM THE THREAD · ASKED BY ASHA · CHECKED')).toBeOnTheScreen();
     expect(screen.getByTestId('what-if-assumed')).toHaveTextContent(
@@ -108,7 +111,7 @@ describe('a what-if with its short answer', () => {
     );
     expect(screen.getByTestId('what-if-answer')).toHaveTextContent(answer.answer);
     expect(screen.getByText('TYPICAL RANGE TODAY')).toBeOnTheScreen();
-    expect(screen.getByText('about 2 m')).toBeOnTheScreen();
+    expect(screen.getByText('2 m')).toBeOnTheScreen();
     // Nothing of sources, scores, prompts, models or where anyone is.
     expect(screen.queryByText(/\bsources?\b|\bscores?\b|\bmodel\b|prompt|\bclaims?\b|watching|\bseen\b/i)).toBeNull();
   });
@@ -138,6 +141,9 @@ describe('a what-if with its short answer', () => {
     await show(card({ answer: { ...answer, numbers: [] }, speculative: true, status: 'ready', content: scroll }));
     expect(screen.queryByLabelText('Figures')).toBeNull();
     expect(screen.getByText('Speculative scenario · not established science')).toBeOnTheScreen();
+    // A speculative premise is the status label "Speculative" in place of "Hypothetical" (D-056).
+    expect(screen.getByText('Speculative')).toBeOnTheScreen();
+    expect(screen.queryByText('Hypothetical')).toBeNull();
   });
 
   it('says "Opened by you" only as the caller’s own history, and offers Remove to the starter in ⋯', async () => {

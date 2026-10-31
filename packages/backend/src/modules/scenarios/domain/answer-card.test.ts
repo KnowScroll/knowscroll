@@ -34,7 +34,7 @@ const good: AnswerDraft = {
     { text: 'Tides would likely be much stronger, because a heavier moon pulls harder on the sea.', cites: ['e2'] },
     { text: 'A coast with a range of 2 m today could see a far larger swing.', cites: ['e1'] },
   ],
-  numbers: [{ label: 'Typical range today', value: 'about 2 m', cites: ['e1'] }],
+  numbers: [{ label: 'Typical range today', value: '2 m', cites: ['e1'] }],
 };
 
 const codes = (draft: AnswerDraft, offered = passages, premiseTexts = premises) =>
@@ -100,13 +100,67 @@ describe('the card’s checks', () => {
     expect(codes(draft, offered)).toEqual([]);
   });
 
-  it('refuses a figure that is not a number, and one no cited passage states', () => {
-    expect(codes({ ...good, numbers: [{ label: 'Typical range', value: 'a lot', cites: ['e1'] }] })).toEqual([
-      'figure_not_a_number',
-    ]);
-    expect(codes({ ...good, numbers: [{ label: 'Typical range', value: 'about 3 m', cites: ['e1'] }] })).toEqual([
-      'figure_unstated',
-    ]);
+  const figure = (label: string, value: string, cites = ['e1']) => ({
+    ...good,
+    numbers: [{ label, value, cites }],
+  });
+
+  it('refuses a figure whose value is not one number with a short unit', () => {
+    for (const value of [
+      'a lot',
+      '8.3 min but ten times that',
+      'about 2 m',
+      '2 m and 3 m',
+      '2 metres of water in total',
+      '150 m 7',
+    ])
+      expect(codes(figure('Typical range', value)), value).toEqual(['figure_not_a_measure']);
+  });
+
+  it('refuses a figure that no cited passage writes as it is, however its digits look', () => {
+    // 3 is no passage's figure; 2 is, but "2 km" is not how the passage writes it.
+    expect(codes(figure('Typical range', '3 m'))).toEqual(['figure_unstated']);
+    expect(codes(figure('Typical range', '2 km'))).toEqual(['figure_unstated']);
+    // The passage states 2 m: the figure is written as it is, and nothing else is needed.
+    expect(codes(figure('Typical range', '2 m'))).toEqual([]);
+    expect(codes(figure('Typical range', '2 m', ['e2']))).toEqual(['figure_unstated']);
+  });
+
+  it('does not take 150 for 1500, 150,000 or 7.3 for 17.3', () => {
+    const offered = [
+      {
+        handle: 'e1',
+        claimId: 'c1',
+        text: 'The tank holds 1500 litres, and a larger one 150,000 litres, or 17.3 m of rope.',
+      },
+      passages[1]!,
+    ];
+    const claims = [{ text: 'Batching would likely cut the waiting a good deal for each request.', cites: ['e2'] }];
+    for (const value of ['150 litres', '150', '7.3 m'])
+      expect(codes({ ...good, claims, numbers: [{ label: 'Tank', value, cites: ['e1'] }] }, offered), value).toEqual([
+        'figure_unstated',
+      ]);
+    expect(
+      codes({ ...good, claims, numbers: [{ label: 'Tank', value: '1500 litres', cites: ['e1'] }] }, offered),
+    ).toEqual([]);
+  });
+
+  it('refuses a digit in a figure’s label, so a number cannot hide beside its value', () => {
+    expect(codes(figure('Moon mass is 7.3e22 kg', '2 m'))).toEqual(['figure_label_has_digit']);
+    // The review's case: a label with a figure, a value no passage states.
+    expect(codes(figure('Moon mass is 7.3e22 kg', '150'))).toEqual(['figure_label_has_digit', 'figure_unstated']);
+  });
+
+  it('writes a unit with a superscript or a percent as the passage writes it', () => {
+    const offered = [
+      { handle: 'e1', claimId: 'c1', text: 'The basin covers 5 km² and 37% of the coast is low.' },
+      passages[1]!,
+    ];
+    const claims = [{ text: 'Batching would likely cut the waiting a good deal for each request.', cites: ['e2'] }];
+    for (const value of ['5 km²', '37%'])
+      expect(codes({ ...good, claims, numbers: [{ label: 'Coast', value, cites: ['e1'] }] }, offered), value).toEqual(
+        [],
+      );
   });
 
   it('refuses a claim that copies nine words of a passage', () => {
@@ -146,7 +200,8 @@ describe('the card’s checks', () => {
         'claim_number_unstated',
         'claims_repeat',
         'copied_passage',
-        'figure_not_a_number',
+        'figure_label_has_digit',
+        'figure_not_a_measure',
         'figure_unstated',
         'not_marked_as_reasoning',
         'unknown_citation',
@@ -170,7 +225,7 @@ describe('what is stored and what the thread reads', () => {
     expect(readable).toEqual({
       assumption: good.assumption,
       answer: `${good.claims[0]!.text} ${good.claims[1]!.text}`,
-      numbers: [{ label: 'Typical range today', value: 'about 2 m' }],
+      numbers: [{ label: 'Typical range today', value: '2 m' }],
     });
     expect(JSON.stringify(readable)).not.toMatch(/claim-|\be[1-9]\b|cites|claimIds/u);
   });

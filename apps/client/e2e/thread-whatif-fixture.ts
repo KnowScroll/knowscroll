@@ -25,7 +25,7 @@ export const FIXTURE_ANSWER = {
   assumption: 'We read “twice the size” as twice as wide, about the same rock.',
   answer:
     'Tides would likely be much stronger, because a heavier moon pulls harder on the sea. A coast near two metres today could see a far larger swing.',
-  numbers: [{ label: 'Typical range today', value: 'about 2 m' }],
+  numbers: [{ label: 'Typical range today', value: '2 m' }],
 };
 
 const CHANGE = { subject: 'Moon', statement: 'The Moon is twice as wide as it is' };

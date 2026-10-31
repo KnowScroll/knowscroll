@@ -125,7 +125,7 @@ claims to cite) and stores it only after the card's own checks. `scenarios.sugge
 for the directions of one draft with the personal reasoning harness (IDs only in the payload; the run is the draft ID, so
 a redelivery never pays twice) and commissions nothing. `scenarios.resolve-branches` runs every minute: it binds a
 preparing branch to its admitted Scroll, sends the next take of a rejected one (up to three), closes a branch that cannot
-be produced or is 30 minutes old, ends the wait for a short answer that took four minutes, and hints the thread's members; it
+be produced or is 30 minutes old, ends the wait for a short answer that took twelve minutes, and hints the thread's members; it
 logs `scenarios.branches_resolved`. The worker
 builds the thread guest, the made-to-order readers and the production sender for them (`threadGuestProviders`,
 `madeToOrderProviders`, `scrollProductionSenderProviders`).

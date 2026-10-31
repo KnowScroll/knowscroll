@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AnswerDraft, CardPassage } from '../domain/answer-card.js';
 import { ANSWER_HINTS } from '../domain/answer-card.js';
 import { answerContext, answerRole, answerVerdict, premiseTextsOf } from './answer-role.js';
+import { servableAnswerOf } from './cards.js';
 
 /** Passages and a premise invented for these tests: labelled fixtures, never product content. */
 const passages: readonly CardPassage[] = [
@@ -22,6 +23,10 @@ const good: AnswerDraft = {
   assumption: 'We read “ten times the traffic” as ten times the requests each second.',
   claims: [
     { text: 'Batching would likely keep the cost of each answer down, because requests share work.', cites: ['e1'] },
+    {
+      text: 'Waiting for a batch to fill could slow the early requests, so the target would need care.',
+      cites: ['e2'],
+    },
   ],
   numbers: [],
 };
@@ -53,11 +58,55 @@ describe('the answer-card role', () => {
     expect(
       safeCodes({
         ...good,
-        claims: [{ text: 'Batching would likely cut the cost by 40 percent overall.', cites: ['e1'] }],
+        claims: [{ text: 'Batching would likely cut the cost by 40 percent overall.', cites: ['e1'] }, good.claims[1]],
       }),
     ).toEqual(['claim_number_unstated']);
-    expect(safeCodes({ ...good, claims: [{ ...good.claims[0], cites: ['e8'] }] })).toEqual(['unknown_citation']);
+    expect(safeCodes({ ...good, claims: [{ ...good.claims[0], cites: ['e8'] }, good.claims[1]] })).toEqual([
+      'unknown_citation',
+    ]);
     expect(safeCodes({ ...good, assumption: '' })).not.toEqual([]);
+  });
+
+  it('wants two or three claims: one short claim would make an answer the thread could not be served', () => {
+    const short = { text: 'Gravity would likely be stronger.', cites: ['e1'] };
+    expect(check({ ...good, claims: [short] }).success).toBe(false);
+    expect(check({ ...good, claims: [good.claims[0]] }).success).toBe(false);
+    expect(check({ ...good, claims: [good.claims[0], good.claims[1], good.claims[0], good.claims[1]] }).success).toBe(
+      false,
+    );
+  });
+
+  it('only passes a card the contract can serve, at the shortest and the longest the rules allow', () => {
+    const longest = (cite: string) => ({ text: `Batching would likely help. ${'x'.repeat(272)}`, cites: [cite] });
+    const shortest = (text: string) => ({ text, cites: ['e1'] });
+    for (const claims of [
+      [shortest('Gravity would likely win.'), shortest('Tides could well swell too.')],
+      [
+        longest('e1'),
+        { ...longest('e2'), text: `Waiting could slow it. ${'y'.repeat(277)}` },
+        { ...longest('e1'), text: `Cost would drop. ${'z'.repeat(283)}` },
+      ],
+    ]) {
+      const draft = { ...good, claims };
+      const parsed = check(draft);
+      expect(parsed.success, JSON.stringify(parsed)).toBe(true);
+      if (!parsed.success) continue;
+      const verdict = answerVerdict(
+        {
+          kind: 'proposed',
+          output: parsed.data,
+          attemptId: 'a',
+          usage: {},
+          repaired: false,
+          reconciled: false,
+        } as never,
+        passages,
+      );
+      if (verdict.kind !== 'ready') throw new Error('not ready');
+      expect(servableAnswerOf({ state: 'ready', settledAt: new Date(), stored: verdict.stored })).toMatchObject({
+        status: 'ready',
+      });
+    }
   });
 
   it('refuses a shape the card does not allow', () => {

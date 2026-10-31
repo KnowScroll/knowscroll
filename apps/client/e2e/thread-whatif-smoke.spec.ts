@@ -79,6 +79,7 @@ test('the asker waits honestly, the other member sees the same wait, and the ans
   await expect(mine).toBeVisible();
   await expect(mine.getByTestId('what-if-label')).toHaveText('What-if · made by KnowScroll');
   await expect(mine.getByText(MAKING)).toBeVisible();
+  await expect(mine.getByText('Hypothetical')).toBeVisible();
   await expect(mine.getByText('We check it before it posts.')).toBeVisible();
   // Nothing is claimed that has not happened: no checked answer, nothing to open, and Cancel is the asker's own.
   await expect(mine.getByText('ASSUMED')).toHaveCount(0);
@@ -103,7 +104,8 @@ test('the asker waits honestly, the other member sees the same wait, and the ans
       'Its distance, Earth’s spin and the Sun’s pull stay the same',
     );
     await expect(card.getByTestId('what-if-answer')).toContainText('Tides would likely be much stronger');
-    await expect(card.getByText('about 2 m')).toBeVisible();
+    await expect(card.getByText('2 m', { exact: true })).toBeVisible();
+    await expect(card.getByText('Hypothetical')).toBeVisible();
     await expect(card.getByTestId('what-if-label')).toHaveText('What-if · made by KnowScroll');
     await expect(page.getByTestId('what-if-ready-line')).toContainText('WHAT-IF READY');
     // The full Scroll is still being made, so there is nothing to open yet, and the card says so.

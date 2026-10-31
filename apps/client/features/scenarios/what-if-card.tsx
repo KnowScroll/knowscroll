@@ -10,7 +10,7 @@ import {
 } from '@knowscroll/client-core';
 import type { ScenarioCard } from '@knowscroll/contracts';
 import { borderWidth, radius, spacing, universe } from '@knowscroll/design-tokens';
-import { Button, Icon, PendingStripe, Text, useTalkTheme } from '@knowscroll/ui';
+import { Button, Icon, PendingStripe, Tag, Text, useTalkTheme } from '@knowscroll/ui';
 import { BranchMenu, SPECULATIVE_NOTICE } from './branch-parts';
 
 type ReadyAnswer = Extract<NonNullable<ScenarioCard['answer']>, { status: 'ready' }>;
@@ -21,14 +21,23 @@ function madeInWords(seconds: number | undefined): string {
   return seconds < 120 ? ` · MADE IN ${String(seconds)} S` : ` · MADE IN ${String(Math.round(seconds / 60))} MIN`;
 }
 
-/** The label every short answer carries, as a pill: the card says who made it (T3, D-211). */
-function MadeByLabel() {
+/**
+ * The labels every short answer carries: who made it (T3, D-211), as a pill, and the status of what it says. A what-if
+ * is Hypothetical, or Speculative when its premise runs against established knowledge (D-006 a, D-056): the one status
+ * label a branch has, kept on the card with its answer as on every branch card.
+ */
+function Labels({ card }: { readonly card: ScenarioCard }) {
   return (
-    <View style={styles.label} testID="what-if-label">
-      <Icon name="hypothetical" size={14} color={universe.ink} />
-      <Text variant="monoXs" color={universe.ink}>
-        {WHAT_IF_MADE_BY}
-      </Text>
+    <View style={styles.labels}>
+      <View style={styles.label} testID="what-if-label">
+        <Icon name="hypothetical" size={14} color={universe.ink} />
+        <Text variant="monoXs" color={universe.ink}>
+          {WHAT_IF_MADE_BY}
+        </Text>
+      </View>
+      {card.hypothetical ? (
+        <Tag variant="hypothetical" label={card.speculative ? 'Speculative' : 'Hypothetical'} />
+      ) : null}
     </View>
   );
 }
@@ -172,7 +181,7 @@ export function WhatIfCard({
         </Text>
       ) : null}
       <View role="article" accessibilityLabel={answerLabel(card)} style={styles.card} testID="what-if-card">
-        <MadeByLabel />
+        <Labels card={card} />
         <Text variant="monoXs" color={universe.ink2}>
           {making ? 'WHAT-IF · MAKING IT' : `${startedLine.toUpperCase()} · ${asker} · CHECKED`}
         </Text>
@@ -234,6 +243,7 @@ const styles = StyleSheet.create({
     width: '100%',
     boxShadow: universe.shadow.card,
   },
+  labels: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing[2] },
   label: {
     alignSelf: 'flex-start',
     flexDirection: 'row',

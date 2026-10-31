@@ -2,11 +2,12 @@
 export const BRANCH_WAIT_LIMIT_MS = 30 * 60_000;
 
 /**
- * How long a short answer may stay in the making before the thread is told there will be none. It is about 30
- * seconds when it goes well; the longest a model attempt and its one repair can take is longer than this, and the
- * answer that arrives after the wait was ended is dropped (D-211).
+ * How long a short answer may stay in the making before the thread is told there will be none: 12 minutes. It is about
+ * 30 seconds when it goes well, but a paid attempt can take the largest request deadline (300 s) and the one repair
+ * as long again, 10 minutes, and the job's own claim lasts 670 s. Giving up any sooner could drop an answer that is
+ * still on its way and was paid for. The answer that arrives after the wait was ended is dropped (D-211).
  */
-export const ANSWER_WAIT_LIMIT_MS = 4 * 60_000;
+export const ANSWER_WAIT_LIMIT_MS = 12 * 60_000;
 
 /** Whether a short answer that has been in the making for `ageMs` is given up on. Pure. */
 export const answerWaitOver = (ageMs: number): boolean => ageMs >= ANSWER_WAIT_LIMIT_MS;

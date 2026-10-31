@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
+import { writeAnswerQueue } from '../events.js';
 import { ANSWER_WAIT_LIMIT_MS, answerWaitOver, BRANCH_WAIT_LIMIT_MS, branchProgress } from './progress.js';
 
 const published = { assetRevision: 1, title: 'What a portal would need' };
@@ -36,5 +38,10 @@ describe('answerWaitOver', () => {
     expect(answerWaitOver(ANSWER_WAIT_LIMIT_MS - 1)).toBe(false);
     expect(answerWaitOver(ANSWER_WAIT_LIMIT_MS)).toBe(true);
     expect(ANSWER_WAIT_LIMIT_MS).toBeLessThan(BRANCH_WAIT_LIMIT_MS);
+  });
+
+  it('outlasts the worst paid answer: an attempt and one repair at the largest request deadline, and the job’s own claim', () => {
+    expect(ANSWER_WAIT_LIMIT_MS).toBeGreaterThan(2 * MINIMAX_REQUEST_TIMEOUT_MAX_MS);
+    expect(ANSWER_WAIT_LIMIT_MS).toBeGreaterThan(writeAnswerQueue.policy.expireInSeconds * 1000);
   });
 });

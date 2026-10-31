@@ -102,12 +102,12 @@ Status: **implemented**, tested against real PostgreSQL with a labelled fixture 
   premise, the public subject and the claims the thread root's Scroll cites (`READ_SCROLL_EVIDENCE`, content), asks the role
   `scenarios.answer-card` (`answer-card.1`, one call and one repair, interactive) and stores the checked card in the node's
   row (`answer_state`, `answer`, `answer_settled_at`). The run is the node's ID, so a redelivery never pays twice and an attempt of
-  unknown outcome is never resent. It never sees what a member typed or said, and with fewer than two claims to cite it asks no model.
+  unknown outcome is never resent. It sees the branch's premise (which may be a member's own typed sentences, as for the Scroll writer), the public subject and the cited claims, never the request text, a message or a name; with fewer than two claims to cite it asks no model.
 - **Checked before it is shown** (`domain/answer-card.ts`, pure): every claim cites passages the code offered, every digit is a
-  figure a cited passage or the branch's own premise states, the assumption line is mandatory, no nine words in a row are copied, and
+  figure a cited passage or the branch's own premise states (a figure is a label in words and one number with its unit, written as a cited passage writes it), the assumption line is mandatory, no nine words in a row are copied, and
   at least one claim reads as reasoning ("would", "could", "likely"). What the branch changes and keeps is the checked premise
   itself, never the writer's words. A card that fails after the one repair is `unavailable`, never a lesser card.
-- **The wait is honest.** `making` until the worker settles it. The minute sweep gives up after 4 minutes (`ANSWER_WAIT_LIMIT_MS`) and
+- **The wait is honest.** `making` until the worker settles it. The minute sweep gives up after 12 minutes (`ANSWER_WAIT_LIMIT_MS`: a paid attempt and its repair can take 10) and
   the card says there is no short answer; a late answer finds the wait ended and is dropped. A removed branch, or a starter who left
   the thread, gets nothing stored. The answer arriving never moves the branch's `revision`.
 - **Five a day.** Quartermaster counts a thread's orders since 00:00 UTC against `KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP` (default 5).
@@ -145,7 +145,7 @@ worker, which builds the export, composes `READ_ORDER_AUDIENCE` (`orderAudienceP
 | `receipts.shared_commands`                | Receipts of the thread's commands (`scenarios.draft`, `.choose`, `.remove`)                                                                                                                         | kept             | the person's own are deleted (`receiptsErasure`)                                                                                                                                          |
 | `pgboss/scenarios.suggest-draft`          | Draft IDs; 4 at a time, 670 s expiry, three retries                                                                                                                                                 | payloads deleted | payloads deleted                                                                                                                                                                          |
 | `pgboss/scenarios.write-answer`           | Branch IDs of short answers, with the starter's universe; 4 at a time, 670 s expiry, two retries                                                                                                    | payloads deleted | payloads deleted                                                                                                                                                                          |
-| `pgboss/scenarios.resolve-branches`       | Cron, every minute: binds Scrolls, retries takes, and ends a short answer's wait after 4 minutes                                                                                                    | nothing personal | nothing personal                                                                                                                                                                          |
+| `pgboss/scenarios.resolve-branches`       | Cron, every minute: binds Scrolls, retries takes, and ends a short answer's wait after 12 minutes                                                                                                   | nothing personal | nothing personal                                                                                                                                                                          |
 
 Lock order: personal root, the caller's own account gate (`fenceOwn`), the thread's root (`social_thread`),
 the draft and node rows, and last the commissioning lock of Quartermaster. The personal harness's close of a

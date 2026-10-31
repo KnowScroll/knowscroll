@@ -9,6 +9,7 @@ import { sql } from 'kysely';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ContentThreadRef, ScenarioCard } from '@knowscroll/contracts';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
+import { exportCurrentPerson } from '@knowscroll/backend/erasure-registry';
 import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   READ_SCROLL_EVIDENCE,
@@ -46,6 +47,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { answerWith } from '../support/generated-scroll.js';
 import { fixtureHarness, fixtureModel, gate, protectedRequestsOf } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
+import { openToEveryone } from '../support/audience.js';
 import { scrollUseCases } from '../support/scroll.js';
 import { buildRecursively } from '../support/providers.js';
 import { befriend, seedFriend, talkCases, type Friend, type Friends, type Threads } from '../support/talk.js';
@@ -112,7 +114,7 @@ const validAnswer = {
       cites: ['e2'],
     },
   ],
-  numbers: [{ label: 'Typical answer time', value: 'about 200 milliseconds', cites: ['e3'] }],
+  numbers: [{ label: 'Typical answer time', value: '200 milliseconds', cites: ['e3'] }],
 };
 
 function unwrap<T>(result: { kind: 'ok'; value: T } | { kind: 'refused'; code: string }): T {
@@ -386,7 +388,7 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
         madeBy: 'knowscroll',
         assumption: validAnswer.assumption,
         answer: validAnswer.claims.map((claim) => claim.text).join(' '),
-        numbers: [{ label: 'Typical answer time', value: 'about 200 milliseconds' }],
+        numbers: [{ label: 'Typical answer time', value: '200 milliseconds' }],
       });
       expect(Date.parse(readyAt)).toBeGreaterThan(Date.parse(card.createdAt) - 1);
       // What the branch changes and keeps is the checked premise, never the writer's words.
@@ -489,6 +491,63 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
       expect(card.answer).toEqual({ status: 'unavailable' });
       // The branch and its Scroll carry on as they would have.
       expect(card.status).toBe('preparing');
+    });
+
+    it('refuses a figure that hides a number in its label or writes prose in its value, and ends with no short answer', async () => {
+      const figures = [
+        // The review's cases: a figure in the label beside a value no passage states, and a value with prose around it.
+        { label: 'Moon mass is 7.3e22 kg', value: '150', cites: ['e3'] },
+        { label: 'Typical answer time', value: '200 milliseconds but ten times that', cites: ['e3'] },
+        { label: 'Typical answer time', value: '300 milliseconds', cites: ['e3'] },
+      ];
+      for (const figure of figures) {
+        const { a, aRef, root } = await begun();
+        const { node } = unwrap(await chosen(a, aRef, root));
+        answerScript = () => answerWith({ ...validAnswer, numbers: [figure] });
+        const before = answerCalls();
+        await write(a, node.nodeId);
+        // One attempt and one repair, then no short answer: a figure the rules refuse is never shown.
+        expect(answerCalls(), JSON.stringify(figure)).toBe(before + 2);
+        expect((await cardOf(a, aRef, node.nodeId)).answer, JSON.stringify(figure)).toEqual({ status: 'unavailable' });
+      }
+    });
+
+    it('refuses one short claim, which no list could carry, and ends with no short answer', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      const { node } = unwrap(await chosen(a, aRef, root));
+      // The review's repro: one claim of under 40 characters would store a card the contract refuses to list.
+      answerScript = () =>
+        answerWith({ ...validAnswer, claims: [{ text: 'Gravity would likely be stronger.', cites: ['e1'] }] });
+      const before = answerCalls();
+      await write(a, node.nodeId);
+      expect(answerCalls()).toBe(before + 2);
+      expect(await answerRow(node.nodeId)).toMatchObject({ answer_state: 'unavailable', answer: null });
+      for (const [who, ref] of [
+        [a, aRef],
+        [b, bRef],
+      ] as const)
+        expect((await cardOf(who, ref, node.nodeId)).answer).toEqual({ status: 'unavailable' });
+    });
+
+    it('never fails the thread’s list for a stored card that no longer serves: it reads as no short answer', async () => {
+      const { a, b, aRef, bRef, root } = await begun();
+      const { node } = unwrap(await chosen(a, aRef, root));
+      // A row as an older writer or a moved limit could leave it: ready, with one claim too short to make an answer.
+      await sql`update scenarios.nodes set answer_state = 'ready', answer_settled_at = now(),
+        answer = ${JSON.stringify({
+          version: 'scenario-answer.v1',
+          assumption: validAnswer.assumption,
+          claims: [{ text: 'Gravity would likely be stronger.', claimIds: ['claim-ci-1'] }],
+          numbers: [],
+        })}::jsonb where node_id = ${node.nodeId}::uuid`.execute(database.db);
+      for (const [who, ref] of [
+        [a, aRef],
+        [b, bRef],
+      ] as const) {
+        const found = await list(who, ref);
+        if (found.status !== 'ready') throw new Error('the list did not come');
+        expect(found.cards.find((card) => card.nodeId === node.nodeId)?.answer).toEqual({ status: 'unavailable' });
+      }
     });
 
     it('refuses an answer with no assumption line, however good the rest is', async () => {
@@ -659,12 +718,48 @@ describe('the short answer card of a what-if (real PostgreSQL, CI fixture models
       const { a, aRef, root } = await begun();
       const { node } = unwrap(await chosen(a, aRef, root));
       expect((await sweep(60_000)).answersEnded).toBe(0);
+      // A paid attempt and its repair can take ten minutes: eleven is still waiting.
+      expect((await sweep(11 * 60_000)).answersEnded).toBe(0);
       expect((await cardOf(a, aRef, node.nodeId)).answer).toEqual({ status: 'making' });
-      expect((await sweep(5 * 60_000)).answersEnded).toBeGreaterThanOrEqual(1);
+      expect((await cardOf(a, aRef, node.nodeId)).answer).toEqual({ status: 'making' });
+      expect((await sweep(13 * 60_000)).answersEnded).toBeGreaterThanOrEqual(1);
       expect((await cardOf(a, aRef, node.nodeId)).answer).toEqual({ status: 'unavailable' });
       // The late answer finds the wait ended and is dropped.
       await write(a, node.nodeId);
       expect((await cardOf(a, aRef, node.nodeId)).answer).toEqual({ status: 'unavailable' });
+    });
+  });
+
+  describe('the export', () => {
+    const exported = async (who: Friend) => {
+      const scoped = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+      const entered = await scoped(who.authority, (scope) =>
+        exportCurrentPerson(scope, { accountId: who.accountId }, openToEveryone),
+      );
+      if (entered.kind !== 'entered') throw new Error('the export did not run');
+      return entered.value.sections['scenarios'] as
+        { branches: { items: { title: string; shortAnswer?: { assumption: string; text: string } }[] } } | undefined;
+    };
+
+    it('lists a short answer with the branch its starter made, and nothing of it for another member', async () => {
+      const { a, b, aRef, root } = await begun();
+      const { node } = unwrap(await chosen(a, aRef, root));
+      await write(a, node.nodeId);
+      const mine = (await exported(a))?.branches.items.find((item) => item.title === node.title);
+      expect(mine?.shortAnswer).toEqual({
+        assumption: validAnswer.assumption,
+        text: validAnswer.claims.map((claim) => claim.text).join(' '),
+      });
+      // Ravi started nothing: his file has no branch of Asha's and so none of her answer.
+      expect(JSON.stringify((await exported(b)) ?? {})).not.toContain(validAnswer.assumption);
+    });
+
+    it('lists a branch whose short answer never came without one', async () => {
+      const { a, aRef, root } = await begun();
+      const { node } = unwrap(await chosen(a, aRef, root));
+      const mine = (await exported(a))?.branches.items.find((item) => item.title === node.title);
+      expect(mine).toBeDefined();
+      expect(mine).not.toHaveProperty('shortAnswer');
     });
   });
 

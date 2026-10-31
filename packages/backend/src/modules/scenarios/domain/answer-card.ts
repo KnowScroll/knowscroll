@@ -50,7 +50,8 @@ export type AnswerRefusal =
   | 'unknown_citation'
   | 'claim_number_unstated'
   | 'assumption_number_unfounded'
-  | 'figure_not_a_number'
+  | 'figure_label_has_digit'
+  | 'figure_not_a_measure'
   | 'figure_unstated'
   | 'copied_passage'
   | 'not_marked_as_reasoning'
@@ -63,9 +64,12 @@ export const ANSWER_HINTS: Readonly<Record<AnswerRefusal, string>> = {
     'A digit may appear in a claim only where a passage that claim cites states that same number. Write every quantity that follows from the premise in words, such as "about eight times".',
   assumption_number_unfounded:
     'The assumption line may use a number only if the branch itself states it. Write other quantities in words.',
-  figure_not_a_number: 'Each entry of "numbers" gives a figure with digits, as a cited passage writes it.',
+  figure_label_has_digit:
+    'The label of a figure names what it measures in words, with no digit. The number goes in "value" only.',
+  figure_not_a_measure:
+    'The value of a figure is one number with its short unit, such as "2 m" or "200 milliseconds", and nothing else: no words around it and no second number.',
   figure_unstated:
-    'Each figure in "numbers" must be written exactly as a passage it cites states it. Leave "numbers" empty when no passage gives a figure.',
+    'The value of a figure must appear, written exactly so, in a passage it cites. Leave "numbers" empty when no passage gives a figure.',
   copied_passage:
     'Nine or more words in a row match a passage. Say that claim in your own words, with a different sentence structure.',
   not_marked_as_reasoning:
@@ -79,6 +83,27 @@ export interface AnswerRefusalAt {
 }
 
 const REASONING_MARKER = /\b(?:would|could|might|may|likely|probably|perhaps|suppose|if)\b/iu;
+
+/**
+ * A figure's value: one number and, at most, one short unit after it ("2 m", "200 milliseconds", "37%", "5 km²").
+ * No prose around it, no second number, nothing a source did not write in just that form.
+ */
+const MEASURE = /^\d+(?:[.,]\d+)*(?: ?[^\s\d]{1,12})?$/u;
+
+const squeezed = (text: string): string => text.normalize('NFKC').toLowerCase().replaceAll(/\s+/gu, ' ');
+
+/**
+ * Whether a passage writes `value` as it is: the same characters, with no letter or digit stuck to either end and
+ * no more digits after it (`150` is not in `1500` or `150,000`).
+ */
+function writesValue(passage: string, value: string): boolean {
+  const escaped = squeezed(value)
+    .trim()
+    .replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+  return new RegExp(String.raw`(?<![\p{L}\p{N}][.,]?)${escaped}(?![\p{L}\p{N}]|[.,]\p{N})`, 'u').test(
+    squeezed(passage),
+  );
+}
 
 /** Numeric tokens of a text as comparable strings: `4,096` and `4096` are the same figure. */
 function figuresIn(text: string): string[] {
@@ -154,10 +179,14 @@ export function answerRefusals(
   draft.numbers.forEach((figure, index) => {
     const sources = cited(figure.cites);
     if (sources === undefined) return void found.push({ code: 'unknown_citation', path: ['numbers', index, 'cites'] });
-    const tokens = figuresIn(figure.value);
-    if (tokens.length === 0) return void found.push({ code: 'figure_not_a_number', path: ['numbers', index, 'value'] });
-    const allowed = stated(sources);
-    if (tokens.some((token) => !allowed.has(token)))
+    // A figure's label is words: a digit there would be a number no passage was asked to state.
+    if (figuresIn(figure.label).length > 0)
+      found.push({ code: 'figure_label_has_digit', path: ['numbers', index, 'label'] });
+    const value = figure.value.trim();
+    if (!MEASURE.test(value))
+      return void found.push({ code: 'figure_not_a_measure', path: ['numbers', index, 'value'] });
+    // The figure is a source's: the value as written, number and unit together, is in a passage the figure cites.
+    if (!sources.some((source) => writesValue(source.text, value)))
       found.push({ code: 'figure_unstated', path: ['numbers', index, 'value'] });
   });
 
