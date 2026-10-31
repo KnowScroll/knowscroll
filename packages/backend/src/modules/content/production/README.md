@@ -20,7 +20,7 @@ place the two differ: the role the model is asked, and how an accepted answer is
 admission stores (`stored-v2.ts`: document, `scroll-provenance.v2`, reading facts v3). Still one writer
 request and at most one repair, none inside a transaction, and the answer check below sits between the answer and its storage.
 
-- **Versions.** A v2 recipe's jobs are `scroll-production.v17`, every other recipe's and every order's
+- **Versions.** A v2 recipe's jobs are `scroll-production.v18`, every other recipe's and every order's
   `.v14` (`productionVersionOf`). A v2 recipe counts as published only when its current revision is a v2
   document, so a v1 Scroll published earlier is regenerated as the next revision of the same asset.
   A queued job whose version does not match the plan is dropped.
