@@ -16,6 +16,7 @@ import {
   type RoomAway,
   type RoomDiscussionSummary,
   type RoomHere,
+  type RoomTodayStrip,
   type RoomWelcome,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
@@ -29,6 +30,8 @@ import { reportedOnDay } from '../domain/reports.js';
 import { orderTopics } from '../domain/topics.js';
 import { titlesFor } from './discussion-titles.js';
 import { enterRoom, type EnteredRoom } from './gate.js';
+import { skyOfRoom } from './sky.js';
+import { todayStrip } from './today.js';
 import {
   earlierPlaceOf,
   ok,
@@ -189,6 +192,7 @@ async function awayOf(p: RoomPorts, entered: EnteredRoom, member: MemberRow): Pr
 }
 
 const awayFor = (away: RoomAway | undefined) => (away === undefined ? {} : { away });
+const todayFor = (today: RoomTodayStrip | undefined) => (today === undefined ? {} : { today });
 
 /** A member's view of the room: General, the other discussions, their own settings, who is here and how quiet it is. */
 async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: EnteredRoom & { member: MemberRow }) {
@@ -225,6 +229,8 @@ async function memberView(p: RoomPorts, scope: PersonalScopeTx, entered: Entered
     limits: limitsOf(),
     ...(entered.member.noticeSeenAt === null ? { welcome: welcomeFor(room) } : {}),
     ...awayFor(await awayOf(p, entered, entered.member)),
+    sky: await skyOfRoom(p, lock),
+    ...todayFor(await todayStrip(p, lock, p.now())),
   };
 }
 

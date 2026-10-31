@@ -137,3 +137,30 @@ export const summariseQueue = defineQueue({
   },
   consumer: { localConcurrency: 1, pollingIntervalSeconds: 2 },
 });
+
+/**
+ * Once a night: drafts the day's question and Spot the flaw for every open room that has a member (D-176). No payload but
+ * its version: the rooms and the day are read when it runs. A room's items are unique by (room, day, kind) and the model run
+ * is fixed by the room and day, so a late, repeated or retried delivery changes nothing and pays for nothing twice. What it
+ * drafts waits for an operator; nothing here shows a member anything.
+ */
+export const NightlyRitualsJobSchema = z.strictObject({ v: z.literal(1) });
+export type NightlyRitualsJob = z.infer<typeof NightlyRitualsJobSchema>;
+
+export const nightlyRitualsQueue = defineQueue({
+  name: 'rooms.nightly-rituals',
+  purpose: "Draft each room's daily question and Spot the flaw from the library, for an operator to approve.",
+  payload: NightlyRitualsJobSchema,
+  policy: {
+    // One call per room, each up to two attempts at the largest provider deadline: an hour covers a dozen rooms.
+    expireInSeconds: 3600,
+    retryLimit: 2,
+    retryDelaySeconds: 300,
+    retryBackoff: true,
+    retentionSeconds: 3 * 86400,
+    deleteAfterSeconds: 86400,
+    deadLetter: true,
+  },
+  consumer: { localConcurrency: 1, pollingIntervalSeconds: 30 },
+  schedule: { cron: '10 3 * * *', payload: { v: 1 } },
+});

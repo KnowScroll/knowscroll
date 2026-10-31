@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { layout, spacing } from '@knowscroll/design-tokens';
 import { Icon, ReplyChip, useFocusRing, useTalkTheme, useTypeStyle } from '@knowscroll/ui';
@@ -26,6 +26,7 @@ export function Composer({
   onSend,
   replyTo,
   onCancelReply,
+  focusSignal,
 }: {
   readonly name: string;
   readonly value: string;
@@ -33,8 +34,14 @@ export function Composer({
   readonly onSend: (text: string) => void;
   readonly replyTo?: ReplyTarget | undefined;
   readonly onCancelReply?: (() => void) | undefined;
+  /** Each new value puts the cursor in the box (a button elsewhere that says "answer here"). */
+  readonly focusSignal?: number | undefined;
 }) {
   const theme = useTalkTheme();
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (focusSignal !== undefined && focusSignal > 0) input.current?.focus();
+  }, [focusSignal]);
   const type = useTypeStyle('bodyS');
   const sendFocus = useFocusRing('onDark');
   const [focused, setFocused] = useState(false);
@@ -50,6 +57,7 @@ export function Composer({
         )}
         <View style={styles.row}>
           <TextInput
+            ref={input}
             accessibilityLabel={`Message ${name}`}
             placeholder={`Message ${name}`}
             placeholderTextColor={theme.input.placeholder}
