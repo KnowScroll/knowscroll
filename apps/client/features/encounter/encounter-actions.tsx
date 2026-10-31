@@ -5,7 +5,13 @@ import type { EncounterSession, EncounterState } from './encounter-session';
 /** One action set for both formats (D-006 b): Like, Save, Share and Ask; ⋯ is in the top bar. */
 const AVAILABLE: readonly EncounterAction[] = ['like', 'save', 'share', 'ask'];
 
-function useActionProps(entry: EncounterEntry, state: EncounterState, session: EncounterSession, dense = false) {
+function useActionProps(
+  entry: EncounterEntry,
+  state: EncounterState,
+  session: EncounterSession,
+  dense = false,
+  beforeOverlay?: () => void,
+) {
   return {
     dense,
     available: AVAILABLE,
@@ -13,8 +19,13 @@ function useActionProps(entry: EncounterEntry, state: EncounterState, session: E
     saved: entry.context.actions.saved,
     saving: state.actionPending,
     onAction: (action: EncounterAction) => {
-      if (action === 'ask') session.openRequest();
-      else if (action === 'share') session.openShare();
+      if (action === 'ask') {
+        beforeOverlay?.();
+        session.openRequest();
+      } else if (action === 'share') {
+        beforeOverlay?.();
+        session.openShare();
+      }
       else if (action === 'save' || action === 'like') {
         if (state.actionPending || state.actionFailed) return;
         const on = action === 'save' ? entry.context.actions.saved : entry.context.actions.liked;
@@ -48,11 +59,14 @@ export function EncounterStrip({
   state,
   session,
   align,
+  beforeOverlay,
 }: {
   readonly entry: EncounterEntry;
   readonly state: EncounterState;
   readonly session: EncounterSession;
   readonly align?: 'start' | 'end';
+  /** Called just before Share or Ask opens its sheet, so a sheet this strip sits in can step aside first. */
+  readonly beforeOverlay?: () => void;
 }) {
-  return <ActionStrip {...useActionProps(entry, state, session)} align={align} />;
+  return <ActionStrip {...useActionProps(entry, state, session, false, beforeOverlay)} align={align} />;
 }

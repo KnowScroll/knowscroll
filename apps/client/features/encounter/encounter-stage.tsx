@@ -96,7 +96,7 @@ export function StageEncounter({
         }}
         moreBody={(close) => (
           <View style={styles.more}>
-            <EncounterStrip entry={entry} state={state} session={session} align="start" />
+            <EncounterStrip entry={entry} state={state} session={session} align="start" beforeOverlay={close} />
             <Button
               label="Your path and more options"
               onPress={() => {

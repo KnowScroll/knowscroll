@@ -204,6 +204,35 @@ test.describe('a Scroll opened from Explore', () => {
   });
 });
 
+const desktop = { width: 1440, height: 900 };
+
+/** ••• then Share: one sheet, and the way to a conversation is reachable (#548). */
+async function shareFromMore(page: Page) {
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  // The More sheet has stepped aside: only the Share sheet is open, so a tap lands on it.
+  await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Send to a conversation' }).click();
+  await expect(page.getByRole('heading', { name: 'Send to a conversation' })).toBeVisible();
+}
+
+for (const [name, viewport] of [
+  ['phone', phone],
+  ['desktop', desktop],
+] as const) {
+  test.describe(`Share from the reader's ••• (${name})`, () => {
+    test('a Scroll opened from Explore reaches the conversation picker', async ({ page }) => {
+      await openFromExplore(page, viewport);
+      await shareFromMore(page);
+    });
+
+    test('a Scroll opened by its address reaches the conversation picker', async ({ page }) => {
+      await openByAddress(page, { parts: 2 }, { viewport });
+      await shareFromMore(page);
+    });
+  });
+}
+
 test.describe('the end card', () => {
   test('a Scroll with a stage says the reader built a picture; a plain Scroll does not', async ({ page }) => {
     await openByAddress(page, { parts: 1 });
