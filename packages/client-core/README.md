@@ -458,6 +458,10 @@ Pure controllers over `scope.api.scenarios`. *Implemented; exercised in tests an
   `attach(draftId)` picks up a draft the member was offered and has not chosen, and shows its directions.
   The board also carries `suggestions`, the member's own unmade offers from `list`.
 - `subjectOfStatement`, `chipText`, `describeOption`, `kindWord`, `kindedTitle`: the words a screen uses for an assumption chip and a card (`kindedTitle` does not say "What if" twice).
+- `scenario-answers.ts` (pure, D-211): the short answer card's words and states. `WHAT_IF_MADE_BY` is the label every card carries;
+  `answerStage` says `none`, `making`, `slow` (past 90 s), `ready` or `unavailable`; `awaitingServer` says when the board is read again
+  soon (a branch preparing or an answer being made); `madeInSeconds`; `branchesMadeToday` and `threadMadeAllToday` count a thread's
+  UTC day against the cap of five (D-158) so a refusal can say why. The server decides; these only explain. *Implemented.*
 - `ownSelection` carries `fromOptionId` when a request was edited from one of the draft's directions.
 - `scenario-map.ts` (pure): `buildMap` (a few named steps: `forestOf`, `narrow`, `layOut`) makes the outline of a thread
   (X04) from its episodes, the branch cards and the member's offers: branches nested under the root episode, the Mine, Everyone and Suggestions filters (they keep the

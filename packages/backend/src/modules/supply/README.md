@@ -133,7 +133,7 @@ code-built order and `COMMISSION_SCENARIO_ORDER` runs inside the member's transa
 
 - it takes the commissioning lock (last in the lock order), so the day's count and the orders it admits agree;
 - it refuses with `day_cap` when the world's UTC day is full (`KS_SUPPLY_SCENARIO_DAILY_CAP`, 0 turns
-  it off) or `thread_cap` when the thread has had all the branches it may (`KS_SUPPLY_SCENARIO_THREAD_CAP`);
+  it off) or `thread_cap` when the thread has had all the branches it may today, five per UTC day (`KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP`, D-158);
 - it records the order with Content (`RECORD_MADE_TO_ORDER_SCROLL`), writes a row in `supply.scenario_orders`
   (order and thread, no person and no words) and sends the production job for take 1 (same identity, so a
   repeat is never doubled).

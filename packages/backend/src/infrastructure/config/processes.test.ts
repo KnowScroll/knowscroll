@@ -122,16 +122,18 @@ describe('process configuration', () => {
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '501' })).toThrow();
     expect(() => worker({ KS_WORLD: 'local', KS_SUPPLY_CREATE_DAILY_CAP: '-1' })).toThrow();
   });
-  it('bounds scenario Create by its own daily cap, off outside local, and by a cap per thread', () => {
+  it('bounds scenario Create by its own daily cap, off outside local, and by a cap per thread per day', () => {
     const api = (env: Record<string, string>) =>
       readApiConfig({ ...production, ...release, DATABASE_URL: secretUrl, PORT: '4330', ...env });
     expect(api({ KS_WORLD: 'local' }).supplyScenarioDailyCap).toBe(20);
     for (const world of ['dev', 'stage', 'ci']) expect(api({ KS_WORLD: world }).supplyScenarioDailyCap).toBe(0);
     expect(api({ KS_WORLD: 'dev', KS_SUPPLY_SCENARIO_DAILY_CAP: '6' }).supplyScenarioDailyCap).toBe(6);
-    expect(api({ KS_WORLD: 'dev' }).supplyScenarioThreadCap).toBe(6);
-    expect(api({ KS_WORLD: 'dev', KS_SUPPLY_SCENARIO_THREAD_CAP: '3' }).supplyScenarioThreadCap).toBe(3);
+    // Five a day per thread (D-076): the old per-life variable is not read any more.
+    expect(api({ KS_WORLD: 'dev' }).supplyScenarioThreadDailyCap).toBe(5);
+    expect(api({ KS_WORLD: 'dev', KS_SUPPLY_SCENARIO_THREAD_CAP: '6' }).supplyScenarioThreadDailyCap).toBe(5);
+    expect(api({ KS_WORLD: 'dev', KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: '3' }).supplyScenarioThreadDailyCap).toBe(3);
     expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_SCENARIO_DAILY_CAP: '501' })).toThrow();
-    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_SCENARIO_THREAD_CAP: '0' })).toThrow();
+    expect(() => api({ KS_WORLD: 'local', KS_SUPPLY_SCENARIO_THREAD_DAILY_CAP: '0' })).toThrow();
   });
   it('names the operator accounts from the list, or from the sign-in pattern on dev only', () => {
     const api = (env: Record<string, string>) =>

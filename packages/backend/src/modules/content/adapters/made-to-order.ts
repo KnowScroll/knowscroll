@@ -2,6 +2,7 @@ import { sql, type Kysely } from 'kysely';
 import { Framing } from '@knowscroll/scroll-model';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readerOn, transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
+import type { PersonalScopeTx } from '../../identity/public.js';
 import { RECIPE_KEYS, RECIPES } from '../domain/library/index.js';
 import { productionStanding, takeToSend, type ProductionJobState } from '../domain/library/serving.js';
 import { madeToOrderKey } from '../domain/order-key.js';
@@ -9,10 +10,13 @@ import { SCROLL_PRODUCTION_VERSION } from '../production/topics.js';
 import { notUnderReview } from './review-gate-sql.js';
 import type {
   CheckAssetAudience,
+  ContentRef,
   ReadMadeToOrderProduction,
   ReadOrderAudience,
+  ReadScrollEvidence,
   ReadScrollSourcePages,
   RecordMadeToOrderScroll,
+  ScrollEvidenceClaim,
 } from '../public.js';
 
 /** The most research pages one order may rest on; a recipe names one to three. */
@@ -83,14 +87,21 @@ function pagesOf(sources: unknown): string[] {
   return [...new Set(urls)];
 }
 
+/** What the provenance of an admitted Scroll records that a what-if of the same explanation may draw on. */
+interface ExplanationRecord {
+  readonly sources: unknown;
+  readonly claims: unknown;
+}
+
 /**
- * The pages a what-if of this revision may draw on, chosen by code: the revision's own recorded
- * sources; else those of an admitted Scroll that gives the same explanation (a Reel's twin, a Scroll's
- * other revision); else the pages of the library recipe of that explanation. A page a person or a
- * model named never enters. Production fetches them through the same allowlisted research boundary as
- * a library recipe, so a source outside it ends the take.
+ * The provenance records a what-if of this revision may draw on, best first: the revision's own, then those of
+ * the other admitted Scrolls that give the same explanation (a Reel's twin, a Scroll's other revision), never a
+ * Scroll made to order and never one under review. Also names the explanation, for the library fallback.
  */
-export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) => {
+async function explanationRecords(
+  scope: PersonalScopeTx,
+  root: ContentRef,
+): Promise<{ readonly unit: string; readonly records: readonly ExplanationRecord[] } | undefined> {
   const trx = transactionOf(scope);
   const unit = await trx
     .selectFrom('content.asset_revisions as r')
@@ -99,9 +110,9 @@ export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) 
     .where('r.revision', '=', root.assetRevision)
     .where(sql<boolean>`${notUnderReview('r.asset_id', 'r.revision')}`)
     .executeTakeFirst();
-  if (unit === undefined) return [];
-  const records = await sql<{ sources: unknown }>`
-    select p.provenance -> 'sources' as sources
+  if (unit === undefined) return undefined;
+  const records = await sql<ExplanationRecord>`
+    select p.provenance -> 'sources' as sources, p.provenance -> 'claims' as claims
     from content.asset_revisions r
     join content.assets a on a.id = r.asset_id and a.kind = 'scroll' and a.status = 'admitted'
     join content.asset_provenance p on p.asset_id = r.asset_id and p.revision = r.revision
@@ -110,12 +121,61 @@ export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) 
       and ${notUnderReview('r.asset_id', 'r.revision')}
     order by (r.asset_id = ${root.assetId}::uuid and r.revision = ${root.assetRevision}) desc, r.admitted_at, r.asset_id, r.revision desc
     limit 8`.execute(trx);
-  for (const record of records.rows) {
+  return { unit: unit.explanation_unit_id, records: records.rows };
+}
+
+/**
+ * The pages a what-if of this revision may draw on, chosen by code: the revision's own recorded
+ * sources; else those of an admitted Scroll that gives the same explanation (a Reel's twin, a Scroll's other
+ * revision); else the pages of the library recipe of that explanation. A page a person or a model named never
+ * enters. Production fetches them through the same allowlisted research boundary as
+ * a library recipe, so a source outside it ends the take.
+ */
+export const readScrollSourcePages: ReadScrollSourcePages = async (scope, root) => {
+  const found = await explanationRecords(scope, root);
+  if (found === undefined) return [];
+  for (const record of found.records) {
     const pages = pagesOf(record.sources);
     if (pages.length > 0) return pages.slice(0, MAX_PAGES);
   }
-  const library = RECIPE_KEYS.find((key) => RECIPES[key].explanationUnitId === unit.explanation_unit_id);
+  const library = RECIPE_KEYS.find((key) => RECIPES[key].explanationUnitId === found.unit);
   return library === undefined ? [] : RECIPES[library].pages.slice(0, MAX_PAGES);
+};
+
+/** The most claims a short answer is offered to cite. */
+const MAX_EVIDENCE_CLAIMS = 24;
+/** A claim shorter than this is a label, not a passage a sentence can rest on. */
+const MIN_EVIDENCE_CHARS = 30;
+
+/** The claims of a provenance record's `claims`, as passages: only well-formed ones, each ID once, in order. */
+function claimsOf(claims: unknown): ScrollEvidenceClaim[] {
+  if (!Array.isArray(claims)) return [];
+  const seen = new Set<string>();
+  const found: ScrollEvidenceClaim[] = [];
+  for (const claim of claims as unknown[]) {
+    const record = typeof claim === 'object' && claim !== null ? (claim as Record<string, unknown>) : {};
+    const { claimId, statement } = record;
+    if (typeof claimId !== 'string' || typeof statement !== 'string' || seen.has(claimId)) continue;
+    const text = statement.trim();
+    if (text.length < MIN_EVIDENCE_CHARS) continue;
+    seen.add(claimId);
+    found.push({ claimId, text });
+  }
+  return found.slice(0, MAX_EVIDENCE_CLAIMS);
+}
+
+/**
+ * The claims a short answer of this revision may cite: those of the first Scroll `explanationRecords` finds that
+ * records any. Stored text of public research (the claims a published Scroll already rests on), read inside the
+ * caller's scope; no page is fetched and no person's data is read.
+ */
+export const readScrollEvidence: ReadScrollEvidence = async (scope, root) => {
+  const found = await explanationRecords(scope, root);
+  for (const record of found?.records ?? []) {
+    const claims = claimsOf(record.claims);
+    if (claims.length > 0) return claims;
+  }
+  return [];
 };
 
 /**

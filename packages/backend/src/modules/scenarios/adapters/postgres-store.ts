@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { AssumptionSchema, OptionChangeSchema } from '@knowscroll/contracts';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { readerOn, transactionOf, withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
-import type { BranchPoolStore, DraftRow, NodeRow, Origin, ScenarioStore } from '../application/ports.js';
+import type { BranchPoolStore, DraftRow, NodeAnswer, NodeRow, Origin, ScenarioStore } from '../application/ports.js';
+import { StoredAnswerSchema } from '../application/answer-schemas.js';
 
 const Assumptions = z.array(AssumptionSchema);
 /**
@@ -53,28 +54,42 @@ const draftOf = (row: DraftColumns): DraftRow => ({
   expiresAt: new Date(row.expires_at),
 });
 
-const nodeOf = (row: NodeColumns): NodeRow => ({
-  nodeId: row.node_id,
-  threadId: row.thread_id,
-  ...(row.parent_node_id === null ? {} : { parentNodeId: row.parent_node_id }),
-  kind: row.kind === 'perspective' ? 'perspective' : 'what_if',
-  origin: originOf(row.origin_kind, row.origin_message_id),
-  ...(row.started_by_account_id === null ? {} : { startedByAccountId: row.started_by_account_id }),
-  title: row.title,
-  ...(row.lens === null ? {} : { lens: row.lens }),
-  changes: Assumptions.parse(row.changes),
-  kept: Assumptions.parse(row.kept),
-  assumptions: Assumptions.parse(row.assumptions),
-  hypothetical: row.hypothetical,
-  speculative: row.speculative,
-  semanticKey: row.semantic_key,
-  status: row.status as NodeRow['status'],
-  revision: row.revision,
-  assetId: row.asset_id,
-  ...(row.asset_revision === null ? {} : { assetRevision: row.asset_revision }),
-  ...(row.asset_title === null ? {} : { assetTitle: row.asset_title }),
-  createdAt: new Date(row.created_at),
-});
+/** The short answer a row holds: absent unless the branch has one, and a ready one is read back through its own schema. */
+function answerOf(row: NodeColumns): NodeAnswer | undefined {
+  if (row.answer_state === 'making') return { state: 'making' };
+  if (row.answer_state === 'unavailable' && row.answer_settled_at !== null)
+    return { state: 'unavailable', settledAt: new Date(row.answer_settled_at) };
+  if (row.answer_state === 'ready' && row.answer_settled_at !== null)
+    return { state: 'ready', settledAt: new Date(row.answer_settled_at), stored: StoredAnswerSchema.parse(row.answer) };
+  return undefined;
+}
+
+function nodeOf(row: NodeColumns): NodeRow {
+  const answer = answerOf(row);
+  return {
+    nodeId: row.node_id,
+    threadId: row.thread_id,
+    ...(row.parent_node_id === null ? {} : { parentNodeId: row.parent_node_id }),
+    kind: row.kind === 'perspective' ? 'perspective' : 'what_if',
+    origin: originOf(row.origin_kind, row.origin_message_id),
+    ...(row.started_by_account_id === null ? {} : { startedByAccountId: row.started_by_account_id }),
+    title: row.title,
+    ...(row.lens === null ? {} : { lens: row.lens }),
+    changes: Assumptions.parse(row.changes),
+    kept: Assumptions.parse(row.kept),
+    assumptions: Assumptions.parse(row.assumptions),
+    hypothetical: row.hypothetical,
+    speculative: row.speculative,
+    semanticKey: row.semantic_key,
+    status: row.status as NodeRow['status'],
+    revision: row.revision,
+    assetId: row.asset_id,
+    ...(row.asset_revision === null ? {} : { assetRevision: row.asset_revision }),
+    ...(row.asset_title === null ? {} : { assetTitle: row.asset_title }),
+    ...(answer === undefined ? {} : { answer }),
+    createdAt: new Date(row.created_at),
+  };
+}
 
 /** Drafts a member keeps in one thread besides the newest: older unchosen ones are deleted when they start another. */
 const DRAFTS_KEPT_PER_THREAD = 2;
@@ -196,6 +211,7 @@ export const scenarioStore: ScenarioStore = {
         status: 'preparing',
         revision: 1,
         asset_id: node.assetId,
+        answer_state: node.answerMaking ? 'making' : null,
         created_at: node.createdAt,
         updated_at: node.createdAt,
       })
@@ -260,11 +276,33 @@ export const scenarioStore: ScenarioStore = {
   async removeNode(scope, nodeId) {
     const row = await transactionOf(scope)
       .updateTable('scenarios.nodes')
-      .set({ status: 'removed', revision: sql`revision + 1`, updated_at: new Date() })
+      .set({
+        status: 'removed',
+        revision: sql`revision + 1`,
+        updated_at: new Date(),
+        answer_state: null,
+        answer: null,
+        answer_settled_at: null,
+      })
       .where('node_id', '=', nodeId)
       .returningAll()
       .executeTakeFirstOrThrow();
     return nodeOf(row);
+  },
+
+  async finishAnswer(scope, nodeId, settlement, now) {
+    const changed = await transactionOf(scope)
+      .updateTable('scenarios.nodes')
+      .set(
+        settlement.kind === 'ready'
+          ? { answer_state: 'ready', answer: JSON.stringify(settlement.stored), answer_settled_at: now }
+          : { answer_state: 'unavailable', answer: null, answer_settled_at: now },
+      )
+      .where('node_id', '=', nodeId)
+      .where('answer_state', '=', 'making')
+      .where('status', '<>', 'removed')
+      .executeTakeFirst();
+    return changed.numUpdatedRows === 1n;
   },
 };
 
@@ -303,6 +341,39 @@ export function branchPoolStore(db: Kysely<Database>): BranchPoolStore {
               : { status: 'failed' },
           )
           .set({ revision: sql`revision + 1`, updated_at: now })
+          .where('node_id', '=', nodeId)
+          .execute();
+        return { threadId: row.thread_id };
+      });
+    },
+
+    async answersMaking(limit) {
+      const rows = await db
+        .selectFrom('scenarios.nodes')
+        .select(['node_id', 'thread_id', 'created_at'])
+        .where('answer_state', '=', 'making')
+        .orderBy('created_at')
+        .orderBy('node_id')
+        .limit(limit)
+        .execute();
+      return rows.map((row) => ({ nodeId: row.node_id, threadId: row.thread_id, createdAt: new Date(row.created_at) }));
+    },
+
+    async settleAnswerUnavailable(nodeId, now) {
+      return withTransaction(db, 'scenarios.settle-answer', async (trx) => {
+        // A branch another transaction holds (the worker storing its answer, a removal) is left for the next sweep.
+        const row = await trx
+          .selectFrom('scenarios.nodes')
+          .select(['thread_id'])
+          .where('node_id', '=', nodeId)
+          .where('answer_state', '=', 'making')
+          .forUpdate()
+          .skipLocked()
+          .executeTakeFirst();
+        if (row === undefined) return undefined;
+        await trx
+          .updateTable('scenarios.nodes')
+          .set({ answer_state: 'unavailable', answer: null, answer_settled_at: now })
           .where('node_id', '=', nodeId)
           .execute();
         return { threadId: row.thread_id };

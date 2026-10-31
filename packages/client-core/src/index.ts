@@ -109,6 +109,19 @@ export {
   type MapView,
 } from './scenario-map';
 export {
+  ANSWER_WAIT_WORDS,
+  THREAD_DAILY_BRANCH_CAP,
+  WHAT_IF_MADE_BY,
+  answerLabel,
+  answerStage,
+  answersKey,
+  awaitingServer,
+  branchesMadeToday,
+  madeInSeconds,
+  threadMadeAllToday,
+  type AnswerStage,
+} from './scenario-answers';
+export {
   chipText,
   createScenarioBoard,
   createScenarioComposer,

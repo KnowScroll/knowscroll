@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { kindedTitle, type MapRow } from '@knowscroll/client-core';
 import { borderWidth, content, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Icon, Text } from '@knowscroll/ui';
-import { SPECULATIVE_NOTICE } from './branch-card';
+import { SPECULATIVE_NOTICE } from './branch-parts';
 
 const INDENT = spacing[4];
 

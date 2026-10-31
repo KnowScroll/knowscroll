@@ -1,4 +1,10 @@
-import { ScenarioCardSchema, type PublicPersonRef, type ScenarioCard } from '@knowscroll/contracts';
+import {
+  ScenarioCardSchema,
+  type PublicPersonRef,
+  type ScenarioAnswer,
+  type ScenarioCard,
+} from '@knowscroll/contracts';
+import { readableAnswerOf } from '../domain/answer-card.js';
 import type { NodeRow } from './ports.js';
 
 /**
@@ -25,6 +31,19 @@ function removedCardOf(node: NodeRow): ScenarioCard {
   });
 }
 
+/** The short answer as the thread reads it: a wait, nothing coming, or the checked card without its citations. */
+function answerOf(node: NodeRow): ScenarioAnswer | undefined {
+  const { answer } = node;
+  if (answer === undefined) return undefined;
+  if (answer.state !== 'ready') return { status: answer.state };
+  return {
+    status: 'ready',
+    madeBy: 'knowscroll',
+    ...readableAnswerOf(answer.stored),
+    readyAt: answer.settledAt.toISOString(),
+  };
+}
+
 /**
  * A branch as its card in the thread. `startedBy` is the person while they still take part; for
  * anyone else, including a deleted account, it is absent and the card says nothing about who. Nothing
@@ -49,6 +68,7 @@ export function cardOf(node: NodeRow, people: ReadonlyMap<string, PublicPersonRe
     ...(startedBy === undefined ? {} : { startedBy }),
     status: node.status,
     revision: node.revision,
+    ...(node.answer === undefined ? {} : { answer: answerOf(node) }),
     ...(node.status === 'ready' && node.assetRevision !== undefined && node.assetTitle !== undefined
       ? {
           content: { kind: 'scroll', assetId: node.assetId, assetRevision: node.assetRevision, title: node.assetTitle },

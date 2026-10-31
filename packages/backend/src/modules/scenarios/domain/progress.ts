@@ -1,6 +1,16 @@
 /** How long a branch may stay preparing before it closes as unable to prepare. */
 export const BRANCH_WAIT_LIMIT_MS = 30 * 60_000;
 
+/**
+ * How long a short answer may stay in the making before the thread is told there will be none. It is about 30
+ * seconds when it goes well; the longest a model attempt and its one repair can take is longer than this, and the
+ * answer that arrives after the wait was ended is dropped (D-211).
+ */
+export const ANSWER_WAIT_LIMIT_MS = 4 * 60_000;
+
+/** Whether a short answer that has been in the making for `ageMs` is given up on. Pure. */
+export const answerWaitOver = (ageMs: number): boolean => ageMs >= ANSWER_WAIT_LIMIT_MS;
+
 /** Where an order's production stands, as content reports it. */
 export interface ProductionStanding {
   /** `held` is a library recipe's state at the review gate (D-138); an order never reaches it, and if it did nothing here could produce it. */

@@ -3,6 +3,7 @@ import {
   AssumptionSchema,
   ChooseScenarioSchema,
   MAX_SCENARIO_TEXT,
+  ScenarioAnswerSchema,
   ScenarioCardSchema,
   MAX_SCENARIO_SUGGESTIONS,
   ScenarioDraftViewSchema,
@@ -219,5 +220,57 @@ describe('what the member was offered and has not made', () => {
     expect(
       ScenarioListSchema.safeParse({ version: 'scenario.v1', readId: id(9), scope, status: 'unavailable' }).success,
     ).toBe(true);
+  });
+});
+
+describe('the short answer of a what-if (D-211)', () => {
+  const ready = {
+    status: 'ready',
+    madeBy: 'knowscroll',
+    assumption: 'We read “ten times the traffic” as ten times the requests each second.',
+    answer:
+      'Each instance would see about ten times the requests, so waiting would likely grow unless more instances join.',
+    numbers: [{ label: 'Typical answer time', value: 'about 200 ms' }],
+    readyAt: '2026-10-24T10:00:30.000Z',
+  };
+  const card = {
+    nodeId: id(8),
+    kind: 'what_if',
+    origin: 'root',
+    title: 'What happens at ten times the traffic?',
+    changes: [traffic],
+    kept: [],
+    hypothetical: true,
+    speculative: false,
+    assumptions: [traffic],
+    startedBy: person,
+    status: 'preparing',
+    revision: 1,
+    createdAt: '2026-10-24T10:00:00.000Z',
+  };
+
+  it('is making, unavailable or ready, and a card may carry it or not', () => {
+    for (const answer of [{ status: 'making' }, { status: 'unavailable' }, ready])
+      expect(ScenarioCardSchema.safeParse({ ...card, answer }).success, JSON.stringify(answer)).toBe(true);
+    expect(ScenarioCardSchema.safeParse(card).success).toBe(true);
+  });
+
+  it('is always labelled as made by KnowScroll and never ready without its assumption line', () => {
+    expect(ScenarioAnswerSchema.safeParse({ ...ready, madeBy: 'someone' }).success).toBe(false);
+    const { madeBy: _label, ...unlabelled } = ready;
+    expect(ScenarioAnswerSchema.safeParse(unlabelled).success).toBe(false);
+    const { assumption: _line, ...withoutAssumption } = ready;
+    expect(ScenarioAnswerSchema.safeParse(withoutAssumption).success).toBe(false);
+    expect(ScenarioAnswerSchema.safeParse({ ...ready, assumption: '' }).success).toBe(false);
+  });
+
+  it('is plain text, at most three figures, and carries no sources, scores or model fields', () => {
+    expect(
+      ScenarioAnswerSchema.safeParse({ ...ready, answer: 'See https://example.com for why this holds up.' }).success,
+    ).toBe(false);
+    expect(ScenarioAnswerSchema.safeParse({ ...ready, numbers: Array(4).fill(ready.numbers[0]) }).success).toBe(false);
+    for (const extra of [{ sources: ['e1'] }, { cites: ['e1'] }, { model: 'x' }, { score: 0.9 }, { prompt: 'x' }])
+      expect(ScenarioAnswerSchema.safeParse({ ...ready, ...extra }).success, JSON.stringify(extra)).toBe(false);
+    expect(ScenarioAnswerSchema.safeParse({ status: 'making', model: 'x' }).success).toBe(false);
   });
 });
