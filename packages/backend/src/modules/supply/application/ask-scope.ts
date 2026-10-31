@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ProposeOutcome, ReasoningContext, ReasoningRole } from '../../../reasoning/public.js';
-import { PLANETS, catalogueItems, matchVerdict, type MatchAnswer, type MatchVerdict } from './match-role.js';
+import { PLANETS, catalogueItems, matchVerdict, type MatchVerdict } from './match-role.js';
 
 /** Changes with the instructions or the answer schema; recorded on every run and attempt. */
 export const ASK_SCOPE_ROLE_VERSION = 'ask-scope.1';
@@ -87,7 +87,7 @@ export type AskScopeVerdict = MatchVerdict | { readonly kind: 'here'; readonly e
  * of unknown outcome is never resent, and its run is left open.
  */
 export function askScopeVerdict(outcome: ProposeOutcome<AskScopeAnswer>): AskScopeVerdict {
-  if (outcome.kind !== 'proposed') return matchVerdict(outcome as ProposeOutcome<MatchAnswer>);
+  if (outcome.kind !== 'proposed') return matchVerdict(outcome);
   const { scope, topicId, facetId } = outcome.output;
   if (scope === 'here') return { kind: 'here', end: 'completed' };
   if (scope === 'none' || topicId === null) return { kind: 'no_topic', end: 'completed' };

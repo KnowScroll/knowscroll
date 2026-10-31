@@ -16,7 +16,6 @@ const scroll: OpenedStageScroll = {
   degradedEssential: [],
 };
 const calls = document.stops.filter((stop): stop is CallItStop => stop.kind === 'call_it');
-const first = calls[0]!;
 const last = document.stops.at(-1)!.id;
 
 /** A play layer that judges a lock the way the device does, and keeps it in memory. */

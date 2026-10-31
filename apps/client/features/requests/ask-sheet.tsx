@@ -112,7 +112,7 @@ export function AskSheet({
       // A single-character key acts only while focus is in this sheet (WCAG 2.1.4). The question box takes focus when the
       // sheet opens, so a digit picks a suggestion while it is empty and is typed once there is text.
       const typing = target?.tagName === 'INPUT' || (target instanceof HTMLTextAreaElement && target.value.length > 0);
-      if (event.metaKey || event.ctrlKey || event.altKey || typing || target?.closest('[role="dialog"]') == null)
+      if (event.metaKey || event.ctrlKey || event.altKey || typing || (target?.closest('[role="dialog"]') ?? null) === null)
         return;
       const question = Number.isInteger(number) ? suggestions[number - 1] : undefined;
       if (question === undefined) return;

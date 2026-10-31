@@ -86,7 +86,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 5000 });
 
   /** Composes the use cases with the given daily caps, the way the worker's providers do. */
-  async function build(caps: { perDay: number; perPerson: number } = { perDay: 20, perPerson: 5 }) {
+  function build(caps: { perDay: number; perPerson: number } = { perDay: 20, perPerson: 5 }) {
     const SCOPE = Symbol('scope');
     const ENQUEUE = Symbol('enqueue');
     const CONFIG = Symbol('config');
@@ -172,7 +172,7 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     scopeScript = () => scopeAnswer('here');
     scopeModel = fixtureModel(() => scopeScript(), { label: 'supply-ask-scope-CI-fixture' });
     production = fixtureProductionWorker(database, () => writer());
-    await build(caps);
+    build(caps);
   }
 
   /** A person who has opened and is reading the source Scroll, so they may ask from it. */

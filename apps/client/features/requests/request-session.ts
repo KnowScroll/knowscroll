@@ -442,9 +442,11 @@ export function createRequestSession(
       if (state.phase === 'retry_unknown') void runRetry();
     },
     startAgain() {
-      if (valid() && !['sending', 'send_unknown', 'cancelling', 'cancel_unknown'].includes(state.phase))
+      if (valid() && !['sending', 'send_unknown', 'cancelling', 'cancel_unknown'].includes(state.phase)) {
         // Asking again from where the person is keeps the question's kind: a question about this Scroll stays one.
-        state.mode === 'ask' ? reset('ask', state.anchor) : reset('topic');
+        if (state.mode === 'ask') reset('ask', state.anchor);
+        else reset('topic');
+      }
     },
     async openReady() {
       if (!valid() || !visible || state.phase !== 'accepted' || state.status?.status !== 'ready') return false;

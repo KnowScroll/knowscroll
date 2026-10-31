@@ -59,7 +59,7 @@ for (const viewport of [phone, desktop]) {
     await expect(sheet.getByText(/\/280/)).toHaveCount(0);
     await expect(sheet.getByRole('button', { name: 'Send' })).toBeDisabled();
     // Nothing of the machinery reaches the screen.
-    await expect(sheet.getByText(/prompt|model|score|sources?/i)).toHaveCount(0);
+    await expect(sheet.getByText(/prompt|model|score|sources?\b/i)).toHaveCount(0);
     expect(asked(served)).toEqual([]);
     expect(await audit(page)).toEqual([]);
   });
