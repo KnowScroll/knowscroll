@@ -34,11 +34,28 @@ describe('the starlight picture agrees with the physics', () => {
       expect(channel(hotter, 5) - channel(hotter, 1)).toBeGreaterThanOrEqual(channel(cooler, 5) - channel(cooler, 1));
       expect(scene.peakX[index - 1] ?? 0).toBeLessThan(scene.peakX[index] ?? 0);
     }
-    expect(strengthenColour('#808080')).toBe('#808080');
-    expect(channel(strengthenColour('#ffc88c'), 1)).toBe(255);
-    expect(channel(strengthenColour('#ffc88c'), 5)).toBeLessThan(channel('#ffc88c', 5));
     expect(stripX(150)).toBe(20);
     expect(stripX(850)).toBe(300);
+  });
+
+  it('keeps each star’s hue when it strengthens the colour: a cool star stays red-orange, the Sun near white, a hot star blue', () => {
+    const drawn = (kind: (typeof HOTTEST_FIRST)[number]) => {
+      const hex = starlightSceneOf(state({})).colours[HOTTEST_FIRST.indexOf(kind)] ?? '#000000';
+      return { red: channel(hex, 1), green: channel(hex, 3), blue: channel(hex, 5) };
+    };
+    const giant = drawn('giant');
+    expect(giant.red).toBe(255);
+    expect(giant.green).toBeLessThan(0.65 * giant.red);
+    expect(giant.green).toBeGreaterThan(0.4 * giant.red);
+    expect(giant.blue).toBeLessThan(0.35 * giant.red);
+    const lowMass = drawn('low-mass');
+    expect(lowMass.green).toBeLessThan(0.7 * lowMass.red);
+    const sun = drawn('sun-like');
+    expect(Math.min(sun.red, sun.green, sun.blue)).toBeGreaterThanOrEqual(0.75 * 255);
+    const dwarf = drawn('white-dwarf');
+    expect(dwarf.blue).toBe(255);
+    expect(dwarf.red).toBeLessThan(0.4 * dwarf.blue);
+    expect(strengthenColour('#ffd4a6')).toBe('#ff9346');
   });
 
   it('places the stars on the chart where their temperature and output say: hotter to the left, giants above the band, white dwarfs below', () => {

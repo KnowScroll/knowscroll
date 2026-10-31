@@ -209,7 +209,7 @@ describe('settling and describing a black-hole state', () => {
     expect(text({ view: 'horizon' })).toContain('four times the mass means a horizon four times as wide');
     expect(text({ view: 'horizon' })).toContain('about three kilometres from the centre for each Sun’s mass');
     expect(text({ view: 'waves', merger: 'close' })).toContain('stronger and quicker');
-    expect(text({ view: 'shadow' })).toContain('about two and a half times as wide as the horizon');
+    expect(text({ view: 'shadow' })).toContain('about two and six-tenths times as wide as the horizon');
   });
 
   it('never says what the picture does not draw or what is not known', () => {

@@ -252,8 +252,8 @@ export function blackHolePhysics(state: Pick<BlackHoleState, 'star' | 'hole' | '
 const formationSentence = (state: BlackHoleState, physics: FormationPhysics): string[] => {
   const massive = state.star === 'massive';
   const intro = massive
-    ? 'The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way.'
-    : 'The end of a star like the Sun, shown to compare. A star like the Sun is too light to collapse into a black hole and will not become one.';
+    ? 'The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. Not to scale, and star colours are strengthened.'
+    : 'The end of a star like the Sun, shown to compare. A star like the Sun is too light to collapse into a black hole and will not become one. Not to scale, and star colours are strengthened.';
   const step: Readonly<Record<LifeStage, string>> = {
     fusing: 'In the middle of its life hydrogen fuses in its core, and the pressure from that energy balances gravity.',
     'fuel-out': massive
@@ -275,11 +275,11 @@ const horizonSentences = (state: BlackHoleState): string[] => [
 ];
 
 const PULL_SENTENCES = [
-  'A star and a black hole of the same mass, with the same pull on a faraway object. Far from either, gravity depends only on the mass and the distance, so a black hole does not pull harder than a star of its mass, and it does not suck in everything around it. Near the horizon it is very different. Not to scale: the black hole is far smaller than the star.',
+  'A star and a black hole of the same mass, with the same pull on a faraway object. Far from either, gravity depends only on the mass and the distance, so a black hole does not pull harder than a star of its mass, and it does not suck in everything around it. Near the horizon it is very different. Not to scale: the black hole is far smaller than the star. Star colours are strengthened.',
 ];
 
 const ORBITS_SENTENCES = [
-  'Three stars circling a point where nothing shines, on orbits drawn as circles for simplicity. The nearer a star is to the centre, the faster it moves, and all three orbits follow from one large mass hidden there.',
+  'Three stars circling a point where nothing shines, on orbits drawn as circles for simplicity. The nearer a star is to the centre, the faster it moves, and all three orbits follow from one large mass hidden there. Star colours are strengthened.',
 ];
 
 const DISC_SENTENCES = [
@@ -296,7 +296,7 @@ const MERGER_SENTENCES: Readonly<Record<MergerStage, string>> = {
 };
 
 const SHADOW_SENTENCES = [
-  'A bright ring of glowing gas round a dark patch, as in images made with a network of radio telescopes. The dark patch is the black hole’s shadow: light from behind it that passes this close is bent into the hole. The shadow is about two and a half times as wide as the horizon, which lies inside it, so it is not the horizon itself.',
+  'A bright ring of glowing gas round a dark patch, as in images made with a network of radio telescopes. The dark patch is the black hole’s shadow: light from behind it that passes this close is bent into the hole. The shadow is about two and six-tenths times as wide as the horizon, which lies inside it, so it is not the horizon itself.',
 ];
 
 /** Said of every clue that astronomers read: the clues together make the case, none alone does. */

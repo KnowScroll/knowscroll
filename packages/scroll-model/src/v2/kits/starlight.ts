@@ -291,7 +291,7 @@ export function starlightPhysics(state: Pick<StarlightState, 'star' | 'distance'
 const STAR_NAME: Readonly<Record<StarKind, string>> = {
   'low-mass': 'a low-mass star',
   'sun-like': 'a star like the Sun',
-  bright: 'a brighter, hotter star than the Sun',
+  bright: 'a brighter, hotter star',
   giant: 'a red giant',
   'white-dwarf': 'a white dwarf',
 };
@@ -307,7 +307,7 @@ function colourSentences(state: StarlightState): string[] {
 
 function outputSentences(state: StarlightState, physics: StarlightPhysics): string[] {
   const intro =
-    'A star drawn beside a star like the Sun, on a stretched scale. Three bars compare them, each step on the bars being ten times: the area of its surface, the light each patch of surface gives out (which rises steeply with temperature) and its total output, which is the two together.';
+    'A star drawn beside a star like the Sun, on a stretched scale. Three bars compare them, each step on the bars being ten times: the area of its surface, the light each patch of surface gives out (which rises steeply with temperature) and its total output, which is the two together. Colours are strengthened.';
   if (state.star === 'sun-like') return [intro, 'It is the star like the Sun itself, so every bar sits at the middle.'];
   const larger = physics.sizeDex > 0;
   const hotter = physics.heatDex > 0;
@@ -332,7 +332,7 @@ const FRAME_WORDS: Readonly<Record<StarlightDistance, string>> = {
 function dimmingSentences(state: StarlightState, physics: StarlightPhysics): string[] {
   const looks = SHARE_WORDS[physics.distanceSteps ** 2] ?? '';
   return [
-    'A star at the left and three square frames at growing distances. The farther the frame, the wider it is, so the same light is spread over more squares and one square catches less: a quarter at twice the distance, a sixteenth at four times.',
+    'A star at the left and three square frames at growing distances. The farther the frame, the wider it is, so the same light is spread over more squares and one square catches less: a quarter at twice the distance, a sixteenth at four times. Colours are strengthened.',
     `The ${FRAME_WORDS[state.distance]} frame is marked: there a square catches ${looks} of the light it catches nearest, though the star gives out just as much.`,
   ];
 }
@@ -345,15 +345,15 @@ const GROUP_WORDS: Readonly<Record<StarGroup, string>> = {
 
 function diagramSentences(state: StarlightState, physics: StarlightPhysics): string[] {
   return [
-    'A chart of stars: temperature along the bottom, hotter to the left, and the light each gives out up the side, both on stretched scales. Most stars lie on a diagonal band, the main sequence; giants lie above it and white dwarfs below. Five stars are drawn. A star’s place suggests its kind and stage; colour alone does not give its age.',
+    'A chart of stars: temperature along the bottom, hotter to the left, and the light each gives out up the side, both on stretched scales. Most stars lie on a diagonal band, the main sequence; giants lie above it and white dwarfs below. Five stars are drawn. A star’s place suggests its kind and stage; colour alone does not give its age. Colours are strengthened.',
     `${capital(STAR_NAME[state.star])} is marked: it lies ${GROUP_WORDS[physics.star.group]}.`,
   ];
 }
 
 const ORBIT_WORDS: Readonly<Record<Exclude<PlanetOrbit, 'none'>, string>> = {
   inner: 'about as close as Mercury is to the Sun',
-  earth: 'as far from its star as Earth is from the Sun',
-  outer: 'four times as far as Earth is from the Sun',
+  earth: 'at Earth’s distance from the Sun',
+  outer: 'four times Earth’s distance from the Sun',
 };
 
 const VERDICT_WORDS: Readonly<Record<ZoneVerdict, string>> = {
@@ -364,7 +364,7 @@ const VERDICT_WORDS: Readonly<Record<ZoneVerdict, string>> = {
 
 function zoneSentences(state: StarlightState, physics: StarlightPhysics): string[] {
   const intro =
-    'The habitable zones of three stars, along a scale of distance from the star. A zone is the band where a planet’s surface could hold liquid water, if its air and other conditions allow. The brighter and hotter the star, the farther out its zone and the wider it is.';
+    'Three stars’ habitable zones along a scale of distance. A zone is the band where a planet’s surface could hold liquid water, if its air and other conditions allow. The brighter and hotter the star, the farther out and the wider its zone. Zone edges are illustrative; colours are strengthened.';
   const planet =
     physics.planet === undefined || state.orbit === 'none'
       ? ''
@@ -420,6 +420,6 @@ export const STARLIGHT_KIT_DEFINITION = defineKit({
   writerGuide: [
     'Code draws the picture from a fixed kit: five kinds of star in their colours over the spectrum, one star compared with a star like the Sun by size, heat and total output, light thinning with distance, a chart of stars by temperature and output, and the habitable zones of three stars with a planet’s orbit. You choose only the view, the kind of star, the distance, the orbit and the part to look at, from the listed words. Code decides everything else: each star’s colour comes from its surface temperature, its output from its size and temperature together, the dimming from the distance, and the zones from the stars’ output. So the star you choose is a claim the picture makes: choose the one that matches what the stop says.',
     '- The views: "colour" shows five stars from cool to hot over the spectrum, with where each shines most strongly, and marks the one you choose with "star"; "output" shows one star beside a star like the Sun with bars for its size, its heat and its total output; "dimming" shows a star and three frames at one, two and four steps ("distance" is "near", "middle" or "far"), and does not use "star"; "diagram" shows the five stars on the chart of temperature against output, the main sequence and the giants and white dwarfs; "zone" shows the habitable zones of a low-mass star, a star like the Sun and a brighter, hotter one, and a planet at an "orbit": "none", "inner" (about as close as Mercury), "earth" (as far as Earth) or "outer" (four times as far as Earth). The stars: "low-mass", "sun-like", "bright" (brighter and hotter than the Sun), "giant" (a red giant) and "white-dwarf". In "zone" only the first three have a zone, and a giant or a white dwarf is shown as a star like the Sun. A key a view does not use is ignored.',
-    '- A habitable zone is where liquid water could exist on a surface, not where life exists or where a planet is habitable. Say "could have liquid water", never that a planet in the zone has water, an atmosphere or life. The picture draws no year, no named star and no real planet: its stars and orbits are illustrative. Colour alone does not give a star’s age, and not every main-sequence star is alike.',
+    '- A habitable zone is where liquid water could exist on a surface, not where life exists or where a planet is habitable. Say "could have liquid water", never that a planet in the zone has water, an atmosphere or life. The picture draws no year, no named star and no real planet: its stars and orbits are illustrative. Colour alone does not give a star’s age, and not every main-sequence star is alike. The Sun looks white from space: never call it a yellow star. The picture’s colours are strengthened and the edges of its zones are illustrative, so give no figure for either.',
   ],
 });

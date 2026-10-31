@@ -70,6 +70,11 @@ export interface BlackHoleScene {
   readonly view: BlackHoleView;
   readonly parts: readonly BlackHolePart[];
   readonly focus: BlackHoleState['focus'];
+  /** The colours the stars are drawn in, from their surface temperatures and strengthened like the starlight kit's: a massive star, a star like the Sun, a red giant and a white dwarf. */
+  readonly massiveColour: string;
+  readonly sunColour: string;
+  readonly giantColour: string;
+  readonly dwarfColour: string;
   /** `formation`: 1 for the massive star, 0 for one like the Sun; the stage (0 to 2); the star's drawn radius, its core's and the strength of gravity and the pressure. */
   readonly massive: number;
   readonly stageIndex: number;
@@ -124,6 +129,14 @@ export function chirpWave(): readonly number[] {
 
 const CHIRP = chirpWave();
 
+/** The drawn colours of the stars: a massive main-sequence star's surface is tens of thousands of kelvins, a red giant's about four thousand. */
+const STAR_COLOURS = {
+  massive: strengthenColour(blackbodyColour(25000)),
+  sun: strengthenColour(blackbodyColour(5772)),
+  giant: strengthenColour(blackbodyColour(4000)),
+  dwarf: strengthenColour(blackbodyColour(15000)),
+} as const;
+
 /** Where the graph has reached for a stage of the merger, as a share of its width. */
 function nowShareOf(merger: BlackHoleState['merger']): number {
   return merger === 'merged' ? 1 : (1 - TIME_TO_MERGER[merger]) / WAVES.ringdownEnd;
@@ -143,6 +156,10 @@ export function blackHoleSceneOf(state: BlackHoleState): BlackHoleScene {
     view: state.view,
     parts: blackHoleParts(state),
     focus: state.focus,
+    massiveColour: STAR_COLOURS.massive,
+    sunColour: STAR_COLOURS.sun,
+    giantColour: STAR_COLOURS.giant,
+    dwarfColour: STAR_COLOURS.dwarf,
     massive: state.star === 'massive' ? 1 : 0,
     stageIndex,
     starRadiusPx: swollen ? 54 : 40,
@@ -160,7 +177,7 @@ export function blackHoleSceneOf(state: BlackHoleState): BlackHoleScene {
     ringPx: DISC_RINGS.slice(1).map((rings) => rings * innerEdge),
     ringInnerPx: DISC_RINGS.slice(0, -1).map((rings) => rings * innerEdge),
     ringColours: DISC_RINGS.slice(0, -1).map((rings) =>
-      strengthenColour(blackbodyColour(discKelvins(rings) / FALSE_COLOUR_DIVISOR), 1.6),
+      strengthenColour(blackbodyColour(discKelvins(rings) / FALSE_COLOUR_DIVISOR), 2),
     ),
     diskHolePx: innerEdge / DISC_INNER_EDGE_IN_HORIZON_RADII,
     separationPx: merged ? 0 : 90 * separationAt(physics.mergerTime),

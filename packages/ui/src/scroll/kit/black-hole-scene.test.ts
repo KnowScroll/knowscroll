@@ -31,7 +31,7 @@ describe('the black-hole picture agrees with the physics', () => {
     expect(scene({ view: 'horizon', hole: 'small' }).largeMarked).toBe(0);
   });
 
-  it('draws the shadow about two and a half times the horizon, and the horizon inside it', () => {
+  it('draws the shadow about two and six-tenths times the horizon, and the horizon inside it', () => {
     const shadow = scene({ view: 'shadow' });
     expect(shadow.shadowPx / shadow.shadowHorizonPx).toBeCloseTo((3 * Math.sqrt(3)) / 2, 12);
     expect(shadow.shadowHorizonPx).toBeLessThan(shadow.shadowPx);

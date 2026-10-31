@@ -36,21 +36,23 @@ function settledStates(kit: StageKitId): WordState[] {
 
 const CLAIMS: Readonly<Record<'starlight.v1' | 'black-hole.v1', readonly (readonly [RegExp, RegExp])[]>> = {
   'starlight.v1': [
-    [/Colours are strengthened/u, /COLOURS STRENGTHENED/u],
+    [/colours are strengthened/iu, /COLOURS STRENGTHENED/u],
     [/on a stretched scale|both on stretched scales/u, /STRETCHED/u],
-    [/along a scale of distance from the star/u, /DISTANCE FROM THE STAR/u],
+    [/along a scale of distance/u, /DISTANCE FROM THE STAR/u],
     [/inside the zone for/u, /IN THE ZONE/u],
     [/too hot for/u, /TOO HOT/u],
     [/too cold for/u, /TOO COLD/u],
     [/main sequence/u, /MAIN SEQUENCE/u],
     [/white dwarfs below/u, /WHITE DWARFS/u],
     [/Three bars compare/u, /TOTAL OUTPUT/u],
+    [/zone edges are illustrative/iu, /ZONE EDGES ILLUSTRATIVE/u],
   ],
   'black-hole.v1': [
     [/false colour/u, /FALSE COLOUR/u],
     [/not to scale/iu, /NOT TO SCALE/u],
     [/so it is not the horizon itself/u, /NOT THE HORIZON ITSELF/u],
     [/graph of wave strength/u, /WAVE STRENGTH/u],
+    [/star colours are strengthened/iu, /COLOURS STRENGTHENED/u],
     [/drawn as circles for simplicity/u, /ORBITS DRAWN AS CIRCLES/u],
     [/Nothing shines|where nothing shines/u, /NOTHING SHINES/u],
     [/can be a black hole/u, /A BLACK HOLE CAN FORM/u],

@@ -39,7 +39,7 @@
           "orbit": "none",
           "focus": "size"
         },
-        "alt": "A star drawn beside a star like the Sun, on a stretched scale. Three bars compare them, each step on the bars being ten times: the area of its surface, the light each patch of surface gives out (which rises steeply with temperature) and its total output, which is the two together. A red giant is larger and its surface is cooler. Its size counts for more, so its total output is far greater. The picture draws the eye to the bar for size."
+        "alt": "A star drawn beside a star like the Sun, on a stretched scale. Three bars compare them, each step on the bars being ten times: the area of its surface, the light each patch of surface gives out (which rises steeply with temperature) and its total output, which is the two together. Colours are strengthened. A red giant is larger and its surface is cooler. Its size counts for more, so its total output is far greater. The picture draws the eye to the bar for size."
       },
       {
         "stop": "dwarf",
@@ -50,7 +50,7 @@
           "orbit": "none",
           "focus": "output"
         },
-        "alt": "A star drawn beside a star like the Sun, on a stretched scale. Three bars compare them, each step on the bars being ten times: the area of its surface, the light each patch of surface gives out (which rises steeply with temperature) and its total output, which is the two together. A white dwarf is smaller and its surface is hotter. Its size counts for more, so its total output is far less. The picture draws the eye to the bar for total output."
+        "alt": "A star drawn beside a star like the Sun, on a stretched scale. Three bars compare them, each step on the bars being ten times: the area of its surface, the light each patch of surface gives out (which rises steeply with temperature) and its total output, which is the two together. Colours are strengthened. A white dwarf is smaller and its surface is hotter. Its size counts for more, so its total output is far less. The picture draws the eye to the bar for total output."
       },
       {
         "stop": "dimming",
@@ -61,7 +61,7 @@
           "orbit": "none",
           "focus": "looks"
         },
-        "alt": "A star at the left and three square frames at growing distances. The farther the frame, the wider it is, so the same light is spread over more squares and one square catches less: a quarter at twice the distance, a sixteenth at four times. The middle frame is marked: there a square catches a quarter of the light it catches nearest, though the star gives out just as much. The picture draws the eye to the marked frame."
+        "alt": "A star at the left and three square frames at growing distances. The farther the frame, the wider it is, so the same light is spread over more squares and one square catches less: a quarter at twice the distance, a sixteenth at four times. Colours are strengthened. The middle frame is marked: there a square catches a quarter of the light it catches nearest, though the star gives out just as much. The picture draws the eye to the marked frame."
       },
       {
         "stop": "chart",
@@ -72,7 +72,7 @@
           "orbit": "none",
           "focus": "main-sequence"
         },
-        "alt": "A chart of stars: temperature along the bottom, hotter to the left, and the light each gives out up the side, both on stretched scales. Most stars lie on a diagonal band, the main sequence; giants lie above it and white dwarfs below. Five stars are drawn. A star’s place suggests its kind and stage; colour alone does not give its age. A star like the Sun is marked: it lies on the main sequence. The picture draws the eye to the main sequence."
+        "alt": "A chart of stars: temperature along the bottom, hotter to the left, and the light each gives out up the side, both on stretched scales. Most stars lie on a diagonal band, the main sequence; giants lie above it and white dwarfs below. Five stars are drawn. A star’s place suggests its kind and stage; colour alone does not give its age. Colours are strengthened. A star like the Sun is marked: it lies on the main sequence. The picture draws the eye to the main sequence."
       },
       {
         "stop": "zone",
@@ -83,7 +83,7 @@
           "orbit": "none",
           "focus": "zone"
         },
-        "alt": "The habitable zones of three stars, along a scale of distance from the star. A zone is the band where a planet’s surface could hold liquid water, if its air and other conditions allow. The brighter and hotter the star, the farther out its zone and the wider it is. A star like the Sun is marked. A planet inside a zone is not thereby a planet with water or life. The picture draws the eye to the zone."
+        "alt": "Three stars’ habitable zones along a scale of distance. A zone is the band where a planet’s surface could hold liquid water, if its air and other conditions allow. The brighter and hotter the star, the farther out and the wider its zone. Zone edges are illustrative; colours are strengthened. A star like the Sun is marked. A planet inside a zone is not thereby a planet with water or life. The picture draws the eye to the zone."
       },
       {
         "stop": "earth",
@@ -94,7 +94,7 @@
           "orbit": "earth",
           "focus": "planet"
         },
-        "alt": "The habitable zones of three stars, along a scale of distance from the star. A zone is the band where a planet’s surface could hold liquid water, if its air and other conditions allow. The brighter and hotter the star, the farther out its zone and the wider it is. A planet as far from its star as Earth is from the Sun is too cold for the low-mass star, inside the zone for the star like the Sun and too hot for the brighter one. A star like the Sun is marked. A planet inside a zone is not thereby a planet with water or life. The picture draws the eye to the planet."
+        "alt": "Three stars’ habitable zones along a scale of distance. A zone is the band where a planet’s surface could hold liquid water, if its air and other conditions allow. The brighter and hotter the star, the farther out and the wider its zone. Zone edges are illustrative; colours are strengthened. A planet at Earth’s distance from the Sun is too cold for the low-mass star, inside the zone for the star like the Sun and too hot for the brighter one. A star like the Sun is marked. A planet inside a zone is not thereby a planet with water or life. The picture draws the eye to the planet."
       }
     ]
   },
@@ -279,6 +279,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "6dcc8d9fc76183cf4927ea769f112a9f6271d593e1b32a65d89711f537441b8a"
+    "sha256": "f3eb76ae9a7f06b480f08ecad3a7054159ad37e4f3a5d9b12e986316682a2dfd"
   }
 }

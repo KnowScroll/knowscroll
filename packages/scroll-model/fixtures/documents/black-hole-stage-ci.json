@@ -29,7 +29,7 @@
           "merger": "apart",
           "focus": "none"
         },
-        "alt": "The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. In the middle of its life hydrogen fuses in its core, and the pressure from that energy balances gravity."
+        "alt": "The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. Not to scale, and star colours are strengthened. In the middle of its life hydrogen fuses in its core, and the pressure from that energy balances gravity."
       },
       {
         "stop": "fuel",
@@ -41,7 +41,7 @@
           "merger": "apart",
           "focus": "core"
         },
-        "alt": "The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. Its core fuel used up, the pressure that held the core up falls away and gravity wins: the core collapses inward. The picture draws the eye to the core."
+        "alt": "The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. Not to scale, and star colours are strengthened. Its core fuel used up, the pressure that held the core up falls away and gravity wins: the core collapses inward. The picture draws the eye to the core."
       },
       {
         "stop": "end",
@@ -53,7 +53,7 @@
           "merger": "apart",
           "focus": "remnant"
         },
-        "alt": "The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. The collapse throws off the star’s outer layers in a supernova explosion, and what is left of the core can be a black hole. The picture draws the eye to what is left."
+        "alt": "The end of a star many times the Sun’s mass. Only a star above about eight times the Sun’s mass ends this way. Not to scale, and star colours are strengthened. The collapse throws off the star’s outer layers in a supernova explosion, and what is left of the core can be a black hole. The picture draws the eye to what is left."
       },
       {
         "stop": "edge",
@@ -89,7 +89,7 @@
           "merger": "apart",
           "focus": "hole"
         },
-        "alt": "A star and a black hole of the same mass, with the same pull on a faraway object. Far from either, gravity depends only on the mass and the distance, so a black hole does not pull harder than a star of its mass, and it does not suck in everything around it. Near the horizon it is very different. Not to scale: the black hole is far smaller than the star. The picture draws the eye to the black hole."
+        "alt": "A star and a black hole of the same mass, with the same pull on a faraway object. Far from either, gravity depends only on the mass and the distance, so a black hole does not pull harder than a star of its mass, and it does not suck in everything around it. Near the horizon it is very different. Not to scale: the black hole is far smaller than the star. Star colours are strengthened. The picture draws the eye to the black hole."
       },
       {
         "stop": "orbits",
@@ -101,7 +101,7 @@
           "merger": "apart",
           "focus": "centre"
         },
-        "alt": "Three stars circling a point where nothing shines, on orbits drawn as circles for simplicity. The nearer a star is to the centre, the faster it moves, and all three orbits follow from one large mass hidden there. This is one clue to a black hole, but it does not prove one by itself. The picture draws the eye to the centre of the orbits."
+        "alt": "Three stars circling a point where nothing shines, on orbits drawn as circles for simplicity. The nearer a star is to the centre, the faster it moves, and all three orbits follow from one large mass hidden there. Star colours are strengthened. This is one clue to a black hole, but it does not prove one by itself. The picture draws the eye to the centre of the orbits."
       },
       {
         "stop": "disc",
@@ -137,7 +137,7 @@
           "merger": "apart",
           "focus": "shadow"
         },
-        "alt": "A bright ring of glowing gas round a dark patch, as in images made with a network of radio telescopes. The dark patch is the black hole’s shadow: light from behind it that passes this close is bent into the hole. The shadow is about two and a half times as wide as the horizon, which lies inside it, so it is not the horizon itself. This is one clue to a black hole, but it does not prove one by itself. The picture draws the eye to the shadow."
+        "alt": "A bright ring of glowing gas round a dark patch, as in images made with a network of radio telescopes. The dark patch is the black hole’s shadow: light from behind it that passes this close is bent into the hole. The shadow is about two and six-tenths times as wide as the horizon, which lies inside it, so it is not the horizon itself. This is one clue to a black hole, but it does not prove one by itself. The picture draws the eye to the shadow."
       }
     ]
   },
@@ -367,6 +367,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "44c40b8f326a8fa889fc0f3d963c95214caf0a64b1fb66f8ad3c89a4901f5adc"
+    "sha256": "bd35bf27a5b47dd2b1ef9aa234ee0ee0329fb980d62a1e5d2d27aec3998bfd15"
   }
 }

@@ -124,9 +124,9 @@ function ColourView({ scene }: { readonly scene: StarlightScene }) {
 }
 
 const BAR_ROWS = [
-  { label: 'SIZE: SURFACE AREA', top: 110, colour: MUTED, focus: 'size' },
-  { label: 'HEAT: LIGHT FROM EACH PATCH', top: 134, colour: WARM, focus: 'heat' },
-  { label: 'TOTAL OUTPUT: THE TWO TOGETHER', top: 158, colour: FOCUS, focus: 'output' },
+  { label: 'SIZE: SURFACE AREA', top: 116, colour: MUTED, focus: 'size' },
+  { label: 'HEAT: LIGHT FROM EACH PATCH', top: 141, colour: WARM, focus: 'heat' },
+  { label: 'TOTAL OUTPUT: THE TWO TOGETHER', top: 166, colour: FOCUS, focus: 'output' },
 ] as const;
 
 /** One star beside a star like the Sun, and three bars on a stretched scale. */
@@ -148,18 +148,19 @@ function OutputView({ scene }: { readonly scene: StarlightScene }) {
         strokeDasharray="4 4"
       />
       <Label at={{ x: 240, y: 99 }} text="LIKE THE SUN" />
-      <Line x1={BARS.middle} y1={104} x2={BARS.middle} y2={176} stroke={INK} strokeWidth={1.6} />
+      <Line x1={BARS.middle} y1={106} x2={BARS.middle} y2={181} stroke={INK} strokeWidth={1.6} />
+      <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
       {BAR_ROWS.map((row) => {
         const value = values[row.focus];
         const width = Math.abs(value) * BARS.pixelsPerDex;
         return (
           <G key={row.focus}>
-            <Label at={{ x: 14, y: row.top + 8 }} text={row.label} anchor="start" bold={scene.focus === row.focus} />
+            <Label at={{ x: 14, y: row.top }} text={row.label} anchor="start" bold={scene.focus === row.focus} />
             <Rect
               x={value >= 0 ? BARS.middle : BARS.middle - width}
-              y={row.top}
+              y={row.top + 3}
               width={width}
-              height={12}
+              height={10}
               fill={row.colour}
               stroke={INK}
               strokeWidth={1.6}
@@ -171,17 +172,17 @@ function OutputView({ scene }: { readonly scene: StarlightScene }) {
         <Line
           key={step}
           x1={BARS.middle + step * BARS.pixelsPerDex}
-          y1={176}
+          y1={181}
           x2={BARS.middle + step * BARS.pixelsPerDex}
-          y2={181}
+          y2={185}
           stroke={INK}
           strokeWidth={1.2}
         />
       ))}
-      <Label at={{ x: 14, y: 190 }} text="EACH BAR STEP IS TEN TIMES · SIZES STRETCHED" anchor="start" />
+      <Label at={{ x: 14, y: 193 }} text="EACH BAR STEP IS TEN TIMES · SIZES STRETCHED" anchor="start" />
       {scene.focus === 'star' ? <FocusRing at={markedAt} radius={scene.markedRadiusPx + 8} /> : null}
       {BAR_ROWS.map((row) =>
-        scene.focus === row.focus ? <FocusBox key={row.focus} x={8} y={row.top - 4} width={296} height={20} /> : null,
+        scene.focus === row.focus ? <FocusBox key={row.focus} x={8} y={row.top - 11} width={296} height={29} /> : null,
       )}
     </G>
   );
@@ -260,6 +261,7 @@ function DimmingView({ scene }: { readonly scene: StarlightScene }) {
           </G>
         );
       })}
+      <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
       <Label at={{ x: 20, y: 168 }} text="HOW BRIGHT IT LOOKS (NEAREST = FULL)" anchor="start" bold />
       <Rect x={20} y={174} width={200} height={10} fill={PAPER_DEEP} stroke={INK} strokeWidth={1.6} />
       <Rect x={20} y={174} width={200 * scene.share} height={10} fill={FOCUS} stroke={INK} strokeWidth={1.6} />
@@ -319,6 +321,7 @@ function DiagramView({ scene }: { readonly scene: StarlightScene }) {
         />
       ))}
       <Label at={{ x: PLOT.left + 4, y: 12 }} text="LIGHT GIVEN OUT ↑" anchor="start" />
+      <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
       <Label at={{ x: (PLOT.left + PLOT.right) / 2, y: 174 }} text="HOTTER ← SURFACE TEMPERATURE → COOLER" />
       <Label at={{ x: (PLOT.left + PLOT.right) / 2, y: 190 }} text="BOTH SCALES STRETCHED" />
       {scene.focus === 'star' ? <FocusRing at={at(marked)} radius={15} /> : null}
@@ -409,7 +412,9 @@ function ZoneView({ scene }: { readonly scene: StarlightScene }) {
           <Label at={{ x: zoneX(units), y: 172 }} text={String(units)} />
         </G>
       ))}
-      <Label at={{ x: ZONE_AXIS.left, y: 190 }} text="DISTANCE FROM THE STAR · EARTH TO SUN = 1" anchor="start" />
+      <Label at={{ x: ZONE_AXIS.left, y: 183 }} text="DISTANCE FROM THE STAR · EARTH TO SUN = 1" anchor="start" />
+      <Label at={{ x: 6, y: 12 }} text="ZONE EDGES ILLUSTRATIVE" anchor="start" />
+      <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
     </G>
   );
 }

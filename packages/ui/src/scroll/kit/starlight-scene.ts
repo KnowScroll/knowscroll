@@ -25,13 +25,17 @@ export type StarlightView = StarlightState['view'];
 /** The five stars, hottest first: the order of the colour view, left to right. */
 export const HOTTEST_FIRST: readonly StarKind[] = [...STARS_BY_TEMPERATURE].reverse();
 
-/** The colour of a star as drawn: its glow's colour with every channel pushed away from grey, so that a Sun-like surface is not lost on the paper. */
-export function strengthenColour(hex: string, factor = 3): string {
+/**
+ * The colour of a star as drawn: each channel against the largest one, raised to a power, so that the colour
+ * deepens without its hue turning (a cool star stays red-orange and a hot one blue) and a Sun-like surface is
+ * not lost on the paper. The largest channel stays 255.
+ */
+export function strengthenColour(hex: string, power = 3): string {
   const channels = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
-  const mean = channels.reduce((sum, channel) => sum + channel, 0) / 3;
+  const largest = Math.max(...channels, 1);
   return `#${channels
     .map((channel) =>
-      Math.round(Math.min(255, Math.max(0, mean + (channel - mean) * factor)))
+      Math.round(255 * (channel / largest) ** power)
         .toString(16)
         .padStart(2, '0'),
     )

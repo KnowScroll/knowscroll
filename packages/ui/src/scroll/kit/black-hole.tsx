@@ -15,9 +15,6 @@ import { Arrow, BLUE, FOCUS, FocusRing, INK, Label, MUTED, OUTLINE, PAPER, PAPER
  * decoration, hidden from assistive technology; the picture's accessible name is its description.
  */
 
-const HOT_STAR = '#C4D7FF';
-const RED_STAR = '#EE6A3F';
-const WHITE_DWARF = '#E6EEFF';
 const CORE = '#FF7A3D';
 const GAS = '#B9A5DA';
 const GLOW = '#FFB84D';
@@ -60,13 +57,13 @@ const CAPTIONS = {
 
 /** The end of a massive star beside the end of a star like the Sun: the same three steps, two different ends. */
 function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
-  const centre = { x: 160, y: 80 };
+  const centre = { x: 160, y: 76 };
   const massive = scene.massive >= 0.5;
   const stage = Math.round(scene.stageIndex);
   const showForces = stage === 0 || (stage === 1 && massive);
   const base = scene.starRadiusPx;
   const core = scene.coreRadiusPx;
-  const starColour = stage === 1 ? RED_STAR : massive ? HOT_STAR : SUN;
+  const starColour = stage === 1 ? scene.giantColour : massive ? scene.massiveColour : scene.sunColour;
   return (
     <G>
       <Label
@@ -112,7 +109,7 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
       ) : null}
       {stage === 2 && massive ? (
         <G>
-          <Burst at={centre} radius={64} />
+          <Burst at={centre} radius={58} />
           <Circle cx={centre.x} cy={centre.y} r={26} fill={CORE} opacity={0.5} />
           <Hole at={centre} radius={11} />
         </G>
@@ -130,25 +127,26 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
             strokeDasharray="4 4"
             opacity={0.7}
           />
-          <Circle cx={centre.x} cy={centre.y} r={8} fill={WHITE_DWARF} stroke={INK} strokeWidth={OUTLINE} />
+          <Circle cx={centre.x} cy={centre.y} r={8} fill={scene.dwarfColour} stroke={INK} strokeWidth={OUTLINE} />
         </G>
       ) : null}
-      <Label at={{ x: 160, y: 154 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold />
-      <Line x1={90} y1={170} x2={230} y2={170} stroke={INK} strokeWidth={1.6} />
+      <Label at={{ x: 160, y: 146 }} text={(massive ? CAPTIONS.massive : CAPTIONS.sunLike)[stage] ?? ''} bold />
+      <Line x1={90} y1={160} x2={230} y2={160} stroke={INK} strokeWidth={1.6} />
       {STAGE_NAMES.map((name, index) => (
         <G key={name}>
           <Circle
             cx={90 + index * 70}
-            cy={170}
+            cy={160}
             r={index === stage ? 6 : 4.5}
             fill={index === stage ? FOCUS : PAPER_DEEP}
             stroke={INK}
             strokeWidth={1.8}
           />
-          <Label at={{ x: 90 + index * 70, y: 188 }} text={name} bold={index === stage} />
+          <Label at={{ x: 90 + index * 70, y: 175 }} text={name} bold={index === stage} />
         </G>
       ))}
-      {scene.focus === 'star' ? <FocusRing at={centre} radius={stage === 2 ? 72 : base + 10} /> : null}
+      <Label at={{ x: 160, y: 188 }} text="NOT TO SCALE · COLOURS STRENGTHENED" />
+      {scene.focus === 'star' ? <FocusRing at={centre} radius={stage === 2 ? 66 : base + 10} /> : null}
       {scene.focus === 'core' ? <FocusRing at={centre} radius={stage === 2 ? 17 : core + 9} /> : null}
       {scene.focus === 'remnant' ? <FocusRing at={centre} radius={stage === 2 ? 24 : 15} /> : null}
     </G>
@@ -159,8 +157,8 @@ function FormationView({ scene }: { readonly scene: BlackHoleScene }) {
 function HorizonView({ scene }: { readonly scene: BlackHoleScene }) {
   const largeMarked = scene.largeMarked >= 0.5;
   const holes = [
-    { at: { x: 62, y: 92 }, radius: scene.smallHolePx, marked: !largeMarked, name: 'SMALLER HOLE' },
-    { at: { x: 190, y: 92 }, radius: scene.largeHolePx, marked: largeMarked, name: 'FOUR TIMES THE MASS' },
+    { at: { x: 62, y: 86 }, radius: scene.smallHolePx, marked: !largeMarked, name: 'SMALLER HOLE' },
+    { at: { x: 190, y: 86 }, radius: scene.largeHolePx, marked: largeMarked, name: 'FOUR TIMES THE MASS' },
   ] as const;
   const target = holes[largeMarked ? 1 : 0];
   const outStart = { x: target.at.x + target.radius * 1.6, y: target.at.y };
@@ -172,7 +170,7 @@ function HorizonView({ scene }: { readonly scene: BlackHoleScene }) {
       {holes.map((hole) => (
         <G key={hole.name}>
           <Hole at={hole.at} radius={hole.radius} />
-          <Label at={{ x: hole.at.x, y: 174 }} text={hole.name} bold={hole.marked} />
+          <Label at={{ x: hole.at.x, y: 168 }} text={hole.name} bold={hole.marked} />
           {hole.marked ? (
             <Polygon
               points={`${hole.at.x - 5},${hole.at.y - hole.radius - 14} ${hole.at.x + 5},${hole.at.y - hole.radius - 14} ${hole.at.x},${hole.at.y - hole.radius - 6}`}
@@ -194,9 +192,9 @@ function HorizonView({ scene }: { readonly scene: BlackHoleScene }) {
       />
       <Arrow from={outStart} to={outEnd} width={4} colour={BLUE} outlined />
       <Arrow from={inStart} to={inEnd} width={3} colour={PAPER} />
-      <Label at={{ x: Math.min((outStart.x + outEnd.x) / 2, 285), y: outStart.y - 20 }} text="LIGHT ESCAPES" />
-      <Label at={{ x: Math.min(Math.max(target.at.x, 95), 225), y: 156 }} text="EVEN OUTWARD LIGHT FALLS IN" />
-      <Label at={{ x: 160, y: 192 }} text="HORIZON GOES WITH MASS · NOTHING DRAWN AT THE CENTRE" />
+      <Label at={{ x: Math.min(outStart.x, 244), y: outStart.y + 16 }} text="LIGHT ESCAPES" anchor="start" />
+      <Label at={{ x: Math.min(Math.max(target.at.x, 95), 225), y: 152 }} text="EVEN OUTWARD LIGHT FALLS IN" />
+      <Label at={{ x: 160, y: 182 }} text="HORIZON GOES WITH MASS · NOTHING DRAWN AT CENTRE" />
       {scene.focus === 'horizon' ? <FocusRing at={target.at} radius={target.radius + 7} /> : null}
       {scene.focus === 'light-out' ? <FocusBox x={outStart.x - 6} y={outStart.y - 14} width={46} height={28} /> : null}
       {scene.focus === 'light-in' ? (
@@ -227,8 +225,8 @@ function PullView({ scene }: { readonly scene: BlackHoleScene }) {
   };
   return (
     <G>
-      <Circle cx={star.x} cy={star.y} r={31} fill={SUN} opacity={0.28} />
-      <Circle cx={star.x} cy={star.y} r={25} fill={SUN} stroke={INK} strokeWidth={OUTLINE} />
+      <Circle cx={star.x} cy={star.y} r={31} fill={scene.massiveColour} opacity={0.28} />
+      <Circle cx={star.x} cy={star.y} r={25} fill={scene.massiveColour} stroke={INK} strokeWidth={OUTLINE} />
       <Hole at={hole} radius={6} />
       {panel(star, scene.starPull)}
       {panel(hole, scene.holePull)}
@@ -239,6 +237,7 @@ function PullView({ scene }: { readonly scene: BlackHoleScene }) {
       <Label at={{ x: 240, y: 36 }} text="THE SAME PULL" />
       <Label at={{ x: 160, y: 168 }} text="FAR AWAY ONLY THE MASS AND THE DISTANCE MATTER" />
       <Label at={{ x: 160, y: 184 }} text="NOT TO SCALE: THE HOLE IS FAR SMALLER THAN THE STAR" />
+      <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
       {scene.focus === 'star' ? <FocusRing at={star} radius={36} /> : null}
       {scene.focus === 'hole' ? <FocusRing at={hole} radius={16} /> : null}
     </G>
@@ -272,13 +271,14 @@ function OrbitsView({ scene }: { readonly scene: BlackHoleScene }) {
         return (
           <G key={radius}>
             <Arrow from={at} to={to} width={3} colour={WARM} outlined />
-            <Circle cx={at.x} cy={at.y} r={5} fill={SUN} stroke={INK} strokeWidth={1.8} />
+            <Circle cx={at.x} cy={at.y} r={5} fill={scene.sunColour} stroke={INK} strokeWidth={1.8} />
             {scene.focus === 'stars' ? <FocusRing at={at} radius={11} /> : null}
           </G>
         );
       })}
       <Label at={{ x: 14, y: 16 }} text="ARROW: HOW FAST" anchor="start" />
-      <Label at={{ x: 160, y: 190 }} text="NOTHING SHINES HERE · ORBITS DRAWN AS CIRCLES" />
+      <Label at={{ x: 160, y: 184 }} text="NOTHING SHINES HERE · ORBITS DRAWN AS CIRCLES" />
+      <Label at={{ x: 306, y: 12 }} text="COLOURS STRENGTHENED" anchor="end" />
       {scene.focus === 'centre' ? <FocusRing at={centre} radius={12} /> : null}
     </G>
   );
@@ -364,7 +364,7 @@ function WavesView({ scene }: { readonly scene: BlackHoleScene }) {
       />
       <Label at={{ x: mergerX, y: WAVES.baseline - 48 }} text="MERGER" />
       <Label at={{ x: WAVES.left, y: 110 }} text="WAVE STRENGTH, NOT TO SCALE" anchor="start" />
-      <Label at={{ x: WAVES.right, y: 186 }} text="TIME →" anchor="end" />
+      <Label at={{ x: WAVES.right, y: 178 }} text="TIME →" anchor="end" />
       <Label at={{ x: WAVES.left, y: 186 }} text="RIPPLES IN SPACE ITSELF" anchor="start" bold />
       {scene.focus === 'holes' ? <FocusRing at={centre} radius={Math.max(half + 18, 24)} /> : null}
       {scene.focus === 'signal' ? (
@@ -399,7 +399,7 @@ function ShadowView({ scene }: { readonly scene: BlackHoleScene }) {
       <LightLabel at={{ x: centre.x, y: centre.y + 3 }} text="HORIZON" />
       <LightLabel at={{ x: centre.x, y: centre.y + scene.shadowPx - 12 }} text="SHADOW" />
       <Label at={{ x: 160, y: 12 }} text="BRIGHT RING: GLOWING GAS" bold />
-      <Label at={{ x: 160, y: 190 }} text="WIDER THAN THE HORIZON · NOT THE HORIZON ITSELF" />
+      <Label at={{ x: 160, y: 184 }} text="WIDER THAN THE HORIZON · NOT THE HORIZON ITSELF" />
       {scene.focus === 'ring' ? <FocusRing at={centre} radius={scene.shadowPx + 24} /> : null}
       {scene.focus === 'shadow' ? <FocusRing at={centre} radius={scene.shadowPx - 6} /> : null}
       {scene.focus === 'horizon' ? <FocusRing at={centre} radius={scene.shadowHorizonPx + 5} /> : null}
