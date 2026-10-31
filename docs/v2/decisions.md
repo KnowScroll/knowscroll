@@ -2473,7 +2473,9 @@ Confirmed by: `room-identity.test.tsx` (the backdrop is drawn at 1.25 inside a c
   - Wikipedia, *Main sequence*: "In fact, a higher metallicity leads to a higher opacity" (physics, not a belief).
   - NASA, *Anatomy*: "These rings are really multiple, highly distorted images of the accretion disk" (a description).
   - NASA, *How We Find and Characterize*: "small planets are very common" (a finding about planets).
-  The spike's placeholder myths for these recipes (the Moon makes one bulge, spring tides happen in spring, the Sun burns like a fire, a planet in the habitable zone has life, and others) are stated as a belief by no page, so none could have a reviewed source (D-129). A recipe may get a myth later, one at a time, with a source a person has read; the first candidate is the spring tide name, if a person finds a source that says people hold it. The spike's own table of those placeholders no longer reaches any recipe the plan marks, and the spike now runs these recipes as the plan decides.
+  - NASA, *Black Holes*, in the `black-hole-evidence` pool: "Cosmic vacuum cleaners. Black holes don’t suck in other matter." The page lists it among things black holes are not, so it is a correction of a popular picture, but it does not say how many people hold it. A person may review this page as the source for a myth later.
+  - NASA Space Place, *What Is a Black Hole?*: "it sucks in everything, even light" (in the `black-hole-horizon` pool). The writer's guide for the black-hole kit forbids that picture (D-206). The page is a source the writer is offered, so the reader of the Space wave checks the held `black-hole-horizon` Scroll for it before release.
+  The spike's placeholder myths for these recipes (the Moon makes one bulge, spring tides happen in spring, the Sun burns like a fire, a planet in the habitable zone has life, and others) are stated as a belief by no page, so none could have a reviewed source (D-129). A recipe may get a myth later, one at a time, with a source a person has read; the first candidate is the spring tide name, if a person finds a source that says people hold it. The spike's own table of those placeholders reached no marked recipe, so it is deleted; the spike runs a marked recipe as the plan decides and an unmarked one (`exoplanet-kinds`) plain, with no misconception.
 - **Landmarks.** One each, short (at most five words), plain, a thing the Scroll is about, never a claim about the reader. Keys and names are unique across the library and a test refuses mastery wording. They are authored here and a person should confirm them.
 - **Consequences.** Create no longer commissions any recipe of these topics; the v1 Scrolls keep serving until a v2 revision is released (as in D-199). `production-status` lists the fifteen as `not_started` until a wave runs. The production version stays `scroll-production.v19` (no writer change, no migration).
 - **The waves.** Two waves, each holding its series whole: Earth & sky (7) and Space (8). The commands are in the runbook.
@@ -2483,15 +2485,15 @@ Confirmed by: `room-identity.test.tsx` (the backdrop is drawn at 1.25 inside a c
 | `tides` | Earth & sky | stage (`tides.v1`) | NOAA, Gravity, Inertia, and the Two Bulges; Tidal Variations | none | The Two Bulges (`the-two-bulges`) |
 | `tides-spring-neap` | Earth & sky | stage (`tides.v1`) | NOAA, What are spring and neap tides?; What are tides? | none | The Added Pulls (`the-added-pulls`) |
 | `tides-coasts` | Earth & sky | plain | Wikipedia, Tidal range; Tidal resonance | none | The Sloshing Bay (`the-sloshing-bay`) |
-| `greenhouse` | Earth & sky | stage (`greenhouse.v1`) | NASA, What is the greenhouse effect? | none | The Gas Blanket (`the-gas-blanket`) |
+| `greenhouse` | Earth & sky | stage (`greenhouse.v1`) | NASA, What is the greenhouse effect? | none | The Warm Layer (`the-warm-layer`) |
 | `greenhouse-radiation` | Earth & sky | stage (`greenhouse.v1`) | NASA, The Earth's Radiation Budget; What is the greenhouse effect? | none | The Returning Glow (`the-returning-glow`) |
 | `greenhouse-balance` | Earth & sky | stage (`greenhouse.v1`) | NASA, Climate and Earth's Energy Budget; What is the greenhouse effect? | none | The Even Ledger (`the-even-ledger`) |
 | `greenhouse-limits` | Earth & sky | plain | NASA, The Earth's Radiation Budget; What is the greenhouse effect? | none | The Leaky Blanket (`the-leaky-blanket`) |
 | `stars-fusion` | Space | stage (`star.v1`) | Wikipedia, Main sequence | none | The Steady Core (`the-steady-core`) |
 | `stars-lifecycle` | Space | stage (`star.v1`) | NASA, Stars | none | The Ageing Star (`the-ageing-star`) |
-| `stars-colour-brightness` | Space | stage (`starlight.v1`) | Wikipedia, Hertzsprung–Russell diagram | none | The Star Chart (`the-star-chart`) |
+| `stars-colour-brightness` | Space | stage (`starlight.v1`) | Wikipedia, Hertzsprung–Russell diagram | none | The Colour Chart (`the-colour-chart`) |
 | `exoplanet-transit` | Space | stage (`transit.v1`) | NASA, How We Find and Characterize | none | The Small Dip (`the-small-dip`) |
-| `exoplanet-habitable-zone` | Space | stage (`starlight.v1`) | Wikipedia, Habitable zone | none | The Right Distance (`the-right-distance`) |
+| `exoplanet-habitable-zone` | Space | stage (`starlight.v1`) | Wikipedia, Habitable zone | none | The Temperate Band (`the-temperate-band`) |
 | `black-hole-formation` | Space | stage (`black-hole.v1`) | NASA, Types | none | The Collapsing Core (`the-collapsing-core`) |
 | `black-hole-horizon` | Space | stage (`black-hole.v1`) | NASA, Anatomy; NASA Space Place, What Is a Black Hole? | none | The One-Way Edge (`the-one-way-edge`) |
 | `black-hole-evidence` | Space | stage (`black-hole.v1`) | NASA, Black Holes | none | The Unseen Weight (`the-unseen-weight`) |

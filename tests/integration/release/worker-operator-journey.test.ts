@@ -165,11 +165,14 @@ describe('the worker operator command (reasoning) from the built release', () =>
       'greenhouse-limits',
       'attention-mechanism',
       'dns-lookup',
+      'exoplanet-kinds',
     ]) {
       const result = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
       expect(result.code).toBe(0);
       // A v2 library recipe adds the answer check to its two writer requests (D-198): six, not two.
-      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: 6 });
+      // `exoplanet-kinds` is the one recipe the plan has not marked (D-217): a v1 recipe stays at two.
+      const requestBound = topic === 'exoplanet-kinds' ? 2 : 6;
+      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound });
     }
     for (const topic of ['greenhouse-unknown', '__proto__', 'greenhouse ']) {
       const refused = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);

@@ -123,7 +123,7 @@ export const spaceRecipes = {
     scrollV2: {
       variant: 'stage',
       misconception: { kind: 'none' },
-      landmark: { key: 'the-star-chart', name: 'The Star Chart' },
+      landmark: { key: 'the-colour-chart', name: 'The Colour Chart' },
     },
   },
   'exoplanet-transit': {
@@ -163,7 +163,7 @@ export const spaceRecipes = {
     scrollV2: {
       variant: 'stage',
       misconception: { kind: 'none' },
-      landmark: { key: 'the-right-distance', name: 'The Right Distance' },
+      landmark: { key: 'the-temperate-band', name: 'The Temperate Band' },
     },
   },
   'exoplanet-kinds': {

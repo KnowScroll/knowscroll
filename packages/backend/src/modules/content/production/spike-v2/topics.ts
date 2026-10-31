@@ -1,4 +1,3 @@
-import type { Misconception, SourceLabel } from '@knowscroll/scroll-model';
 import type { RecipeDataV2 } from '@knowscroll/scroll-model/producer';
 import { parseScrollTopic, TOPICS, type ScrollTopic } from '../topics.js';
 
@@ -7,52 +6,14 @@ import { parseScrollTopic, TOPICS, type ScrollTopic } from '../topics.js';
  * a pinned picture, and the misconception its first call tests.
  *
  * A recipe the library plan marks `scrollV2` is spiked exactly as it is produced: the plan's variant
- * and misconception (D-137), so a spike measures what the library will publish. For every other
- * recipe whether there is a picture is recipe data (`stageKit`, D-125), and the misconception is the
- * spike's own table below. It is a claim a person decided, with a source label a person has checked
- * (`reviewed: true`). No label in this table is checked: each is a placeholder marked
- * `reviewed: false`, so a document that carries one is a spike result, never a Scroll the library
- * may admit.
+ * and misconception (D-137), so a spike measures what the library will publish. For a recipe the plan
+ * has not marked, whether there is a picture is recipe data (`stageKit`, D-125) and there is no
+ * misconception.
  */
 export interface SpikeRecipeV2 extends RecipeDataV2 {
-  /** True for a recipe this table does not list: plain, with no misconception. */
+  /** True for a recipe the plan has not marked: decided by its kit alone, with no misconception. */
   readonly defaulted: boolean;
 }
-
-const PENDING: SourceLabel = { label: 'A common idea; its source is still to be named', reviewed: false };
-const myth = (claim: string, source: SourceLabel = PENDING): Misconception => ({ kind: 'myth', claim, source });
-
-const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
-  // Earth & sky. The four Seasons recipes are decided by the library plan (D-137), not by this table.
-  tides: myth('The Moon makes one bulge of water, on the side of Earth that faces it.'),
-  'tides-spring-neap': myth('Spring tides happen in the spring.'),
-  'greenhouse-radiation': myth('The atmosphere traps heat like a lid that stops warm air from rising away.'),
-  'greenhouse-balance': myth('Heat trapped by the atmosphere means energy only goes in and never leaves.'),
-  'stars-fusion': myth('The Sun shines because it burns, the way a fire burns.'),
-  'stars-lifecycle': myth('The Sun will end its life by exploding as a supernova.'),
-  'exoplanet-transit': myth('Astronomers find planets around other stars by photographing them.'),
-  greenhouse: { kind: 'none' },
-  'exoplanet-habitable-zone': myth('A planet inside the habitable zone is a planet with life on it.'),
-  'stars-colour-brightness': myth('A star’s colour tells you how old it is.'),
-  'black-hole-formation': myth('The Sun will one day become a black hole.'),
-  'black-hole-horizon': myth('A black hole sucks in everything around it like a cosmic vacuum cleaner.'),
-  'black-hole-evidence': myth('Nobody has any evidence that black holes exist, because they cannot be seen.'),
-  // Human body.
-  'cardiac-cycle': myth('The heart squeezes all four of its chambers at once in a single beat.'),
-  'blood-pressure': myth('Blood pressure is set by how fast the heart beats and nothing else.'),
-  'reflex-arc': myth('A reflex is a decision the brain makes very quickly.'),
-  'immune-memory': myth('The immune system forgets an infection as soon as it is over.'),
-  // Computing, machine learning and history.
-  'dns-lookup': myth('DNS is one giant list that a single server holds for the whole internet.'),
-  'hash-tables': myth('A hash table finds an item in the same instant however full it gets.'),
-  'event-loop': myth('JavaScript runs many things at the very same moment on many threads.'),
-  'gradient-descent': myth('Walking downhill always finds the best possible answer.'),
-  'attention-mechanism': myth(
-    'Attention in a model works like a person paying attention: one word in focus, the rest ignored.',
-  ),
-  overfitting: myth('A model that scores perfectly on its training data must be a perfect model.'),
-  'industrial-causes': { kind: 'none' },
-};
 
 /**
  * The twenty recipes of the first spike, in the order they ran: the three Seasons parts first, then
@@ -144,17 +105,14 @@ export const SPACE_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 
 /**
  * The spike's decisions for a recipe. The picture and its kit come from the recipe's own `stageKit`;
- * a recipe the misconception table does not list has no misconception, and the line says so.
+ * a recipe the plan has not marked has no misconception, and the line says so.
  */
 export function spikeRecipeV2(topic: ScrollTopic): SpikeRecipeV2 {
   const { scrollV2: planned, stageKit } = TOPICS[topic];
   const kit = stageKit === undefined ? {} : { kit: stageKit };
   if (planned !== undefined) return { ...planned, ...kit, defaulted: false };
   const variant = stageKit === undefined ? 'plain' : 'stage';
-  const listed = SPIKE_MYTHS[topic];
-  return listed === undefined
-    ? { variant, ...kit, misconception: { kind: 'none' }, defaulted: true }
-    : { variant, ...kit, misconception: listed, defaulted: false };
+  return { variant, ...kit, misconception: { kind: 'none' }, defaulted: true };
 }
 
 /** Recipe keys from `--topics a,b,c`; `undefined` when any name is not a library recipe. Repeats are dropped. */

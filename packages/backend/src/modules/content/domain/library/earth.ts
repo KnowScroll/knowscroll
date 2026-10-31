@@ -217,7 +217,7 @@ export const earthRecipes = {
     scrollV2: {
       variant: 'stage',
       misconception: { kind: 'none' },
-      landmark: { key: 'the-gas-blanket', name: 'The Gas Blanket' },
+      landmark: { key: 'the-warm-layer', name: 'The Warm Layer' },
     },
   },
   'greenhouse-radiation': {

@@ -155,7 +155,7 @@ describe('the twenty topics of the writer spike', () => {
     }
     expect(reviewed).toEqual(['seasons']);
     // The recipes the plan decides (D-137, D-199) give no myth: the Seasons parts with none, and every
-    // recipe of the first waves. Only the recipes the plan has not marked keep the spike’s own table.
+    // recipe of the first waves and the kit waves.
     expect(SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).misconception.kind === 'none')).toEqual(
       SPIKE_TOPICS_V2.filter((topic) => topic !== 'seasons' && TOPICS[topic].scrollV2 !== undefined),
     );
@@ -180,7 +180,7 @@ describe('the twenty topics of the writer spike', () => {
     });
   });
 
-  it('default to a plain Scroll with no misconception for a recipe the table does not list, and say so', () => {
+  it('default to a plain Scroll with no misconception for a recipe the plan has not marked (`exoplanet-kinds`), and say so', () => {
     expect(spikeRecipeV2('exoplanet-kinds')).toEqual({
       variant: 'plain',
       misconception: { kind: 'none' },
