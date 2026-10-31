@@ -19,8 +19,9 @@ import { useSnippetSend } from './use-snippet-send';
 
 /**
  * The foot of a Scroll that is a part of a series (D-065): "I've finished this part" tells the thread, from
- * this reader only. A Scroll cannot tell that it was read to the end, so the person says so; a person who
- * hides where they are is not asked to tell anyone.
+ * this reader only. A Scroll cannot tell that it was read to the end, so the person says so. Pressing it is a
+ * deliberate share, so it is sent even while recording is paused (D-153); a person who hides where they are
+ * is not asked to tell anyone.
  */
 function FinishedPart({ places, part }: { readonly places: ThreadPlacesController; readonly part: number }) {
   const state = useSyncExternalStore(places.subscribe, places.getState, places.getState);
@@ -42,7 +43,8 @@ function FinishedPart({ places, part }: { readonly places: ThreadPlacesControlle
             icon="check"
             variant="primary"
             onPress={() => {
-              void places.report(part, 'finished');
+              // A deliberate share: sent even while recording is paused, but never while the person hides.
+              void places.report(part, 'finished', 'explicit');
               setTold(true);
             }}
           />

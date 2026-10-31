@@ -1349,7 +1349,9 @@ places `places/read`, `places/set`, `places/hide`).
   calendar date, so a datetime, a clock time, a playhead, a branch or a selected episode does not parse (`threads.test.ts`
   tries each). It has its own read, `ReadThreadPlaces` -> `ThreadPlaces` (`unavailable`, or `ready` with the caller's own
   `hidden` switch and at most nine unique people), and two commands: `SetThreadPlace` (a part and a state; no field for
-  whose place or when) answered `stored`, `unchanged` or `hidden`, and `SetThreadPlaceHidden` (a wanted state). The thread
-  view and list stay free of places. _Implemented._
+  whose place or when) answered `stored`, `unchanged` or `hidden`, and `SetThreadPlaceHidden` (a wanted state). Both are
+  idempotent by their state, so they have no command ID, keep no receipt and answer with the scope and what they did,
+  never a time (`threads.test.ts` refuses a command ID, a replay flag or a time). The thread view and list stay free of
+  places. _Implemented._
 - A snippet message carries a card: the exact target, the anchor in words (range, quote, label, settings description) and the
   content status (`available`, `corrected`, `unavailable`). Quote and settings are omitted when the content is unavailable.

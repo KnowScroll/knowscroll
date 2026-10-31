@@ -84,5 +84,30 @@ export function makeThreadCommandFrame(p: ThreadPorts) {
     return result.kind === 'entered' ? result.value : refuse('unavailable');
   }
 
-  return { receiptKey, receiptBase, inThread };
+  /**
+   * The skeleton for a command whose wanted state is the whole command, so repeating it changes nothing and
+   * there is nothing to replay: the same steps without a receipt. A place report is one (D-152). A receipt
+   * keeps the command's exact time and survives leave and Clear, and a place is coarse to a day, so none is
+   * written. A refusal and an accepted no-op write nothing at all.
+   */
+  async function inThreadWithoutReceipt<A extends object>(
+    authority: PersonalAuthority,
+    spec: {
+      readonly command: { readonly thread: ContentThreadRef };
+      decide(context: CommandContext): Promise<Result<Decision<A>>>;
+    },
+  ): Promise<Result<A>> {
+    const result = await p.withScope(authority, async (scope): Promise<Result<A>> => {
+      const entered = await enterThread(p, scope, spec.command.thread, 'write');
+      if (!entered) return refuse('unavailable');
+      const decision = await spec.decide({ scope, entered, now: p.now() });
+      if (decision.kind === 'refused') return decision;
+      const acceptance = await decision.value.write();
+      await p.conversations.announce(entered.lock, decision.value.announce, () => p.newId());
+      return ok(acceptance);
+    });
+    return result.kind === 'entered' ? result.value : refuse('unavailable');
+  }
+
+  return { receiptKey, receiptBase, inThread, inThreadWithoutReceipt };
 }

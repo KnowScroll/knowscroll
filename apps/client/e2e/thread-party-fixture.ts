@@ -76,12 +76,17 @@ const progress = (place: { part: number; state: PlaceState }) => place.part * 2 
 export function partyWorld() {
   const places = new Map<Member, StoredPlace>();
   const hidden: Record<Member, boolean> = { asha: false, ravi: false, meera: false };
+  /** Whose recording is paused (D-057): the policy the device reads says so. */
+  const paused: Record<Who, boolean> = { asha: false, ravi: false };
   const calls: { who: Who; path: string; body: Record<string, unknown> }[] = [];
   const world = {
     calls,
     /** The stored place of a member, as the server holds it. */
     placeOf: (member: Member) => places.get(member),
     isHidden: (member: Member) => hidden[member],
+    pauseRecording(who: Who, value: boolean) {
+      paused[who] = value;
+    },
     /** Gives a member with no browser (Meera) a place, as their own client would have. */
     setPlace(member: Member, part: number, state: PlaceState) {
       places.set(member, { part, state, day: '2026-10-24' });
@@ -96,6 +101,14 @@ export function partyWorld() {
     handler(who: Who) {
       const scope = { accountId: accounts[who].accountId, privacyEpoch: 1 };
       const base = (body: Record<string, unknown>) => ({ version: 'content-thread.v1', readId: body['readId'], scope });
+      /** What a place command answers: the scope and what it did, and no time (D-152: no receipt is kept). */
+      const answered = (operation: string) => ({
+        version: 'content-thread.v1',
+        scope,
+        operation,
+        thread: membership(who),
+      });
+      /** What a thread message command answers, for the mark-read the thread screen sends. */
       const receipt = (body: Record<string, unknown>, operation: string) => ({
         version: 'content-thread.v1',
         scope,
@@ -183,13 +196,13 @@ export function partyWorld() {
             if (hidden[who]) result = 'hidden';
             else if (current !== undefined && progress(wanted) <= progress(current)) result = 'unchanged';
             else places.set(who, { ...wanted, day: '2026-10-24' });
-            return { json: { ...receipt(body, 'thread.place'), result } };
+            return { json: { ...answered('thread.place'), result } };
           }
           case '/v1/social/threads/places/hide': {
             const wanted = body['hidden'] === true;
             const changed = hidden[who] !== wanted;
             world.hide(who, wanted);
-            return { json: { ...receipt(body, 'thread.place-hidden'), hidden: wanted, changed } };
+            return { json: { ...answered('thread.place-hidden'), hidden: wanted, changed } };
           }
           case '/v1/privacy/recording/read':
             return {
@@ -198,7 +211,8 @@ export function partyWorld() {
                 ...body,
                 scope,
                 revision: 0,
-                policy: { on: true, generation: 1 },
+                // An odd generation is recording on, an even one is paused (the contract's rule).
+                policy: { on: !paused[who], generation: paused[who] ? 2 : 1 },
               },
             };
           // A Reel opened from the thread: open, media grant, activate, then the recorder's batches.

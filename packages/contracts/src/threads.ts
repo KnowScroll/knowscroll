@@ -478,19 +478,26 @@ export const ThreadPlacesSchema = z.discriminatedUnion('status', [
 export type ThreadPlaces = z.infer<typeof ThreadPlacesSchema>;
 
 /**
+ * What a place command answers: the caller's scope and what the command did, and no time. A place command
+ * is idempotent by its wanted state, so it has no command ID, keeps no receipt and has nothing to replay
+ * (D-152): a receipt would hold the exact time of every report.
+ */
+const PlaceAcceptance = { version: Version, scope: ConversationScopeSchema };
+
+/**
  * Reports the caller's own place. Written only by the member's own client, when they open a part of
  * the thread's series or finish it. The server checks that the part is in the series, keeps a place
- * that is further along, stamps the day itself and writes nothing while the caller hides. The same
- * command replays its first answer. Not consumption evidence for anyone.
+ * that is further along, stamps the day itself and writes nothing while the caller hides. Repeating it
+ * changes nothing. Not consumption evidence for anyone.
  */
 export const SetThreadPlaceSchema = z.strictObject({
-  ...Command,
+  version: Version,
   thread: ContentThreadRefSchema,
   part: PartNumber,
   state: z.enum(['on', 'finished']),
 });
 export const ThreadPlaceAcceptanceSchema = z.strictObject({
-  ...Receipt,
+  ...PlaceAcceptance,
   operation: z.literal('thread.place'),
   thread: ContentThreadRefSchema,
   /**
@@ -505,12 +512,12 @@ export const ThreadPlaceAcceptanceSchema = z.strictObject({
  * Hiding deletes the caller's place in the same step; showing again waits for their next open.
  */
 export const SetThreadPlaceHiddenSchema = z.strictObject({
-  ...Command,
+  version: Version,
   thread: ContentThreadRefSchema,
   hidden: z.boolean(),
 });
 export const ThreadPlaceHiddenAcceptanceSchema = z.strictObject({
-  ...Receipt,
+  ...PlaceAcceptance,
   operation: z.literal('thread.place-hidden'),
   thread: ContentThreadRefSchema,
   hidden: z.boolean(),

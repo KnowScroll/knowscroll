@@ -21,9 +21,14 @@ import type { ThreadPorts, ThreadRow } from './thread-ports.js';
  * caller's personal scope in the thread's lock order (personal root, own account gate, the thread's own
  * root) and rechecks membership, so a stranger, a leaver and a removed member get nothing and cannot tell
  * why. A place is not consumption evidence for anyone.
+ *
+ * The two commands are idempotent by their wanted state (a place only moves forward; hiding is a wanted
+ * state), so they write no command receipt (D-152): a receipt would keep the exact time of every report
+ * and outlive leave, hide and Clear, and a place is coarse to a day. They have no command ID and their
+ * answers carry no time.
  */
 export function makePlaces(p: ThreadPorts) {
-  const { receiptBase, inThread } = makeThreadCommandFrame(p);
+  const { inThreadWithoutReceipt } = makeThreadCommandFrame(p);
 
   /** The parts of the thread's series, or none when it is a single item (or its root is gone). */
   async function partsOf(scope: PersonalScopeTx, thread: ThreadRow): Promise<ReadonlySet<number>> {
@@ -36,7 +41,7 @@ export function makePlaces(p: ThreadPorts) {
      * Reports the caller's own place. The part must be one of the series' parts, or the command is
      * invalid. While the caller hides, nothing is written and the answer says so. A place only moves
      * forward, so a repeat, or an earlier part, changes nothing; a change tells every member's open
-     * thread to read again (a disposable hint that carries nothing).
+     * thread to read again (a disposable hint that carries nothing, kept nowhere). No receipt is kept.
      */
     setPlace(
       authority: PersonalAuthority,
@@ -45,16 +50,13 @@ export function makePlaces(p: ThreadPorts) {
       const parsed = SetThreadPlaceSchema.safeParse(input);
       if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
       const command = parsed.data;
-      return inThread(authority, {
-        operation: 'social.thread-place',
+      return inThreadWithoutReceipt<z.infer<typeof ThreadPlaceAcceptanceSchema>>(authority, {
         command,
-        request: command,
-        acceptance: ThreadPlaceAcceptanceSchema,
         async decide({ scope, entered, now }) {
           if (!(await partsOf(scope, entered.thread)).has(command.part)) return refuse('invalid_input');
           const accepted = (result: 'stored' | 'unchanged' | 'hidden') =>
             ThreadPlaceAcceptanceSchema.parse({
-              ...receiptBase(scope, now, command.commandId),
+              ...threadEnvelope(scope),
               operation: 'thread.place',
               thread: threadRefOf(entered),
               result,
@@ -77,7 +79,7 @@ export function makePlaces(p: ThreadPorts) {
 
     /**
      * Hides or shows where the caller is in this thread. The wanted state is the command, so a repeat is
-     * accepted without a change. Hiding deletes the caller's place and tells the open threads of everyone
+     * accepted without a change and no receipt is kept. Hiding deletes the caller's place and tells the open threads of everyone
      * who takes part; showing writes nothing, because the place comes only from the caller's next open.
      */
     setPlaceHidden(
@@ -87,12 +89,9 @@ export function makePlaces(p: ThreadPorts) {
       const parsed = SetThreadPlaceHiddenSchema.safeParse(input);
       if (!parsed.success) return Promise.resolve(refuse('invalid_input'));
       const command = parsed.data;
-      return inThread(authority, {
-        operation: 'social.thread-place-hidden',
+      return inThreadWithoutReceipt<z.infer<typeof ThreadPlaceHiddenAcceptanceSchema>>(authority, {
         command,
-        request: command,
-        acceptance: ThreadPlaceHiddenAcceptanceSchema,
-        decide({ scope, entered, now }) {
+        decide({ scope, entered }) {
           const changed = entered.own.placeHidden !== command.hidden;
           return Promise.resolve(
             ok({
@@ -102,7 +101,7 @@ export function makePlaces(p: ThreadPorts) {
                   if (command.hidden) await p.places.remove(entered.lock, entered.owner.accountId);
                 }
                 return ThreadPlaceHiddenAcceptanceSchema.parse({
-                  ...receiptBase(scope, now, command.commandId),
+                  ...threadEnvelope(scope),
                   operation: 'thread.place-hidden',
                   thread: threadRefOf(entered),
                   hidden: command.hidden,

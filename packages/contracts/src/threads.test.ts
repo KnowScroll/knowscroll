@@ -10,6 +10,8 @@ import {
   SetThreadPlaceSchema,
   SnippetAnchorSchema,
   ThreadMessageSchema,
+  ThreadPlaceAcceptanceSchema,
+  ThreadPlaceHiddenAcceptanceSchema,
   ThreadPlaceSchema,
   ThreadPlacesSchema,
   ThreadSummarySchema,
@@ -248,7 +250,7 @@ describe('party places (v3 T-D, D-065)', () => {
   });
 
   it('is reported as a part and a state, with no time and nothing else', () => {
-    const set = { version: 'content-thread.v1', commandId: id(81), thread: ref, part: 2, state: 'finished' };
+    const set = { version: 'content-thread.v1', thread: ref, part: 2, state: 'finished' };
     expect(SetThreadPlaceSchema.safeParse(set).success).toBe(true);
     for (const patch of [
       { part: 0 },
@@ -256,13 +258,40 @@ describe('party places (v3 T-D, D-065)', () => {
       { day: '2026-10-31' },
       { positionMs: 5 },
       { recordedAt: '2026-10-31T13:02:00.000Z' },
+      // Idempotent by state: there is no command ID to key a receipt by.
+      { commandId: id(81) },
     ])
       expect(SetThreadPlaceSchema.safeParse({ ...set, ...patch }).success).toBe(false);
   });
 
+  it('is answered with the scope and what it did, and no time, command ID or replay flag', () => {
+    const answered = { version: 'content-thread.v1', scope, operation: 'thread.place', thread: ref, result: 'stored' };
+    expect(ThreadPlaceAcceptanceSchema.safeParse(answered).success).toBe(true);
+    for (const extra of [
+      { recordedAt: '2026-10-31T13:02:00.000Z' },
+      { commandId: id(81) },
+      { replayed: false },
+      { outcome: 'accepted' },
+    ])
+      expect(ThreadPlaceAcceptanceSchema.safeParse({ ...answered, ...extra }).success).toBe(false);
+    const hidden = {
+      version: 'content-thread.v1',
+      scope,
+      operation: 'thread.place-hidden',
+      thread: ref,
+      hidden: true,
+      changed: true,
+    };
+    expect(ThreadPlaceHiddenAcceptanceSchema.safeParse(hidden).success).toBe(true);
+    expect(
+      ThreadPlaceHiddenAcceptanceSchema.safeParse({ ...hidden, recordedAt: '2026-10-31T13:02:00.000Z' }).success,
+    ).toBe(false);
+  });
+
   it('states a wanted hide', () => {
-    const hide = { version: 'content-thread.v1', commandId: id(82), thread: ref, hidden: true };
+    const hide = { version: 'content-thread.v1', thread: ref, hidden: true };
     expect(SetThreadPlaceHiddenSchema.safeParse(hide).success).toBe(true);
+    expect(SetThreadPlaceHiddenSchema.safeParse({ ...hide, commandId: id(82) }).success).toBe(false);
     expect(SetThreadPlaceHiddenSchema.safeParse({ ...hide, hidden: 'yes' }).success).toBe(false);
   });
 });

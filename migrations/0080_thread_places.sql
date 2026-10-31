@@ -12,10 +12,14 @@
 -- person's place in the same transaction, and while it is true no place is written.
 -- Locking: written under the actor's personal root and own account gate, then the thread's conversation
 -- row FOR UPDATE (as a send is). Read under the same row FOR SHARE.
+-- Receipts: none. Place set (a place only moves forward) and hide (a wanted state) are idempotent by their
+-- state, so no command receipt is written for them. A receipt keeps the exact time of the command and
+-- survives leave and Clear, which would keep a finer time than the day a place is allowed to hold.
 -- Constraints: one row per member and thread (the primary key); the row follows the membership row
 -- (the composite foreign key), so a place cannot outlive the member's row. Leaving, an ended friendship
 -- and Clear delete it explicitly, because a leaver's membership row stays.
--- Growth: at most nine rows per thread (the thread's members).
+-- Growth: at most nine rows per thread (the thread's members). A change bumps each member's inbox revision (a
+-- counter, 0056) and sends the usual disposable hint; neither keeps a time.
 -- Retention: kept until the person leaves, hides, the friendship that carried them in ends, they Clear
 -- their exploration history, or they delete the account. Clear keeps `place_hidden`: it is a choice, not
 -- exploration history. The export lists the person's own places and where they hide.

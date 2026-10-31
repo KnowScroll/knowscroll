@@ -30,13 +30,19 @@ export interface ThreadPlacesController {
    * it. Nothing is sent while they hide, or when the thread already has them there or further on. It never
    * throws and never blocks the player: a lost report is sent again by the next load. While they hide the
    * place is kept in memory only, and sent when they show it again.
+   *
+   * `automatic` (the default) is what the player concludes from the person's own playing or reading: a Reel
+   * opened or played to its end, "Read this Scroll". It follows the recording pause (D-057, D-083): unless
+   * recording is current and collecting (unknown counts as paused) nothing is sent and nothing is kept, not
+   * even in memory, so what was watched while paused is never told later. `explicit` is the person pressing
+   * "I've finished this part": a deliberate share, which is sent even while recording is paused.
    */
-  readonly report: (part: number, state: 'on' | 'finished') => Promise<void>;
+  readonly report: (part: number, state: 'on' | 'finished', how?: 'automatic' | 'explicit') => Promise<void>;
   /** Hides or shows this person's place in this thread. Returns whether the server took it. */
   readonly setHidden: (hidden: boolean) => Promise<boolean>;
 }
 
-type Place = { readonly part: number; readonly state: 'on' | 'finished' };
+type Place = { readonly part: number; readonly state: 'on' | 'finished'; readonly explicit: boolean };
 
 const emptyState: ThreadPlacesState = { phase: 'loading', hidden: false, places: [], saving: false };
 
@@ -47,7 +53,8 @@ export const placeProgress = (place: { readonly part: number; readonly state: 'o
 /**
  * One thread's places. The server owns them; this holds the last read and sends only this person's own.
  * Nothing here is derived from what the person watched or read elsewhere: the thread's player calls
- * `report`, and nothing else does.
+ * `report`, and nothing else does. A place command has no command ID: it is idempotent by its state
+ * (D-152), so a retry is just the same call.
  */
 export function createThreadPlaces(options: {
   readonly scope: AccountScope;
@@ -59,7 +66,7 @@ export function createThreadPlaces(options: {
     getState: () => session.getState(),
     subscribe: (listener) => session.subscribe(listener),
     load: () => session.load(),
-    report: (part, state) => session.report(part, state),
+    report: (part, state, how) => session.report(part, state, how),
     setHidden: (hidden) => session.setHidden(hidden),
   };
 }
@@ -74,13 +81,12 @@ class ThreadPlacesSession {
   private firstLoad: Promise<void> | undefined;
   /**
    * The furthest place the thread's player has reported on this device, kept in memory only. It is what
-   * is sent once the person shows their place again, and what is retried after a lost report.
+   * is sent once the person shows their place again, and what is retried after a lost report. Only reports
+   * that were allowed to be sent (recording collecting, or a deliberate one) are kept.
    */
   private latest: Place | undefined;
   /** The furthest place this device has sent, so a repeated open sends nothing. */
   private sent = 0;
-  /** The command of a hide change in flight or unknown, kept so a retry is the same command. */
-  private hideIntent: { readonly hidden: boolean; readonly commandId: string } | undefined;
 
   constructor(options: { scope: AccountScope; thread: ContentThreadRef; newId: () => string }) {
     this.scope = options.scope;
@@ -101,6 +107,11 @@ class ThreadPlacesSession {
     if (!this.scope.active) return;
     this.state = { ...this.state, ...patch };
     for (const listener of [...this.listeners]) listener();
+  }
+
+  /** Recording is current and collecting; unknown, checking and paused all read as not collecting. */
+  private collecting(): boolean {
+    return this.scope.recording?.getState().collecting === true;
   }
 
   load(): Promise<void> {
@@ -125,9 +136,15 @@ class ThreadPlacesSession {
     }
   }
 
-  async report(part: number, state: 'on' | 'finished'): Promise<void> {
-    const place = { part, state };
-    if (this.latest === undefined || placeProgress(place) > placeProgress(this.latest)) this.latest = place;
+  async report(part: number, state: 'on' | 'finished', how: 'automatic' | 'explicit' = 'automatic'): Promise<void> {
+    const explicit = how === 'explicit';
+    // What the person's own playing or reading concluded is not told while recording is paused, and not kept.
+    if (!explicit && !this.collecting()) return;
+    const place = { part, state, explicit };
+    const kept = this.latest;
+    if (kept === undefined || placeProgress(place) > placeProgress(kept)) this.latest = place;
+    // The same place deliberately shared is no longer only the player's conclusion.
+    else if (explicit && placeProgress(place) === placeProgress(kept)) this.latest = place;
     await (this.firstLoad ?? this.load());
     await this.flush();
   }
@@ -136,19 +153,20 @@ class ThreadPlacesSession {
   private async flush(): Promise<void> {
     const latest = this.latest;
     if (latest === undefined || this.state.phase !== 'ready' || this.state.hidden) return;
+    // A place that came from the person's own playing goes only while recording is collecting.
+    if (!latest.explicit && !this.collecting()) return;
     const own = this.state.places.find((candidate) => candidate.you);
     if (placeProgress(latest) <= Math.max(this.sent, own === undefined ? 0 : placeProgress(own))) return;
     this.sent = placeProgress(latest);
     try {
       await this.scope.api.threads.setPlace({
         version: VERSION,
-        commandId: this.newId(),
         thread: this.thread,
         part: latest.part,
         state: latest.state,
       });
     } catch {
-      // Not sent, or not known to be: the next open or poll sends it again under a new command.
+      // Not sent, or not known to be: the next open or poll sends it again.
       this.sent = 0;
       return;
     }
@@ -158,22 +176,13 @@ class ThreadPlacesSession {
   async setHidden(hidden: boolean): Promise<boolean> {
     if (this.state.saving) return false;
     this.publish({ saving: true });
-    // The command ID is kept for each wanted state: after an unknown outcome the retry is the same command.
-    const intent = this.hideIntent?.hidden === hidden ? this.hideIntent : { hidden, commandId: this.newId() };
-    this.hideIntent = intent;
     try {
-      await this.scope.api.threads.setPlaceHidden({
-        version: VERSION,
-        commandId: intent.commandId,
-        thread: this.thread,
-        hidden,
-      });
-    } catch (error) {
+      await this.scope.api.threads.setPlaceHidden({ version: VERSION, thread: this.thread, hidden });
+    } catch {
+      // A wanted state: after an unknown outcome the retry is the same call.
       this.publish({ saving: false });
-      if (talkFailure(error) === 'unavailable') this.hideIntent = undefined;
       return false;
     }
-    this.hideIntent = undefined;
     // Hiding deleted the server's copy; showing again sends where this person last was, from memory.
     if (hidden) this.sent = 0;
     this.publish({ saving: false });

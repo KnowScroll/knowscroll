@@ -42,8 +42,9 @@ export interface ThreadEncounterProps {
   readonly summary?: string | undefined;
   /**
    * Tells the thread where this person is, from this player only (D-065): they started the part (a Reel
-   * playing, or "Read this Scroll" pressed) or finished it (a Reel played to its last second). Absent where
-   * a thread has no places (a room, a single item). Choosing, folding or docking a part is not told.
+   * playing, or "Read this Scroll" pressed) or finished it (a Reel played to its last second). These come
+   * from the person's own playing, so the controller sends nothing while recording is paused (D-153). Absent
+   * where a thread has no places (a room, a single item). Choosing, folding or docking a part is not told.
    */
   readonly onPlace?: ((part: number, state: 'on' | 'finished') => void) | undefined;
   /**

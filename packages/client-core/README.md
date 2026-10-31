@@ -418,10 +418,14 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
   episode or anything of another member.
 - `createThreadPlaces({scope, thread, newId})` (`thread-places.ts`, party places, D-065, D-152, D-153): `load` reads who shares
-  where and this person's own "hide where I am"; `report(part, 'on' | 'finished')` is called only by the thread's own player.
-  It waits for the first read, sends nothing while the person hides or when the thread already has them there or further on,
-  never throws at the player, and retries a lost report at the next `load`. The furthest place reported is kept in memory only
-  and sent again when hiding is turned off. `setHidden` keeps one command ID per wanted state. A failed read leaves the thread
+  where and this person's own "hide where I am"; `report(part, 'on' | 'finished', how)` is called only by the thread's own
+  player. It waits for the first read, sends nothing while the person hides or when the thread already has them there or
+  further on, never throws at the player, and retries a lost report at the next `load`. What the player concludes from the
+  person's own playing (`automatic`, the default) follows Pause recording (D-057, D-083): unless the recording session says
+  `collecting` (unknown counts as paused) nothing is sent and nothing is kept, not even in memory. `explicit` is the Scroll
+  reader's "I've finished this part" button, a deliberate share that is sent while paused. The furthest place reported is kept
+  in memory only and sent again when hiding is turned off. Place commands have no command ID (idempotent by state, no receipt),
+  so `setHidden` simply calls again. A failed read leaves the thread
   without places; it is a nicety. `party-lines.ts` holds the words: `placeWords` ("On Part 2", "Finished Part 1", "Finished
   all 3 parts"), `placeDay` (the day as a date, "Sat 24 Oct", never a time or "today"), `partyLine` ("Ravi is on Part 2 ·
   Asha and Kenji on Part 1", "All finished"), `facesByPart`. No line says "watching". _Implemented; exercised in browsers

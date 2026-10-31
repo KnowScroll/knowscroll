@@ -135,8 +135,7 @@ test('opening a part in the player and finishing it tell the thread; the other p
   // What was sent: only a part and a state. No time, no playhead, no branch, nothing about what was watched.
   const sent = world.placeCalls('ravi', 'places/set');
   expect(sent.length).toBeGreaterThanOrEqual(2);
-  for (const call of sent)
-    expect(Object.keys(call.body).toSorted()).toEqual(['commandId', 'part', 'state', 'thread', 'version']);
+  for (const call of sent) expect(Object.keys(call.body).toSorted()).toEqual(['part', 'state', 'thread', 'version']);
   expect(sent.map((call) => `${String(call.body['part'])}:${String(call.body['state'])}`)).toEqual([
     '1:on',
     '1:finished',
@@ -220,6 +219,21 @@ test('hide where I am removes the place for everyone, writes nothing while it is
   await expect.poll(() => world.placeOf('ravi')?.part).toBe(2);
   await asha.page.reload();
   await expect(asha.page.getByTestId('party-line')).toHaveText('Ravi fixture is on Part 2 · Meera fixture on Part 1');
+  await closeAll(asha.context, ravi.context);
+});
+
+test('while recording is paused, opening and finishing a part tell the thread nothing', async ({ browser }) => {
+  const world = partyWorld();
+  world.pauseRecording('ravi', true);
+  const asha = await person(browser, world, 'asha');
+  const ravi = await person(browser, world, 'ravi');
+  await watchFirstPart(ravi.page);
+  // The Reel plays past its last second: with recording on this would have told "on" and then "finished".
+  await ravi.page.waitForTimeout(4500);
+  expect(world.placeCalls('ravi', 'places/set')).toHaveLength(0);
+  expect(world.placeOf('ravi')).toBeUndefined();
+  await asha.page.reload();
+  await expect(asha.page.getByTestId('party-line')).toHaveCount(0);
   await closeAll(asha.context, ravi.context);
 });
 

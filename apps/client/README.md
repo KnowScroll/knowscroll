@@ -605,7 +605,8 @@ direct conversations and threads together; a thread row shows its people, the la
   `use-thread-places.ts` reads the places (first read, hints, focus, a 20 s poll). The thread's own player is the only thing
   that tells the thread where this person is: `ThreadEncounter.onPlace` fires `on` when a Reel is opened with Watch or
   Read this Scroll is pressed, `finished` when a Reel plays to its last second (`ReelEncounter.onFinished`) and when the
-  Scroll reader's "I've finished this part" is pressed (the address carries the part as `p`). Choosing a part, the Series
+  Scroll reader's "I've finished this part" is pressed (the address carries the part as `p`). The automatic ones send
+  nothing while recording is paused or not known (D-153); the button is a deliberate share and still sends. Choosing a part, the Series
   sheet, docking, Full screen and the snippet viewer tell nothing. Single-item threads have none of it. No clock time is
   drawn: a place carries a day. Covered by `party.test.tsx` and `e2e/thread-party-smoke.spec.ts` (two people in two browser
   contexts; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._

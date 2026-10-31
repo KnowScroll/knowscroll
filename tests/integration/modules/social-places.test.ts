@@ -76,15 +76,10 @@ describe('party places (real PostgreSQL)', () => {
     return { a, b, c, reels, root, refs };
   }
 
-  const place = (
-    actor: Friend,
-    thread: ContentThreadRef,
-    part: number,
-    state: 'on' | 'finished',
-    commandId = randomUUID(),
-  ) => threads().setPlace(actor.authority, { version, commandId, thread, part, state });
+  const place = (actor: Friend, thread: ContentThreadRef, part: number, state: 'on' | 'finished') =>
+    threads().setPlace(actor.authority, { version, thread, part, state });
   const hideNow = async (actor: Friend, thread: ContentThreadRef, hidden: boolean) =>
-    unwrap(await threads().setPlaceHidden(actor.authority, { version, commandId: randomUUID(), thread, hidden }));
+    unwrap(await threads().setPlaceHidden(actor.authority, { version, thread, hidden }));
   const read = async (actor: Friend, thread: ContentThreadRef) =>
     unwrap(await threads().places(actor.authority, { version, readId: randomUUID(), thread }));
   async function shown(actor: Friend, thread: ContentThreadRef) {
@@ -96,6 +91,33 @@ describe('party places (real PostgreSQL)', () => {
     database.db.selectFrom('social.thread_places').selectAll().where('account_id', '=', person.accountId).execute();
   const inboxRevision = async (person: Friend) =>
     unwrap(await threads().inbox(person.authority, { version, readId: randomUUID(), limit: 10 })).viewRevision;
+  /** The person's real, sealed Clear of exploration history (epoch 1 to 2). */
+  async function clearExploration(person: Friend) {
+    const boss = createBoss(database.settings, 'install', { onError: () => undefined, onWarning: () => undefined });
+    await boss.start();
+    try {
+      await applyQueueDeclarations(boss, [clearExplorationQueue, recoverClearOperationsQueue]);
+      const use = clearExplorationFor(database.db, boss, {
+        reasoning: clearReasoning,
+        eraseCore: eraseCurrentExploration,
+      });
+      const commandId = randomUUID();
+      expect(
+        await use.start(
+          { accountId: person.accountId, universeId: person.universeId, privacyEpoch: 1 },
+          {
+            version: 'clear-exploration.v1',
+            commandId,
+            expectedPrivacyEpoch: 1,
+            confirmation: 'clear-exploration-preserve-keep-and-social',
+          },
+        ),
+      ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
+      await use.process({ v: 1, accountId: person.accountId, commandId });
+    } finally {
+      await boss.stop({ graceful: false });
+    }
+  }
   const leave = async (actor: Friend, thread: ContentThreadRef) =>
     unwrap(await threads().leave(actor.authority, { version, commandId: randomUUID(), thread }));
 
@@ -106,7 +128,6 @@ describe('party places (real PostgreSQL)', () => {
       expect(unwrap(await place(b, refs.b, 2, 'on'))).toMatchObject({
         operation: 'thread.place',
         result: 'stored',
-        replayed: false,
       });
       const answer = await shown(a, refs.a);
       expect(answer.places).toEqual([{ person: b.person, you: false, part: 2, state: 'on', day: '2026-10-24' }]);
@@ -207,14 +228,66 @@ describe('party places (real PostgreSQL)', () => {
       cases.clock.now = new Date('2026-10-24T08:00:00Z');
     });
 
-    it('is idempotent: the same command replays its answer, and another body under it is refused', async () => {
+    it('is idempotent by its state: a repeat is accepted and changes nothing', async () => {
       const { b, refs } = await party();
-      const commandId = randomUUID();
-      const first = unwrap(await place(b, refs.b, 2, 'on', commandId));
-      expect(first).toMatchObject({ replayed: false, result: 'stored' });
-      expect(unwrap(await place(b, refs.b, 2, 'on', commandId))).toMatchObject({ replayed: true, result: 'stored' });
-      expect(await place(b, refs.b, 3, 'on', commandId)).toEqual({ kind: 'refused', code: 'command_key_reused' });
+      expect(unwrap(await place(b, refs.b, 2, 'on')).result).toBe('stored');
+      const before = await rowsOf(b);
+      expect(unwrap(await place(b, refs.b, 2, 'on')).result).toBe('unchanged');
+      expect(await rowsOf(b)).toEqual(before);
       expect(await rowsOf(b)).toHaveLength(1);
+      expect(await hideNow(b, refs.b, true)).toMatchObject({ changed: true });
+      expect(await hideNow(b, refs.b, true)).toMatchObject({ changed: false });
+    });
+
+    it('keeps no receipt of a place command, and no time finer than a day anywhere, after set, hide, leave and Clear', async () => {
+      const { a, b, c, refs } = await party();
+      const placeReceipts = async () =>
+        (
+          await sql<{ operation: string }>`
+            select operation from receipts.shared_commands where operation like 'social.thread-place%'
+            union all select operation from receipts.personal_commands where operation like 'social.thread-place%'`.execute(
+            database.db,
+          )
+        ).rows;
+      /** Every table that holds a row mentioning this clock time, in any text form of it. */
+      const tablesMentioning = async (needle: string) => {
+        const tables = await sql<{ schemaname: string; tablename: string }>`
+          select schemaname, tablename from pg_tables
+          where schemaname not in ('pg_catalog', 'information_schema', 'pgboss') order by 1, 2`.execute(database.db);
+        const found: string[] = [];
+        for (const table of tables.rows) {
+          const counted = await sql<{ n: number }>`
+            select count(*)::int as n from ${sql.table(`${table.schemaname}.${table.tablename}`)} as r
+            where r::text like ${`%${needle}%`}`.execute(database.db);
+          if ((counted.rows[0]?.n ?? 0) > 0) found.push(`${table.schemaname}.${table.tablename}`);
+        }
+        return found;
+      };
+      const instant = '13:02:11';
+      // Every place command runs at one distinctive instant; everything else runs at another time.
+      cases.clock.now = new Date('2026-10-24T13:02:11.987Z');
+      unwrap(await place(b, refs.b, 1, 'on'));
+      unwrap(await place(b, refs.b, 1, 'finished'));
+      unwrap(await place(b, refs.b, 1, 'finished'));
+      unwrap(await place(c, refs.c, 2, 'on'));
+      await hideNow(c, refs.c, true);
+      unwrap(await place(c, refs.c, 2, 'on'));
+      await hideNow(c, refs.c, false);
+      unwrap(await place(c, refs.c, 2, 'on'));
+      cases.clock.now = new Date('2026-10-24T08:00:00Z');
+      expect(await placeReceipts()).toEqual([]);
+      expect(await tablesMentioning(instant)).toEqual([]);
+      // The places themselves are there: a part, a state and a date, and that is all they hold.
+      expect(await rowsOf(b)).toHaveLength(1);
+      expect(await rowsOf(c)).toHaveLength(1);
+
+      // After leaving, and after Clear, still no receipt of a place and no trace of the time.
+      await leave(c, refs.c);
+      await clearExploration(b);
+      expect(await rowsOf(b)).toEqual([]);
+      expect(await placeReceipts()).toEqual([]);
+      expect(await tablesMentioning(instant)).toEqual([]);
+      expect((await shown(a, refs.a)).places).toEqual([]);
     });
 
     it('keeps one row per member under concurrent writes, at the furthest place', async () => {
@@ -233,15 +306,7 @@ describe('party places (real PostgreSQL)', () => {
       const { b, refs } = await party();
       for (const part of [4, 99])
         expect(await place(b, refs.b, part, 'on')).toEqual({ kind: 'refused', code: 'invalid_input' });
-      expect(
-        await threads().setPlace(b.authority, {
-          version,
-          commandId: randomUUID(),
-          thread: refs.b,
-          part: 0,
-          state: 'on',
-        }),
-      ).toEqual({
+      expect(await threads().setPlace(b.authority, { version, thread: refs.b, part: 0, state: 'on' })).toEqual({
         kind: 'refused',
         code: 'invalid_input',
       });
@@ -378,14 +443,7 @@ describe('party places (real PostgreSQL)', () => {
       // A stranger holding no reference of their own: a borrowed one is refused the same way.
       expect(await read(stranger, refs.b)).toMatchObject({ status: 'unavailable' });
       expect(await place(stranger, refs.b, 1, 'on')).toEqual({ kind: 'refused', code: 'unavailable' });
-      expect(
-        await threads().setPlaceHidden(stranger.authority, {
-          version,
-          commandId: randomUUID(),
-          thread: refs.a,
-          hidden: true,
-        }),
-      ).toEqual({
+      expect(await threads().setPlaceHidden(stranger.authority, { version, thread: refs.a, hidden: true })).toEqual({
         kind: 'refused',
         code: 'unavailable',
       });
@@ -480,30 +538,7 @@ describe('party places (real PostgreSQL)', () => {
       unwrap(await place(c, refs.c, 1, 'finished'));
       await hideNow(c, refs.c, true);
       unwrap(await place(a, refs.a, 1, 'on'));
-      const boss = createBoss(database.settings, 'install', { onError: () => undefined, onWarning: () => undefined });
-      await boss.start();
-      try {
-        await applyQueueDeclarations(boss, [clearExplorationQueue, recoverClearOperationsQueue]);
-        const use = clearExplorationFor(database.db, boss, {
-          reasoning: clearReasoning,
-          eraseCore: eraseCurrentExploration,
-        });
-        const commandId = randomUUID();
-        expect(
-          await use.start(
-            { accountId: b.accountId, universeId: b.universeId, privacyEpoch: 1 },
-            {
-              version: 'clear-exploration.v1',
-              commandId,
-              expectedPrivacyEpoch: 1,
-              confirmation: 'clear-exploration-preserve-keep-and-social',
-            },
-          ),
-        ).toMatchObject({ kind: 'entered', value: { kind: 'ok' } });
-        await use.process({ v: 1, accountId: b.accountId, commandId });
-      } finally {
-        await boss.stop({ graceful: false });
-      }
+      await clearExploration(b);
       expect(await rowsOf(b)).toEqual([]);
       // Only the person who cleared lost their place; the others' stay.
       expect(await rowsOf(a)).toHaveLength(1);

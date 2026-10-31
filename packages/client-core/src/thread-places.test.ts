@@ -8,12 +8,17 @@ const thread: ContentThreadRef = { threadId: id(1), membershipId: id(2), members
 const me = { kind: 'person' as const, personId: id(10), handle: 'ci.asha', displayName: 'Asha fixture' };
 const offline = () => new TypeError('network');
 
-/** A server of one thread's places, as far as the client needs: it keeps the caller's own place and switch. */
-function fakeServer(options: { hidden?: boolean } = {}) {
+/**
+ * A server of one thread's places, as far as the client needs: it keeps the caller's own place and switch.
+ * `recording` is what the device last read of the person's recording policy: `collecting` (the default), `paused`,
+ * or `unknown` (no policy session at all).
+ */
+function fakeServer(options: { hidden?: boolean; recording?: 'collecting' | 'paused' | 'unknown' } = {}) {
   const calls: { name: string; input: Record<string, unknown> }[] = [];
   const own: { place?: { part: number; state: 'on' | 'finished' }; hidden: boolean } = {
     hidden: options.hidden ?? false,
   };
+  const recording = { mode: options.recording ?? 'collecting' };
   const failures: { setPlace: unknown[]; places: unknown[]; setPlaceHidden: unknown[] } = {
     setPlace: [],
     places: [],
@@ -47,8 +52,21 @@ function fakeServer(options: { hidden?: boolean } = {}) {
       return Promise.resolve({ hidden: own.hidden, changed: true });
     },
   };
-  const scope = { active: true, api: { threads } } as unknown as AccountScope;
-  return { scope, calls, own, failures, sent: () => calls.filter((call) => call.name === 'setPlace') };
+  const scope = {
+    active: true,
+    api: { threads },
+    get recording() {
+      return recording.mode === 'unknown'
+        ? undefined
+        : {
+            getState: () => ({
+              collecting: recording.mode === 'collecting',
+              policy: { on: recording.mode === 'collecting', generation: 1 },
+            }),
+          };
+    },
+  } as unknown as AccountScope;
+  return { scope, calls, own, failures, recording, sent: () => calls.filter((call) => call.name === 'setPlace') };
 }
 
 let counter = 1000;
@@ -82,12 +100,12 @@ describe('a thread’s places on the client', () => {
     expect(controller.getState().places).toMatchObject([{ part: 2, state: 'on', you: true }]);
   });
 
-  it('sends only a part and a state: no time, position, branch or selection', async () => {
+  it('sends only a part and a state: no time, command ID, position, branch or selection', async () => {
     const server = fakeServer();
     const controller = createThreadPlaces({ scope: server.scope, thread, newId });
     await controller.report(2, 'finished');
     const [call] = server.sent();
-    expect(Object.keys(call!.input).toSorted()).toEqual(['commandId', 'part', 'state', 'thread', 'version']);
+    expect(Object.keys(call!.input).toSorted()).toEqual(['part', 'state', 'thread', 'version']);
   });
 
   it('sends nothing while this person hides, and sends where they last were when they show it again', async () => {
@@ -111,7 +129,7 @@ describe('a thread’s places on the client', () => {
     expect(server.sent().map((call) => call.input['part'])).toEqual([2, 2]);
   });
 
-  it('retries a lost hide with the same command, and a new one for the other state', async () => {
+  it('retries a lost hide with the same call, a wanted state that needs no command ID', async () => {
     const server = fakeServer();
     const controller = createThreadPlaces({ scope: server.scope, thread, newId });
     await controller.load();
@@ -119,11 +137,11 @@ describe('a thread’s places on the client', () => {
     expect(await controller.setHidden(true)).toBe(false);
     expect(await controller.setHidden(true)).toBe(true);
     const hides = server.calls.filter((call) => call.name === 'setPlaceHidden');
-    expect(hides[0]!.input['commandId']).toBe(hides[1]!.input['commandId']);
-    expect(await controller.setHidden(false)).toBe(true);
-    expect(server.calls.filter((call) => call.name === 'setPlaceHidden')[2]!.input['commandId']).not.toBe(
-      hides[0]!.input['commandId'],
-    );
+    expect(hides.map((call) => Object.keys(call.input).toSorted())).toEqual([
+      ['hidden', 'thread', 'version'],
+      ['hidden', 'thread', 'version'],
+    ]);
+    expect(server.own.hidden).toBe(true);
   });
 
   it('never throws at the player: a lost report is sent again by the next load', async () => {
@@ -159,5 +177,65 @@ describe('a thread’s places on the client', () => {
     expect(controller.getState()).toMatchObject({ phase: 'unavailable', places: [] });
     await controller.report(1, 'on');
     expect(server.sent()).toEqual([]);
+  });
+});
+
+describe('places while recording is paused (D-057, D-083)', () => {
+  it('sends nothing the player concludes from the person’s playing while recording is paused', async () => {
+    const server = fakeServer({ recording: 'paused' });
+    const controller = createThreadPlaces({ scope: server.scope, thread, newId });
+    await controller.report(1, 'on');
+    await controller.report(1, 'finished');
+    await controller.report(2, 'on');
+    await controller.load();
+    expect(server.sent()).toEqual([]);
+    expect(server.own.place).toBeUndefined();
+  });
+
+  it('treats a recording policy that is not known as paused', async () => {
+    const server = fakeServer({ recording: 'unknown' });
+    const controller = createThreadPlaces({ scope: server.scope, thread, newId });
+    await controller.report(1, 'on');
+    await controller.load();
+    expect(server.sent()).toEqual([]);
+  });
+
+  it('does not keep what was played while paused, so it is never told later', async () => {
+    const server = fakeServer({ recording: 'paused' });
+    const controller = createThreadPlaces({ scope: server.scope, thread, newId });
+    await controller.report(2, 'on');
+    // Recording is resumed and collecting again: the part watched while paused is still not told.
+    server.recording.mode = 'collecting';
+    await controller.load();
+    expect(server.sent()).toEqual([]);
+    // What is played now is told.
+    await controller.report(3, 'on');
+    expect(server.sent().map((call) => call.input['part'])).toEqual([3]);
+  });
+
+  it('does not send a remembered place on show while recording is paused, when it came from playing', async () => {
+    const server = fakeServer({ hidden: true });
+    const controller = createThreadPlaces({ scope: server.scope, thread, newId });
+    await controller.report(2, 'on');
+    expect(server.sent()).toEqual([]);
+    server.recording.mode = 'paused';
+    expect(await controller.setHidden(false)).toBe(true);
+    expect(server.sent()).toEqual([]);
+  });
+
+  it('sends "I’ve finished this part" while paused, a deliberate share, but not while the person hides', async () => {
+    const server = fakeServer({ recording: 'paused' });
+    const controller = createThreadPlaces({ scope: server.scope, thread, newId });
+    await controller.report(2, 'finished', 'explicit');
+    expect(server.sent().map((call) => [call.input['part'], call.input['state']])).toEqual([[2, 'finished']]);
+
+    const hiding = fakeServer({ hidden: true, recording: 'paused' });
+    const quiet = createThreadPlaces({ scope: hiding.scope, thread, newId });
+    await quiet.report(3, 'finished', 'explicit');
+    expect(hiding.sent()).toEqual([]);
+    // Showing it again sends the deliberate one, still from memory, and still not what was only played.
+    await quiet.report(4, 'on');
+    expect(await quiet.setHidden(false)).toBe(true);
+    expect(hiding.sent().map((call) => [call.input['part'], call.input['state']])).toEqual([[3, 'finished']]);
   });
 });

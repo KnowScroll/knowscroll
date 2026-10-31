@@ -228,7 +228,11 @@ here reads another member's Experience. _Implemented; not runtime-verified._
   field for whose place it is. The part must be one of the series' parts (`invalid_input` otherwise, and for a thread on
   a single item). A place only moves forward (on a part, finished it, on the next), so a repeat or an earlier part
   changes nothing, not even the stored day. The day is the server's own UTC date. A change tells every taking-part
-  member's inbox (a disposable hint carrying nothing); a repeat tells nobody.
+  member's inbox (a disposable hint carrying nothing, kept nowhere); a repeat tells nobody. **No receipt is written**
+  for it or for hide (`inThreadWithoutReceipt` in `thread-command-frame.ts`): both are idempotent by their state, a
+  receipt would keep the exact time of every report and survive leave and Clear, and so neither command has a command
+  ID, a replay or a time in its answer. A test finds no receipt row and no clock time in any table after set, hide,
+  leave and Clear.
 - **Hide** (`threads/places/hide`, `setPlaceHidden`). "Hide where I am", per thread and per person, on the member's own
   row. Places are shown by default, so it is off until the person turns it on. Turning it on deletes their place in the
   same transaction. While it is on, `setPlace` is accepted, says `hidden` and writes nothing. Turning it off writes

@@ -142,9 +142,10 @@ describe('content threads over the installed API (disposable accounts)', () => {
     const bRef = invited.items.find((item) => item.thread.threadId === created.thread.threadId)!.thread;
     await clientOf(b).threads.respond({ version, commandId: randomUUID(), thread: bRef, response: 'join' });
 
-    expect(
-      await clientOf(b).threads.setPlace({ version, commandId: randomUUID(), thread: bRef, part: 2, state: 'on' }),
-    ).toMatchObject({ operation: 'thread.place', result: 'stored' });
+    expect(await clientOf(b).threads.setPlace({ version, thread: bRef, part: 2, state: 'on' })).toMatchObject({
+      operation: 'thread.place',
+      result: 'stored',
+    });
     const seen = await clientOf(a).threads.places({ version, readId: randomUUID(), thread: created.thread });
     expect(seen).toMatchObject({
       status: 'ready',
@@ -152,7 +153,7 @@ describe('content threads over the installed API (disposable accounts)', () => {
       places: [{ person: { handle: b.person.handle }, you: false, part: 2, state: 'on' }],
     });
     // A part and a day: no clock time, no position, nothing about watching.
-    expect(JSON.stringify(seen)).not.toMatch(/d{2}:d{2}|position|playhead|watching/i);
+    expect(JSON.stringify(seen)).not.toMatch(/\d{2}:\d{2}|position|playhead|watching/i);
     // The thread's own view carries none of it.
     expect(
       JSON.stringify(
@@ -168,14 +169,16 @@ describe('content threads over the installed API (disposable accounts)', () => {
         authorization: `Bearer ${b.tokens.native}`,
         'x-ks-scope': `${b.accountId}:1`,
       },
-      body: JSON.stringify({ version, commandId: randomUUID(), thread: bRef, part: 3, state: 'on' }),
+      body: JSON.stringify({ version, thread: bRef, part: 3, state: 'on' }),
     });
     expect(refused.headers.get('content-type')).toBe('application/problem+json');
     expect(SocialProblemSchema.parse(await refused.json()).code).toBe('INVALID_REQUEST');
 
-    expect(
-      await clientOf(b).threads.setPlaceHidden({ version, commandId: randomUUID(), thread: bRef, hidden: true }),
-    ).toMatchObject({ operation: 'thread.place-hidden', hidden: true, changed: true });
+    expect(await clientOf(b).threads.setPlaceHidden({ version, thread: bRef, hidden: true })).toMatchObject({
+      operation: 'thread.place-hidden',
+      hidden: true,
+      changed: true,
+    });
     expect(await clientOf(a).threads.places({ version, readId: randomUUID(), thread: created.thread })).toMatchObject({
       places: [],
     });
