@@ -102,6 +102,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
+- `platform/close-then.ts`: closes a sheet and then opens the screen the person chose, waiting on the web for the sheet's own Back so the navigation is not popped (D-238). Visit a friend's universe, Open thread and a topic picked in the room menu use it.
 - `providers/account-scope.tsx`: the AccountScope provider (#226). It reads the session once
   (nothing renders before), gives the tree the QueryClient of the signed-in scope (one per account
   and privacy epoch) or of the signed-out period, and is keyed by the scope, so sign-out, an account
@@ -632,6 +633,7 @@ direct conversations and threads together; a thread row shows its people, the la
   were opened in the account scope's storage on this device; nothing about that is sent. A pick is sent only while recording is
   on: paused, the card says so and nothing is sent (D-156). The card shows counts and the person's own pick until the reveal, and
   no screen holds another member's pick before it: the contract carries picks only in the revealed stage. Covered by
+  A call whose Scroll was updated after the thread began calling keeps the question the thread called on and says so on the card (`updated`, `callUpdateWords`, D-233).
   `call-together.test.tsx` and `e2e/thread-calls-smoke.spec.ts` (two people in two browser contexts and a third member; the
   reveal, a member who hides, paused recording; axe at 390 × 844 and 1440 × 900). _Implemented; not runtime-verified on dev._
 - `reel-encounter.tsx` plays a Reel inside the thread. It starts with a poster and an explicit Watch; only that opens and

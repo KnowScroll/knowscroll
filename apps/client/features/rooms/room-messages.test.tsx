@@ -1,4 +1,4 @@
-import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { RoomDiscussionController, RoomDiscussionState } from '@knowscroll/client-core';
 import { ROOM_SWATCHES, type RoomKit, type RoomMessage } from '@knowscroll/contracts';
@@ -51,9 +51,9 @@ const card: RoomMessage = {
   },
 };
 
-/** The flattened style of a rendered view. */
-const styleOf = (node: { props: Record<string, unknown> }): ViewStyle =>
-  StyleSheet.flatten(node.props['style'] as StyleProp<ViewStyle>);
+/** The flattened style of a rendered view, for the two things the tests read from it. */
+const styleOf = (node: { props: Record<string, unknown> }) =>
+  StyleSheet.flatten(node.props['style'] as object) as { borderStyle?: string; borderLeftColor?: string };
 
 const state = (messages: RoomMessage[], patch: Partial<RoomDiscussionState> = {}): RoomDiscussionState => ({
   phase: 'ready',
