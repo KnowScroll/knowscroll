@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
-import { localMediaStore, MAX_MEDIA_BYTES } from './index.js';
+import { localMediaStore, MAX_IMAGE_BYTES, MAX_MEDIA_BYTES } from './index.js';
 import { byteRange } from './range.js';
 const roots: string[] = [];
 async function root() {
@@ -43,6 +43,53 @@ describe('logical local media objects', () => {
     await symlink(await root(), link);
     await expect(localMediaStore(link).stage(Readable.from(['x']))).rejects.toThrow('unsafe_path');
     expect((await readdir(path)).filter((entry) => entry.startsWith('.import-'))).toEqual([]);
+  });
+});
+
+describe('stills (painted room backdrops, D-166)', () => {
+  const still = (text: string) => Readable.from([Buffer.from(text)]);
+
+  it('keeps a still under a key that names its type, beside video, and serves it back', async () => {
+    const store = localMediaStore(await root());
+    const staged = await store.stage(still('fixture jpeg bytes'), 'image/jpeg');
+    const object = await staged.commit();
+    expect(object).toMatchObject({
+      mime: 'image/jpeg',
+      key: `sha256/${staged.sha256.slice(0, 2)}/${staged.sha256}.jpg`,
+    });
+    const file = await store.open(object.key);
+    try {
+      expect(await file.handle.readFile('utf8')).toBe('fixture jpeg bytes');
+    } finally {
+      await file.handle.close();
+    }
+    // The same bytes as video are another object: the extension is part of the address.
+    const video = await (await store.stage(still('fixture jpeg bytes'))).commit();
+    expect(video.key).toMatch(/\.mp4$/);
+    expect(video.key).not.toBe(object.key);
+  });
+
+  it('gives each still type its extension', async () => {
+    const store = localMediaStore(await root());
+    const keys = await Promise.all(
+      (['image/png', 'image/webp'] as const).map(
+        async (mime) => (await (await store.stage(still(mime), mime)).commit()).key,
+      ),
+    );
+    expect(keys.map((key) => key.split('.').at(-1))).toEqual(['png', 'webp']);
+  });
+
+  it('refuses a still over its own, smaller bound', async () => {
+    const store = localMediaStore(await root());
+    await expect(store.stage(Readable.from([Buffer.alloc(MAX_IMAGE_BYTES + 1)]), 'image/jpeg')).rejects.toThrow('size');
+    // The same bytes are still within the bound for video.
+    const staged = await store.stage(Readable.from([Buffer.alloc(MAX_IMAGE_BYTES + 1)]));
+    await staged.discard();
+  });
+
+  it('refuses a key that is not a stored object type', async () => {
+    const store = localMediaStore(await root());
+    await expect(store.open(`sha256/ab/${'ab'.repeat(32)}.svg`)).rejects.toThrow('invalid_key');
   });
 });
 

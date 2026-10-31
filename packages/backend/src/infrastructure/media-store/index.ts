@@ -5,12 +5,24 @@ import { dirname, join, resolve } from 'node:path';
 import type { Readable } from 'node:stream';
 
 export const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
-const keyPattern = /^sha256\/[0-9a-f]{2}\/[0-9a-f]{64}\.mp4$/;
+/** A painted still is a few hundred KB; this keeps a runaway answer from filling the disk. */
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** What the store holds: Reel video and the stills of room backdrops (D-166). The type decides the key's extension. */
+export type MediaMime = 'video/mp4' | 'image/jpeg' | 'image/png' | 'image/webp';
+const EXTENSIONS: Readonly<Record<MediaMime, string>> = {
+  'video/mp4': 'mp4',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+const limitOf = (mime: MediaMime): number => (mime === 'video/mp4' ? MAX_MEDIA_BYTES : MAX_IMAGE_BYTES);
+const keyPattern = /^sha256\/[0-9a-f]{2}\/[0-9a-f]{64}\.(mp4|jpg|png|webp)$/;
+const limitOfKey = (key: string): number => (key.endsWith('.mp4') ? MAX_MEDIA_BYTES : MAX_IMAGE_BYTES);
 export interface MediaObject {
   readonly key: string;
   readonly sha256: string;
   readonly size: number;
-  readonly mime: 'video/mp4';
+  readonly mime: MediaMime;
   readonly backend: 'local';
 }
 export interface StagedMedia {
@@ -22,7 +34,8 @@ export interface StagedMedia {
   discard(): Promise<void>;
 }
 export interface MediaStore {
-  stage(stream: Readable): Promise<StagedMedia>;
+  /** Streams the bytes to a temporary file; `mime` (video/mp4 unless said) decides the key's extension and the size bound. */
+  stage(stream: Readable, mime?: MediaMime): Promise<StagedMedia>;
   open(key: string): Promise<{ readonly handle: FileHandle; readonly size: number }>;
 }
 
@@ -60,7 +73,7 @@ export function localMediaStore(root: string): MediaStore {
     await directory(dirname(join(base, key)));
     const handle = await open(join(base, key), constants.O_RDONLY | constants.O_NOFOLLOW);
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_MEDIA_BYTES) {
+    if (!stat.isFile() || stat.size <= 0 || stat.size > limitOfKey(key)) {
       await handle.close();
       throw new MediaRefusal('size');
     }
@@ -68,7 +81,7 @@ export function localMediaStore(root: string): MediaStore {
   }
   return {
     open: safeOpen,
-    async stage(stream) {
+    async stage(stream, mime = 'video/mp4') {
       await directory(base);
       const temporary = join(base, `.import-${randomUUID()}.tmp`);
       const file = await open(
@@ -82,7 +95,7 @@ export function localMediaStore(root: string): MediaStore {
         for await (const raw of stream) {
           const chunk: Buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as Uint8Array);
           size += chunk.length;
-          if (size > MAX_MEDIA_BYTES) throw new MediaRefusal('size');
+          if (size > limitOf(mime)) throw new MediaRefusal('size');
           hash.update(chunk);
           let offset = 0;
           while (offset < chunk.length) offset += (await file.write(chunk, offset)).bytesWritten;
@@ -97,7 +110,7 @@ export function localMediaStore(root: string): MediaStore {
       }
       await file.close();
       const sha256 = hash.digest('hex');
-      const key = `sha256/${sha256.slice(0, 2)}/${sha256}.mp4`;
+      const key = `sha256/${sha256.slice(0, 2)}/${sha256}.${EXTENSIONS[mime]}`;
       let ended = false;
       return {
         sha256,
@@ -135,7 +148,7 @@ export function localMediaStore(root: string): MediaStore {
           } finally {
             await folder.close();
           }
-          return { key, sha256, size, backend: 'local', mime: 'video/mp4' };
+          return { key, sha256, size, backend: 'local', mime };
         },
       };
     },

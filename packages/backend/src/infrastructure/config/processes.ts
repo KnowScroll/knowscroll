@@ -810,6 +810,44 @@ export function readMediaImportConfig(env: Environment) {
   };
 }
 
+/**
+ * The room-face operator's settings (`dist/operator.js rooms kit|backdrop|…`, D-166, D-170): the world and database, the
+ * rooms scope's harness settings, and where pictures are kept. `mediaRoot` is absent when `KS_MEDIA_ROOT` is not set;
+ * then no picture can be made, and everything else still works.
+ */
+export interface RoomFaceOperatorConfig extends ContentOperatorConfig {
+  readonly scopeLockTimeoutMs: number;
+  readonly reasoning: ReasoningSettings;
+  readonly mediaRoot: string | undefined;
+}
+
+/** Refuses worlds outside the content operator allowlist before composing a provider or database. */
+export function readRoomFaceOperatorConfig(env: Environment): RoomFaceOperatorConfig {
+  const content = readContentOperatorConfig(env);
+  const [scope, reasoning] = combineChecks(
+    checkEnvironment(
+      z.object({
+        KS_SCOPE_LOCK_TIMEOUT_MS: positiveInteger(5_000, 60_000),
+        KS_MEDIA_ROOT: z.string().regex(/^\//).optional(),
+      }),
+      pick(env, ['KS_SCOPE_LOCK_TIMEOUT_MS', 'KS_MEDIA_ROOT']),
+    ),
+    checkEnvironment(reasoningVariables, pick(env, Object.keys(reasoningVariables.shape))),
+  );
+  crossChecks([
+    [
+      scope.KS_SCOPE_LOCK_TIMEOUT_MS >= content.database.statementTimeoutMs,
+      'KS_SCOPE_LOCK_TIMEOUT_MS: must_be_below_statement_timeout',
+    ],
+  ]);
+  return {
+    ...content,
+    scopeLockTimeoutMs: scope.KS_SCOPE_LOCK_TIMEOUT_MS,
+    reasoning: reasoningSettings(reasoning),
+    mediaRoot: scope.KS_MEDIA_ROOT,
+  };
+}
+
 /** The bounded, nonpersonal Scroll operator's validated world, database and harness settings. */
 export interface ScrollProductionOperatorConfig extends ContentOperatorConfig {
   readonly scopeLockTimeoutMs: number;

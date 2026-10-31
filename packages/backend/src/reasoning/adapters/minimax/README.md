@@ -22,6 +22,19 @@ whether anything is ever sent again.
 - **Quota:** one observation before every attempt (`GET /v1/token_plan/remains`), judged against a
   floor (`KS_MINIMAX_QUOTA_FLOOR_PERCENT`).
 
+## The image transport (`minimax-image.ts`, v3 R-4, D-166)
+
+`makeMiniMaxImagePort` sends one `POST https://api.minimax.io/v1/image_generation` per attempt with `image-01`, the wide band ratio (21:9) and the
+picture inline (`response_format: base64`), so no second request fetches an address. It shares the text transport's rules (`transport.ts`): one
+`fetch`, no retry, `redirect: "manual"`, one deadline over the exchange, a bounded read, the key only in a header, and the same token-plan key
+(`sk-cp-`). Mapping: a refused connection, DNS or TLS failure means **nothing was sent**; only the refusals MiniMax documents as coming before an
+image is made, provider status 1002, 1004, 1008, 1026, 2013 and 2049 and HTTP 400, 401, 403, 404, 413, 422 and 429, are **conclusive and count
+nothing**. Everything else may have been billed and is **unknown** (charged, never resent by the caller): any other non-zero status, HTTP 408, every
+5xx and any other non-200 status, a timeout, a reset, an interrupted read, a reply that cannot be read, a success with no image, and
+`failed_count` above zero (images blocked by content safety after generation); a picture whose first bytes are not a
+JPEG, PNG or WebP is `unusable` (it was produced, so it is paid for). The type is read from the bytes, never from a header or a name.
+Whether a token-plan key may call this route is not documented; the first real call decides.
+
 The structured-output carriers that earlier recipes used (`submit_output`, a JSON string inside a
 tool call) are gone. A model that writes a long nested JSON document inside an escaped string loses
 track of quotes and brackets; plain text JSON from a flat, forgiving authoring shape worked
