@@ -20,7 +20,7 @@ place the two differ: the role the model is asked, and how an accepted answer is
 admission stores (`stored-v2.ts`: document, `scroll-provenance.v2`, reading facts v3). Still one writer
 request and at most one repair, none inside a transaction.
 
-- **Versions.** A v2 recipe's jobs are `scroll-production.v15`, every other recipe's and every order's
+- **Versions.** A v2 recipe's jobs are `scroll-production.v16`, every other recipe's and every order's
   `.v14` (`productionVersionOf`). A v2 recipe counts as published only when its current revision is a v2
   document, so a v1 Scroll published earlier is regenerated as the next revision of the same asset.
   A queued job whose version does not match the plan is dropped.
@@ -38,6 +38,33 @@ request and at most one repair, none inside a transaction.
 - **Same publication.** Revision, provenance, topic attribution and coverage (`scroll-recipe-coverage.v2`)
   commit in one transaction. `content produce-scroll`, `produce-library` and `production-status` work for v2
   recipes unchanged.
+
+## The answer check and regeneration (S-6a, D-197, D-198)
+
+Status: **implemented**, runtime-verified with the labelled CI fixture model on real PostgreSQL. **Planned:** the first
+measurement on real MiniMax, which the coordinator makes on dev when the first wave runs (the check's reply shape and how often it
+flags are not yet seen on a real model).
+
+- **The answer check** (`answer-check.ts`, `answer-check-step.ts`, `writer-stage.ts`). For a v2 library recipe, after the writer's
+  answer has passed the validator and compiled, the role `content.scroll-answer-check` is shown each call and the Final call (the
+  stop before, the question, lettered options, the marked letter, the explanation, the twist) and no source. It replies
+  `{calls: [{id, consistent, problem?}]}`, one entry per call in order, a closed shape. **Code decides:** all consistent, or no
+  usable answer, stores the Scroll held (the second marked *unchecked*, never released by anything); a flag on the first draft earns
+  the writer **one** repair in a run of its own with the problems and its draft as data (and none when the harness already repaired
+  the draft for the validator); a flag that stands after it ends the job rejected, nothing stored. A spent budget or quota pauses the
+  job; the writer's kept answer is read from the ledger on resume.
+- **The bound** is six paid requests a take for a v2 library recipe (`REQUEST_BOUND_V2_PER_TOPIC`): two writer requests and the checker
+  once for each of the two drafts, each with at most one repair of an unusable reply. A v1 recipe and an order stay at two.
+- **Runs and receipts.** The checker's runs and the repair's run have ids derived from the job (`stableUuid`), so a redelivery asks the
+  ledger instead of paying again. The job closes them all in the transaction that stores or ends it, and when the repair's answer is
+  stored it names the repair run as its writer run (`store.useWriterRun`), so provenance and the lineage check agree. Receipts
+  (`answer_check`, `draft_flagged` with the superseded run's id) are code-only except the checker's short problems, which are operator
+  notes on the private job. `answerChecksOf` reads them back; `review-list`, `review-show` and `production-status` show the summary.
+- **Regeneration.** `content regenerate --only <keys>` sends the next take of a v2 recipe whose Scroll is served. `store.create` lets a
+  take of a v2 recipe follow a take that was rejected or whose Scroll was released, never one still held or of unknown outcome. A
+  recipe has three takes to a **production version**, which is the budget: `SCROLL_PRODUCTION_V2_VERSION` changes whenever the v2
+  writer or the job's steps change (`versions.test.ts` pairs it with the writer's version), and the older version's jobs do not count.
+  `regenerationStanding` and `planRegeneration` (`domain/library/serving.ts`) are the pure rules.
 
 ## Jobs, takes and who sends them
 

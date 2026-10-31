@@ -4,10 +4,13 @@ import type { Database } from '../../../infrastructure/postgres/database.js';
 import { transactionOf } from '../../../infrastructure/postgres/personal-scope.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
 import { RECIPES, type RecipeKey } from '../domain/library/index.js';
+import { summariseAnswerChecks } from '../domain/answer-check.js';
 import {
+  MAX_TAKES_PER_RECIPE,
   pickRecipeToProduce,
   productionStanding,
   recipesServing,
+  regenerationStanding,
   takeToSend,
   type CatalogueBrief,
   type LibraryRecipeStatus,
@@ -15,6 +18,7 @@ import {
   type ScrollProductionReading,
   type ScrollRecipeChoice,
 } from '../domain/library/serving.js';
+import { answerChecksOf } from '../production/answer-check.js';
 import { planRefusalOf, productionVersionOf, scrollV2PlanOf } from '../production/topics.js';
 
 type Queryable = Kysely<Database> | Transaction<Database>;
@@ -26,6 +30,20 @@ interface RunRow {
   readonly review: 'held' | 'released' | 'rejected' | null;
   readonly revision: number | null;
   readonly outcomes: readonly { readonly attempts?: readonly unknown[] }[];
+}
+
+/** The revision of each asset that waits for an operator's decision, whichever production version made it. */
+async function readHeldRevisions(db: Queryable, assetIds: readonly string[]): Promise<ReadonlyMap<string, number>> {
+  const held = await db
+    .selectFrom('content.revision_reviews')
+    .select(['asset_id', 'revision'])
+    .where('asset_id', 'in', assetIds)
+    .where('state', '=', 'held')
+    .orderBy('revision')
+    .execute();
+  const lowest = new Map<string, number>();
+  for (const row of held) if (!lowest.has(row.asset_id)) lowest.set(row.asset_id, row.revision);
+  return lowest;
 }
 
 /**
@@ -58,6 +76,7 @@ export async function readLibraryStatus(
       order by run.topic, run.take`.execute(db)
   ).rows;
   const assetIds = recipes.map((recipe) => RECIPES[recipe].assetId);
+  const heldRevisions = await readHeldRevisions(db, assetIds);
   const assets = await db
     .selectFrom('content.assets as asset')
     .leftJoin('content.asset_revisions as current', (join) =>
@@ -73,23 +92,39 @@ export async function readLibraryStatus(
       asset?.status === 'admitted' &&
       (scrollV2PlanOf(recipe) === undefined || asset.document_version === SCROLL_DOCUMENT_V2_SCHEMA_VERSION);
     const latest = jobs.at(-1);
+    const jobStates = jobs.map(standingStateOf);
+    const v2 = scrollV2PlanOf(recipe) !== undefined;
+    const regeneration = regenerationStanding({
+      v2,
+      admitted,
+      jobs: jobStates,
+      heldRevision: heldRevisions.has(RECIPES[recipe].assetId),
+    });
+    const check = latest === undefined ? undefined : summariseAnswerChecks(answerChecksOf(latest.outcomes));
+    const standing = productionStanding(jobStates, admitted);
     return {
       recipe,
-      // A recipe the plan does not allow can start no take, so nothing is sent for it and no request chooses it.
       state:
+        // A recipe the plan does not allow can start no take, so nothing is sent for it and no request chooses it.
         !admitted && planRefusalOf(recipe) !== undefined
           ? 'stopped'
-          : productionStanding(jobs.map(standingStateOf), admitted),
+          : // A revision an earlier production version left held still waits for a decision: no new take piles on it.
+            !admitted && heldRevisions.has(RECIPES[recipe].assetId) && ['not_started', 'retryable'].includes(standing)
+            ? 'held'
+            : standing,
       ...(latest === undefined ? {} : { job: standingStateOf(latest) }),
       takes: jobs.length,
       ...(admitted ? { assetId: asset.id, revision: asset.revision } : {}),
-      ...(!admitted && latest !== undefined && standingStateOf(latest) === 'held' && latest.revision !== null
-        ? { assetId: RECIPES[recipe].assetId, heldRevision: latest.revision }
+      ...(heldRevisions.has(RECIPES[recipe].assetId)
+        ? { assetId: asset?.id ?? RECIPES[recipe].assetId, heldRevision: heldRevisions.get(RECIPES[recipe].assetId) }
         : {}),
       attempts: jobs.reduce(
         (total, job) => total + job.outcomes.reduce((sum, receipt) => sum + (receipt.attempts?.length ?? 0), 0),
         0,
       ),
+      regeneration,
+      ...(v2 ? { takesLeft: Math.max(0, MAX_TAKES_PER_RECIPE - jobs.length) } : {}),
+      ...(check === undefined ? {} : { check }),
     };
   });
 }

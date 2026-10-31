@@ -36,8 +36,12 @@ import only domain code. It has no behaviour, no storage and no model call.
 A recipe with `scrollV2` is written as a `scroll-document.v2` Scroll and held for an operator's read before anyone is
 served it (D-129, D-138). Today the four Seasons recipes carry it (D-137): `seasons`, `seasons-hemispheres` and
 `seasons-limits` with a picture (their `stageKit`), `seasons-elsewhere` without. Only `seasons` has a misconception, the
-distance myth with its reviewed source; the other three have none because their pages do not document one. Marking a
-recipe is a person's decision, one recipe at a time, with its own decision entry; `library.test.ts` pins the list.
+distance myth with its reviewed source; the other three have none because their pages do not document one. So do the
+thirty-five recipes of Human body, Computing, Machine learning and History (D-199): every one is a `plain` Scroll with
+calls, no myth (no page of the recipe states a common wrong belief) and a landmark. A series is marked whole or not at all,
+so `admit-continuity` can admit it whole. Marking a recipe is a person's decision, one recipe at a time or one wave at a time,
+with its own decision entry; `library.test.ts` pins the list. A v2 recipe is also the only kind `content regenerate` can
+make again (D-197), and the answer check runs on its calls (D-198).
 
 ## Landmarks and the Final call control
 
@@ -45,7 +49,8 @@ A recipe with `scrollV2` may also carry `landmark: {key, name}` and `finalCall: 
 plan data that code sets into the document; the writer never writes them (it is only told what a bound Final call is
 for). The four Seasons recipes name a landmark (`The Leaning Axis`, `The Turning Halves`, `The Near January`, `The
 Sideways Giant`: the first is the design's, the other three are authored and want a person's confirmation) and only
-`seasons` hands the reader the tilt. Every other recipe awards no landmark until S-6 names them, and that is safe: play
+`seasons` hands the reader the tilt. The thirty-five wave recipes name one each (D-199: short, plain and never a claim of mastery; authored, and a person
+should confirm them). Every other recipe awards no landmark until it is marked, and that is safe: play
 awards nothing for a revision whose document has none. Keys are unique and fit the document's id shape, and
 `library.test.ts` pins which recipes name one. Changing either field changes what the next revision carries; stored
 revisions keep what they were published with.

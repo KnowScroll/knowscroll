@@ -155,19 +155,20 @@ when the recorded total plus its estimate would pass $1 in all. `--dry-run` call
 
 `node dist/operator.js content produce-library [--only <keys>] [--interactive-first] [--dry-run]` sends
 the production jobs of recipes that need one (a rejected recipe gets its next take, at most three) and
-`content production-status [--only <keys>]` lists every recipe's standing. Both touch only the shared
-database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
+`content production-status [--only <keys>]` lists every recipe's standing, and for a v2 recipe its regeneration state, the takes it has
+left and what the answer check said. `content regenerate --only <keys> [--dry-run]` (`src/library-operator.ts`, D-197) sends the next take of a
+v2 recipe whose Scroll is served; the new take is stored held. These touch only the shared database and pg-boss; no provider is called. `content admit-continuity [--dry-run]` admits the library
 plan's series (Part tabs) and related moves (Related tab) between the published Scrolls: idempotent,
 shared database only (D-059).
 
 `node dist/operator.js content review-list [--all]`, `review-show --asset <id> [--revision <n>] [--sources]`, `release --asset <id> --revision <n>`
 and `reject --asset <id> --revision <n> --reason <text>` (`src/review-operator.ts`, D-138) are the review gate for v2 library Scrolls:
-what is held, the text to read, and the two decisions, each recorded with who and when. They use the shared database only, refuse worlds
+what is held, the text to read (with what the answer check said, D-198), and the two decisions, each recorded with who and when. They use the shared database only, refuse worlds
 outside dev/stage/ci/local, and call no provider. `review-show` prints the Scroll to the terminal and never to the log.
 
 The content production operator is `node dist/operator.js content produce-scroll --topic <recipe>
 [--take <1-3>] [--dry-run] [--resume]`, a debugging tool over the same use case. It refuses worlds outside dev/stage/ci/local, defaults to
-`MiniMax-M3.1-Flash`, prints a two-request maximum (one writer call and at most one repair), uses the
+`MiniMax-M3.1-Flash`, prints the request maximum (two for a v1 recipe: one writer call and at most one repair; six for a v2 library recipe, D-198), uses the
 explicit nonpersonal harness grant, and emits bounded IDs, outcome codes and reported usage only.
 `--resume` reuses the frozen job and attempt IDs; unknown attempts never resend. When a Scroll is
 refused, `node dist/operator.js reasoning rejected [--attempt <uuid>]` shows the kept, redacted answer

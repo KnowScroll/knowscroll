@@ -1,9 +1,20 @@
 import type { ProductionAttemptAccounting } from '../../../reasoning/public.js';
+import type { CallVerdict } from '../domain/answer-check.js';
 
-/** Code-only operator outcomes; no prompts, research, drafts or internal provenance. */
+/**
+ * Code-only operator outcomes; no prompts, research, drafts or internal provenance. The checker's
+ * verdicts are the one exception that holds model-written words: a short problem for each flagged call,
+ * kept on the private job for the operator who reads the Scroll (D-198).
+ */
 export interface RoleReceipt {
-  readonly role: 'writer' | 'checks';
+  /** `answer_check`: what the answer check said about one draft (D-198). */
+  readonly role: 'writer' | 'checks' | 'answer_check';
   readonly kind: string;
+  /** For the receipt of a superseded draft: the writer run that wrote it, which the job no longer names. */
+  readonly runId?: string;
+  /** For an `answer_check` receipt: which draft of the writer it checked (1, or 2 after a check repair). */
+  readonly draft?: 1 | 2;
+  readonly verdicts?: readonly CallVerdict[];
   readonly attemptId?: string;
   readonly attempts?: readonly ProductionAttemptAccounting[];
   readonly code?: string;
@@ -11,6 +22,12 @@ export interface RoleReceipt {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
 }
+/** A reasoning run a production job used and closes when the job ends (a run left open would never settle). */
+export interface ClosingRun {
+  readonly runId: string;
+  readonly state: 'completed' | 'failed';
+}
+
 export interface ProduceScrollResult {
   /**
    * `paused`: nothing was sent because a daily budget or the provider's quota is used up. The job

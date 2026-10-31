@@ -1,4 +1,5 @@
 import { readingWords, type ScrollDocumentV2 } from '@knowscroll/scroll-model';
+import type { AnswerCheckSummary, CallVerdict } from '../domain/answer-check.js';
 
 /**
  * What an operator reads to judge a v2 Scroll before it is released (D-138): the title, every stop
@@ -38,8 +39,43 @@ function quoteLines(evidence: ReviewEvidence | undefined, part: string): string[
   return (evidence?.quotesByPart.get(part) ?? []).map((quote) => `  > source passage: ${quote}`);
 }
 
+const flagLine = (flag: CallVerdict): string => `    [${flag.id}] ${flag.problem ?? 'flagged'}`;
+
+/**
+ * What the answer check said, in words an operator can act on (D-198). It is a model's opinion about
+ * whether each call's answer key agrees with the call's own words; it never replaces reading them. A
+ * Scroll with no check at all says so, because that is also a fact about how much to trust the read.
+ */
+export function answerCheckLines(check: AnswerCheckSummary | null): string[] {
+  if (check === null)
+    return ['Answer check: not run for this revision (it was made before the check existed). Read every call.'];
+  switch (check.outcome) {
+    case 'passed':
+      return [
+        `Answer check: passed. The checker found all ${String(check.calls)} calls consistent with their answer keys.`,
+      ];
+    case 'repaired':
+      return [
+        `Answer check: repaired. The first draft had ${String(check.firstDraftFlags.length)} flagged call(s); the writer corrected them once and this draft's ${String(check.calls)} calls passed.`,
+        'First-draft flags:',
+        ...check.firstDraftFlags.map(flagLine),
+      ];
+    case 'unchecked':
+      return [
+        `Answer check: NOT CHECKED (${check.code}). The checker gave no usable answer, so no call has a verdict. Read every call's answer key yourself.`,
+        ...(check.firstDraftFlags.length === 0 ? [] : ['First-draft flags:', ...check.firstDraftFlags.map(flagLine)]),
+      ];
+    case 'flagged':
+      return ['Answer check: FLAGGED. These calls were flagged and not cleared:', ...check.flags.map(flagLine)];
+  }
+}
+
 /** The Scroll as plain text for the operator's terminal. Pure. */
-export function reviewTextOf(document: ScrollDocumentV2, evidence?: ReviewEvidence): string {
+export function reviewTextOf(
+  document: ScrollDocumentV2,
+  evidence?: ReviewEvidence,
+  check: AnswerCheckSummary | null = null,
+): string {
   const words = readingWords(document);
   const lines: string[] = [
     `${document.kicker} · ${document.title}`,
@@ -48,6 +84,7 @@ export function reviewTextOf(document: ScrollDocumentV2, evidence?: ReviewEviden
     document.misconception.kind === 'myth'
       ? `Misconception: ${document.misconception.claim} (source: ${document.misconception.source.label}, reviewed: ${String(document.misconception.source.reviewed)})`
       : 'Misconception: none',
+    ...answerCheckLines(check),
     '',
   ];
   const pictures = new Map((document.stage?.states ?? []).map((state) => [state.stop, state.alt]));

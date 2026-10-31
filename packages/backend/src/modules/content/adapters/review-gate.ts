@@ -3,7 +3,9 @@ import { parseDocumentV2, readingWords } from '@knowscroll/scroll-model';
 import { ScrollProvenanceV2 } from '@knowscroll/scroll-model/internal';
 import type { Database } from '../../../infrastructure/postgres/database.js';
 import { withTransaction } from '../../../infrastructure/postgres/personal-scope.js';
+import { summariseAnswerChecks, type AnswerCheckSummary } from '../domain/answer-check.js';
 import { RECIPE_KEYS, RECIPES, type RecipeKey } from '../domain/library/index.js';
+import { answerChecksOf } from '../production/answer-check.js';
 import {
   decideReject,
   decideRelease,
@@ -35,6 +37,11 @@ export interface ReviewListing {
   readonly decidedAt: string | null;
   readonly decidedBy: string | null;
   readonly reason: string | null;
+  /**
+   * What the answer check said about the calls (D-198), or `null` when no check ran for the revision.
+   * `unchecked` means the checker gave no usable answer: read every call.
+   */
+  readonly answerCheck: AnswerCheckSummary | null;
 }
 
 export type ReviewShowResult =
@@ -68,6 +75,8 @@ interface ListingRow {
   served_revision: number | null;
   asset_status: string;
   mapped: boolean;
+  /** The receipts of the job that produced the revision; null for a revision no job made. */
+  outcomes: unknown;
 }
 
 const recipeOfAsset = new Map<string, RecipeKey>(RECIPE_KEYS.map((key) => [RECIPES[key].assetId, key]));
@@ -98,6 +107,7 @@ function listingOf(row: ListingRow): ReviewListing | undefined {
     decidedAt: row.decided_at?.toISOString() ?? null,
     decidedBy: row.decided_by,
     reason: row.reason,
+    answerCheck: summariseAnswerChecks(answerChecksOf(row.outcomes)) ?? null,
   };
 }
 
@@ -114,7 +124,10 @@ async function readListingRows(
         join content.coverage_revisions mapping on mapping.asset_id = head.asset_id
           and mapping.asset_revision = head.asset_revision and mapping.revision = head.revision
         where head.asset_id = review.asset_id and head.asset_revision = review.revision
-          and mapping.status = 'active') as mapped
+          and mapping.status = 'active') as mapped,
+      (select job.outcomes from content.scroll_production_runs job
+        where job.asset_id = review.asset_id and job.asset_revision = review.revision
+        order by job.created_at desc limit 1) as outcomes
     from content.revision_reviews review
     join content.asset_revisions revision on revision.asset_id = review.asset_id and revision.revision = review.revision
     join content.assets asset on asset.id = review.asset_id
@@ -196,7 +209,7 @@ async function showRevision(
   const parsed = parseDocumentV2(row.document);
   if (listing === undefined || parsed.kind !== 'valid') return { kind: 'refused', reason: 'document_unreadable' };
   const evidence = request.withSources ? await readEvidence(db, row.asset_id, row.revision) : undefined;
-  return { kind: 'shown', listing, text: reviewTextOf(parsed.document, evidence) };
+  return { kind: 'shown', listing, text: reviewTextOf(parsed.document, evidence, listing.answerCheck) };
 }
 
 /**
