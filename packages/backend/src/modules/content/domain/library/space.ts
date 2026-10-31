@@ -78,7 +78,7 @@ export const spaceRecipes = {
     interactive: true,
     interactiveKind: 'diagram',
     brief:
-      'How a star shines and stays steady. When a cloud of gas collapses, pressure and temperature at its core rise until hydrogen fuses into helium; the energy flowing outward creates a pressure that counters gravity and holds the star in balance. Let the reader compare a star in balance with what would happen if either gravity or pressure won. Say that more massive stars use their fuel faster and live shorter lives. Do not say the Sun burns like a fire.',
+      'How a star shines and stays steady. When a cloud of gas collapses, pressure and temperature at its core rise until hydrogen fuses into helium; the energy flowing outward creates a pressure that counters gravity and holds the star in balance. Let the reader compare a star in balance with what would happen if either gravity or pressure won. Say that more massive stars use their fuel faster and live shorter lives. Do not say the Sun burns like a fire. Make no call and no claim about how metallicity changes a star’s main-sequence lifetime: the supplied passages disagree with each other on it.',
     pages: ['https://en.wikipedia.org/wiki/Main_sequence'],
     scrollV2: {
       variant: 'stage',
