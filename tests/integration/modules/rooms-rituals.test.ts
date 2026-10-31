@@ -24,9 +24,11 @@ import {
   roomWorld,
   rowsIn,
   seedRoom,
+  unwrap,
   type RoomWorld,
 } from '../support/rooms.js';
 import { starterSource } from '../support/scroll.js';
+import type { Friend } from '../support/talk.js';
 
 const START = new Date('2026-11-01T09:00:00Z');
 const DAY = '2026-11-01';
@@ -395,6 +397,43 @@ describe('a room’s daily items (real PostgreSQL, CI fixture model)', () => {
       // Rejecting is always allowed: it needs no Scroll.
       expect(await ritual.review({ ritualId: drafts[0]!.ritual_id, decision: 'rejected', by: 'cli:ci' })).toEqual({
         kind: 'decided',
+      });
+    });
+
+    it('reaches a member only once approved: Today serves the question and the puzzle, and the first right tap earns the room a star', async () => {
+      await libraryScroll('CI fixture Scroll about the Moon');
+      const { roomId, slug } = await room();
+      const [asha, ravi] = (await joined(world, roomId, 2)) as [Friend, Friend];
+      const { ritual } = operator();
+      await ritual.draftRoom({ room: (await ritual.roomBySlug(slug))!, day: DAY, dryRun: false, signal: never });
+      const today = (person: Friend) =>
+        world.rooms.today(person.authority, { version: 'rooms.v1', readId: randomUUID(), roomId }).then(unwrap);
+      // A draft is shown to no one.
+      expect(await today(asha)).not.toHaveProperty('question');
+      expect(await today(asha)).not.toHaveProperty('flaw');
+      for (const row of await rituals(roomId))
+        await ritual.review({ ritualId: row.ritual_id, decision: 'approved', by: 'cli:ci' });
+      const view = await today(asha);
+      if (view.status !== 'ready' || view.flaw?.state !== 'open') throw new Error('expected an open puzzle');
+      expect(view.day).toBe(DAY);
+      expect(view.question?.source).toMatchObject({ status: 'available' });
+      const key = (await rituals(roomId)).find((row) => row.kind === 'flaw')!.payload as { flawIndex: number };
+      expect(JSON.stringify(view)).not.toContain('flawIndex');
+      const tap = (person: Friend, sentence: number) =>
+        world.rooms.solveFlaw(person.authority, {
+          version: 'rooms.v1',
+          commandId: randomUUID(),
+          roomId,
+          ritualId: view.flaw!.ritualId,
+          sentence,
+        });
+      const wrong = (key.flawIndex + 1) % view.flaw.sentences.length;
+      expect(unwrap(await tap(asha, wrong))).toMatchObject({ correct: false, star: false });
+      expect(unwrap(await tap(ravi, key.flawIndex))).toMatchObject({ correct: true, star: true });
+      const after = await today(ravi);
+      expect(after.status === 'ready' && after.flaw).toMatchObject({ state: 'done', correct: true, found: 1 });
+      expect(after.status === 'ready' && after.flaw?.state === 'done' && after.flaw.source).toMatchObject({
+        status: 'available',
       });
     });
 
