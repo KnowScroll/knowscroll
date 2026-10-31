@@ -23,6 +23,8 @@ set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
 -- A deck is a ritual item of its own kind, drafted by the night's batch and approved by an operator like the day's question.
+-- The check is replaced by a wider one in the same transaction, so no row is ever unguarded and an older writer still satisfies it.
+-- squawk-ignore ban-drop-constraint
 alter table rooms.rituals drop constraint rituals_kind_check;
 alter table rooms.rituals
   add constraint rituals_kind_check check (kind in ('question', 'flaw', 'launch')) not valid;
@@ -30,6 +32,7 @@ alter table rooms.rituals
 alter table rooms.rituals validate constraint rituals_kind_check;
 
 -- A finished Launch is the fourth act that earns a star (D-174).
+-- squawk-ignore ban-drop-constraint
 alter table rooms.stars drop constraint stars_act_check;
 alter table rooms.stars
   add constraint stars_act_check
