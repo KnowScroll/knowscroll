@@ -366,6 +366,8 @@ it('opens a friend’s universe by their public handle, and says nothing about w
     await fireEvent.press(await screen.findByRole('button', { name: 'Options for Peer fixture' }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Visit Peer fixture’s universe' }));
     expect(mockPush).toHaveBeenCalledWith('/visit/fixture.peer');
+    // The menu sheet closes before the visit opens, so it is never left over the other screen.
+    expect(screen.queryByRole('button', { name: 'Visit Peer fixture’s universe' })).toBeNull();
     expect(h.calls.every((call) => !call.path.includes('/visits/'))).toBe(true);
   } finally {
     await view.unmount();

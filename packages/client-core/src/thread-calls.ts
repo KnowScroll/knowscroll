@@ -19,9 +19,10 @@ export interface ThreadCallsState {
   readonly locking: number | undefined;
   /**
    * Why the last lock was not kept, for that part's card to say: recording is paused (a pick is a play result and is
-   * stored only while recording is on, D-083), or the request did not get an answer and the person may press again.
+   * stored only while recording is on, D-083), the request did not get an answer and the person may press again, or the
+   * call changed while they were choosing, so nothing was locked and the card now shows the question it is about (D-233).
    */
-  readonly notice: { readonly part: number; readonly reason: 'paused' | 'failed' } | undefined;
+  readonly notice: { readonly part: number; readonly reason: 'paused' | 'failed' | 'changed' } | undefined;
 }
 
 export interface ThreadCallsController {
@@ -30,11 +31,12 @@ export interface ThreadCallsController {
   /** Reads the calls afresh; called on open, on a hint, on focus and by the slow poll. Never throws. */
   readonly load: () => Promise<void>;
   /**
-   * Locks this person's pick on the call of one part. The first lock stands, so pressing again after a lost answer is
-   * safe. While recording is paused nothing is sent and the card says so. Never throws; the calls are read again
-   * after every answer, so the card shows what the server holds.
+   * Locks this person's pick on the call of one part, as the card they pressed on shows it: the pick names the revision
+   * of that question, and the server stores it only if the call is still about it (D-233). The first lock stands, so
+   * pressing again after a lost answer is safe. While recording is paused nothing is sent and the card says so. Never
+   * throws; the calls are read again after every answer, so the card shows what the server holds.
    */
-  readonly lock: (part: number, option: number) => Promise<void>;
+  readonly lock: (call: Pick<ThreadCall, 'part' | 'assetRevision'>, option: number) => Promise<void>;
 }
 
 const emptyState: ThreadCallsState = { phase: 'loading', calls: [], locking: undefined, notice: undefined };
@@ -76,16 +78,27 @@ export function createThreadCalls(options: {
     }
   }
 
-  /** Asks the server to keep the pick; true once the server answered that the policy allowed it to be asked. */
-  async function send(part: number, option: number): Promise<'kept' | 'paused' | 'stale' | 'failed'> {
+  /** Asks the server to keep the pick; what it answered, for the card to say. */
+  async function send(
+    call: Pick<ThreadCall, 'part' | 'assetRevision'>,
+    option: number,
+  ): Promise<'kept' | 'changed' | 'paused' | 'stale' | 'failed'> {
     const recordingGeneration = await scope.recording?.generation();
     if (recordingGeneration === undefined) return 'failed';
-    const answer = await scope.api.threads.lockCall({ version: VERSION, thread, part, option, recordingGeneration });
-    if (answer.recorded) return 'kept';
+    const answer = await scope.api.threads.lockCall({
+      version: VERSION,
+      thread,
+      part: call.part,
+      assetRevision: call.assetRevision,
+      option,
+      recordingGeneration,
+    });
+    if (answer.recorded) return answer.result === 'changed' ? 'changed' : 'kept';
     return answer.reason === 'recording_paused' ? 'paused' : 'stale';
   }
 
-  async function lock(part: number, option: number): Promise<void> {
+  async function lock(call: Pick<ThreadCall, 'part' | 'assetRevision'>, option: number): Promise<void> {
+    const { part } = call;
     if (state.locking !== undefined) return;
     // A pick is stored only while recording is on, and unknown counts as not on: nothing is sent.
     if (scope.recording?.getState().policy?.on === false) {
@@ -95,18 +108,21 @@ export function createThreadCalls(options: {
     publish({ locking: part, notice: undefined });
     let outcome: Awaited<ReturnType<typeof send>> = 'failed';
     try {
-      outcome = await send(part, option);
+      outcome = await send(call, option);
       if (outcome === 'stale') {
         // The policy moved on since this device read it: read it again and send the same pick once more.
         await scope.recording?.refresh();
-        outcome = await send(part, option);
+        outcome = await send(call, option);
       }
     } catch (error) {
       if (talkFailure(error) === 'ended') return;
     }
     publish({
       locking: undefined,
-      notice: outcome === 'kept' ? undefined : { part, reason: outcome === 'paused' ? 'paused' : 'failed' },
+      notice:
+        outcome === 'kept'
+          ? undefined
+          : { part, reason: outcome === 'paused' ? 'paused' : outcome === 'changed' ? 'changed' : 'failed' },
     });
     await read();
   }

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { DisplayProvider } from '../../display/display';
+import { Text } from '../../text/text';
 import { ReaderDock } from './reader-chrome';
 import { StageReader, type ReaderCommands } from './stage-reader';
 import type { StageReadingObserver } from './use-stop-reading';
@@ -128,6 +129,18 @@ describe('the Stage + Spine reader', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Back to the end' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Something new' }));
     expect([onPart, onDone, onTopic].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
+  });
+
+  it('draws what the screen adds at the end of the Scroll, and nothing there when it adds none', async () => {
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <StageReader document={document} commands={{}} endSlot={<Text variant="body">Fixture end slot</Text>} />
+      </DisplayProvider>,
+    );
+    expect(screen.getByText('Fixture end slot')).toBeOnTheScreen();
+    await screen.unmount();
+    await reader(spy());
+    expect(screen.queryByText('Fixture end slot')).not.toBeOnTheScreen();
   });
 
   it('has no Part 2 peek and no continue button when no next Part was admitted', async () => {

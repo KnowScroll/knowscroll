@@ -85,6 +85,7 @@ export {
   callKey,
   callPartLabel,
   callSummaryWords,
+  callUpdateWords,
   optionLetter,
   revealWords,
 } from './call-words';

@@ -28,6 +28,22 @@ export function callSummaryWords(call: ThreadCall): string {
 }
 
 /**
+ * What the card says when the part's Scroll has a newer revision than the question it shows (D-233), so a call that does
+ * not match the Scroll the person is about to read is never a surprise. Nothing when the question is the current one.
+ */
+export function callUpdateWords(call: Pick<ThreadCall, 'part' | 'updated'>): string | undefined {
+  const part = `Part ${String(call.part)}`;
+  switch (call.updated) {
+    case 'held':
+      return `${part} has been updated since your thread started calling. The call keeps the question your thread called on, so everyone answers the same one.`;
+    case 'restarted':
+      return `${part} has been updated, and the question your thread called on can’t be shown any more. This call asks the new question afresh.`;
+    case undefined:
+      return undefined;
+  }
+}
+
+/**
  * The chip on a part's row in the Series sheet (T3 "Call it · 2 of 4 in"). Only a call the person can still act on or
  * is waiting on has one: a closed call has nothing to offer, and a revealed one says so.
  */

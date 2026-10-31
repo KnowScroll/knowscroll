@@ -379,6 +379,14 @@ describe('Call it together (v3 T-E, D-155 to D-157)', () => {
     expect(ThreadCallSchema.safeParse({ ...revealed, guessSource: 62 }).success).toBe(false);
   });
 
+  it('says a Scroll was updated since the thread called only as held or restarted, in every stage', () => {
+    for (const updated of ['held', 'restarted'])
+      for (const call of [{ ...base, stage: 'open' }, { ...base, stage: 'locked', option: 1 }, revealed])
+        expect(ThreadCallSchema.safeParse({ ...call, updated }).success).toBe(true);
+    for (const updated of ['current', true, 2, ''])
+      expect(ThreadCallSchema.safeParse({ ...base, stage: 'open', updated }).success).toBe(false);
+  });
+
   it('is read for a thread, with one call at most for each part', () => {
     const answer = { version: 'content-thread.v1', readId: id(80), scope, status: 'ready', thread: ref };
     const open = { ...base, stage: 'open' };
@@ -391,11 +399,19 @@ describe('Call it together (v3 T-E, D-155 to D-157)', () => {
   });
 
   it('is locked with a part and a pick, and nothing that says whether it was right', () => {
-    const lock = { version: 'content-thread.v1', thread: ref, part: 2, option: 1, recordingGeneration: 1 };
+    const lock = {
+      version: 'content-thread.v1',
+      thread: ref,
+      part: 2,
+      assetRevision: 1,
+      option: 1,
+      recordingGeneration: 1,
+    };
     expect(LockThreadCallSchema.safeParse(lock).success).toBe(true);
     for (const patch of [
       { option: 3 },
       { part: 0 },
+      { assetRevision: 0 },
       { recordingGeneration: 0 },
       { correct: true },
       { stopId: 'call-one' },
@@ -405,6 +421,8 @@ describe('Call it together (v3 T-E, D-155 to D-157)', () => {
     ])
       expect(LockThreadCallSchema.safeParse({ ...lock, ...patch }).success).toBe(false);
     expect(LockThreadCallSchema.safeParse({ ...lock, recordingGeneration: undefined }).success).toBe(false);
+    // The pick names the question it was made on (D-233): a lock without the revision cannot be judged against it.
+    expect(LockThreadCallSchema.safeParse({ ...lock, assetRevision: undefined }).success).toBe(false);
   });
 
   it('answers a lock with what it did, or that recording is paused, and never a pick, a time or a result', () => {
@@ -417,8 +435,9 @@ describe('Call it together (v3 T-E, D-155 to D-157)', () => {
       part: 2,
       result: 'locked',
     };
-    for (const result of ['locked', 'stands', 'closed'])
+    for (const result of ['locked', 'stands', 'closed', 'changed'])
       expect(ThreadCallLockAcceptanceSchema.safeParse({ ...answered, result }).success).toBe(true);
+    expect(ThreadCallLockAcceptanceSchema.safeParse({ ...answered, result: 'wrong' }).success).toBe(false);
     for (const extra of [
       { option: 1 },
       { right: true },

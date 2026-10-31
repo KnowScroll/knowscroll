@@ -207,6 +207,32 @@ describe('Today and the sky (real PostgreSQL)', () => {
       expect(await starTotal(roomId)).toBe(1);
     });
 
+    it('counts the asker’s own Useful on someone else’s answer, and nobody’s Useful on the asker’s own words', async () => {
+      at(1);
+      const { roomId } = await seedRoom(world);
+      const [asha, ravi, kenji] = (await joined(world, roomId, 3)) as [Friend, Friend, Friend];
+      const topic = unwrap(
+        await world.rooms.create(asha.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          start: { kind: 'topic', title: 'Why is the sky dark at night?', tag: 'question' },
+        }),
+      ).discussionId;
+      // Ravi answers Asha's question and Asha, who asked it, finds the answer useful: the person the answer was for is
+      // the one who can say it helped (D-174: the answer is by someone other than the asker, the mark by someone other
+      // than the answer's author).
+      const answer = unwrap(await say(world, ravi, roomId, topic, 'Light from far stars has not arrived yet'));
+      unwrap(await markUseful(world, asha, roomId, topic, answer.messageId));
+      expect(await starTotal(roomId)).toBe(1);
+      // Asha's own words in her question are not an answer, whoever marks them; and nobody marks their own.
+      const own = unwrap(await say(world, asha, roomId, topic, 'I think it is the expansion'));
+      unwrap(await markUseful(world, ravi, roomId, topic, own.messageId));
+      unwrap(await markUseful(world, kenji, roomId, topic, own.messageId));
+      expect((await markUseful(world, asha, roomId, topic, own.messageId)).kind).toBe('refused');
+      expect(await starTotal(roomId)).toBe(1);
+    });
+
     it('holds the daily cap, forgets the act that met a full day, and earns again the next day', async () => {
       at(2);
       const { roomId } = await seedRoom(world);

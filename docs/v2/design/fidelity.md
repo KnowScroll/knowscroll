@@ -155,6 +155,20 @@ R3 pages p-04 (end to end), p-07 (Today channel), p-09 (on the Universe map) and
 | R3 p-04 step 7 and p-09, the station | A card under the map with "Enter room" and "Remind me"; the constellation named on the map ("THE PRESS"); a Launch pulse | differs | The station shows its constellation and a steadier ring once finished, with "Name · n of 7" in the label (a name is kept while the next constellation forms). No card, no reminder and no Launch pulse (R-6). The sky is for members: an outsider's station is drawn as before. |
 | R3 B, Now strip | Today and Launch chips on top of General | differs | Today and the sky chips; no Launch chip. The strip is the first thing in the conversation list, not pinned: it scrolls away with the messages so they keep over 60 % of a phone (68 % with the strip and 64.5 % in a quiet room, measured at 390 × 844 in `rooms-sky-smoke.spec.ts`; with the strip pinned they were 60.9 % and 57.3 %; D-140). Today and Room sky are also rows in the room menu. |
 
+## v3 dev check, round 2 (#570)
+
+Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 1440 × 900.
+
+| Screen | What | Status | Why |
+|---|---|---|---|
+| T3 p4 frames 3 to 5, reading a part | Reading plays in place, then docks, and the finish and the reveal follow. | differs | A Scroll opens as the thread's own reader, a screen with "Back to thread", not in place with a dock. The finish is in its end tray. The next Part is chosen in the thread (D-234). |
+| T3 p4, sharing from a v2 Scroll | A passage of the part shared back into the thread. | missing | A snippet names a v1 block and a v2 Scroll has stops (D-234). |
+| T3 p4 frame 8, branch card | "Reply", "Call it first" and "2 replies in this branch". | missing | There is no scope for a message in a branch, and a made-to-order Scroll has no authored call (D-213). |
+| R3 C1, an AI reply | An ordinary message with a 4px colour edge, no dotted box, no footnote. | matches | The edge is 5 px, in the resident's colour; the label and Challenge stay (D-237). |
+| R3, "while you were away" card | A card from Halley. | differs | Still a dotted card: R3 does not draw it as a message, and the card is a summary, not a reply (D-237). |
+| R3, who is here | The face strip and a count from three. | matches | Gone a minute after a device's last beat, and at once on `away` (D-239). |
+| R1, R3, finding a room | How a new account reaches a room. | missing | The design draws no list to browse. A room is reached from its station on the person's own map, an invitation or a link (D-240). |
+
 ## Honest limits
 
 - No VoiceOver or TalkBack run. Real devices were not used; the engine is desktop Chromium at the artboard's width.

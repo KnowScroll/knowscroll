@@ -12,6 +12,7 @@ import type {
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import { Button, Icon, Tag, Text } from '@knowscroll/ui';
 import { afterPendingBack } from '../../platform/after-pending-back';
+import { closeThen } from '../../platform/close-then';
 import { TAGS, TAG_WORDS } from './ask-words';
 import { discussionHref, roomHref, todayHref } from './room-links';
 import { ShareIntoRoomSheet } from './share-into-room-sheet';
@@ -59,11 +60,14 @@ function DiscussionRow({
   roomId,
   item,
   selected,
+  closeSheet,
 }: {
   readonly roomId: string;
   readonly item: RoomDiscussionSummary & Partial<Pick<RoomTopicItem, 'usefulCount'>>;
   /** The discussion open beside the list (D04). */
   readonly selected?: boolean;
+  /** The sheet this list sits in, closed before the discussion opens. */
+  readonly closeSheet?: (() => void) | undefined;
 }) {
   const router = useRouter();
   const metadata =
@@ -93,7 +97,7 @@ function DiscussionRow({
     <Pressable
       role="link"
       accessibilityLabel={`${item.pinned ? 'Pinned by the moderator. ' : ''}${item.title}, ${subtitle}`}
-      onPress={() => router.push(href)}
+      onPress={() => (closeSheet === undefined ? router.push(href) : closeThen(closeSheet, () => router.push(href)))}
       aria-current={selected === true ? 'true' : undefined}
       style={[styles.row, item.pinned ? styles.rowPinned : null, selected === true ? styles.rowSelected : null]}
       testID={`discussion-${item.discussionId}`}
@@ -199,6 +203,7 @@ export function TopicsList({
   general,
   pinnedOnly,
   canShare = true,
+  closeSheet,
 }: {
   readonly scope: AccountScope;
   readonly view: Member;
@@ -210,6 +215,8 @@ export function TopicsList({
   readonly pinnedOnly?: boolean;
   /** Whether this list offers sharing into the room (the room menu opens that sheet itself, never inside its own). */
   readonly canShare?: boolean;
+  /** Set when the list sits in a sheet (the room menu's Topics and Pins): the sheet closes before a discussion opens over it. */
+  readonly closeSheet?: () => void;
 }) {
   const router = useRouter();
   const [sharing, setSharing] = useState(false);
@@ -298,6 +305,7 @@ export function TopicsList({
                 roomId={view.room.roomId}
                 item={item}
                 selected={item.discussionId === selectedDiscussionId}
+                closeSheet={closeSheet}
               />
             </View>
           ))}

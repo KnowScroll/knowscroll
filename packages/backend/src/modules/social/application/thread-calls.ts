@@ -6,9 +6,17 @@ import {
   type ThreadCall,
 } from '@knowscroll/contracts';
 import type { z } from 'zod';
-import type { ScrollCallFacts } from '../../content/public.js';
+import type { ScrollCallFacts, SequenceUnit } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
-import { revealedForThread, threadCallOf, viewCall, type CallView } from '../domain/calls.js';
+import {
+  callRevisionCandidates,
+  callUpdateOf,
+  presentMembers,
+  revealedForThread,
+  threadCallOf,
+  viewCall,
+  type CallView,
+} from '../domain/calls.js';
 import { dayOf } from '../domain/places.js';
 import { refuse, threadEnvelope, type Result } from './ports.js';
 import { makeThreadCommandFrame, ok, takingPart } from './thread-command-frame.js';
@@ -21,7 +29,12 @@ interface PartCall {
   readonly assetId: string;
   readonly revision: number;
   readonly call: ScrollCallFacts;
+  /** Set when the Scroll has a newer revision than this call (D-233). */
+  readonly updated?: 'held' | 'restarted';
 }
+
+/** A Scroll part of a thread's declared series. */
+type SeriesScroll = SequenceUnit & { readonly part: number };
 
 const keyOf = (target: PartCall): CallKey => ({
   assetId: target.assetId,
@@ -47,19 +60,11 @@ const sameCall = (row: CallKey, key: CallKey): boolean =>
 export function makeThreadCalls(p: ThreadCallPorts) {
   const { inThreadWithoutReceipt } = makeThreadCommandFrame(p);
 
-  /** The parts of the thread's series that have an authored call, in part order; none for a single item. */
-  async function callsOfSeries(scope: PersonalScopeTx, thread: ThreadRow): Promise<readonly PartCall[]> {
+  /** The Scroll parts of the thread's series, in part order; none for a single item. */
+  async function scrollParts(scope: PersonalScopeTx, thread: ThreadRow): Promise<readonly SeriesScroll[]> {
     const sequence = await p.readSequence(scope, thread.root);
     if (sequence?.kind !== 'series') return [];
-    const found: PartCall[] = [];
-    for (const unit of sequence.units) {
-      if (unit.kind !== 'scroll') continue;
-      const facts = await p.readCallFacts(scope, unit.assetId, unit.assetRevision);
-      const call = facts === undefined ? undefined : threadCallOf(facts.calls);
-      if (call !== undefined)
-        found.push({ part: unit.part, assetId: unit.assetId, revision: unit.assetRevision, call });
-    }
-    return found.toSorted((left, right) => left.part - right.part);
+    return sequence.units.filter((unit): unit is SeriesScroll => unit.kind === 'scroll');
   }
 
   /**
@@ -78,6 +83,44 @@ export function makeThreadCalls(p: ThreadCallPorts) {
     return { locks, places, reveals, blocked };
   }
   type Party = Awaited<ReturnType<typeof partyOf>>;
+
+  /**
+   * The calls the parts offer this reader, in part order, for the parts whose Scroll has an authored question. A pick
+   * belongs to the revision it was locked on and a call is one question for the whole party, so a part's call is about
+   * the earliest revision the reader may count a lock on, and only when none is, about the series' current revision
+   * (D-233). A new revision of a Scroll therefore never takes a pick away. The locks counted are the ones the reader
+   * may see, so a member the reader has a block with cannot move which question the reader is shown.
+   */
+  async function callsOfParts(
+    scope: PersonalScopeTx,
+    entered: EnteredThread,
+    parts: readonly SeriesScroll[],
+    party: Party,
+  ): Promise<readonly PartCall[]> {
+    const present = new Set(
+      presentMembers(entered.owner.accountId, entered.members, party.blocked).map((member) => member.accountId),
+    );
+    const counted = party.locks.filter((row) => present.has(row.accountId));
+    const found: PartCall[] = [];
+    for (const unit of parts) {
+      const locked = counted.filter((row) => row.assetId === unit.assetId).map((row) => row.revision);
+      for (const revision of callRevisionCandidates(unit.assetRevision, locked)) {
+        const facts = await p.readCallFacts(scope, unit.assetId, revision);
+        const call = facts === undefined ? undefined : threadCallOf(facts.calls);
+        if (call === undefined) continue;
+        const updated = callUpdateOf(revision, unit.assetRevision, locked);
+        found.push({
+          part: unit.part,
+          assetId: unit.assetId,
+          revision,
+          call,
+          ...(updated === undefined ? {} : { updated }),
+        });
+        break;
+      }
+    }
+    return found.toSorted((left, right) => left.part - right.part);
+  }
 
   /**
    * Whether the call has revealed for the whole thread. The first time the rule holds for the thread (`revealedForThread`:
@@ -131,6 +174,7 @@ export function makeThreadCalls(p: ThreadCallPorts) {
       options: [...target.call.options],
       called: view.called,
       of: view.of,
+      ...(target.updated === undefined ? {} : { updated: target.updated }),
     };
     switch (view.stage) {
       case 'open':
@@ -179,11 +223,11 @@ export function makeThreadCalls(p: ThreadCallPorts) {
         const envelope = { ...threadEnvelope(scope), readId: query.readId };
         const entered = await enterThread(p, scope, query.thread, 'read');
         if (!entered) return ok(ThreadCallsSchema.parse({ ...envelope, status: 'unavailable' }));
-        const targets = await callsOfSeries(scope, entered.thread);
+        const parts = await scrollParts(scope, entered.thread);
         const calls: ThreadCall[] = [];
-        if (targets.length > 0) {
+        if (parts.length > 0) {
           const party = await partyOf(entered);
-          for (const target of targets) {
+          for (const target of await callsOfParts(scope, entered, parts, party)) {
             calls.push(present(entered, target, await viewOf(entered, target, party, p.now())));
           }
         }
@@ -198,7 +242,8 @@ export function makeThreadCalls(p: ThreadCallPorts) {
      * stored and the answer says why. The part must have an authored call and the option must be one of its options,
      * or the command is invalid. The pick is stored only while the call is open to the caller: not once they started
      * the part or the party revealed. The first lock stands, a repeat or another pick answers `stands` and changes
-     * nothing, and no receipt is kept (D-156). A new lock tells every member's open thread to read again (a disposable
+     * nothing, and no receipt is kept (D-156). A pick for a revision the call is no longer about answers `changed`
+     * and stores nothing (D-233). A new lock tells every member's open thread to read again (a disposable
      * hint that carries nothing). It is not consumption evidence for anyone.
      */
     lockCall(
@@ -211,7 +256,7 @@ export function makeThreadCalls(p: ThreadCallPorts) {
       return inThreadWithoutReceipt<z.infer<typeof ThreadCallLockAcceptanceSchema>>(authority, {
         command,
         async decide({ scope, entered, now }) {
-          const accepted = (result: 'locked' | 'stands' | 'closed') =>
+          const accepted = (result: 'locked' | 'stands' | 'closed' | 'changed') =>
             ThreadCallLockAcceptanceSchema.parse({
               ...threadEnvelope(scope),
               operation: 'thread.call-lock',
@@ -233,15 +278,22 @@ export function makeThreadCalls(p: ThreadCallPorts) {
           }
           if (gate.kind !== 'recording') return refuse('unavailable');
 
-          const target = (await callsOfSeries(scope, entered.thread)).find(
-            (candidate) => candidate.part === command.part,
-          );
-          if (target === undefined || command.option >= target.call.optionCount) return refuse('invalid_input');
+          const parts = (await scrollParts(scope, entered.thread)).filter((unit) => unit.part === command.part);
+          if (parts.length === 0) return refuse('invalid_input');
+          const party = await partyOf(entered);
+          const target = (await callsOfParts(scope, entered, parts, party))[0];
+          if (target === undefined) return refuse('invalid_input');
+          // The option is an index into the question the person saw. If the call has moved to another revision since (the
+          // only earlier locker left or cleared, or the revision that held it can no longer be read), it means nothing
+          // there: store nothing, and the card is read again (D-233).
+          if (command.assetRevision !== target.revision)
+            return ok({ write: () => Promise.resolve(accepted('changed')), announce: [] });
+          if (command.option >= target.call.optionCount) return refuse('invalid_input');
           // This may record that the call revealed (see `latchedReveal`) before a "stands" or "closed" outcome that
           // writes nothing else. That is acceptable: the record is a fact about the thread, the same row any read of
           // the call would write at this moment, it names no person and no pick, and it does not depend on this
           // caller's lock.
-          const view = await viewOf(entered, target, await partyOf(entered), now);
+          const view = await viewOf(entered, target, party, now);
           if (view.stage === 'locked' || view.stage === 'revealed')
             return ok({ write: () => Promise.resolve(accepted('stands')), announce: [] });
           if (view.stage === 'closed') return ok({ write: () => Promise.resolve(accepted('closed')), announce: [] });

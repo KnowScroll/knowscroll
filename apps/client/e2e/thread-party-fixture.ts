@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import { id } from './encounter-fixture';
 
 /**
@@ -39,15 +40,16 @@ export const partyAddress = (who: Who) => {
   return `/threads/${ref.threadId}?m=${ref.membershipId}&r=1`;
 };
 
-const episodes = [1, 2, 3].map((part) => ({
-  assetId: id(300 + part),
-  assetRevision: 1,
-  kind: 'reel' as const,
-  part,
-  title: `CI part ${String(part)}`,
-  state: 'ready' as const,
-  visited: false,
-}));
+const episodesOf = (kind: 'reel' | 'scroll') =>
+  [1, 2, 3].map((part) => ({
+    assetId: id(300 + part),
+    assetRevision: 1,
+    kind,
+    part,
+    title: `CI part ${String(part)}`,
+    state: 'ready' as const,
+    visited: false,
+  }));
 const cursor = (n: number) => `kcc1_${'A'.repeat(25)}${String(n)}`;
 const text = (sequence: number, author: (typeof people)[Member], value: string) => ({
   messageId: id(100 + sequence),
@@ -87,8 +89,13 @@ export const PARTY_CALL = {
   twist: 'CI fixture twist: half moon gives the smaller neap tides.',
 } as const;
 
-/** `call`: the thread has a call before Part 2 (D-155). The places-only tests of T-D leave it off, so their layout is unchanged. */
-export function partyWorld(options: { readonly call?: boolean } = {}) {
+/**
+ * `call`: the thread has a call before Part 2 (D-155). The places-only tests of T-D leave it off, so their layout is unchanged.
+ * `scrolls`: the three parts are Scrolls (the labelled v2 fixture `seasons-stage-ci`, which the thread's reader draws as the
+ * Stage + Spine reader) instead of Reels.
+ */
+export function partyWorld(options: { readonly call?: boolean; readonly scrolls?: boolean } = {}) {
+  const episodes = episodesOf(options.scrolls === true ? 'scroll' : 'reel');
   const places = new Map<Member, StoredPlace>();
   const hidden: Record<Member, boolean> = { asha: false, ravi: false, meera: false };
   /** Whose recording is paused (D-057): the policy the device reads says so. */
@@ -208,7 +215,12 @@ export function partyWorld(options: { readonly call?: boolean } = {}) {
                 root: {
                   status: 'available',
                   target: { assetId: episodes[0]!.assetId, assetRevision: 1 },
-                  metadata: { kind: 'reel', title: 'CI part 1', summary: 'Fixture summary.', language: 'en' },
+                  metadata: {
+                    kind: episodes[0]!.kind,
+                    title: 'CI part 1',
+                    summary: 'Fixture summary.',
+                    language: 'en',
+                  },
                 },
                 participants: (['asha', 'ravi', 'meera'] as const).map((member) => ({
                   person: people[member],
@@ -302,7 +314,15 @@ export function partyWorld(options: { readonly call?: boolean } = {}) {
                 },
               };
             const stage = (callOf(who) as { stage: string }).stage;
-            const result = stage === 'open' ? 'locked' : stage === 'closed' ? 'closed' : 'stands';
+            // The pick names the revision of the question on the card (D-233); the fixture's call is about revision 1.
+            const result =
+              body['assetRevision'] !== 1
+                ? 'changed'
+                : stage === 'open'
+                  ? 'locked'
+                  : stage === 'closed'
+                    ? 'closed'
+                    : 'stands';
             if (result === 'locked') locks.set(who, Number(body['option']));
             return {
               json: {
@@ -327,19 +347,24 @@ export function partyWorld(options: { readonly call?: boolean } = {}) {
                 policy: { on: !paused[who], generation: paused[who] ? 2 : 1 },
               },
             };
-          // A Reel opened from the thread: open, media grant, activate, then the recorder's batches.
-          case '/v1/experience/open':
+          // A part opened from the thread: open, media grant (a Reel) or document (a Scroll), activate, then the recorder's batches.
+          case '/v1/experience/open': {
+            const assetId = (body['target'] as { assetId: string }).assetId;
+            const part = episodes.findIndex((episode) => episode.assetId === assetId) + 1;
             return {
               json: {
                 commandId: body['commandId'],
-                exposureId: id(400),
-                assetId: (body['target'] as { assetId: string }).assetId,
+                exposureId: id(400 + part),
+                assetId,
                 assetRevision: 1,
-                kind: 'reel',
+                kind: options.scrolls === true ? 'scroll' : 'reel',
                 revision: 1,
                 replayed: false,
               },
             };
+          }
+          case '/v1/play/results/read':
+            return { json: { assetId: body['assetId'], revision: body['revision'], calls: [], sparks: 0, combo: 0 } };
           case '/v1/media/grants':
             return {
               json: {
@@ -366,7 +391,7 @@ export function partyWorld(options: { readonly call?: boolean } = {}) {
             return {
               json: {
                 commandId: body['commandId'],
-                exposureId: id(400),
+                exposureId: body['exposureId'],
                 activatedAt: '2026-10-24T10:00:00.000Z',
                 revision: 1,
                 replayed: false,
@@ -389,8 +414,24 @@ export function partyWorld(options: { readonly call?: boolean } = {}) {
               },
             };
           }
-          default:
+          default: {
+            // A Scroll's document, for the exposure the open above made: the part's title over the labelled v2 fixture.
+            const document = /^\/v1\/experience\/exposures\/([^/]+)\/document$/.exec(path);
+            if (document !== null && options.scrolls === true) {
+              const part = Number(document[1]!.slice(-12)) - 400;
+              const episode = episodes[part - 1]!;
+              return {
+                json: {
+                  exposureId: document[1],
+                  assetId: episode.assetId,
+                  assetRevision: 1,
+                  document: { ...seasons, assetId: episode.assetId, title: episode.title },
+                  degradedEssential: [],
+                },
+              };
+            }
             return { status: 404, json: {} };
+          }
         }
       };
     },

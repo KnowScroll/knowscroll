@@ -32,7 +32,7 @@ export interface ThreadPlacesController {
    * place is kept in memory only, and sent when they show it again.
    *
    * `automatic` (the default) is what the player concludes from the person's own playing or reading: a Reel
-   * opened or played to its end, "Read this Scroll". It follows the recording pause (D-057, D-083): unless
+   * opened or played to its end, a Scroll opened in the reader. It follows the recording pause (D-057, D-083): unless
    * recording is current and collecting (unknown counts as paused) nothing is sent and nothing is kept, not
    * even in memory, so what was watched while paused is never told later. `explicit` is the person pressing
    * "I've finished this part": a deliberate share, which is sent even while recording is paused.
