@@ -155,6 +155,11 @@ export const earthRecipes = {
       'https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html',
       'https://oceanservice.noaa.gov/education/tutorial_tides/tides06_variations.html',
     ],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-two-bulges', name: 'The Two Bulges' },
+    },
   },
   'tides-spring-neap': {
     explanationUnitId: 'earth-tides-spring-neap-v1',
@@ -170,6 +175,11 @@ export const earthRecipes = {
     brief:
       'Why tides are larger at some times of the month than others. At new and full Moon the Sun, Moon and Earth line up and their pulls add, giving larger tidal ranges; about a week later the Sun and Moon are at right angles and the range is moderate. Step through these alignments. Say that the name spring tide has nothing to do with the season, and do not suggest every coast shows the same size or timing.',
     pages: ['https://oceanservice.noaa.gov/facts/springtide.html', 'https://oceanservice.noaa.gov/facts/tides.html'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-added-pulls', name: 'The Added Pulls' },
+    },
   },
   'tides-coasts': {
     explanationUnitId: 'earth-tides-coasts-v1',
@@ -182,6 +192,11 @@ export const earthRecipes = {
     brief:
       'Why the same tide-raising pull gives very different tides on different coasts. The open ocean has a small tidal range, while some bays have a very large one and enclosed seas such as the Mediterranean have some of the smallest. Explain tidal resonance, where the shape and depth of a basin match the rhythm of the tide and amplify it, as in the Bay of Fundy. Do not present a tide height for any place as exact or current.',
     pages: ['https://en.wikipedia.org/wiki/Tidal_range', 'https://en.wikipedia.org/wiki/Tidal_resonance'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-sloshing-bay', name: 'The Sloshing Bay' },
+    },
   },
   greenhouse: {
     explanationUnitId: 'legacy-cutroom-greenhouse',
@@ -199,6 +214,11 @@ export const earthRecipes = {
     brief:
       'The greenhouse effect, a blanket made of gas: sunlight heats the surface; infrared absorption and emission slow cooling to space; the surface warms until energy balances. The blanket is an analogy, gases do not create energy or act as a solid lid. Distinguish the natural effect from strengthening it. Use comparison or disclosure.',
     pages: ['https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-gas-blanket', name: 'The Gas Blanket' },
+    },
   },
   'greenhouse-radiation': {
     explanationUnitId: 'earth-greenhouse-radiation-paths-v1',
@@ -218,6 +238,11 @@ export const earthRecipes = {
       'https://science.nasa.gov/ems/13_radiationbudget/',
       'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
     ],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-returning-glow', name: 'The Returning Glow' },
+    },
   },
   'greenhouse-balance': {
     explanationUnitId: 'earth-greenhouse-system-balance-v1',
@@ -236,6 +261,11 @@ export const earthRecipes = {
       'https://science.nasa.gov/earth/earth-observatory/climate-and-earths-energy-budget/',
       'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
     ],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-even-ledger', name: 'The Even Ledger' },
+    },
   },
   'greenhouse-limits': {
     explanationUnitId: 'earth-greenhouse-analogy-audit-v1',
@@ -252,5 +282,10 @@ export const earthRecipes = {
       'https://science.nasa.gov/ems/13_radiationbudget/',
       'https://science.nasa.gov/climate-change/faq/what-is-the-greenhouse-effect/',
     ],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-leaky-blanket', name: 'The Leaky Blanket' },
+    },
   },
 } as const satisfies SystemRecipes<typeof earthSystem>;

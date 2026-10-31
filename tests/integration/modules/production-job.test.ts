@@ -1,5 +1,5 @@
 import { sql } from 'kysely';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createBoss, drainConsumers, jobConsumer, startConsumers } from '@knowscroll/backend/infrastructure/jobs';
 import {
   makeWithProductionScope,
@@ -29,11 +29,15 @@ import { productionStore } from '../../../packages/backend/src/modules/content/p
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
+import { markRecipesV1 } from '../support/scroll-v2.js';
 
 const answer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
 const delivery = () => ({ signal: signal() });
 
 describe('Scroll production as worker jobs (CI fixture model + real PostgreSQL and pg-boss; no provider network)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1('stars-fusion', 'tides', 'greenhouse');
+  afterAll(restoreRecipes);
   let database: TestDatabase<Database>;
   beforeEach(async () => {
     database = await createTestDatabase<Database>('production_job');

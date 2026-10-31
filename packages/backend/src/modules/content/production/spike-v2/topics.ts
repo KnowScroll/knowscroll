@@ -98,9 +98,9 @@ export const SEASONS_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 
 /**
  * The eight Earth & sky and Space recipes the drawing kits of D-194 give a picture, to measure with the
- * v17 prompt before any of them is marked `scrollV2`: tides, the greenhouse effect, stars and exoplanet
- * transits. Each runs as the library will produce it, a stage Scroll with the recipe's own kit, and with the
- * spike's own unreviewed misconception (`SPIKE_MYTHS`) where the table lists one.
+ * v17 prompt: tides, the greenhouse effect, stars and exoplanet transits. The plan marks them `scrollV2`
+ * (D-217), so each runs as the library produces it: a stage Scroll with the recipe's own kit and the plan's
+ * misconception (none).
  */
 export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'tides',
@@ -129,10 +129,10 @@ export const BODY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v19 prompt before any of
- * them is marked `scrollV2`: colour and brightness and the habitable zone with `starlight.v1`, and the formation,
- * the horizon and the evidence of black holes with `black-hole.v1`. Each runs as the library will produce it,
- * a stage Scroll with the recipe's own kit and the spike's own unreviewed misconception.
+ * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v19 prompt: colour and brightness
+ * and the habitable zone with `starlight.v1`, and the formation, the horizon and the
+ * evidence of black holes with `black-hole.v1`. The plan marks them `scrollV2` (D-217), so each runs as the
+ * library produces it: a stage Scroll with the recipe's own kit and the plan's misconception (none).
  */
 export const SPACE_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'stars-colour-brightness',

@@ -206,7 +206,7 @@ stores the immutable admitted revision in the same production-root transaction. 
 waits happen outside it. The same version reruns idempotently; explicit resume continues the frozen
 job after a crash. The operator's `content writer-spike-v2` runs the v2 writer (`scroll-authoring.v2`) on library recipes and reports; it admits and publishes nothing
 (S-0, D-120 to D-122). A recipe the plan marks `scrollV2` is produced by the same job as a v2 Scroll
-(D-129, implemented). The plan marks the four Seasons recipes (D-137) and the thirty-five recipes of four systems (D-199), and a v2 library Scroll is stored **held** until an operator releases it (D-138, "The review gate" below). `content regenerate --only <keys>` makes another take of one whose Scroll is served (D-197), three takes to a production version. See [production/README.md](production/README.md) and the
+(D-129, implemented). The plan marks the four Seasons recipes (D-137), the thirty-five recipes of four systems (D-199) and the fifteen kit recipes of Earth & sky and Space (D-217), and a v2 library Scroll is stored **held** until an operator releases it (D-138, "The review gate" below). `content regenerate --only <keys>` makes another take of one whose Scroll is served (D-197), three takes to a production version. See [production/README.md](production/README.md) and the
 [operator runbook](../../../../../docs/v2/operations/scroll-production.md). Fixture CI and real
 provider/browser evidence are separate requirements; no authored starter is labelled generated.
 

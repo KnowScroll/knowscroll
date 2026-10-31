@@ -169,8 +169,7 @@ describe('the worker operator command (reasoning) from the built release', () =>
       const result = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
       expect(result.code).toBe(0);
       // A v2 library recipe adds the answer check to its two writer requests (D-198): six, not two.
-      const requestBound = ['seasons', 'attention-mechanism', 'dns-lookup'].includes(topic) ? 6 : 2;
-      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound });
+      expect(result.result).toEqual({ command: 'content produce-scroll', outcome: 'dry_run', requestBound: 6 });
     }
     for (const topic of ['greenhouse-unknown', '__proto__', 'greenhouse ']) {
       const refused = await operator(env(), ['content', 'produce-scroll', '--topic', topic, '--dry-run']);
