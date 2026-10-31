@@ -4,7 +4,7 @@ import { evidencePassages } from '../production/evidence.js';
 import { fixtureAuthoredV2, fixtureResearchPageV2 } from '../production/spike-v2/writer-v2.fixture.js';
 import { storedScrollV2 } from '../production/stored-v2.js';
 import { publicationV2, type WriterV2Context } from '../production/writer-v2.js';
-import { reviewTextOf } from './review-text.js';
+import { answerCheckLines, reviewTextOf } from './review-text.js';
 
 const context: WriterV2Context = {
   publication: publicationV2('seasons'),
@@ -73,5 +73,58 @@ describe('the text an operator reads before releasing a v2 Scroll (labelled CI f
     });
     expect(withSources).toContain('> source passage: An invented passage about Orrin.');
     expect(withSources).toContain('SOURCES\n  CI fixture page (https://example.invalid/orrin)');
+  });
+});
+
+describe('what an operator is told about the answer check before reading the calls (D-198)', () => {
+  const document = orrin();
+  const flag = { id: 'c2', consistent: false, problem: 'The key marks B but the explanation says A is right.' };
+
+  it('says a revision made before the check was not checked, and never leaves the line out', () => {
+    const text = reviewTextOf(document);
+    expect(text).toContain('Answer check: not run for this revision');
+    expect(answerCheckLines(null)).toHaveLength(1);
+  });
+
+  it('puts the check right under the header, before the first stop', () => {
+    const text = reviewTextOf(document, undefined, { outcome: 'passed', calls: 3 });
+    expect(text).toContain('Answer check: passed. The checker found all 3 calls consistent');
+    expect(text.indexOf('Answer check:')).toBeLessThan(text.indexOf(`[${document.stops[0]!.id}]`));
+  });
+
+  it('shows what the first draft was flagged for when the writer repaired it', () => {
+    const lines = answerCheckLines({ outcome: 'repaired', calls: 3, firstDraftFlags: [flag] });
+    expect(lines[0]).toContain('repaired');
+    expect(lines).toContain('    [c2] The key marks B but the explanation says A is right.');
+  });
+
+  it('says plainly that nothing was checked, with the reason, and asks for every call to be read', () => {
+    const [line] = answerCheckLines({ outcome: 'unchecked', code: 'outcome_unknown', firstDraftFlags: [] });
+    expect(line).toContain('NOT CHECKED (outcome_unknown)');
+    expect(line).toContain('Read every call');
+  });
+
+  it('prints the flagged call as the checker saw it: the question, the options with the marked one, and the explanation', () => {
+    const call = {
+      prompt: 'Why is the north warm in midsummer?',
+      options: ['Its half leans toward the star', 'It is closest to the star'],
+      answer: 1,
+      explain: 'The lean is the cause, not the distance.',
+    };
+    const lines = answerCheckLines({
+      outcome: 'repaired',
+      calls: 3,
+      firstDraftFlags: [{ ...flag, call }],
+    });
+    expect(lines).toContain('      Question: Why is the north warm in midsummer?');
+    expect(lines).toContain('        A. Its half leans toward the star');
+    expect(lines).toContain('        B. It is closest to the star (marked correct)');
+    expect(lines).toContain('      Explanation: The lean is the cause, not the distance.');
+  });
+
+  it('lists the flags that stood', () => {
+    const lines = answerCheckLines({ outcome: 'flagged', flags: [flag], firstDraftFlags: [] });
+    expect(lines[0]).toContain('FLAGGED');
+    expect(lines[1]).toContain('[c2]');
   });
 });
