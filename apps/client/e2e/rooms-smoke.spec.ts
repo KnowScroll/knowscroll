@@ -60,6 +60,15 @@ test('on a phone a member lands in General under the room’s band, sees the not
   await expect(page.getByTestId('ai-notice')).toBeVisible();
   await expect.poll(() => callsTo(calls, '/v1/rooms/presence').length).toBeGreaterThan(0);
   expect(callsTo(calls, '/v1/rooms/presence')[0]?.body).toMatchObject({ state: 'here' });
+  // The AI residents are one line, not a panel: the messages keep at least 60 % of the screen (T-A).
+  const residents = page.getByTestId('inhabitants-toggle');
+  await expect(residents).toBeVisible();
+  await expect(page.getByTestId('ask-explainer')).toHaveCount(0);
+  const messages = await page.getByTestId('room-messages').boundingBox();
+  expect(messages?.height ?? 0).toBeGreaterThanOrEqual(phone.height * 0.6);
+  await residents.click();
+  await expect(page.getByTestId('ask-explainer')).toBeVisible();
+  await residents.click();
   await shoot(page, 'phone-1-first-visit');
   expect(await seriousViolations(page)).toEqual([]);
 
