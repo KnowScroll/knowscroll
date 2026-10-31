@@ -33,9 +33,9 @@ function changed(
 
 describe('the v17 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
-    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v17');
+    expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v18');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
-    expect(writerRoleV2(context()).version).toBe('scroll-writer.v17');
+    expect(writerRoleV2(context()).version).toBe('scroll-writer.v18');
     expect(writerRoleV2(context()).id).toBe('content.scroll-writer');
   });
 
@@ -299,6 +299,8 @@ const KIT_RECIPES = [
   ['greenhouse.v1', 'greenhouse-radiation', 'In it the layer lets sunlight through'],
   ['star.v1', 'stars-fusion', 'The picture draws no years, no figures and no named star'],
   ['transit.v1', 'exoplanet-transit', 'The picture is the transit method only'],
+  ['circulation.v1', 'cardiac-cycle', 'The picture draws no heart rate, no blood pressure figure'],
+  ['nerve.v1', 'action-potential', 'The picture draws no voltage figure, speed or time'],
 ] as const;
 
 describe.each(KIT_RECIPES)('the v17 writer for a recipe drawn with %s', (kit, key, sentence) => {

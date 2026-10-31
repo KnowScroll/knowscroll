@@ -126,6 +126,27 @@ describe('the renderer on the device', () => {
       'tidesPhysics',
       'transitParts',
       'transitPhysics',
+      // The heart and nerve kits' physics (D-201): derivations at one state and a model of the membrane, no admission.
+      'actionPotential',
+      'arcPhysics',
+      'ARTERIOLE_RADIUS',
+      'AXON_PEAK_AT',
+      'axonProfile',
+      'circulationParts',
+      'haemoglobinSaturation',
+      'heartPhysics',
+      'loopPhysics',
+      'LOOP_STRETCHES',
+      'nerveParts',
+      'OXYGEN_PRESSURE',
+      'oxygenPhysics',
+      'postsynapticCourse',
+      'pushResponses',
+      'RELATIVE_FLOW',
+      'spikePhysics',
+      'SYNAPSE_TIME_IN_CONSTANTS',
+      'synapsePhysics',
+      'TRACE_STEP',
     ]);
     const model = readFileSync(join(__dirname, 'model.ts'), 'utf8');
     const runtimeExports = [...model.matchAll(/export\s*\{([^}]+)\}\s*from/g)].flatMap((match) =>

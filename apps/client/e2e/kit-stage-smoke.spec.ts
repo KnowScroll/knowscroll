@@ -1,6 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import circulation from '@knowscroll/scroll-model/fixtures/circulation-stage-ci.json';
 import greenhouse from '@knowscroll/scroll-model/fixtures/greenhouse-stage-ci.json';
+import nerve from '@knowscroll/scroll-model/fixtures/nerve-stage-ci.json';
 import star from '@knowscroll/scroll-model/fixtures/star-stage-ci.json';
 import tides from '@knowscroll/scroll-model/fixtures/tides-stage-ci.json';
 import transit from '@knowscroll/scroll-model/fixtures/transit-stage-ci.json';
@@ -8,7 +10,7 @@ import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { encounterFixture } from './encounter-fixture';
 
 /**
- * The drawing kits of D-194 in the production export: each kit's stage in the Stage + Spine reader, over the
+ * The drawing kits of D-194 and D-201 in the production export: each kit's stage in the Stage + Spine reader, over the
  * labelled CI fixtures `<kit>-stage-ci` (not product content) and authored HTTP fixtures. It proves what the
  * client does, not the backend: the picture follows the stop, it is named by the description of its state, a
  * state is drawn without a script error, the reduced-motion path cross-fades, and axe finds nothing at phone
@@ -21,6 +23,8 @@ const KITS = [
   ['greenhouse', greenhouse],
   ['star', star],
   ['transit', transit],
+  ['circulation', circulation],
+  ['nerve', nerve],
 ] as const;
 const sizes = [
   ['phone', { width: 390, height: 844 }],
