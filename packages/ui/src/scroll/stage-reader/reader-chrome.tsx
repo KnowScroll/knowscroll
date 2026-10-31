@@ -88,9 +88,20 @@ export function ReaderDock({
   readonly onMore?: (() => void) | undefined;
   readonly nextPart?: NextPartPeek | undefined;
 }) {
+  // At 320 to 359 px the four controls do not fit in a row with the full wording, so Ask drops to its first word; its name does not change.
+  const { breakpoint } = useDisplay();
+  const compact = breakpoint === 'compact';
   return (
-    <View style={styles.dock}>
-      {onAsk === undefined ? null : <Button label="Ask about this" icon="ask" size="sm" onPress={onAsk} />}
+    <View style={[styles.dock, compact ? styles.dockCompact : null]}>
+      {onAsk === undefined ? null : (
+        <Button
+          label={compact ? 'Ask' : 'Ask about this'}
+          accessibilityLabel="Ask about this"
+          icon="ask"
+          size="sm"
+          onPress={onAsk}
+        />
+      )}
       {sparks === undefined ? null : <SparkChip sparks={sparks} />}
       {onMore === undefined ? null : <IconButton icon="more" label="More" variant="paper" size={44} onPress={onMore} />}
       <View style={styles.spacer} />
@@ -134,5 +145,6 @@ const styles = StyleSheet.create({
     borderTopColor: content.ink,
     backgroundColor: content.paper,
   },
+  dockCompact: { gap: spacing[1], paddingHorizontal: spacing[3] },
   spacer: { flex: 1 },
 });

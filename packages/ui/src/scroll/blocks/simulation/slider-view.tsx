@@ -18,6 +18,8 @@ export interface SliderProps {
   /** The value is final (release, a key, an assistive action, a tap): keep it. */
   readonly onCommit: (value: number, how: 'drag' | 'control') => void;
   readonly onDragging: (dragging: boolean) => void;
+  /** What a screen reader hears for a value, when the parameter's own format would not say it right. */
+  readonly valueText?: ((value: number) => string) | undefined;
 }
 
 /**
@@ -27,12 +29,12 @@ export interface SliderProps {
  * get increment and decrement actions. A drag is owned once the horizontal axis locks
  * (`useSliderGesture`). The row is 48 px tall; the thumb is 32 and sits inside it.
  */
-export function Slider({ param, value, onPreview, onCommit, onDragging }: SliderProps) {
+export function Slider({ param, value, onPreview, onCommit, onDragging, valueText }: SliderProps) {
   const [width, setWidth] = useState(0);
   const focus = useFocusRing('onLight');
   const travel = Math.max(0, width - THUMB);
   const ratio = ratioOf(param, value);
-  const text = formatWithUnit(value, param.format, param.unit);
+  const text = valueText === undefined ? formatWithUnit(value, param.format, param.unit) : valueText(value);
   const gesture = useSliderGesture({
     param,
     travel,

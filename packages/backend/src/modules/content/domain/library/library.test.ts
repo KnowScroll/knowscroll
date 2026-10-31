@@ -255,8 +255,43 @@ describe('the recipes the plan produces as v2 Scrolls (scrollV2, D-137)', () => 
         claim: 'Earth has seasons because it is closer to the Sun in summer and farther away in winter.',
         source: { label: 'A Private Universe (1987 documentary)', reviewed: true },
       },
+      landmark: { key: 'the-leaning-axis', name: 'The Leaning Axis' },
+      finalCall: { kind: 'tilt' },
     });
     for (const key of ['seasons-hemispheres', 'seasons-limits', 'seasons-elsewhere'] as const)
       expect(RECIPES[key].scrollV2?.misconception, key).toEqual({ kind: 'none' });
+  });
+});
+
+describe('landmarks and the Final call control (D-187, D-188)', () => {
+  const v2 = recipes.filter((recipe) => recipe.scrollV2 !== undefined);
+
+  it('names a landmark for the four Seasons recipes only, and leaves every other recipe without one', () => {
+    expect(
+      recipes
+        .filter((recipe) => recipe.scrollV2?.landmark !== undefined)
+        .map((recipe) => recipe.key)
+        .sort(),
+    ).toEqual(['seasons', 'seasons-elsewhere', 'seasons-hemispheres', 'seasons-limits']);
+  });
+
+  it('gives every landmark a key and a name that fit the document, and no two the same key or name', () => {
+    const landmarks = v2.flatMap((recipe) =>
+      recipe.scrollV2?.landmark === undefined ? [] : [recipe.scrollV2.landmark],
+    );
+    for (const landmark of landmarks) {
+      expect(landmark.key).toMatch(/^[a-z][a-z0-9-]{1,39}$/u);
+      expect(landmark.name.length).toBeGreaterThanOrEqual(4);
+      expect(landmark.name.length).toBeLessThanOrEqual(40);
+    }
+    expect(new Set(landmarks.map((landmark) => landmark.key)).size).toBe(landmarks.length);
+    expect(new Set(landmarks.map((landmark) => landmark.name)).size).toBe(landmarks.length);
+  });
+
+  it('hands the reader the tilt of Earth only in the Scroll about the tilt, and only where the picture draws the axis', () => {
+    const bound = v2.filter((recipe) => recipe.scrollV2?.finalCall !== undefined).map((recipe) => recipe.key);
+    expect(bound).toEqual(['seasons']);
+    for (const recipe of v2.filter((candidate) => candidate.scrollV2?.finalCall !== undefined))
+      expect(recipe.stageKit, recipe.key).toBe('earth-sky.v1');
   });
 });

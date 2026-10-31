@@ -98,3 +98,58 @@ describe('moving between scenes', () => {
     expect(lerpScene(from, to, 0)).toEqual(from);
   });
 });
+
+describe('the picture when the reader turns the axis at the Final call (D-187)', () => {
+  const side = (month: StageState['earthAt'], view: StageState['view'] = 'sun-earth') =>
+    state({ view, earthAt: month });
+
+  it("is exactly the picture of the state at today's tilt, so turning the slider starts from what was drawn", () => {
+    for (const view of ['sun-earth', 'orbit', 'earth-close'] as const)
+      for (const month of STAGE_ENUMS.earthAt)
+        expect(sceneOf(side(month, view), AXIAL_TILT_DEGREES)).toEqual(sceneOf(side(month, view)));
+  });
+
+  it('stands the axis straight up and leaves both pins alike, in every month and view, at no tilt', () => {
+    for (const view of ['sun-earth', 'orbit', 'orbit-stretched', 'earth-close'] as const)
+      for (const month of STAGE_ENUMS.earthAt) {
+        const scene = sceneOf(side(month, view), 0);
+        expect(Math.abs(scene.axisTurn)).toBe(0);
+        expect(scene.northPinAway).toBeCloseTo(scene.southPinAway, 9);
+        expect(scene.northWarmth).toBeCloseTo(scene.southWarmth, 9);
+      }
+  });
+
+  it('turns the drawn axis by the tilt chosen, toward the Sun for the half that leans in', () => {
+    expect(sceneOf(side('jun'), 40).axisTurn).toBeCloseTo(-40, 9);
+    expect(sceneOf(side('dec'), 40).axisTurn).toBeCloseTo(40, 9);
+    expect(sceneOf(side('mar'), 40).axisTurn).toBeCloseTo(0, 9);
+    expect(sceneOf(side('jun', 'orbit'), 40).axisTurn).toBeCloseTo(-40, 9);
+  });
+
+  it('warms the pin the Sun comes nearer, as the tilt grows, and never leaves the 0 to 1 scale', () => {
+    let previous = sceneOf(side('jun'), 0).northWarmth;
+    for (let tilt = 1; tilt <= 50; tilt += 1) {
+      const scene = sceneOf(side('jun'), tilt);
+      expect(scene.northWarmth).toBeGreaterThanOrEqual(previous - 1e-9);
+      previous = scene.northWarmth;
+    }
+    for (let tilt = 0; tilt <= 90; tilt += 1)
+      for (const month of STAGE_ENUMS.earthAt) {
+        const scene = sceneOf(side(month), tilt);
+        for (const value of [scene.northWarmth, scene.southWarmth]) {
+          expect(value).toBeGreaterThanOrEqual(0);
+          expect(value).toBeLessThanOrEqual(1);
+        }
+        for (const value of [scene.axisTurn, scene.northPinAway, scene.southPinAway])
+          expect(Number.isFinite(value)).toBe(true);
+      }
+  });
+
+  it('lands Ray on a wider patch where the Sun is lower, at any tilt', () => {
+    const scene = sceneOf(side('jun'), 12);
+    const centre = { x: 0, y: 0 };
+    const patch = (away: number) => footprintLength(beamFootprint(centre, 100, pinPoint(centre, 100, 'north', away)));
+    expect(scene.northPinAway).toBeLessThan(scene.southPinAway);
+    expect(patch(scene.northPinAway)).toBeLessThan(patch(scene.southPinAway));
+  });
+});

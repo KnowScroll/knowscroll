@@ -40,20 +40,27 @@ export async function encounterFixture(page: Page, kind: 'scroll' | 'reel', opti
   /** Every observation event the page sent, in order. */
   const observed: { kind: string; exposureId: string; payload: Record<string, unknown> }[] = [];
   const served = options.scrollDocument ?? document;
-  // Only a v2 document has stops; the v1 fixtures have no call to play.
-  const callIts =
-    'stops' in served ? callsOf(served as unknown as ScrollDocumentV2).filter((call) => call.kind === 'call_it') : [];
+  // Only a v2 document has stops; the v1 fixtures have no call to play. The Final call is a call like the others.
+  const playable = 'stops' in served ? (served as unknown as ScrollDocumentV2) : undefined;
+  const callIts = playable === undefined ? [] : callsOf(playable);
+  const isFinal = (stopId: string) => callIts.find((call) => call.id === stopId)?.kind === 'final_call';
   /** The calls the play routes hold, judged from the served document as the server judges a revision. */
   const kept = (options.play?.kept ?? []).map((lock) => ({
     ...lock,
     correct: callIts.find((call) => call.id === lock.stopId)?.answer === lock.option,
   }));
-  const resultsFor = (assetId: unknown, revision: unknown): ScrollResults => ({
-    assetId: String(assetId),
-    revision: Number(revision),
-    calls: kept.map((lock) => ({ ...lock })),
-    ...tallyOf(kept),
-  });
+  const resultsFor = (assetId: unknown, revision: unknown): ScrollResults => {
+    const final = kept.find((lock) => isFinal(lock.stopId));
+    return {
+      assetId: String(assetId),
+      revision: Number(revision),
+      calls: kept.map((lock) => ({ ...lock })),
+      ...tallyOf(kept.map((lock) => ({ correct: lock.correct, finalCall: isFinal(lock.stopId) }))),
+      ...(final === undefined || playable?.landmark === undefined
+        ? {}
+        : { landmark: { ...playable.landmark, tier: final.correct ? ('gold' as const) : ('plain' as const) } }),
+    };
+  };
   const recording = options.play?.recordingPaused === true ? { on: false, generation: 2 } : { on: true, generation: 1 };
   const offer = (n: number): EncounterOffer => ({
     offerId: id(100 + n),

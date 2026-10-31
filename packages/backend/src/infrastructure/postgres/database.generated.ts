@@ -1274,6 +1274,17 @@ export interface PlayCalls {
   universe_id: string;
 }
 
+export interface PlayLandmarks {
+  asset_id: string;
+  earned_at: Generated<Timestamp>;
+  landmark_key: string;
+  landmark_name: string;
+  privacy_epoch: number;
+  revision: number;
+  tier: string;
+  universe_id: string;
+}
+
 export interface PlayScrollResults {
   asset_id: string;
   calls_locked: number;
@@ -2171,6 +2182,7 @@ export interface DB {
   "planner.runs": PlannerRuns;
   "planner.state": PlannerState;
   "play.calls": PlayCalls;
+  "play.landmarks": PlayLandmarks;
   "play.scroll_results": PlayScrollResults;
   "reasoning.business_runs": ReasoningBusinessRuns;
   "reasoning.external_attempts": ReasoningExternalAttempts;

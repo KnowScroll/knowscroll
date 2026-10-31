@@ -16,10 +16,20 @@ interface TallyRow {
   readonly combo: number;
 }
 
+interface LandmarkRow {
+  readonly asset_id: string;
+  readonly revision: number;
+  readonly landmark_key: string;
+  readonly landmark_name: string;
+  readonly tier: 'gold' | 'plain';
+  readonly earned_at: Date;
+}
+
 /**
- * `play.calls` and `play.scroll_results` (migration 0074). Every row is the caller's own and at
- * their current privacy epoch. A call row is only ever inserted: the first lock stands, so there is
- * no update here. The order of the calls is the sequence `lock_seq`, never the clock.
+ * `play.calls`, `play.scroll_results` (migration 0074) and `play.landmarks` (0077). Every row is the
+ * caller's own and at their current privacy epoch. A call row is only ever inserted: the first lock
+ * stands, so there is no update here. The order of the calls is the sequence `lock_seq`, never the
+ * clock. A landmark is awarded once, in the transaction of the Final call that earned it.
  */
 export const playStore: PlayStore = {
   async readPlay(scope, assetId, revision) {
@@ -34,10 +44,17 @@ export const playStore: PlayStore = {
       select calls_locked, sparks, combo from play.scroll_results
       where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}
         and asset_id = ${assetId}::uuid and revision = ${revision}`.execute(db);
+    const landmark = await sql<LandmarkRow>`
+      select asset_id, revision, landmark_key, landmark_name, tier, earned_at from play.landmarks
+      where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}
+        and asset_id = ${assetId}::uuid and revision = ${revision}`.execute(db);
     const row = tally.rows[0];
+    const earned = landmark.rows[0];
     return {
       calls: calls.rows.map((call) => ({ stopId: call.stop_id, option: call.option, correct: call.correct })),
       tally: row === undefined ? NO_PLAY : { callsLocked: row.calls_locked, sparks: row.sparks, combo: row.combo },
+      landmark:
+        earned === undefined ? undefined : { key: earned.landmark_key, name: earned.landmark_name, tier: earned.tier },
     };
   },
 
@@ -55,5 +72,32 @@ export const playStore: PlayStore = {
       on conflict (universe_id, asset_id, revision) do update
         set calls_locked = excluded.calls_locked, sparks = excluded.sparks, combo = excluded.combo,
             updated_at = now()`.execute(db);
+  },
+
+  async insertLandmark(scope, landmark) {
+    const db = recordingTransactionOf(scope);
+    const { universeId, privacyEpoch } = scope.personal.authority;
+    await sql`
+      insert into play.landmarks (universe_id, privacy_epoch, asset_id, revision, landmark_key, landmark_name, tier)
+      values (${universeId}::uuid, ${privacyEpoch}, ${landmark.assetId}::uuid, ${landmark.revision},
+        ${landmark.key}, ${landmark.name}, ${landmark.tier})
+      on conflict (universe_id, asset_id, revision) do nothing`.execute(db);
+  },
+
+  async listLandmarks(scope) {
+    const { universeId, privacyEpoch } = scope.authority;
+    const rows = await sql<LandmarkRow>`
+      select asset_id, revision, landmark_key, landmark_name, tier, earned_at from play.landmarks
+      where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}
+      order by earned_at desc, asset_id, revision
+      limit 200`.execute(transactionOf(scope));
+    return rows.rows.map((row) => ({
+      assetId: row.asset_id,
+      revision: row.revision,
+      key: row.landmark_key,
+      name: row.landmark_name,
+      tier: row.tier,
+      earnedAt: row.earned_at,
+    }));
   },
 };

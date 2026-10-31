@@ -5,12 +5,13 @@ import { transactionOf } from '../../../infrastructure/postgres/personal-scope.j
 import { clearCoreTransactionOf } from '../../../infrastructure/postgres/privacy-scope.js';
 
 /**
- * Play is the person's own game record: the calls they locked and what those earned. Every row is
- * universe-keyed, so selective Clear and account deletion delete all of it (D-050, D-082). Nothing
- * of it is kept beside the person's Saved items or friends, and no other module holds a copy: the
- * modules that rank, plan and form places never import play (D-063).
+ * Play is the person's own game record: the calls they locked, what those earned and the landmarks
+ * their Final calls awarded. Every row is universe-keyed, so selective Clear and account deletion
+ * delete all of it (D-050, D-082). Nothing of it is kept beside the person's Saved items or
+ * friends, and no other module holds a copy: the modules that rank, plan and form places never
+ * import play (D-063).
  */
-const tables = ['calls', 'scroll_results'] as const;
+const tables = ['calls', 'scroll_results', 'landmarks'] as const;
 
 interface ExportRow {
   readonly asset_id: string;
@@ -58,13 +59,14 @@ export const playErasure = declareErasure({
 
   /**
    * The calls the person locked, by Scroll: its title (when they may still read it), each question,
-   * the option they picked in words, whether it was right, and the sparks and combo it earned. The
-   * option is shown as the person saw it; internal identifiers and the right answer are left out.
+   * the option they picked in words, whether it was right, and the sparks and combo it earned; and
+   * the landmarks they earned, each with its name, finish and day. The option is shown as the person
+   * saw it; internal identifiers and the right answer are left out.
    */
   export: (declaration) =>
     exportReading(
       declaration,
-      ['play.calls', 'play.scroll_results'],
+      ['play.calls', 'play.scroll_results', 'play.landmarks'],
       'Nothing else is declared.',
       async (scope, person) => {
         const rows = await sql<ExportRow>`
@@ -79,16 +81,57 @@ export const playErasure = declareErasure({
         where call.universe_id = ${scope.authority.universeId}::uuid and call.privacy_epoch = ${scope.authority.privacyEpoch}
         order by call.lock_seq desc
         limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
-        if (rows.rows.length === 0) return {};
-        const reachable = await person.reach([...new Set(rows.rows.map((row) => row.asset_id))]);
+        const landmarks = await sql<LandmarkExportRow>`
+        select landmark.asset_id, landmark.landmark_name, landmark.tier, landmark.earned_at, revision.title
+        from play.landmarks landmark
+        left join content.asset_revisions revision
+          on revision.asset_id = landmark.asset_id and revision.revision = landmark.revision
+        where landmark.universe_id = ${scope.authority.universeId}::uuid
+          and landmark.privacy_epoch = ${scope.authority.privacyEpoch}
+        order by landmark.earned_at desc
+        limit ${EXPORT_LIST_LIMIT + 1}`.execute(transactionOf(scope));
+        if (rows.rows.length === 0 && landmarks.rows.length === 0) return {};
+        const reachable = await person.reach([
+          ...new Set([...rows.rows, ...landmarks.rows].map((row) => row.asset_id)),
+        ]);
         // The list is bounded by calls, not by Scrolls, so its own cut is reported.
         const listed = rows.rows.slice(0, EXPORT_LIST_LIMIT);
         return {
-          scrolls: { items: groupByScroll(listed, reachable), truncated: rows.rows.length > EXPORT_LIST_LIMIT },
+          ...(listed.length === 0
+            ? {}
+            : {
+                scrolls: { items: groupByScroll(listed, reachable), truncated: rows.rows.length > EXPORT_LIST_LIMIT },
+              }),
+          ...(landmarks.rows.length === 0
+            ? {}
+            : {
+                landmarks: {
+                  items: landmarks.rows.slice(0, EXPORT_LIST_LIMIT).map((row) => landmarkEntry(row, reachable)),
+                  truncated: landmarks.rows.length > EXPORT_LIST_LIMIT,
+                },
+              }),
         };
       },
     ),
 });
+
+interface LandmarkExportRow {
+  readonly asset_id: string;
+  readonly landmark_name: string;
+  readonly tier: 'gold' | 'plain';
+  readonly earned_at: Date;
+  readonly title: string | null;
+}
+
+/** A landmark in words: its name, its finish, the day, and the Scroll it came from when they may still read it. */
+function landmarkEntry(row: LandmarkExportRow, reachable: ReadonlySet<string>): Record<string, unknown> {
+  return {
+    name: row.landmark_name,
+    finish: row.tier,
+    earnedAt: row.earned_at.toISOString(),
+    ...(reachable.has(row.asset_id) && row.title !== null ? { scroll: row.title } : {}),
+  };
+}
 
 /** One entry per Scroll revision, newest play first, each with its calls newest first. */
 function groupByScroll(rows: readonly ExportRow[], reachable: ReadonlySet<string>) {

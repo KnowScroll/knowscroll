@@ -10,15 +10,17 @@ import {
 } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
-import { callsOf, type ScrollDocumentV2 } from '../model';
+import { AXIAL_TILT_DEGREES, callsOf, finalBonusReady, type ScrollDocumentV2 } from '../model';
 import { toggleSemantics } from '../../display/semantics';
 import { useDisplay } from '../../display/display';
 import { useFocusRing } from '../../display/focus-ring';
 import { Text } from '../../text/text';
 import { Stage } from '../stage';
-import type { NextPartPeek } from './end-tray';
+import type { FinalCallPlay } from './call-view';
+import type { NextPartPeek, SmallPrint } from './end-tray';
 import type { PartMove } from './part-gesture';
 import { PartSwipe } from './part-swipe';
+import { payoffOf } from './payoff';
 import { actOnKey, run, type ReaderCommands } from './reader-actions';
 import { ReaderFocus } from './reader-focus';
 import type { ReaderKey } from './reader-keys';
@@ -122,9 +124,25 @@ export function StageReader({
   const { current, jump } = text;
   const activeStopId = current < document.stops.length ? document.stops[current]?.id : undefined;
   const reading = useStopReading(observer, activeStopId, paused);
-  const ownPlay = useLocalStagePlay(calls);
+  const ownPlay = useLocalStagePlay(calls, document.landmark);
   const play = appPlay ?? ownPlay;
-  const played = useCallPlay(reading, play, calls);
+  const played = useCallPlay(reading, play);
+  const finalCall = calls.find((call) => call.kind === 'final_call');
+  const [tilt, setTilt] = useState(AXIAL_TILT_DEGREES);
+  const sliderBusyUntil = useRef(0);
+  /** A drag on the tilt slider is the slider's: a swipe that ends within a moment of it moves no Part. */
+  const onTiltDragging = useCallback((dragging: boolean) => {
+    sliderBusyUntil.current = dragging ? Infinity : Date.now() + 400;
+  }, []);
+  const tiltBound = finalCall?.binding?.kind === 'tilt';
+  const final: FinalCallPlay = {
+    hasLandmark: document.landmark !== undefined,
+    bonusReady: finalBonusReady(play.combo),
+    combo: play.combo,
+    ...(tiltBound ? { tilt: { value: tilt, onChange: setTilt, onDragging: onTiltDragging } } : {}),
+  };
+  const aside = document.asides.find((candidate) => candidate.id === document.recap.smallPrintAside);
+  const smallPrint: SmallPrint | undefined = aside === undefined ? undefined : { title: aside.title, text: aside.text };
   /** Locks a call and, as its reveal opens below the options, brings the reveal on screen. */
   const lockCall = (callId: string): boolean => {
     const locked = played.lock(callId);
@@ -153,16 +171,13 @@ export function StageReader({
       if (!next.delete(asideId)) next.add(asideId);
       return next;
     });
-  const showSmallPrint = (asideId: string) => {
-    setOpened((all) => new Set(all).add(asideId));
-    jump(indexOfStop(document.stops, document.asides.find((aside) => aside.id === asideId)?.anchorStop), false);
-  };
   // Stable across renders, so the native swipe responder is built once; it reads the commands as of the drag's end.
   const latestCommands = useRef(commands);
   useEffect(() => {
     latestCommands.current = commands;
   });
   const move = useCallback((part: PartMove) => {
+    if (part !== 'next-topic' && Date.now() < sliderBusyUntil.current) return;
     const at = latestCommands.current;
     run(part === 'next-part' ? at.wayOn : part === 'previous-part' ? at.previousPart : at.nextTopic);
   }, []);
@@ -190,6 +205,7 @@ export function StageReader({
             stopId={stopId}
             reducedMotion={reducedMotion}
             textVersion={textVersion}
+            tilt={tiltBound && activeStopId === finalCall?.id ? tilt : undefined}
             height={stageHeightFor(windowHeight, wide)}
           />
           <TextVersionSwitch on={textVersion} onPress={() => setTextVersion((now) => !now)} />
@@ -218,11 +234,17 @@ export function StageReader({
               lock={lockCall}
               opened={opened}
               onToggleAside={toggleAside}
-              onSmallPrint={showSmallPrint}
+              final={final}
+              payoff={payoffOf(calls, play)}
+              smallPrint={smallPrint}
               nextPart={nextPart}
               related={related}
               onDone={onDone}
               onNextTopic={commands.nextTopic}
+              onUniverse={commands.universe}
+              onPlayFinal={
+                finalCall === undefined ? undefined : () => jump(indexOfStop(document.stops, finalCall.id), false)
+              }
             />
           </ScrollView>
         </PartSwipe>

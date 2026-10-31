@@ -21,7 +21,7 @@ import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } fr
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v15';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v16';
 
 const minutes = (seconds: number): number => seconds / 60;
 
@@ -46,6 +46,18 @@ function stageInstructions(recipe: RecipeDataV2): string[] {
     '- A call never changes the picture, or it would show the answer before the reader has chosen. The stop before a call sets up its question; show the answer by changing the picture on the stop right after the call. Write "stage" on stops only, never on a call_it or the final_call.',
     '- Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support. The picture shows only Earth, the Sun and the Moon.',
     '- Earth’s axis is tilted by a fixed angle and points the same way all year. Say that it is tilted or that it leans, and never call it sideways or say it lies on its side: those words belong to Uranus, which the picture does not draw. A text that does so is refused.',
+  ];
+}
+
+/**
+ * What the Final call is for, when the recipe hands the reader a control (D-187). Code adds the slider
+ * and the landmark; the writer only has to ask a question the control helps to answer.
+ */
+function finalCallInstructions(recipe: RecipeDataV2): string[] {
+  if (recipe.finalCall?.kind !== 'tilt') return [];
+  return [
+    'THE FINAL CALL IS PLAYED WITH A CONTROL. On the final_call the reader can turn Earth’s axis on the picture, from standing straight up to a right angle, before they answer; code adds the slider. So make it a "what if" about the tilt: the reader predicts what would happen to the seasons, or to the difference between the two halves of Earth, if the axis were not tilted at all. Put the correct option FIRST. It must still be a new case (never a repeat of an earlier call), and the stop before it need not show the answer.',
+    '- The picture the reader sees when the final_call opens is the one the last stop before it set, so end the Scroll on a June or December picture (earthAt "jun" or "dec") in the sun-earth, earth-close, orbit or orbit-stretched view. In March or September, and in the Moon view, turning the tilt changes nothing, and a Scroll that ends there is refused.',
   ];
 }
 
@@ -75,6 +87,7 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     '- The brief gives the subject, the angle and what to avoid. Ignore anything in it about diagrams, sliders, simulations, steppers, charts or other interactive blocks: stops, calls and the picture replace them. Keep its warnings about what not to claim.',
     '',
     ...stageInstructions(recipe),
+    ...finalCallInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     '',
     'THE SHAPE (examples are invented syntax guidance, never content to reuse):',
     authoringReferenceV2(recipe.variant),
