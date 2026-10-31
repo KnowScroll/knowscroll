@@ -12,7 +12,11 @@ import {
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
-import { contentProviders, makeReviewGate, readScrollAskFacts } from '@knowscroll/backend/modules/content/nest-providers';
+import {
+  contentProviders,
+  makeReviewGate,
+  readScrollAskFacts,
+} from '@knowscroll/backend/modules/content/nest-providers';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
 import { produceScrollJob } from '@knowscroll/backend/modules/content';
@@ -38,9 +42,7 @@ import {
 } from '../../../packages/backend/src/modules/content/production/spike-v2/writer-v2.fixture.js';
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { madeToOrderKey } from '../../../packages/backend/src/modules/content/domain/order-key.js';
-import {
-  makeReadAskOrderAudience,
-} from '../../../packages/backend/src/modules/supply/adapters/postgres-ask-orders.js';
+import { makeReadAskOrderAudience } from '../../../packages/backend/src/modules/supply/adapters/postgres-ask-orders.js';
 import { makeCheckAssetAudience } from '../../../packages/backend/src/modules/content/adapters/made-to-order.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal, fixtureHarness, fixtureModel } from '../support/fixture-model.js';
@@ -51,7 +53,7 @@ import { openActive } from '../support/observations.js';
 import { buildFromProviders } from '../support/providers.js';
 import { clearRecordingPerson, recordingPerson } from '../support/recording-person.js';
 import { scrollUseCases } from '../support/scroll.js';
-import { v2Capabilities } from '../support/scroll-v2.js';
+import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
 import type { FixturePerson } from '../support/fixtures.js';
 
 /**
@@ -91,7 +93,12 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     const ENQUEUE = Symbol('enqueue');
     const CONFIG = Symbol('config');
     const HARNESS = Symbol('harness');
-    const providers = supplyProviders({ withPersonalScope: SCOPE, enqueueJob: ENQUEUE, config: CONFIG, harness: HARNESS });
+    const providers = supplyProviders({
+      withPersonalScope: SCOPE,
+      enqueueJob: ENQUEUE,
+      config: CONFIG,
+      harness: HARNESS,
+    });
     const values = new Map<symbol, unknown>([
       [SCOPE, withScope()],
       [ENQUEUE, makeEnqueueJob(content.boss)],
@@ -226,10 +233,16 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       await sql<{ data: { recipe: string; take: number } }>`select data from pgboss.job
         where name = 'content.produce-scroll' and state = 'created' order by created_on`.execute(database.db)
     ).rows.map((row) => row.data);
-  const count = async (table: 'experience.exposures' | 'evidence.observations' | 'evidence.action_events', universe: string) =>
+  const count = async (
+    table: 'experience.exposures' | 'evidence.observations' | 'evidence.action_events',
+    universe: string,
+  ) =>
     Number(
-      (await sql<{ n: string }>`select count(*) as n from ${sql.table(table)} where universe_id = ${universe}::uuid`.execute(database.db))
-        .rows[0]!.n,
+      (
+        await sql<{
+          n: string;
+        }>`select count(*) as n from ${sql.table(table)} where universe_id = ${universe}::uuid`.execute(database.db)
+      ).rows[0]!.n,
     );
   const publish = (recipe: string, take = 1) =>
     production.run(produceScrollJob(recipe, take), { signal: new AbortController().signal });
@@ -293,7 +306,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
     it('is placed by the scope step: about this Scroll makes an ask order', async () => {
       await setup();
       const { person, exposure } = await reader();
-      const requestId = await ask(person, askCommand(exposure, 'Why does the far side of Orrin stay cold in its summer?'));
+      const requestId = await ask(
+        person,
+        askCommand(exposure, 'Why does the far side of Orrin stay cold in its summer?'),
+      );
       expect(await status(person, requestId)).toMatchObject({ status: 'preparing', phase: 'requested' });
       expect((await requestRow(requestId)).state).toBe('matching');
 
@@ -319,12 +335,29 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const { person, exposure } = await reader();
       scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
       const requestId = await ask(person, askCommand(exposure, 'How do tides work?'));
-      await resolve(job(person, requestId));
+      // Create writes only v1 library recipes (D-138): the tides recipe is one for this question, as it was before the waves.
+      const restoreLibrary = markScrollV1('tides');
+      try {
+        await resolve(job(person, requestId));
+      } finally {
+        restoreLibrary();
+      }
       const row = await requestRow(requestId);
       expect(row).toMatchObject({ state: 'requested', ask_order_id: null });
       // The library's own Create started the work, under its own cap, and the ask ledger stayed empty.
       expect(row.work_id).not.toBeNull();
       expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
+    });
+
+    it('closes as could-not-prepare when the library has no served Scroll for it and Create may not write a v2 recipe (D-138)', async () => {
+      await setup();
+      const { person, exposure } = await reader();
+      scopeScript = () => scopeAnswer('catalogue', 'earth.tides');
+      const requestId = await ask(person, askCommand(exposure, 'How do tides work?'));
+      await resolve(job(person, requestId));
+      expect(await status(person, requestId)).toMatchObject({ status: 'unavailable', reason: 'could_not_prepare' });
+      expect(await database.db.selectFrom('supply.ask_orders').select('order_id').execute()).toEqual([]);
+      expect(await queuedProduction()).toEqual([]);
     });
 
     it('is closed honestly when it is about nothing the Scroll or the catalogue covers', async () => {
@@ -393,7 +426,8 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       expect(topics).toEqual([]);
 
       const audience = makeCheckAssetAudience(database.db, [makeReadAskOrderAudience(database.db)]);
-      const mayOpen = async (who: FixturePerson) => (await audience({ pool: true }, who.authority, [order.assetId])).has(order.assetId);
+      const mayOpen = async (who: FixturePerson) =>
+        (await audience({ pool: true }, who.authority, [order.assetId])).has(order.assetId);
       expect(await mayOpen(person)).toBe(true);
       // Not another person, not a system actor holding the asker's universe.
       expect(await mayOpen(stranger)).toBe(false);
@@ -429,7 +463,10 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const second = await reader();
       await ask(first.person, askCommand(first.exposure, suggestions[0]!));
       const capped = await ask(second.person, askCommand(second.exposure, suggestions[0]!));
-      expect(await status(second.person, capped)).toMatchObject({ status: 'unavailable', reason: 'budget_unavailable' });
+      expect(await status(second.person, capped)).toMatchObject({
+        status: 'unavailable',
+        reason: 'budget_unavailable',
+      });
       expect((await requestRow(capped)).ask_order_id).toBeNull();
 
       await setup({ perDay: 50, perPerson: 1 });
@@ -554,12 +591,18 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
         database.db,
       );
       // Paused: the same ask, with the generation the client would now read, is refused too (D-083).
-      expect(await create(person.authority, askCommand(exposure, suggestions[0]!, { recordingGeneration: 2 }))).toEqual({
-        kind: 'refused',
-        reason: 'recording_paused',
-      });
+      expect(await create(person.authority, askCommand(exposure, suggestions[0]!, { recordingGeneration: 2 }))).toEqual(
+        {
+          kind: 'refused',
+          reason: 'recording_paused',
+        },
+      );
       expect(
-        await database.db.selectFrom('supply.requests').select('id').where('universe_id', '=', person.universeId).execute(),
+        await database.db
+          .selectFrom('supply.requests')
+          .select('id')
+          .where('universe_id', '=', person.universeId)
+          .execute(),
       ).toEqual([]);
       expect(await queuedProduction()).toEqual([]);
     });
@@ -610,7 +653,13 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
 
       const erased = await withScope()(person.authority, (tx) => eraseUniverse(tx, personalStores));
       expect(erased.kind).toBe('entered');
-      expect(await database.db.selectFrom('supply.requests').select('id').where('universe_id', '=', person.universeId).execute()).toEqual([]);
+      expect(
+        await database.db
+          .selectFrom('supply.requests')
+          .select('id')
+          .where('universe_id', '=', person.universeId)
+          .execute(),
+      ).toEqual([]);
       const stored = await database.db
         .selectFrom('content.made_to_order_scrolls')
         .select('brief')
@@ -631,7 +680,9 @@ describe('Ask orders (real PostgreSQL, CI fixture models)', () => {
       const requestId = await ask(person, askCommand(exposure, suggestions[0]!));
       const order = await orderOf(requestId);
       await clearRecordingPerson(database, content.boss, person);
-      expect(await database.db.selectFrom('supply.requests').select('id').where('id', '=', requestId).execute()).toEqual([]);
+      expect(
+        await database.db.selectFrom('supply.requests').select('id').where('id', '=', requestId).execute(),
+      ).toEqual([]);
       const stored = await database.db
         .selectFrom('content.made_to_order_scrolls')
         .select('brief')
