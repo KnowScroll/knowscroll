@@ -2301,3 +2301,14 @@ Confirmed by: `v2/kits/spectrum.test.ts`, `starlight.test.ts` and `black-hole.te
 - **Prompt `scroll-writer.v19`.** S-8b took v18 for the heart and nerve guides (D-203). The Space kit guides and the two rules above are new in v19, and `scroll-production.v19` goes with it (D-197). The other kits' text is unchanged, and a test keeps each kit's guide out of another kit's prompt.
 
 Confirmed by: `writer-v2.test.ts` (each recipe's instructions hold its kit's guide and no other kit's, and list its keys and words), `kits-compile.test.ts` (the words of another kit are refused), `spike-v2/run.test.ts`.
+
+## D-177 · 2026-10-31 · The room band draws its painted backdrop a quarter larger, so a signature in a corner never shows (R-4d, #490)
+
+**Builds on** D-170 and D-171 (how a room’s face and its backdrop are shown and reviewed). It follows D-172 and D-173, which asked the model not to sign.
+
+- **What dev showed.** Ten real backdrops from the MiniMax image model, made under the signature ban (D-172) and then the full-bleed prompt (D-173). Full bleed did not help: all four made under it still carried a mark. Eight of the ten carried a signature, an edition number or a scribble. Every mark sat within a tenth of an edge, mostly in a bottom corner or a paper margin; the subject always sat in the middle. A prompt does not stop it.
+- **The change.** The band draws the backdrop with `BACKDROP_ZOOM` 1.25 inside a view that clips, so the outer tenth of the picture on every side stays outside the band at every width. The picture is already shown under a wash of the ground (80 % in `room-band.tsx`), as a background behind the room's name. The prompt keeps both earlier asks, which cost nothing.
+- **Review.** The operator still approves every backdrop (D-171). A picture whose mark reaches past its outer tenth is rejected.
+- **Cost.** No new image is needed for the change: the four held backdrops on dev are reviewed again with the crop in mind after it deploys, including the D04 rail, where only the middle of the picture shows.
+
+Confirmed by: `room-identity.test.tsx` (the backdrop is drawn at 1.25 inside a clipping view).

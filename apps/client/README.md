@@ -674,7 +674,7 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   room on a tap. A read that fails leaves the map as it was. A visit to a friend's map passes none.
 - A room's face (v3 R-4, D-170; `features/rooms/identity/`): `RoomBand` draws the kit's ground, its faint motif with one slow loop
   (`band-motion.ts`: opacity and transform only; **reduced motion is a still frame**) and, when an operator approved one, the painted backdrop
-  (`scope.mediaSource` of `/media/room/<digest>`) under a wash of the ground. What stands on a band reads the kit's ink (`useBandTone`, `BandTag`).
+  (`scope.mediaSource` of `/media/room/<digest>`) under a wash of the ground, drawn a quarter larger in a clipping view so the outer tenth where the image model signs its prints never shows (D-177). What stands on a band reads the kit's ink (`useBandTone`, `BandTag`).
   `CampfireHeader` and `RoomHeader` (the preview and D04's rail) stand on it with the room's emblem (`RoomEmblem`, SVG from `shapes.ts`, the
   one description of every frame and glyph); the Talk row shows the emblem; `ResidentHeader` shows the resident's mark (`ResidentMark`, a glyph on
   a square-cornered tile, hidden from screen readers; the AI label stays). The art is hidden from screen readers. A server that sends no face

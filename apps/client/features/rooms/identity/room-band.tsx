@@ -58,10 +58,21 @@ export function RoomBandView({
       testID={testID}
     >
       {kit === undefined ? null : (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none" aria-hidden accessibilityElementsHidden>
+        <View
+          style={[StyleSheet.absoluteFill, styles.clip]}
+          pointerEvents="none"
+          aria-hidden
+          accessibilityElementsHidden
+          testID="room-art"
+        >
           {backdrop === undefined ? null : (
             <>
-              <Image source={backdrop} style={StyleSheet.absoluteFill} resizeMode="cover" testID="room-backdrop" />
+              <Image
+                source={backdrop}
+                style={[StyleSheet.absoluteFill, styles.inner]}
+                resizeMode="cover"
+                testID="room-backdrop"
+              />
               <View style={[StyleSheet.absoluteFill, { backgroundColor: `${tone.ground}CC` }]} />
             </>
           )}
@@ -116,7 +127,16 @@ export function RoomBand({
   );
 }
 
+/**
+ * How far the painted backdrop is enlarged inside the band. The image model signs its prints in the corners and the
+ * paper margin whatever the prompt says (D-177), and a mark always sits within a tenth of an edge, so the picture is
+ * drawn a quarter larger and its outer tenth on every side stays outside the band.
+ */
+export const BACKDROP_ZOOM = 1.25;
+
 const styles = StyleSheet.create({
+  clip: { overflow: 'hidden' },
+  inner: { transform: [{ scale: BACKDROP_ZOOM }] },
   // Faint on purpose: the pattern says "you are somewhere" and never competes with the words over it.
   faint: { opacity: 0.32, overflow: 'hidden' },
 });
