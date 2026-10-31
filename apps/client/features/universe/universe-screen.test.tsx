@@ -31,6 +31,7 @@ jest.mock('./space/space-canvas', () => ({
 }));
 jest.mock('./space/load-space-renderer', () => ({
   loadSpaceRenderer: () => jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.load(),
+  loadFirstOpenRenderer: () => () => jest.requireActual<typeof FakeGpu>('./space/fake-space-gpu').fakeGpu.load(),
 }));
 const mockNavigate = jest.fn();
 const mockPush = jest.fn();

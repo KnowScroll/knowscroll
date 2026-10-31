@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import type { CollectionLandmark } from '@knowscroll/client-core';
-import { PanResponder, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
+import {
+  Animated,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type ViewProps,
+} from 'react-native';
 import { TapRing, usePlayerValue, useFeedValue } from './animation/animated';
 import { chromeAt as systemChrome } from './animation/enter-system';
-import { chromeAt as planetChrome } from './animation/enter-planet';
+import { chromeAt as planetChrome, skyAt } from './animation/enter-planet';
 import { enterWorldFrame } from './animation/enter-world';
+import { crossFadeAt } from './animation/step-up';
 import { GlobeLayer, WorldLayers } from './animation/planet-layers';
 import type { StepAnimation, UniverseAnimation } from './animation/use-universe-animation';
 import { globePlacement } from './planet/planet-globe';
@@ -202,13 +211,15 @@ export function UniverseStage({
         ) : null}
         {view.kind === 'planet' && isPlanetEntry(step) && step.from.kind === 'system' ? (
           <>
-            <SpaceStage
-              {...sceneProps}
-              view={step.from}
-              onUnavailable={onUnavailable}
-              pickPlanets={false}
-              animation={animation}
-            />
+            <SceneFade animation={animation}>
+              <SpaceStage
+                {...sceneProps}
+                view={step.from}
+                onUnavailable={onUnavailable}
+                pickPlanets={false}
+                animation={animation}
+              />
+            </SceneFade>
             <GlobeLayer feed={animation.feed} globe={globeOf(size)}>
               <PlanetStage
                 {...sceneProps}
@@ -248,7 +259,19 @@ export function UniverseStage({
             )}
           />
         ) : null}
-        {step !== undefined ? <TapRingLayer animation={animation} size={size} /> : null}
+        {step?.kind === 'step-up' && step.from.kind === 'planet' ? (
+          <LeavingFade animation={animation}>
+            <PlanetStage
+              {...sceneProps}
+              planet={step.from.planet}
+              landed={step.from.landed}
+              selectedRegion={step.from.selectedRegion}
+              visitor={visitor === true}
+              onRefused={onRefused}
+            />
+          </LeavingFade>
+        ) : null}
+        {step !== undefined && step.kind !== 'step-up' ? <TapRingLayer animation={animation} size={size} /> : null}
       </View>
     </View>
   );
@@ -259,6 +282,37 @@ const isPlanetEntry = (
   step: UniverseAnimation['active'],
 ): step is Extract<NonNullable<UniverseAnimation['active']>, { kind: 'enter-planet' | 'enter-planet-rings' }> =>
   step?.kind === 'enter-planet' || step?.kind === 'enter-planet-rings';
+
+/**
+ * The 3D scene of a glide down to a planet. Over the last 0.45 s it fades out, so that the last frame of the glide is the
+ * planet view's own sky with only the globe on it, not the system's neighbours, haze and limb until a hard cut.
+ */
+function SceneFade({ animation, children }: { animation: UniverseAnimation; children: ReactNode }) {
+  const opacity = usePlayerValue(animation.player, sceneOpacityAt, 1);
+  return (
+    <Animated.View testID="universe-3d-layer" pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity }]}>
+      {children}
+    </Animated.View>
+  );
+}
+const sceneOpacityAt = (t: number): number => 1 - skyAt(t);
+
+/** The planet screen being left, laid over the screen being entered and fading out in 0.3 s (D-116). */
+function LeavingFade({ animation, children }: { animation: UniverseAnimation; children: ReactNode }) {
+  const opacity = usePlayerValue(animation.player, leavingOpacityAt, 1);
+  return (
+    <Animated.View
+      testID="universe-leaving-layer"
+      pointerEvents="none"
+      aria-hidden
+      importantForAccessibility="no-hide-descendants"
+      style={[StyleSheet.absoluteFill, { opacity }]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+const leavingOpacityAt = (t: number): number => 1 - crossFadeAt(t);
 
 /** The planet view's globe, as a circle: where the glide ends and the world opens from. */
 function globeOf(size: Size): { x: number; y: number; radius: number } {

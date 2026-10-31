@@ -40,9 +40,9 @@ export interface PlanetMapProps {
   readonly onChoose: (objectId: string) => void;
   /**
    * The map is arriving from the globe ("Enter a world"): the names come in on this opacity and the clouds only
-   * once `clouds` is true, as the design leaves both out of the picture that moves.
+   * on `clouds`, as the design leaves both out of the picture that moves.
    */
-  readonly arrival?: { readonly names: Animated.Value; readonly clouds: boolean };
+  readonly arrival?: { readonly names: Animated.Value; readonly clouds: Animated.Value };
   /** Regions that are hypothetical, so a screen reader hears it (their drawing is the same). */
   readonly hypothetical?: ReadonlySet<string>;
   /** The landmarks standing on this planet, painted on the land (D-089). */
@@ -192,9 +192,18 @@ export function PlanetMap(props: PlanetMapProps) {
               <LandmarkMark key={marker.key} at={marker.at} tier={marker.tier} scale={1.3} />
             ))}
             {chosen ? <Spotlight cell={chosen} scale={view.scale} /> : null}
-            {props.arrival?.clouds === false ? null : <MapClouds world={world} chart={chart} palette={palette} />}
+            {props.arrival ? null : <MapClouds world={world} chart={chart} palette={palette} />}
           </G>
         </Svg>
+        {props.arrival ? (
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: props.arrival.clouds }]} pointerEvents="none">
+            <Svg width={size.width} height={size.height}>
+              <G transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+                <MapClouds world={world} chart={chart} palette={palette} />
+              </G>
+            </Svg>
+          </Animated.View>
+        ) : null}
         <Animated.View
           style={[StyleSheet.absoluteFill, props.arrival ? { opacity: props.arrival.names } : null]}
           pointerEvents="none"

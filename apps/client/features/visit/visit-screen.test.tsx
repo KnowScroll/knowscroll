@@ -46,8 +46,8 @@ beforeEach(() => {
   Object.defineProperty(AppState, 'currentState', { value: 'active', configurable: true });
 });
 
-const view = (visible: boolean) => (
-  <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+const view = (visible: boolean, reducedMotion = true) => (
+  <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion }}>
     {visible ? <VisitScreen handle="fixture.ravi" /> : null}
   </DisplayProvider>
 );
@@ -114,6 +114,22 @@ describe('friend visit screen (labelled in-memory server)', () => {
     expect(screen.queryByText('Tap a region to land.')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Back to Machine learning' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Back to Ravi fixture’s universe' }));
+    expect(screen.getByRole('button', { name: 'Machine learning, a system' })).toBeOnTheScreen();
+    await rendered.unmount();
+    server.scope.end();
+  });
+
+  it('enters a shared system by ship with motion on, and Back jumps to the end frame and goes back', async () => {
+    const server = visitServer();
+    mockScope = server.scope;
+    const rendered = await render(view(true, false));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Machine learning, a system' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Machine learning, a system' }));
+    // The same animation as on the person's own map: the renderer has the camera, and the visitor bar stays.
+    await waitFor(() => expect(fakeGpu.renderers.at(-1)!.scripts.at(-1)?.kind).toBe('enter-system'));
+    expect(screen.getByTestId('visitor-bar')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Ravi fixture’s universe' }));
+    await waitFor(() => expect(screen.queryByRole('header', { name: 'Machine learning' })).toBeNull());
     expect(screen.getByRole('button', { name: 'Machine learning, a system' })).toBeOnTheScreen();
     await rendered.unmount();
     server.scope.end();

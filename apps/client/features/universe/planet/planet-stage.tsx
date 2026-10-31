@@ -41,7 +41,7 @@ export function PlanetStage({
   /** The world could not be drawn: the screen shows the plain list of regions instead. */
   readonly onRefused: (planetId: string) => void;
   /** The map is arriving from the globe: its names come in on this opacity and its clouds when `clouds` is true. */
-  readonly arrival?: { readonly names: Animated.Value; readonly clouds: boolean };
+  readonly arrival?: { readonly names: Animated.Value; readonly clouds: Animated.Value };
   /** The landmarks standing on this planet (D-089). Never given on a friend's universe. */
   readonly landmarks?: readonly CollectionLandmark[];
 }) {

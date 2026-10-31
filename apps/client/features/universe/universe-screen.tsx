@@ -13,6 +13,7 @@ import { useDocumentTitle } from '../../platform/document-title';
 import { FirstOpenGate } from './animation/first-open';
 import { EmptyUniverseScreen } from './empty-universe-screen';
 import { FormationPresentation } from './formation-presentation';
+import { lowMemoryDevice } from './space/low-memory-device';
 import { SkyBackdrop } from './space/sky-backdrop';
 import { indexUniverse } from './universe-layout';
 import { UniverseSurface } from './universe-surface';
@@ -86,7 +87,8 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   const dust = state.dust.cues.length > 0;
   const emptyNow = read.status === 'empty' && !dust && state.dust.status !== 'idle' && state.dust.status !== 'loading';
   // The first open (D-114) plays once in the account's life, where 3D can be drawn and motion is welcome.
-  const opening = !reducedMotion && state.detail !== 'low' && breakpoint !== 'desktop' && canDrawSpace();
+  const opening =
+    !reducedMotion && state.detail !== 'low' && breakpoint !== 'desktop' && canDrawSpace() && !lowMemoryDevice();
   const gated = (screenNode: ReactNode) => (
     <FirstOpenGate scope={scope} enabled={opening} endsOnEmpty={emptyNow} empty={<EmptyUniverseScreen over />}>
       {screenNode}
@@ -117,7 +119,7 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   );
 }
 
-/** Whether this device can run the opening's 3D scene at all; where it cannot, the tab opens at once and the flag is left alone. */
+/** A cheap first look at whether the opening's 3D scene can run at all; the claim itself waits for its real WebGL context (D-114). */
 const canDrawSpace = (): boolean => Platform.OS !== 'web' || typeof WebGL2RenderingContext !== 'undefined';
 
 function QuietGround({ label }: { label: string }) {

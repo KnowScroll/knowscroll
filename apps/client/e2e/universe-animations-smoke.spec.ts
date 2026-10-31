@@ -16,8 +16,12 @@ const shots = process.env['KS_SHOT_DIR'];
 
 // A runner without a GPU draws these scenes in software, a few frames a second: an animation then takes longer on
 // the wall clock (its time value moves by at most 0.1 s a frame, by design), so nothing here waits for a moment of it.
-test.describe.configure({ timeout: 240_000 });
-const ENDS = { timeout: 90_000 } as const;
+test.describe.configure({ timeout: 300_000 });
+// A phone's pixel density is 3: the drawing buffer must still be capped at 1.5 pixels per layout pixel (D-100).
+test.use({ deviceScaleFactor: 3 });
+const ENDS = { timeout: 120_000 } as const;
+/** The whole first open takes longer on the wall clock when frames are slow: its `t` moves by at most 0.1 s a frame. */
+const OPENING = { timeout: 240_000 } as const;
 
 const FIRST_OPEN_PATH = '/v1/account/universe/first-open';
 
@@ -47,11 +51,14 @@ async function openUniverse(page: Page, options: Options = {}): Promise<Written>
     (window as unknown as { __ksFrames: number[]; __ksRatios: number[] }).__ksFrames = frames;
     (window as unknown as { __ksRatios: number[] }).__ksRatios = ratios;
     let frameStamp: number | null = null;
+    // The stamp of the last animation-frame callback, for what is watched from outside it (a style the animation moves).
+    const windowStamps = window as unknown as { __ksLastStamp: number };
     // eslint-disable-next-line @typescript-eslint/unbound-method -- called back with the right `this` below
     const request = window.requestAnimationFrame;
     window.requestAnimationFrame = (callback) =>
       request.call(window, (stamp) => {
         frameStamp = stamp;
+        windowStamps.__ksLastStamp = stamp;
         try {
           callback(stamp);
         } finally {
@@ -111,13 +118,45 @@ const frames = (page: Page): Promise<number[]> =>
 const ratios = (page: Page): Promise<number[]> =>
   page.evaluate(() => [...(window as unknown as { __ksRatios: number[] }).__ksRatios]);
 
-/** The cap: no two accepted frames of an animation are closer than 32 ms, and no frame is denser than 1.5 pixels. */
-async function expectCapped(page: Page, from: number): Promise<void> {
-  const stamps = (await frames(page)).slice(from);
+/**
+ * The cap, over the frames drawn between two marks: no two are closer than 32 ms (the 30 fps cap with a millisecond of
+ * jitter), none is denser than 1.5 pixels per layout pixel, and the densest is that (the page is at density 3, so a
+ * loop that ignored the cap would show 3).
+ */
+async function expectCapped(page: Page, from: number, to?: number): Promise<void> {
+  const stamps = (await frames(page)).slice(from, to);
   expect(stamps.length).toBeGreaterThan(8);
   const gaps = stamps.slice(1).map((at, index) => at - stamps[index]!);
   expect(Math.min(...gaps)).toBeGreaterThanOrEqual(32);
-  for (const ratio of (await ratios(page)).slice(from)) expect(ratio).toBeLessThanOrEqual(1.5 + 1e-6);
+  const density = (await ratios(page)).slice(from, to);
+  for (const ratio of density) expect(ratio).toBeLessThanOrEqual(1.5 + 1e-6);
+  expect(Math.max(...density)).toBeGreaterThan(1.4);
+}
+
+/** The frames drawn so far: a mark to measure from. */
+const mark = async (page: Page): Promise<number> => (await frames(page)).length;
+
+/**
+ * The cap on an animation that is only a moving style (the world opening out has no 3D scene): the stamps of the
+ * animation-frame callbacks in which the circle's style changed. Starts watching when called.
+ */
+async function watchStyle(page: Page, testId: string): Promise<void> {
+  await page.evaluate((id) => {
+    const seen: number[] = [];
+    (window as unknown as { __ksStyle: number[] }).__ksStyle = seen;
+    const target = document.querySelector(`[data-testid="${id}"] > div`);
+    if (target === null) throw new Error('nothing to watch');
+    new MutationObserver(() => {
+      const stamp = (window as unknown as { __ksLastStamp: number }).__ksLastStamp;
+      if (seen.at(-1) !== stamp) seen.push(stamp);
+    }).observe(target, { attributes: true, attributeFilter: ['style'] });
+  }, testId);
+}
+async function expectStyleCapped(page: Page): Promise<void> {
+  const stamps = await page.evaluate(() => [...(window as unknown as { __ksStyle: number[] }).__ksStyle]);
+  expect(stamps.length).toBeGreaterThan(8);
+  const gaps = stamps.slice(1).map((at, index) => at - stamps[index]!);
+  expect(Math.min(...gaps)).toBeGreaterThanOrEqual(32);
 }
 
 async function expectAccessible(page: Page): Promise<void> {
@@ -138,7 +177,7 @@ test.describe('the three steps down at 390 x 844', () => {
     const written = await openUniverse(page);
     await expect(system(page)).toBeVisible({ timeout: 60_000 });
     await page.waitForTimeout(500);
-    const before = (await frames(page)).length;
+    const before = await mark(page);
 
     // Entering a system: the ring marks the tap, taps meanwhile do nothing, and it ends on the system screen.
     await tapOrbitingTarget(system(page));
@@ -149,27 +188,31 @@ test.describe('the three steps down at 390 x 844', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible();
     await expectAccessible(page);
     await expect(page.getByTestId('universe-tap-ring')).toHaveCount(0, ENDS);
-    await expectCapped(page, before);
+    await expectCapped(page, before, await mark(page));
     if (shots) await page.screenshot({ path: `${shots}/enter-system-end-390x844.png` });
     await expect(page.getByRole('button', { name: 'Back to Universe', exact: true })).toBeVisible();
 
     // Entering a planet: the globe is laid over the 3D planet, then it is the planet's own view.
+    const planetFrom = await mark(page);
     await tapOrbitingTarget(planet(page));
     await expect(page.getByTestId('universe-globe-layer')).toBeAttached();
     await page.waitForTimeout(1800);
     if (shots) await page.screenshot({ path: `${shots}/enter-planet-1.8s-390x844.png` });
     await expectAccessible(page);
     await expect(page.getByTestId('universe-globe-layer')).toHaveCount(0, ENDS);
+    await expectCapped(page, planetFrom, await mark(page));
     await expect(page.getByText('Drag to rotate · tap to land')).toBeVisible();
     if (shots) await page.screenshot({ path: `${shots}/enter-planet-end-390x844.png` });
 
     // Entering a world: the globe flattens into the map and the live map takes over.
     await page.getByRole('button', { name: 'Land on CI planet 2', exact: true }).click();
     await expect(page.getByTestId('universe-world-layers')).toBeAttached();
+    await watchStyle(page, 'universe-world-layers');
     await page.waitForTimeout(1300);
     if (shots) await page.screenshot({ path: `${shots}/enter-world-1.3s-390x844.png` });
     await expectAccessible(page);
     await expect(page.getByTestId('universe-world-layers')).toHaveCount(0, ENDS);
+    await expectStyleCapped(page);
     await expect(page.getByRole('button', { name: 'CI region 4, a region', exact: true })).toBeVisible();
     if (shots) await page.screenshot({ path: `${shots}/enter-world-end-390x844.png` });
 
@@ -212,36 +255,47 @@ test.describe('the three steps down at 390 x 844', () => {
 });
 
 test.describe('the first open', () => {
-  test('plays once for the account, claims it as it starts, can be skipped, and ends on the tab', async ({
+  test('plays once for the account, whole, claiming it only once its picture can be drawn, and ends on the tab it was drawing beneath', async ({
     page,
   }, testInfo) => {
     const written = await openUniverse(page, { claim: true });
-    await expect(page.getByTestId('first-open')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('first-open')).toBeVisible({ timeout: 60_000 });
     expect(written.claims).toHaveLength(1);
-    const start = (await frames(page)).length;
+    const start = await mark(page);
     await page.waitForTimeout(3000);
     if (shots) await page.screenshot({ path: `${shots}/first-open-3s-390x844.png` });
+    await expectAccessible(page);
     await page.waitForTimeout(3300);
     if (shots) await page.screenshot({ path: `${shots}/first-open-6.3s-390x844.png` });
-    await expectAccessible(page);
-    await expectCapped(page, start);
-    await page.waitForTimeout(2500);
-    if (shots) await page.screenshot({ path: `${shots}/first-open-8.8s-390x844.png` });
-    // Skip is always there and counts as seen.
-    await page.getByRole('button', { name: 'Skip the opening', exact: true }).click();
-    await expect(page.getByTestId('first-open')).toHaveCount(0);
-    await expect(system(page)).toBeVisible({ timeout: 30_000 });
-    // Reloaded, the account is asked again and the answer is no.
+    // The whole picture runs to its end by itself: nothing here presses Skip.
+    await expect(page.getByTestId('first-open')).toHaveCount(0, OPENING);
+    await expectCapped(page, start, await mark(page));
+    await expect(system(page)).toBeVisible();
+    // Reloaded, the device knows the account has seen it and does not even ask.
     await page.reload();
     await expect(system(page)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('first-open')).toHaveCount(0);
-    expect(written.claims).toHaveLength(2);
+    expect(written.claims).toHaveLength(1);
     expect(testInfo.errors).toEqual([]);
+  });
+
+  test('Skip is always there, ends it at once, and counts as seen', async ({ page }) => {
+    const written = await openUniverse(page, { claim: true });
+    await expect(page.getByTestId('first-open')).toBeVisible({ timeout: 60_000 });
+    await page.waitForTimeout(2500);
+    if (shots) await page.screenshot({ path: `${shots}/first-open-skip-390x844.png` });
+    await page.getByRole('button', { name: 'Skip the opening', exact: true }).click();
+    await expect(page.getByTestId('first-open')).toHaveCount(0);
+    await expect(system(page)).toBeVisible({ timeout: 30_000 });
+    await page.reload();
+    await expect(system(page)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId('first-open')).toHaveCount(0);
+    expect(written.claims).toHaveLength(1);
   });
 
   test('ends on the empty universe for an account with no places, rising into it', async ({ page }) => {
     await openUniverse(page, { claim: true, places: false });
-    await expect(page.getByTestId('first-open')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('first-open')).toBeVisible({ timeout: 60_000 });
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('first-open')).toHaveCount(0);
     await expect(page.getByText('Your universe starts quiet.')).toBeVisible();

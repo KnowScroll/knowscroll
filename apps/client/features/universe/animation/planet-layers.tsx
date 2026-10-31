@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import type { ScriptFrame } from '../space/space-script';
 import { useFeedValue } from './animated';
@@ -83,9 +83,9 @@ function useWorldValues(player: AnimationPlayer, scene: WorldScene) {
       globeScale: make(first.globeScale),
       globeOpacity: make(first.globeOpacity),
       names: make(first.names),
+      clouds: make(first.clouds),
     };
   }, [scene]);
-  const [clouds, setClouds] = useState(false);
   useEffect(() => {
     const apply = (t: number) => {
       const frame = enterWorldFrame(t, scene);
@@ -100,12 +100,12 @@ function useWorldValues(player: AnimationPlayer, scene: WorldScene) {
       values.globeScale.setValue(frame.globeScale);
       values.globeOpacity.setValue(frame.globeOpacity);
       values.names.setValue(frame.names);
-      setClouds(frame.clouds > 0);
+      values.clouds.setValue(frame.clouds);
     };
     apply(player.current()?.t ?? 0);
     return player.subscribe((run) => apply(run.t));
   }, [player, scene, values]);
-  return { ...values, clouds };
+  return values;
 }
 
 /**
@@ -125,7 +125,7 @@ export function WorldLayers({
   /** The planet's globe, drawn as its own view draws it. */
   readonly globe: ReactNode;
   /** The planet's landed map; told how its names and clouds arrive. */
-  readonly map: (arrival: { names: Animated.Value; clouds: boolean }) => ReactNode;
+  readonly map: (arrival: { names: Animated.Value; clouds: Animated.Value }) => ReactNode;
 }) {
   const v = useWorldValues(player, scene);
   return (

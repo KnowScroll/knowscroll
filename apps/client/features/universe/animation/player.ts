@@ -2,7 +2,8 @@ import { advanceClock, startClock, type FrameClock } from '../space/frame-clock'
 import type { FrameScheduler } from '../space/render-loop';
 
 /** The five animations of the Universe tab (D-114 to D-116). */
-export type AnimationKind = 'first-open' | 'enter-system' | 'enter-planet' | 'enter-planet-rings' | 'enter-world';
+export type AnimationKind =
+  'first-open' | 'enter-system' | 'enter-planet' | 'enter-planet-rings' | 'enter-world' | 'step-up';
 
 /** What is playing: the animation and where the one time value `t` stands, in seconds. */
 export interface AnimationRun {

@@ -53,6 +53,8 @@ export interface SpaceViewProps {
    * same canvas host, loop, caps and fallbacks.
    */
   readonly load?: typeof loadSpaceRenderer;
+  /** The renderer made its WebGL context and the first frame is on its way: the picture can be relied on. */
+  readonly onReady?: () => void;
   /** Shown instead of the drawing when 3D is not available: the Simple lists. */
   readonly fallback: (reason: SpaceFailure) => ReactNode;
   /** A label or planet was chosen. */
@@ -89,6 +91,7 @@ export function SpaceView({
   camera,
   script,
   load = loadSpaceRenderer,
+  onReady,
   highlightId = null,
   overlay,
   fallback,
@@ -116,6 +119,7 @@ export function SpaceView({
     camera,
     script,
     load,
+    onReady,
     highlightId,
     active,
     failed: false,
@@ -129,6 +133,7 @@ export function SpaceView({
       camera,
       script,
       load,
+      onReady,
       highlightId,
       active,
     };
@@ -196,6 +201,7 @@ export function SpaceView({
         });
         loop.current = drawing;
         drawing.setActive(live.current.active);
+        live.current.onReady?.();
       } catch (error) {
         if (generation.current === mine) fail('context-creation-failed', describe(error));
       }

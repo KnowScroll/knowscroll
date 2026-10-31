@@ -2,6 +2,7 @@ import { smoothstep } from './easing';
 import { chromeAt as planetChrome } from './enter-planet';
 import { chromeAt as systemChrome } from './enter-system';
 import { enterWorldFrame } from './enter-world';
+import { crossFadeAt } from './step-up';
 import type { Rising } from './animated';
 import type { StepAnimation } from './use-universe-animation';
 
@@ -28,6 +29,15 @@ const fade =
   (t: number): Rising => ({ opacity: opacity(t), offset: 0 });
 
 export function stepChrome(kind: StepAnimation['kind'], size: { width: number; height: number }): StepChrome {
+  if (kind === 'step-up')
+    return {
+      headerOut: fade((t) => 1 - crossFadeAt(t)),
+      headerIn: fade(crossFadeAt),
+      captionOut: fade((t) => 1 - crossFadeAt(t)),
+      captionIn: fade(crossFadeAt),
+      chipsOut: fade((t) => 1 - crossFadeAt(t)),
+      chipsIn: fade(crossFadeAt),
+    };
   if (kind === 'enter-system')
     return {
       headerOut: fade((t) => systemChrome(t).overviewOpacity),

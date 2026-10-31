@@ -113,6 +113,13 @@ export interface GlobeAppearance {
   readonly shipScale: number;
 }
 
+/**
+ * How much of the planet view's own sky has taken over from the 3D scene: 0 in the glide, 1 at its end. The 3D canvas, with its
+ * neighbours, haze and limb, fades out over the last 0.45 s as this rises, so the last frame of the glide is the planet view's
+ * black sky with only the globe on it (the design brings the U03 starfield in at the end).
+ */
+export const skyAt = (t: number): number => smoothstep(0.85, 1, glideProgress(t));
+
 export function globeAt(t: number, distance: number, endDistance: number): GlobeAppearance {
   const x = glideProgress(t);
   const opacity = smoothstep(0.3, 0.97, x);
@@ -122,7 +129,7 @@ export function globeAt(t: number, distance: number, endDistance: number): Globe
   return {
     opacity,
     blur: 6 * (1 - opacity),
-    stars: smoothstep(0.72, 1, x),
+    stars: skyAt(t),
     atmosphere: lerp(1.15, 0.32, near),
     sunBloom: lerp(1, 0.25, near),
     sunGlow: lerp(1, 0.4, near),

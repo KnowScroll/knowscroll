@@ -23,11 +23,7 @@ const landmark = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-async function openUniverse(
-  page: Page,
-  size: { width: number; height: number },
-  options: { formed: boolean; reducedMotion?: boolean },
-) {
+async function openUniverse(page: Page, size: { width: number; height: number }, options: { formed: boolean }) {
   const world = sceneFixture(5, 1, 3);
   world.collection.landmarks = [
     landmark(),
@@ -37,7 +33,6 @@ async function openUniverse(
   world.collection.resume = { assetId: fixtureId(502), title: 'Why the hemispheres take turns', part: 2, total: 3 };
   world.collection.planets = options.formed ? [{ id: fixtureId(12), topicId: 'earth.seasons' }] : [];
   const calls: { method: string; path: string }[] = [];
-  await page.emulateMedia({ reducedMotion: options.reducedMotion ? 'reduce' : 'no-preference' });
   await page.setViewportSize(size);
   // These checks walk the map; its animations have a spec of their own (universe-animations-smoke.spec.ts).
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -142,7 +137,7 @@ test.describe('a phone, 390 x 844', () => {
   });
 
   test('with reduced motion the landed states are drawn at once and nothing moves', async ({ page }) => {
-    await openUniverse(page, size, { formed: true, reducedMotion: true });
+    await openUniverse(page, size, { formed: true });
     await expect(page.getByTestId('universe-landmarks')).toBeVisible();
     await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
     await tapOrbitingTarget(page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }));

@@ -58,11 +58,11 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
-/** Plays `seconds` of frames at about 60 Hz. */
-async function playFor(seconds: number): Promise<void> {
+/** Plays `seconds` of frames, at 60 Hz unless a longer step is asked for (a frame never moves `t` by more than 0.1 s). */
+async function playFor(seconds: number, stepMs = 1000 / 60): Promise<void> {
   const until = stamp + seconds * 1000;
   while (stamp < until) {
-    stamp += 1000 / 60;
+    stamp += stepMs;
     const frames = waiting.splice(0);
     await act(() => frames.forEach((frame) => frame(stamp)));
   }
@@ -112,16 +112,19 @@ describe('the step a change of view is', () => {
   const onGlobe = viewFor(index, planet.objectId, false);
   const landed = viewFor(index, planet.objectId, true);
 
-  it('animates the whole map to a system, a system to its planet, and a globe to its map, and nothing else', () => {
+  it('animates the single step down and the single step up, and nothing longer', () => {
     expect(stepBetween(universe, inSystem, looks)?.kind).toBe('enter-system');
     expect(stepBetween(inSystem, onGlobe, looks)?.kind).toMatch(/^enter-planet/);
     expect(stepBetween(onGlobe, landed, looks)?.kind).toBe('enter-world');
-    // Going up is a cross-fade, and a long jump goes straight to its destination.
-    expect(stepBetween(inSystem, universe, looks)).toBeUndefined();
-    expect(stepBetween(onGlobe, inSystem, looks)).toBeUndefined();
-    expect(stepBetween(landed, onGlobe, looks)).toBeUndefined();
+    // Every step up is a 0.3 s cross-fade (D-093).
+    expect(stepBetween(inSystem, universe, looks)?.kind).toBe('step-up');
+    expect(stepBetween(onGlobe, inSystem, looks)?.kind).toBe('step-up');
+    expect(stepBetween(landed, onGlobe, looks)?.kind).toBe('step-up');
+    // A long jump, up or down, goes straight to its destination.
     expect(stepBetween(universe, onGlobe, looks)).toBeUndefined();
     expect(stepBetween(universe, landed, looks)).toBeUndefined();
+    expect(stepBetween(onGlobe, universe, looks)).toBeUndefined();
+    expect(stepBetween(landed, inSystem, looks)).toBeUndefined();
   });
 
   it('plays the ringed version only for a planet that has rings or a moon', () => {
@@ -194,6 +197,8 @@ describe('entering a planet', () => {
     expect(lastScript()?.planetId).toBeDefined();
     expect(lastScript()?.ringed).toBe(true);
     expect(screen.getByTestId('universe-globe-layer', hidden)).toBeOnTheScreen();
+    // The 3D scene is its own layer, which fades out over the last of the glide so the last frame is the planet view's sky.
+    expect(screen.getByTestId('universe-3d-layer', hidden)).toBeOnTheScreen();
     expect(screen.getByTestId('universe-tap-ring', hidden)).toBeOnTheScreen();
     // The tab bar is not the screen's and the planet's chrome is not drawn as the finished screen yet.
     await playFor(4.5);
@@ -223,8 +228,38 @@ describe('entering a world', () => {
   });
 });
 
+describe('going back up', () => {
+  it('is a 0.3 s cross-fade that ignores taps meanwhile, for a system to the whole map', async () => {
+    const { view } = await openUniverse(withMotion);
+    await fireEvent.press(system());
+    await playFor(6);
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Universe' }));
+    await settle(() => expect(screen.getByRole('header', { name: 'Your universe' })).toBeOnTheScreen());
+    // The system's chrome is still on screen, fading, and the gate is closed.
+    expect(screen.getByRole('header', { name: 'CI system 0' })).toBeOnTheScreen();
+    expect(universeSessionFor(mockScope).focus('x')).toBe(false);
+    await playFor(0.5);
+    expect(screen.queryByRole('header', { name: 'CI system 0' })).toBeNull();
+    await view.unmount();
+  });
+
+  it('lays the planet being left over the system being entered while it fades', async () => {
+    const { view } = await openUniverse(withMotion);
+    await fireEvent.press(system());
+    await playFor(6);
+    await fireEvent.press(screen.getByRole('button', { name: 'CI planet 2, a planet' }));
+    await playFor(5);
+    await settle(() => expect(screen.getByRole('button', { name: 'Back to CI system 0' })).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to CI system 0' }));
+    await settle(() => expect(screen.getByTestId('universe-leaving-layer', hidden)).toBeOnTheScreen());
+    await playFor(0.5);
+    expect(screen.queryByTestId('universe-leaving-layer', hidden)).toBeNull();
+    await view.unmount();
+  });
+});
+
 describe('the first open', () => {
-  it('plays once when the account has not seen it, claims it as it starts, and shows the tab when it ends', async () => {
+  it('plays once when the account has not seen it, claims it only once its picture can be drawn, and shows the tab when it ends', async () => {
     const h = universeHarness();
     h.firstOpen(true);
     mockScope = h.scope;
@@ -245,6 +280,72 @@ describe('the first open', () => {
     await again.unmount();
   });
 
+  it('is not asked for again on this device once the account has said it was seen', async () => {
+    const h = universeHarness();
+    h.firstOpen(false);
+    mockScope = h.scope;
+    const first = await render(withMotion);
+    await settle(() => expect(system()).toBeOnTheScreen());
+    await first.unmount();
+    const rendersBefore = fakeGpu.renderers.length;
+    const second = await render(withMotion);
+    await settle(() => expect(system()).toBeOnTheScreen());
+    // No second claim and no picture was even built: the tab opened at once.
+    expect(h.calls.filter((path) => path === '/v1/account/universe/first-open')).toHaveLength(1);
+    expect(fakeGpu.renderers.length - rendersBefore).toBe(1);
+    await second.unmount();
+  });
+
+  it('leaves the account\u2019s one opening alone when the picture cannot get a WebGL context', async () => {
+    const h = universeHarness();
+    h.firstOpen(true);
+    mockScope = h.scope;
+    fakeGpu.failToCreate = true;
+    const view = await render(withMotion);
+    // The map\u2019s own renderer fails too, so the tab is the Simple lists: what matters is that nothing was claimed.
+    await settle(() => expect(screen.queryByTestId('first-open-preparing')).toBeNull());
+    expect(h.calls).not.toContain('/v1/account/universe/first-open');
+    await view.unmount();
+  });
+
+  it('keeps the real screen and its 3D canvas through the handover: it is not built again when the picture goes (account with places)', async () => {
+    const h = universeHarness();
+    h.firstOpen(true);
+    mockScope = h.scope;
+    const view = await render(withMotion);
+    await settle(() => expect(screen.getByTestId('first-open')).toBeOnTheScreen());
+    // Until 19 s the real screen is not drawn at all: one 3D scene, the picture.
+    expect(fakeGpu.renderers).toHaveLength(1);
+    await playFor(19.3, 100);
+    await settle(() => expect(fakeGpu.renderers).toHaveLength(2));
+    const map = fakeGpu.renderers[1]!;
+    await playFor(1.5, 100);
+    await settle(() => expect(screen.queryByTestId('first-open')).toBeNull());
+    // The picture\u2019s scene is gone; the map\u2019s is the one that was drawing beneath it, untouched.
+    expect(fakeGpu.renderers).toHaveLength(2);
+    expect(fakeGpu.renderers[0]!.disposed).toBe(true);
+    expect(map.disposed).toBe(false);
+    expect(system()).toBeOnTheScreen();
+    await view.unmount();
+  });
+
+  it('keeps the empty screen and its sky through the handover too (account with no places)', async () => {
+    const h = universeHarness(0);
+    h.firstOpen(true);
+    mockScope = h.scope;
+    const view = await render(withMotion);
+    await settle(() => expect(screen.getByTestId('first-open')).toBeOnTheScreen());
+    await playFor(19.5, 100);
+    await settle(() => expect(fakeGpu.renderers).toHaveLength(2));
+    const sky = fakeGpu.renderers[1]!;
+    await playFor(2.2, 100);
+    await settle(() => expect(screen.queryByTestId('first-open')).toBeNull());
+    expect(fakeGpu.renderers).toHaveLength(2);
+    expect(sky.disposed).toBe(false);
+    expect(screen.getByText('Your universe starts quiet.')).toBeOnTheScreen();
+    await view.unmount();
+  });
+
   it('does not play when the account has seen it, on this or any other device', async () => {
     const { h, view } = await openUniverse(withMotion, false);
     expect(screen.queryByTestId('first-open')).toBeNull();
@@ -252,7 +353,7 @@ describe('the first open', () => {
     await view.unmount();
   });
 
-  it('does not play, and does not use up the account’s one opening, under reduced motion', async () => {
+  it('does not play, and does not use up the account\u2019s one opening, under reduced motion', async () => {
     const { h, view } = await openUniverse(calm, true);
     expect(screen.queryByTestId('first-open')).toBeNull();
     expect(h.calls).not.toContain('/v1/account/universe/first-open');

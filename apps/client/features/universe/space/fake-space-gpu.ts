@@ -31,6 +31,8 @@ export interface FakeRenderer extends SpaceRenderer {
   readonly cameras: { spec: SpaceCameraSpec; animate: boolean }[];
   /** Every script the screen handed over, `null` when it took it back. */
   readonly scripts: (SpaceScript | null)[];
+  /** The renderer was disposed: its WebGL context is gone (a screen that keeps its renderer never sets this). */
+  disposed: boolean;
   definition: SpaceDefinition;
   highlighted: string | null;
 }
@@ -81,6 +83,7 @@ function makeRenderer(definition: SpaceDefinition, far: () => boolean, failing: 
     draws: [],
     cameras: [],
     scripts: [],
+    disposed: false,
     definition,
     highlighted: null,
     draw: (t) => {
@@ -103,7 +106,7 @@ function makeRenderer(definition: SpaceDefinition, far: () => boolean, failing: 
     setHighlight: (id) => void (renderer.highlighted = id),
     isFar: far,
     probe: () => ({ litPixels: 1, sampledPixels: 2, signature: 3 }),
-    dispose: () => undefined,
+    dispose: () => void (renderer.disposed = true),
     anchors: () => anchorsOf(renderer),
   };
   return renderer;

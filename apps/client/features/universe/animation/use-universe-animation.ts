@@ -8,6 +8,7 @@ import { looksById } from '../space/space-model';
 import { ENTER_PLANET, type GlobePlacement } from './enter-planet';
 import { ENTER_SYSTEM } from './enter-system';
 import { ENTER_WORLD } from './enter-world';
+import { STEP_UP_SECONDS } from './step-up';
 import { createAnimationPlayer, type AnimationKind, type AnimationPlayer } from './player';
 
 /** The step down a change of view is, if it is one of the three the design animates (D-114). */
@@ -19,13 +20,16 @@ export type StepAnimation =
       readonly planetId: string;
       readonly from: UniverseView;
     }
-  | { readonly kind: 'enter-world'; readonly planetId: string; readonly from: UniverseView };
+  | { readonly kind: 'enter-world'; readonly planetId: string; readonly from: UniverseView }
+  /** One step up: a 0.3 s cross-fade from `from` to the view that was entered (D-093, D-116). */
+  | { readonly kind: 'step-up'; readonly from: UniverseView; readonly to: UniverseView };
 
 export const SECONDS: Readonly<Record<Exclude<AnimationKind, 'first-open'>, number>> = {
   'enter-system': ENTER_SYSTEM.seconds,
   'enter-planet': ENTER_PLANET.seconds,
   'enter-planet-rings': ENTER_PLANET.seconds,
   'enter-world': ENTER_WORLD.seconds,
+  'step-up': STEP_UP_SECONDS,
 };
 
 /** Identifies a view, so a re-render that changes nothing is not a step. */
@@ -36,10 +40,11 @@ export function viewKey(view: UniverseView): string {
 }
 
 /**
- * Which of the three animations a change of view is, if any. Only the single step down is animated:
- * the whole map to a system, a system to one of its own planets, a planet's globe to its map at planet
- * level. A long jump (search to a region, the dial across systems) goes straight to the destination,
- * and so does every step up, which is a short cross-fade (D-116). `ringed` says the planet has rings or a moon.
+ * Which animation a change of view is, if any. A single step down is one of the three entering animations: the whole map
+ * to a system, a system to one of its own planets, a planet's globe to its map at planet level. A single step up, to the
+ * parent just left (a planet to its system, a planet's map to its globe, a system to the whole map), is a 0.3 s
+ * cross-fade (D-093, D-116). A long jump (search to a region, the dial across systems) goes straight to the destination.
+ * `ringed` says the planet has rings or a moon.
  */
 export function stepBetween(
   from: UniverseView,
@@ -67,7 +72,20 @@ export function stepBetween(
     to.planet.objectId === from.planet.objectId
   )
     return { kind: 'enter-world', planetId: to.planet.objectId, from };
-  return undefined;
+  return isStepUp(from, to) ? { kind: 'step-up', from, to } : undefined;
+}
+
+/** Whether `to` is the view one level above `from`, the one just left. */
+function isStepUp(from: UniverseView, to: UniverseView): boolean {
+  if (from.kind === 'system') return to.kind === 'universe';
+  if (from.kind !== 'planet') return false;
+  if (!from.landed) return to.kind === 'system' && to.system.objectId === from.planet.parentId;
+  return (
+    from.selectedRegion === undefined &&
+    to.kind === 'planet' &&
+    !to.landed &&
+    to.planet.objectId === from.planet.objectId
+  );
 }
 
 /** What the overlays of an animation read: the latest projection of the 3D scene, as the renderer reports it. */
@@ -160,7 +178,7 @@ export function useUniverseAnimation(options: {
     if (active === undefined) return undefined;
     if (active.kind === 'enter-system')
       return { kind: 'enter-system', systemId: active.systemId, clock, onFrame: feed.push };
-    if (active.kind === 'enter-world') return undefined;
+    if (active.kind === 'enter-world' || active.kind === 'step-up') return undefined;
     return {
       kind: 'enter-planet',
       systemId: active.systemId,

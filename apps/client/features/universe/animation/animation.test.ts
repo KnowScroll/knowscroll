@@ -1,7 +1,15 @@
 import { FIELD_OF_VIEW, rigPose, type CameraPose } from '../space/camera-rig';
 import type { FrameScheduler } from '../space/render-loop';
 import { clamp01, easeOut, logLerp, smootherstep, smoothstep } from './easing';
-import { cameraAt as enterPlanetCameraAt, ENTER_PLANET, finalFraming, globeAt, handoverAt } from './enter-planet';
+import {
+  cameraAt as enterPlanetCameraAt,
+  ENTER_PLANET,
+  finalFraming,
+  globeAt,
+  handoverAt,
+  skyAt,
+} from './enter-planet';
+import { crossFadeAt, STEP_UP_SECONDS } from './step-up';
 import { ENTER_SYSTEM, enterSystemFrame } from './enter-system';
 import { ENTER_WORLD, enterWorldFrame } from './enter-world';
 import { END_POSITION, FIRST_OPEN, distanceAt, firstOpenFrame, speedAt, warpAt } from './first-open-timeline';
@@ -341,6 +349,17 @@ describe('entering a planet', () => {
     expect(globeAt(1, 20, 2.5).shipScale).toBe(0);
   });
 
+  it('hands the sky to the planet view at the end: nothing of the 3D scene is left on the last frame', () => {
+    // The 3D canvas (neighbours, haze, limb) is at full opacity until the last 0.45 s of the glide, then fades to none.
+    expect(1 - skyAt(ENTER_PLANET.glideStart + 2.4)).toBe(1);
+    const mid = 1 - skyAt(ENTER_PLANET.glideEnd - 0.2);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
+    expect(1 - skyAt(ENTER_PLANET.glideEnd)).toBe(0);
+    expect(globeAt(ENTER_PLANET.glideEnd, 2.5, 2.5).stars).toBe(1);
+    expect(globeAt(ENTER_PLANET.glideStart + 1, 20, 2.5).stars).toBe(0);
+  });
+
   it('turns a 3D ring and moon into the planet view’s before it lets them go', () => {
     const start = handoverAt(0);
     const middle = handoverAt(1.7);
@@ -358,6 +377,15 @@ describe('entering a planet', () => {
   });
 });
 
+describe('going back up', () => {
+  it('is a 0.3 s cross-fade: the old screen fades out as the new one fades in, and it is whole at both ends', () => {
+    expect(STEP_UP_SECONDS).toBe(0.3);
+    expect(crossFadeAt(0)).toBe(0);
+    expect(crossFadeAt(STEP_UP_SECONDS)).toBe(1);
+    expect(crossFadeAt(STEP_UP_SECONDS / 2)).toBeCloseTo(0.5, 6);
+  });
+});
+
 describe('entering a world', () => {
   const screen = { width: 390, height: 844 };
   const globe = { x: 195, y: 372, radius: 146 };
@@ -372,6 +400,14 @@ describe('entering a world', () => {
     expect(last.circle.radius).toBeGreaterThanOrEqual(Math.hypot(195, 422));
     expect(last.map).toEqual({ opacity: 1, scale: 1, shiftX: 0, shiftY: 0 });
     expect([last.liveMap, last.names, last.clouds, last.globeOpacity, last.shading]).toEqual([1, 1, 1, 0, 0]);
+  });
+
+  it('brings the clouds in gradually over half a second after landing, not all at once', () => {
+    expect(enterWorldFrame(2.5, { screen, globe }).clouds).toBe(0);
+    const drifting = enterWorldFrame(2.8, { screen, globe }).clouds;
+    expect(drifting).toBeGreaterThan(0.2);
+    expect(drifting).toBeLessThan(0.8);
+    expect(enterWorldFrame(3.05, { screen, globe }).clouds).toBe(1);
   });
 
   it('leans in, then opens out, each in its own beat', () => {
