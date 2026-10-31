@@ -123,11 +123,18 @@ describe('the twenty topics of the writer spike', () => {
       if (recipe.misconception.kind === 'myth' && recipe.misconception.source.reviewed) reviewed.push(topic);
     }
     expect(reviewed).toEqual(['seasons']);
-    // The two Seasons parts the plan gives no myth (D-137) and the one narrative recipe.
-    expect(SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).misconception.kind === 'none')).toEqual([
-      'seasons-hemispheres',
-      'seasons-limits',
-      'industrial-causes',
+    // The recipes the plan decides (D-137, D-199) give no myth: the Seasons parts with none, and every
+    // recipe of the first waves. Only the recipes the plan has not marked keep the spike’s own table.
+    expect(SPIKE_TOPICS_V2.filter((topic) => spikeRecipeV2(topic).misconception.kind === 'none')).toEqual(
+      SPIKE_TOPICS_V2.filter((topic) => topic !== 'seasons' && TOPICS[topic].scrollV2 !== undefined),
+    );
+    expect(SPIKE_TOPICS_V2.filter((topic) => TOPICS[topic].scrollV2 === undefined)).toEqual([
+      'tides',
+      'tides-spring-neap',
+      'greenhouse-radiation',
+      'greenhouse-balance',
+      'stars-fusion',
+      'exoplanet-habitable-zone',
     ]);
   });
 

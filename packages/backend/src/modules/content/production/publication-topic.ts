@@ -331,6 +331,10 @@ async function projectNewPublication(
  * `attribution: 'none'` is a Scroll ordered from code (a hypothetical or a lens): it is published and
  * closed like any other and then gets no topic and no coverage, by design (D-049), so a hypothetical
  * can never grow a real-world planet.
+ *
+ * `writerRunId` is the run whose answer is stored. The job names it once `publish` has run. Until then it
+ * names `namedRunId`, which differs when the answer came from the answer check's repair (D-198): the caller
+ * changes the name inside `publish`, so a refusal here (it returns false) leaves the job exactly as it was.
  */
 export async function completeWriterPublication(
   scope: ProductionScopeTx,
@@ -339,6 +343,7 @@ export async function completeWriterPublication(
   writerRunId: string,
   attribution: 'library' | 'none',
   publish: () => Promise<void>,
+  namedRunId: string = writerRunId,
 ): Promise<boolean> {
   const tx = productionTransactionOf(scope);
   const job = await tx
@@ -348,7 +353,7 @@ export async function completeWriterPublication(
     .where('state', '=', 'writer')
     .where('policy_version', 'in', PRODUCTION_VERSIONS)
     .where('scope_generation', '=', scope.authority.generation)
-    .where('writer_run_id', '=', writerRunId)
+    .where('writer_run_id', '=', namedRunId)
     .forUpdate()
     .executeTakeFirst();
   if (job === undefined) return false;

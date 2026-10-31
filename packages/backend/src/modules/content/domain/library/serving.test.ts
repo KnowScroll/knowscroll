@@ -5,10 +5,15 @@ import {
   MAX_TAKES_PER_RECIPE,
   pickRecipeToProduce,
   planLibraryProduction,
+  planRegeneration,
   productionStanding,
   recipesServing,
+  regenerationStanding,
+  regenerationTake,
   takeToSend,
   type LibraryRecipeStatus,
+  type ProductionJobState,
+  type RegenerationState,
   type ScrollProductionState,
 } from './serving.js';
 
@@ -146,5 +151,88 @@ describe('takes of a recipe', () => {
     expect(takeToSend('retryable', 2)).toBe(3);
     expect(takeToSend('stopped', 3)).toBeUndefined();
     expect(takeToSend('published', 1)).toBeUndefined();
+  });
+});
+
+describe('regenerating a served v2 Scroll (D-197)', () => {
+  const stand = (
+    jobs: readonly ProductionJobState[],
+    overrides: { v2?: boolean; admitted?: boolean; heldRevision?: boolean } = {},
+  ) => regenerationStanding({ v2: true, admitted: true, jobs, heldRevision: false, ...overrides });
+
+  it('applies only to a v2 recipe whose Scroll is served, and says why otherwise', () => {
+    expect(stand([], { v2: false })).toBe('not_v2');
+    expect(stand([], { admitted: false })).toBe('not_published');
+    expect(stand(['rejected'], { admitted: false })).toBe('not_published');
+  });
+
+  it('may take a published recipe again until its three takes of the production version are used', () => {
+    expect(stand([])).toBe('available');
+    expect(stand(['published'])).toBe('available');
+    expect(stand(['published', 'rejected'])).toBe('available');
+    expect(stand(['published', 'published'])).toBe('available');
+    expect(stand(['published', 'published', 'published'])).toBe('spent');
+    expect(stand(['rejected', 'rejected', 'rejected'])).toBe('spent');
+  });
+
+  it('waits while a take runs or a revision waits for a decision, and stops at an attempt of unknown outcome', () => {
+    expect(stand(['published', 'writer'])).toBe('running');
+    expect(stand(['research'])).toBe('running');
+    expect(stand(['published', 'held'])).toBe('held');
+    // A revision an earlier production version left held blocks a new one too: decide it first.
+    expect(stand([], { heldRevision: true })).toBe('held');
+    expect(stand(['published', 'unknown'])).toBe('stopped');
+  });
+
+  it('names the take to send: the next after a finished one, the running one to resume, none otherwise', () => {
+    const states: RegenerationState[] = ['not_v2', 'not_published', 'available', 'running', 'held', 'spent', 'stopped'];
+    expect(states.map((state) => regenerationTake(state, 2))).toEqual([
+      undefined,
+      undefined,
+      3,
+      2,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(regenerationTake('available', 0)).toBe(1);
+  });
+
+  it('queues the next take of the recipes that may be regenerated, resumes a running one and skips the rest with the reason', () => {
+    const row = (recipe: RecipeKey, regeneration: RegenerationState, takes: number): LibraryRecipeStatus => ({
+      recipe,
+      state: 'published',
+      takes,
+      attempts: 0,
+      regeneration,
+    });
+    const plan = planRegeneration([
+      row('seasons', 'available', 1),
+      row('seasons-hemispheres', 'running', 2),
+      row('seasons-limits', 'held', 2),
+      row('seasons-elsewhere', 'spent', 3),
+      row('tides', 'not_v2', 0),
+      row('greenhouse', 'not_published', 0),
+      row('cardiac-cycle', 'stopped', 1),
+      row('dns-lookup', 'available', 0),
+    ]);
+    expect(plan.queue).toEqual([
+      { recipe: 'seasons', take: 2 },
+      { recipe: 'seasons-hemispheres', take: 2 },
+      { recipe: 'dns-lookup', take: 1 },
+    ]);
+    expect(plan.skipped).toEqual([
+      { recipe: 'seasons-limits', reason: 'held' },
+      { recipe: 'seasons-elsewhere', reason: 'spent' },
+      { recipe: 'tides', reason: 'not_v2' },
+      { recipe: 'greenhouse', reason: 'not_published' },
+      { recipe: 'cardiac-cycle', reason: 'stopped' },
+    ]);
+  });
+
+  it('treats a status with no regeneration state as not regenerable, never as available', () => {
+    const plan = planRegeneration([{ recipe: 'seasons', state: 'published', takes: 1, attempts: 0 }]);
+    expect(plan.queue).toEqual([]);
+    expect(plan.skipped).toEqual([{ recipe: 'seasons', reason: 'not_v2' }]);
   });
 });

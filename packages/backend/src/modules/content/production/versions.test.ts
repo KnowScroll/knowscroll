@@ -1,16 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isReadingInteractionAllowed } from '../public.js';
-import { produceScrollJob } from './events.js';
+import { produceScrollJob, produceScrollQueue, PRODUCE_SCROLL_CLAIM_SECONDS } from './events.js';
+import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
 import { makeRunScrollProduction } from './job.js';
 import {
+  MAX_TAKES_PER_RECIPE,
   parseScrollTopic,
   planRefusalOf,
   productionVersionOf,
+  REQUEST_BOUND_PER_TOPIC,
+  REQUEST_BOUND_V2_PER_TOPIC,
+  requestBoundOf,
   SCROLL_PRODUCTION_V2_VERSION,
   SCROLL_PRODUCTION_VERSION,
   scrollV2PlanOf,
   TOPICS,
 } from './topics.js';
+import { WRITER_V2_PROMPT_VERSION } from './writer-v2.js';
 
 /** Marks a recipe v2 for one test, the way the plan will. */
 const marked: (() => void)[] = [];
@@ -76,5 +82,42 @@ describe('what a call reports', () => {
     expect(isReadingInteractionAllowed('call_it', 'option-selected')).toBe(false);
     expect(isReadingInteractionAllowed('stop', 'locked')).toBe(false);
     expect(isReadingInteractionAllowed('diagram', 'frame-changed')).toBe(true);
+  });
+});
+
+describe('takes are counted per production version, so a writer bump gives new ones (D-197)', () => {
+  /** Each v2 writer version and the production version that goes with it. Adding a writer version without a row fails. */
+  const PRODUCTION_VERSION_OF_WRITER: Readonly<Record<string, string>> = {
+    'scroll-writer.v16': 'scroll-production.v15',
+    'scroll-writer.v17': 'scroll-production.v17',
+    'scroll-writer.v18': 'scroll-production.v18',
+  };
+
+  it('pairs the v2 writer’s instructions with the v2 production version, so a new writer cannot reuse the old writer’s takes', () => {
+    expect(PRODUCTION_VERSION_OF_WRITER[WRITER_V2_PROMPT_VERSION]).toBe(SCROLL_PRODUCTION_V2_VERSION);
+  });
+
+  it('allows three takes of a recipe per version and bounds a take, so paid production cannot loop', () => {
+    expect(MAX_TAKES_PER_RECIPE).toBe(3);
+    // Two writer requests (the first draft with one repair, from the validator or the answer check) and
+    // the checker once for each of the two drafts, with one repair each, at most.
+    expect(REQUEST_BOUND_V2_PER_TOPIC).toBe(2 + 2 * 2);
+    expect(REQUEST_BOUND_PER_TOPIC).toBe(2);
+  });
+
+  it('reports the bound of the recipe asked about: six for a v2 recipe, two for every other', () => {
+    expect(requestBoundOf('seasons')).toBe(REQUEST_BOUND_V2_PER_TOPIC);
+    expect(requestBoundOf('tides')).toBe(REQUEST_BOUND_PER_TOPIC);
+    expect(requestBoundOf(`order-${'a'.repeat(32)}`)).toBe(REQUEST_BOUND_PER_TOPIC);
+  });
+});
+
+describe('how long a production delivery may hold its claim (D-198)', () => {
+  it('outlasts the worst case of a take: every request it may send, one after the other, at the largest timeout, plus a margin', () => {
+    const worstCaseRequestsSeconds = (REQUEST_BOUND_V2_PER_TOPIC * MINIMAX_REQUEST_TIMEOUT_MAX_MS) / 1000;
+    expect(worstCaseRequestsSeconds).toBe(1800);
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBeGreaterThan(worstCaseRequestsSeconds);
+    expect(PRODUCE_SCROLL_CLAIM_SECONDS).toBe(2100);
+    expect(produceScrollQueue.policy.expireInSeconds).toBe(PRODUCE_SCROLL_CLAIM_SECONDS);
   });
 });

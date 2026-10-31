@@ -36,8 +36,13 @@ import only domain code. It has no behaviour, no storage and no model call.
 A recipe with `scrollV2` is written as a `scroll-document.v2` Scroll and held for an operator's read before anyone is
 served it (D-129, D-138). Today the four Seasons recipes carry it (D-137): `seasons`, `seasons-hemispheres` and
 `seasons-limits` with a picture (their `stageKit`), `seasons-elsewhere` without. Only `seasons` has a misconception, the
-distance myth with its reviewed source; the other three have none because their pages do not document one. Marking a
-recipe is a person's decision, one recipe at a time, with its own decision entry; `library.test.ts` pins the list.
+distance myth with its reviewed source; the other three have none because their pages do not document one. So do the
+thirty-five recipes of Human body, Computing, Machine learning and History (D-199): every one has
+calls, no myth (no page of the recipe states a common wrong belief) and a landmark, and is a `plain` Scroll unless a kit draws
+it: the six heart and nerve recipes are `stage` Scrolls (D-201). A series is marked whole or not at all,
+so `admit-continuity` can admit it whole. Marking a recipe is a person's decision, one recipe at a time or one wave at a time,
+with its own decision entry; `library.test.ts` pins the list. A v2 recipe is also the only kind `content regenerate` can
+make again (D-197), and the answer check runs on its calls (D-198).
 
 ## Landmarks and the Final call control
 
@@ -45,7 +50,8 @@ A recipe with `scrollV2` may also carry `landmark: {key, name}` and `finalCall: 
 plan data that code sets into the document; the writer never writes them (it is only told what a bound Final call is
 for). The four Seasons recipes name a landmark (`The Leaning Axis`, `The Turning Halves`, `The Near January`, `The
 Sideways Giant`: the first is the design's, the other three are authored and want a person's confirmation) and only
-`seasons` hands the reader the tilt. Every other recipe awards no landmark until S-6 names them, and that is safe: play
+`seasons` hands the reader the tilt. The thirty-five wave recipes name one each (D-199: short, plain and never a claim of mastery; authored, and a person
+should confirm them). Every other recipe awards no landmark until it is marked, and that is safe: play
 awards nothing for a revision whose document has none. Keys are unique and fit the document's id shape, and
 `library.test.ts` pins which recipes name one. Changing either field changes what the next revision carries; stored
 revisions keep what they were published with.
@@ -61,7 +67,7 @@ revisions keep what they were published with.
   It names no block type; `interactive` and `interactiveKind` carry that. Medical and similar topics
   say they are physiology or history, not advice.
 - `supportingFacetId` is for a second angle the brief explicitly asks the closing section to cover.
-- `stageKit` names the drawing kit that draws the recipe's subject, and only then. A recipe with a kit gets a pinned picture when the v2 writer produces it; every other recipe is a plain Scroll with calls and no picture (D-125). Seven kits exist (D-125, D-194, D-201): `earth-sky.v1` draws the three Seasons recipes, `tides.v1` draws `tides` and `tides-spring-neap`, `greenhouse.v1` `greenhouse`, `greenhouse-radiation` and `greenhouse-balance`, `star.v1` `stars-fusion` and `stars-lifecycle`, `transit.v1` `exoplanet-transit`, `circulation.v1` `cardiac-cycle`, `blood-pressure` and `oxygen-transport`, and `nerve.v1` `action-potential`, `synapse-signalling` and `reflex-arc`. Each entry carries a note saying why the kit draws its subject. Every other recipe stays plain until a kit draws it: coasts, the audit of the blanket analogy (`greenhouse-limits`), colour and brightness, the habitable zone, kinds of planet, black holes and other worlds (`seasons-elsewhere`), and the three immune recipes. Naming a kit is not marking the recipe `scrollV2`: that is a later decision, after the writer spike (runbook). Adding a kit to a recipe is a person's decision, and `library.test.ts` pins the list. A brief stays free of the picture, because the v1 writer reads it too.
+- `stageKit` names the drawing kit that draws the recipe's subject, and only then. A recipe with a kit gets a pinned picture when the v2 writer produces it; every other recipe is a plain Scroll with calls and no picture (D-125). Seven kits exist (D-125, D-194, D-201): `earth-sky.v1` draws the three Seasons recipes, `tides.v1` draws `tides` and `tides-spring-neap`, `greenhouse.v1` `greenhouse`, `greenhouse-radiation` and `greenhouse-balance`, `star.v1` `stars-fusion` and `stars-lifecycle`, `transit.v1` `exoplanet-transit`, `circulation.v1` `cardiac-cycle`, `blood-pressure` and `oxygen-transport`, and `nerve.v1` `action-potential`, `synapse-signalling` and `reflex-arc`. Each entry carries a note saying why the kit draws its subject. Every other recipe stays plain until a kit draws it: coasts, the audit of the blanket analogy (`greenhouse-limits`), colour and brightness, the habitable zone, kinds of planet, black holes and other worlds (`seasons-elsewhere`), and the three immune recipes. Naming a kit is not marking the recipe `scrollV2` (the earlier kits' recipes are marked later, after the writer spike); the six heart and nerve recipes carry both (D-199, D-201). Adding a kit to a recipe is a person's decision, and `library.test.ts` pins the list. A brief stays free of the picture, because the v1 writer reads it too.
 - Research pages must be allowlisted (`infrastructure/research/public-pages.ts`) and fetchable. The
   writer is offered the passages of all a recipe's pages together, at most 64 (it needs at least
   4), so name one long page or two short ones. Run `node scripts/check-library-sources.mjs` after

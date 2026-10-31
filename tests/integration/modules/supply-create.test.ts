@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { FULL_V1_CAPABILITIES } from '@knowscroll/scroll-model';
 import type { CreateContentRequest } from '@knowscroll/contracts';
 import { personalStores } from '@knowscroll/backend/erasure-registry';
@@ -41,7 +41,7 @@ import type { FixtureScenario } from '../support/fixture-model-port.js';
 import { fixtureProductionWorker, type QuotaScript } from '../support/production-worker.js';
 import { seedPerson, type FixturePerson } from '../support/fixtures.js';
 import { scrollUseCases, starterSource } from '../support/scroll.js';
-import { markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
+import { markLibraryV1, markScrollV2, ORRIN_PLAN } from '../support/scroll-v2.js';
 
 const capabilities = { ...FULL_V1_CAPABILITIES, documentSchemas: ['scroll-document.v1', 'reel-document.v1'] };
 const writerAnswer = (): FixtureScenario => ({ kind: 'success', text: JSON.stringify(fixtureAuthored('diagram')) });
@@ -56,6 +56,9 @@ const matchAnswer = (topicId: string | null, facetId: string | null = null): Fix
  * publishes; each waiter is bound under its own authority. CI fixtures only: no provider network.
  */
 describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () => {
+  // Create commissions only v1 recipes (D-138): this file tests Create on the v1 library.
+  const restoreLibrary = markLibraryV1();
+  afterAll(restoreLibrary);
   let database: TestDatabase<Database>;
   let content: Awaited<ReturnType<typeof scrollUseCases>>;
   let create: CreateRequest, read: ReadRequest, list: ListRequests, cancel: CancelRequest, resolve: ResolveRequest;

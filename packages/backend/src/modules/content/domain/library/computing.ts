@@ -80,6 +80,11 @@ export const computingRecipes = {
     brief:
       'How a name becomes an address. The Domain Name System is a hierarchical, distributed naming system, often compared to the phone book of the internet: responsibility for each part of the name space is delegated to a zone, and the name space is a tree. Step the reader through a lookup that follows the name from the top of that tree down to the zone that holds the answer. Name no provider, and do not imply that DNS shows the content of a page.',
     pages: ['https://en.wikipedia.org/wiki/Domain_Name_System'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-address-book', name: 'The Address Book' },
+    },
   },
   'https-handshake': {
     explanationUnitId: 'computing-web-requests-https-v1',
@@ -92,6 +97,11 @@ export const computingRecipes = {
     brief:
       'How a browser sets up a private connection. Transport Layer Security lets the two sides agree on how to protect their traffic and prove who the server is before ordinary data flows. Explain the idea of the handshake in plain terms and what encryption protects. Do not say a secure connection makes a site trustworthy, and do not say it hides which site you visit completely.',
     pages: ['https://developer.mozilla.org/en-US/docs/Web/Security/Transport_Layer_Security'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-secret-handshake', name: 'The Secret Handshake' },
+    },
   },
   'web-caching': {
     explanationUnitId: 'computing-web-requests-caching-v1',
@@ -104,6 +114,11 @@ export const computingRecipes = {
     brief:
       'Why a page often loads faster the second time. A web cache stores copies of pages and images it has already fetched, so a repeat request can be answered from the copy instead of going back to the original server. Compare a request answered from a cache with one that has to go to the source. Do not imply a cache always serves current content, or that it is always safe for private data.',
     pages: ['https://en.wikipedia.org/wiki/Web_cache'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-saved-copy', name: 'The Saved Copy' },
+    },
   },
   'rendering-pipeline': {
     explanationUnitId: 'computing-browsers-rendering-v1',
@@ -116,6 +131,11 @@ export const computingRecipes = {
     brief:
       'From text to pixels. The browser turns the page’s markup and style rules into trees, works out where each element goes, and then paints it to the screen. Explain these steps in order and why a page that waits on heavy resources shows up late. Do not present one browser engine’s internals as universal.',
     pages: ['https://developer.mozilla.org/en-US/docs/Web/Performance/Guides/Critical_rendering_path'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-pixel-path', name: 'The Pixel Path' },
+    },
   },
   'event-loop': {
     explanationUnitId: 'computing-browsers-event-loop-v1',
@@ -128,6 +148,11 @@ export const computingRecipes = {
     brief:
       'Why a busy script can freeze a page. An event loop keeps asking for the next event and dispatching it; a web page and its JavaScript typically run in a single thread, with a queue of tasks waiting their turn. Explain the queue and what a long task does to everything behind it. Do not say JavaScript is multi-threaded by default or promise exact timings.',
     pages: ['https://en.wikipedia.org/wiki/Event_loop'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-patient-loop', name: 'The Patient Loop' },
+    },
   },
   'same-origin-policy': {
     explanationUnitId: 'computing-browsers-same-origin-v1',
@@ -140,6 +165,11 @@ export const computingRecipes = {
     brief:
       'Why one website cannot freely read another’s data in your browser. Under the same-origin policy a script on one page may access data from another only if both have the same origin, and sites can opt in to controlled sharing. Compare a same-origin case with a cross-origin case, including why this protects a signed-in session. Do not suggest the policy stops every kind of attack.',
     pages: ['https://en.wikipedia.org/wiki/Same-origin_policy'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-wall-between-sites', name: 'The Wall Between Sites' },
+    },
   },
   'big-o-growth': {
     explanationUnitId: 'computing-algorithms-growth-v1',
@@ -152,6 +182,11 @@ export const computingRecipes = {
     brief:
       'How to compare algorithms by how their work grows with the size of the input, not by a stopwatch. Time complexity describes the amount of time an algorithm takes as a function of input size, usually for the worst case. Compare constant, logarithmic and linear growth as the input gets larger, in illustrative units, with binary search as the logarithmic example. Do not claim the notation predicts running time exactly.',
     pages: ['https://en.wikipedia.org/wiki/Time_complexity'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-growth-curve', name: 'The Growth Curve' },
+    },
   },
   'hybrid-sorting': {
     explanationUnitId: 'computing-algorithms-sorting-v1',
@@ -164,6 +199,11 @@ export const computingRecipes = {
     brief:
       'Why real sorting code combines methods. Timsort is a stable hybrid of merge sort and insertion sort built for real data, which often already contains runs that are in order; it finds those runs and merges them. Explain what stable means and why exploiting existing order helps. Do not declare any one method the best for every situation.',
     pages: ['https://en.wikipedia.org/wiki/Timsort'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-sorted-runs', name: 'The Sorted Runs' },
+    },
   },
   'hash-tables': {
     explanationUnitId: 'computing-algorithms-hashing-v1',
@@ -176,5 +216,10 @@ export const computingRecipes = {
     brief:
       'How a hash table finds an item almost instantly. A hash function turns a key into a position in an array of buckets; because two keys can land in the same place, collisions are handled by chaining or by probing for another slot, and performance falls as the table fills. Let the reader add keys and see where they land and what a collision looks like. Do not claim lookups are always constant time.',
     pages: ['https://en.wikipedia.org/wiki/Hash_table'],
+    scrollV2: {
+      variant: 'plain',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-labelled-shelf', name: 'The Labelled Shelf' },
+    },
   },
 } as const satisfies SystemRecipes<typeof computingSystem>;

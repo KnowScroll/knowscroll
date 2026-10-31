@@ -110,10 +110,10 @@ export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
 ];
 
 /**
- * The six Human body recipes the drawing kits of D-201 give a picture, to measure with the v18 prompt before any
- * of them is marked `scrollV2`: the heart and the blood with `circulation.v1`, the nerves with `nerve.v1`. Each
- * runs as the library will produce it, a stage Scroll drawn with its recipe's kit, and with the spike's own
- * unreviewed misconception (`SPIKE_MYTHS`) where the table lists one.
+ * The six Human body recipes the drawing kits of D-201 give a picture, to measure with the v18 prompt before the
+ * first wave of them: the heart and the blood with `circulation.v1`, the nerves with `nerve.v1`. Each
+ * runs as the library produces it (D-199, D-201): a stage Scroll drawn with its recipe's kit, with the plan's
+ * misconception (none).
  */
 export const BODY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'cardiac-cycle',
