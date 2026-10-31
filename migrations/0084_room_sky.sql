@@ -65,7 +65,7 @@ create index rituals_waiting on rooms.rituals(created_at) where state = 'draft';
 create table rooms.ritual_solves (
   ritual_id uuid not null references rooms.rituals(ritual_id) on delete restrict,
   account_id uuid not null references identity.accounts(id) on delete restrict,
-  picked smallint not null check (picked between 0 and 4),
+  picked integer not null check (picked between 0 and 4),
   correct boolean not null,
   solved_at timestamptz not null,
   primary key (ritual_id, account_id)
@@ -108,7 +108,7 @@ create table rooms.constellation_votes (
   room_id uuid not null,
   no integer not null,
   account_id uuid not null references identity.accounts(id) on delete restrict,
-  candidate smallint not null check (candidate between 0 and 2),
+  candidate integer not null check (candidate between 0 and 2),
   voted_at timestamptz not null,
   primary key (room_id, no, account_id),
   foreign key (room_id, no) references rooms.constellations(room_id, no) on delete restrict
