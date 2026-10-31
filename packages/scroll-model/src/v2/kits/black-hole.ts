@@ -249,8 +249,6 @@ export function blackHolePhysics(state: Pick<BlackHoleState, 'star' | 'hole' | '
   };
 }
 
-const capital = (text: string): string => text.replace(/^./u, (letter) => letter.toUpperCase());
-
 const formationSentence = (state: BlackHoleState, physics: FormationPhysics): string[] => {
   const massive = state.star === 'massive';
   const intro = massive

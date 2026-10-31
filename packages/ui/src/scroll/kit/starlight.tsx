@@ -291,7 +291,6 @@ function DiagramView({ scene }: { readonly scene: StarlightScene }) {
   const at = (index: number): Point => ({ x: scene.pointX[index] ?? 0, y: scene.pointY[index] ?? 0 });
   const giant = at(HOTTEST_FIRST.indexOf('giant'));
   const dwarf = at(HOTTEST_FIRST.indexOf('white-dwarf'));
-  const middle = band[4] ?? { x: 0, y: 0 };
   return (
     <G>
       <Line x1={PLOT.left} y1={PLOT.top} x2={PLOT.left} y2={PLOT.bottom} stroke={INK} strokeWidth={1.8} />
