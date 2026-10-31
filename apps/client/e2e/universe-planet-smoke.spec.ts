@@ -84,7 +84,13 @@ async function openPlanet(page: Page, size: { width: number; height: number }) {
   });
   await page.goto('/universe');
   await page.getByRole('button', { name: 'CI system 0, a system', exact: true }).click();
-  await page.getByRole('button', { name: 'CI planet 2, a planet', exact: true }).click();
+  // From 1024 px a tap on a planet picks it for the panel's card; its row in the panel opens its globe.
+  await page
+    .getByRole('button', {
+      name: size.width >= 1024 ? 'CI planet 2, a planet in CI system 0' : 'CI planet 2, a planet',
+      exact: true,
+    })
+    .click();
   await expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible();
   return calls;
 }

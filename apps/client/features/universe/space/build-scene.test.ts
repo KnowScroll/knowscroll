@@ -16,7 +16,34 @@ function positions(t: number) {
   };
 }
 
+/** The pick glows of a scene that are showing. */
+function glowing(space: ReturnType<typeof buildSpace>): THREE.Object3D[] {
+  const found: THREE.Object3D[] = [];
+  space.scene.traverse((node) => {
+    if (node.userData['pick'] === true && node.visible) found.push(node);
+  });
+  return found;
+}
+
 describe('the sample space scene', () => {
+  it('glows one picked system or planet and no other, and nothing when nothing is picked (D02)', () => {
+    const space = buildSpace(SAMPLE_SPACE, 390 / 844, 1);
+    expect(glowing(space)).toHaveLength(0);
+    const planet = space.anchors.find((anchor) => anchor.id === 'sample-planet-two')!;
+    space.highlight('sample-planet-two');
+    space.poseAt(1);
+    const [glow] = glowing(space);
+    expect(glowing(space)).toHaveLength(1);
+    // It rides on the planet it glows around.
+    expect(glow!.parent).toBe(planet.object);
+    space.highlight('sample-system');
+    expect(glowing(space)).toHaveLength(1);
+    expect(glowing(space)[0]!.parent).not.toBe(planet.object);
+    space.highlight(null);
+    expect(glowing(space)).toHaveLength(0);
+    space.dispose();
+  });
+
   it('names a system and two planets as anchors', () => {
     const { space } = positions(0);
     expect(space.anchors.map(({ id, kind }) => [id, kind])).toEqual([

@@ -50,18 +50,6 @@ export function indexUniverse(descriptors: readonly SceneDescriptor[], routes: r
   };
 }
 
-/** The places that contain a place, nearest first: a region's planet, then its system. */
-export function placeTrail(index: UniverseIndex, place: SceneDescriptor): readonly string[] {
-  const trail: string[] = [];
-  for (
-    let parent = index.byId.get(place.parentId);
-    parent && trail.length < 3;
-    parent = index.byId.get(parent.parentId)
-  )
-    trail.push(parent.label);
-  return trail;
-}
-
 /** Which of the three screens a focused place opens: the whole map, a system (U02) or a planet (U03). */
 export type UniverseView =
   | { readonly kind: 'universe' }
@@ -149,25 +137,3 @@ export function placeLabels(
 /** No recent activity. Quiet only changes how a place is drawn and listed, never whether it exists. */
 export const isQuiet = (place: SceneDescriptor) =>
   place.activity.availability === 'available' && place.activity.state === 'quiet';
-
-export interface OutlineRow {
-  readonly place: SceneDescriptor;
-  readonly depth: 0 | 1 | 2;
-}
-
-/**
- * The accessible outline of the whole map: every system, its planets and their regions, nothing
- * left out. With Lately on, places with recent activity come first in each group; that changes
- * the order only, never what is listed.
- */
-export function outlineRows(index: UniverseIndex, lately: boolean): readonly OutlineRow[] {
-  const ordered = (places: readonly SceneDescriptor[]) =>
-    lately ? [...places].sort((a, b) => Number(isQuiet(a)) - Number(isQuiet(b))) : places;
-  return ordered(index.systems).flatMap((system) => [
-    { place: system, depth: 0 as const },
-    ...ordered(index.planets.get(system.objectId) ?? []).flatMap((planet) => [
-      { place: planet, depth: 1 as const },
-      ...(index.regions.get(planet.objectId) ?? []).map((region) => ({ place: region, depth: 2 as const })),
-    ]),
-  ]);
-}

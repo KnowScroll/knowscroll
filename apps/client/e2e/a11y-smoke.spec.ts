@@ -259,15 +259,30 @@ test.describe('the Universe', () => {
       await expectAccessible(page, () =>
         expect(page.getByRole('heading', { level: 1, name: 'CI system 0', exact: true })).toBeVisible(),
       );
-      // From 1024 px the outline is always open beside the map; below it, it is a sheet.
+      // From 1024 px the panel is always open beside the map; below it, the orbit dial replaces the List view.
+      if (size.width < 1024) {
+        await page.getByRole('button', { name: 'Back to Universe', exact: true }).click();
+        await page.getByRole('button', { name: 'List view', exact: true }).click();
+        await expectAccessible(page, () => expect(page.getByTestId('universe-dial')).toBeVisible());
+        await page.getByTestId('dial-system-pill').click();
+        await expectAccessible(page, () => expect(page.getByTestId('dial-system-facts')).toBeVisible());
+      }
+    });
+
+    test(`the Simple view at ${size.label} has no serious axe violations`, async ({ page }) => {
+      await openUniverse(page, size);
       if (size.width < 1024) {
         await page.getByRole('button', { name: 'List view', exact: true }).click();
-        await expectAccessible(
-          page,
-          () => expect(page.getByRole('heading', { name: 'Your universe' })).toBeVisible(),
-          true,
-        );
-      }
+        await page.getByRole('button', { name: 'Simple view', exact: true }).click();
+      } else await page.getByRole('switch', { name: 'Simple drawing', exact: true }).click();
+      await expectAccessible(page, () => expect(page.getByTestId('universe-simple')).toBeVisible());
+      await page
+        .getByRole('button', { name: /CI planet 2, a planet/ })
+        .first()
+        .click();
+      await expectAccessible(page, () =>
+        expect(page.getByRole('heading', { level: 1, name: 'CI planet 2', exact: true })).toBeVisible(),
+      );
     });
   }
 });
