@@ -11,6 +11,7 @@ import {
   SessionListSchema,
   SessionSummarySchema,
   accountContract,
+  claimFirstOpenContract,
 } from './account.js';
 import { SCOPE_HEADER, UNSCOPED_V1_ROUTES } from './identity.js';
 import { apiContract } from './router.js';
@@ -65,6 +66,13 @@ describe('account contracts', () => {
     ).toThrow();
   });
 
+  it('claims the first open with no body and answers one boolean', () => {
+    expect(Object.keys(accountContract).includes('claimFirstOpen')).toBe(true);
+    expect(claimFirstOpenContract['~orpc'].inputSchema).toBeUndefined();
+    expect(claimFirstOpenContract['~orpc'].outputSchema?.safeParse({ claimed: true }).success).toBe(true);
+    expect(claimFirstOpenContract['~orpc'].outputSchema?.safeParse({ claimed: true, at: 'x' }).success).toBe(false);
+  });
+
   it('puts every session-bound route under /v1 (scope claim required) and only the receipts outside it', async () => {
     const document = await new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] }).generate(
       accountContract,
@@ -79,6 +87,7 @@ describe('account contracts', () => {
       '/v1/account/sessions',
       '/v1/account/sessions/end',
       '/v1/account/sessions/end-others',
+      '/v1/account/universe/first-open',
     ]);
     expect(Object.keys(document.paths?.['/v1/account/exports'] ?? {}).sort()).toEqual(['get', 'post']);
     // No exemption from the scope claim exists for any of them, and the router serves them.

@@ -1,17 +1,24 @@
 /**
  * The Talk tab's unread dot reads the inbox on every signed-in screen, so a fixture that answers
  * `/v1/**` strictly must answer these reads too: direct conversations, content threads and rooms. The
- * Universe also asks for the room stations beside its systems. These smoke fixtures have none of them.
+ * Universe also asks for the room stations beside its systems, and once an account has opened it, whether the opening has
+ * been seen (D-114): these fixtures have seen it. They have none of the rest.
  */
 const DIRECT_INBOX_PATH = '/v1/social/conversations/inbox';
 const THREAD_INBOX_PATH = '/v1/social/threads/inbox';
 const ROOM_LIST_PATH = '/v1/rooms/list';
 const ROOM_STATIONS_PATH = '/v1/rooms/stations';
+const FIRST_OPEN_PATH = '/v1/account/universe/first-open';
 
 export const isInboxPath = (path: string): boolean =>
-  path === DIRECT_INBOX_PATH || path === THREAD_INBOX_PATH || path === ROOM_LIST_PATH || path === ROOM_STATIONS_PATH;
+  path === DIRECT_INBOX_PATH ||
+  path === THREAD_INBOX_PATH ||
+  path === ROOM_LIST_PATH ||
+  path === ROOM_STATIONS_PATH ||
+  path === FIRST_OPEN_PATH;
 
 export function emptyInbox(path: string, body: Record<string, unknown>, accountId: string): Record<string, unknown> {
+  if (path === FIRST_OPEN_PATH) return { claimed: false };
   if (path === ROOM_LIST_PATH || path === ROOM_STATIONS_PATH)
     return {
       version: 'rooms.v1',

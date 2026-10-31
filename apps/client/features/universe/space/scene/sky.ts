@@ -53,7 +53,12 @@ function starPoints(
 }
 
 /** Adds the star shells and a few near motes around `cameraPosition` to `scene`. */
-export function addSky(scene: THREE.Scene, seed: string, context: SceneContext, cameraPosition: THREE.Vector3): void {
+export function addSky(
+  scene: THREE.Object3D,
+  seed: string,
+  context: SceneContext,
+  cameraPosition: THREE.Vector3,
+): void {
   const random = seededRandom(seed);
   const uniforms = (extra: { atten?: number; wob?: number; opacity?: number }): Record<string, THREE.IUniform> => ({
     time: context.time,

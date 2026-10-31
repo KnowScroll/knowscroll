@@ -1,4 +1,15 @@
-import type { SceneDescriptor, SceneFamily, ScenePalette } from '@knowscroll/scene-core';
+import {
+  HAZE_FAMILIES,
+  PLANET_TYPES,
+  SCENE_LOOK_VERSION,
+  WORLD_GENERATOR_VERSION,
+  type HazeFamily,
+  type PlanetType,
+  type SceneDescriptor,
+  type SceneFamily,
+  type SceneLook,
+  type ScenePalette,
+} from '@knowscroll/scene-core';
 import type { VisitedSystem } from '@knowscroll/client-core';
 
 /**
@@ -149,4 +160,75 @@ export function visitorDescriptors(ownerId: string, systems: readonly VisitedSys
     }
   }
   return descriptors;
+}
+
+/** A planet with no regions needs no sites; the look schema asks for at least one. */
+const NO_SITES = 1;
+
+/** The ids of `items` taken in a fixed order, so the same list gives the same looks whatever order it arrives in. */
+const inIdOrder = <T>(items: readonly T[], idOf: (item: T) => string): readonly T[] =>
+  [...items].sort((a, b) => (idOf(a) < idOf(b) ? -1 : 1));
+
+/** The least-used choice, ties broken by a hash of `id` so the pick does not depend on list order. */
+function leastUsed<T extends string>(
+  choices: readonly T[],
+  used: ReadonlyMap<T, number>,
+  id: string,
+  avoid?: ReadonlySet<T>,
+): T {
+  const count = (choice: T) => used.get(choice) ?? 0;
+  const fewest = Math.min(...choices.map(count));
+  const level = choices.filter((choice) => count(choice) === fewest);
+  const pool = avoid === undefined ? level : level.filter((choice) => !avoid.has(choice));
+  const from = pool.length > 0 ? pool : level;
+  return from[hash(id, 11) % from.length]!;
+}
+
+/**
+ * The look of a friend's places, worked out on this device from their public identities alone (D-114):
+ * type, rings, moon, hue and a system's haze. The server's look (D-102, D-103) is the owner's own and
+ * never leaves it, so a visitor sees a drawing that is stable for as long as a place stays shared, and
+ * nothing in it says where the owner's map keeps a place, how big it is or how much was read. A type is
+ * used again only after every type has been used (as on the owner's own map, D-103), and a repeat turns
+ * its hue so it cannot be mistaken for the first. Pure: no clock, no randomness, no server data.
+ */
+export function visitorLooks(systems: readonly VisitedSystem[]): readonly SceneLook[] {
+  const looks: SceneLook[] = [];
+  const hazes = new Map<HazeFamily, number>();
+  const types = new Map<PlanetType, number>();
+  for (const system of inIdOrder(systems, (entry) => entry.publicSystemId)) {
+    const haze = leastUsed(HAZE_FAMILIES, hazes, system.publicSystemId);
+    hazes.set(haze, (hazes.get(haze) ?? 0) + 1);
+    looks.push({
+      schemaVersion: SCENE_LOOK_VERSION,
+      generatorVersion: WORLD_GENERATOR_VERSION,
+      objectId: system.publicSystemId,
+      kind: 'system',
+      haze,
+    });
+    const inThisSystem = new Set<PlanetType>();
+    for (const planet of inIdOrder(system.planets, (entry) => entry.publicPlanetId)) {
+      const id = planet.publicPlanetId;
+      const type = leastUsed(PLANET_TYPES, types, id, inThisSystem);
+      const variant = types.get(type) ?? 0;
+      types.set(type, variant + 1);
+      inThisSystem.add(type);
+      // The first of a type leans a little; a repeat turns its hue a step further each time, one way then the other.
+      const jitter = (unit(id, 12) - 0.5) * 30;
+      const turn = variant === 0 ? 0 : (variant % 2 === 1 ? 1 : -1) * 75 * Math.ceil(variant / 2);
+      looks.push({
+        schemaVersion: SCENE_LOOK_VERSION,
+        generatorVersion: WORLD_GENERATOR_VERSION,
+        objectId: id,
+        kind: 'planet',
+        type,
+        rings: type === 'gas' || (type === 'frozen' && unit(id, 13) < 0.5),
+        moon: unit(id, 14) < 0.35,
+        hueShift: Math.max(-180, Math.min(180, Math.round(turn + jitter))),
+        variant,
+        siteCount: NO_SITES,
+      });
+    }
+  }
+  return looks;
 }

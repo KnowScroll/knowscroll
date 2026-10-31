@@ -524,6 +524,22 @@ export async function listLiveSessions(db: Kysely<Database>, accountId: string):
   }));
 }
 
+/**
+ * Sets the account's first-open flag if it is not set, in one statement. The row lock of the update is
+ * what lets two devices race: the second finds the column set and changes nothing.
+ */
+export async function claimUniverseFirstOpen(db: Kysely<Database>, accountId: string): Promise<boolean> {
+  const row = await db
+    .updateTable('identity.accounts')
+    .set({ universe_first_opened_at: sql<Date>`now()` })
+    .where('id', '=', accountId)
+    .where('status', '=', 'active')
+    .where('universe_first_opened_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
 /** Rows one sweep batch deletes per table; a sweep runs at most this many batches per table. */
 const SWEEP_BATCH = 500;
 const SWEEP_BATCHES = 20;

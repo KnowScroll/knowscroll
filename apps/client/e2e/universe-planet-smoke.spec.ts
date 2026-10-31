@@ -32,6 +32,8 @@ async function openPlanet(page: Page, size: { width: number; height: number }) {
       Object.assign(look, { type, rings: process.env['KS_RINGS'] === '1', moon: process.env['KS_MOON'] === '1' });
   const calls: { method: string; path: string }[] = [];
   await page.setViewportSize(size);
+  // These checks walk the map; its animations have a spec of their own (universe-animations-smoke.spec.ts).
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );

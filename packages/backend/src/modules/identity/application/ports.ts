@@ -257,6 +257,14 @@ export interface LiveSession {
   readonly lastUsedAt: Date | null;
 }
 
+export interface FirstOpenPorts {
+  /**
+   * Sets `universe_first_opened_at` if it is not set yet, in one conditional update. True when this call set it.
+   * An account that is not active claims nothing.
+   */
+  readonly claim: (accountId: string) => Promise<boolean>;
+}
+
 export interface SweepPorts {
   /**
    * Deletes links a day past expiry and sessions 30 days past their end, in bounded batches, and
