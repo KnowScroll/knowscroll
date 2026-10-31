@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineQueue } from '../../../infrastructure/jobs/queues.js';
-import { MAX_TAKES_PER_RECIPE, productionVersionOf } from './topics.js';
+import { MINIMAX_REQUEST_TIMEOUT_MAX_MS } from '../../../infrastructure/config/index.js';
+import { MAX_TAKES_PER_RECIPE, productionVersionOf, REQUEST_BOUND_V2_PER_TOPIC } from './topics.js';
 
 /**
  * One request to produce the Scroll of a library recipe, or of an order placed from code (`order-…`).
@@ -20,18 +21,30 @@ export const ProduceScrollJobSchema = z.strictObject({
 });
 export type ProduceScrollJob = z.infer<typeof ProduceScrollJobSchema>;
 
+/** Time for the research fetch and the short database steps of a take, besides its model requests. */
+const TAKE_MARGIN_SECONDS = 300;
+
 /**
- * Shared, nonpersonal work. A writer call takes up to a couple of minutes and the job also fetches
- * research, so a claim may run 15 minutes before pg-boss treats it as lost. Retries cover an
- * unavailable database or a lost claim; every delivery resumes the same business run, and an attempt
- * whose outcome is unknown is never resent.
+ * How long a delivery may hold its claim: a take's worst case, which is every request it may send, one
+ * after the other, each running to the largest request timeout the transport accepts, plus a margin
+ * (D-198). Six requests at 300 s and 300 s of margin come to 2,100 s. A shorter claim would be lost
+ * while the take was still working, and the redelivery would then wait on the same ledger.
+ */
+export const PRODUCE_SCROLL_CLAIM_SECONDS =
+  (REQUEST_BOUND_V2_PER_TOPIC * MINIMAX_REQUEST_TIMEOUT_MAX_MS) / 1000 + TAKE_MARGIN_SECONDS;
+
+/**
+ * Shared, nonpersonal work. A take chains up to six model requests (a writer, its repair and the answer
+ * check, D-198) and also fetches research, so a claim runs as long as the worst case before pg-boss
+ * treats it as lost. Retries cover an unavailable database or a lost claim; every delivery resumes the
+ * same business run, and an attempt whose outcome is unknown is never resent.
  */
 export const produceScrollQueue = defineQueue({
   name: 'content.produce-scroll',
   purpose: 'Produce the Scroll of one library recipe or order through research, the writer and publication.',
   payload: ProduceScrollJobSchema,
   policy: {
-    expireInSeconds: 900,
+    expireInSeconds: PRODUCE_SCROLL_CLAIM_SECONDS,
     retryLimit: 2,
     retryDelaySeconds: 60,
     retryBackoff: true,

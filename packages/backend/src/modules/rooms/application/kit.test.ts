@@ -12,6 +12,7 @@ import {
 } from '@knowscroll/contracts';
 import {
   ACCENT_CONTRAST_MIN,
+  DEFAULT_GLYPHS,
   INK_CONTRAST_MIN,
   contrastRatio,
   defaultKit,
@@ -125,9 +126,30 @@ describe('the default kit every room has', () => {
   it('uses the whole vocabulary across rooms', () => {
     const kits = ids.map(defaultKit);
     expect(new Set(kits.map((kit) => kit.emblem.frame))).toEqual(new Set(ROOM_EMBLEM_FRAMES));
-    expect(new Set(kits.map((kit) => kit.emblem.glyph))).toEqual(new Set(ROOM_EMBLEM_GLYPHS));
+    expect(new Set(kits.map((kit) => kit.emblem.glyph))).toEqual(new Set(DEFAULT_GLYPHS));
     expect(new Set(kits.map((kit) => kit.motif))).toEqual(new Set(ROOM_MOTIFS));
     expect(new Set(kits.map((kit) => kit.motion))).toEqual(new Set(ROOM_MOTIONS));
+  });
+});
+
+describe('the default as the vocabulary grows', () => {
+  it('never wears a glyph added after the first release, so a room without a kit keeps its look', () => {
+    expect(DEFAULT_GLYPHS).toHaveLength(14);
+    expect(ROOM_EMBLEM_GLYPHS.slice(0, 14)).toEqual(DEFAULT_GLYPHS);
+    expect(ROOM_EMBLEM_GLYPHS).toContain('globe');
+    expect(ROOM_EMBLEM_GLYPHS).toContain('cell');
+    for (const id of ids) {
+      const kit = defaultKit(id);
+      expect([kit.emblem.glyph, kit.cast.explainer, kit.cast.skeptic]).not.toContain('globe');
+      expect([kit.emblem.glyph, kit.cast.explainer, kit.cast.skeptic]).not.toContain('cell');
+    }
+  });
+
+  it('keeps a stored kit that names a glyph of the first release valid', () => {
+    const stored = kitOfDraft({ ...draft(), emblem: { frame: 'circle', glyph: 'centre-circle' } });
+    expect(kitIsValid(stored)).toBe(true);
+    expect(kitIsValid(kitOfDraft({ ...draft(), emblem: { frame: 'circle', glyph: 'globe' } }))).toBe(true);
+    expect(kitIsValid(kitOfDraft({ ...draft(), emblem: { frame: 'circle', glyph: 'cell' } }))).toBe(true);
   });
 });
 

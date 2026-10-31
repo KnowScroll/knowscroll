@@ -7,10 +7,21 @@ export const SCROLL_PRODUCTION_VERSION = 'scroll-production.v14';
  * The production recipe of a recipe the plan marks `scrollV2`: the same job, with the v2 writer.
  * It is a version of its own, so a recipe already published as a v1 Scroll at v14 is a new job here
  * and its Scroll becomes a new revision of the same asset (D-129).
+ *
+ * A recipe has at most three takes per production version (D-197), so this version is what bounds paid
+ * production: it must change whenever the writer's instructions or the job's steps change, which gives
+ * every recipe fresh takes. v17: the answer check joined the job (D-198) and the writer moved to `scroll-writer.v17` (D-196).
+ * `versions.test.ts` pins the pair, so a writer bump cannot go in without this one.
  */
-export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v15';
+export const SCROLL_PRODUCTION_V2_VERSION = 'scroll-production.v17';
 /** One writer call and at most one repair, per take. */
 export const REQUEST_BOUND_PER_TOPIC = 2;
+/**
+ * A v2 library recipe's take sends at most six paid requests: the writer once and at most one repair
+ * (two, whichever repairs it: the validator or the answer check), and the answer check once for each of
+ * the two drafts the writer can produce, each with at most one repair of an unusable reply (D-198).
+ */
+export const REQUEST_BOUND_V2_PER_TOPIC = 6;
 export { MAX_TAKES_PER_RECIPE } from '../domain/library/serving.js';
 /**
  * The explanation recipes the generator runs, by operator key. The plan itself (systems, planets,
@@ -52,6 +63,11 @@ export function planRefusalOf(key: string): 'misconception_source_unreviewed' | 
  */
 export function productionVersionOf(key: string): string {
   return scrollV2PlanOf(key) === undefined ? SCROLL_PRODUCTION_VERSION : SCROLL_PRODUCTION_V2_VERSION;
+}
+
+/** The most paid model requests one take of this recipe, or order, may send. */
+export function requestBoundOf(key: string): number {
+  return scrollV2PlanOf(key) === undefined ? REQUEST_BOUND_PER_TOPIC : REQUEST_BOUND_V2_PER_TOPIC;
 }
 
 /** Every production version a job row may carry. */

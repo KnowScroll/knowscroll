@@ -201,12 +201,14 @@ export {
   type ProduceScrollJob,
 } from './production/events.js';
 export type { RunScrollProduction, ScrollProductionJobOutcome, ProduceScroll } from './production/job.js';
-export { libraryRecipes, planLibraryProduction } from './domain/library/serving.js';
+export { libraryRecipes, planLibraryProduction, planRegeneration } from './domain/library/serving.js';
 export type {
   CatalogueBrief,
   LibraryProductionPlan,
   LibraryRecipeStatus,
   ProductionSend,
+  RegenerationPlan,
+  RegenerationState,
   ScrollProductionReading,
   ScrollProductionState,
   ScrollRecipeChoice,
@@ -226,6 +228,8 @@ export {
   parseScrollTopic,
   MAX_TAKES_PER_RECIPE,
   REQUEST_BOUND_PER_TOPIC,
+  REQUEST_BOUND_V2_PER_TOPIC,
+  requestBoundOf,
   SCROLL_PRODUCTION_VERSION,
 } from './production/topics.js';
 export type { ScrollTopic } from './production/topics.js';

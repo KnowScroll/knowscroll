@@ -128,3 +128,4 @@ Where a fix and the v3 design disagree, or the design is silent. 390 × 844 and 
 - No VoiceOver or TalkBack run. Real devices were not used; the engine is desktop Chromium at the artboard's width.
 - Dev content is MiniMax-written, so titles differ from the authored examples; only structure, copy and look were compared.
 - Fixture rows were produced over the production export with route-mocked HTTP, not from a backend.
+- Room faces (R-4) were built after this audit and are not rows above. R3's emblem set has fourteen glyphs; the app draws sixteen (D-172 adds a globe and a cell, drawn in the same flat style), since Earth and the human body had no fitting glyph.
