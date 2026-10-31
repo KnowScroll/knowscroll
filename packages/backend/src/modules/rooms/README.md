@@ -162,25 +162,26 @@ conversations or threads.
   `planner`, `evidence` or `personal_context` as a write target (`write-boundary.test.ts`), and a resident's turn
   changes no row there (`rooms-residents.test.ts`).
 
-## A room's face (v3 R-4, D-166, D-170, D-171)
+## A room's face (v3 R-4, D-166, D-170, D-171, D-172)
 
 Every room has an identity the app draws: an emblem (a frame and a glyph), a palette, a faint motif with one slow loop, and the mark each
-resident wears. It is a **kit**: closed-vocabulary JSON (17 swatches, 6 frames, 14 glyphs, 8 motifs, 6 motions) with a version, never markup
+resident wears. It is a **kit**: closed-vocabulary JSON (17 swatches, 6 frames, 16 glyphs, 8 motifs, 6 motions) with a version, never markup
 and never free text. The vocabulary and its wire shape are `packages/contracts/src/room-identity.ts`; the rules that need arithmetic are
 `application/kit.ts`; what each word looks like is the app's (`apps/client/features/rooms/identity/`).
 
 - **A model proposes, code validates, an operator approves.** `rooms kit --room <slug>` runs the `rooms.station-kit` role on the nonpersonal
   `rooms` scope (`interactive`, one call and at most one repair, outside any transaction, on a run whose ID is fixed by the room, revision and sequence: an unknown outcome is never sent again, and a run that ended is never reopened, so a failed proposal is asked for again on the next run).
-  It reads the topic and its library meaning and nothing else. The harness refuses an answer outside the vocabulary or with a palette that does
+  It reads the topic and its library meaning and nothing else. Its instructions (`station-kit.2`, D-172) name each glyph with what it stands for
+  (`GLYPH_MEANINGS`: `globe` for Earth, `cell` for the human body, `centre-circle` for sport only) and ask for the closest meaning. The harness refuses an answer outside the vocabulary or with a palette that does
   not read (ink on ground at least 4.5, accent on ground at least 3, three different swatches), with a fixed hint; a kit that fails is stored
   nowhere. A kit that passes is stored `pending`. `kit-review` approves or rejects it; only `approved` is shown, and approving supersedes the
   one shown so far.
 - **Every room has a face from the start.** With no approved kit a room wears `defaultKit(roomId)`: a deterministic pick from eleven palettes that
-  pass the rule and from the vocabulary. It is never stored. A stored kit is checked against today's vocabulary and contrast rule whenever it is
+  pass the rule and from the first fourteen glyphs (`DEFAULT_GLYPHS`, so a larger vocabulary never changes a default). It is never stored. A stored kit is checked against today's vocabulary and contrast rule whenever it is
   shown (`kitToShow`); one that no longer passes shows the default instead. `identity` is on every room summary (list, preview, station, room),
   optional on the wire.
 - **Painted backdrops.** `rooms backdrop --room <slug>` asks MiniMax's `image-01` for one wide still, built by code from the library topic's
-  label and the kit's words (never member text), stores it in the media store (`MediaStore`, as a content-addressed `.jpg`, `.png` or `.webp`)
+  label and the kit's words (never member text; the house style bans text, faces, logos and any signature, mark or stamp, D-172), stores it in the media store (`MediaStore`, as a content-addressed `.jpg`, `.png` or `.webp`)
   and records it `pending`. It is served at `GET /media/room/<sha256>` only after `backdrop-review` approves it, to a signed-in session. A room
   with no approved picture draws its kit alone. At most one picture waits for review per room.
 - **The $1 cap.** `BACKDROP_SPEND_CAP_MICRO_USD` is 1,000,000 millionths of a dollar in code. The estimate is `BACKDROP_PRICING` ($0.0035 per

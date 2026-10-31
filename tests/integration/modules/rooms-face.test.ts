@@ -356,6 +356,7 @@ describe('every room has a face (real PostgreSQL, CI fixture model and image pro
       const prompt = image!.calls[0]!.prompt;
       expect(prompt).toContain('Screenprint');
       expect(prompt).toContain('No text');
+      expect(prompt).toContain('No signature');
       expect(prompt).not.toContain('MEMBER-WORDS');
       expect(prompt).not.toContain('Fixture room');
     });
