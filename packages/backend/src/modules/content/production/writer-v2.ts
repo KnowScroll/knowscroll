@@ -57,7 +57,7 @@ function finalCallInstructions(recipe: RecipeDataV2): string[] {
   if (recipe.finalCall?.kind !== 'tilt') return [];
   return [
     'THE FINAL CALL IS PLAYED WITH A CONTROL. On the final_call the reader can turn Earth’s axis on the picture, from standing straight up to a right angle, before they answer; code adds the slider. So make it a "what if" about the tilt: the reader predicts what would happen to the seasons, or to the difference between the two halves of Earth, if the axis were not tilted at all. Put the correct option FIRST. It must still be a new case (never a repeat of an earlier call), and the stop before it need not show the answer.',
-    '- The picture the reader sees when the final_call opens is the one the last stop before it set, so end the Scroll on a view that draws Earth and its axis (sun-earth, orbit, orbit-stretched or earth-close), never on the Moon view.',
+    '- The picture the reader sees when the final_call opens is the one the last stop before it set, so end the Scroll on a June or December picture (earthAt "jun" or "dec") in the sun-earth, earth-close, orbit or orbit-stretched view. In March or September, and in the Moon view, turning the tilt changes nothing, and a Scroll that ends there is refused.',
   ];
 }
 

@@ -18,6 +18,7 @@ import {
   StageStateSchema,
   sunLatitudeDegrees,
   TILT_RANGE,
+  tiltMatters,
   type StageState,
 } from './kit.js';
 import { FIELD_LIMITS_V2 } from './limits.js';
@@ -320,6 +321,22 @@ describe('the tilt a reader turns at the Final call (D-187)', () => {
     expect(describeStageAtTilt(state, 10)).toMatch(/less than the tilt it has now/u);
     // Earth's axis is tilted or upright, never "sideways": that word belongs to another world.
     for (const tilt of TILTS) expect(describeStageAtTilt(state, tilt)).not.toMatch(/sideways|on its side/iu);
+  });
+
+  it('matters where the view draws the axis and the season and the month has a lean to lose, and not at an equinox or on the Moon view', () => {
+    for (const state of EVERY_STATE.filter((candidate) => candidate.moonAt === 'off' && candidate.focus === 'none')) {
+      const drawsSeason = state.view !== 'moon-orbit';
+      const equinox = state.earthAt === 'mar' || state.earthAt === 'sep';
+      expect(tiltMatters(state), `${state.view} ${state.earthAt}`).toBe(drawsSeason && !equinox);
+    }
+  });
+
+  it('agrees with the pictures: where the tilt matters, turning it moves the pins; where it does not, it never does', () => {
+    for (const month of MONTHS) {
+      const state: StageState = { view: 'sun-earth', earthAt: month, moonAt: 'off', focus: 'none' };
+      const spread = new Set(TILTS.map((tilt) => physicsAtTilt(state, tilt).northDistance.toFixed(6)));
+      expect(spread.size > 1, month).toBe(tiltMatters(state));
+    }
   });
 
   it('describes only what the view draws: no axis, pins or Ray in the Moon view', () => {

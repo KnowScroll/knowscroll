@@ -36,9 +36,7 @@ export function Stage({ document, stopId, reducedMotion, textVersion = false, ti
   const { layers: moving, transition } = useStagePictures(target, reducedMotion);
   // A turned axis is drawn at once, so the picture follows the slider under the finger; it needs no move between states.
   const turned = tilt !== undefined && tilt !== AXIAL_TILT_DEGREES;
-  const layers = turned
-    ? [{ key: `${entry.stop}@${String(tilt)}`, scene: sceneOf(entry.state, tilt), opacity: 1 }]
-    : moving;
+  const layers = turned ? [{ key: entry.stop, scene: sceneOf(entry.state, tilt), opacity: 1 }] : moving;
   const alt = turned ? describeStageAtTilt(entry.state, tilt) : entry.alt;
   return (
     <View

@@ -1,3 +1,4 @@
+import { AccessibilityInfo } from 'react-native';
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import seasons from '@knowscroll/scroll-model/fixtures/seasons-stage-ci.json';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
@@ -344,6 +345,29 @@ describe('the payoff at the end (E1, D-189)', () => {
     expect(screen.getByTestId('small-print')).toHaveTextContent(/Light sets the season/, { exact: false });
     await fireEvent.press(screen.getByRole('button', { name: 'Small print' }));
     expect(screen.queryByTestId('small-print')).not.toBeOnTheScreen();
+  });
+
+  it('says whether Small print is open: the chip is a disclosure', async () => {
+    await reader(playing([lockedFinal()], false, gold).play);
+    const chip = (expanded: boolean) => screen.getByRole('button', { name: 'Small print', expanded });
+    await fireEvent.press(chip(false));
+    await fireEvent.press(chip(true));
+    expect(chip(false)).toBeOnTheScreen();
+  });
+
+  it('moves screen-reader focus to the panel that replaces "Done for today", and back to the tray after "Back to the end"', async () => {
+    const focus = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockImplementation(() => undefined);
+    try {
+      await reader(playing([lockedFinal()], false, gold).play);
+      expect(focus).not.toHaveBeenCalled();
+      await fireEvent.press(screen.getByRole('button', { name: 'Done for today' }));
+      expect(focus).toHaveBeenCalledTimes(1);
+      expect(focus).toHaveBeenLastCalledWith(expect.anything(), 'focus');
+      await fireEvent.press(screen.getByRole('button', { name: 'Back to the end' }));
+      expect(focus).toHaveBeenCalledTimes(2);
+    } finally {
+      focus.mockRestore();
+    }
   });
 
   it('says a good place to stop for "Done for today" and leaves only when the person closes', async () => {

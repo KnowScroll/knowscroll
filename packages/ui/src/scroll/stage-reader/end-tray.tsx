@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Button } from '../../actions/button';
 import { Icon } from '../../icons/icon';
 import { Tag } from '../../status/tag';
 import { Text } from '../../text/text';
+import { useFocusOnMount } from './focus-on-mount';
 import type { Payoff } from './payoff';
 import { landmarkNoteOf, LandmarkCard, ScoreRow } from './payoff-card';
 
@@ -52,9 +53,14 @@ export interface EndTrayProps {
  */
 export function EndTray(props: EndTrayProps) {
   const [closing, setClosing] = useState(false);
+  const [returned, setReturned] = useState(false);
   const { recap, hasStage, payoff } = props;
+  // "Done for today" replaces the buttons it was pressed on, so focus goes to the panel; "Back to the end" brings the
+  // buttons back, so focus returns to the start of the tray (never lost to the page).
+  const tray = useRef<ViewInstance>(null);
+  useFocusOnMount(tray, returned);
   return (
-    <View style={styles.tray} testID="end-tray">
+    <View ref={tray} tabIndex={-1} style={styles.tray} testID="end-tray">
       <Text variant="label" color={content.ink2} heading={2}>
         {hasStage ? 'The picture you built' : 'The short version'}
       </Text>
@@ -76,7 +82,10 @@ export function EndTray(props: EndTrayProps) {
           payoff={payoff}
           onUniverse={props.onUniverse}
           onClose={props.onDone}
-          onBack={() => setClosing(false)}
+          onBack={() => {
+            setClosing(false);
+            setReturned(true);
+          }}
         />
       ) : (
         <WaysOn {...props} onDoneForToday={() => setClosing(true)} />
@@ -174,8 +183,17 @@ function DoneForToday({
   readonly onBack: () => void;
 }) {
   const sparks = payoff === undefined ? '' : payoff.sparks === 1 ? '1 spark' : `${String(payoff.sparks)} sparks`;
+  const panel = useRef<ViewInstance>(null);
+  useFocusOnMount(panel);
   return (
-    <View style={styles.done} testID="done-for-today" accessibilityLiveRegion="polite" role="status">
+    <View
+      ref={panel}
+      tabIndex={-1}
+      style={styles.done}
+      testID="done-for-today"
+      accessibilityLiveRegion="polite"
+      role="status"
+    >
       <Text variant="title" heading={3}>
         A good place to stop.
       </Text>
@@ -199,7 +217,7 @@ function SmallPrintChip({ smallPrint }: { readonly smallPrint: SmallPrint }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={styles.smallPrint}>
-      <Button label="Small print" variant="ghost" size="sm" onPress={() => setOpen((now) => !now)} />
+      <Button label="Small print" variant="ghost" size="sm" expanded={open} onPress={() => setOpen((now) => !now)} />
       {open ? (
         <View style={styles.limits} testID="small-print">
           <Text variant="label" color={content.ink2} heading={3}>

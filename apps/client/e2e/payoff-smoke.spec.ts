@@ -89,6 +89,9 @@ for (const viewport of [phone, desktop]) {
 
     // Turning the tilt redraws the pinned picture and its description at once, and sends nothing.
     const stage = page.getByTestId('stage');
+    // The picture is one drawing that the slider redraws: a step of the slider never replaces it.
+    await page.waitForTimeout(600);
+    const drawing = await stage.locator('svg').first().elementHandle();
     await page.getByRole('slider', { name: 'Earth’s tilt' }).focus();
     await page.keyboard.press('Home');
     await expect(page.getByTestId('tilt-value')).toHaveText('0°');
@@ -98,6 +101,7 @@ for (const viewport of [phone, desktop]) {
     await page.keyboard.press('End');
     await expect(page.getByTestId('tilt-value')).toHaveText('90°');
     await page.keyboard.press('Home');
+    expect(await drawing?.evaluate((node) => node.isConnected)).toBe(true);
     expect(lockRequests(served)).toHaveLength(2);
 
     await page.getByRole('radio', { name: /Every day is like an equinox/ }).click();
@@ -178,18 +182,24 @@ test('Small print opens the limits aside where the person is, and Done for today
   await lockFinal(page);
   await dot(page, 'The end of this Scroll').click();
   await expect(page.getByTestId('small-print')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Small print', exact: true }).click();
+  const smallPrint = page.getByRole('button', { name: 'Small print', exact: true });
+  await expect(smallPrint).toHaveAttribute('aria-expanded', 'false');
+  await smallPrint.click();
+  await expect(smallPrint).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('small-print')).toContainText('Where this stops');
   await expect(page.getByTestId('small-print')).toContainText(/Light sets the season/);
   await expect(page.getByTestId('end-tray')).toBeVisible();
   await shoot(page, 'payoff-small-print-390x844');
   await page.getByRole('button', { name: 'Done for today' }).click();
   await expect(page.getByText('A good place to stop.')).toBeVisible();
+  // The button that was pressed is gone, so focus moved to the panel instead of dropping to the page.
+  await expect(page.getByTestId('done-for-today')).toBeFocused();
   await expect(page.getByTestId('done-for-today')).toContainText('The Leaning Axis is yours.');
   await shoot(page, 'done-for-today-390x844');
   expect(await audit(page)).toEqual([]);
   await page.getByRole('button', { name: 'Back to the end' }).click();
   await expect(page.getByTestId('landmark-card')).toBeVisible();
+  await expect(page.getByTestId('end-tray')).toBeFocused();
 });
 
 test('nothing moves on by itself: the payoff waits, on the same Scroll, with no further request', async ({ page }) => {

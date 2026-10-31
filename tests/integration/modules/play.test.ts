@@ -339,6 +339,48 @@ describe('Locking a Call it (real PostgreSQL, labelled CI fixtures)', () => {
   });
 });
 
+describe('The stored tally bounds of a Scroll (migration 0077, real PostgreSQL)', () => {
+  let database: TestDatabase<Database>;
+  let scroll: Scroll;
+  beforeAll(async () => {
+    database = await createTestDatabase<Database>('play_bounds');
+    await enableProductionScope(database.db);
+    scroll = await publishOrrin(database.db);
+  });
+  afterAll(async () => {
+    await database.drop();
+  });
+
+  /** One row for a person of its own, so the primary key never stands in the way of the check. */
+  async function store(tally: { calls: number; sparks: number; combo: number }) {
+    const person = await recordingPerson(database);
+    await sql`
+      insert into play.scroll_results (universe_id, privacy_epoch, asset_id, revision, calls_locked, sparks, combo)
+      values (${person.universeId}::uuid, 1, ${scroll.assetId}::uuid, ${scroll.revision}, ${tally.calls}, ${tally.sparks}, ${tally.combo})`.execute(
+      database.db,
+    );
+  }
+  const CHECK_VIOLATION = { code: '23514' };
+
+  it('holds the most a Scroll can earn: four calls, five sparks (three Call its and a doubled Final call) and a combo of four', async () => {
+    await store({ calls: 4, sparks: 5, combo: 4 });
+    // The tallies the rule can really produce all fit.
+    await store({ calls: 4, sparks: 4, combo: 4 });
+    await store({ calls: 4, sparks: 3, combo: 0 });
+    await store({ calls: 0, sparks: 0, combo: 0 });
+  });
+
+  it('refuses a tally the rule cannot produce: a sixth spark, a fifth in a row, more sparks than calls and a bonus, a run longer than the sparks', async () => {
+    await expect(store({ calls: 4, sparks: 6, combo: 4 })).rejects.toMatchObject(CHECK_VIOLATION);
+    await expect(store({ calls: 4, sparks: 5, combo: 5 })).rejects.toMatchObject(CHECK_VIOLATION);
+    // Five sparks need the doubled Final call, which needs a combo of two before it: four calls at least.
+    await expect(store({ calls: 3, sparks: 5, combo: 3 })).rejects.toMatchObject(CHECK_VIOLATION);
+    await expect(store({ calls: 4, sparks: 3, combo: 4 })).rejects.toMatchObject(CHECK_VIOLATION);
+    await expect(store({ calls: 5, sparks: 0, combo: 0 })).rejects.toMatchObject(CHECK_VIOLATION);
+    await expect(store({ calls: 4, sparks: -1, combo: 0 })).rejects.toMatchObject(CHECK_VIOLATION);
+  });
+});
+
 /** The landmark the `seasons` recipe names; the published Orrin fixture carries it from the plan (D-188). */
 const LEANING_AXIS = { key: 'the-leaning-axis', name: 'The Leaning Axis' };
 

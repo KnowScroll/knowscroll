@@ -30,7 +30,7 @@ function changed(
   return AuthoredScrollV2.parse(draft);
 }
 
-describe('the v15 writer', () => {
+describe('the v16 writer', () => {
   it('has its own version and leaves the v1 writer’s alone', () => {
     expect(WRITER_V2_PROMPT_VERSION).toBe('scroll-writer.v16');
     expect(WRITER_PROMPT_VERSION).toBe('scroll-writer.v13');
@@ -255,5 +255,34 @@ describe('the v15 instructions', () => {
 
   it('tell the writer to ignore the v1 layout words of a brief', () => {
     expect(writerInstructionsV2(spikeRecipeV2('seasons'))).toContain('Ignore anything in it about diagrams');
+  });
+});
+
+describe('the Final call that turns the tilt (D-187)', () => {
+  const BOUND = 'THE FINAL CALL IS PLAYED WITH A CONTROL';
+
+  it('asks a recipe that hands the reader the tilt for a "what if the axis were not tilted" Final call and a June or December ending', () => {
+    const text = writerInstructionsV2(spikeRecipeV2('seasons'));
+    expect(text).toContain(BOUND);
+    expect(text).toContain('if the axis were not tilted at all');
+    expect(text).toContain('the reader can turn Earth’s axis');
+    expect(text).toContain('end the Scroll on a June or December picture (earthAt "jun" or "dec")');
+    expect(text).toContain('turning the tilt changes nothing, and a Scroll that ends there is refused');
+  });
+
+  it('says none of it to a recipe that hands the reader nothing: the other Seasons parts and a recipe with no picture', () => {
+    for (const key of ['seasons-hemispheres', 'dns-lookup'] as const) {
+      const text = writerInstructionsV2(spikeRecipeV2(key));
+      expect(text, key).not.toContain(BOUND);
+      expect(text, key).not.toContain('if the axis were not tilted at all');
+      expect(text, key).not.toContain('June or December picture');
+    }
+  });
+
+  it('follows the plan: only a recipe whose plan names the control gets the words, and removing it removes them', () => {
+    const recipe = spikeRecipeV2('seasons');
+    expect(recipe.finalCall).toEqual({ kind: 'tilt' });
+    const { finalCall: _removed, ...unbound } = recipe;
+    expect(writerInstructionsV2(unbound)).not.toContain(BOUND);
   });
 });

@@ -523,7 +523,7 @@ The design cuts or merges `sequence`, `comparison`, `callout`, `disclosure`, `ti
 | A stop's text and line together | at most 60 words; the line at most 12 | `stop_too_long`, `line_too_long` |
 | Explanation, twist, aside text, `simple` | at most 60 words each | `stop_too_long`, `simple_too_long` |
 | Stage | at most 1; at least 3 states, the first on the first stop, in stop order, on read stops only (never on a call), each settled to what its view draws and described by code | `stage_too_static`, `stage_first_state_missing`, `stage_states_unordered`, `stage_state_on_call`, `stage_state_unsettled`, `stage_alt_mismatch` |
-| Final call binding | a `tilt` binding needs a stage whose picture at the Final call draws Earth's axis (any view but the Moon's) | `final_call_binding_invalid` |
+| Final call binding | a `tilt` binding needs a stage whose picture at the Final call changes when the tilt is turned (`tiltMatters`): a view that draws the axis and the season, in a month that is not March or September | `final_call_binding_invalid` |
 | Calls, Final call included | at most 4; at least one Call it; exactly one Final call, the last stop, whose question and correct answer are not near-identical to an earlier call's (content-word overlap below 0.6, D-126) | `call_budget_exceeded`, `call_it_missing`, `final_call_missing`, `final_call_misplaced`, `final_call_restates_call` |
 | Other interactives | at most 2 (none is built; a constant only) | n/a |
 | Limits aside | at least one, anchored before the Final call, linked from the recap | `limits_aside_missing`, `limits_aside_last`, `recap_small_print_unknown` |

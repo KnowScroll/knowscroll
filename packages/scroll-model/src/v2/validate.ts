@@ -4,7 +4,7 @@ import { issueFromSchema } from '../issues.js';
 import { countWords } from '../text.js';
 import { callsOf, ScrollDocumentV2, type CallItStop, type FinalCallStop, type Stop } from './document.js';
 import { uniqueIssuesV2, type IssueV2 } from './issues.js';
-import { describeStageState, settleStageState, stageParts } from './kit.js';
+import { describeStageState, settleStageState, tiltMatters } from './kit.js';
 import { LIMITS_V2 } from './limits.js';
 import { computeMeasuresV2, READING_SECONDS_V2 } from './measures.js';
 import { restates } from './similarity.js';
@@ -130,8 +130,9 @@ function restatementIssues(document: ScrollDocumentV2): IssueV2[] {
 
 /**
  * A Final call's binding hands the reader a control on the stage (D-187): the Scroll needs a stage,
- * and the picture held at the Final call must draw what the control turns. Earth's axis is drawn in
- * every view but the Moon's, so the stage may not end on that one.
+ * and the picture held at the Final call must change when the control is turned. So it is not the
+ * Moon view (no axis) and not an equinox (March or September: the Sun is over the equator at every
+ * tilt, so the picture is the same wherever the slider is), see `tiltMatters`.
  */
 function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
   const finalIndex = document.stops.findIndex((stop) => stop.kind === 'final_call');
@@ -140,7 +141,7 @@ function bindingIssues(document: ScrollDocumentV2): IssueV2[] {
   const invalid: IssueV2[] = [{ code: 'final_call_binding_invalid', path: `stops.${finalIndex}.binding` }];
   const stopIndex = new Map(document.stops.map((stop, index) => [stop.id, index]));
   const held = document.stage?.states.filter((entry) => (stopIndex.get(entry.stop) ?? Infinity) <= finalIndex).at(-1);
-  return held !== undefined && stageParts(held.state.view).includes('axis') ? [] : invalid;
+  return held !== undefined && tiltMatters(held.state) ? [] : invalid;
 }
 
 /** Asides: each opens next to a stop; a limits aside exists, opens before the Final call, and the recap links to it. */

@@ -360,6 +360,23 @@ export function physicsAtTilt(state: Pick<StageState, 'earthAt'>, tiltDegrees: n
   };
 }
 
+/**
+ * Whether turning the tilt visibly changes this picture (D-187). It does where the view draws Earth's
+ * axis and the season, and the month is one with a lean to lose: at the March and September equinoxes
+ * the Sun stands over the equator at every tilt, so the pins stay neutral and Ray lands the same on both
+ * halves whatever the slider says. A Final call that hands the reader the tilt needs a picture for which
+ * this is true.
+ */
+export function tiltMatters(chosen: StageState): boolean {
+  const state = settleStageState(chosen);
+  const parts = stageParts(state.view);
+  return (
+    parts.includes('axis') &&
+    parts.includes('season') &&
+    Math.abs(sunLatitudeDegrees(state.earthAt, TILT_RANGE.max)) > 1
+  );
+}
+
 const NO_TILT_SENTENCE =
   'Earth’s axis is not tilted: it stands straight up, and the Sun stays over the equator all year.';
 

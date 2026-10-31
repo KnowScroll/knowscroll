@@ -3,10 +3,11 @@
  * one spark and extends the combo, a wrong call earns nothing, ends the combo and costs nothing. A
  * right Final call that follows a combo of two or more earns a second spark (the combo bonus).
  *
- * The server judges every lock from the stored revision with this same rule (`modules/play` calls
- * `sparksEarned`), and the screen uses it to show sparks and combo at once and while recording is
- * paused, when nothing is stored. A test runs both over every run of right and wrong calls. A tally
- * belongs to one Scroll: nothing here sums across Scrolls, and no function turns it into a level.
+ * The screen uses it to show sparks and combo at once and while recording is paused, when nothing is
+ * stored. The server judges every lock from the stored revision with its own copy of the rule
+ * (`modules/play/domain`: a domain file imports no package), and a test runs both over every run of
+ * right and wrong calls and checks they agree. A tally belongs to one Scroll: nothing here sums
+ * across Scrolls, and no function turns it into a level.
  */
 export interface CallTally {
   /** One for each right call, and one more for a right Final call after a combo of two or more. */
