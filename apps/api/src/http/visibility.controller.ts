@@ -5,7 +5,9 @@ import type { z } from 'zod';
 import {
   apiContract,
   OwnPresencePreferenceSchema,
+  OwnReadReceiptsSchema,
   PresencePreferenceAcceptanceSchema,
+  ReadReceiptsAcceptanceSchema,
   SharingVisibilityAcceptanceSchema,
   SharingVisibilitySchema,
   VisitorWorldSnapshotSchema,
@@ -34,8 +36,9 @@ function answer<T extends Scoped>(caller: Caller, schema: z.ZodType<T>, result: 
 }
 
 /**
- * `/v1/social/visibility`, `/v1/social/presence/preference` and `/v1/social/visits/read`: what a person
- * lets friends see, and a friend's visit. Handlers only map outcomes; every use case rechecks
+ * `/v1/social/visibility`, `/v1/social/presence/preference`, `/v1/social/read-receipts` and
+ * `/v1/social/visits/read`: what a person lets friends see, whether the people they talk with see how far
+ * they have read, and a friend's visit. Handlers only map outcomes; every use case rechecks
  * authority itself. Nothing here is cached, and a visit answer for someone who may not see the
  * universe is the same `unavailable` snapshot whatever the reason.
  */
@@ -97,6 +100,34 @@ export class VisibilityController {
       if (
         accepted.commandId !== input.commandId ||
         accepted.basePresencePreferenceRevision !== input.expectedPresencePreferenceRevision
+      )
+        throw socialProblem('INTERNAL');
+      return accepted;
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.sharing.readReceipts)
+  readReceiptsRoute(@Req() request: Request) {
+    return implement(apiContract.sharing.readReceipts).handler(async () => {
+      const caller = admittedCaller(request);
+      return answer(caller, OwnReadReceiptsSchema, await this.useCases.readOwnReadReceipts(authorityOf(caller)));
+    });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.sharing.setReadReceipts)
+  setReadReceiptsRoute(@Req() request: Request) {
+    return implement(apiContract.sharing.setReadReceipts).handler(async ({ input }) => {
+      const caller = admittedCaller(request);
+      const accepted = answer(
+        caller,
+        ReadReceiptsAcceptanceSchema,
+        await this.useCases.setReadReceipts(authorityOf(caller), input),
+      );
+      if (
+        accepted.commandId !== input.commandId ||
+        accepted.baseReadReceiptsRevision !== input.expectedReadReceiptsRevision
       )
         throw socialProblem('INTERNAL');
       return accepted;

@@ -324,6 +324,31 @@ export const PresencePreferenceAcceptanceSchema = z
   })
   .refine((r) => r.acceptedPresencePreferenceRevision >= r.basePresencePreferenceRevision);
 
+/**
+ * SEEN in direct conversations (D-066, D-150): whether the other person may see how far the caller has read.
+ * On until the caller turns it off, and mutual: a person who hides theirs does not see the other's. It has
+ * its own revision, independent of the audience and the availability choice.
+ */
+export const OwnReadReceiptsSchema = z.strictObject({
+  ...Envelope,
+  readReceiptsRevision: Revision,
+  shared: z.boolean(),
+});
+export const ReadOwnReadReceiptsSchema = EmptyRead;
+export const SetReadReceiptsSchema = z.strictObject({
+  ...Command,
+  expectedReadReceiptsRevision: Revision,
+  shared: z.boolean(),
+});
+export const ReadReceiptsAcceptanceSchema = z
+  .strictObject({
+    ...Acceptance,
+    operation: z.literal('read-receipts.set'),
+    baseReadReceiptsRevision: Revision,
+    acceptedReadReceiptsRevision: Revision,
+  })
+  .refine((r) => r.acceptedReadReceiptsRevision >= r.baseReadReceiptsRevision);
+
 /** The visitor read is a semantic list: systems, each with its planets. This is not a scene DSL or a
  * private Scene/Geography payload with a visibility flag. It carries no position, size, seed, family,
  * activity, reading or count of anything hidden; a client lays the list out itself. A graphical
@@ -396,6 +421,7 @@ export type RequestFriend = z.infer<typeof RequestFriendSchema>;
 export type FriendCommandAcceptance = z.infer<typeof FriendCommandAcceptanceSchema>;
 export type SharingVisibility = z.infer<typeof SharingVisibilitySchema>;
 export type OwnPresencePreference = z.infer<typeof OwnPresencePreferenceSchema>;
+export type OwnReadReceipts = z.infer<typeof OwnReadReceiptsSchema>;
 export type VisitorWorldSnapshot = z.infer<typeof VisitorWorldSnapshotSchema>;
 
 function post<I extends z.ZodType, O extends z.ZodType>(path: `/v1/social/${string}`, input: I, output: O) {
@@ -477,5 +503,7 @@ export const sharingContract = {
     SetPresencePreferenceSchema,
     PresencePreferenceAcceptanceSchema,
   ),
+  readReceipts: get('/v1/social/read-receipts', ReadOwnReadReceiptsSchema, OwnReadReceiptsSchema),
+  setReadReceipts: post('/v1/social/read-receipts', SetReadReceiptsSchema, ReadReceiptsAcceptanceSchema),
   visit: post('/v1/social/visits/read', ReadVisitorWorldSchema, VisitorWorldSnapshotSchema),
 };

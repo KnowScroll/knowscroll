@@ -31,6 +31,8 @@ export const visibilityStore: VisibilityStore = {
       visibilityRevision: Number(row.visibility_revision),
       presencePreference: asPreference(row.presence_preference),
       presenceRevision: Number(row.presence_revision),
+      shareReadState: row.share_read_state,
+      readStateRevision: Number(row.read_state_revision),
     };
   },
 
@@ -43,6 +45,8 @@ export const visibilityStore: VisibilityStore = {
         visibility_revision: settings.visibilityRevision,
         presence_preference: settings.presencePreference,
         presence_revision: settings.presenceRevision,
+        share_read_state: settings.shareReadState,
+        read_state_revision: settings.readStateRevision,
       })
       .onConflict((conflict) =>
         conflict.column('account_id').doUpdateSet({
@@ -50,6 +54,8 @@ export const visibilityStore: VisibilityStore = {
           visibility_revision: settings.visibilityRevision,
           presence_preference: settings.presencePreference,
           presence_revision: settings.presenceRevision,
+          share_read_state: settings.shareReadState,
+          read_state_revision: settings.readStateRevision,
         }),
       )
       .execute();

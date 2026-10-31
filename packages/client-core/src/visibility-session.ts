@@ -1,4 +1,4 @@
-import type { OwnPresencePreference, PublicPersonRef, SharingVisibility } from '@knowscroll/contracts';
+import type { OwnPresencePreference, OwnReadReceipts, PublicPersonRef, SharingVisibility } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import { talkFailure } from './talk-failure';
 
@@ -32,6 +32,8 @@ export interface VisibilityState {
   /** The last settings the server confirmed. Systems come with the person's own words. */
   readonly confirmed: SharingVisibility | undefined;
   readonly presence: OwnPresencePreference | undefined;
+  /** SEEN (D-066): whether the people the person talks with see how far they have read. */
+  readonly readReceipts: OwnReadReceipts | undefined;
   readonly draft: VisibilityDraft | undefined;
   readonly friends: {
     readonly status: 'idle' | 'loading' | 'ready' | 'failed';
@@ -43,13 +45,18 @@ export interface VisibilityState {
 export interface VisibilitySession {
   readonly getState: () => VisibilityState;
   readonly subscribe: (listener: () => void) => () => void;
-  /** Reads the settings, the availability choice and the friends the person can choose from. */
+  /** Reads the settings, the availability choice, the SEEN switch and the friends the person can choose from. */
   readonly load: () => Promise<void>;
   /** Choosing "Friends I choose" with no one chosen yet shares with nobody until a friend is ticked. */
   readonly setAudience: (mode: AudienceMode) => Promise<void>;
   readonly toggleFriend: (personId: string) => Promise<void>;
   readonly toggleSystem: (systemId: string) => Promise<void>;
   readonly setPresence: (preference: PresencePreference) => Promise<void>;
+  /**
+   * Turns SEEN on or off. It is its own command with its own revision, and works both ways: hide yours, and
+   * you do not see theirs.
+   */
+  readonly setReadReceipts: (shared: boolean) => Promise<void>;
   /** After a failed save: sends what is on the page again, from the server's current revision. */
   readonly retry: () => Promise<void>;
 }
@@ -117,40 +124,45 @@ async function readFriends(scope: AccountScope, newId: () => string): Promise<re
   return friends.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-/** What the availability saver needs of the session: the latest state, and a way to change it. */
+/** What a single-setting saver needs of the session: the latest state, and a way to change it. */
 interface SessionHost {
   readonly current: () => VisibilityState;
   readonly publish: (patch: Partial<VisibilityState>) => void;
 }
 
-/**
- * Saving the availability choice. It is its own command, separate from the audience, and keeps the
- * one choice that failed for want of a connection so Retry can send it again.
- */
-function createPresenceSaver(scope: AccountScope, newId: () => string, host: SessionHost) {
-  let failedWhileOffline: PresencePreference | undefined;
+/** One setting the page saves on its own, apart from the audience: what to read, what to send, where it lives. */
+interface SettingSpec<Value, Setting> {
+  readonly read: () => Promise<Setting>;
+  readonly write: (value: Value, current: Setting) => Promise<unknown>;
+  readonly held: (state: VisibilityState) => Setting | undefined;
+  readonly valueOf: (setting: Setting) => Value;
+  readonly patch: (setting: Setting) => Partial<VisibilityState>;
+}
 
-  async function set(preference: PresencePreference): Promise<void> {
-    const current = host.current().presence;
-    if (current === undefined || current.preference === preference) return;
+/**
+ * Saving one setting that has its own command and revision (the availability choice, SEEN). It keeps the
+ * one choice that failed for want of a connection so Retry can send it again, from the server's current
+ * revision.
+ */
+function createSettingSaver<Value, Setting>(host: SessionHost, spec: SettingSpec<Value, Setting>) {
+  let failedWhileOffline: { readonly value: Value } | undefined;
+
+  async function set(value: Value): Promise<void> {
+    const current = spec.held(host.current());
+    if (current === undefined || spec.valueOf(current) === value) return;
     host.publish({ save: { status: 'saving' } });
     failedWhileOffline = undefined;
     try {
-      await scope.api.sharing.setPresencePreference({
-        version: VERSION,
-        commandId: newId(),
-        expectedPresencePreferenceRevision: current.presencePreferenceRevision,
-        preference,
-      });
-      host.publish({ presence: await scope.api.sharing.presencePreference({}), save: { status: 'saved' } });
+      await spec.write(value, current);
+      host.publish({ ...spec.patch(await spec.read()), save: { status: 'saved' } });
     } catch (error) {
       const kind = talkFailure(error);
       if (kind === 'ended') return;
       host.publish({ save: { status: 'failed', reason: failureOf(kind) } });
-      if (kind === 'offline') failedWhileOffline = preference;
+      if (kind === 'offline') failedWhileOffline = { value };
       else
         try {
-          host.publish({ presence: await scope.api.sharing.presencePreference({}) });
+          host.publish(spec.patch(await spec.read()));
         } catch {
           // Shown as it was.
         }
@@ -160,14 +172,14 @@ function createPresenceSaver(scope: AccountScope, newId: () => string, host: Ses
   /** Sends the choice that was lost offline, from the server's current revision. False when there is none. */
   async function retry(): Promise<boolean> {
     if (failedWhileOffline === undefined) return false;
-    const preference = failedWhileOffline;
+    const { value } = failedWhileOffline;
     try {
-      host.publish({ presence: await scope.api.sharing.presencePreference({}) });
+      host.publish(spec.patch(await spec.read()));
     } catch {
       host.publish({ save: { status: 'failed', reason: 'offline' } });
       return true;
     }
-    await set(preference);
+    await set(value);
     return true;
   }
 
@@ -175,9 +187,9 @@ function createPresenceSaver(scope: AccountScope, newId: () => string, host: Ses
 }
 
 /**
- * The state behind F02 "Sharing & visibility": who may visit, which systems they see, and whether
- * friends see "Online" or "Recently active". Every change is one command that carries the whole page,
- * so there is no half-saved audience. Changes made while a save is in flight are folded into one
+ * The state behind F02 "Sharing & visibility": who may visit, which systems they see, whether
+ * friends see "Online" or "Recently active", and whether the people the person talks with see SEEN. Every
+ * change is one command that carries the whole page, so there is no half-saved audience. Changes made while a save is in flight are folded into one
  * following save. A save that fails keeps the page as the person left it and offers Retry; a revision
  * the server has moved on from rereads the settings first, so a change made on another device is
  * never silently overwritten.
@@ -191,13 +203,40 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
     load: 'loading',
     confirmed: undefined,
     presence: undefined,
+    readReceipts: undefined,
     draft: undefined,
     friends: { status: 'idle', items: [] },
     save: { status: 'idle' },
   };
   let saving: Promise<void> | undefined;
   let dirty = false;
-  const presence = createPresenceSaver(scope, newId, { current: () => state, publish });
+  const host: SessionHost = { current: () => state, publish };
+  const presence = createSettingSaver<PresencePreference, OwnPresencePreference>(host, {
+    read: () => scope.api.sharing.presencePreference({}),
+    write: (preference, current) =>
+      scope.api.sharing.setPresencePreference({
+        version: VERSION,
+        commandId: newId(),
+        expectedPresencePreferenceRevision: current.presencePreferenceRevision,
+        preference,
+      }),
+    held: (held) => held.presence,
+    valueOf: (setting) => setting.preference,
+    patch: (setting) => ({ presence: setting }),
+  });
+  const readReceipts = createSettingSaver<boolean, OwnReadReceipts>(host, {
+    read: () => scope.api.sharing.readReceipts({}),
+    write: (shared, current) =>
+      scope.api.sharing.setReadReceipts({
+        version: VERSION,
+        commandId: newId(),
+        expectedReadReceiptsRevision: current.readReceiptsRevision,
+        shared,
+      }),
+    held: (held) => held.readReceipts,
+    valueOf: (setting) => setting.shared,
+    patch: (setting) => ({ readReceipts: setting }),
+  });
 
   function publish(patch: Partial<VisibilityState>): void {
     if (!scope.active) return;
@@ -208,11 +247,10 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
   async function load(): Promise<void> {
     publish({ load: state.confirmed === undefined ? 'loading' : state.load });
     try {
-      const [confirmed, presence] = [
-        await scope.api.sharing.visibility({}),
-        await scope.api.sharing.presencePreference({}),
-      ];
-      publish({ load: 'ready', confirmed, presence, draft: state.draft ?? draftOf(confirmed) });
+      const confirmed = await scope.api.sharing.visibility({});
+      const presence = await scope.api.sharing.presencePreference({});
+      const readReceipts = await scope.api.sharing.readReceipts({});
+      publish({ load: 'ready', confirmed, presence, readReceipts, draft: state.draft ?? draftOf(confirmed) });
     } catch (error) {
       if (talkFailure(error) !== 'ended') publish({ load: state.confirmed === undefined ? 'unavailable' : 'ready' });
       return;
@@ -303,8 +341,9 @@ export function createVisibilitySession(options: VisibilitySessionOptions): Visi
       return change({ systemIds: toggled(draft.systemIds, systemId) });
     },
     setPresence: presence.set,
+    setReadReceipts: readReceipts.set,
     async retry() {
-      if (await presence.retry()) return;
+      if ((await presence.retry()) || (await readReceipts.retry())) return;
       // Start from what the server has now, with the page as the person left it.
       try {
         publish({ confirmed: await scope.api.sharing.visibility({}) });

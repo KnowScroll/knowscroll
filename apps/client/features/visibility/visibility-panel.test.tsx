@@ -102,6 +102,29 @@ describe('sharing and visibility settings (labelled in-memory server)', () => {
     server.scope.end();
   });
 
+  it('starts with SEEN on, turns it off with its own command, and says it works both ways', async () => {
+    const server = visitServer();
+    const rendered = await render(panel(server));
+    await screen.findByRole('switch', { name: 'Show SEEN in direct conversations' });
+    expect(checked('Show SEEN in direct conversations', 'switch')).toBe(true);
+    expect(screen.getByText(/If you hide yours, you won’t see theirs/)).toBeOnTheScreen();
+    expect(screen.getByText(/never in threads or rooms/)).toBeOnTheScreen();
+    expect(commandsTo(server, '/v1/social/read-receipts')).toHaveLength(0);
+    await fireEvent.press(screen.getByRole('switch', { name: 'Show SEEN in direct conversations' }));
+    await waitFor(() => expect(checked('Show SEEN in direct conversations', 'switch')).toBe(false));
+    expect(server.readReceipts).toEqual({ shared: false, revision: 2 });
+    expect(
+      screen.getByText(/What you read while it’s off stays unseen, even if you turn it on later/),
+    ).toBeOnTheScreen();
+    // The audience and the availability choice were not touched.
+    expect(commandsTo(server, '/v1/social/visibility')).toHaveLength(0);
+    expect(commandsTo(server, '/v1/social/presence/preference')).toHaveLength(0);
+    await fireEvent.press(screen.getByRole('switch', { name: 'Show SEEN in direct conversations' }));
+    await waitFor(() => expect(server.readReceipts).toEqual({ shared: true, revision: 3 }));
+    await rendered.unmount();
+    server.scope.end();
+  });
+
   it('says it could not load rather than showing switches that are not there', async () => {
     const server = visitServer();
     server.failNext('/v1/social/visibility', 'network');
