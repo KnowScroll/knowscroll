@@ -2,16 +2,27 @@ import type { ReactElement } from 'react';
 import {
   AXIAL_TILT_DEGREES,
   describeStageAtTilt,
+  type CirculationState,
   type GreenhouseState,
+  type NerveState,
   type StageState,
   type StarState,
   type TidesState,
   type TransitState,
 } from '../model';
+import { CirculationPicture } from './circulation';
+import {
+  canTweenCirculation,
+  circulationSceneOf,
+  lerpCirculationScene,
+  type CirculationScene,
+} from './circulation-scene';
 import { EarthSkyPicture } from './earth-sky';
 import { canTween, lerpScene, sceneOf, type EarthSkyScene } from './earth-sky-scene';
 import { GreenhousePicture } from './greenhouse';
 import { canTweenGreenhouse, greenhouseSceneOf, lerpGreenhouseScene, type GreenhouseScene } from './greenhouse-scene';
+import { NervePicture } from './nerve';
+import { canTweenNerve, lerpNerveScene, nerveSceneOf, type NerveScene } from './nerve-scene';
 import { StarPicture } from './star';
 import { canTweenStar, lerpStarScene, starSceneOf, type StarScene } from './star-scene';
 import { TidesPicture } from './tides';
@@ -92,5 +103,17 @@ export const KIT_PICTURES = {
     canTween: canTweenTransit,
     lerpScene: lerpTransitScene,
     Picture: TransitPicture,
+  }),
+  'circulation.v1': kitPicture<CirculationState, CirculationScene>({
+    sceneOf: circulationSceneOf,
+    canTween: canTweenCirculation,
+    lerpScene: lerpCirculationScene,
+    Picture: CirculationPicture,
+  }),
+  'nerve.v1': kitPicture<NerveState, NerveScene>({
+    sceneOf: nerveSceneOf,
+    canTween: canTweenNerve,
+    lerpScene: lerpNerveScene,
+    Picture: NervePicture,
   }),
 } as const satisfies Record<string, KitPicture>;
