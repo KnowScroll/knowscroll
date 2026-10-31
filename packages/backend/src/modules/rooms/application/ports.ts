@@ -16,6 +16,7 @@ import type {
   WithPersonalScope,
 } from '../../identity/public.js';
 import type { ActivityKind, ActivityState, StoredDefinition } from '../domain/activities.js';
+import type { LaunchRow, ReadyDeck, StoredAnswer } from './launch-ports.js';
 import type { AskKind } from '../domain/asks.js';
 import type { CastMember } from '../domain/cast.js';
 import type { ContributionKind, InhabitantId } from '../domain/contribution.js';
@@ -771,6 +772,53 @@ export interface TodayStore {
   messagesSince(lock: RoomLock, discussionId: string, since: Date): Promise<number>;
 }
 
+// --- The Launch (migration 0086) ----------------------------------------------------------
+
+/**
+ * The Launch's rows. Every method is one explicit query inside the room's lock; none decides access or a result. The use case takes the
+ * room root first, then a Launch row (`share` to answer or join, `update` to settle), and the sky lock last.
+ */
+export interface LaunchStore {
+  /** The room's unfinished Launch, if any. `share` and `update` hold its row: an answer waits for a settlement and the other way round. */
+  unfinished(lock: RoomLock, rowLock: 'none' | 'share' | 'update'): Promise<LaunchRow | undefined>;
+  /** The room's newest Launch, finished or not. */
+  latest(lock: RoomLock): Promise<LaunchRow | undefined>;
+  /** The newest approved deck of this day or later that no Launch has used. */
+  readyDeck(lock: RoomLock, fromDay: string): Promise<ReadyDeck | undefined>;
+  insert(
+    lock: RoomLock,
+    launch: {
+      readonly launchId: string;
+      readonly deckRitualId: string;
+      readonly questions: unknown;
+      readonly startsAt: Date;
+      readonly now: Date;
+    },
+  ): Promise<void>;
+  /** Puts a person in the Launch; false when they already were. */
+  addPlayer(lock: RoomLock, launchId: string, accountId: string, now: Date): Promise<boolean>;
+  players(
+    lock: RoomLock,
+    launchId: string,
+  ): Promise<readonly { readonly accountId: string; readonly joinedAt: Date }[]>;
+  isPlayer(lock: RoomLock, launchId: string, accountId: string): Promise<boolean>;
+  answers(lock: RoomLock, launchId: string): Promise<readonly StoredAnswer[]>;
+  /** Stores an answer; false when the person already answered this round (the first stands). */
+  addAnswer(lock: RoomLock, answer: StoredAnswer & { readonly launchId: string; readonly now: Date }): Promise<boolean>;
+  /** Marks an unfinished Launch finished, once. False when another command finished it first. */
+  finish(
+    lock: RoomLock,
+    launchId: string,
+    result: { readonly now: Date; readonly played: number; readonly star: boolean },
+  ): Promise<boolean>;
+  /** Deletes the players and answers of this room's Launches that finished before `before`. */
+  purgeResults(lock: RoomLock, before: Date): Promise<void>;
+  /** Deletes what this person did in the room's Launches: they are not a member any more (leaving, removal). */
+  forgetMember(lock: RoomLock, accountId: string): Promise<void>;
+  /** Which of these rooms have an unfinished Launch whose play time has not passed at `now`, for a station on a map. */
+  liveRooms(scope: PersonalScopeTx, roomIds: readonly string[], now: Date): Promise<ReadonlySet<string>>;
+}
+
 // --- What the application needs from outside ----------------------------------------------
 
 /** A person the caller can name: a public profile, by account. */
@@ -834,6 +882,8 @@ export interface RoomPorts {
   readonly sky: SkyStore;
   readonly debates: DebateStore;
   readonly today: TodayStore;
+  /** The Launch's rows (migration 0086). */
+  readonly launches: LaunchStore;
   readonly people: PersonLookup;
   readonly friends: FriendLookup;
   readonly blocked: BlockedLookup;
@@ -858,6 +908,8 @@ export interface RoomPorts {
   readonly residentsEnabled: boolean;
   /** The most stars a room earns on one UTC day (D-174); the same in every process of a world. */
   readonly starsPerDay: number;
+  /** The rest between the start of one Launch and the next, in milliseconds (`KS_ROOMS_LAUNCH_GAP_MINUTES`, D-178). */
+  readonly launchGapMs: number;
   /** Queues the check that decides whether a resident answers a message, to run at `startAfter`. */
   enqueueCastDue(scope: PersonalScopeTx, job: CastDueJob, startAfter: Date): Promise<void>;
   /** Queues the model call of an allowed unprompted turn, now or at `startAfter`. */

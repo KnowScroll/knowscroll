@@ -11,7 +11,7 @@ export const STARS_PER_CONSTELLATION = 7;
 export const NAMING_HOURS = 24;
 
 /** What earns a star (the contract's `RoomStarAct`). */
-export type StarAct = 'answer_useful' | 'debate_closed' | 'daily_solved';
+export type StarAct = 'answer_useful' | 'debate_closed' | 'daily_solved' | 'launch_finished';
 
 /** The sky as a station draws it; the contract's `RoomSky` has the same shape. */
 export interface Sky {

@@ -15,10 +15,10 @@ export const ROOM_NAMING_HOURS = 24;
 export const ROOM_DEBATE_MAX_HOURS = 168;
 
 /**
- * What earns a star (R3 E): a human answer marked Useful by someone else, a debate closed by vote, and the day's Spot the
- * flaw found. An AI never earns one, and a Launch will earn one when it exists.
+ * What earns a star (R3 E): a human answer marked Useful by someone else, a debate closed by vote, the day's Spot the
+ * flaw found, and a Launch finished by at least two people (v3 R-6). An AI never earns one.
  */
-export const RoomStarActSchema = z.enum(['answer_useful', 'debate_closed', 'daily_solved']);
+export const RoomStarActSchema = z.enum(['answer_useful', 'debate_closed', 'daily_solved', 'launch_finished']);
 export type RoomStarAct = z.infer<typeof RoomStarActSchema>;
 
 const Counter = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);

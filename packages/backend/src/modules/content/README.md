@@ -564,6 +564,8 @@ is the stop's ID). A Scroll held or rejected by the review gate, withdrawn, or m
 only; no evidence, no personal state. The operator's approval of a ritual item uses the second port to prove a cited passage still
 says what it did. *Implemented.*
 
+A room's Launch (v3 R-6, D-179) reads the same Scrolls for their **calls** through a third port, `READ_LIBRARY_CALLS` (`makeReadLibraryCalls(db)(topic, limit, only?)`, in `libraryPassageProviders`): the `call_it` and `final_call` stops of each admitted `scroll-document.v2` under the topic, each with its stop ID, question, options, right option and reason as written. A v1 document and a Scroll with no call are not listed; the same Scrolls are excluded as for the prose. The operator's approval of a deck reads one exact revision with `only`. Reads only. *Implemented.*
+
 ## Thread sequences and snippet anchors (#243, D-046)
 
 Social threads read three things from Content through `public.ts`, never through its tables. None creates evidence.

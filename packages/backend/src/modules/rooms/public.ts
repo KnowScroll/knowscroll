@@ -14,9 +14,14 @@ import type {
   DiscussionViewSchema,
   FlawSolvedAcceptanceSchema,
   InhabitantAskAcceptanceSchema,
+  LaunchAnsweredAcceptanceSchema,
+  LaunchFinishedAcceptanceSchema,
+  LaunchJoinedAcceptanceSchema,
+  LaunchStartedAcceptanceSchema,
   PollVoteAcceptanceSchema,
   RoomInviteAcceptanceSchema,
   RoomJoinAcceptanceSchema,
+  RoomLaunchSchema,
   RoomLeaveAcceptanceSchema,
   RoomListSchema,
   RoomMessageAcceptanceSchema,
@@ -81,6 +86,31 @@ export interface RoomUseCases {
     authority: PersonalAuthority,
     input: unknown,
   ): Promise<Result<z.infer<typeof ConstellationVoteAcceptanceSchema>>>;
+  /**
+   * The room's Launch for a member: the one running or, for a day, the last one's podium, and whether they may start one now
+   * (v3 R-6, D-178). A question that is open carries no key, no count and no name. Writes nothing.
+   */
+  launch(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomLaunchSchema>>>;
+  /** A member starts a Launch from the newest approved deck; refused while recording is paused (D-178, D-220). */
+  startLaunch(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof LaunchStartedAcceptanceSchema>>>;
+  /** A member says they are in a Launch that is on. */
+  joinLaunch(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof LaunchJoinedAcceptanceSchema>>>;
+  /** A player's answer to the open question; the server's clock decides whether it is in time and how long it took. */
+  answerLaunch(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof LaunchAnsweredAcceptanceSchema>>>;
+  /** A device found the Launch over: it is settled now, with the room's star when two people played. */
+  finishLaunch(
+    authority: PersonalAuthority,
+    input: unknown,
+  ): Promise<Result<z.infer<typeof LaunchFinishedAcceptanceSchema>>>;
   /** The member's vote on a debate's side, changeable until it closes (D-176). */
   voteDebate(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof DebateVoteAcceptanceSchema>>>;
   list(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomListSchema>>>;

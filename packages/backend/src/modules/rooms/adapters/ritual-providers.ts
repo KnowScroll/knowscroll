@@ -10,8 +10,10 @@ import {
   type WithProductionScope,
 } from '../../../reasoning/public.js';
 import {
+  READ_LIBRARY_CALLS,
   READ_LIBRARY_PASSAGES,
   READ_LIBRARY_PASSAGE_TEXT,
+  type ReadLibraryCalls,
   type ReadLibraryPassageText,
   type ReadLibraryPassages,
 } from '../../content/public.js';
@@ -22,8 +24,8 @@ import { ritualStore } from './postgres-rituals.js';
 
 /**
  * The operator's and the night's controls over a room's daily items (D-176): draft, list and review. Composed by an
- * operator command or a test with a database, the rooms scope's harness and the library's prose reads. Drafting a question
- * costs no call; drafting Spot the flaw makes at most one, on a run fixed by the room and day.
+ * operator command or a test with a database, the rooms scope's harness and the library's prose and call reads. Drafting a question
+ * or a Launch deck costs no call; drafting Spot the flaw makes at most one, on a run fixed by the room and day.
  */
 export function composeRitualOperator(deps: {
   readonly db: Kysely<Database>;
@@ -31,6 +33,7 @@ export function composeRitualOperator(deps: {
   readonly withRoomScope: WithProductionScope;
   readonly readPassages: ReadLibraryPassages;
   readonly readPassageText: ReadLibraryPassageText;
+  readonly readCalls: ReadLibraryCalls;
   readonly model: string;
   readonly generation: number;
   readonly now?: () => Date;
@@ -40,6 +43,7 @@ export function composeRitualOperator(deps: {
       store: ritualStore(deps.db),
       readPassages: deps.readPassages,
       readPassageText: deps.readPassageText,
+      readCalls: deps.readCalls,
       model: deps.model,
       generation: deps.generation,
       runIdFor: (roomId, day, kind) => stableUuid(`rooms-ritual:${roomId}:${day}:${kind}`),
@@ -66,6 +70,7 @@ export function roomsRitualProviders(tokens: { readonly database: symbol; readon
         WITH_ROOM_SCOPE,
         READ_LIBRARY_PASSAGES,
         READ_LIBRARY_PASSAGE_TEXT,
+        READ_LIBRARY_CALLS,
         tokens.workerConfig,
       ],
       useFactory: (
@@ -74,6 +79,7 @@ export function roomsRitualProviders(tokens: { readonly database: symbol; readon
         withRoomScope: WithProductionScope,
         readPassages: ReadLibraryPassages,
         readPassageText: ReadLibraryPassageText,
+        readCalls: ReadLibraryCalls,
         config: WorkerConfig,
       ): RunNightlyRituals => {
         const operator = composeRitualOperator({
@@ -82,6 +88,7 @@ export function roomsRitualProviders(tokens: { readonly database: symbol; readon
           withRoomScope,
           readPassages,
           readPassageText,
+          readCalls,
           model: config.reasoning.minimax?.model ?? 'unconfigured',
           generation: config.reasoning.roomGeneration,
         });

@@ -9,7 +9,7 @@ import { topicKindOf } from './columns.js';
 const dayText = sql<string>`to_char(ritual.day, 'YYYY-MM-DD')`;
 
 const kindOf = (value: string): RitualKind => {
-  if (value === 'question' || value === 'flaw') return value;
+  if (value === 'question' || value === 'flaw' || value === 'launch') return value;
   throw new Error('ROOMS_COLUMN_OUT_OF_RANGE: ritual kind');
 };
 const stateOf = (value: string): RitualState => {
@@ -123,6 +123,15 @@ export function ritualStore(db: Kysely<Database>): RitualStore {
         where room_id = ${roomId}::uuid and state <> 'rejected'
           and day < ${day}::date and day >= ${day}::date - ${days}::integer`.execute(db);
       return new Set(found.rows.flatMap((row) => (row.asset === null ? [] : [row.asset])));
+    },
+
+    async recentCalls(roomId, day, days) {
+      const found = await sql<{ key: string }>`
+        select distinct question -> 'source' ->> 'assetId' || ':' || (question -> 'source' ->> 'stopId') as key
+        from rooms.rituals, jsonb_array_elements(payload -> 'questions') as question
+        where room_id = ${roomId}::uuid and kind = 'launch' and state <> 'rejected'
+          and day < ${day}::date and day >= ${day}::date - ${days}::integer`.execute(db);
+      return new Set(found.rows.map((row) => row.key));
     },
 
     async insertDraft(item) {
