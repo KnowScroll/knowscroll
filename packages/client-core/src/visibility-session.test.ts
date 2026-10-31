@@ -121,6 +121,34 @@ describe('sharing settings session (labelled in-memory server)', () => {
     expect(session.getState().presence).toMatchObject({ preference: 'online' });
   });
 
+  it('turns SEEN on or off with its own revision, and shows the confirmed choice', async () => {
+    const { server, session } = await loaded();
+    expect(session.getState().readReceipts).toMatchObject({ shared: true, readReceiptsRevision: 1 });
+    await session.setReadReceipts(false);
+    expect(session.getState().readReceipts).toMatchObject({ shared: false, readReceiptsRevision: 2 });
+    expect(session.getState().save).toEqual({ status: 'saved' });
+    // Already off: no command, no new revision.
+    const sent = server.countOf('/v1/social/read-receipts');
+    await session.setReadReceipts(false);
+    expect(server.countOf('/v1/social/read-receipts')).toBe(sent);
+    // Its revision is its own: the availability choice does not move it.
+    await session.setPresence('online');
+    expect(session.getState().readReceipts).toMatchObject({ shared: false, readReceiptsRevision: 2 });
+    expect(server.presence.revision).toBe(2);
+  });
+
+  it('keeps a SEEN choice lost offline for Retry, and sends the same choice from the current revision', async () => {
+    const { server, session } = await loaded();
+    server.failNext('/v1/social/read-receipts', 'network');
+    await session.setReadReceipts(false);
+    expect(session.getState().save).toEqual({ status: 'failed', reason: 'offline' });
+    expect(session.getState().readReceipts).toMatchObject({ shared: true });
+    await session.retry();
+    expect(session.getState().readReceipts).toMatchObject({ shared: false });
+    expect(session.getState().save).toEqual({ status: 'saved' });
+    expect(server.readReceipts).toEqual({ shared: false, revision: 2 });
+  });
+
   it('does nothing once the account scope has ended', async () => {
     const { server, session } = await loaded();
     server.scope.end();

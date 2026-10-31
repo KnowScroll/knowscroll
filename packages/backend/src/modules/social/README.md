@@ -11,15 +11,16 @@ means used on a running dev system. Nothing in this module is runtime-verified y
 
 ## What the module owns
 
-| Area | Tables (schema `social`) | Use cases (`public.ts`) | Status |
-| --- | --- | --- | --- |
-| Profiles and friendship | `profiles`, `pairs`, `pair_sides`, `requests`, `command_bindings` | `SOCIAL_USE_CASES`: profile, lookup, pair read, request, accept, decline, cancel, remove, block, unblock | Implemented |
-| Rosters and invitations | `roster_entries`, `roster_heads`, `invites` | `SOCIAL_USE_CASES`: friend and request pages, invite create, revoke, status, resolve | Implemented |
-| Conversations | `conversations`, `conversation_members`, `messages`, `inbox_heads` | `CONVERSATION_USE_CASES.conversations`: start, inbox, read, history, changes, send, read of a send, mark read, mute, leave | Implemented |
-| Share links | `content_shares` | `CONVERSATION_USE_CASES.shares`: create, revoke, read own, list own, resolve, public preview | Implemented |
-| Content threads | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`) | `THREAD_USE_CASES`: create, read, history, changes, send, react, respond, mark read, leave, inbox, open snippet | Implemented; not runtime-verified on dev |
-| Replies and reactions (T-B, D-146, D-147) | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message) | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react` | Implemented; not runtime-verified on dev |
-| Visibility, availability and visits | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets` | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented |
+| Area                                             | Tables (schema `social`)                                                                                                                                               | Use cases (`public.ts`)                                                                                                                              | Status                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Profiles and friendship                          | `profiles`, `pairs`, `pair_sides`, `requests`, `command_bindings`                                                                                                      | `SOCIAL_USE_CASES`: profile, lookup, pair read, request, accept, decline, cancel, remove, block, unblock                                             | Implemented                              |
+| Rosters and invitations                          | `roster_entries`, `roster_heads`, `invites`                                                                                                                            | `SOCIAL_USE_CASES`: friend and request pages, invite create, revoke, status, resolve                                                                 | Implemented                              |
+| Conversations                                    | `conversations`, `conversation_members`, `messages`, `inbox_heads`                                                                                                     | `CONVERSATION_USE_CASES.conversations`: start, inbox, read, history, changes, send, read of a send, mark read, mute, leave                           | Implemented                              |
+| Share links                                      | `content_shares`                                                                                                                                                       | `CONVERSATION_USE_CASES.shares`: create, revoke, read own, list own, resolve, public preview                                                         | Implemented                              |
+| Content threads                                  | `content_threads`, `message_snippets` (and `conversations`, `conversation_members`, `messages`, `inbox_heads` with `kind = 'thread'`)                                  | `THREAD_USE_CASES`: create, read, history, changes, send, react, respond, mark read, leave, inbox, open snippet                                      | Implemented; not runtime-verified on dev |
+| Replies and reactions (T-B, D-146, D-147)        | `messages.reply_to_sequence`, `message_reactions` (one row per person, kind and message)                                                                               | `conversations.send` and `threads.send` with `replyTo`; `conversations.react` and `threads.react`                                                    | Implemented; not runtime-verified on dev |
+| SEEN in direct conversations (T-C, D-066, D-150) | `visibility_settings.share_read_state` and `read_state_revision`, and `conversation_members.shared_read_through_sequence` (migration 0078; the member's own read position `read_through_sequence` is unchanged) | `VISIBILITY_USE_CASES`: read and set the SEEN switch; `conversations.read` and `conversations.changes` carry `peerRead`                              | Implemented; not runtime-verified on dev |
+| Visibility, availability and visits              | `visibility_settings`, `visibility_audience`, `presence`, `visit_publications`, `visit_systems`, `visit_planets`                                                       | `VISIBILITY_USE_CASES`: read and set visibility, read and set the availability choice, read a visit; `RECORD_HEARTBEAT`; `REFRESH_VISIT_PUBLICATION` | Implemented                              |
 
 Idea rooms (`modules/rooms`) read people and friends through two public ports here, `READ_PUBLIC_PEOPLE` (claimed
 profiles of active accounts, by account or public person ID) and `READ_FRIEND_ACCOUNTS` (the caller's current friends), `READ_BLOCKED_AMONG` (which of some accounts the caller has blocked, never who blocked the caller),
@@ -73,8 +74,21 @@ Block end it for both people without saying why.
   command's outcome with `send/read`.
 - **Order.** Each message has a `sequence` (history order) and a `change_sequence` (for catching up). Both
   counters grow by `+1` in SQL, so account deletion can add tombstones without the friendship lock.
-- **Read state is private.** `read_through_sequence` belongs to its member. The other person never sees it, nor
-  a typing signal. Mute is also private.
+- **Read state is the member's own, and SEEN is the one way it is shared** (D-066, D-150). `read_through_sequence`
+  belongs to its member and always moves, for their own unread dot. A direct conversation tells the other person how
+  far they have read only through `peerRead`, below, which comes from a second position, `shared_read_through_sequence`. Nobody is ever told a person is typing. Mute is private.
+- **SEEN** (`application/seen.ts`, rule in `domain/conversations.ts`: `visiblePeerRead`). A snapshot and a changes page
+  carry `peerRead { throughSequence }` only while both people share (a switch on the person's settings row, on by
+  default) and the conversation stands. The number is the other person's `shared_read_through_sequence`: how far they
+  read while their own switch was on. It moves in the same statement as `read_through_sequence` and only while the
+  switch is on, so it is never ahead of it, and what a person reads while SEEN is off is never shown, even after they
+  turn it on again (they must read something new while it is on). In every other case the field is absent: the other person
+  hides theirs, the reader hides their own, either person left, the other account is gone. The absence gives no
+  reason (a person who expects a read and sees none can guess the other hid theirs: that is what mutual means); a blocked pair gets `unavailable` as for any read. Both switches are read under the pair
+  lock on each read, so a change shows at the other person's next read. A read writes nothing. A `mark read` that
+  moves the shared position also bumps the other person's inbox head (a disposable hint), only while both share and
+  the conversation stands (`planReadMove`). It is a
+  position, never a time: the app draws the sent time with the word. Threads and rooms have no such field.
 - **Replies** (D-146). `replyTo` on a send names a message of the same conversation; a message of another
   conversation, an unknown ID and a tombstone are all `unavailable`, and nothing is written. The reply stores the
   original's sequence (a composite foreign key keeps it inside the conversation). A page of messages carries
@@ -110,7 +124,8 @@ by (`social_pair`, pair, actor, operation, command ID). A deleted-counterpart co
 
 ### Live updates
 
-A committed send, read or leave bumps `inbox_heads.revision` for each member and calls
+A committed send or leave bumps `inbox_heads.revision` for each member, and a read that moves bumps it for the reader and,
+while SEEN is mutual, the other person (a person who hides theirs tells nobody). It calls
 `notifyInboxChanged` in the same transaction. The payload is `{ v: 1, scope: { kind: 'inbox', id: <universeId> },
 revision, eventId }`. The socket subscribes with the caller's own universe ID and its ack carries the current
 head. A hint is disposable: the client then reads `conversations/changes` from its cursor, so a missed or
@@ -184,7 +199,7 @@ lock), `window` (the last messages, bounded, with the author reduced to "you" or
 complete, keyed by the thread, so Clear does not forget them) and `announce` (the inbox hint). `READ_THREAD_STANDING` is a
 lock-free read of whether an account takes part now, for workers and audience checks that recheck before applying a result, on the connection they name (`ReadOn`);
 `ANNOUNCE_THREAD` tells every participant's inbox after a commit. None of them decides who may take part: that stays here.
-*Implemented.*
+_Implemented._
 
 ### Lock order
 
@@ -202,7 +217,8 @@ its 20 second poll, so a lost hint loses nothing.
 ## Visibility, availability and the friend visit
 
 A person decides what friends may see (F02, D-047). Everything starts off: nobody may visit, no system is
-shared and availability is hidden. No row means the defaults, so reading the settings writes nothing.
+shared and availability is hidden; SEEN in direct conversations starts on (D-066). No row means the defaults, so
+reading the settings writes nothing.
 
 - **Who may visit.** The audience is `nobody`, `chosen_friends` or `all_friends`. The chosen friends are rows
   that only mean something while the two are friends: accepting, removing or blocking deletes the rows between
@@ -233,7 +249,11 @@ shared and availability is hidden. No row means the defaults, so reading the set
   choice, with a constant lease (30 s or 60 s) that never reveals the last beat. Hidden, expired and unknown are
   one `unknown` answer. There is no push: friends reread while Friends is open.
 
-Commands (`visibility.set`, `presence.preference.set`) use personal receipts, expect the revision the client
+- **SEEN switch** (`read-receipts.set`, `GET/POST /v1/social/read-receipts`). A wanted state, with its own revision on the
+  same settings row: a repeat is accepted with no change and no new revision, and turning it off or on touches no
+  conversation, read position or other setting. Nobody is told: the other person's screen follows at its next read.
+
+Commands (`visibility.set`, `presence.preference.set`, `read-receipts.set`) use personal receipts, expect the revision the client
 read (`stale_revision` otherwise) and replay the same ID and body. Choosing a friend who is not a friend now
 (or yourself), or a system that is not the caller's own factual system, is `invalid_input` and changes nothing.
 
@@ -242,32 +262,32 @@ and the installed API (`tests/integration/release/visits-http.test.ts`). Not run
 
 ## Erasure and export
 
-| Store | Exploration Clear | Account deletion |
-| --- | --- | --- |
-| profiles, pairs, requests, rosters, invites, bindings | kept | deleted; roster heads of former friends are bumped first |
-| conversations, members, inbox heads | kept | a direct conversation is closed; a thread goes on for the others. The person's rows are deleted and the peers' inbox heads bumped (hint); invitees whose friendship stood keep their place on their own membership, the others stay out |
-| messages | kept | the person's messages become tombstones with new change sequences and no reply pointer |
-| message_reactions | kept | the person's reactions and every reaction on their messages are deleted; each message of another person that loses one gets a new change sequence, so the others' catch-up replaces it |
-| content_shares | kept | deleted |
-| content_threads | kept | the starter link is cleared; the thread stays for the others |
-| message_snippets | kept | deleted with the author's tombstoned message |
-| visibility_settings, visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too |
-| visit_publications, visit_systems, visit_planets | deleted (friends who visit then see an empty universe) | deleted with the universe |
+| Store                                                                             | Exploration Clear                                            | Account deletion                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| profiles, pairs, requests, rosters, invites, bindings                             | kept                                                         | deleted; roster heads of former friends are bumped first                                                                                                                                                                                |
+| conversations, members, inbox heads                                               | kept                                                         | a direct conversation is closed; a thread goes on for the others. The person's rows are deleted and the peers' inbox heads bumped (hint); invitees whose friendship stood keep their place on their own membership, the others stay out |
+| messages                                                                          | kept                                                         | the person's messages become tombstones with new change sequences and no reply pointer                                                                                                                                                  |
+| message_reactions                                                                 | kept                                                         | the person's reactions and every reaction on their messages are deleted; each message of another person that loses one gets a new change sequence, so the others' catch-up replaces it                                                  |
+| content_shares                                                                    | kept                                                         | deleted                                                                                                                                                                                                                                 |
+| content_threads                                                                   | kept                                                         | the starter link is cleared; the thread stays for the others                                                                                                                                                                            |
+| message_snippets                                                                  | kept                                                         | deleted with the author's tombstoned message                                                                                                                                                                                            |
+| visibility_settings (audience, availability, SEEN), visibility_audience, presence | kept (choices and a lapsing signal, not exploration history) | deleted; the chosen-friend rows naming the account on either side too. The export names the SEEN switch in words (`seenInDirectConversations`) and never the other person's                                                             |
+| visit_publications, visit_systems, visit_planets                                  | deleted (friends who visit then see an empty universe)       | deleted with the universe                                                                                                                                                                                                               |
 
 Clear never removes messages, cards, snippets, reactions, threads or links. `eraseAccount` order: take the person's thread rows (id order), delete the person's links, delete the snippet rows of their messages, erase their reactions (`eraseReactions`), tombstone
 their messages, pick the peers, close conversations, delete their membership and heads, hint the peers, then
 the friendship rows. The export (`socialErasure.export`) holds the profile, counts of connections, the
 invitation state, the conversation count and the person's own words (newest 2,000, with `truncated`; a reply is marked `wasAReply`), their own reactions (kind, when, and whether on their own message or someone else's; newest 2,000, with `reactionsGiven` and `reactionsTruncated`) and
 their shared links without tokens, how many threads they are in and started (with the names they gave), and in
-words who may visit, how many friends they chose, how they show as available and the titles of the systems they
-share (never a heartbeat, a public ID or who the friends are). It names no other person.
+words who may visit, how many friends they chose, how they show as available, whether SEEN is on and the titles of
+the systems they share (never a heartbeat, a public ID or who the friends are). It names no other person.
 
 ## Failure and recovery
 
 - A lost response: retry with the same command ID.
 - A lost hint: the next hint, a focus, or the 30 second poll reads `changes` from the cursor.
 - A stale friendship view: the command is refused as stale and the client rereads the pair.
-- A stale settings page: `visibility.set` and `presence.preference.set` answer `stale_revision`, and the page
+- A stale settings page: `visibility.set`, `presence.preference.set` and `read-receipts.set` answer `stale_revision`, and the page
   rereads and shows what the server holds.
 - A lost heartbeat: availability lapses by itself within a minute; nothing keeps someone "Online".
 - A failed refresh: the job retries; the visitors keep the last copy, and the next successful projection or the
@@ -276,8 +296,8 @@ share (never a heartbeat, a public ID or who the friends are). It names no other
 ## Related
 
 - Blueprint 02d sections 14 and 17; decisions D-049 (what other modules may do in a thread), D-042 (conversations and links), D-043 (deleted accounts), D-046
-  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit).
+  (threads and snippets), D-047 (sharing and visibility, availability, the friend visit), D-066 and D-150 (SEEN).
 - Contracts: `packages/contracts/src/sharing.ts`, `conversations.ts`, `threads.ts`, `content-shares.ts`,
   `friend-pages.ts`, `socket.ts` (`presence_heartbeat`).
-- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`),
+- Tests: `tests/integration/modules/social-*.test.ts` (threads: `social-threads`, `social-thread-snippets`; SEEN: `social-seen`),
   `tests/integration/release/conversations-http.test.ts`, `threads-http.test.ts`, `visits-http.test.ts`.

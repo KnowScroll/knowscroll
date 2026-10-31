@@ -500,7 +500,8 @@ describe('direct conversations (real PostgreSQL)', () => {
         expect(revisions).toEqual([...revisions].sort((x, y) => x - y));
         expect(new Set(revisions).size).toBe(revisions.length);
 
-        // A peer's reading never moves your revision; your own does.
+        // SEEN is on by default (D-066, D-150), so a reading tells both people's inboxes. With it hidden, a
+        // peer's reading moves only the reader's own revision: that case is in social-seen.test.ts.
         const before = notices.length;
         unwrap(
           await talkOf.markRead(b.authority, {
@@ -512,7 +513,7 @@ describe('direct conversations (real PostgreSQL)', () => {
         );
         await new Promise((resolve) => setTimeout(resolve, 300));
         const fresh = notices.slice(before);
-        expect(fresh.map((notice) => notice.scope.id)).toEqual([b.universeId]);
+        expect(fresh.map((notice) => notice.scope.id).sort()).toEqual([a.universeId, b.universeId].sort());
 
         // A refused send changes nothing and announces nothing.
         await talkOf.leave(a.authority, { version, commandId: randomUUID(), conversation: aRef });

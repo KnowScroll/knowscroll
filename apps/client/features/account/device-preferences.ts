@@ -1,3 +1,5 @@
+import { defaultTalkTheme, type TalkThemeName } from '@knowscroll/design-tokens';
+
 /**
  * What a person chose for this device in Account (P01 Accessibility & playback, Notifications).
  * Device settings, not account settings: they change how this screen looks and plays, they are
@@ -12,6 +14,8 @@ export interface DevicePreferences {
   readonly reelSound: boolean;
   /** Show the "Ready" notice over the encounter where a request was made. */
   readonly readyNotices: boolean;
+  /** How Talk looks: the dark sky (the default) or Paper, for long reading (T3 Q1, D-151). */
+  readonly talkTheme: TalkThemeName;
 }
 
 export const defaultDevicePreferences: DevicePreferences = {
@@ -19,6 +23,7 @@ export const defaultDevicePreferences: DevicePreferences = {
   textSize: 'device',
   reelSound: true,
   readyNotices: true,
+  talkTheme: defaultTalkTheme,
 };
 
 /** How much each text size step multiplies the system's size. */
@@ -30,6 +35,7 @@ export const textSizeFactor: Readonly<Record<DevicePreferences['textSize'], numb
 
 const motionChoices: readonly DevicePreferences['motion'][] = ['device', 'reduce'];
 const textSizeChoices: readonly DevicePreferences['textSize'][] = ['device', 'larger', 'largest'];
+const talkThemeChoices: readonly TalkThemeName[] = ['sky', 'paper'];
 
 /**
  * Reads stored preferences. Anything missing, misspelt or of the wrong kind falls back to its
@@ -51,5 +57,6 @@ export function parseDevicePreferences(stored: string | null | undefined): Devic
     textSize: textSizeChoices.find((choice) => choice === record.textSize) ?? defaults.textSize,
     reelSound: typeof record.reelSound === 'boolean' ? record.reelSound : defaults.reelSound,
     readyNotices: typeof record.readyNotices === 'boolean' ? record.readyNotices : defaults.readyNotices,
+    talkTheme: talkThemeChoices.find((choice) => choice === record.talkTheme) ?? defaults.talkTheme,
   };
 }

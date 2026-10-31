@@ -98,3 +98,11 @@ export function endsRun(current: RunStep, next: RunStep | undefined): boolean {
   if (dayKey(next.at) !== dayKey(current.at)) return true;
   return next.at.getTime() - current.at.getTime() >= RUN_GAP_MS;
 }
+
+/**
+ * The word under the person's own latest message: "Seen" once the other person has read to it (and only while
+ * the server says so, see `ThreadState.peerReadThrough`), "Sent" otherwise. The type role draws it in capitals.
+ */
+export function deliveryWord(sequence: number, peerReadThrough: number | undefined): 'Sent' | 'Seen' {
+  return peerReadThrough !== undefined && peerReadThrough >= sequence ? 'Seen' : 'Sent';
+}
