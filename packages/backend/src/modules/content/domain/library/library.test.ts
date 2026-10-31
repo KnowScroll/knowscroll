@@ -203,7 +203,9 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
     expect(byKit('transit.v1')).toEqual(['exoplanet-transit']);
     expect(byKit('circulation.v1')).toEqual(['blood-pressure', 'cardiac-cycle', 'oxygen-transport']);
     expect(byKit('nerve.v1')).toEqual(['action-potential', 'reflex-arc', 'synapse-signalling']);
-    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(17);
+    expect(byKit('starlight.v1')).toEqual(['exoplanet-habitable-zone', 'stars-colour-brightness']);
+    expect(byKit('black-hole.v1')).toEqual(['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon']);
+    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(22);
   });
 
   it('gives a kit only to recipes of the system whose subject it draws: Earth & sky, Space and the heart and nerves of the Human body', () => {
@@ -215,17 +217,13 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       expect(recipe.systemId, recipe.key).toBe('human-body');
   });
 
-  it('leaves the recipes no kit draws plain: coasts, colour and brightness, the habitable zone, kinds of planet, black holes and other worlds', () => {
+  it('leaves the recipes no kit draws plain: coasts, the blanket audit, kinds of planet and other worlds', () => {
     for (const key of [
       'tides-coasts',
       // The audit of the blanket analogy: the greenhouse kit draws the layer, not an argument about a comparison.
       'greenhouse-limits',
-      'stars-colour-brightness',
-      'exoplanet-habitable-zone',
+      // A mass ruler would be a chart of real data, and the name says nothing a picture could draw (D-204).
       'exoplanet-kinds',
-      'black-hole-formation',
-      'black-hole-horizon',
-      'black-hole-evidence',
       'seasons-elsewhere',
       // No kit draws the immune system.
       'innate-immunity',

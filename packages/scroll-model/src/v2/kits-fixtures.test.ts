@@ -11,6 +11,8 @@ const NAMES = {
   'transit.v1': 'transit',
   'circulation.v1': 'circulation',
   'nerve.v1': 'nerve',
+  'starlight.v1': 'starlight',
+  'black-hole.v1': 'black-hole',
 } as const;
 const KITS = STAGE_KIT_IDS.filter((id): id is Exclude<StageKitId, 'earth-sky.v1'> => id !== 'earth-sky.v1');
 

@@ -72,6 +72,20 @@ export function FocusBox({
   );
 }
 
+/** The same dashed stroke round a slanted band: the points of its outline in order. */
+export function FocusOutline({ points }: { readonly points: readonly Point[] }): ReactElement {
+  return (
+    <Polygon
+      points={points.map((point) => `${point.x},${point.y}`).join(' ')}
+      fill="none"
+      stroke={FOCUS}
+      strokeWidth={3}
+      strokeDasharray="5 4"
+      strokeLinejoin="round"
+    />
+  );
+}
+
 export interface ArrowProps {
   readonly from: Point;
   readonly to: Point;

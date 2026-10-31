@@ -33,6 +33,8 @@ const UNSETTLED: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, Record<str
     arcAt: 'sensor',
     focus: 'none',
   },
+  'starlight.v1': { view: 'dimming', star: 'giant', distance: 'far', orbit: 'none', focus: 'none' },
+  'black-hole.v1': { view: 'pull', star: 'sun-like', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
 };
 
 const issuesOf = (outcome: CompileV2Outcome): string[] =>

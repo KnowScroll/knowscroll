@@ -105,6 +105,19 @@ describe('the band of a room', () => {
     expect(art('room-motif')).toBeTruthy();
   });
 
+  it('keeps the outer tenth of the backdrop outside the band, where the image model signs its prints', async () => {
+    await wrap(
+      <RoomBandView kit={kit} reducedMotion backdrop={{ uri: 'https://app.test/media/room/ab' }}>
+        <Probe />
+      </RoomBandView>,
+    );
+    const picture = StyleSheet.flatten(art('room-backdrop').props.style as object) as { transform?: unknown };
+    expect(picture.transform).toEqual([{ scale: 1.25 }]);
+    // The zoom only hides the edges when the band clips what it enlarges.
+    const clip = StyleSheet.flatten(art('room-art').props.style as object) as { overflow?: unknown };
+    expect(clip.overflow).toBe('hidden');
+  });
+
   it('draws no backdrop where none was approved', async () => {
     await wrap(
       <RoomBandView kit={kit} reducedMotion>
