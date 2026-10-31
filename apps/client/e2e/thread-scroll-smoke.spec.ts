@@ -130,6 +130,8 @@ test('Read opens a v2 Scroll in the thread; finishing it tells the thread, and a
   await finishPart(asha.page, 2);
   await expect.poll(() => world.placeOf('asha')).toMatchObject({ part: 2, state: 'finished' });
   await asha.page.getByRole('button', { name: 'Back to thread' }).click();
+  // Back is a navigation: reload only once the thread is the screen shown, or the reload aborts it.
+  await expect(asha.page.getByTestId('thread-header')).toBeVisible();
   await asha.page.reload();
   await expect(asha.page.getByTestId('call-bar')).toHaveText('★ Revealed');
   await asha.page.getByTestId('call-bar').click();
