@@ -19,12 +19,14 @@ import {
 import type {
   ConversationContentProjection,
   RoomDiscussionSummary,
+  RoomKit,
   RoomMessage,
   ThreadEpisode,
 } from '@knowscroll/contracts';
 import { borderWidth, content, layout, radius, spacing, status } from '@knowscroll/design-tokens';
 import { Button, IconButton, Tag, Text } from '@knowscroll/ui';
 import { SnippetCard } from '../threads/snippet-card';
+import { residentColourOf } from './identity/room-emblem';
 import { FoldedResident, ResidentHeader } from './resident-message';
 import { TopicCard } from './topic-card';
 
@@ -138,6 +140,7 @@ function Bubble({
   onOpenSnippet,
   onStartThread,
   onOpenTopic,
+  kit,
 }: {
   readonly message: Available;
   readonly mine: boolean;
@@ -147,6 +150,8 @@ function Bubble({
   readonly onOpenSnippet: (messageId: string) => void;
   readonly onStartThread: (messageId: string) => void;
   readonly onOpenTopic: (discussionId: string) => void;
+  /** The room's kit, for the colour of a resident's edge. */
+  readonly kit?: RoomKit | undefined;
 }) {
   const align = mine ? styles.mine : styles.theirs;
   const { body } = message;
@@ -184,10 +189,19 @@ function Bubble({
         onStartThread={actions.canStartThread ? () => onStartThread(message.messageId) : undefined}
       />
     );
-  // An AI contribution: dotted outline and a square corner beside its label, never colour alone.
+  // An AI contribution is an ordinary message in the conversation (R3 C1): its resident's colour as a thick edge. It is
+  // labelled above, in words and for a screen reader, so the edge is never what says it is an AI.
   if (message.author.kind === 'ai')
     return (
-      <View style={[styles.bubble, styles.aiBubble, align]} testID="ai-message">
+      <View
+        style={[
+          styles.bubble,
+          styles.aiBubble,
+          kit === undefined ? null : { borderLeftColor: residentColourOf(kit, message.author.inhabitant) },
+          align,
+        ]}
+        testID="ai-message"
+      >
         <Text variant="bodyS" selectable>
           {body.text}
         </Text>
@@ -335,7 +349,7 @@ const noop = () => undefined;
 
 /**
  * The discussion's messages by day. A person's name sits above each other person's bubble; an AI
- * inhabitant's label sits above its bubble and the bubble is dotted with a square corner; a removed
+ * inhabitant's label sits above its bubble, and the bubble is an ordinary one with its resident's colour as an edge; a removed
  * message and a deleted account's message are markers that keep their place.
  */
 export function RoomMessages({
@@ -477,6 +491,7 @@ export function RoomMessages({
                             onOpenSnippet={onOpenSnippet}
                             onStartThread={onStartThread}
                             onOpenTopic={onOpenTopic}
+                            kit={state.view?.room.identity?.kit}
                           />
                           {message.usefulByYou === true ? (
                             <Text variant="metaS" color={content.ink2} testID={`useful-${message.messageId}`}>
@@ -507,27 +522,22 @@ export function RoomMessages({
                     </MessageLine>
                   )}
                   {message.status === 'available' && message.author.kind === 'ai' && !folded ? (
-                    <>
-                      <View style={styles.askRow} testID={`ai-actions-${message.messageId}`}>
-                        <Button
-                          label="Challenge"
-                          size="sm"
-                          disabled={!canAsk}
-                          onPress={() => onAskAbout('challenge', message.messageId)}
-                          testID={`challenge-${message.messageId}`}
-                        />
-                        <Button
-                          label="Other side"
-                          size="sm"
-                          disabled={!canAsk}
-                          onPress={() => onAskAbout('other_side', message.messageId)}
-                          testID={`other-side-${message.messageId}`}
-                        />
-                      </View>
-                      <Text variant="metaS" color={content.ink2}>
-                        A suggestion. Nothing is made unless someone chooses it.
-                      </Text>
-                    </>
+                    <View style={styles.askRow} testID={`ai-actions-${message.messageId}`}>
+                      <Button
+                        label="Challenge"
+                        size="sm"
+                        disabled={!canAsk}
+                        onPress={() => onAskAbout('challenge', message.messageId)}
+                        testID={`challenge-${message.messageId}`}
+                      />
+                      <Button
+                        label="Other side"
+                        size="sm"
+                        disabled={!canAsk}
+                        onPress={() => onAskAbout('other_side', message.messageId)}
+                        testID={`other-side-${message.messageId}`}
+                      />
+                    </View>
                   ) : null}
                 </View>
               );
@@ -600,13 +610,13 @@ const styles = StyleSheet.create({
   theirs: { alignSelf: 'flex-start' },
   mineBubble: { backgroundColor: content.accent },
   theirBubble: { backgroundColor: content.paper, borderWidth: borderWidth.regular, borderColor: content.ink },
-  /** Dotted outline and a square top-left corner mark an AI inhabitant's words without colour. */
+  /** An AI inhabitant's words: a plain bubble with a thick left edge, in the resident's colour when the room has a kit. */
   aiBubble: {
     backgroundColor: content.paper,
     borderWidth: borderWidth.regular,
     borderColor: content.ink,
-    borderStyle: 'dotted',
-    borderTopLeftRadius: radius.xs,
+    borderLeftWidth: 5,
+    borderLeftColor: content.ink,
   },
   failedBubble: { backgroundColor: content.paper, borderWidth: borderWidth.regular, borderColor: status.danger.edge },
   removed: {
