@@ -5,6 +5,7 @@ import type { PgBoss } from 'pg-boss';
 import { expect } from 'vitest';
 import { createBoss, makeEnqueueJob, type EnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import {
+  fencePersonalRecording,
   makeWithPersonalScope,
   makeWithProductionScope,
   type Database,
@@ -102,6 +103,8 @@ export interface RoomWorld {
 export interface RoomWorldOptions {
   /** Residents may speak unprompted (`KS_REASONING_ROOM_ENABLED`). Off by default, as in a world that has not turned them on. */
   readonly residentsEnabled?: boolean;
+  /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`); the default is three. */
+  readonly starsPerDay?: number;
 }
 
 export async function roomWorld(
@@ -129,6 +132,7 @@ export async function roomWorld(
   const deps = {
     withScope: makeWithPersonalScope(database.db, { lockTimeoutMs: 10_000 }),
     fenceOwn: access.fenceOwnAccount,
+    fenceRecording: fencePersonalRecording,
     readPeople: readPublicPeople,
     readFriends: readFriendAccounts,
     readBlocked: readBlockedAmong,
@@ -143,6 +147,7 @@ export async function roomWorld(
     checkAudience: makeCheckAssetAudience(database.db, () => Promise.resolve(new Set())),
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
+    ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
   const cases = talkCases(database.db, clock);

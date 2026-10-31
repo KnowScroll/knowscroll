@@ -1,4 +1,4 @@
-import type { RoomKit } from '@knowscroll/contracts';
+import type { RoomKit, RoomSky } from '@knowscroll/contracts';
 import type { HazeFamily, PlanetType } from './planet-genome';
 
 /** One planet of a space view. Positions and names are the same in the 3D drawing and the Simple lists. */
@@ -40,6 +40,9 @@ export interface SpaceSystemDefinition {
 /** What a station draws of its room's face (D-170): the emblem and the kit's palette, as the room's band does. */
 export type StationEmblem = Pick<RoomKit, 'emblem' | 'palette'>;
 
+/** The stars a station draws: how many are lit, whether the room has finished a constellation, and its name. */
+export type StationSky = Pick<RoomSky, 'lit' | 'finished' | 'state' | 'constellationName'>;
+
 /** A room's station, beside the system (or planet) of its topic. */
 export interface SpaceStationDefinition {
   readonly id: string;
@@ -49,6 +52,8 @@ export interface SpaceStationDefinition {
   readonly calm?: boolean;
   /** The room's emblem, drawn on the station; absent for a room whose server sent no face. */
   readonly emblem?: StationEmblem;
+  /** The room's sky, for a station of a room the person is in (D-174): the constellation drawn around it. Absent for an outsider's. */
+  readonly sky?: StationSky;
 }
 
 /** A cloud of dust: recent reading that has not formed a place. Never a place, never named. */

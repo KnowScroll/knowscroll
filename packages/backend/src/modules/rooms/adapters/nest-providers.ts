@@ -31,8 +31,10 @@ import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../
 import {
   CHECK_PERSONAL_OWNER_ACTIVE,
   FENCE_OWN_ACCOUNT,
+  FENCE_PERSONAL_RECORDING,
   type CheckPersonalOwnerActive,
   type FenceOwnAccount,
+  type FencePersonalRecording,
   type WithPersonalScope,
 } from '../../identity/public.js';
 import {
@@ -44,6 +46,7 @@ import {
   type ReadPublicPeople,
 } from '../../social/public.js';
 import { makeActivities } from '../application/activities.js';
+import { makeDebateVotes } from '../application/debates.js';
 import { makeCastDue, type CastDuePorts } from '../application/cast-due.js';
 import { makeCastPass, type CastPassPorts } from '../application/cast-pass.js';
 import { makeContribute, type ContributePorts } from '../application/contribute.js';
@@ -56,8 +59,11 @@ import { makeRoomCommands } from '../application/room-commands.js';
 import { makeRoomReads } from '../application/room-reads.js';
 import { BACKDROP_MONEY, makeFaceBackdropOperator, type BackdropMoney } from '../application/face-backdrop.js';
 import { makeFaceKitOperator } from '../application/face-kit.js';
+import { makeSkyUseCases } from '../application/sky.js';
 import { makeStationReads } from '../application/stations.js';
 import { makeSummarise, type SummarisePorts } from '../application/summarise.js';
+import { makeToday } from '../application/today.js';
+import { STARS_PER_DAY_DEFAULT } from '../domain/sky.js';
 import { castDueQueue, castPassQueue, contributeQueue, summariseQueue } from '../events.js';
 import {
   CONTRIBUTE_AS_INHABITANT,
@@ -89,6 +95,7 @@ import { presenceStore } from './postgres-presence.js';
 import { readRoomMembership } from './membership-reads.js';
 import { discussionStore } from './postgres-discussions.js';
 import { roomStore } from './postgres-rooms.js';
+import { debateStore, skyStore, todayStore } from './postgres-sky.js';
 import { summaryStore } from './postgres-summaries.js';
 import { readReportableRoomMessage } from './report-reads.js';
 import { gateSnippetAnchors } from './snippet-audience.js';
@@ -97,6 +104,8 @@ import { gateSnippetAnchors } from './snippet-audience.js';
 export interface RoomsDeps {
   readonly withScope: WithPersonalScope;
   readonly fenceOwn: FenceOwnAccount;
+  /** Only the API serves the command that reads it; the worker's jobs never ask. */
+  readonly fenceRecording?: FencePersonalRecording;
   readonly readPeople: ReadPublicPeople;
   readonly readFriends: ReadFriendAccounts;
   /** Which of some accounts the caller has blocked: their words are collapsed for the caller, never for anyone else. */
@@ -119,6 +128,8 @@ export interface RoomsDeps {
   readonly enqueue?: EnqueueJob;
   /** Residents may speak unprompted in this world (`KS_REASONING_ROOM_ENABLED`, D-162). Off queues nothing. */
   readonly residentsEnabled?: boolean;
+  /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`, D-174); the default is three. */
+  readonly starsPerDay?: number;
   readonly now?: () => Date;
   readonly newId?: () => string;
 }
@@ -128,6 +139,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
   return {
     withScope: deps.withScope,
     fenceOwn: deps.fenceOwn,
+    fenceRecording: deps.fenceRecording ?? (() => Promise.resolve({ kind: 'unavailable' as const })),
     rooms: roomStore,
     discussions: discussionStore,
     presence: presenceStore,
@@ -136,6 +148,9 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
     positions: positionStore,
     summaries: summaryStore,
     activities: activityStore,
+    sky: skyStore,
+    debates: debateStore,
+    today: todayStore,
     people: {
       async byAccounts(scope, accountIds) {
         const people = await deps.readPeople(scope, { accountIds });
@@ -181,6 +196,7 @@ export function roomPorts(deps: RoomsDeps): RoomPorts {
       );
     },
     residentsEnabled: deps.residentsEnabled ?? false,
+    starsPerDay: deps.starsPerDay ?? STARS_PER_DAY_DEFAULT,
     enqueueCastDue: async (scope, job, startAfter) => {
       if (deps.enqueue === undefined) throw new Error('ROOMS_ENQUEUE_NOT_CONFIGURED');
       await deps.enqueue(scope, castDueQueue, job, {
@@ -221,6 +237,9 @@ export function roomUseCases(deps: RoomsDeps): RoomUseCases {
     ...makeInhabitantCommands(ports),
     ...makeStationReads(ports),
     ...makeActivities(ports),
+    ...makeSkyUseCases(ports),
+    ...makeToday(ports),
+    ...makeDebateVotes(ports),
   };
 }
 
@@ -328,6 +347,7 @@ export function composeFaceOperator(deps: {
 export { seedRooms, setRoomModerator, type ModeratorOutcome } from './seed.js';
 export { holdCast } from './typing-holds.js';
 export { readApprovedBackdrop } from './postgres-face.js';
+export { composeRitualOperator, roomsRitualProviders } from './ritual-providers.js';
 
 /** The API's room use cases, and the room read the report use cases ask for. */
 export function roomsProviders(tokens: {
@@ -372,6 +392,7 @@ export function roomsProviders(tokens: {
         READ_ROOM_REPORTS,
         tokens.enqueueJob,
         tokens.apiConfig,
+        FENCE_PERSONAL_RECORDING,
       ],
       useFactory: (
         withScope: WithPersonalScope,
@@ -389,10 +410,12 @@ export function roomsProviders(tokens: {
         readReports: ReadRoomReports,
         enqueue: EnqueueJob,
         config: ApiConfig,
+        fenceRecording: FencePersonalRecording,
       ) =>
         roomUseCases({
           withScope,
           fenceOwn,
+          fenceRecording,
           readPeople,
           readFriends,
           readBlocked,
@@ -406,6 +429,7 @@ export function roomsProviders(tokens: {
           readReports,
           enqueue,
           residentsEnabled: config.roomResidentsEnabled,
+          starsPerDay: config.roomStarsPerDay,
         }),
     },
   ];

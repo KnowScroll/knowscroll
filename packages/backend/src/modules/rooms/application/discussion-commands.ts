@@ -9,6 +9,7 @@ import {
   RoomMessageHidingAcceptanceSchema,
   SendRoomMessageSchema,
   UsefulAcceptanceSchema,
+  type NewDebate,
   type SendRoomBody,
   type SnippetAnchor,
 } from '@knowscroll/contracts';
@@ -16,12 +17,15 @@ import type { z } from 'zod';
 import type { SnippetAnchorInput, StoredSnippetAnchor } from '../../content/public.js';
 import type { PersonalAuthority, PersonalScopeTx } from '../../identity/public.js';
 import { mentionedResident } from '../domain/asks.js';
+import { closesAtOf, debateStartProblem } from '../domain/debate.js';
 import { roomAcceptsPosts } from '../domain/membership.js';
 import { titleFrom } from '../domain/titles.js';
 import { usefulRefusal } from '../domain/useful.js';
+import { usefulEarnsStar } from '../domain/sky.js';
 import { askDecisionFor, queueAsk } from './ask-turn.js';
 import { scheduleCastCheck } from './cast-schedule.js';
 import { receiptBase, runCommand } from './command.js';
+import { awardStar } from './sky.js';
 import {
   ok,
   refuse,
@@ -70,6 +74,8 @@ interface StartingPoint {
   readonly originMessageId?: string;
   /** The discussion a topic card is left in: set only for a topic that began from a message with words. */
   readonly cardIn?: string;
+  /** The two sides and close of a debate: with the tag `debate` and with no other tag (D-176). */
+  readonly debate?: NewDebate;
 }
 
 /**
@@ -118,7 +124,14 @@ export function makeDiscussionCommands(p: RoomPorts) {
     accountId: string,
     start: z.infer<typeof CreateDiscussionSchema>['start'],
   ): Promise<Result<StartingPoint>> {
-    if (start.kind === 'topic') return ok({ title: start.title, tag: start.tag });
+    if (start.kind === 'topic') {
+      if (debateStartProblem(start.tag, start.debate) !== undefined) return refuse('invalid_input');
+      return ok({
+        title: start.title,
+        tag: start.tag,
+        ...(start.debate === undefined ? {} : { debate: start.debate }),
+      });
+    }
     if (start.kind === 'content') {
       const card = await availableCard(scope, start.root);
       return card === undefined
@@ -184,7 +197,7 @@ export function makeDiscussionCommands(p: RoomPorts) {
           if (!roomAcceptsPosts(standing.room.status)) return refuse('unavailable');
           const found = await resolveStart(scope, lock, owner.accountId, command.start);
           if (found.kind === 'refused') return found;
-          const { title, titleDerived, tag, root, originMessageId, cardIn } = found.value;
+          const { title, titleDerived, tag, root, originMessageId, cardIn, debate } = found.value;
           return ok(async () => {
             const discussionId = p.newId();
             await p.discussions.create(lock, {
@@ -197,6 +210,12 @@ export function makeDiscussionCommands(p: RoomPorts) {
               startedByAccountId: owner.accountId,
               now,
             });
+            if (debate !== undefined)
+              await p.debates.insert(lock, {
+                discussionId,
+                sides: debate.sides,
+                closesAt: closesAtOf(now, debate.closesInHours),
+              });
             if (cardIn !== undefined) {
               // The original message stays where it was; the card says a topic began from it and keeps updating.
               await p.discussions.append(lock, cardIn, {
@@ -327,8 +346,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
         async decide({ scope, entered, now }) {
           const found = await discussionOf(entered.lock, command.discussionId);
           if (found.kind === 'refused') return found;
-          // General is where everyone lands; a pin would only hide it behind itself.
-          if (found.value.kind === 'general') return refuse('unavailable');
+          // General is where everyone lands and Today is the daily channel; a pin would only hide them behind themselves.
+          if (found.value.kind !== 'topic') return refuse('unavailable');
           return ok(async () => {
             await p.discussions.setPinned(entered.lock, command.discussionId, command.pinned ? now : null);
             return DiscussionPinAcceptanceSchema.parse({
@@ -383,6 +402,18 @@ export function makeDiscussionCommands(p: RoomPorts) {
           }
           return ok(async () => {
             await p.discussions.setUseful(lock, command.messageId, owner.accountId, command.useful, now);
+            // A human answer another member found useful earns the room a star, once, and the star stays if the mark is taken
+            // back: nobody owns a star, so nobody loses one (D-174).
+            if (
+              command.useful &&
+              usefulEarnsStar({
+                discussion: found.value,
+                authorAccountId: message.authorAccountId,
+                giverAccountId: owner.accountId,
+                hasWords: message.text !== null && !message.hidden,
+              })
+            )
+              await awardStar(p, lock, standing.room.topic.id, 'answer_useful', command.messageId, now);
             return UsefulAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'message.useful',

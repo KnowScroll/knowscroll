@@ -57,7 +57,7 @@ export async function openWindowOnReturn(
  * What a resident may read to write one window's summary: the room's name and topic and the window's newest messages from
  * every discussion, reduced to words by the same builder every context path uses (D-161). A removed message and a deleted
  * account's are not there; a member who keeps their messages out is left out altogether, not shown as a placeholder, so
- * the summary cannot say that something was said. Each message carries the place it was said in: General, or "a topic".
+ * the summary cannot say that something was said. Each message carries the place it was said in: General, Today, or "a topic".
  * A topic's title is never read, because a title is someone's words that a cached summary could outlive (D-169). No
  * name, handle, ID, position or friend conversation reaches the model.
  */
@@ -91,7 +91,8 @@ export async function assembleAway(
       if (entry.keptOut || where === undefined) return [];
       return [
         {
-          place: where.discussionKind === 'general' ? 'General' : 'a topic',
+          place:
+            where.discussionKind === 'general' ? 'General' : where.discussionKind === 'today' ? 'Today' : 'a topic',
           speaker: entry.message.speaker,
           text: entry.message.text,
         },

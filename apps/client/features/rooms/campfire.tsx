@@ -14,6 +14,7 @@ import { RoomBand } from './identity/room-band';
 import { AwayCard } from './away-card';
 import { OpenDiscussion } from './discussion-screen';
 import { HereStrip } from './here-strip';
+import { NowStrip } from './now-strip';
 import { discussionHref } from './room-links';
 import { RoomMenu } from './room-menu';
 import { RULE_WORDS } from './room-parts';
@@ -174,6 +175,9 @@ export function GeneralStage({
         discussionId={view.general.discussionId}
         header={null}
         topics={view.discussions}
+        // The Now strip stands first in the list, so it scrolls away with the conversation and the messages keep the screen (D-140).
+        listHeader={<NowStrip scope={scope} roomId={view.room.roomId} today={view.today} sky={view.sky} />}
+        startAtEnd
       />
     </View>
   );

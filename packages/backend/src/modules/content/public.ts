@@ -404,6 +404,40 @@ export interface ContentRef {
 export { madeToOrderKey } from './domain/order-key.js';
 
 /**
+ * One admitted library Scroll's prose, for a room's daily items (v3 R-5): the current revision of a Scroll that anyone may
+ * be served (not held by the review gate, not made for a thread), with the text of its prose blocks. A block is a
+ * paragraph of a v1 document, or one stop's paragraph and line blocks joined by a space for a v2 document, and its
+ * `blockId` is the block's own ID (a v2 stop's ID). Shared public content: no person, no scope.
+ */
+export interface LibraryPassageSource {
+  readonly assetId: string;
+  readonly assetRevision: number;
+  readonly title: string;
+  readonly summary: string;
+  readonly blocks: readonly { readonly blockId: string; readonly text: string }[];
+}
+
+/**
+ * The library Scrolls under a topic: a system covers every planet of it, a planet is its own. At most `limit` (1 to 100), by
+ * asset ID. With `only` the read is for that one exact revision (found only while it is still a served library Scroll
+ * under the topic), so a check of one Scroll never depends on how many others the topic has.
+ */
+export type ReadLibraryPassages = (
+  topic: { readonly kind: 'system' | 'planet'; readonly id: string },
+  limit: number,
+  only?: { readonly assetId: string; readonly assetRevision: number },
+) => Promise<readonly LibraryPassageSource[]>;
+export const READ_LIBRARY_PASSAGES = Symbol('content.readLibraryPassages');
+
+/**
+ * The text of one block of the exact revision, only while that revision is still the current admitted one that anyone may
+ * be served: the re-check that a cited passage still says what it did. Absent when the Scroll was corrected, withdrawn or
+ * held, or the block is gone.
+ */
+export type ReadLibraryPassageText = (ref: ContentRef & { readonly blockId: string }) => Promise<string | undefined>;
+export const READ_LIBRARY_PASSAGE_TEXT = Symbol('content.readLibraryPassageText');
+
+/**
  * Scrolls ordered from code (D-049). A module that holds shared work (a scenario branch) builds a
  * brief, a framing and the research pages itself and orders a Scroll. Content stores the order,
  * researches the pages, writes the Scroll through the same production job and admits it, and adds

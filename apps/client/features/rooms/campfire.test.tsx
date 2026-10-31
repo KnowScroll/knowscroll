@@ -32,6 +32,19 @@ jest.mock('./discussion-screen', () => ({
 jest.mock('./use-room', () => ({
   ...jest.requireActual<object>('./use-room'),
   useRoomActivities: () => ({ controller: {}, state: { activities: [], canCreate: false } }),
+  useRoomSky: () => ({
+    controller: {},
+    state: {
+      phase: 'ready',
+      working: false,
+      view: {
+        status: 'ready',
+        sky: { lit: 5, of: 7, state: 'forming', finished: 0 },
+        starsPerDay: 3,
+        stars: [],
+      },
+    },
+  }),
 }));
 
 const id = (n: number) => `0199d000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -78,6 +91,7 @@ const member = (patch: Partial<Member> = {}): Member => ({
   you: { aiLevel: 'lively', keepOut: false },
   here: { faces: [face(10, 'Ravi', true)] },
   memberTotal: 24,
+  sky: { lit: 3, of: 7 as const, state: 'forming' as const, finished: 0 },
   limits: {
     asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
     unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
@@ -249,6 +263,31 @@ describe('the room menu', () => {
     expect(screen.getByTestId('menu-topics')).toHaveTextContent('Topics2');
     expect(screen.getByTestId('menu-ai')).toHaveTextContent('AI hereLively');
     expect(screen.queryByTestId('menu-moderation')).not.toBeOnTheScreen();
+  });
+
+  it('has a Today row and a Room sky row: the way to both once the Now strip has scrolled out of view', async () => {
+    mockPush.mockClear();
+    await open(
+      member({
+        today: { discussionId: id(20), prompt: 'Why is the night sky dark?', flaw: true },
+        sky: { lit: 5, of: 7 as const, state: 'forming' as const, finished: 0 },
+      }),
+    );
+    expect(screen.getByTestId('menu-sky')).toHaveTextContent('Room sky5 of 7');
+    // Today opens the day's channel.
+    await fireEvent.press(screen.getByTestId('menu-today'));
+    expect(mockPush).toHaveBeenCalledWith(`/rooms/${id(1)}/today`);
+    // The sky opens in place, with its way back to the menu.
+    await fireEvent.press(screen.getByTestId('menu-sky'));
+    expect(screen.getByTestId('sky-line')).toHaveTextContent('5 of 7 stars');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to the room menu' }));
+    expect(screen.getByTestId('menu-sky')).toBeOnTheScreen();
+  });
+
+  it('has no Today row until an operator approved something, and keeps the Room sky row', async () => {
+    await open(member());
+    expect(screen.queryByTestId('menu-today')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('menu-sky')).toBeOnTheScreen();
   });
 
   it('keeps the AI notice, and the person’s choices, under AI here', async () => {
