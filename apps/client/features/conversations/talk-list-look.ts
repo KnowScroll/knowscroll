@@ -1,4 +1,4 @@
-import { content, space } from '@knowscroll/design-tokens';
+import { content, space, type TalkThemeName } from '@knowscroll/design-tokens';
 import { useTalkTheme } from '@knowscroll/ui';
 
 /**
@@ -6,11 +6,18 @@ import { useTalkTheme } from '@knowscroll/ui';
  * rows are drawn on the sky, and on Paper it keeps the v2.1 look. The rows are the same either way.
  */
 export function useTalkListLook() {
-  const dark = useTalkTheme().name === 'sky';
+  return talkListLook(useTalkTheme().name);
+}
+
+/** The look for a named theme; the hook reads the theme in force. */
+export function talkListLook(theme: TalkThemeName) {
+  const dark = theme === 'sky';
   return {
     dark,
     /** The `tone` a frame, a state block or the navigation takes. */
     tone: dark ? ('space' as const) : ('paper' as const),
+    /** The focus ring that shows on the list's ground (D-006 n): yellow on the sky, cobalt on paper. */
+    focusTone: dark ? ('onDark' as const) : ('onLight' as const),
     text: dark ? space.label : content.ink,
     quiet: dark ? space.label2 : content.ink2,
     rule: dark ? 'rgba(255,253,242,0.16)' : content.rule,

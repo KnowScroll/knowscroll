@@ -34,6 +34,7 @@ function InboxRow({ item, current }: { readonly item: DirectConversationSummary;
         onPress={() => router.push(href)}
         current={current}
         tint={look.tint}
+        focusTone={look.focusTone}
         testID={`talk-row-${item.conversation.conversationId}`}
       >
         <View style={styles.row}>
@@ -128,6 +129,7 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
         <View style={styles.more}>
           <Button
             label="Show older conversations"
+            surface={look.dark ? 'dark' : 'light'}
             busy={inbox.loadingMore}
             busyLabel="Loading"
             onPress={inbox.loadMore}

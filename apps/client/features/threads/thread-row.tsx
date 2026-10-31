@@ -27,6 +27,7 @@ export function ThreadRow({ item }: { readonly item: ThreadSummary }) {
         href={href}
         onPress={() => router.push(href)}
         tint={look.tint}
+        focusTone={look.focusTone}
         testID={`talk-thread-${item.thread.threadId}`}
       >
         <View style={styles.row}>

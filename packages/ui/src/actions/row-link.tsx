@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { content, spacing, target } from '@knowscroll/design-tokens';
+import { content, spacing, target, type FocusTone } from '@knowscroll/design-tokens';
 import { useFocusRing } from '../display/focus-ring';
 import { linkPress } from '../display/link';
 import { currentPageSemantics, linkSemantics } from '../display/semantics';
@@ -17,14 +17,25 @@ export interface RowLinkProps {
   readonly testID?: string;
   /** What shows behind the open or pressed row; the highlight on paper. */
   readonly tint?: string;
+  /** The focus ring for the ground the row sits on: `onDark` (yellow) on the sky, `onLight` (cobalt) on paper. */
+  readonly focusTone?: FocusTone;
 }
 
 /**
  * A list row that is one link to a destination (Talk's conversations). It is at least 48 px
  * tall, carries the focus ring on paper, and leaves its content to the caller.
  */
-export function RowLink({ label, onPress, href, children, current = false, testID, tint }: RowLinkProps) {
-  const focus = useFocusRing('onLight');
+export function RowLink({
+  label,
+  onPress,
+  href,
+  children,
+  current = false,
+  testID,
+  tint,
+  focusTone = 'onLight',
+}: RowLinkProps) {
+  const focus = useFocusRing(focusTone);
   return (
     <Pressable
       {...focus.props}

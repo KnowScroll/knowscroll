@@ -7,6 +7,7 @@ import { BottomSheet, Button, IconButton, Text } from '@knowscroll/ui';
 import { useRoomList } from '../rooms/use-room';
 import { useThreadInbox } from '../threads/use-thread-inbox';
 import { useTalkInbox } from './use-talk-inbox';
+import { useTalkListLook } from './talk-list-look';
 
 /** Whether Talk has anything to list: a conversation, a thread (or invitation) or a room. */
 export function useTalkHasContent(scope: AccountScope | undefined): boolean {
@@ -24,13 +25,20 @@ export function useTalkHasContent(scope: AccountScope | undefined): boolean {
 export function NewTalkButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const look = useTalkListLook();
   const go = (path: '/explore' | '/friends') => {
     setOpen(false);
     router.push(path);
   };
   return (
     <>
-      <IconButton icon="plus" label="New conversation" onPress={() => setOpen(true)} testID="talk-new" />
+      <IconButton
+        icon="plus"
+        label="New conversation"
+        variant={look.dark ? 'onSpace' : 'paper'}
+        onPress={() => setOpen(true)}
+        testID="talk-new"
+      />
       <BottomSheet visible={open} title="Start a conversation" onClose={() => setOpen(false)}>
         <View style={styles.body}>
           <Text variant="bodyS" color={content.ink2}>

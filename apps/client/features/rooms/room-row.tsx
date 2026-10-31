@@ -26,6 +26,7 @@ export function RoomRow({ item }: { readonly item: RoomListItem }) {
         href={href}
         onPress={() => router.push(href)}
         tint={look.tint}
+        focusTone={look.focusTone}
         testID={`talk-room-${item.room.roomId}`}
       >
         <View style={styles.row}>
