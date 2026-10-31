@@ -15,6 +15,7 @@ import {
 import { TOPICS } from '../../../packages/backend/src/modules/content/production/topics.js';
 import { writerFormatOf } from '../../../packages/backend/src/modules/content/production/writer.js';
 import { ReadingFactsSchema } from '../../../packages/backend/src/modules/content/adapters/reading-facts-schema.js';
+import { traitsOfDocument } from '../../../packages/backend/src/modules/content/domain/traits.js';
 import { openToEveryone } from '../support/audience.js';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { signal } from '../support/fixture-model.js';
@@ -672,7 +673,17 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
       from personal_context.recording_exposure_contributions where universe_id = ${person.universeId}::uuid`.execute(
       db,
     );
-    return { evidence: evidence.rows, activity: activity.rows, contributions: contributions.rows };
+    // The play-level cells (D-192) count reading only, so they too must be the same.
+    const cells = await sql<{
+      topic_id: string;
+      kind: string;
+      play_level: string;
+      measured: number;
+      qualified: number;
+    }>`
+      select topic_id, kind, play_level, measured, qualified from evidence.topic_format_cells
+      where universe_id = ${person.universeId}::uuid order by topic_id, kind, play_level`.execute(db);
+    return { evidence: evidence.rows, activity: activity.rows, contributions: contributions.rows, cells: cells.rows };
   }
 
   it('gives the same reading quality, evidence and Personal Context to a right pick and a wrong one', async () => {
@@ -700,6 +711,20 @@ describe('Play cannot change what reading does (the D-063 wall, real PostgreSQL)
     expect(right.projected).toMatchObject({ kind: 'applied', qualification: 'qualified' });
     expect(await recordOf(rightReader)).toEqual(await recordOf(wrongReader));
     expect((await recordOf(rightReader)).activity.length).toBeGreaterThan(0);
+    // The reading of a v2 Scroll with calls is counted in the cell of its play level, for a right pick and a wrong one alike.
+    const stored = await world.database.db
+      .selectFrom('content.asset_revisions')
+      .select('document')
+      .where('asset_id', '=', scrolls[0]!.assetId)
+      .where('revision', '=', 1)
+      .executeTakeFirstOrThrow();
+    const level = traitsOfDocument(stored.document).playLevel;
+    expect(level).not.toBe('plain');
+    const { cells } = await recordOf(rightReader);
+    expect(cells.length).toBeGreaterThan(0);
+    expect(cells.every((cell) => cell.play_level === level && cell.kind === 'scroll')).toBe(true);
+    expect(cells.every((cell) => cell.measured === 1 && cell.qualified === 1)).toBe(true);
+    expect(Object.keys(cells[0] ?? {}).sort()).toEqual(['kind', 'measured', 'play_level', 'qualified', 'topic_id']);
     // The comparison is sensitive: a reading that differs (a quick tap through the same Scroll) is not equal.
     const tapper = await seedPerson(world.database.db);
     await readPart1(tapper, (call) => picks(call).right, 0.5);

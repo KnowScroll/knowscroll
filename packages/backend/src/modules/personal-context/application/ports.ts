@@ -1,4 +1,4 @@
-import type { ReadRecentTopicIds } from '../../evidence/public.js';
+import type { FormatCell, ReadRecentTopicIds } from '../../evidence/public.js';
 export type ReadRecentContextTopics = ReadRecentTopicIds;
 import type { PersonalScopeTx } from '../../identity/public.js';
 import type { CurrentPlan } from '../../composer/public.js';
@@ -17,6 +17,8 @@ export interface TopicStatistics {
     readonly qualified: number;
     readonly fit: number;
   }[];
+  /** The same counts per play level of the Scroll read; reading only, never a result of play (D-063, D-192). */
+  readonly cells: readonly FormatCell[];
 }
 export interface ExplorationSnapshot {
   readonly version: 'exploration-snapshot.v0';
@@ -49,6 +51,7 @@ export interface ExplorationSnapshot {
       readonly activatedAt: string;
       readonly explanationUnitId: string;
       readonly facets: readonly string[];
+      readonly topicIds?: readonly string[];
     }[];
     readonly established: readonly {
       readonly explanationUnitId: string;

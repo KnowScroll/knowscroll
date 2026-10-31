@@ -151,8 +151,8 @@ jobs:
         run: pnpm --filter @knowscroll/scroll-model test
       - name: Scene core unit tests (bounded descriptors and deterministic geometry)
         run: pnpm --filter @knowscroll/scene-core test
-      - name: Unit and property tests (contracts, backend, migrations, api)
-        run: pnpm --filter @knowscroll/contracts --filter @knowscroll/backend --filter @knowscroll/migrations --filter @knowscroll/api test
+      - name: Unit and property tests (contracts, backend, migrations, api, worker)
+        run: pnpm --filter @knowscroll/contracts --filter @knowscroll/backend --filter @knowscroll/migrations --filter @knowscroll/api --filter @knowscroll/worker test
       - name: Integration tests (real PostgreSQL, one template-derived database per file)
         run: pnpm --filter @knowscroll/integration-tests test
 

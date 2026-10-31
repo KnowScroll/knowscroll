@@ -11,7 +11,12 @@ import {
   type ReadAdmittedCoverageMapping,
   type ReadScrollReadingFacts,
 } from '../../content/public.js';
-import { READ_ENCOUNTER_ATTRIBUTION, type ReadEncounterAttribution } from '../../content/public.js';
+import {
+  READ_ENCOUNTER_ATTRIBUTION,
+  READ_PLAY_LEVEL,
+  type ReadEncounterAttribution,
+  type ReadPlayLevel,
+} from '../../content/public.js';
 import {
   READ_ACTIVITY_LINEAGE,
   READ_RECORDING_SEGMENT,
@@ -97,6 +102,7 @@ export function activityProviders(t: {
         READ_ACTIVITY_LINEAGE,
         ENSURE_ACTIVITY_LINEAGE,
         READ_ENCOUNTER_ATTRIBUTION,
+        READ_PLAY_LEVEL,
         READ_ROUTING_HISTORY,
         READ_ACTIVITY_RECONCILE_PAGE,
         READ_ADMITTED_COVERAGE_MAPPING,
@@ -116,6 +122,7 @@ export function activityProviders(t: {
         readLineage: ReadActivityLineage,
         ensureLineage: EnsureActivityLineage,
         readAttribution: ReadEncounterAttribution,
+        readPlayLevel: ReadPlayLevel,
         readHistory: ReadRoutingHistory,
         readReconcilePage: ReadActivityReconcilePage,
         readMapping: ReadAdmittedCoverageMapping,
@@ -144,6 +151,7 @@ export function activityProviders(t: {
         readLineage,
         ensureLineage,
         readAttribution,
+        readPlayLevel,
         readHistory,
         readReconcilePage,
         currentActivity,

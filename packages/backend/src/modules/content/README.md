@@ -370,6 +370,28 @@ It returns no document, provenance or render authority. Missing metadata remains
 offers and activations must separately use current `ReadExactEncounter` capability/admission checks;
 this historical read never authorises opening withdrawn content.
 
+## Encounter traits and play level (D-192, D-193)
+
+Status: implemented, unit-tested; read on real PostgreSQL by the play-wall integration test. Not yet run on dev.
+
+Every candidate that discovery reads carries `traits`, derived from the stored document of its revision on read
+(`domain/traits.ts`). A revision is immutable, so nothing is stored and nothing can drift:
+
+- `playLevel`: `plain` (every v1 Scroll, every Reel, and a v2 Scroll with no stage and no call), `stage` (a stage, or a
+  single call) or `game` (at least two calls, one of them the Final call). It is a fact of the document and the same
+  for every reader.
+- `readingMinutes`, from the document's own measures.
+- `misconceptionClaim`: the public text of the common wrong idea the Scroll is built to meet (its Plot twist), for a v2
+  Scroll with one.
+- `seriesTotal`: the parts of the Scroll's series, counted from `content.series_units` and never declared (D-059).
+
+Composer ranks by `playLevel` (Format per play level, exploration per play level) and describes the rest to Jev
+(`jev.2`). None of it says what any reader did: which option anyone picked, whether it was right, sparks and tiers are
+play results and stay in `play` (D-063).
+
+`ReadPlayLevel` (token `READ_PLAY_LEVEL`) gives Evidence the level of one exact revision when it counts a reading:
+`plain` for a Reel, for a revision that does not exist and for one the review gate holds. Shared content only; no lock.
+
 ## Binding a request to the current head of an encounter
 
 Status: implemented, CI-tested against real PostgreSQL. Related: #239.

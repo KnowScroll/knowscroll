@@ -91,6 +91,8 @@ export interface RoutingHistory {
     readonly activatedAt: string;
     readonly explanationUnitId: string;
     readonly facets: readonly string[];
+    /** Non-incidental topics of the encounter, when its attribution was recorded with them. */
+    readonly topicIds?: readonly string[];
   }[];
   readonly established: readonly {
     readonly explanationUnitId: string;

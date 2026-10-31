@@ -32,6 +32,28 @@ describe('a room’s identity on the wire', () => {
     expect(ROOM_MOTIONS).toHaveLength(6);
   });
 
+  it('accepts the globe and the cell, and still every glyph of the first release', () => {
+    for (const glyph of ['globe', 'cell', 'centre-circle', 'ringed-planet'])
+      expect(RoomKitSchema.safeParse({ ...kit, emblem: { frame: 'circle', glyph } }).success, glyph).toBe(true);
+    expect(RoomKitSchema.safeParse({ ...kit, cast: { explainer: 'globe', skeptic: 'cell' } }).success).toBe(true);
+    expect(ROOM_EMBLEM_GLYPHS.slice(0, 14)).toEqual([
+      'ringed-planet',
+      'star',
+      'atom',
+      'leaf',
+      'wave',
+      'flame',
+      'layers',
+      'hourglass',
+      'pot',
+      'centre-circle',
+      'book',
+      'gear',
+      'mountain',
+      'spiral',
+    ]);
+  });
+
   it.each([
     ['a colour code', { ...kit, palette: { ...kit.palette, ground: '#040A17' } }],
     ['markup', { ...kit, motif: '<svg/>' }],
