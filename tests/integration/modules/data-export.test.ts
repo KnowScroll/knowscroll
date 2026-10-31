@@ -302,6 +302,7 @@ describe('personal data export (real database)', () => {
       'savedAt',
       'scroll',
       'scrolls',
+      'seenInDirectConversations',
       'sections',
       'sharedLinks',
       'sharing',

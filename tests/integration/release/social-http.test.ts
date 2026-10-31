@@ -255,7 +255,7 @@ describe('explicit Friends installed HTTP lifecycle (authored disposable account
       expect(response.status).toBe(404);
     }
     // Sharing settings and visits are mounted (D-047): an empty body is refused by the strict schema.
-    for (const route of ['visibility', 'presence/preference', 'visits/read'])
+    for (const route of ['visibility', 'presence/preference', 'read-receipts', 'visits/read'])
       await problem(await post(root + route, {}, headers(p)), 'INVALID_REQUEST');
     expect(await socialRows()).toEqual(before);
   });

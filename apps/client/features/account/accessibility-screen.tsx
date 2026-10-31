@@ -30,10 +30,23 @@ const TEXT_SIZE_CHOICES: readonly {
   { value: 'largest', label: 'Largest', description: 'Larger again. Layouts stack sooner.' },
 ];
 
+const TALK_THEME_CHOICES: readonly {
+  readonly value: DevicePreferences['talkTheme'];
+  readonly label: string;
+  readonly description: string;
+}[] = [
+  {
+    value: 'sky',
+    label: 'Dark sky',
+    description: 'Talk sits on the same sky as your universe. This is how it starts.',
+  },
+  { value: 'paper', label: 'Paper', description: 'A light page for long reading. Your own bubbles stay cobalt.' },
+];
+
 /**
  * `/account/accessibility` (P01): how this device moves, reads and plays. The choices change the
  * app at once and are kept on this device: motion and text size lay over the device's own
- * settings, and a Reel opens with or without sound.
+ * settings, Talk is drawn on the dark sky or on Paper (D-151), and a Reel opens with or without sound.
  */
 export function AccessibilityScreen() {
   const { preferences, update } = useDevicePreferences();
@@ -67,6 +80,18 @@ export function AccessibilityScreen() {
       <Text variant="body" style={{ paddingTop: spacing[2] }}>
         This line is the size you chose.
       </Text>
+      <SettingsLabel>Talk</SettingsLabel>
+      <View role="radiogroup" aria-label="How Talk looks" style={{ gap: spacing[2] }}>
+        {TALK_THEME_CHOICES.map((choice) => (
+          <RadioRow
+            key={choice.value}
+            label={choice.label}
+            description={choice.description}
+            checked={preferences.talkTheme === choice.value}
+            onPress={() => update({ talkTheme: choice.value })}
+          />
+        ))}
+      </View>
       <SettingsLabel>Playback</SettingsLabel>
       <SwitchRow
         label="Start Reels with sound"

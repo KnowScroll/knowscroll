@@ -45,6 +45,7 @@ import {
   makeSetPresencePreference,
   makeSetVisibility,
 } from '../application/visibility-settings.js';
+import { makeReadOwnReadReceipts, makeSetReadReceipts } from '../application/read-receipts.js';
 import { makeReadVisit, makeRefreshVisit } from '../application/visit.js';
 import type { RefreshPorts, VisibilityPorts } from '../application/visibility-ports.js';
 import { READ_GEOGRAPHY_SCENE_INPUT, type ReadGeographySceneInput } from '../../geography/public.js';
@@ -155,6 +156,8 @@ export function visibilityUseCases(
     setVisibility: makeSetVisibility(ports),
     readPresencePreference: makeReadPresencePreference(ports),
     setPresencePreference: makeSetPresencePreference(ports),
+    readOwnReadReceipts: makeReadOwnReadReceipts(ports),
+    setReadReceipts: makeSetReadReceipts(ports),
     readVisit: makeReadVisit(ports),
   };
 }

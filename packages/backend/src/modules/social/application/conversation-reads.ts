@@ -20,6 +20,7 @@ import type { ConversationPorts, InboxRow, MessageRow } from './conversation-por
 import { viewMessages } from './message-view.js';
 import type { ExtrasContext } from './message-extras.js';
 import { conversationEnvelope, refuse, type Result } from './ports.js';
+import { sharedPeerRead } from './seen.js';
 
 const ok = <T>(value: T): Result<T> => ({ kind: 'ok', value });
 
@@ -32,7 +33,8 @@ const own = (row: { readThroughSequence: number; muted: boolean }) => ({
  * The reads of direct conversations: the Talk inbox, a thread's snapshot, older history and
  * catch-up after a hint. Every read checks current authority (gates, pair lock, membership) and
  * answers `unavailable` identically for a stranger, a blocked pair and a missing conversation.
- * Reading creates no evidence, receipt or notice.
+ * Reading creates no evidence, receipt or notice. A snapshot and a changes page also say how far the
+ * other person has read (SEEN), only while both people share it (`sharedPeerRead`).
  */
 export function makeConversationReads(p: ConversationPorts) {
   return {
@@ -113,6 +115,7 @@ export function makeConversationReads(p: ConversationPorts) {
         const rows = (
           await p.conversations.messages(entered.reader, conversation.conversationId, { limit: query.limit })
         ).toReversed();
+        const peerRead = await sharedPeerRead(p, entered);
         return ok(
           DirectConversationSnapshotSchema.parse({
             ...envelope,
@@ -120,6 +123,7 @@ export function makeConversationReads(p: ConversationPorts) {
             conversation: refOf(entered),
             peer: await peerOf(p, scope, entered.peer?.accountId),
             own: own(entered.own),
+            ...(peerRead === undefined ? {} : { peerRead }),
             ...(conversation.closed ? { ended: true } : {}),
             latestMessageSequence: conversation.lastSequence,
             messages: await viewMessages(p, entered.reader, rows, extrasContext(entered)),
@@ -214,6 +218,7 @@ export function makeConversationReads(p: ConversationPorts) {
         const changes = rows.map((row, index) => ({ changeSequence: row.changeSequence, message: views[index]! }));
         const through = conversation.lastChangeSequence;
         const last = changes.at(-1)?.changeSequence ?? position.afterChangeSequence;
+        const peerRead = await sharedPeerRead(p, entered);
         const cursorAt = (afterChangeSequence: number) =>
           changesCursor.encode({ conversationId: conversation.conversationId, afterChangeSequence });
         return ok(
@@ -224,6 +229,7 @@ export function makeConversationReads(p: ConversationPorts) {
             limit: query.limit,
             requestCursor: query.cursor,
             ...(conversation.closed ? { ended: true } : {}),
+            ...(peerRead === undefined ? {} : { peerRead }),
             fromChangeSequence: position.afterChangeSequence,
             throughChangeSequence: through,
             changes,

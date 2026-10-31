@@ -59,6 +59,7 @@ export {
   clockTime,
   dayKey,
   dayLabel,
+  deliveryWord,
   describeMessage,
   endsRun,
   inboxRowView,

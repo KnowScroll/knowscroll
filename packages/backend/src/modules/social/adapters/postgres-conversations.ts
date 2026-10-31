@@ -30,6 +30,7 @@ const memberOf = (row: {
   membership_id: string;
   membership_revision: string;
   read_through_sequence: string;
+  shared_read_through_sequence: string;
   muted: boolean;
   left_at: unknown;
 }): MemberRow => ({
@@ -37,6 +38,7 @@ const memberOf = (row: {
   membershipId: row.membership_id,
   membershipRevision: Number(row.membership_revision),
   readThroughSequence: Number(row.read_through_sequence),
+  sharedReadThroughSequence: Number(row.shared_read_through_sequence),
   muted: row.muted,
   left: row.left_at !== null,
 });
@@ -137,6 +139,7 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
           'm.membership_id',
           'm.membership_revision',
           'm.read_through_sequence',
+          'm.shared_read_through_sequence',
           'm.muted',
           'm.left_at',
         ])
@@ -335,10 +338,14 @@ export function conversationStore(readContent: ReadContent): ConversationStore {
       return row && messageOf(row);
     },
 
-    async setReadThrough(reader, conversationId, accountId, sequence) {
+    async setReadThrough(reader, conversationId, accountId, sequence, alsoShared = false) {
       await trxOf(reader)
         .updateTable('social.conversation_members')
-        .set({ read_through_sequence: sequence })
+        .set(
+          alsoShared
+            ? { read_through_sequence: sequence, shared_read_through_sequence: sequence }
+            : { read_through_sequence: sequence },
+        )
         .where('conversation_id', '=', conversationId)
         .where('account_id', '=', accountId)
         .execute();
@@ -479,12 +486,14 @@ async function selectInboxRows(trx: Transaction<Database>, accountId: string, qu
       'own.membership_id as own_membership_id',
       'own.membership_revision as own_membership_revision',
       'own.read_through_sequence as own_read_through',
+      'own.shared_read_through_sequence as own_shared_read_through',
       'own.muted as own_muted',
       'own.left_at as own_left_at',
       'peer.account_id as peer_account_id',
       'peer.membership_id as peer_membership_id',
       'peer.membership_revision as peer_membership_revision',
       'peer.read_through_sequence as peer_read_through',
+      'peer.shared_read_through_sequence as peer_shared_read_through',
       'peer.muted as peer_muted',
       'peer.left_at as peer_left_at',
       'profile.person_id',
@@ -551,6 +560,7 @@ const ownMemberOf = (row: InboxJoinRow): MemberRow =>
     membership_id: row.own_membership_id,
     membership_revision: row.own_membership_revision,
     read_through_sequence: row.own_read_through,
+    shared_read_through_sequence: row.own_shared_read_through,
     muted: row.own_muted,
     left_at: row.own_left_at,
   });
@@ -564,6 +574,7 @@ const peerMemberOf = (row: InboxJoinRow): MemberRow | undefined =>
         membership_id: row.peer_membership_id!,
         membership_revision: row.peer_membership_revision!,
         read_through_sequence: row.peer_read_through!,
+        shared_read_through_sequence: row.peer_shared_read_through!,
         muted: row.peer_muted!,
         left_at: row.peer_left_at,
       });

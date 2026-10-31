@@ -2,21 +2,26 @@ import type { PersonalScopeTx, SharedScopeTx } from '../../identity/public.js';
 import type { PresencePreference, PresenceRecord } from '../domain/presence.js';
 import type { PublishedSystem } from '../domain/visibility.js';
 
-/** Who a person lets visit, as stored: the mode, plus the two settings' own counters. */
+/** Who a person lets visit, as stored: the mode, the availability choice and SEEN, each with its own counter. */
 export type AudienceMode = 'nobody' | 'chosen_friends' | 'all_friends';
 export interface StoredVisibility {
   readonly audience: AudienceMode;
   readonly visibilityRevision: number;
   readonly presencePreference: PresencePreference;
   readonly presenceRevision: number;
+  /** Whether the other person of a direct conversation may see how far this person has read (D-066). */
+  readonly shareReadState: boolean;
+  readonly readStateRevision: number;
 }
 
-/** A person who never changed a setting: nobody may visit and availability is hidden (D-006 e). */
+/** A person who never changed a setting: nobody may visit, availability is hidden (D-006 e) and SEEN is on (D-066). */
 export const DEFAULT_VISIBILITY: StoredVisibility = {
   audience: 'nobody',
   visibilityRevision: 1,
   presencePreference: 'hidden',
   presenceRevision: 1,
+  shareReadState: true,
+  readStateRevision: 1,
 };
 
 /** What visitors are shown of one universe, as of the last refresh. */
@@ -42,7 +47,7 @@ export type VisibilityTx = PersonalScopeTx | SharedScopeTx;
  * use cases decide who may call them. Reads never write.
  */
 export interface VisibilityStore {
-  /** The two settings of an account; the defaults while it never changed one. */
+  /** The settings of an account; the defaults while it never changed one. */
   settings(tx: VisibilityTx, accountId: string): Promise<StoredVisibility>;
   saveSettings(scope: PersonalScopeTx, accountId: string, settings: StoredVisibility): Promise<void>;
 

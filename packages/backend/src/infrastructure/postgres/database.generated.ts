@@ -1822,6 +1822,7 @@ export interface SocialConversationMembers {
   muted: Generated<boolean>;
   pending: Generated<boolean>;
   read_through_sequence: Generated<Int8>;
+  shared_read_through_sequence: Generated<Int8>;
 }
 
 export interface SocialConversations {
@@ -1958,6 +1959,8 @@ export interface SocialVisibilitySettings {
   audience: Generated<string>;
   presence_preference: Generated<string>;
   presence_revision: Generated<Int8>;
+  read_state_revision: Generated<Int8>;
+  share_read_state: Generated<boolean>;
   visibility_revision: Generated<Int8>;
 }
 

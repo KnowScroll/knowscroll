@@ -142,5 +142,5 @@ export const talkThemes = {
   },
 } as const satisfies Record<TalkThemeName, TalkTheme>;
 
-/** Talk is dark by default (T3 Q1); a per-person Paper setting arrives with T-C. */
+/** Talk is dark by default (T3 Q1); a person can choose Paper in Account (D-151). */
 export const defaultTalkTheme: TalkThemeName = 'sky';
