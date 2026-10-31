@@ -141,6 +141,7 @@ function ReelChrome({
         pointerEvents="none"
       >
         {entry.context.series ? <Tag label={`Part ${String(entry.context.series.part)}`} variant="part" /> : null}
+        {entry.document.fixture ? <Tag label="Fixture video" variant="onDark" /> : null}
         <Text variant="heading" heading={2} color={content.paper} style={styles.titleText}>
           {entry.document.title}
         </Text>

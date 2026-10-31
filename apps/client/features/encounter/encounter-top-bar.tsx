@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { FormatSwitch, IconButton, Tag, useDisplay, type FormatAvailability } from '@knowscroll/ui';
+import { FormatSwitch, IconButton, useDisplay, type FormatAvailability } from '@knowscroll/ui';
 import { spacing } from '@knowscroll/design-tokens';
 import type { EncounterEntry } from './encounter-history';
 import type { EncounterSession } from './encounter-session';
@@ -81,9 +81,6 @@ export function EncounterTopBar({
         <IconButton icon="back" label="Back" variant="paper" onPress={back} />
       )}
       <View style={styles.spacer} pointerEvents="none" />
-      {onMedia && entry.kind === 'reel' && entry.document.fixture ? (
-        <Tag label="Fixture video" variant="onDark" />
-      ) : null}
       <IconButton
         icon="more"
         label="More options"
@@ -109,6 +106,6 @@ export function EncounterTopBar({
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: spacing[2], rowGap: spacing[1] },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   spacer: { flex: 1 },
 });
