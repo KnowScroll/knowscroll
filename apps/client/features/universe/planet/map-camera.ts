@@ -53,13 +53,48 @@ export function boxOfLoops(loops: readonly Loop[]): MapBox | undefined {
   return { x0, y0, x1, y1 };
 }
 
+/** Room kept round the formed regions on arrival, so the names beside them are inside the view (world units). */
+const ARRIVAL_MARGIN = { x: 56, y: 96 };
+/** The least the arrival view shrinks the map to take in every formed region. */
+const ARRIVAL_LEAST = 0.6;
+
+/** The box round every formed region and the place its name is drawn, or `undefined` when nothing has formed. */
+export function boxOfFormed(
+  cells: readonly { readonly loops: readonly Loop[]; readonly label: { readonly x: number; readonly y: number } }[],
+): MapBox | undefined {
+  let box: MapBox | undefined;
+  const take = (x: number, y: number) => {
+    box = box
+      ? { x0: Math.min(box.x0, x), y0: Math.min(box.y0, y), x1: Math.max(box.x1, x), y1: Math.max(box.y1, y) }
+      : { x0: x, y0: y, x1: x, y1: y };
+  };
+  for (const cell of cells) {
+    take(cell.label.x, cell.label.y);
+    for (const loop of cell.loops) for (let at = 0; at < loop.length; at += 2) take(loop[at] ?? 0, loop[at + 1] ?? 0);
+  }
+  return box;
+}
+
 /**
- * The camera of the landed map. The whole map is fitted to the screen and panned and zoomed by the
- * person's frame. With a region chosen the camera drops about twice as close over it and centres it
- * above the card. A pure function of its inputs, so the same screen always draws the same picture.
+ * The camera of the landed map. On arrival the formed regions are centred (the grey land round them
+ * is not what the person came for), the map shrinking a little if they would not otherwise fit with
+ * their names. It is panned and zoomed by the person's frame. With a region chosen the camera drops
+ * about twice as close over it and centres it above the card. A pure function of its inputs, so the
+ * same screen always draws the same picture.
  */
-export function mapView(size: Size, frame: UniverseFrame, chosen?: MapBox): MapView {
+export function mapView(size: Size, frame: UniverseFrame, chosen?: MapBox, formed?: MapBox): MapView {
   const fit = Math.min(size.width / MAP_WIDTH, size.height / MAP_HEIGHT);
+  if (!chosen && formed) {
+    const across = Math.max(1, formed.x1 - formed.x0 + 2 * ARRIVAL_MARGIN.x);
+    const down = Math.max(1, formed.y1 - formed.y0 + 2 * ARRIVAL_MARGIN.y);
+    const base = Math.max(fit * ARRIVAL_LEAST, Math.min(fit, size.width / across, size.height / down));
+    const scale = base * frame.scale;
+    return {
+      scale,
+      x: size.width / 2 - ((formed.x0 + formed.x1) / 2) * scale - frame.x,
+      y: size.height / 2 - ((formed.y0 + formed.y1) / 2) * scale - frame.y,
+    };
+  }
   if (!chosen) {
     const scale = fit * frame.scale;
     return {

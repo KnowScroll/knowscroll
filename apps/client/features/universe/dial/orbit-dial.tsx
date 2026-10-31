@@ -46,6 +46,7 @@ export function OrbitDial({
   const visitor = owner !== undefined;
   const dial = useOrbitDial({ session, state, index, looks, stations, visitor });
   const { system } = dial;
+  const hasPlanets = system !== undefined && system.planets.length > 0;
   return (
     <View testID="universe-dial" style={styles.ground}>
       <ScrollView
@@ -73,14 +74,27 @@ export function OrbitDial({
                 onChoose={(match) => session.focus(match.planet.id)}
                 onScope={dial.setEverywhere}
               />
-              <PlanetWheel dial={dial} system={system} />
+              {hasPlanets ? <PlanetWheel dial={dial} system={system} /> : null}
             </>
           ) : (
             <>
               <SystemWheel dial={dial} />
               <SystemPill dial={dial} system={system} session={session} />
-              <PlanetFace dial={dial} system={system} session={session} index={index} looks={looks} visitor={visitor} />
-              <PlanetWheel dial={dial} system={system} />
+              {hasPlanets ? (
+                <>
+                  <PlanetFace
+                    dial={dial}
+                    system={system}
+                    session={session}
+                    index={index}
+                    looks={looks}
+                    visitor={visitor}
+                  />
+                  <PlanetWheel dial={dial} system={system} />
+                </>
+              ) : (
+                <NoPlanets name={system.name} />
+              )}
             </>
           )}
           <View style={styles.footer}>
@@ -100,6 +114,17 @@ function NoSystem({ dial }: { readonly dial: OrbitDialState }) {
         {dial.systemMatches ? 'No system has that name.' : 'No systems here yet.'}
       </Text>
       {dial.filter !== 'all' ? <Button label="Show all" variant="space" onPress={() => dial.setFilter('all')} /> : null}
+    </View>
+  );
+}
+
+/** A system that has formed with no planet in it yet: there is no big planet to show or dial to turn. */
+function NoPlanets({ name }: { readonly name: string }) {
+  return (
+    <View style={styles.none} testID="dial-no-planets">
+      <Text variant="body" color={space.label}>
+        {`No planets in ${name} yet.`}
+      </Text>
     </View>
   );
 }

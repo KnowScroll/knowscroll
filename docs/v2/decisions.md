@@ -2238,3 +2238,19 @@ Confirmed by: `v2/kits/circulation.test.ts` and `nerve.test.ts` (each against it
 - **The spike.** `content writer-spike-v2 --topics cardiac-cycle,blood-pressure,oxygen-transport,action-potential,synapse-signalling,reflex-arc --concurrency 2 --spike-id body-kits-v18`, at most two requests for each of the six. The runbook says what to read: `variant` is `stage` and `stageStates` at least 3 for all six, no `stage_choice_invalid` after the repair, and in each accepted document the picture must match what each stop says.
 
 Confirmed by: `writer-v2.test.ts` (the version, that a recipe of each new kit gets its own guide and no other kit's, that the keys and words are listed, and the length), `spike-v2/run.test.ts` and `tests/integration/modules/writer-spike-v2.test.ts` (the version in the spike line).
+
+## D-154 · 2026-10-31 · The Talk list follows the Talk theme (v3 dev check, #548)
+
+**Amends** D-145 and D-151, which kept the Talk list on paper "for now".
+
+- **What changes.** The Talk list, its empty and error states, the navigation beside it and the inbox pane next to an open conversation are drawn on the dark sky when the Talk theme is the sky, and on paper when it is Paper. T3 draws the list on the sky.
+- **What stays.** A thread invitation is a paper card on either ground. The theme is still a device choice (D-151).
+- **Verified.** `conversations-screen.test.tsx` (cream names on the sky, ink on Paper).
+
+## D-113 · 2026-10-31 · The landed map opens on the formed regions (v3 dev check, #548)
+
+**Amends** D-110 (a planet lands on its map).
+
+- **What changes.** The map opens centred on the box round every formed region and its name, shrinking by at most 40 % so the names are inside the screen. Before, it was centred on the whole map, and a planet whose regions sat on one side opened off-centre with a name cut at the edge.
+- **What stays.** A chosen region still drops the camera over it. Pan and zoom still work from the new start. Land not reached yet is still grey and unnamed (D-078).
+- **Verified.** `planet-plan.test.ts` (centred, names inside the screen, nothing formed keeps the old view) and `universe-planet-smoke.spec.ts`.
