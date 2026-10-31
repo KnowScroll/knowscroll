@@ -78,7 +78,7 @@ export function TalkMessage(props: TalkMessageProps) {
   const [who, setWho] = useState<MessageReactionKind | undefined>(undefined);
   const [optionsShown, setOptionsShown] = useState(false);
   const swipe = useSwipeToReply({ enabled: open, reducedMotion, onReply: () => onReply(message) });
-  const quote = message.replyTo === undefined ? undefined : quoteView(message.replyTo, all);
+  const quote = message.replyTo === undefined ? undefined : quoteView(message.replyTo, all, ownPersonId);
   const held = heldReactions(message);
   const reactions = message.reactions ?? [];
   const copyText = copyTextOf(message);
