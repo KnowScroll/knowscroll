@@ -1,3 +1,4 @@
+import { advanceAskOrder } from './ask-resolve.js';
 import { WAIT_LIMIT_MS, commissionSupply, isComing, nextPoll, waitStartOf } from './commission.js';
 import { checkedRevision, inventory, snapshot, sourceOf, type SkipExplanations } from './inventory.js';
 import type { MatchStep } from './matching.js';
@@ -62,7 +63,13 @@ async function advanceWaiter(
     if (!(await p.ownerActive(scope))) return 'done';
     const d = await p.store.read(scope, requestId);
     if (d?.status === 'matching') return 'needs_match';
-    if (!d || (d.status !== 'requested' && d.status !== 'deferred') || !d.brief) return 'done';
+    if (!d || (d.status !== 'requested' && d.status !== 'deferred')) return 'done';
+    // A question asked from a Scroll waits on its own order, not on shared work (D-218).
+    if (d.askOrder) {
+      await advanceAskOrder(p, scope, { ...d, askOrder: d.askOrder });
+      return 'done';
+    }
+    if (!d.brief) return 'done';
     const inventoryNow = await inventory(p, scope, d.command, d.brief, skipFor(p, scope, d));
     const current = await snapshot(p, scope, d);
     const source = sourceOf(d.command);

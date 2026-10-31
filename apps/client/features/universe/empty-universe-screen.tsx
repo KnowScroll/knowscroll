@@ -7,8 +7,10 @@ import { SkyBackdrop } from './space/sky-backdrop';
  * U01 "Empty · first visit": the universe before anything has been explored. No promises, no
  * counts; the only action goes to Explore. (Lately and List view have nothing to act on yet, so
  * they are not shown.)
+ *
+ * `over` draws it without its sky or ground, over the picture of the first open's last seconds (D-114).
  */
-export function EmptyUniverseScreen() {
+export function EmptyUniverseScreen({ over = false }: { readonly over?: boolean }) {
   const router = useRouter();
   return (
     <ScreenFrame
@@ -16,7 +18,7 @@ export function EmptyUniverseScreen() {
       title="Your universe"
       pageTitle="Universe"
       titleVariant="heading"
-      backdrop={<SkyBackdrop />}
+      {...(over ? { transparent: true } : { backdrop: <SkyBackdrop /> })}
       bodyPlacement="center"
     >
       <StateBlock

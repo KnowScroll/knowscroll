@@ -30,6 +30,8 @@ export interface ScreenFrameProps {
    * it (`dimension.stateOffsetPhone`). Tablets and desktops use the V01 spacing.
    */
   readonly bodyOffset?: number;
+  /** No ground colour: the screen is drawn over a picture of its own (the first open's last seconds). */
+  readonly transparent?: boolean;
   readonly children: ReactNode;
   readonly testID?: string;
 }
@@ -56,6 +58,7 @@ export function ScreenFrame({
   backdrop,
   bodyPlacement = 'start',
   bodyOffset = dimension.stateOffsetPhone.keep,
+  transparent = false,
   children,
   testID,
 }: ScreenFrameProps) {
@@ -92,7 +95,13 @@ export function ScreenFrame({
     );
   const gutter = gutterFor(breakpoint);
   return (
-    <View testID={testID} style={[styles.ground, { backgroundColor: tone === 'space' ? space.s0 : content.paper }]}>
+    <View
+      testID={testID}
+      style={[
+        styles.ground,
+        { backgroundColor: transparent ? 'transparent' : tone === 'space' ? space.s0 : content.paper },
+      ]}
+    >
       {backdrop}
       <ScrollView
         role="main"

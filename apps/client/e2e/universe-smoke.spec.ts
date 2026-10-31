@@ -21,6 +21,8 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
     ...COLLECTION_READS,
   ]);
   await page.setViewportSize({ width: 390, height: 844 });
+  // These checks walk the map; its animations have a spec of their own (universe-animations-smoke.spec.ts).
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );

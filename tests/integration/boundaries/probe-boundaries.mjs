@@ -41,7 +41,14 @@ const socialForbidden = [
   'modules/content',
   'modules/experience',
 ];
+/**
+ * The wall around a Launch answer (D-178, D-220) is the same allow-list: Rooms stores it, so no module that is not on the rule's
+ * short list may import Rooms. One forbidden import from every walled module, the reasoning engine and the modules a deny-list
+ * would forget.
+ */
+const roomsForbidden = [...socialForbidden, 'modules/social', 'modules/scenarios'];
 const importsSocial = 'thread-pick-wall-only-listed-modules-import-social';
+const importsRooms = 'launch-wall-only-listed-modules-import-rooms';
 const importsPlay = 'play-wall-only-roots-import-play';
 const playImports = 'play-wall-play-imports-three-public-surfaces';
 
@@ -277,6 +284,14 @@ export const probe = social;
 `,
     expect: [[`${B}/modules/social/public.ts`, importsSocial]],
   })),
+  // D-178: only Rooms, Feedback, the queue declarations and the erasure registry import Rooms ...
+  ...roomsForbidden.map((folder) => ({
+    file: `${B}/${folder}/application/zz-probe-rooms.ts`,
+    source: `import * as rooms from '${posix.relative(`${B}/${folder}/application`, `${B}/modules/rooms/public.js`)}';
+export const probe = rooms;
+`,
+    expect: [[`${B}/modules/rooms/public.ts`, importsRooms]],
+  })),
   // Apps never import each other; no cycles.
   {
     file: 'apps/api/src/zz-probe-cross-app.ts',
@@ -453,6 +468,20 @@ try {
         console.error(`STILL REJECTED with the Social wall loosened (the probe cannot fail): ${probe.file}`);
       }
   if (!failed) console.log(`boundaries:probe: the ${socialProbes.length} Social probes fail when the wall is loosened`);
+
+  // And the Rooms probes must be able to fail too.
+  const roomsProbes = probes.filter((probe) => probe.expect.some(([, rule]) => rule === importsRooms));
+  const roomsLoosened = cruise(
+    loosenedConfig([{ rule: importsRooms, side: 'from', pathNot: '.' }]),
+    roomsProbes.map((probe) => probe.file),
+  );
+  for (const probe of roomsProbes)
+    for (const edge of probe.expect)
+      if (rejects(roomsLoosened, probe, edge)) {
+        failed = true;
+        console.error(`STILL REJECTED with the Rooms wall loosened (the probe cannot fail): ${probe.file}`);
+      }
+  if (!failed) console.log(`boundaries:probe: the ${roomsProbes.length} Rooms probes fail when the wall is loosened`);
 } finally {
   for (const probe of probes) rmSync(probe.file, { force: true });
   for (const directory of createdDirectories) rmSync(directory, { recursive: true, force: true });

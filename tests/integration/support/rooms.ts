@@ -105,6 +105,8 @@ export interface RoomWorldOptions {
   readonly residentsEnabled?: boolean;
   /** The most stars a room earns on one UTC day (`KS_ROOMS_STARS_PER_DAY`); the default is three. */
   readonly starsPerDay?: number;
+  /** The rest between the start of one Launch and the next, in minutes (`KS_ROOMS_LAUNCH_GAP_MINUTES`); the default is two hours. */
+  readonly launchGapMinutes?: number;
 }
 
 export async function roomWorld(
@@ -144,10 +146,11 @@ export async function roomWorld(
     resolveSnippet: resolveSnippetAnchor,
     readGeography: geographyReader(database.db),
     // No Scroll in these tests is made for a thread, so the audience of an order is nobody's.
-    checkAudience: makeCheckAssetAudience(database.db, () => Promise.resolve(new Set())),
+    checkAudience: makeCheckAssetAudience(database.db, [() => Promise.resolve(new Set())]),
     now: () => clock.now,
     residentsEnabled: options.residentsEnabled ?? false,
     ...(options.starsPerDay === undefined ? {} : { starsPerDay: options.starsPerDay }),
+    ...(options.launchGapMinutes === undefined ? {} : { launchGapMinutes: options.launchGapMinutes }),
   };
   const ownerActive: CheckPersonalOwnerActive = identityScopeOwnerProviders()[0]!.useValue;
   const cases = talkCases(database.db, clock);

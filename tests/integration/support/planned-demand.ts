@@ -1,6 +1,11 @@
 import type { PgBoss } from 'pg-boss';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
@@ -40,8 +45,11 @@ export function realSupply(
       {
         supplyCreateDailyCap: options.createDailyCap ?? 0,
         supplyPlannerCreateDailyCap: options.plannerCreateDailyCap ?? options.createDailyCap ?? 0,
+        supplyAskDailyCap: 0,
+        supplyAskPersonDailyCap: 5,
       },
     ],
+    [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
     [READ_EXPLORATION_SNAPSHOT, options.readExploration],
     ...identityScopeOwnerProviders().map((provider) => [provider.provide, provider.useValue] as const),
     ...contentProviders().map((provider) => [provider.provide, provider.useValue] as const),

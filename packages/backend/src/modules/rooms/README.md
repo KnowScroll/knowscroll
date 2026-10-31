@@ -8,7 +8,7 @@ and sets how much the AI inhabitants may speak to them. AI inhabitants answer wh
 labelled as AI, and make nothing. Each room has a cast of named residents (an Explainer and a Skeptic): they answer
 when a member asks and, under caps the router keeps, speak on their own when a question goes unanswered or a claim is
 stated very strongly. Blueprint §10, §15 (roles), §16–§17 ("Idea rooms use the same exploration
-model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176.
+model"); decisions D-006 o, D-051, D-062, D-069, D-160 to D-165, D-166 to D-171, D-174 to D-176, D-178 to D-179, D-219 to D-224.
 
 Status marks: **implemented** means merged with tests against real PostgreSQL and the reasoning
 harness over a CI fixture model. **Runtime-verified** means used on a local system with the real
@@ -48,7 +48,11 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | The room's stars: a human answer marked Useful, a debate closed by vote, the first right Spot the flaw; three a day, never an AI, in the act's transaction (v3 R-5, D-174) | Implemented (CI-verified) |
 | Seven stars finish a constellation; the members vote for one of three code names for a day; the name is settled by the next member command; the station lights on every member's map (v3 R-5, D-175, D-176) | Implemented (CI-verified). Not yet runtime-verified |
 | Start a Debate (two sides, a close time) and vote until it closes; the tally shows after voting; a close with two voters earns a star (v3 R-5, D-176) | Implemented (CI-verified) |
-| What-if branches inside a room thread, reports, a quiz's results (a quiz keeps none) | Planned (not built) |
+| Start a live Launch of five questions from library Scrolls with a lobby, an 8-second timer on the server's clock and an answer after each; play with others; see a podium for that Launch only and a share card of squares; the room earns one star when two people played (v3 R-6, D-178 to D-179, D-219 to D-224) | Implemented (CI-verified). No model is called. Needs an operator-approved deck; not yet runtime-verified |
+| The host, Pixel, a labelled AI that says template lines on the stage; it never plays and never posts (v3 R-6, D-219) | Implemented (CI-verified) |
+| A Launch that is on shows on a member's own station on the Universe map and on the room's band (v3 R-6, D-222) | Implemented (CI-verified) |
+| A replay of last night's Launch against the real recorded answers, today's question as a Launch | Planned (R-7) |
+| What-if branches inside a room thread, reports, a moderator quiz's results (a quiz keeps none) | Planned (not built) |
 
 ## What the module owns
 
@@ -74,6 +78,9 @@ model and two disposable accounts (see D-051 for the evidence). Nothing here run
 | `stars` | The room's stars: act, source id, UTC day, constellation number. Unique per (room, act, source). No account, no words, no title (D-174) |
 | `constellations`, `constellation_votes` | A finished constellation: when, its three candidate names, when the vote closes and the name once settled; and each member's one vote (D-175) |
 | `debates`, `debate_votes` | A topic tagged `debate`: two sides, a close time, the result and, once closed, the voters; each member's one vote on a side (D-176) |
+| `launches` | One Launch: its room, the approved deck it was made from (unique: a deck is played once), the five frozen questions with their keys (served one at a time, the key only after the question closes), when its first question opens, `live` or `finished`, and once finished how many people answered and whether the room earned a star. No account: who started it is not kept (D-178) |
+| `launch_players` | A person who is in a Launch: the Launch, the account and when they joined. Deleted by a Clear, leaving, removal, deletion and seven days after the Launch ended, by the first member command after that (D-220) |
+| `launch_answers` | One answer to one question: the round, the option, whether it was right, and how many milliseconds the **server** measured from the question's opening. The first answer to a round stands. Deleted like the players (D-220) |
 | `typing_holds` | Unlogged: one row per discussion, `held_until` a few seconds ahead. No account, no text. Holds back an AI turn and is read by nothing else (D-165) |
 | `activities` | A moderator's poll or quiz: kind, title, the validated definition (options and explanations with server-assigned IDs), `open`, `closed` or `removed` |
 | `poll_votes` | One row per person per poll: the option chosen; changing a vote replaces it |
@@ -82,7 +89,7 @@ Use cases (`public.ts`, `RoomUseCases`): `list`, `read`, `join`, `leave`, `invit
 `setPreferences` (AI level, keep-out, notice acknowledged), `setPresence` (`here` or `away`), `create` (a discussion),
 `readDiscussion`, `history`, `changes`, `send` (which asks the resident a text message names, or else queues the resident check for a
 question or a strong claim), `openSnippet`, `pin`, `hideMessage`, `markUseful`, `ask` (a plain ask, or one pointed at a message),
-`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
+`topics`, `dismissAway`, `stations`, `today`, `solveFlaw`, `sky`, `nameConstellation`, `voteDebate`, `launch`, `startLaunch`, `joinLaunch`, `answerLaunch`, `finishLaunch`, `activities`, `readActivity`, `createActivity`, `votePoll`, `moderateActivity`. `create` also starts
 a topic from a message. `setPresence` also moves the member's place and, on a long return, claims the window and queues the summary. The
 worker's `ContributeAsInhabitant` consumes the `rooms.contribute` queue, `DecideCast` the `rooms.cast-due` queue, `RunCastPass` the
 `rooms.cast-pass` queue and `Summarise` the `rooms.summarise` queue (the last three only where `KS_REASONING_ROOM_ENABLED` is on). `HoldCast` is the socket gateway's port for a typing hint.
@@ -342,7 +349,8 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 | messages | kept | the person's messages become tombstones (no author, body, card or note; same place and number; fresh change number) |
 | message_snippets | kept | deleted with the author's tombstoned message |
 | ai_turns | kept; asks and unprompted turns still queued under the universe end as failed (and stay counted) | the asker link is cleared and queued asks end as failed, as do queued unprompted turns whose job the universe owned; an AI contribution a deleted person asked for, and every unprompted turn, stays with the room |
-| rituals, stars, constellations, debates | kept: no account (a star outlives everyone who earned it) | kept: no account |
+| rituals, stars, constellations, debates, launches | kept: no account (a star outlives everyone who earned it; a Launch row holds no person) | kept: no account |
+| launch_players, launch_answers | erased: play results of the person (D-082, D-220), by a Clear too; also deleted when they leave or are removed and seven days after the Launch ended | the person's rows are deleted |
 | ritual_solves | erased: a play result of the person (D-082), by a Clear too | the person's taps are deleted (and when they leave or are removed) |
 | constellation_votes, debate_votes | kept: explicit communication, like poll votes | the person's votes are deleted (and when they leave or are removed) |
 | room_cast, typing_holds | kept: no account | kept: no account (a hold lapses in seconds) |
@@ -353,7 +361,7 @@ API provides it, and the worker's inhabitant consumer never asks. *Implemented; 
 
 Clear never removes messages, cards, discussions or memberships: they are explicit communication (D-042).
 The export holds the person's rooms (with their AI level, keep-out choice and when they read the AI notice; never where they were), the discussions they started and their own words (newest 2,000, with
-`truncated`; a topic card is "a topic they started"), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words), their votes on constellation names and on debates (the name or side they chose) and their taps on Spot the flaw (the room, the day, whether right), the room and time of each mark of Useful they made (never whose message it was) and the activities they started; it names no other person and no AI text, and a
+`truncated`; a topic card is "a topic they started"), how many times they asked an inhabitant (never the turns residents took on their own), their poll votes (with the option's words), their votes on constellation names and on debates (the name or side they chose) and their taps on Spot the flaw (the room, the day, whether right), the Launches they played (the room, the day, how many questions they got right and answered; never what they picked), the room and time of each mark of Useful they made (never whose message it was) and the activities they started; it names no other person and no AI text, and a
 person who never took part in a room has no section.
 
 ## Failure and recovery
@@ -373,7 +381,7 @@ person who never took part in a room has no section.
 - Tests: `tests/integration/modules/rooms.test.ts`, `rooms-residents.test.ts` and `rooms-residents-migration.test.ts` (residents, the router's caps,
   keep-out bytes, levels, typing, the room scope), `rooms-campfire.test.ts` (General, presence, hints, settings, keep-out),
   `rooms-campfire-migration.test.ts` (migration 0069 over existing rooms), `rooms-inhabitants.test.ts`, `rooms-erasure.test.ts`,
-  `rooms-stations.test.ts`, `rooms-sky.test.ts` (stars, the cap, constellations and their names, debates, Spot the flaw, who can read the sky, what a person takes back), `domain/sky.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),
+  `rooms-stations.test.ts`, `rooms-sky.test.ts` (stars, the cap, constellations and their names, debates, Spot the flaw, who can read the sky, what a person takes back), `rooms-launch.test.ts` (the Launch on the server clock: timing, ties, hidden until reveal, the star, paused, who can take part, blocks, the station, Clear and deletion, retention) and `rooms-launch-deck.test.ts` (a deck: no model call, approval), `launch-wall.test.ts` (no file outside Rooms names a Launch table), `domain/sky.test.ts`, `rooms-activities.test.ts`, `rooms-asks.test.ts` (pointed asks, mentions, topics, Useful, the welcome),
   `rooms-away.test.ts` ("while you were away"), `rooms-face.test.ts` (kits, the $1 cap under concurrency, the ledger, review), `kit.test.ts` and `backdrop-prompt.test.ts` and `domain/backdrop-spend.test.ts` (the vocabulary, contrast, the prompt, the money rule), and `tests/integration/release/rooms-http.test.ts` over the installed API;
   domain tests next to `domain/`.
 - Operator: the face commands above, `node dist/operator.js rooms seed [--dry-run]` and `rooms moderator --room <slug> --account <uuid> [--remove]`
@@ -411,3 +419,22 @@ the worker holds the rooms grant) drafts today's UTC day for every open room tha
 
 Public names: `composeRitualOperator` and `roomsRitualProviders` (`adapters/nest-providers`), `RUN_NIGHTLY_RITUALS` and `nightlyRitualsQueue` (`public.ts`). A ritual
 item is room content with no account: neither a Clear nor an account deletion touches `rooms.rituals`. Nothing here writes to a personal schema.
+
+## The Launch (v3 R-6, D-178 to D-179, D-219 to D-224)
+
+Status: implemented (CI-verified over real PostgreSQL and labelled fixtures; two people in two browser contexts at 390 and 1440). Not runtime-verified on dev.
+
+A room plays a live quiz together. It is made of rooms-owned pieces and calls no model.
+
+- **A deck is a ritual item.** `launch` is the third kind of `rooms.rituals` (migration 0088). Code picks five calls of the room topic's library Scrolls (`ReadLibraryCalls`, Content's public read: the same Scrolls as the daily items, a `call_it` or `final_call` as its authors wrote it), preferring ones the room was not asked in 14 days, at most two from one Scroll, the reason cut to whole sentences within 280 characters. The night's job and `rooms rituals` draft it with the day's question and Spot the flaw and it waits for an operator. `ritual-review --approve` re-reads every cited Scroll's exact revision and refuses with `citation_changed` unless each question still says what the deck says. A deck is played once and is offered for today and the day before.
+- **Start** (`startLaunch`, a current member, the room locked FOR UPDATE): an open room, two people with the room open, the rest since the last Launch over (`KS_ROOMS_LAUNCH_GAP_MINUTES`, default 120), a deck, and every cited Scroll still the current one anyone may be served (read through the caller's own scope). The deck is frozen onto the Launch and the starter is in. Any Launch due to be settled is settled first.
+- **The clock.** `launches.starts_at` is when the first question opens (20 seconds after the start). Round *n* opens at `starts_at + (n-1) × 13 s`: the question for 8 seconds, then its answer for 5. `domain/launch.ts` is the only place that knows the numbers. A read carries the time left in milliseconds, never a time of day.
+- **Answer** (`answerLaunch`): the round, the option's place and the device's recording generation. The server decides from its own clock that the question is open, measures the milliseconds from its opening, judges the key from the frozen deck and stores the answer; the first answer to a round stands. Answering is joining. Nothing in the acceptance says whether it was right.
+- **Read** (`launch`): the Launch for a member in the phase the clock says. A question that is open has no key, no count and no name (the contract has no field for them); once it closes the reader gets the key, the reason, how many answered and were right and the faces of those who were right. After the last round the podium: the first three people with a right answer, ties by the total time of the right ones, then who joined first; the reader's own squares; whether the room earned a star. A person the reader blocked keeps their place without a name and is left out of the counts and faces. A podium is read for 24 hours.
+- **Settling.** No job: the first member command in the room after the end settles the Launch (`settleLaunches`, called by a presence beat, a start and `finishLaunch`). It takes the Launch row FOR UPDATE (so an answer in flight commits first), counts the people who answered, awards the star when at least two did (`launch_finished`, in the same transaction, the sky lock last, counted on the day the play time ended) and marks it finished once, **at that end**, however late it is noticed, so the podium's day, the star's day and the seven days of retention all run from the end. The same commands delete the results of Launches past their seven days. `finishLaunch` is the device saying it saw the end; the server refuses while its own clock says it is not over.
+- **Lock order.** Personal root, own account gate, the room root (FOR UPDATE for a start; FOR SHARE for join, answer, finish and reads), the Launch row (FOR SHARE to join or answer; FOR UPDATE to settle), then the sky lock, last.
+- **Hints.** A start, a join and a settlement announce the room (a disposable hint). A first answer by someone who had not joined puts them in the Launch and announces that, like a join; a later answer announces nothing. A hint names the room and nothing else, and an open question carries nothing about who has answered. The screen reads again on a hint, on focus, on a 20-second poll and when the phase it shows ends.
+- **The host.** Pixel is a labelled AI that says template lines on the stage (the client draws them from the state of the game). It is not a cast row, posts no message, has no `ai_turns` row and queues no job; it has no account and cannot play.
+- **Where it shows.** `RoomView.launch` (ready, lobby, live, finished; no number) on a member's own view; `RoomStation.live` on a member's or moderator's station on their own map; nothing in a preview, an outsider's station or a friend's visit.
+- **Recording paused.** Start, join and answer are refused with `not_saved` (no row, no receipt) while recording is paused or the generation is stale: a round does not wait and the key is on the server.
+- **Wall.** Answers are play results (D-063). Rooms writes nothing to a personal schema; an import rule and `launch-wall.test.ts` keep the tables inside Rooms.

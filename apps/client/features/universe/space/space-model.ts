@@ -34,6 +34,14 @@ const ORBIT_WOBBLE = 0.3;
 const STATION_CLEARANCE = 1.1;
 const DEFAULT_SPEED = 0.1;
 
+/** The looks a screen draws: the server's, from the scene read (D-102), or a friend's, derived on this device (D-114). */
+export function looksOfState(state: {
+  readonly looks?: readonly SceneLook[];
+  readonly read: { readonly snapshot?: { readonly read: { readonly looks?: readonly SceneLook[] } } };
+}): readonly SceneLook[] | undefined {
+  return state.looks ?? state.read.snapshot?.read.looks;
+}
+
 /** The looks of a read, by object id. */
 export function looksById(looks: readonly SceneLook[] | undefined): ReadonlyMap<string, SceneLook> {
   return new Map((looks ?? []).map((look) => [look.objectId, look]));
@@ -145,6 +153,7 @@ function placeStation(station: RoomStation, system: SpaceSystemDefinition, latel
       ? {}
       : { emblem: { emblem: station.room.identity.kit.emblem, palette: station.room.identity.kit.palette } }),
     ...(station.sky === undefined ? {} : { sky: station.sky }),
+    ...(station.live === true ? { live: true } : {}),
     position: {
       x: system.position.x + Math.cos(angle) * reach,
       y: 0.6,

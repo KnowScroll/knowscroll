@@ -49,10 +49,10 @@ void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); if (r > 1.0) discard
 
 export const RING_VERTEX = /* glsl */ `varying vec3 vW; varying vec2 vL; void main(){ vL = position.xy; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
 
-export const RING_FRAGMENT = /* glsl */ `uniform sampler2D map; uniform vec3 sun; uniform vec3 pc; uniform float pr; uniform float rIn; uniform float rOut; varying vec3 vW; varying vec2 vL; ${HAZE}
+export const RING_FRAGMENT = /* glsl */ `uniform sampler2D map; uniform vec3 sun; uniform vec3 pc; uniform float pr; uniform float rIn; uniform float rOut; uniform float opacity; varying vec3 vW; varying vec2 vL; ${HAZE}
 void main(){ float u = (length(vL) - rIn) / (rOut - rIn); if (u < 0.0 || u > 1.0) discard; vec4 t = texture2D(map, vec2(u, .5));
   vec3 L = normalize(sun - vW), oc = vW - pc; float b = dot(oc, L), c = dot(oc, oc) - pr * pr; float sh = (b * b - c > 0.0 && b < 0.0) ? 1.0 : 0.0;
-  gl_FragColor = vec4(haze(t.rgb * mix(vec3(1.05, 1.0, .95), vec3(.2, .18, .42), sh * .85), vW), t.a); }`;
+  gl_FragColor = vec4(haze(t.rgb * mix(vec3(1.05, 1.0, .95), vec3(.2, .18, .42), sh * .85), vW), t.a * opacity); }`;
 
 /** Background stars: three shells that drift against each other, plus a few near motes. */
 export const STAR_VERTEX = /* glsl */ `attribute float aSize; attribute vec3 aCol; attribute float aPh; uniform float time; uniform float pr; uniform float atten; uniform float wob;

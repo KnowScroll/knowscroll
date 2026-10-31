@@ -534,6 +534,54 @@ describe('account deletion (real database)', () => {
             candidate: 1,
           }),
         );
+        // A Launch they started with the person who stays, and the first question they answered: a place and an answer.
+        await rooms.db
+          .insertInto('rooms.rituals')
+          .values({
+            ritual_id: randomUUID(),
+            room_id: room.roomId,
+            day: '2026-10-24',
+            kind: 'launch',
+            payload: JSON.stringify({
+              questions: Array.from({ length: 5 }, (_, index) => ({
+                prompt: `Fixture question ${String(index + 1)}?`,
+                options: ['First option', 'Second option'],
+                answer: 0,
+                explain: 'Because the fixture says so.',
+                source: { assetId: talkContent.assetId, assetRevision: 1, stopId: `s${String(index + 1)}` },
+              })),
+            }),
+            payload_version: 'ritual.v1',
+            state: 'approved',
+            made_by: 'template',
+            created_at: new Date('2026-10-24T07:00:00Z'),
+            decided_at: new Date('2026-10-24T07:30:00Z'),
+            decided_by: 'cli:ci',
+          })
+          .execute();
+        unwrap(await setPresence(rooms, stayer, room.roomId));
+        unwrap(await setPresence(rooms, erasedAsFriend, room.roomId));
+        const launch = unwrap(
+          await rooms.rooms.startLaunch(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            recordingGeneration: 1,
+          }),
+        );
+        if (launch.outcome !== 'accepted') throw new Error('the Launch did not start');
+        rooms.clock.now = new Date(rooms.clock.now.getTime() + launch.startsInMs + 500);
+        unwrap(
+          await rooms.rooms.answerLaunch(erasedAsFriend.authority, {
+            version: 'rooms.v1',
+            commandId: randomUUID(),
+            roomId: room.roomId,
+            launchId: launch.launchId,
+            round: 1,
+            choice: 0,
+            recordingGeneration: 1,
+          }),
+        );
       } finally {
         await rooms.close();
       }
@@ -912,5 +960,44 @@ describe('account deletion (real database)', () => {
     expect(await use.process({ v: 1, deletionId: receiptId })).toBe('completed');
     expect(await use.retry(receiptId)).toEqual({ kind: 'completed' });
     expect(await use.recover()).toEqual({ requeued: 0 });
+  });
+
+  it('keeps the Universe first-open flag through export and Clear, reads it in the export, and deletes it with the account (D-114)', async () => {
+    const person = await recordingPerson(database);
+    const flag = () =>
+      database.db
+        .selectFrom('identity.accounts')
+        .select('universe_first_opened_at')
+        .where('id', '=', person.accountId)
+        .executeTakeFirst();
+    const exported = async (authority: FixturePerson['authority']) => {
+      const file = await makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 })(authority, (scope) =>
+        exportCurrentPerson(scope, { accountId: person.accountId }, openToEveryone),
+      );
+      if (file.kind !== 'entered') throw new Error('CI export refused');
+      return (file.value.sections['identity'] as { account: { universeOpeningShown: boolean } }).account
+        .universeOpeningShown;
+    };
+    expect(await exported(person.authority)).toBe(false);
+
+    expect(await identity().claimFirstOpen({ accountId: person.accountId })).toEqual({ claimed: true });
+    const claimedAt = (await flag())?.universe_first_opened_at;
+    expect(claimedAt).toBeInstanceOf(Date);
+    // The export says it was shown, in words, and never when.
+    expect(await exported(person.authority)).toBe(true);
+
+    // Clear removes the exploration, not the account's lifetime flag: it is still set, at the same moment, and still read.
+    await clearRecordingPerson(database, boss, person);
+    expect((await flag())?.universe_first_opened_at).toEqual(claimedAt);
+    const afterClear = { ...person.authority, privacyEpoch: 2 };
+    expect(await exported(afterClear)).toBe(true);
+    expect(await identity().claimFirstOpen({ accountId: person.accountId })).toEqual({ claimed: false });
+
+    // Deleting the account deletes the row that held it.
+    const use = deleting();
+    const receiptId = randomUUID();
+    expect((await use.request(afterClear, { receiptId })).kind).toBe('accepted');
+    expect(await use.process({ v: 1, deletionId: receiptId })).toBe('completed');
+    expect(await flag()).toBeUndefined();
   });
 });

@@ -230,6 +230,18 @@ The two encounter `.web.tsx` platform adapters are explicit app entries in `knip
 selects them by platform suffix. They remain fully scanned; production-export browser fixtures
 exercise the actual stage and path dialog.
 
+## Ask from here (D1, D-218, D-230 to D-232; v3 S-7)
+
+Status: **implemented** (web smoke over labelled HTTP fixtures; native by unit tests only), not yet runtime-verified on dev.
+
+In Explore, the dock's "Ask about this" on a v2 Scroll opens the Ask sheet (`features/requests/ask-sheet.tsx`, drawn by `RequestPanel` when the request session's mode is `ask`); a Reel or a v1 Scroll keeps the E04 sheet below.
+The session anchors the question to the stop on screen (`openRequest('ask', { stopId })`). The sheet shows the Scroll's own suggested questions (a tap sends one at once; keys 1 to 3 pick one while the box is empty), a box for any question (the counter appears from 240 of 280 characters),
+one editable line ("A short Scroll · about …", Change toggles "something new", which sends a free-text ask with no source), and Send. Nothing is asked before typing: no format, no topic.
+After Send the card says "Making it now" with the question, "We'll let you know here when it's ready" and "usually about N min" only when the server sent a measured time, "Keep reading" (the request stands) and Cancel;
+below it is a puzzle (`ask-puzzle.tsx`, `puzzle-pick.ts`): an unplayed Call it of the Scroll, played in one tap through the play layer. Ready shows "Open your Scroll"; could-not-prepare shows E07's words with Try again (the same request) and Ask differently.
+While recording is paused the sheet says asking is off and sends nothing (the session checks the policy, and the server fences with the recording generation: D-083, D-231). `?` and A open the sheet from the reader, Esc closes it.
+Covered by `ask-sheet.test.tsx`, `ask-puzzle.test.tsx`, `puzzle-pick.test.ts`, `ask-copy.test.ts`, the ask cases of `request-session.test.ts` and `e2e/ask-smoke.spec.ts` (390 by 844 and 1440 by 900, axe).
+
 ## Private Ask and format requests
 
 Related: #239.
@@ -405,7 +417,9 @@ tab's own layout of a labelled sample universe, for the frame numbers).
 | A new native surface after resume replaces the renderer and loop; unmount releases them | implemented (unit tests, not driven on a device) |
 | Low memory: `AppState` `memoryWarning` shows the Simple drawing; a browser with `deviceMemory` of 1 GB or less opens as the lists (D-111) | implemented (unit tests; the warning is raised by iOS, not known on Android; no device-memory reading on native) |
 | Labels and tap targets are RN views at projected points; no raycasting | runtime-verified (web, Android emulator) |
-| Landmark markers, constellations, the entering animations, a friend's own look | planned (later slices) |
+| The first open and the three steps down (below) | runtime-verified (web, browser, software GL; `e2e/universe-animations-smoke.spec.ts`) |
+| A friend's own look, derived on the visitor's device from public ids | implemented (unit-tested; `e2e` draws it only through the plain fixture) |
+| Landmark markers, constellations | planned (later slices) |
 
 How it fits together. A platform canvas host (`space-canvas.web.tsx`, `space-canvas.tsx`) hands `SpaceView` a
 `SpaceSurface`. `SpaceView` loads `space-renderer.ts` (three.js) on first use, builds the scene from a
@@ -423,7 +437,38 @@ map, drawn from `scene-core`'s world generator), `universe-bodies.tsx` (the form
 `universe-surface.tsx` (phone and desktop layout),
 `universe-panel.tsx` (D02 panel), `universe-lists.ts` (the lists the panel, the Simple view and the dial share), `simple/`, `dial/`,
 `universe-header.tsx`, `universe-cards.tsx`, `universe-search.ts`, `universe-search-panel.tsx`,
-`formation-presentation.tsx`. Choices are in D-039, D-108 to D-110.
+`formation-presentation.tsx`, `animation/` (the animations, below). Choices are in D-039, D-108 to D-110, D-114 to D-116.
+
+### The first open and the three steps down (v3 U-6; D-114 to D-116)
+
+Four animations, each a pure function of one time value `t` (`animation/player.ts` advances it by the time between
+`requestAnimationFrame` stamps, clamped to 0.1 s a frame and accepted at most every 33 ms): the first open (21.2 s),
+entering a system by ship (5.3 s), entering a planet (4.0 s; the ringed version when it has rings or a moon) and
+entering a world (3.2 s). Only single steps are animated (down: these four; up: a cross-fade): every single step up is a 0.3 s cross-fade (D-093, D-116) and a long
+jump goes straight to its destination. None plays under reduced motion, with Simple drawing or on the desktop layout.
+
+| Capability | Status |
+| --- | --- |
+| `animation/` pure timelines (`enter-system.ts`, `enter-planet.ts`, `enter-world.ts`, `first-open-timeline.ts`) and the player | implemented (unit-tested: each starts and ends on the screens it joins; the planet lands within a pixel of the globe at three stage sizes) |
+| The 3D scene follows a script (`space-script.ts`, `script-director.ts`): camera, rocket, parked ship, close-up glow, ring and moon hand-over | runtime-verified (web, software GL) |
+| The planet view's own globe laid over the 3D planet; the live map opened from the globe by a clipped circle | runtime-verified (web) |
+| The session's gate: taps ignored while one plays, Back/Up/Escape jump it to its end frame | implemented (unit and component tests) |
+| The first open: claimed once per account (`claimFirstOpen`) only once its WebGL context exists, remembered on the device, Skip, Escape and hardware Back (while the tab is in front) end it; the real screen is never rebuilt at the handover; an account with places gets a 0.3 s cross-fade at 19.6 s (D-115) | runtime-verified (web); native not driven on a device |
+| The cap holds while they play (frames at least 32 ms apart, drawing buffer at most 1.5 pixels per pixel) | runtime-verified (web) |
+
+How it fits together. `UniverseSurface` calls `useUniverseAnimation`, which notices a step down while rendering (so the first
+frame is already the animation's first frame), starts the player in a layout effect and closes the session's gate
+(`withTransitionGate`). `UniverseStage` draws the step: the 3D stage with the renderer's script (a system, a planet), the planet
+view's globe laid over the planet by the projection the renderer reports each frame (`GlobeLayer`), or the globe and the live map
+in a clipped circle (`WorldLayers`). The screen being left stays on screen, fading, while the destination's chrome rises
+(`step-chrome.ts`, `ChromeSlot`); values move through `Animated.Value`s written from the clock, so a frame re-renders nothing.
+The first open (`animation/first-open.tsx`, `space/first-open-renderer.ts`) is its own three.js scene on the same canvas host and
+loop, drawn before the real screen is mounted. A friend's universe gets the same steps down (system, planet) and a look derived
+on the visitor's device (`features/visit/visitor-scene.ts`).
+
+Not as designed: the first open's star is the approved sun (no painted convection cells) and the asteroids share one painted rock; the
+planet view's stars come from the 3D sky until the hand-over; the overview's names vanish at the start instead of fading; the
+destination header rises as one piece; the empty state rises as one piece.
 
 ## Mounted Keep lifecycle
 
@@ -704,6 +749,7 @@ Talk (`/conversations`) lists the person's rooms and invitations under the conve
   a square-cornered tile, hidden from screen readers; the AI label stays). The art is hidden from screen readers. A server that sends no face
   (`identity` absent) keeps the dark band. `emblem-raster.ts` draws the same outlines into pixels for the station on the map (below).
 - Today and the sky (v3 R-5, D-174 to D-176; status: **implemented** (web smoke over labelled fixtures; native by unit tests only), not yet runtime-verified on dev): the campfire's `NowStrip` (`now-strip.tsx`, the first thing in General's message list, so it scrolls away and the messages keep over 60 % of a phone; Today and Room sky are also rows of the room menu) shows a Today chip with today's question when an operator approved one, and a sky chip "n of 7" (never a count of people). `/rooms/<id>/today` (`today-screen.tsx`, `today-cards.tsx`) opens at the labelled resident's question, with Answer putting the cursor in the Today discussion's composer, and the Spot the flaw card: one 44 px button per sentence, one final tap, then the key, "The Scroll says", the Scroll as a link, "N found it" (only after a tap) and "+1 star for the room" when the tap earned one. One polite live region is mounted from the start and says the result once ("Found it. Sentence 3 was altered."), each sentence's name says "altered" and "your tap", and focus moves to the result. A tap carries the recording generation: while recording is paused nothing is sent and the card says so; a tap that was not sent says so and retries as the same command. Earlier questions are a short list. `SkySheet` (`sky-sheet.tsx`, `constellation-view.tsx`) draws the seven stars as a fixed arch (lit and unlit), shows a tapped star's act and day, and offers the three-name vote (counts only after you voted, changeable until it closes; the vote names the constellation the sheet showed, so a stale sheet is refused and the sky is read again). `StartTopicSheet` asks for two sides and a close time (6 hours, a day, 3 days or a week) when the tag is Debate, and `DebateCard` (`debate-card.tsx`) shows the sides, the vote (counts after voting or at the close), the close time and the winner. The Today discussion is filtered out of the topic list. Covered by `today-and-sky.test.tsx` and `e2e/rooms-sky-smoke.spec.ts` (two people in two browser contexts at 390 and 1440, axe, reduced motion).
+- The Launch (v3 R-6, D-178 to D-179, D-219 to D-224; status: **implemented** (web smoke over labelled fixtures; native by unit tests only), not yet runtime-verified on dev): the Now strip gains a Launch chip (`now-strip.tsx`, `launchChip`: Start a quiz, Starting now, Live now, Podium), and while a Launch is on the band wears "LIVE · LAUNCH". `GeneralStage` (`campfire.tsx`) reads it with `useRoomLaunch` (`use-launch.ts`: a room hint, focus, a 20-second poll and a timer at the end of each phase; a countdown is drawn from the steady clock and the milliseconds the read carried) and puts `LaunchStage` (`launch-stage.tsx`) between the band and General, so General keeps going below as the crowd. The stage is the host (Pixel, "AI · Quizmaster", a square mark, template lines in one polite live region), a ring and "8 s", the question, and options as 52 px buttons with a letter (digit keys pick one on the web); after a pick it says "Locked in", and when the question closes the right option, the reason, "3 of 4 called it" and the faces of those who got it right; nobody is named as wrong. `LaunchStartSheet` says what a Launch is and why it cannot start; `LaunchPodium` (`launch-podium.tsx`, a dark full-screen dialog that opens by itself only for someone who watched the Launch end) shows the first three on their steps (a blocked person as a place with no name), the star the room earned with how the sky stands, the person's share card of squares with a Share into General button (squares only) and Copy result. While recording is paused the stage and the start sheet say so and nothing is sent. A member's station on the Universe map says "Launch live" and its light pulses red (`space/scene/props.ts`; the caption on every list). Covered by `launch.test.tsx`, `campfire.test.tsx` and `e2e/rooms-launch-smoke.spec.ts` (two people in two browser contexts, five rounds on a world clock, at 390 and 1440, axe).
 - The station's sky (v3 R-5, D-175, D-176): when a station carries `sky` (a member's or moderator's), `constellation-sprite.ts` draws the constellation in the Universe style as a flat sprite beside the emblem (lit stars filled in the room's accent, unlit ones hollow, thin lines between lit neighbours, no sparkle or halo), a steadier ring once the room has finished one, dimmed under Lately; the overlay label reads "Name · n of 7" and the lists and the desktop panel say "n of 7 stars" and the constellation's name. A station with no `sky` (an outsider's) and a friend's visit are drawn as before. Reduced motion draws the same still.
 - R03 (`activities-section.tsx`, `activity-screen.tsx`, `poll-card.tsx`, `quiz-flow.tsx`, `start-activity-sheet.tsx`): the
   room's page lists its polls and quizzes as "Optional" (nothing at all when there are none and the person is not a

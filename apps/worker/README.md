@@ -114,8 +114,8 @@ maintenance still records and resolves production liabilities while production i
 The `content.produce-scroll` consumer (`src/production-jobs.ts`, #239) runs the production use case for
 one recipe and take per delivery, with resume, so a redelivery continues the same business run. It is
 registered only when `KS_REASONING_PRODUCTION_ENABLED=1`; otherwise jobs wait in the queue. The
-`supply.resolve-request` consumer advances a person's request (a free-text match, the wait for
-production, binding) with the personal reasoning harness. `KS_SUPPLY_CREATE_DAILY_CAP` caps the
+`supply.resolve-request` consumer advances a person's request (a free-text match, the scope step of a question asked from a Scroll, the wait for
+production or for an ask order, binding) with the personal reasoning harness. `KS_SUPPLY_ASK_DAILY_CAP` and `KS_SUPPLY_ASK_PERSON_DAILY_CAP` (default 0 outside `local`, and 5) cap the ask orders it may commission (D-218). `KS_SUPPLY_CREATE_DAILY_CAP` caps the
 productions Create may start per UTC day for people's asks (default 20 in `local`, 0 elsewhere);
 `KS_SUPPLY_PLANNER_CREATE_DAILY_CAP` (default 5) caps the Planner's demand apart from it.
 
@@ -161,7 +161,7 @@ The ritual commands (`src/rooms-ritual-operator.ts`, v3 R-5, D-176) are `rooms r
 `ritual-review --ritual <uuid> --approve|--reject`: they draft, list and approve a room's daily question (a template, no call) and Spot the flaw (one call of the
 `rooms.ambient-ritual` role under the `rooms` scope, so they need `KS_REASONING_ROOM_ENABLED=1` and a provider). The `rooms.nightly-rituals` consumer (cron `10 3 * * *`,
 registered with the other room jobs only while `KS_REASONING_ROOM_ENABLED=1`) drafts today's day for every open room with a member; nothing it drafts is
-shown to a member before an operator approves it (the rooms README, "Today's ritual items").
+shown to a member before an operator approves it (the rooms README, "Today's ritual items"). The same commands draft and approve a room's **Launch deck** (v3 R-6, D-179): five calls of the room topic's library Scrolls chosen by code, with no model call, listed with their right answers for the operator and re-read from their Scrolls when approved.
 
 The room face commands (`src/rooms-face-operator.ts`, v3 R-4, D-166, D-170, D-171) are `rooms kit`, `kit-list`, `kit-review`, `backdrop`,
 `backdrop-list`, `backdrop-review`, `spend`, `backdrop-reconcile` and `backdrop-write-off` (the rooms README lists their options). `kit` calls the

@@ -2539,3 +2539,194 @@ Confirmed by: `tests/integration/modules/universe-resume.test.ts` (nothing befor
 | `black-hole-evidence` | Space | stage (`black-hole.v1`) | NASA, Black Holes | none | The Unseen Weight (`the-unseen-weight`) |
 
 Confirmed by: `library.test.ts` (the v2 recipes are the Seasons four, the 35 of D-199 and these fifteen, and nothing else; each of the fifteen is `stage` exactly where a kit draws it and `plain` for `tides-coasts` and `greenhouse-limits`, has no myth and no Final call control, and a landmark with no mastery wording; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (the Space recipes run as the plan marks them, and `exoplanet-kinds` is the recipe left to the spike's defaults), `versions.test.ts` (`exoplanet-kinds` is the v1 example). The integration files that used a kit recipe as their v1 example now name it with `markRecipesV1`. Shown failing when a recipe of a series was left unmarked (the list, the series and the landmark tests), when a plain recipe was given the `stage` variant, when a landmark name claimed mastery and when two landmarks shared a name.
+
+## D-218 · 2026-10-31 · An ask order is a made-to-order Scroll with its own caps, and it never goes through the review gate (v3 S-7, #478)
+
+**Builds on** D-049 (a branch is a made-to-order Scroll) and D-129 (takes). **Delivers** the path D-138 left to S-7 ("a person's question becomes a made-to-order Scroll").
+
+- **What it is.** A person's question about the Scroll they are reading becomes a short Scroll made for them alone. It uses the same machinery as a thread's branch: `content.made_to_order_scrolls` (mode `question`), the same `content.produce-scroll` job, takes and stop rules. The writer has its own instructions (`question-writer.v1`): answer exactly the question from the cited passages, about 230 to 340 words in prose only, a minute to a minute and a half, and end with a limit callout, which code checks (the last block must be the limit callout). The brief holds the question as data, on one quoted line whatever the person typed, the Scroll's title and the words of the stop they asked from.
+- **Research is chosen by code.** The pages are those the source Scroll's own provenance records (`READ_SCROLL_SOURCE_PAGES`, the same read a what-if uses). A person or a model never names a page. If the source records none, no order is made and the request closes `could_not_prepare`.
+- **It is nobody's but the asker's.** The Scroll is attributed to no topic and has no coverage, so it adds no planet and no progress. It is never offered in Explore and cannot be shared as a card. Content opens it only to the person whose request made it (`READ_ASK_ORDER_AUDIENCE`, an account, not a system actor), through the same audience check as a branch's Scroll.
+- **D-138 and v2.** An ask order writes a v1 document and publishes as every order does, with no operator read. The gate exists so that nobody is served a Scroll an operator has not read; an ask order is served to nobody else, and a person cannot wait for a read. Every mechanical check still holds: citations to allowlisted pages, the copy limit, digits only where a passage states them, and the reading length (one to two minutes). A v2 ask order (stops, calls, a stage) is not built; it would need the gate to be skipped for a private audience, which this decision does not decide. Create still writes only v1 library recipes.
+- **Two caps.** `KS_SUPPLY_ASK_DAILY_CAP` orders per UTC day for the world (default 20 in `local`, 0 elsewhere, so a world turns it on) and `KS_SUPPLY_ASK_PERSON_DAILY_CAP` per person (default 5). The world's count is read from `supply.ask_orders`, which names no person and no words and so survives erasure. The person's count is read from their own requests, so Clear resets it; the world cap still bounds the spend. A full cap closes the request `budget_unavailable` ("We can't prepare new explanations right now"). The open-asks limit of ten and the three-takes-per-order limit still apply. The caps are counted apart from `KS_SUPPLY_CREATE_DAILY_CAP` and the scenario caps.
+- **No automatic second take.** A refused take closes the request `could_not_prepare` and sends nothing on its own. The person's Try again (E07, D-054) sends the next take of the same order, at most three takes in all, so one ask costs at most three writer takes (two paid requests each) however often it is pressed. An attempt of unknown outcome stops the order's takes and is never resent.
+- **Not built.** Reel asks (no production path), a v2 ask order, and asking from a passage (D2) or as a wager (D3).
+
+Confirmed by: `supply-ask.test.ts` on real PostgreSQL with labelled fixture models (the order, the brief, the pages, the ledger, the one job; produced, bound and opened by the asker alone and not by another person or a system actor; both caps and the cap of zero; a refused take, Try again, the third take and no fourth; a cancel closes the Scroll), `writer.test.ts` (the question instructions, the one-to-two-minute target and its repair hint, a short prose answer accepted and the same refused for a library recipe), `ask-order.test.ts`, `processes.test.ts`. Shown failing when the audience let a system actor open the Scroll, when the person's cap was not counted, when a cancelled request kept its Scroll open, and when a refused take sent the next one on its own.
+
+## D-230 · 2026-10-31 · Where a question asked from a Scroll goes, and what a model may decide (v3 S-7, #478)
+
+**Builds on** D-218 and D-037. The model proposes a place; code accepts only what the schema allows and does everything else.
+
+- **The anchor.** The ask names one stop of the exact immutable revision the person is reading. The server reads that revision (`READ_SCROLL_ASK_FACTS`) and refuses a stop that is not in it, a revision the review gate holds and a document that is not a v2 Scroll, all as `ASSET_NOT_FOUND`. The stop's words reach the writer as context and never enter a shared key.
+- **A question the Scroll suggests.** If the words are exactly one of the Scroll's own authored `askSuggestions`, the ask is about that Scroll by construction. The order is made in the create transaction and no model is called.
+- **Never the Scroll being read.** The rule sits in the read every way in uses (`inventory`), so placing, polling the waiter and Try again all skip the explanation the question was asked from.
+- **A question the person typed.** It waits as `matching`, and a worker makes one call (one repair) on the personal harness, role `supply.ask-scope` (`ask-scope.1`). The model sees the question, the Scroll's title, the stop's words and the catalogue, and answers `here`, `catalogue` or `none`. The schema refuses a topic beside `here` or `none`, `catalogue` without an exact catalogue topic, and a facet the topic lacks, so an invented id never reaches a brief.
+- **What code does with it.** `here` makes an ask order. `catalogue` is handled as a free-text ask is: Reuse, then Join or Create on the library, under the library's own cap, but never binding to the explanation the question was asked from. `none` closes `unsupported_request`. A failure, a refusal or an unknown outcome closes `could_not_prepare` and is never resent (the run is the request's ID).
+- **What "served from the library" means.** A question that clearly names another catalogue meaning is served from that meaning's library Scroll when one exists. A question about the Scroll being read is not answered by another Scroll on the topic, because it asks for something specific: it gets an ask order.
+- **Change.** "Something new" sends the words as a free-text topic ask with no source, which is the E04 path. The E04 sheet stays for Reels and v1 Scrolls, which have no stops and no suggestions.
+
+Confirmed by: `supply-ask.test.ts` (here, catalogue, none, an invented topic, an unknown outcome never resent; the Scroll being read never returned when placed, polled or tried again; a stop that is not in the Scroll, a v1 Scroll and a held revision read as nothing), `ask-scope.test.ts`, `ask-order.test.ts` (typed words stay on one quoted line), `request-session.test.ts`, `ask-sheet.test.tsx`.
+
+## D-231 · 2026-10-31 · The words of a question are private, an ask is refused while recording is paused, and an ask is never evidence (v3 S-7, #478)
+
+**Builds on** D-057, D-082 and D-083. **Decides** D-083 for this slice, as the brief asked.
+
+- **Private.** The words live in the person's own request row. Clear and account deletion erase it, and the export lists it with their requests. No other person, room or thread ever sees it.
+- **The order's copy.** The words also sit in the order's brief, which the writer needs. Erasing the request first sets that brief empty (the one write supply makes into Content's table), so a take that arrives later finds no order to write and is skipped, and the Scroll opens to nobody because the request that opened it is gone. The ledger names no one and stays.
+- **What erasure does not reach, and for how long.** Three copies outlive Clear and account deletion, because none of them belongs to a person in the production scope. All are unlinked from the person, and the privacy copy has to say so (D-021).
+  - **The writer's request bytes** (the brief, with the question): up to 48 hours (`KS_REASONING_REQUEST_RETENTION_HOURS`), as for a what-if premise (D-049) and an unprompted room turn (D-162).
+  - **A refused writer answer:** up to 30 days (`REJECTED_ANSWER_RETENTION_DAYS`), kept for the operator when a take is refused. It can echo the question, because the writer is writing about it.
+  - **The Scroll the answer became:** its title and text stay in Content, unlinked from the person and open to nobody. It answers the question from public pages and may restate it. It is not deleted, because Content's revisions are immutable.
+- **Refused while recording is paused.** An ask from here is tied to what the person has read: it names the Scroll they have open and the stop they are on, and the scope step runs on their personal harness. So it follows D-083: nothing is stored on the server. The device checks the policy first and says so; the server fences with the recording generation (`RECORDING_PAUSED`, 409, and a stale generation is `RECORDING_POLICY_STALE`, with no receipt). A "Something new" ask carries no source and keeps E04's rule.
+- **Never evidence.** Making the request, placing it, producing the Scroll and binding it touch no evidence, no exposure, Composer, Planner, Personal Context or Geography. The Scroll made is a normal Scroll that creates evidence when it is read, like any other. The puzzle's lock belongs to the play layer (D-063, D-180) and reports no reading interaction.
+- **A cancel closes the Scroll.** A cancelled request is no longer the audience, so a Scroll that finishes later is open to nobody.
+
+Confirmed by: `supply-ask.test.ts` (nothing in exposures, observations or actions changes; paused and stale refused with no request and no job; export; erasure and Clear scrub the brief, close the Scroll and skip a later take; cancel), `request-session.test.ts` (paused on the device and from the server), `ask-smoke.spec.ts` (paused: no request is sent). Shown failing when the erasure left the brief and when the fence was skipped.
+
+## D-232 · 2026-10-31 · The wait is honest: a card to leave, a time only when measured, a puzzle from the Scroll's own calls (v3 S-7, #478)
+
+**Builds on** D-054 (E07 states) and D-218.
+
+- **What is said.** "Making it now. We'll let you know here when it's ready" with the question quoted, a card the person can leave ("Keep reading") or cancel, and the existing ready notice and Requested list. D1 says "in your Seasons thread", but there is no solo thread, so nothing says so.
+- **A time only when measured.** The server sends `typicalSeconds` on a preparing request that is an ask order (not one still being placed, and not one the library answers): the median of how long the last 20 finished ask orders took (`ready_at` minus `created_at` in the ledger, set once when the Scroll is first seen admitted), and only from five of them. The sheet then says "usually about N min" (a minute when under 90 seconds). With fewer than five it says nothing.
+- **The puzzle.** An unplayed Call it of the Scroll the person asked from: the latest one at or before their stop, else the next one ahead, never the Final call, and none when every Call it was played. One tap on an option locks it through the play layer. A right pick shows "Called it!" and its spark, a wrong one "Plot twist!" (D-064). While recording is paused it works on the device and says it is not saved (D-083).
+- **Keys and size.** A tap on a suggested question sends it at once. Keys 1 to 3 pick one while the question box is empty (the box takes focus when the sheet opens); `?` and A open the sheet and Esc closes it. The counter appears from 240 of 280 characters. Reel is not offered.
+
+Confirmed by: `ask-sheet.test.tsx`, `ask-puzzle.test.tsx`, `puzzle-pick.test.ts`, `ask-copy.test.ts`, `ask-smoke.spec.ts` at 390 by 844 and 1440 by 900 with axe, and `supply-ask.test.ts` (no time before five, then the median of 100, 110, 120, 130 and 600 is 120). **Not yet run with the real model:** the five real ask orders (accuracy, a minute to a minute and a half) belong to the coordinator on dev.
+
+## D-114 · 2026-10-31 · The first open belongs to the account: one conditional update claims it, and it plays only where it can be shown (v3 U-6, #470)
+
+D-092 and the design say the first-open animation plays once in the lifetime of the account, on any device, and that the flag lives on the account and is set when the animation starts. This is how that is built.
+
+- **One column, one update.** `identity.accounts.universe_first_opened_at` (migration 0086) is set by `POST /v1/account/universe/first-open`, a conditional update (`where universe_first_opened_at is null`). The call answers `{ claimed: true }` for exactly one request in the life of the account, whichever device asks first, and `false` for every later one. Eight racing calls give exactly one `true`. It writes only that column: no evidence, no personal data, no universe revision, no pg-boss work. It takes no personal root, because nothing personal changes. A suspended account claims nothing.
+- **Set when it starts.** The client claims just before the picture begins, so a crash or a closed app never plays it again. Skip, Back, Escape, a hidden app and finishing all leave it set. A request that gets no answer within 4 s (the timer is cleared as soon as the answer comes) is treated as "seen" and remembers nothing: the opening is never shown twice, and a held tab is worse than a missed opening.
+- **Claimed only once the picture can be drawn.** The picture builds its own WebGL context first, and only then is the account asked. A device whose context fails leaves the flag alone, so another device can still play it.
+- **Not claimed where it cannot play.** Under reduced motion, with Simple drawing, on the desktop layout (the design has no desktop animations), on a low-memory device (D-111) and where WebGL is missing, the flag is left alone, so a phone that can show it still can.
+- **A device remembers "seen".** Either answer is kept in the account scope's storage, so a returning account is not asked, and does not build the picture, at every cold start. It goes with the scope when the person signs out. The Android Back button is held for the opening only while the Universe tab is in front.
+- **Clear keeps it, deletion removes it.** The column is on the account row, which Clear does not touch and account deletion deletes. The data export says in words whether the opening was shown (`universeOpeningShown`), never when.
+- **Where it runs.** The Universe tab, on its first visit, before anything else. The real screen is not drawn until the picture is nearly over (1.2 s before it is shown), so one 3D scene runs at a time for almost all of it.
+
+Confirmed by: `tests/integration/modules/account-first-open.test.ts` (once, on any device, eight at once, another account, a suspended or unknown one, only the flag written), `data-export.test.ts`, `packages/client-core/src/first-open.test.ts` (no answer means seen), `animation/step-animations.test.tsx` (plays once, claims once, none under reduced motion, nothing claimed when the context fails, not asked again once seen), `account-deletion.test.ts` (the export reads the flag, Clear keeps it, deleting the account removes the row; it fails if the export says a constant), `e2e/universe-animations-smoke.spec.ts`.
+
+## D-115 · 2026-10-31 · First open ends where the empty state would rise in, then cross-fades to the real map (v3 U-6, #470)
+
+**Builds on** D-092, which this makes exact. The design draws the opening ending on U01 Empty and does not say what happens for an account that already has places (the first people to meet it will, since every dev account has been used before).
+
+- **The real screen is never rebuilt.** The gate keeps `children` in one place in the tree and only covers them. The real screen starts drawing beneath the picture at 19.0 s, and when the picture goes it is that same screen with that same 3D canvas, so the first frame of the real sky is the last frame of the picture, with no blink. A test counts the renderers: the picture's is disposed at the end and the real one is not.
+- **An account with no places** plays all 21.2 s. The empty screen (title, line, Go to Explore) rises over the last picture from 19.6 s, as one piece rather than four, and the picture is then taken away to show the same screen on its own sky. It never says "starts quiet" about an account that has places.
+- **An account with places, or whose map cannot be drawn yet,** plays until 19.6 s, the moment the empty state would rise in, then cross-fades to the real screen in 0.3 s. The real screen starts drawing beneath the picture at 19.0 s. It never claims the account is empty.
+- **The picture is the whole of it.** One three.js scene on one straight path of 2,765 units: dust that falls in along five arms and builds the star (14,000 grains), sparkles (2,600), a tremble and a squeeze, a flash and two shock rings, 14 things passed (asteroids, a lush planet with a moon, four galaxies, a ringed gas giant, a pink nebula, two systems), 1,500 star streaks and a smooth stop at U01 Empty's camera. The camera is not given a breathing drift at the end, so the first frame of the real sky is the last frame of the picture.
+- **Not as drawn.** The star is the approved sun, not the design's painted ball with convection cells, and the asteroids share one painted rock. Neither changes a beat or a timing.
+
+Taken for the owner; named in the PR for #462. Confirmed by: `animation.test.ts` (it ends exactly on U01 Empty's camera at rest, the star builds and bursts, Skip is there until just before arrival, the empty state rises last), `e2e/universe-animations-smoke.spec.ts`.
+
+## D-116 · 2026-10-31 · The three steps down are pure functions of one time value, and a tap cannot interrupt one (v3 U-6, #470)
+
+**Builds on** D-093 (going back up is a 0.3 s cross-fade) and D-107 (the levels are distances of one camera).
+
+- **Which steps.** The whole map to a system, a system to one of its own planets, a planet's globe to its map at planet level. The same animation for a friend's universe (system and planet; a visit has no map). A search or a dial jump across levels goes straight to its destination.
+- **Every step up is a 0.3 s cross-fade** (D-093): a planet to its system, a planet's map to its globe, a system to the whole map. The screen being left stays on screen, fading out over the one entered (the planet views are laid over each other; for a system to the whole map the 3D camera's own 0.3 s fly is the cross-fade), while the chrome of both cross-fades. Taps are ignored for those 0.3 s. A longer jump up goes straight to its destination.
+- **One `t`.** An animation player advances one value `t` by the time between the stamps `requestAnimationFrame` gives it, clamped to 0.1 s a frame and accepted at most every 33 ms. Every value on screen is a pure function of it: the camera, the rocket, the globe laid over the planet, the circle that opens, the chrome. The 3D scene is told the player's clock and draws at the 30 fps cap and the 1.5 pixel ratio like everything else in the tab. Overlays are `Animated.Value`s written from the clock, so a frame re-renders nothing.
+- **One scene, not two.** The design draws the overview and the system as two scenes and cross-fades them. This tab has one scene and one camera, so there is no hand-over: the camera swings on a sphere round the sun, as in the design, and the rocket's distances are the design's divided by its overview-to-system scale (2.18).
+- **The globe rides on the planet.** Each frame the renderer reports the planet's projected centre and radius, and the planet view's own globe is placed there, scaled by that radius over its own, blurred and fading in. The camera's last pose puts the planet where that globe is drawn for the stage's real size, so the first frame of the planet view is the last frame of the glide.
+- **Rings and a moon turn into the planet view's.** For a planet that has either, the 3D ring narrows from 1.4 / 2.4 radii to 1.42 / 1.56 and turns to the planet view's tilt, the moon leaves its orbit for the planet view's place on the near side, and both fade out only once they match.
+- **The world opens from the globe.** The live map is moved and clipped by a circle that opens until it fills the screen, so the last frame is the landed screen; its names and clouds come in last.
+- **Taps are ignored; Back is not.** While one plays, the session's gate refuses taps (focus, land, select, search, the camera). Back, Up and Escape first jump the animation to its end frame and then go back as normal. Reduced motion, Simple drawing and the desktop layout play none. The tab bar is not part of the screen and is never touched.
+- **The glide ends on the planet view's sky.** Over the last 0.45 s of the glide the 3D canvas (neighbours, haze, limb) fades out, revealing the starfield the planet view draws, so the last frame is the planet view with only its globe on it. The clouds of the landed map drift in over 0.5 s after landing.
+- **Not as drawn.** The overview's names vanish at the start instead of fading over 0.4 s; the destination header rises as one piece. A friend's universe derives its type, rings, moon, hue and haze on the visitor's device from the public ids (never the owner's): every type is used once before any repeats.
+
+**Amends** D-106 (a friend's visit no longer draws the plain look) and D-107 (a fly down into a system is the 5.3 s entering animation; a step up is still 0.3 s). Confirmed by: `animation.test.ts` (each animation starts and ends on the screens it joins, the planet lands within a pixel of the globe at three stage sizes, the player's cap and clamp), `step-animations.test.tsx` (steps up, the layers), `visitor-scene.test.ts`, `e2e/universe-animations-smoke.spec.ts` (at a phone's density of 3 the cap and the 1.5 pixel ratio hold through the first open, the glide into a system, into a planet and the world opening out).
+
+## D-178 · 2026-10-31 · The Launch is a scored room activity with its own rules: the server's clock, a score, a podium for one Launch (R-6, #492)
+
+**Implements** D-070. **Amends** D-051 on R03, "never scored", for the Launch only: a moderator's poll or quiz is as it was.
+
+- **A kind of its own.** The Launch has its own tables (`rooms.launches`, `launch_players`, `launch_answers`, migration 0088) and its own use cases. It is not a row of `rooms.activities`, so nothing a poll or a quiz promises is changed.
+- **Five questions, one clock.** A member starts one. A lobby of 20 seconds follows, then five rounds: a question open for 8 seconds, then its answer shown for 5. Every time is the start plus a fixed number of seconds, so the server's clock alone says what is open. A read carries the time left in milliseconds, never a time of day, and a device counts it with a steady clock, so a fast, slow or mis-set clock changes nothing. An answer says the round and the option and has no field for a time: the server measures from the question's opening to the moment it took the answer. An answer after the close, or for a round that is not the open one, is refused.
+- **The score.** One point for each right answer. A tie goes to the less total time over the right answers, then to who joined first, so the order is the same on every device. A wrong answer or none costs nothing: it is not a point, and its time is not held against anyone. The first answer to a round stands.
+- **The podium** is the first three people with at least one right answer, for this Launch only. Nobody below third is listed and nobody is listed for scoring nothing. It is read for 24 hours and then it is gone. There is no total, level or rank across Launches or weeks.
+- **No tick job.** A phase is worked out when it is read, from the stored start and the clock. The Launch is marked finished by the first member command after its end (a presence beat, a start, or the device's own "it is over"), guarded by the row it changes, as D-175 settles a constellation's name. A room nobody opens settles nothing.
+- **Finished is when it ended, not when it was noticed.** A Launch that ended on Monday and is settled by a beat on Thursday is finished on Monday: its podium is read for a day from Monday's end (so it is already gone), its star counts against Monday's day and its answers are kept seven days from Monday. A settlement is bookkeeping, not an event of the game.
+- **Starting.** A current member of an open room, with two people having the room open (R3), an approved deck (D-179), and the room's rest since the last Launch over (two hours, `KS_ROOMS_LAUNCH_GAP_MINUTES`). The room is locked FOR UPDATE, so two starts make one Launch.
+
+Confirmed by: `launch.test.ts` (the phases at each millisecond of the edge, the timing rule, the score, the tie, the podium), `rooms-launch.test.ts` ("a game on the server clock", "tie", "accepts an answer only while its question is open", "starting one").
+
+## D-179 · 2026-10-31 · Launch questions are library Scroll calls that code chooses and an operator approves, and no model is asked (R-6, #492)
+
+**Builds on** D-070, D-138 and D-176. **Amends** D-070 only in that the nightly batch makes no model call for a deck.
+
+- **The source.** A `call_it` or `final_call` of an admitted library Scroll under the room's topic, with its options, right answer and reason exactly as its authors wrote them. Those calls passed the review gate (D-138) and the second model's key check (D-198) when the Scroll was made. So a Launch never shows unreviewed model text, and a Scroll made for a thread is never used (D-049).
+- **The deck.** Five questions, from different Scrolls where the library allows and at most two from one, preferring calls this room was not asked in the last 14 days. The reason keeps its first whole sentences up to 280 characters. A library with fewer than five usable calls makes no deck: nothing is made up. It is a `launch` item of `rooms.rituals`, drafted by the night's batch beside the day's question and Spot the flaw and by `rooms rituals`, and it costs no call.
+- **Approval.** An operator approves a deck. Approving re-reads each cited Scroll's exact revision and refuses with `citation_changed` unless every question still says what the deck says. A deck is played once (`launches.deck_ritual_id` is unique) and is offered for today and the day before.
+- **Starting checks again.** The deck is frozen onto the Launch, and the start refuses unless every cited revision is still the current one anyone may be served. It reads through the caller's own scope, so no network wait runs inside the transaction.
+- **Never generated live.** No model is called on a Launch's path, and its queue holds no job.
+
+Confirmed by: `launch-deck.test.ts`, `rooms-launch-deck.test.ts` (no model call, approval, a corrected Scroll), `content-library-calls.test.ts` (a real admitted v2 Scroll; held and withdrawn ones are not read), `rooms-launch.test.ts` (a deck whose Scroll is gone does not start).
+
+## D-219 · 2026-10-31 · The host is Pixel: labelled AI, template lines, no cast row, no message (R-6, #492)
+
+**Amends** D-163, which gave the Quizmaster a place in the cast table when the Launch arrived.
+
+- **Why not a cast resident.** A resident speaks as messages and every message is an `ai_turns` row. The host never posts: it says short lines on the stage, drawn from the state of the game ("Question three. Go.", "Called it!"). So it has no turn to log, no cap to decide, no job and no model.
+- **Always labelled.** The view carries the host as `{ name: 'Pixel', label: 'AI · Quizmaster' }`, fixed by the contract. The screen draws the name, a square mark and the label; a screen reader hears "AI, Quizmaster". No line speaks of a wrong answer.
+- **An AI never plays.** A player is an account, and the contract's faces and podium entries hold only a public person. An AI has no place to stand on a podium, in a count or among the people who called a question.
+- **The ledger rule still holds.** A Launch writes no `ai_turns` row, no AI message and queues nothing; a test counts them around a whole game.
+
+Confirmed by: `rooms-launch.test.ts` (nothing queued, no turn, around five rounds), `room-launch.test.ts` (the host and the faces), `launch.test.tsx` (the label on the stage and the start sheet), `client-core/room-launch.test.ts` (the lines).
+
+## D-220 · 2026-10-31 · A Launch answer is a play result: walled from evidence and ranking, refused while recording is paused, erased by Clear, exported as the person's own (R-6, #492)
+
+**Builds on** D-063, D-082, D-083 and D-182.
+
+- **The wall.** An answer and its score reach no evidence, ranking, planning or formation. Rooms writes to none of those schemas (`write-boundary.test.ts`, and the run-time row counts around a whole game). Two checks keep the tables inside Rooms: an import rule (`launch-wall-only-listed-modules-import-rooms`, an allow-list with probes) and a scan that no production file outside Rooms names a Launch table (`launch-wall.test.ts`).
+- **Paused.** Starting, joining and answering carry the device's recording generation. While recording is paused, or the generation is out of date, nothing is stored, no receipt is written, and the answer is `not_saved` with its reason. This is stricter than a call in a Scroll, which plays on the device: a round does not wait and the key is on the server, so a paused person cannot play a Launch. The stage and the start sheet say so before any tap, from the person's own recording policy (kept fresh while the screen is open), and offer no Start, Join or answer to press.
+- **Erased.** A Clear deletes the person's place and answers (play data, D-082). Leaving or being removed deletes them too, and so does deleting the account. A star the Launch earned has no account and stays. The players and answers of a Launch are also deleted seven days after it ended, by the first member command in the room after that (a presence beat, a start or a settlement), so a room that stops playing does not keep them; the Launch row stays. The count is from the end of the play time, not from when anyone settled it.
+- **Exported.** The person's file lists each Launch they played to its end: the room, the day, how many questions they got right and how many they answered. Never what they picked and never another person. A Launch still running is not listed.
+
+Confirmed by: `rooms-launch.test.ts` (paused, stale, Clear, deletion and export, leave and removal, seven days, the personal-schema row counts), `launch-wall.test.ts`, `pnpm boundaries:probe`, the erasure inventory checks.
+
+## D-221 · 2026-10-31 · A finished Launch earns the room one star when two people answered (R-6, #492)
+
+**Implements** the fourth act D-174 left for R-6.
+
+- **The act.** `launch_finished`, once per Launch (the star is unique by room, act and the Launch). It is awarded in the transaction that marks the Launch finished, under the Launch row held FOR UPDATE and then the room's sky lock, last, as everywhere. That wait means the finished Launch holds every answer accepted before its end. The star carries the moment the play time ended and counts against that day's three, even when a later command settles it; a constellation it finishes starts its name vote from the settlement, when members can first choose.
+- **Why two.** A Launch played by one person is not something the room did together, so it earns nothing (the same reason a debate needs two voters). It still has a podium and a share card.
+- **The day's three.** The star counts against the room's three a day (D-174). A full day earns nothing and is not remembered; the Launch says so by showing no star line.
+- **Never an AI, never a replay.** The host has no account. When R-7 adds a replay it earns sparks, never a star.
+
+Confirmed by: `rooms-launch.test.ts` ("the star": one for two players, none for one, none from a full day, none for the same Launch twice or from two commands at once), `domain/launch.test.ts`.
+
+## D-222 · 2026-10-31 · What a Launch shows, and to whom (R-6, #492)
+
+**Builds on** D-160 and D-176.
+
+- **Members only.** Every Launch read and command answers `unavailable` to a stranger, an invitee and a person who left. A room's preview says nothing of one. The room's own view carries a word for it (ready, starting, on, just finished) and a member's or moderator's station carries `live`; an outsider's station and a friend's visit carry neither.
+- **While a question is open** a reader gets its words, the time left and their own answer. The contract has no field there for the key, the reason, a count or a name, so no client can show one.
+- **When it closes** the reader gets the key, the reason, how many answered, how many were right and the faces of those who were right. Nobody is named as wrong; the count and the faces let a reader work it out for themselves, as R3 draws it.
+- **Blocks.** For a reader who blocked someone, that person is left out of the counts and the faces, and keeps their place on the podium as a place without a name, so the order is true and nobody moves up. The blocked person and everyone else see the room as before.
+- **The numbers.** The allow-list names them: a reveal's `locked` and `right`, the podium's `played` and each score, and `players` in the lobby. Each is a real count; with no data there is no number.
+- **The share card** is the person's own squares, one for each question, with no question and no answer, so it cannot spoil a Launch. Sharing it into General is a button, and posts an ordinary message.
+
+Confirmed by: `rooms-launch.test.ts` ("who can take part", "draws a person the reader blocked", "says on a member's station"), `room-launch.test.ts`, `launch.test.tsx`.
+
+## D-223 · 2026-10-31 · Real time: the server's clock decides, hints are disposable, a read recovers everything (R-6, #492)
+
+**Builds on** D-160.
+
+- **The screen reads** when the room's hint arrives (a start, a join, an end), on focus, on a 20-second poll, and by itself the moment the phase it shows has ended. Between reads it counts down the milliseconds the last read gave, so it is never ahead of the server and a lost hint costs a few seconds, not a wrong answer.
+- **No hint says what was answered.** A start, a join and a settlement announce the room. A first answer by someone who had not joined puts them in the Launch and announces that, like a join; a later answer by someone already in announces nothing. A hint names the room and nothing else, and an open question has no field for who has answered or how many, so a re-read learns nothing before it closes.
+- **A device says the Launch is over** once (`finish`) when its read finds it so. The server refuses while its own clock says it is not, so a fast clock cannot end one early. It settles once whoever asks.
+- **The podium opens by itself** only for a person who watched that Launch go by in this session; arriving later shows a Podium chip and nothing pops up. Digit keys pick an option on the web (R3: "keys 1-4"; a call has two or three options), and the timer is a ring and the words "8 s": the ring steps and never needs motion.
+
+Confirmed by: `client-core/room-launch.test.ts` (time left, the next read, the one `finish`, the retry as the same command), `campfire.test.tsx` (the podium), `e2e/rooms-launch-smoke.spec.ts` (two people in two browser contexts, five rounds, at 390 and 1440, axe).
+
+## D-224 · 2026-10-31 · While a Launch runs the stage takes the top of the phone; the conversation keeps 68 percent the rest of the time (R-6, #492)
+
+**Amends** D-140 ("the conversation keeps over 60 percent of a phone") for the time a Launch runs. **Builds on** the R-5 measurement of the Now strip.
+
+- **The stage sits above General**, not in its list, so the question stays on screen while the chat below it scrolls as the crowd (R3 E 1, A2). The Launch chip is a chip of the Now strip, which scrolls with the messages, so a room with no Launch running keeps 68 percent of a 390 × 844 phone for its messages, as before (measured in `rooms-launch-smoke.spec.ts`).
+- **While a Launch runs** the messages have 18 percent of that phone (154 px: the band, the stage with three options, the Now strip, the AI bar and the composer share the rest). The design draws the same trade (a question card, then two or three crowd messages). It lasts about a minute and a half, once a night, and a person who wants the room back can scroll the stage's place or wait for the podium. The 60 percent rule is for a conversation that is not interrupted by a timed game.
+- **On a desktop** the stage keeps the reading measure, centred above the conversation, and the band's "Launch live" tag sits in the rail.
+
+Confirmed by: `e2e/rooms-launch-smoke.spec.ts` (both numbers are printed by the run).

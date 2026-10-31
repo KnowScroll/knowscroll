@@ -9,6 +9,7 @@ import {
   roomHarnessSettings,
 } from '@knowscroll/backend/reasoning/nest-providers';
 import {
+  makeReadLibraryCalls,
   makeReadLibraryPassages,
   makeReadLibraryPassageText,
 } from '@knowscroll/backend/modules/content/nest-providers';
@@ -68,8 +69,8 @@ function validArguments(command: RitualCommand, options: RitualOptions): boolean
 }
 
 /**
- * `rooms rituals|ritual-list|ritual-review`: the operator's controls over a room's daily items (D-176). `rituals` drafts the
- * question and Spot the flaw of one room for a UTC day (today by default): the question is a template and costs nothing, the
+ * `rooms rituals|ritual-list|ritual-review`: the operator's controls over a room's daily items (D-176, D-179). `rituals` drafts the
+ * question, Spot the flaw and Launch deck of one room for a UTC day (today by default): the question and the deck are made by code and cost nothing, the
  * flaw is one call of the `rooms.ambient-ritual` role on the rooms scope (it needs `KS_REASONING_ROOM_ENABLED` and a
  * configured provider), and re-running a day calls nothing more. `--dry-run` shows the passage and the sentence code chose and
  * calls nothing. `ritual-list` shows the items with their cited Scroll; `ritual-review` approves or rejects one, and an
@@ -120,6 +121,7 @@ export async function roomsRitualCommand(
         withRoomScope,
         readPassages: makeReadLibraryPassages(database.db),
         readPassageText: makeReadLibraryPassageText(database.db),
+        readCalls: makeReadLibraryCalls(database.db),
         model: model?.model ?? 'none',
         generation: config.reasoning.roomGeneration,
       });

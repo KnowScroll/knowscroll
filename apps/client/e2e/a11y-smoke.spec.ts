@@ -215,6 +215,8 @@ test.describe('the Universe', () => {
   async function openUniverse(page: Page, size: (typeof widths)[number]) {
     const world = sceneFixture();
     await page.setViewportSize({ width: size.width, height: size.height });
+    // These checks walk the map; its animations have axe checks of their own (universe-animations-smoke.spec.ts).
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.route('**/auth/session', (route) =>
       route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
     );

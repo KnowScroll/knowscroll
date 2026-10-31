@@ -10,7 +10,7 @@ import { z } from 'zod';
 /** Written on every stored item; an item of another version is not shown. */
 export const RITUAL_VERSION = 'ritual.v1';
 
-export type RitualKind = 'question' | 'flaw';
+export type RitualKind = 'question' | 'flaw' | 'launch';
 export type RitualState = 'draft' | 'approved' | 'rejected';
 
 /** The Scroll an item cites: its exact revision. */

@@ -16,7 +16,7 @@ import { useUniverseBack } from '../universe/use-universe-back';
 import type { VisitMapSession } from './visit-map-session';
 import { useVisitSessions } from './use-visit-sessions';
 import { VisitorBar } from './visitor-bar';
-import { visitorDescriptors } from './visitor-scene';
+import { visitorDescriptors, visitorLooks } from './visitor-scene';
 
 /**
  * `/visit/[handle]` (U06): a friend's universe, as much of it as they chose to share, drawn by the
@@ -85,7 +85,8 @@ function Visit({ visit, map }: { readonly visit: VisitSession; readonly map: Vis
   // The session keeps the same state object while a read finds the same list, so this redraws only
   // when what the owner shares changes.
   const descriptors = useMemo(() => (ready ? visitorDescriptors(ready.owner.personId, ready.systems) : []), [ready]);
-  useLayoutEffect(() => map.setDescriptors(descriptors), [map, descriptors]);
+  const looks = useMemo(() => (ready ? visitorLooks(ready.systems) : []), [ready]);
+  useLayoutEffect(() => map.setDescriptors(descriptors, looks), [map, descriptors, looks]);
   const index = useMemo(() => indexUniverse(descriptors, []), [descriptors]);
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/friends'));
 

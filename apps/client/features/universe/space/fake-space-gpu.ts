@@ -5,10 +5,12 @@
  * (`e2e/space-gallery.spec.ts`, `maestro/space.yaml`). Never imported by a production route.
  */
 import { useEffect } from 'react';
-import { stationSkyLine } from '@knowscroll/client-core';
+import { stationCaption } from '@knowscroll/client-core';
 import type { SpaceCanvasProps } from './space-canvas-props';
 import type { SpaceCameraSpec, SpaceRenderer } from './space-renderer';
 import type { SpaceDefinition } from './space-definition';
+import { globeAt } from '../animation/enter-planet';
+import type { SpaceScript } from './space-script';
 import type { SpaceAnchor } from './space-surface';
 
 interface FakeGpuControls {
@@ -27,6 +29,10 @@ interface FakeGpuControls {
 export interface FakeRenderer extends SpaceRenderer {
   readonly draws: number[];
   readonly cameras: { spec: SpaceCameraSpec; animate: boolean }[];
+  /** Every script the screen handed over, `null` when it took it back. */
+  readonly scripts: (SpaceScript | null)[];
+  /** The renderer was disposed: its WebGL context is gone (a screen that keeps its renderer never sets this). */
+  disposed: boolean;
   definition: SpaceDefinition;
   highlighted: string | null;
 }
@@ -76,19 +82,31 @@ function makeRenderer(definition: SpaceDefinition, far: () => boolean, failing: 
   const renderer: FakeRenderer = {
     draws: [],
     cameras: [],
+    scripts: [],
+    disposed: false,
     definition,
     highlighted: null,
     draw: (t) => {
       if (failing()) throw new Error('A frame failed.');
       renderer.draws.push(t);
+      // A script is told where its body is on the screen, as the real renderer reports after each frame.
+      const script = renderer.scripts.at(-1);
+      if (script?.onFrame === undefined || script === null) return;
+      const local = script.clock();
+      script.onFrame(
+        script.kind === 'enter-planet'
+          ? { t: local, planet: { x: 195, y: 372, radiusPx: 146, appearance: globeAt(local, 5, 2.5) } }
+          : { t: local, system: { x: 100, y: 300 } },
+      );
     },
     resize: () => undefined,
     setDefinition: (next) => void (renderer.definition = next),
     setCamera: (spec, animate) => void renderer.cameras.push({ spec, animate }),
+    setScript: (script) => void renderer.scripts.push(script),
     setHighlight: (id) => void (renderer.highlighted = id),
     isFar: far,
     probe: () => ({ litPixels: 1, sampledPixels: 2, signature: 3 }),
-    dispose: () => undefined,
+    dispose: () => void (renderer.disposed = true),
     anchors: () => anchorsOf(renderer),
   };
   return renderer;
@@ -121,7 +139,7 @@ function anchorsOf(renderer: FakeRenderer): SpaceAnchor[] {
       id: station.id,
       kind: 'station',
       name: station.name,
-      ...(station.sky === undefined ? {} : { caption: stationSkyLine(station.sky) }),
+      ...(station.sky === undefined ? {} : { caption: stationCaption(station.sky, station.live) }),
       systemId: station.systemId,
     });
   for (const dust of renderer.definition.dust ?? []) place({ id: dust.id, kind: 'dust', name: '', systemId: null });

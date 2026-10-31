@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
@@ -10,8 +10,10 @@ import { useAccountScope } from '../../providers/account-scope';
 import { roomHref } from '../rooms/room-links';
 import { useRoomStationsOnMap } from '../rooms/use-room-stations';
 import { useDocumentTitle } from '../../platform/document-title';
+import { FirstOpenGate } from './animation/first-open';
 import { EmptyUniverseScreen } from './empty-universe-screen';
 import { FormationPresentation } from './formation-presentation';
+import { lowMemoryDevice } from './space/low-memory-device';
 import { SkyBackdrop } from './space/sky-backdrop';
 import { indexUniverse } from './universe-layout';
 import { UniverseSurface } from './universe-surface';
@@ -29,7 +31,7 @@ function statusOf(state: ReturnType<typeof useUniverseSession>['state']): string
 }
 
 export function SignedInUniverse({ scope }: { scope: AccountScope }) {
-  const { reducedMotion } = useDisplay(),
+  const { reducedMotion, breakpoint } = useDisplay(),
     { session, state } = useUniverseSession(scope, reducedMotion),
     router = useRouter(),
     { focus: focusParam } = useLocalSearchParams<{ focus?: string }>();
@@ -83,15 +85,26 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
   }, [foreground, state.overlay, state.focusId, state.historyDepth, state.youWereHere, state.landed]);
 
   const dust = state.dust.cues.length > 0;
+  const emptyNow = read.status === 'empty' && !dust && state.dust.status !== 'idle' && state.dust.status !== 'loading';
+  // The first open (D-114) plays once in the account's life, where 3D can be drawn and motion is welcome.
+  const opening =
+    !reducedMotion && state.detail !== 'low' && breakpoint !== 'desktop' && canDrawSpace() && !lowMemoryDevice();
+  const gated = (screenNode: ReactNode) => (
+    <FirstOpenGate scope={scope} enabled={opening} endsOnEmpty={emptyNow} empty={<EmptyUniverseScreen over />}>
+      {screenNode}
+    </FirstOpenGate>
+  );
   if (read.status === 'empty' && !dust)
-    return state.dust.status === 'idle' || state.dust.status === 'loading' ? (
-      <QuietGround label="Looking at your universe" />
-    ) : (
-      <EmptyUniverseScreen />
+    return gated(
+      state.dust.status === 'idle' || state.dust.status === 'loading' ? (
+        <QuietGround label="Looking at your universe" />
+      ) : (
+        <EmptyUniverseScreen />
+      ),
     );
   if (!snapshot && read.status !== 'empty')
-    return <Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />;
-  return (
+    return gated(<Unavailable session={session} state={state} onExplore={() => router.navigate('/explore')} />);
+  return gated(
     <>
       <UniverseSurface
         session={session}
@@ -102,9 +115,12 @@ export function SignedInUniverse({ scope }: { scope: AccountScope }) {
         onStation={(roomId) => router.push(roomHref(roomId))}
       />
       <FormationPresentation session={session} />
-    </>
+    </>,
   );
 }
+
+/** A cheap first look at whether the opening's 3D scene can run at all; the claim itself waits for its real WebGL context (D-114). */
+const canDrawSpace = (): boolean => Platform.OS !== 'web' || typeof WebGL2RenderingContext !== 'undefined';
 
 function QuietGround({ label }: { label: string }) {
   const insets = useSafeAreaInsets();

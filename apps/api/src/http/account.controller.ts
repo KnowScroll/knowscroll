@@ -5,9 +5,11 @@ import { apiContract, type ProblemCode } from '@knowscroll/contracts';
 import type { ApiConfig } from '@knowscroll/backend/infrastructure/config';
 import type { LogEvent } from '@knowscroll/backend/infrastructure/observability';
 import {
+  CLAIM_FIRST_OPEN,
   END_OTHER_SESSIONS,
   END_SESSION,
   LIST_SESSIONS,
+  type ClaimFirstOpen,
   type DataExportSummary,
   type EndOtherSessions,
   type EndSession,
@@ -68,6 +70,7 @@ export class AccountController {
     @Inject(LIST_SESSIONS) private readonly listSessions: ListSessions,
     @Inject(END_SESSION) private readonly endSession: EndSession,
     @Inject(END_OTHER_SESSIONS) private readonly endOtherSessions: EndOtherSessions,
+    @Inject(CLAIM_FIRST_OPEN) private readonly claimFirstOpen: ClaimFirstOpen,
     @Inject(DELETE_ACCOUNT) private readonly deletion: DeleteAccountUseCases,
     @Inject(DATA_EXPORT) private readonly exports: DataExportUseCases,
   ) {}
@@ -120,6 +123,14 @@ export class AccountController {
       this.logEvent('identity.signed_out', { count: revoked, reasonCode: 'other_sessions' });
       return { revoked };
     });
+  }
+
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.account.claimFirstOpen)
+  claimFirstOpenRoute(@Req() request: Request) {
+    return implement(apiContract.account.claimFirstOpen).handler(async () =>
+      this.claimFirstOpen({ accountId: admittedCaller(request).accountId }),
+    );
   }
 
   @Header('Cache-Control', 'private, no-store')

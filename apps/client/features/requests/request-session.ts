@@ -1,4 +1,4 @@
-import { apiProblem, type AccountScope } from '@knowscroll/client-core';
+import { apiProblem, recordingCommandFields, type AccountScope } from '@knowscroll/client-core';
 import type {
   CancelContentRequest,
   ContentRequestReceipt,
@@ -10,7 +10,12 @@ import { ENCOUNTER_CAPABILITIES } from '../encounter/capabilities';
 
 type Source = Extract<CreateContentRequest['intent'], { kind: 'variant' }>['source'];
 type Format = 'reel' | 'scroll' | 'either';
-export type RequestMode = 'topic' | 'reel' | 'scroll';
+/** `ask`: a question about the Scroll being read, from one of its stops (D1). The others are the E04 and E06 sheets. */
+export type RequestMode = 'topic' | 'reel' | 'scroll' | 'ask';
+/** Where in the Scroll an ask was made: the stop on screen when the sheet opened. */
+export interface AskAnchor {
+  readonly stopId: string;
+}
 export const suggestions = [
   { id: 'earth.seasons', label: 'Seasons' },
   { id: 'earth.tides', label: 'Tides' },
@@ -33,19 +38,29 @@ export interface RequestState {
   readonly format: Format;
   readonly about: boolean;
   readonly topicId?: string;
+  /** For an ask: the stop it is made from. */
+  readonly anchor?: AskAnchor;
   readonly source?: Source;
   readonly receipt?: ContentRequestReceipt;
   readonly status?: ContentRequestStatus;
   /**
    * `too_many_open`: the person already has the most open asks they may have. `not_retryable`: Try
    * again was answered that this request cannot be tried again; the closed request is unchanged.
+   * `paused`: an ask from here is off while recording is paused (D-083).
    */
-  readonly error?: 'source' | 'read' | 'refused' | 'too_many_open' | 'not_retryable';
+  readonly error?: 'source' | 'read' | 'refused' | 'too_many_open' | 'not_retryable' | 'paused';
   readonly reading?: boolean;
   /** The notice the person put away (Later, Dismiss): kept with the request, so a remount does not bring it back. */
   readonly dismissedRequestId?: string;
 }
 const initial = (): RequestState => ({ phase: 'draft', mode: 'topic', text: '', format: 'either', about: false });
+/** A question about the Scroll in front of the person: this scope is the default, and "Something new" the way out. */
+const initialAsk = (anchor: AskAnchor | undefined): RequestState => ({
+  ...initial(),
+  mode: 'ask',
+  about: true,
+  anchor,
+});
 const sameSource = (a: Source | undefined, b: Source | undefined) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Private memory belongs to this AccountScope. No draft, command, receipt or request list is persisted. */
@@ -147,7 +162,13 @@ export function createRequestSession(
       const refused = problem && problem.status >= 400 && problem.status < 500;
       publish({
         phase: refused ? 'refused' : 'send_unknown',
-        error: refused ? (problem.code === 'TOO_MANY_REQUESTS' ? 'too_many_open' : 'refused') : undefined,
+        error: refused
+          ? problem.code === 'TOO_MANY_REQUESTS'
+            ? 'too_many_open'
+            : problem.code === 'RECORDING_PAUSED'
+              ? 'paused'
+              : 'refused'
+          : undefined,
       });
     }
   }
@@ -219,14 +240,14 @@ export function createRequestSession(
       });
     }
   }
-  function reset(mode: RequestMode) {
+  function reset(mode: RequestMode, anchor?: AskAnchor) {
     generation += 1;
     stop();
     command = undefined;
     cancelCommand = undefined;
     retryCommand = undefined;
     polls = 0;
-    state = { ...initial(), mode, source: sourceNow() };
+    state = { ...(mode === 'ask' ? initialAsk(anchor) : { ...initial(), mode }), source: sourceNow() };
     publish({});
   }
   scope.onEnd?.(() => {
@@ -240,8 +261,67 @@ export function createRequestSession(
     listeners.forEach((listener) => listener());
     listeners.clear();
   });
+  let building = false;
+  /**
+   * An ask from here (D1): the person's words and the stop they asked from. It is tied to what they have read, so it is
+   * refused while recording is paused, on the device first and then by the server (D-083). "Something new" sends the
+   * words as a free-text ask instead, with no source. The recording generation is read once, before the first send,
+   * and the same command goes again only after an unknown outcome.
+   */
+  async function submitAsk() {
+    const question = state.text.trim();
+    if (!valid() || !visible || state.phase !== 'draft' || command || building || question.length < 3) return;
+    if (!state.about) {
+      command = {
+        version: 'content-request.v1',
+        commandId: newId(),
+        intent: { kind: 'topic', subject: { kind: 'text', text: question }, format: 'scroll' },
+        language: 'en',
+        capabilities: ENCOUNTER_CAPABILITIES,
+      };
+      void send();
+      return;
+    }
+    if (!state.source || !state.anchor || !sameSource(state.source, sourceNow())) {
+      publish({ error: 'source' });
+      return;
+    }
+    if (scope.recording?.getState().policy?.on === false) {
+      publish({ error: 'paused' });
+      return;
+    }
+    building = true;
+    const current = generation;
+    try {
+      const { recordingGeneration } = await recordingCommandFields(scope);
+      if (!valid() || current !== generation || state.phase !== 'draft' || !state.source || !state.anchor) return;
+      command = {
+        version: 'content-request.v1',
+        commandId: newId(),
+        intent: {
+          kind: 'ask',
+          source: state.source,
+          anchor: { kind: 'stop', stopId: state.anchor.stopId },
+          question,
+          recordingGeneration,
+        },
+        language: 'en',
+        capabilities: ENCOUNTER_CAPABILITIES,
+      };
+    } catch {
+      if (valid() && current === generation) publish({ error: 'read' });
+      return;
+    } finally {
+      building = false;
+    }
+    void send();
+  }
   /** Sends the draft as one deliberate request, once; the same command goes again only after an unknown outcome. */
   function submit() {
+    if (state.mode === 'ask') {
+      void submitAsk();
+      return;
+    }
     if (!valid() || !visible || state.phase !== 'draft' || command) return;
     if ((state.about || state.mode !== 'topic') && (!state.source || !sameSource(state.source, sourceNow()))) {
       publish({ error: 'source' });
@@ -290,11 +370,11 @@ export function createRequestSession(
         listeners.delete(listener);
       };
     },
-    show(mode: RequestMode) {
+    show(mode: RequestMode, anchor?: AskAnchor) {
       if (!valid()) return;
       const now = sourceNow();
       // Reopen only the retained exact-entry request; a different entry requires an explicit fresh draft.
-      if (state.phase === 'draft' && (!state.source || state.error === 'source')) reset(mode);
+      if (state.phase === 'draft' && (!state.source || state.error === 'source')) reset(mode, anchor);
       else if (state.source?.exposureId !== now?.exposureId || mode !== state.mode) {
         if (
           state.phase === 'sending' ||
@@ -303,8 +383,10 @@ export function createRequestSession(
           state.phase === 'cancel_unknown'
         )
           return false;
-        reset(mode);
-      }
+        reset(mode, anchor);
+      } else if (mode === 'ask' && state.phase === 'draft' && anchor?.stopId !== state.anchor?.stopId)
+        // The same unsent question, asked from the stop the person is on now.
+        publish({ anchor });
       return true;
     },
     visible(value: boolean) {
@@ -316,7 +398,7 @@ export function createRequestSession(
       }
     },
     edit(patch: Partial<Pick<RequestState, 'text' | 'format' | 'about' | 'topicId'>>) {
-      if (!valid() || state.phase !== 'draft' || command) return;
+      if (!valid() || state.phase !== 'draft' || command || building) return;
       publish({
         ...patch,
         ...(patch.text !== undefined ? { text: patch.text.slice(0, 500), topicId: undefined } : {}),
@@ -360,7 +442,11 @@ export function createRequestSession(
       if (state.phase === 'retry_unknown') void runRetry();
     },
     startAgain() {
-      if (valid() && !['sending', 'send_unknown', 'cancelling', 'cancel_unknown'].includes(state.phase)) reset('topic');
+      if (valid() && !['sending', 'send_unknown', 'cancelling', 'cancel_unknown'].includes(state.phase)) {
+        // Asking again from where the person is keeps the question's kind: a question about this Scroll stays one.
+        if (state.mode === 'ask') reset('ask', state.anchor);
+        else reset('topic');
+      }
     },
     async openReady() {
       if (!valid() || !visible || state.phase !== 'accepted' || state.status?.status !== 'ready') return false;

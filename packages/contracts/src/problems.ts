@@ -36,6 +36,7 @@ export const problemCatalogue = {
   INTERNAL: { status: 500, title: 'Something went wrong on our side.' },
   SERVICE_UNAVAILABLE: { status: 503, title: 'The service is temporarily unavailable.' },
   RECORDING_POLICY_STALE: { status: 409, title: 'Recording settings changed; reload and try again.' },
+  RECORDING_PAUSED: { status: 409, title: 'Recording is paused; turn it on to do this.' },
   RECORDING_GENERATION_REQUIRED: { status: 409, title: 'This recorder must be updated before recording again.' },
   RECORDING_GENERATION_EXHAUSTED: { status: 409, title: 'Recording settings cannot accept another change.' },
 } as const satisfies Record<string, { status: number; title: string }>;

@@ -7,7 +7,12 @@ import { personalStores } from '@knowscroll/backend/erasure-registry';
 import { eraseUniverse } from '@knowscroll/backend/infrastructure/erasure';
 import { makeEnqueueJob } from '@knowscroll/backend/infrastructure/jobs';
 import { requestHash } from '@knowscroll/backend/infrastructure/receipts';
-import { makeWithPersonalScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
+import {
+  fencePersonalRecording,
+  makeWithPersonalScope,
+  type Database,
+} from '@knowscroll/backend/infrastructure/postgres';
+import { FENCE_PERSONAL_RECORDING } from '@knowscroll/backend/modules/identity';
 import { identityScopeOwnerProviders } from '@knowscroll/backend/modules/identity/nest-providers';
 import { contentProviders } from '@knowscroll/backend/modules/content/nest-providers';
 import { experienceEvidenceReadProviders } from '@knowscroll/backend/modules/experience/nest-providers';
@@ -99,8 +104,11 @@ describe('Supply Create (CI fixture models, real PostgreSQL and pg-boss)', () =>
         {
           supplyCreateDailyCap: options.cap ?? 10,
           supplyPlannerCreateDailyCap: options.plannerCap ?? options.cap ?? 10,
+          supplyAskDailyCap: 20,
+          supplyAskPersonDailyCap: 5,
         },
       ],
+      [FENCE_PERSONAL_RECORDING, fencePersonalRecording],
       [READ_EXPLORATION_SNAPSHOT, content.readExploration],
       [HARNESS, fixtureHarness(database.db, { model: matchModel }).harness],
       ...identityScopeOwnerProviders().map((p) => [p.provide, p.useValue] as const),
