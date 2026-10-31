@@ -23,6 +23,7 @@ it('Back closes the panel before restoring a camera and unregisters; history car
     regionPreview: { status: 'idle' },
     lately: false,
     dust: { status: 'idle', cues: [] },
+    collection: { status: 'idle', collection: { landmarks: [], orbit: undefined, resume: null, planets: [] } },
     lastPlace: undefined,
     absent: false,
     selectedId: null,

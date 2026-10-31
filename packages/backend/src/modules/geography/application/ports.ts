@@ -10,6 +10,8 @@ import type {
   UniverseDeltas,
   EmergingUniverse,
   ReadEmergingUniverse,
+  PlaceConcepts,
+  ReadPlaceConcepts,
 } from '@knowscroll/contracts';
 import type {
   WithPersonalScope,
@@ -258,6 +260,13 @@ export type ReadOwnDeltas = (
 export interface EmergingPorts extends Pick<GeographyPorts, 'withScope' | 'ownerActive' | 'store' | 'hash' | 'now'> {
   readonly readSnapshot: ReadExplorationSnapshot;
 }
+export type ReadOwnPlaceConcepts = (
+  authority: PersonalAuthority,
+  query: ReadPlaceConcepts,
+) => Promise<
+  | { readonly kind: 'read'; readonly concepts: PlaceConcepts }
+  | { readonly kind: 'refused'; readonly reason: 'scope_refused' }
+>;
 export type ReadOwnEmerging = (
   authority: PersonalAuthority,
   query: ReadEmergingUniverse,

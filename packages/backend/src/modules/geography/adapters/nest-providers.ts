@@ -48,6 +48,7 @@ import {
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
   READ_OWN_EMERGING,
+  READ_OWN_PLACE_CONCEPTS,
   PUBLISH_GEOGRAPHY_DELTA,
   READ_OWN_REGION_CONSTRAINT,
   SETTLE_QUIET,
@@ -56,6 +57,7 @@ import {
 import { makeRequestCartography, makeGeographyMaterialChange } from '../application/request.js';
 import { makeReadGeography, makeReadDeltas } from '../application/read.js';
 import { makeReadOwnEmerging } from '../application/emerging.js';
+import { makeReadOwnPlaceConcepts } from '../application/place-concepts.js';
 import {
   makeRunCartographer,
   makePublishDelta,
@@ -337,6 +339,11 @@ export function geographyProviders(t: { readonly withPersonalScope: symbol; read
       inject: [GEOGRAPHY_PORTS, READ_EXPLORATION_SNAPSHOT],
       useFactory: (p: GeographyPorts, readSnapshot: ReadExplorationSnapshot) =>
         makeReadOwnEmerging({ ...p, readSnapshot }),
+    },
+    {
+      provide: READ_OWN_PLACE_CONCEPTS,
+      inject: [GEOGRAPHY_PORTS],
+      useFactory: (p: GeographyPorts) => makeReadOwnPlaceConcepts(p),
     },
     {
       provide: PUBLISH_GEOGRAPHY_DELTA,

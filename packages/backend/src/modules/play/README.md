@@ -52,7 +52,8 @@ activity, Personal Context contribution and formed places.
 |---|---|---|
 | `lockCall(authority, {commandId, assetId, revision, stopId, option, recordingGeneration})` | `POST /v1/play/calls/lock` | Personal root, then own account. An identical retry answers the stored lock. The recording gate (D-083): paused or a stale generation stores nothing, writes no receipt and answers `recorded: false`. Then the person must have an **activated exposure of that exact revision** (`experience` `HAS_ACTIVATED_EXPOSURE`) and the stop must be a **call of that revision**, a Call it or the Final call (`content` `READ_SCROLL_PLAY_FACTS`, read from the immutable document). The option must be one the call has. Correctness is recomputed here, never taken from the client. One transaction writes the receipt, `play.calls`, `play.scroll_results` and, for a Final call of a revision that names a landmark, `play.landmarks`. The sparks come from the module's own `afterLock` (the combo bonus) and the finish from `landmarkTierOf`; a test checks both against the device's copy in `scroll-model`. |
 | `readResults(authority, {assetId, revision})` | `POST /v1/play/results/read` | The caller's own calls (in the order locked), sparks, combo and landmark for one revision; nothing locked reads as zeroes. A read, so it answers while recording is paused. |
-| `readLandmarks(authority)` | `POST /v1/play/landmarks/read` | The caller's own landmarks, newest first (key, name, finish, Scroll, day). For the Universe overlay (S-4). A read, so it answers while recording is paused; nothing in it forms or moves a place. |
+| `readLandmarks(authority)` | `POST /v1/play/landmarks/read` | The caller's own landmarks, newest first (key, name, finish, Scroll, day), each with the primary catalogue topic of its Scroll (`topicId`, from Content's `READ_ENCOUNTER_TOPICS`, absent when the Scroll can no longer be read). For the Universe overlay (S-4, D-214). A read, so it answers while recording is paused; nothing in it forms or moves a place. |
+| `readOrbit(authority, {timeZone?})` | `POST /v1/play/orbit/read` | This week's Orbit: the distinct days of the week (Monday to Sunday in the person's time zone, UTC for a name the database does not know) on which the caller locked a call, out of three, with `closed` at three (D-215). Derived from `play.calls`, so it has no table. A read: it answers while recording is paused (a day played while paused was never stored) and writes nothing. Pure calendar rules in `domain/orbit.ts`. |
 
 Refusals map to the shared problems: an unknown revision, call or exposure is one `NOT_FOUND` (a lock is no oracle); a
 forged option is `UNPROCESSABLE_REQUEST`; a reused command key is `COMMAND_KEY_REUSED`.
@@ -64,7 +65,7 @@ option and `newlyLocked: false`, and nothing changes. A landmark is awarded once
 
 | Item | Detail |
 |---|---|
-| Tables | `play.calls` (0074): one row per person, Scroll revision and call stop: the option locked, `correct`, the command, the time and `lock_seq`, the order locked (a sequence, not the clock, so a clock that steps back cannot reorder a combo). Never updated. `play.scroll_results` (0074, bounds widened by 0077): per person and revision, calls locked, sparks (at most five) and combo, replaced with each lock. `play.landmarks` (0077): one row per person and revision whose Final call was locked, when it names a landmark: the key and name the person saw, the finish (`gold` or `plain`) and the time. Written once, in the Final call's transaction; never updated. It names no planet: the Universe attaches it from the asset (S-4, D-084). |
+| Tables | `play.calls` (0074): one row per person, Scroll revision and call stop: the option locked, `correct`, the command, the time and `lock_seq`, the order locked (a sequence, not the clock, so a clock that steps back cannot reorder a combo). Never updated. `play.scroll_results` (0074, bounds widened by 0077): per person and revision, calls locked, sparks (at most five) and combo, replaced with each lock. `play.landmarks` (0077): one row per person and revision whose Final call was locked, when it names a landmark: the key and name the person saw, the finish (`gold` or `plain`) and the time. Written once, in the Final call's transaction; never updated. It names no planet: the Universe sets it on the planet of its Scroll's topic, joined by the client from this module's read and Geography's place concepts, never inside `play` (S-4, D-084, D-214). |
 | Jobs, notices | none. A lock changes nothing another module reads, so it enqueues nothing and bumps no universe revision. |
 | Lock order | personal root, then the caller's own account; no other root |
 | Clear | erased (all three tables) |
@@ -82,12 +83,10 @@ option and `newlyLocked: false`, and nothing changes. A landmark is awarded once
 
 ## Planned
 
-The weekly Orbit and the Universe overlay with the landmark tray (S-4), and play in rooms. None of them changes
-the wall. Call it together in threads is built (T-E): a pick there lives in `social.thread_calls`, because it needs the thread's
+Play in rooms. It would not change the wall. The weekly Orbit (D-215) and the Universe's landmark overlay (D-214: the tray, the pennants on the globe and map, the lists) are implemented here and in the client and runtime-verified against authored fixtures (`e2e/universe-collection-smoke.spec.ts`), not yet on dev. Call it together in threads is built (T-E): a pick there lives in `social.thread_calls`, because it needs the thread's
 lock, standing, places and blocks, which play may not import (D-180); `social` is walled by the allow-list
 `thread-pick-wall-only-listed-modules-import-social` and `social/wall.test.ts` (D-156). It reads this module's source of truth, a
-Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now also gives a call's words. A landmark is shown on a planet only after the Universe reads `readLandmarks`; until S-4 it is stored and
-shown on the Scroll's own end.
+Scroll revision's calls, through Content's `READ_SCROLL_PLAY_FACTS`, which now also gives a call's words. A landmark is shown on a planet when the Universe reads `readLandmarks` and Geography's place concepts and joins them on the topic (D-214); it also shows on the Scroll's own end.
 
 ## Related
 

@@ -37,6 +37,7 @@ export function SimpleUniverse({
   onTurnOff,
   searchPanel,
   card,
+  collection,
   forcedPlanetId,
 }: {
   readonly session: UniverseMapSession;
@@ -60,6 +61,8 @@ export function SimpleUniverse({
   readonly searchPanel?: ReactNode;
   /** A region's card, over the bottom of the list. */
   readonly card?: ReactNode;
+  /** The person's landmarks, Orbit and next Part, listed above the places (D-089); a visit gets none. */
+  readonly collection?: ReactNode;
   /** A planet to list even though the camera is not on it (its world could not be drawn). */
   readonly forcedPlanetId?: string;
 }) {
@@ -86,6 +89,7 @@ export function SimpleUniverse({
             ) : (
               <UniverseHeading subject={subject} owner={owner} onSearch={onSearch} />
             ))}
+          {view.kind === 'planet' ? null : collection}
           {view.kind === 'planet' ? (
             <PlanetRegions
               session={session}

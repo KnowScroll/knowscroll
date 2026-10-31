@@ -143,6 +143,16 @@ not established. A cue has no label, topic or count. Its ID is derived from the 
 system, so it is stable between reads and names nothing. The read never enqueues anything. A
 selective Clear removes the evidence and so the cue. Map visits and suggestions never create one.
 
+## Place concepts (D-214)
+
+`ReadOwnPlaceConcepts` (`POST /v1/universe/places/concepts/read`, contract `universe-place-concepts.v1`) lists the
+catalogue topic of each established factual planet of the caller's universe, with the geography revisions it was read
+against. It exists so the Universe can set a landmark, which `play` keeps against a Scroll's topic, on that topic's
+planet (D-084, D-089). A topic is a public catalogue id, so the answer adds nothing personal beyond which planets exist,
+which the snapshot already says. It is a read of the same stored places (no write, no cartography request, no model); it
+holds nothing from play and `play` never imports this module (D-180). *Implemented; runtime-verified locally
+(`tests/integration/modules/play.test.ts`).*
+
 ## Public entry points and dependencies
 
 `public.ts` exports the use cases and queues. Other modules reach Geography only through it.

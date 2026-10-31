@@ -38,12 +38,14 @@ import {
   READ_OWN_GEOGRAPHY,
   READ_OWN_DELTAS,
   READ_OWN_EMERGING,
+  READ_OWN_PLACE_CONCEPTS,
   PUBLISH_GEOGRAPHY_DELTA,
   type MaterialGeographyChange,
   type RequestCartography,
   type ReadOwnGeography,
   type ReadOwnDeltas,
   type ReadOwnEmerging,
+  type ReadOwnPlaceConcepts,
   type PublishGeographyDelta,
 } from '@knowscroll/backend/modules/geography';
 import {
@@ -116,6 +118,7 @@ export async function geographyWorld(name: string) {
     read = get<ReadOwnGeography>(READ_OWN_GEOGRAPHY),
     deltas = get<ReadOwnDeltas>(READ_OWN_DELTAS),
     emerging = get<ReadOwnEmerging>(READ_OWN_EMERGING),
+    placeConcepts = get<ReadOwnPlaceConcepts>(READ_OWN_PLACE_CONCEPTS),
     publish = get<PublishGeographyDelta>(PUBLISH_GEOGRAPHY_DELTA);
   async function fixture(unit = `ci-geography-unit-${randomUUID()}`, t = topic, facets = [facet]) {
     const source = starterSource() as {
@@ -405,6 +408,7 @@ export async function geographyWorld(name: string) {
     read,
     deltas,
     emerging,
+    placeConcepts,
     publish,
     scope,
     fixture,

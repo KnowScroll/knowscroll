@@ -357,6 +357,17 @@ float over it.
   card (Land goes straight to its map, Close), the Lately and Simple drawing switches, then the same lists as the
   Simple view (systems with planets and rooms). On a system a tap on a planet picks it and it glows; key hints and
   zoom buttons are on the map. Escape closes what is open and then steps up one level.
+- **The collection** (`collection/`, `universe-collection-reader.ts`, v3 S-4, D-214 to D-216; *implemented, runtime-verified on the fixture
+  stack in `e2e/universe-collection-smoke.spec.ts`, not yet on dev*). The person's own session reads their landmarks, this
+  week's Orbit, the next Part to resume and the topic of each planet (`readCollection` in client-core) when the tab comes to
+  the front and when the map's geography changes. A landmark stands on the planet of its Scroll's topic as a small pennant
+  (gold or cream) painted on the globe and the landed map at places `landmarkSpots` picks; with no such planet on the map it
+  waits in the tray ("Your landmark is waiting", with "See it") and the Landmarks chip opens the sheet that lists every one
+  with its finish and where it stands. The Orbit is one quiet line of text ("Orbit · 1 of 3 days this week"; never a ring on
+  the map, D-087) and the resume chip ("Resume Part 2 of 3") opens the next Part by its address. On desktop the panel carries
+  the same as a paper list, and so does the Simple drawing, so the landmarks are readable without the drawing. The markers
+  do not move, so reduced motion changes nothing about them. A friend's universe is never given a collection. Cloud thinning
+  and an Orbit ring were not built (D-088, D-087).
 - **Return.** The camera, lens and ship's place persist per device in the account scope's storage
   (purged on logout, account switch and privacy reset). The ship is parked on the planet of the last place
   (hidden under Lately). After three days away the camera starts framed on everything and a "Return to <planet>" chip
