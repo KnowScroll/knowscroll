@@ -46,11 +46,12 @@ function dividedByDay(messages: readonly ConversationMessage[]) {
 
 /**
  * Keeps the newest message in view for a reader who is already at the end, and leaves a reader
- * who scrolled up where they are. `changeKey` changes whenever the list grows or first appears.
+ * who scrolled up where they are. `changeKey` changes whenever the list grows or first appears. A list that opens on
+ * something above its messages (Today's cards) starts at the top, and follows only once the reader reaches the end or sends.
  */
-export function useFollowEnd(changeKey: string) {
+export function useFollowEnd(changeKey: string, startAtTop = false) {
   const ref = useRef<ScrollViewInstance>(null);
-  const nearEnd = useRef(true);
+  const nearEnd = useRef(!startAtTop);
   useEffect(() => {
     if (nearEnd.current) ref.current?.scrollToEnd({ animated: false });
   }, [changeKey]);

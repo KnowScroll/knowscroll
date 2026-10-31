@@ -1,3 +1,4 @@
+import { stationSkyLine } from '@knowscroll/client-core';
 import type { RoomStation } from '@knowscroll/contracts';
 import { isQuiet, type UniverseIndex } from './universe-layout';
 
@@ -19,6 +20,8 @@ export interface ListedRoom {
   readonly id: string;
   readonly name: string;
   readonly systemId: string;
+  /** The room's sky in words ("6 of 7"), when the person is in the room (D-174). */
+  readonly caption?: string;
 }
 
 export interface ListedSystem {
@@ -50,7 +53,14 @@ export function listUniverse(
   const hereRegion = hereRegionId ? index.byId.get(hereRegionId) : undefined;
   const rooms = stations.flatMap((station) =>
     index.byId.get(station.placement.systemId)?.kind === 'system'
-      ? [{ id: station.room.roomId, name: station.room.name, systemId: station.placement.systemId }]
+      ? [
+          {
+            id: station.room.roomId,
+            name: station.room.name,
+            systemId: station.placement.systemId,
+            ...(station.sky === undefined ? {} : { caption: stationSkyLine(station.sky) }),
+          },
+        ]
       : [],
   );
   /** Stable: with Lately on, quiet places go after the others and keep their order among themselves. */

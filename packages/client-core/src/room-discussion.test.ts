@@ -233,6 +233,29 @@ describe('a room discussion on the client', () => {
     expect(controller.getState().messages[0]).not.toHaveProperty('usefulByYou');
   });
 
+  it('votes on a debate and reads the discussion again for the tally', async () => {
+    let voted = false;
+    const debate = () => ({
+      sides: [{ text: 'Dark matter' }, { text: 'Modified gravity' }],
+      closesAt: '2026-10-31T08:00:00.000Z',
+      state: 'open',
+      ...(voted ? { yourVote: 'a' } : {}),
+    });
+    const scope = scopeOf({
+      readDiscussion: () => Promise.resolve(readyView([], { debate: debate() })),
+      voteDebate: () => {
+        voted = true;
+        return Promise.resolve({});
+      },
+    });
+    const controller = createRoomDiscussion({ scope, roomId, discussionId, newId });
+    await controller.load();
+    expect(controller.getState().view?.debate).not.toHaveProperty('yourVote');
+    expect(await controller.voteDebate('a')).toBe(true);
+    expect(scope.calls.find((call) => call.name === 'voteDebate')?.input).toMatchObject({ discussionId, side: 'a' });
+    expect(controller.getState().view?.debate).toMatchObject({ yourVote: 'a' });
+  });
+
   it('leaves a message as it was when the server refuses the mark', async () => {
     const scope = scopeOf({
       readDiscussion: () => Promise.resolve(readyView([text(1, 'my own words')])),

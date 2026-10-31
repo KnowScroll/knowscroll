@@ -1,4 +1,5 @@
 import type {
+  NewDebate,
   RoomAiLevel,
   RoomListItem,
   RoomReports,
@@ -64,7 +65,13 @@ export async function readRoomTopics(
 }
 
 export type StartDiscussion =
-  | { readonly kind: 'topic'; readonly title: string; readonly tag?: RoomTopicTag }
+  | {
+      readonly kind: 'topic';
+      readonly title: string;
+      readonly tag?: RoomTopicTag;
+      /** Two sides and a close time: required with the tag `debate`, refused with any other (D-176). */
+      readonly debate?: NewDebate;
+    }
   | { readonly kind: 'content'; readonly root: { readonly assetId: string; readonly assetRevision: number } }
   | {
       readonly kind: 'message';

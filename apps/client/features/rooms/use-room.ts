@@ -10,6 +10,8 @@ import {
   createRoomActivities,
   createRoomActivity,
   createRoomDiscussion,
+  createRoomSky,
+  createRoomToday,
   readRoomList,
   readRoomTopics,
   type AccountScope,
@@ -20,7 +22,11 @@ import {
   type RoomController,
   type RoomDiscussionController,
   type RoomDiscussionState,
+  type RoomSkyController,
+  type RoomSkyState,
   type RoomState,
+  type RoomTodayController,
+  type RoomTodayState,
 } from '@knowscroll/client-core';
 import { useMemo } from 'react';
 import type { RoomTopicItem, RoomTopicSort, RoomTopicTag } from '@knowscroll/contracts';
@@ -244,6 +250,47 @@ export function useRoomActivity(
     refetchInterval: quiz ? false : ACTIVITY_POLL_MS,
     refetchOnWindowFocus: !quiz,
     refetchOnReconnect: !quiz,
+  });
+  return { controller, state };
+}
+
+/** Today's items and the member's tap: read on mount, on focus and by the slow poll, so a new day's items arrive. */
+export function useRoomToday(
+  scope: AccountScope,
+  roomId: string,
+): { controller: RoomTodayController; state: RoomTodayState } {
+  const [controller] = useState(() => createRoomToday({ scope, roomId, newId: newCommandId }));
+  const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
+  useQuery({
+    queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-today', roomId),
+    queryFn: async () => {
+      await controller.load();
+      return Date.now();
+    },
+    staleTime: 0,
+    refetchInterval: POLL_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+  return { controller, state };
+}
+
+/** The room's sky for a member: read on mount, so it is only mounted while its sheet is open. */
+export function useRoomSky(
+  scope: AccountScope,
+  roomId: string,
+): { controller: RoomSkyController; state: RoomSkyState } {
+  const [controller] = useState(() => createRoomSky({ scope, roomId, newId: newCommandId }));
+  const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
+  useQuery({
+    queryKey: scope.queryKey(TALK_QUERY_KEY, 'room-sky', roomId),
+    queryFn: async () => {
+      await controller.load();
+      return Date.now();
+    },
+    staleTime: 0,
+    refetchInterval: ACTIVITY_POLL_MS,
+    refetchOnWindowFocus: true,
   });
   return { controller, state };
 }

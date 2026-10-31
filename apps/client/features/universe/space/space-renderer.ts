@@ -162,7 +162,7 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
       const point = new THREE.Vector3();
       const edge = new THREE.Vector3();
       const right = new THREE.Vector3().setFromMatrixColumn(space.camera.matrixWorld, 0);
-      return space.anchors.map(({ id, kind, name, systemId, object, radius }) => {
+      return space.anchors.map(({ id, kind, name, caption, systemId, object, radius }) => {
         object.getWorldPosition(point);
         edge.copy(point).addScaledVector(right, radius);
         point.project(space.camera);
@@ -173,6 +173,7 @@ export function createSpaceRenderer(surface: SpaceSurface, initial: SpaceDefinit
           id,
           kind,
           name,
+          ...(caption === undefined ? {} : { caption }),
           systemId,
           x,
           y,

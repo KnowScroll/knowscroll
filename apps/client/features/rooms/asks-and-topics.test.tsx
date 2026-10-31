@@ -279,8 +279,8 @@ describe('starting a topic', () => {
   it('lets a chosen tag go on a second tap, and starts without one', async () => {
     const { onStart, shown } = sheet();
     await shown;
-    await fireEvent.press(screen.getByTestId('start-topic-tag-debate'));
-    await fireEvent.press(screen.getByTestId('start-topic-tag-debate'));
+    await fireEvent.press(screen.getByTestId('start-topic-tag-share'));
+    await fireEvent.press(screen.getByTestId('start-topic-tag-share'));
     await fireEvent.press(screen.getByTestId('start-topic-submit'));
     expect(onStart).toHaveBeenCalledWith('So the Moon alone explains the tides', undefined);
   });

@@ -5,6 +5,7 @@
  * (`e2e/space-gallery.spec.ts`, `maestro/space.yaml`). Never imported by a production route.
  */
 import { useEffect } from 'react';
+import { stationSkyLine } from '@knowscroll/client-core';
 import type { SpaceCanvasProps } from './space-canvas-props';
 import type { SpaceCameraSpec, SpaceRenderer } from './space-renderer';
 import type { SpaceDefinition } from './space-definition';
@@ -116,7 +117,13 @@ function anchorsOf(renderer: FakeRenderer): SpaceAnchor[] {
       place({ id: planet.id, kind: 'planet', name: planet.name, systemId: system.id });
   }
   for (const station of renderer.definition.stations ?? [])
-    place({ id: station.id, kind: 'station', name: station.name, systemId: station.systemId });
+    place({
+      id: station.id,
+      kind: 'station',
+      name: station.name,
+      ...(station.sky === undefined ? {} : { caption: stationSkyLine(station.sky) }),
+      systemId: station.systemId,
+    });
   for (const dust of renderer.definition.dust ?? []) place({ id: dust.id, kind: 'dust', name: '', systemId: null });
   return anchors;
 }

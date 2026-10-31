@@ -14,6 +14,7 @@ import { RoomBand } from './identity/room-band';
 import { AwayCard } from './away-card';
 import { OpenDiscussion } from './discussion-screen';
 import { HereStrip } from './here-strip';
+import { NowStrip } from './now-strip';
 import { discussionHref } from './room-links';
 import { RoomMenu } from './room-menu';
 import { RULE_WORDS } from './room-parts';
@@ -152,6 +153,7 @@ export function GeneralStage({
   return (
     <View style={styles.stage}>
       {header}
+      <NowStrip scope={scope} roomId={view.room.roomId} today={view.today} sky={view.sky} />
       {view.you.noticeSeenAt === undefined ? (
         <AiNoticeCard
           busy={state.working}

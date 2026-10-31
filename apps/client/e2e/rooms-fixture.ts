@@ -92,6 +92,10 @@ export interface RoomFixtureOptions {
   readonly face?: keyof typeof FACES | 'none';
   /** R-4: an operator approved a painted backdrop. */
   readonly backdrop?: boolean;
+  /** R-5: the room's sky as every read of the room carries it; a function so a later read can say more. Default: no stars. */
+  readonly sky?: () => Record<string, unknown>;
+  /** R-5: today's strip of the room view (the Today discussion, the approved question and whether there is a Spot the flaw). */
+  readonly today?: Record<string, unknown>;
 }
 
 /** Every request the fixture answered, in order, so a test can see what the screen asked for. */
@@ -280,6 +284,8 @@ export async function roomFixture(
           you: state.you,
           here: { faces, ...(faces.length >= 3 ? { count: faces.length } : {}) },
           memberTotal: 24,
+          sky: options.sky?.() ?? { lit: 0, of: 7, state: 'forming', finished: 0 },
+          ...(options.today === undefined ? {} : { today: options.today }),
           limits: {
             asked: { perPersonPerHour: 10, perRoomPerDay: 80 },
             unprompted: { humanMessagesPerTurn: 3, perHour: 8, perDay: 40, explainerPerHour: 4, skepticPerHour: 3 },
