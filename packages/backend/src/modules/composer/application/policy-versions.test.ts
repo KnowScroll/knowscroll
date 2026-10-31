@@ -500,6 +500,100 @@ describe('exploration covers each play level, and keeps the share of Reels', () 
     expect(v0.share('game')).toBeLessThan(0.1);
   }, 30_000);
 
+  /**
+   * What 4000 seeds of one validated snapshot did: how often each member was the first offer, and every probability the
+   * decisions recorded for it. The seed changes the exploration draw only, so the ranked winner is the same throughout.
+   */
+  const firstOffers = (poolMembers: readonly Member[], policy: typeof COMPOSER_POLICY_V0) => {
+    const snapshot = catalogue(poolMembers, 'seed');
+    validateSnapshot(snapshot);
+    const seeds = 4000;
+    const counts = new Map<string, number>();
+    const recorded = new Map<string, Set<number>>();
+    let winner = '';
+    let fraction = 0;
+    for (let n = 0; n < seeds; n += 1) {
+      const decision = decideValidated({ ...snapshot, seed: `seed-${String(n)}` }, policy);
+      const first = decision.selection[0]!.assetId;
+      counts.set(first, (counts.get(first) ?? 0) + 1);
+      recorded.set(first, (recorded.get(first) ?? new Set<number>()).add(decision.exploration.selectedProbability));
+      winner = decision.exploration.rankedWinner!.assetId;
+      fraction = decision.exploration.fraction;
+    }
+    return { seeds, counts, recorded, winner, fraction };
+  };
+
+  /** Upper 0.1% point of the chi-square distribution (Wilson-Hilferty), for `df` degrees of freedom. */
+  const chiSquareLimit = (df: number) => df * (1 - 2 / (9 * df) + 3.0902 * Math.sqrt(2 / (9 * df))) ** 3;
+
+  const shapes: readonly (readonly [string, readonly Member[]])[] = [
+    ['Reels only', Array.from({ length: 8 }, () => 'reel' as const)],
+    ['one level', Array.from({ length: 12 }, () => 'plain' as const)],
+    [
+      'Scrolls of mixed levels',
+      [...Array.from({ length: 8 }, () => 'plain' as const), 'stage', 'stage', 'stage', 'game'],
+    ],
+    [
+      'Reels and Scrolls of mixed levels',
+      [
+        ...Array.from({ length: 10 }, () => 'reel' as const),
+        ...Array.from({ length: 10 }, () => 'plain' as const),
+        'stage',
+        'game',
+      ],
+    ],
+  ];
+  const policies = [
+    ['v0', COMPOSER_POLICY_V0],
+    ['v1', COMPOSER_POLICY_V1],
+  ] as const;
+
+  it.each(shapes.flatMap(([shape, pool]) => policies.map(([name, policy]) => [shape, name, pool, policy] as const)))(
+    'the probability of the first offer is its observed frequency: %s, policy %s',
+    (_shape, _name, poolMembers, policy) => {
+      const pool = poolMembers.map((member, index) => ({
+        id: `asset-${String(index)}`,
+        kind: member === 'reel' ? ('reel' as const) : ('scroll' as const),
+        level: member === 'reel' ? ('plain' as const) : member,
+      }));
+      const observed = firstOffers(poolMembers, policy);
+      let chiSquare = 0;
+      for (const member of pool) {
+        // epsilon times the member's share of the exploration, plus the ranked winner's 1 - epsilon.
+        const expected =
+          (member.id === observed.winner ? 1 - observed.fraction : 0) +
+          observed.fraction * explorationShare(pool, member, policy.explorationByPlayLevel);
+        // What the decisions recorded for it is exactly that ...
+        for (const probability of observed.recorded.get(member.id) ?? []) expect(probability).toBeCloseTo(expected, 12);
+        // ... and the draw really gives it that often (a goodness of fit over every member at once).
+        const count = observed.counts.get(member.id) ?? 0;
+        chiSquare += (count - observed.seeds * expected) ** 2 / (observed.seeds * expected);
+      }
+      expect(observed.recorded.size).toBeGreaterThan(1);
+      expect(chiSquare).toBeLessThan(chiSquareLimit(pool.length - 1));
+    },
+    120_000,
+  );
+
+  it('gives each member of a small pool its exact share of the exploration', () => {
+    // 2 Reels, 3 plain Scrolls and 1 game Scroll: a member is drawn from 6, and a Scroll (4 of 6) is then redrawn by level.
+    const pool = [
+      { kind: 'reel' as const, level: 'plain' as const },
+      { kind: 'reel' as const, level: 'plain' as const },
+      { kind: 'scroll' as const, level: 'plain' as const },
+      { kind: 'scroll' as const, level: 'plain' as const },
+      { kind: 'scroll' as const, level: 'plain' as const },
+      { kind: 'scroll' as const, level: 'game' as const },
+    ];
+    const reel = pool[0]!;
+    const plain = pool[2]!;
+    const game = pool[5]!;
+    expect(explorationShare(pool, reel, true)).toBeCloseTo(1 / 6, 12);
+    expect(explorationShare(pool, plain, true)).toBeCloseTo(4 / 6 / 2 / 3, 12);
+    expect(explorationShare(pool, game, true)).toBeCloseTo(4 / 6 / 2 / 1, 12);
+    for (const member of pool) expect(explorationShare(pool, member, false)).toBeCloseTo(1 / 6, 12);
+  });
+
   const members = fc.array(
     fc.record({
       kind: fc.constantFrom('reel' as const, 'scroll' as const),
