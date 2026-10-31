@@ -1,3 +1,4 @@
+import { EARTH_SKY_KIT, kitDefinition, kitKeys, type StageKitId, type WordState } from '@knowscroll/scroll-model';
 import { AuthoredScrollV2 } from '@knowscroll/scroll-model/producer';
 import { extractResearch, type ResearchPage } from '../../../../infrastructure/research/public-pages.js';
 
@@ -18,12 +19,27 @@ export const FIXTURE_SOURCE_V2 = [
 ];
 
 const retrievedAt = '2026-10-20T00:00:00.000Z';
+const fixtureHtml = `<html><title>CI fixture</title><main>${FIXTURE_SOURCE_V2.map((text) => `<p>${text}</p>`).join('')}</main></html>`;
+
 /** The fixture's single research page, on a host the research policy allows. */
 export const fixtureResearchPageV2: ResearchPage = extractResearch(
-  `<html><title>CI fixture</title><main>${FIXTURE_SOURCE_V2.map((text) => `<p>${text}</p>`).join('')}</main></html>`,
+  fixtureHtml,
   'https://spaceplace.nasa.gov/seasons/en/',
   retrievedAt,
 );
+
+/**
+ * The fixture text as the page at `url`, for a recipe that names several pages. The research check refuses two
+ * pages with the same text, so each page ends with one invented sentence that names its own address in letters.
+ */
+export function fixtureResearchPageAt(url: string): ResearchPage {
+  const letters = url.replace(/[^a-z]+/giu, ' ').trim();
+  const html = fixtureHtml.replace(
+    '</main>',
+    `<p>Orrin keeps a separate note for the page named ${letters}, which says nothing else.</p></main>`,
+  );
+  return extractResearch(html, url, retrievedAt);
+}
 
 /**
  * The writer's recorded answer in `scroll-authoring.v2`, written the way the v15 instructions say:
@@ -33,7 +49,7 @@ export const fixtureResearchPageV2: ResearchPage = extractResearch(
  * call is a new case. It is valid against the fixture page above, with the seasons myth as the
  * recipe's misconception.
  */
-export function fixtureAuthoredV2(): AuthoredScrollV2 {
+function fixtureEarthSkyAuthoredV2(): AuthoredScrollV2 {
   return AuthoredScrollV2.parse({
     title: 'Why Orrin has summers and winters',
     dek: 'A planet that leans, a star that stays put, and a guess that most people get wrong.',
@@ -145,5 +161,39 @@ export function fixtureAuthoredV2(): AuthoredScrollV2 {
       'Why do the tropics have almost no seasons?',
       'How much do oceans change the seasons of a place?',
     ],
+  });
+}
+
+/** Every settled state of a kit, once each, in the order of its words. */
+function settledStates(kit: StageKitId): WordState[] {
+  const definition = kitDefinition(kit);
+  const all = kitKeys(definition).reduce<WordState[]>(
+    (states, key) =>
+      states.flatMap((state) => (definition.enums[key] ?? []).map((word) => ({ ...state, [key]: word }))),
+    [{}],
+  );
+  const seen = new Set<string>();
+  return all
+    .map(definition.settle)
+    .filter((state) => !seen.has(JSON.stringify(state)) && seen.add(JSON.stringify(state)));
+}
+
+/**
+ * The recorded answer for a recipe drawn with `kit`. The words are the Orrin answer's, so the text is about an
+ * invented planet whatever the kit draws: the fixture proves the pipeline (the prompt's shape, the kit's words, the
+ * assembled stage, the document's own admission), never that a picture matches its stop. Its six stage changes
+ * are settled states spread evenly over the kit's states, each different from the one before.
+ */
+export function fixtureAuthoredV2(kit: StageKitId = EARTH_SKY_KIT): AuthoredScrollV2 {
+  const authored = fixtureEarthSkyAuthoredV2();
+  if (kit === EARTH_SKY_KIT) return authored;
+  const states = settledStates(kit);
+  const step = Math.floor(states.length / 6);
+  let next = 0;
+  return AuthoredScrollV2.parse({
+    ...authored,
+    items: authored.items.map((item) =>
+      item.type !== 'aside' && item.stage !== undefined ? { ...item, stage: states[step * next++] } : item,
+    ),
   });
 }

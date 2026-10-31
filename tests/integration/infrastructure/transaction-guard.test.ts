@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   NetworkInTransactionError,
   makeWithPersonalScope,
+  withTransaction,
   type Database,
 } from '@knowscroll/backend/infrastructure/postgres';
 import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import type { HarnessPorts, ModelPort } from '@knowscroll/backend/reasoning/nest-providers';
 import { fixtureHarness, fixtureModel } from '../support/fixture-model.js';
 import { fixtureModelPort } from '../support/fixture-model-port.js';
+import { fixtureImagePort } from '../support/fixture-image.js';
 import { seedPerson } from '../support/fixtures.js';
 
 describe('the transaction network guard (real database)', () => {
@@ -57,6 +59,23 @@ describe('the transaction network guard (real database)', () => {
       answer: { kind: 'text', text: '{"ok": true, "echo": "lantern"}' },
     });
     expect(model.calls).toHaveLength(1);
+  });
+
+  it('refuses an image request inside a transaction (D-166) and allows it outside', async () => {
+    const person = await seedPerson(database.db);
+    const image = fixtureImagePort();
+    const withPersonalScope = makeWithPersonalScope(database.db, { lockTimeoutMs: 5_000 });
+    await expect(
+      withPersonalScope(person.authority, () => image.generate({ prompt: 'x' }, new AbortController().signal)),
+    ).rejects.toBeInstanceOf(NetworkInTransactionError);
+    await expect(
+      withTransaction(database.db, 'ci', () => image.generate({ prompt: 'x' }, new AbortController().signal)),
+    ).rejects.toBeInstanceOf(NetworkInTransactionError);
+    expect(image.calls).toEqual([]);
+    await expect(image.generate({ prompt: 'x' }, new AbortController().signal)).resolves.toMatchObject({
+      kind: 'image',
+    });
+    expect(image.calls).toHaveLength(1);
   });
 
   it('keeps the marker across awaits inside the transaction', async () => {

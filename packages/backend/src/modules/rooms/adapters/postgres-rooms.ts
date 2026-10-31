@@ -29,6 +29,8 @@ interface RoomColumns {
   status: string;
   /** The room's cast as JSON, in the order it is shown (`CAST_JSON`). */
   residents: { inhabitant: string; name: string }[];
+  /** The room's approved kit and approved backdrop digest, each null while none is approved (`FACE_JSON`). */
+  face: { kit: unknown; backdrop: string | null };
 }
 
 const ROOM_COLUMNS = [
@@ -48,6 +50,17 @@ const CAST_JSON = sql<RoomColumns['residents']>`(
     order by resident.position), '[]'::json)
   from rooms.room_cast resident where resident.room_id = room.room_id)`;
 
+/**
+ * The room's face as one JSON value (migration 0079): the kit and the backdrop an operator approved. Neither is a
+ * proposal; a room with none shows its default.
+ */
+const FACE_JSON = sql<RoomColumns['face']>`(
+  select json_build_object(
+    'kit', (select identity.kit from rooms.room_identity identity
+      where identity.room_id = room.room_id and identity.review_state = 'approved'),
+    'backdrop', (select backdrop.sha256 from rooms.room_backdrops backdrop
+      where backdrop.room_id = room.room_id and backdrop.review_state = 'approved')))`;
+
 /** A room row as the use cases read it; the row type stays inside this adapter. */
 export const roomOf = (row: RoomColumns): RoomRow => ({
   roomId: row.room_id,
@@ -58,6 +71,7 @@ export const roomOf = (row: RoomColumns): RoomRow => ({
   joinRule: joinRuleOf(row.join_rule),
   status: statusOf(row.status),
   cast: row.residents.map((resident) => ({ inhabitant: inhabitantOf(resident.inhabitant), name: resident.name })),
+  face: { kit: row.face.kit, backdropSha256: row.face.backdrop },
 });
 
 interface MemberColumns {
@@ -86,6 +100,7 @@ async function readRoomRow(lock: RoomLock): Promise<RoomRow> {
     .selectFrom('rooms.rooms as room')
     .select(ROOM_COLUMNS)
     .select(CAST_JSON.as('residents'))
+    .select(FACE_JSON.as('face'))
     .where('room.room_id', '=', lock.roomId)
     .executeTakeFirstOrThrow();
   return roomOf(room);
@@ -167,14 +182,14 @@ export const roomStore: RoomStore = {
   async listFor(scope, accountId) {
     const rows = await sql<RoomColumns & { standing: 'member' | 'moderator' | 'invited' }>`
       select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
-        room.join_rule, room.status, ${CAST_JSON} as residents,
+        room.join_rule, room.status, ${CAST_JSON} as residents, ${FACE_JSON} as face,
         case when member.role = 'moderator' then 'moderator' else 'member' end as standing, member.joined_at as at
       from rooms.members member
       join rooms.rooms room on room.room_id = member.room_id
       where member.account_id = ${accountId}::uuid and member.ended_at is null
       union all
       select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
-        room.join_rule, room.status, ${CAST_JSON} as residents, 'invited' as standing, invitation.created_at as at
+        room.join_rule, room.status, ${CAST_JSON} as residents, ${FACE_JSON} as face, 'invited' as standing, invitation.created_at as at
       from rooms.invitations invitation
       join rooms.rooms room on room.room_id = invitation.room_id
       where invitation.invitee_account_id = ${accountId}::uuid
@@ -197,7 +212,7 @@ export const roomStore: RoomStore = {
     const ids = [...new Set(topics.map((topic) => topic.id))];
     const rows = await sql<RoomColumns & { standing: 'member' | 'moderator' | 'invited' | 'none' }>`
       select room.room_id, room.name, room.description, room.guidelines, room.topic_kind, room.topic_id,
-        room.join_rule, room.status, ${CAST_JSON} as residents,
+        room.join_rule, room.status, ${CAST_JSON} as residents, ${FACE_JSON} as face,
         case
           when member.role = 'moderator' then 'moderator'
           when member.account_id is not null then 'member'

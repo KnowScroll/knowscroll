@@ -3,8 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { content, borderWidth, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
 import { Text } from '../../text/text';
-import { AXIAL_TILT_DEGREES, describeStageAtTilt } from '../model';
-import { EarthSkyPicture, sceneOf } from '../kit';
+import { KIT_PICTURES } from '../kit';
 import { dataSet } from '../stage-reader/data-set';
 import { stageEntryAt } from './stage-state';
 import { useStagePictures } from './use-stage-pictures';
@@ -18,7 +17,8 @@ export interface StageProps {
   readonly textVersion?: boolean;
   /**
    * The tilt of Earth's axis the reader has turned the picture to at a Final call that hands it over
-   * (D-187). Absent, or today's tilt: the picture of the state, moved between states as usual.
+   * (D-187; only the Earth & sky kit has an axis to turn). Absent, or today's tilt: the picture of the
+   * state, moved between states as usual.
    */
   readonly tilt?: number | undefined;
   readonly height: number;
@@ -27,17 +27,25 @@ export interface StageProps {
 /**
  * The pinned stage (D-133): one picture that changes as the reader moves from stop to stop. Its
  * accessible name is the description of the state it shows, derived by code in the document, so a
- * screen reader hears exactly what the picture draws. The drawing is the kit's; this component only
- * picks the state for the current stop and moves between states.
+ * screen reader hears exactly what the picture draws. The drawing is the kit's (the stage names which,
+ * D-194); this component only picks the state for the current stop and moves between states.
  */
 export function Stage({ document, stopId, reducedMotion, textVersion = false, tilt, height }: StageProps) {
+  const kitId = document.stage.kit;
+  const kit = KIT_PICTURES[kitId];
   const entry = stageEntryAt(document.stage, document.stops, stopId);
-  const target = useMemo(() => ({ key: entry.stop, scene: sceneOf(entry.state) }), [entry]);
-  const { layers: moving, transition } = useStagePictures(target, reducedMotion);
+  const target = useMemo(
+    () => ({ key: `${kitId}/${entry.stop}`, kit: kitId, scene: kit.sceneOf(entry.state) }),
+    [entry, kit, kitId],
+  );
+  const { layers: moving, transition } = useStagePictures(target, reducedMotion, kit);
   // A turned axis is drawn at once, so the picture follows the slider under the finger; it needs no move between states.
-  const turned = tilt !== undefined && tilt !== AXIAL_TILT_DEGREES;
-  const layers = turned ? [{ key: entry.stop, scene: sceneOf(entry.state, tilt), opacity: 1 }] : moving;
-  const alt = turned ? describeStageAtTilt(entry.state, tilt) : entry.alt;
+  const turning = tilt !== undefined && kit.atTilt?.isTurned(tilt) === true ? { tilt, kit: kit.atTilt } : undefined;
+  const layers =
+    turning === undefined
+      ? moving
+      : [{ key: target.key, scene: turning.kit.sceneOf(entry.state, turning.tilt), opacity: 1 }];
+  const alt = turning === undefined ? entry.alt : turning.kit.describe(entry.state, turning.tilt);
   return (
     <View
       testID="stage"
@@ -45,7 +53,7 @@ export function Stage({ document, stopId, reducedMotion, textVersion = false, ti
       {...dataSet({
         ksStageState: entry.stop,
         ksStageTransition: transition,
-        ...(turned ? { ksStageTilt: String(tilt) } : {}),
+        ...(turning === undefined ? {} : { ksStageTilt: String(turning.tilt) }),
       })}
     >
       {textVersion ? (
@@ -62,7 +70,7 @@ export function Stage({ document, stopId, reducedMotion, textVersion = false, ti
               style={[StyleSheet.absoluteFill, { opacity: layer.opacity }]}
               pointerEvents="none"
             >
-              <EarthSkyPicture scene={layer.scene} />
+              <kit.Picture scene={layer.scene} />
             </View>
           ))}
         </View>

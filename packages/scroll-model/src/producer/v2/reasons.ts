@@ -32,6 +32,8 @@ export const REPAIR_HINTS_V2: Readonly<Record<string, string>> = Object.freeze({
     'The limits aside belongs next to the claim it limits, well before the final_call, not at the end.',
   recap_small_print_unknown: 'The recap links to the limits aside; add one.',
   stage_unexpected: 'This Scroll has no stage: remove the stage object from this item.',
+  stage_choice_invalid:
+    'A stage change may use only the keys and words listed for this Scroll’s picture. Remove any other key, and use a word exactly as listed.',
   stage_missing: 'This Scroll has a stage: give the first stop a stage object that sets the starting picture.',
   earth_axis_sideways:
     'Earth’s axis is tilted by a fixed angle and points the same way all year. Say it is tilted or leans, and never call it sideways or on its side.',

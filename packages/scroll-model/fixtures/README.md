@@ -35,3 +35,15 @@ Regenerate the outputs after a deliberate change to compile, measures or hashing
 pnpm --filter @knowscroll/scroll-model fixtures   # builds, then runs regenerate.mjs
 pnpm format
 ```
+
+## Stage fixtures of the drawing kits (v2)
+
+`documents/{tides,greenhouse,star,transit}-stage-ci.json` are labelled CI fixtures of `scroll-document.v2` Scrolls,
+one for each drawing kit of D-194, for the stage reader's end-to-end check (`kit-stage-smoke.spec.ts`) and the kit
+screenshots. They are shorter than a Scroll may be, so only the reading time is outside the limits; the rest is
+validated, and the file carries correct measures and hash. Regenerate after a change to a kit's words or text:
+
+```sh
+pnpm --filter @knowscroll/scroll-model build && node packages/scroll-model/fixtures/regenerate-kits-v2.mjs
+pnpm format
+```

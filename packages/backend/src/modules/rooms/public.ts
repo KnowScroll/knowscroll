@@ -176,3 +176,15 @@ export type HoldCast = (hint: {
   readonly discussionId: string;
 }) => Promise<void>;
 export const HOLD_CAST = Symbol('rooms.holdCast');
+
+/**
+ * The picture of an approved painted backdrop, by the digest in its address (D-166): where it is in the media store and
+ * what it is. Only an approved backdrop answers; a pending, rejected or replaced one is `undefined`, so a picture nobody
+ * reviewed is never served. The API's media route reads it.
+ */
+export type ReadRoomBackdrop = (
+  sha256: string,
+) => Promise<
+  { readonly key: string; readonly mime: 'image/jpeg' | 'image/png' | 'image/webp'; readonly size: number } | undefined
+>;
+export const READ_ROOM_BACKDROP = Symbol('rooms.readRoomBackdrop');

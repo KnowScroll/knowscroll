@@ -51,6 +51,8 @@ export interface RoomRow {
   readonly status: RoomStatus;
   /** The residents that live here, in the order they are shown (D-163). */
   readonly cast: readonly CastMember[];
+  /** The kit and backdrop an operator approved, as stored; none until one is (D-170). Checked when shown. */
+  readonly face: { readonly kit: unknown; readonly backdropSha256: string | null };
 }
 
 /** Whether the room has this resident. */

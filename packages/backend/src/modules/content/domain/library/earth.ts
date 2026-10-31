@@ -144,6 +144,9 @@ export const earthRecipes = {
     topicId: 'earth.tides',
     facetId: 'earth.tides.forcing',
     supportingFacetId: 'earth.tides.coasts',
+    // The Moon's pull, the two bulges and spring and neap alignment are the subject, and the kit draws exactly
+    // those. Coasts are left to the text and the limits aside.
+    stageKit: 'tides.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -159,6 +162,9 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.tides',
     facetId: 'earth.tides.alignment',
+    // Spring and neap are the Sun and Moon lining up or standing at right angles, which the kit derives from
+    // the phase and draws as added or partly cancelled bulges and as bars for the four phases.
+    stageKit: 'tides.v1',
     interactive: true,
     interactiveKind: 'sequence',
     brief:
@@ -185,6 +191,9 @@ export const earthRecipes = {
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.radiation',
     supportingFacetId: 'earth.greenhouse-effect.limits',
+    // Sunlight in, infrared out, a layer that returns some and the ground warming until in and out match are
+    // the subject; the kit draws them with one layer and makes no energy.
+    stageKit: 'greenhouse.v1',
     interactive: false,
     interactiveKind: null,
     brief:
@@ -197,6 +206,10 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.radiation',
+    // The radiation paths are what the kit draws: reflected sunlight, the ground's infrared, and the layer
+    // sending some up and some back down. It does not say all sunlight passes through or all infrared is
+    // blocked.
+    stageKit: 'greenhouse.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -212,6 +225,9 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.balance',
+    // Balance and imbalance are the energy-balance view: two bars, equal once settled and unequal just after
+    // the layer thickens, with the ground warming until they match.
+    stageKit: 'greenhouse.v1',
     interactive: true,
     interactiveKind: 'diagram',
     brief:
@@ -227,6 +243,7 @@ export const earthRecipes = {
     systemId: system,
     topicId: 'earth.greenhouse-effect',
     facetId: 'earth.greenhouse-effect.limits',
+    // No kit: its subject is the audit of the blanket analogy, which the greenhouse kit cannot draw (D-194).
     interactive: false,
     interactiveKind: null,
     brief:

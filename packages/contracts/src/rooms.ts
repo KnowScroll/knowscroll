@@ -7,6 +7,7 @@ import {
 } from './conversations.js';
 import { AbuseCategorySchema } from './feedback.js';
 import { CommandIdSchema, UuidSchema } from './ids.js';
+import { RoomIdentitySchema } from './room-identity.js';
 import { PublicPersonRefSchema } from './sharing.js';
 import { roomsPost } from './social-problems.js';
 import { ResolvedSnippetAnchorSchema, SnippetAnchorSchema, SnippetCardSchema, ThreadEpisodeSchema } from './threads.js';
@@ -112,6 +113,8 @@ export const RoomSummarySchema = z.strictObject({
   topic: RoomTopicSchema,
   joinRule: RoomJoinRuleSchema,
   status: RoomStatusSchema,
+  /** The room's face (D-170): its emblem, palette, motif, motion and cast skins, and an approved painted backdrop if any. */
+  identity: RoomIdentitySchema.optional(),
 });
 export type RoomSummary = z.infer<typeof RoomSummarySchema>;
 
