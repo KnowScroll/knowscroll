@@ -23,10 +23,10 @@ const questionId = id(951);
 const questionMessageId = id(952);
 const DAY = 86_400_000;
 
-/** What Kenji and Asha answered last time, and how long it took: Kenji is right on all five and quick; Asha is right on three. */
+/** What Kenji and Asha answered last time: Kenji is right on all five; Asha is right on three. Nobody's speed is kept in the fixture. */
 const RECORDED = {
-  kenji: { right: [true, true, true, true, true], ms: 2_000 },
-  asha: { right: [true, true, true, false, false], ms: 3_000 },
+  kenji: { right: [true, true, true, true, true] },
+  asha: { right: [true, true, true, false, false] },
 } as const;
 
 interface QuestionMessage {
@@ -91,15 +91,14 @@ export class QuietWorld {
     };
   }
 
-  /** One question answered: the key, the reason, and the recorded answers of the two people who played. */
-  round(round: number, choice: number | undefined, elapsedMs: number | undefined) {
+  /**
+   * One question shown: the key, the reason, and the recorded answers of the two people who played. Nothing of the person's tap or time
+   * comes in and nothing of anyone's speed goes out: the faces are in person order (D-241).
+   */
+  round(round: number) {
     const question = DECK[round - 1]!;
     const answered = (['kenji', 'asha'] as const).filter((who) => RECORDED[who].right.length >= round);
     const right = answered.filter((who) => RECORDED[who].right[round - 1]);
-    const quicker =
-      choice === question.answer && elapsedMs !== undefined
-        ? right.filter((who) => RECORDED[who].ms < elapsedMs).length
-        : undefined;
     return {
       launchId,
       round,
@@ -107,8 +106,9 @@ export class QuietWorld {
       explain: question.explain,
       locked: answered.length,
       right: right.length,
-      calledIt: right.map((who) => ({ person: PEOPLE[who], you: false })),
-      ...(quicker === undefined ? {} : { quicker }),
+      calledIt: right
+        .map((who) => ({ person: PEOPLE[who], you: false }))
+        .toSorted((a, b) => a.person.personId.localeCompare(b.person.personId)),
     };
   }
 
@@ -204,11 +204,7 @@ export async function quietRoutes(
     const base = { version: 'rooms.v1', readId: body['readId'], scope };
     if (path.endsWith('/read'))
       return route.fulfill({ json: { ...base, status: 'ready', host: LAUNCH_HOST, replay: world.replay() } });
-    const answer = world.round(
-      body['round'] as number,
-      body['choice'] as number | undefined,
-      body['elapsedMs'] as number | undefined,
-    );
+    const answer = world.round(body['round'] as number);
     return route.fulfill({ json: { ...base, status: 'ready', ...answer } });
   });
   await page.route('**/v1/rooms/questions/**', (route) => {

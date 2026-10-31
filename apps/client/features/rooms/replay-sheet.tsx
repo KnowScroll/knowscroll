@@ -6,7 +6,6 @@ import {
   replayBanner,
   replayCountLine,
   replayHostLine,
-  replayPlaceLine,
   replayScoreLine,
   squaresOf,
   type RoomReplayController,
@@ -59,7 +58,6 @@ function Question({
   useEffect(() => {
     if (asking && left === 0 && picked === undefined && !state.working) void controller.timeUp();
   }, [asking, left, picked, state.working, controller]);
-  const place = answer === undefined ? undefined : replayPlaceLine(answer, picked);
   return (
     <View
       style={styles.card}
@@ -108,11 +106,6 @@ function Question({
             <Text variant="title" heading={3}>
               {picked === undefined ? 'Time’s up' : picked === answer.correct ? 'Called it!' : 'Plot twist'}
             </Text>
-            {place === undefined ? null : (
-              <Text variant="bodyS" testID="replay-place">
-                {place}
-              </Text>
-            )}
           </View>
         </View>
       )}

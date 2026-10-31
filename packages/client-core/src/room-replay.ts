@@ -36,21 +36,6 @@ export const replayChip = (
 ): { readonly label: string; readonly detail: string } | undefined =>
   strip === undefined ? undefined : { label: 'Replay', detail: `Launch of ${launchDayWords(strip.day)}` };
 
-const ORDINALS = ['1st', '2nd', '3rd'] as const;
-const ordinal = (place: number): string => ORDINALS[place - 1] ?? `${String(place)}th`;
-
-/**
- * What a right answer would have placed: how many of the recorded right answers were quicker, as a place. A number from the
- * server and nothing about who. A wrong answer and a time that ran out have no place.
- */
-export function replayPlaceLine(answer: ReplayAnswer, picked: number | undefined): string | undefined {
-  if (picked !== answer.correct || answer.quicker === undefined) return undefined;
-  if (answer.right === 0) return 'Nobody else got this one.';
-  return answer.quicker === 0
-    ? 'You’d have been the fastest.'
-    : `You’d have been ${ordinal(answer.quicker + 1)} fastest.`;
-}
-
 /** How many answered and got it right, with no name and no blame. */
 export const replayCountLine = (answer: ReplayAnswer): string =>
   answer.locked === 0 ? 'Nobody answered this one.' : `${String(answer.right)} of ${String(answer.locked)} called it`;
@@ -165,11 +150,13 @@ export function createRoomReplay(options: RoomReplayOptions): RoomReplayControll
     for (const listener of [...listeners]) listener();
   };
 
-  /** Asks the server for one question's answer; `choice` is absent when the time ran out. */
+  /**
+   * Asks the server for one question's answer; `choice` is absent when the time ran out. The read carries neither the choice nor the
+   * time: the answer is the same whatever was tapped, and a read that took a time could be swept to learn when others answered (D-241).
+   */
   async function reveal(choice: number | undefined): Promise<void> {
-    const { replay, index, shownAt } = state;
+    const { replay, index } = state;
     if (replay === undefined || state.step !== 'asking' || state.working) return;
-    const elapsedMs = Math.min(REPLAY_ANSWER_MS, Math.max(0, Math.round(clock() - shownAt)));
     publish({ working: true, offline: false, picked: choice });
     try {
       const answer = await scope.api.rooms.replayRound({
@@ -178,7 +165,6 @@ export function createRoomReplay(options: RoomReplayOptions): RoomReplayControll
         roomId,
         launchId: replay.launchId,
         round: index + 1,
-        ...(choice === undefined ? {} : { choice, elapsedMs }),
       });
       if (answer.status !== 'ready') {
         publish({ working: false, phase: 'unavailable', replay: undefined, step: 'idle' });

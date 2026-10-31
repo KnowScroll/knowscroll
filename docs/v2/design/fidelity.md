@@ -223,7 +223,7 @@ R3 page p-11 (F, "The quiet room": frames 1 to 4). 390 × 844 and 1440 × 900, p
 | F 2, the host | T-minus, "REPLAY" tag | differs | Pixel, as in the Launch (D-219). |
 | F 2, the question | "QUESTION 2 OF 5", a timer ring, the prompt | matches | "REPLAY 2 OF 5", a ring and the seconds in words. |
 | F 2, the options | Right option in green with "KENJI · 3 S, ASHA · 4 S"; "Nobody picked this last night" under another | differs | The faces of those who got it right, with no seconds and no per-option counts (D-241, D-222). |
-| F 2, the verdict | "Called it! +1 spark ... You'd have been 2nd fastest" | differs | "Called it!" and "You'd have been 2nd fastest", with no spark. |
+| F 2, the verdict | "Called it! +1 spark ... You'd have been 2nd fastest" | differs | "Called it!" alone: no spark, and no place by speed. A replay read that carried one could be swept to learn when each recorded answer came in (D-241). |
 | F 2, the header chips | "REPLAY 2 of 5", "LAST NIGHT 5 played · Kenji won" | differs | The banner carries the count. No winner is named: the podium is read for a day (D-178). |
 | F 2, the footer | "Leave replay" and "Next question" | matches | After the fifth: "See how you did", then the score and squares, with "Play it again" and "Done" (not drawn). |
 | F 3, the question | The message with "OPEN FOR PEOPLE" and "QUESTION" tags, in General | differs | A question is a topic with its first message; its card in General carries "Question" and "Open for people". |

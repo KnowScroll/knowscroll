@@ -115,8 +115,8 @@ for (const { name, size } of VIEWPORTS) {
       await expect(page.getByTestId('replay-explain')).toHaveText(question.explain);
       await expect(page.getByTestId('replay-called')).toHaveText(round <= 3 ? '2 of 2 called it' : '1 of 2 called it');
       await expect(page.getByTestId('replay-verdict')).toContainText(round <= 3 ? 'Called it!' : 'Plot twist');
-      if (round <= 3) await expect(page.getByTestId('replay-place')).toContainText('fastest');
-      else await expect(page.getByTestId('replay-place')).toHaveCount(0);
+      // Nothing says who was quicker, and nothing carries a time (D-241).
+      await expect(page.getByTestId('replay-question').getByText(/fastest|quicker|faster/i)).toHaveCount(0);
       // Nobody is named as wrong, and the replay shows no podium and no star.
       await expect(page.getByTestId('replay-question').getByText(/wrong|podium|star/i)).toHaveCount(0);
       if (round === 1) {
@@ -137,8 +137,9 @@ for (const { name, size } of VIEWPORTS) {
     expect(asked.filter((path) => path === 'replay/read').length).toBeGreaterThanOrEqual(1);
     expect(asked.filter((path) => path === 'replay/round')).toHaveLength(5);
     expect(asked.filter((path) => path.startsWith('launch/'))).toEqual([]);
+    // A read of an answer carries the question and nothing of what was tapped or how long it took (D-241).
     for (const call of world.calls.filter((entry) => entry.path.endsWith('/round')))
-      expect(Object.keys(call.body)).not.toContain('recordingGeneration');
+      expect(Object.keys(call.body).toSorted()).toEqual(['launchId', 'readId', 'roomId', 'round', 'version']);
 
     // Leave a question: the shelf says honestly that none waits, the sheet asks nothing without the tap.
     await page.getByTestId('now-questions').click();

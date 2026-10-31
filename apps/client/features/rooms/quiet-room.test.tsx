@@ -71,7 +71,6 @@ const answerOf = (patch: Partial<Answer> = {}): Answer => ({
   locked: 5,
   right: 3,
   calledIt: [{ person: person(12, 'Kenji'), you: false }],
-  quicker: 1,
   ...patch,
 });
 const replayState = (patch: Partial<RoomReplayState> = {}): RoomReplayState => ({
@@ -153,7 +152,7 @@ describe('the replay of a finished Launch', () => {
     expect(controller.timeUp).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the key, the reason, who got it right and the place a right answer would have had, with nobody named as wrong', async () => {
+  it('shows the key, the reason and who got it right, with nobody named as wrong and nothing about who was quicker', async () => {
     const { controller } = await show(
       replayState({ step: 'revealed', index: 1, picked: 1, answer: answerOf(), squares: [true, true] }),
     );
@@ -162,16 +161,16 @@ describe('the replay of a finished Launch', () => {
     expect(screen.getByTestId('replay-called')).toHaveTextContent(/3 of 5 called it/);
     expect(screen.getByLabelText('Called it: Kenji')).toBeOnTheScreen();
     expect(screen.getByTestId('replay-verdict')).toHaveTextContent(/^Called it!/);
-    expect(screen.getByTestId('replay-place')).toHaveTextContent(/You’d have been 2nd fastest./);
+    expect(screen.queryByTestId('replay-place')).toBeNull();
+    expect(screen.queryByText(/fastest|quicker|faster|seconds? ago/i)).toBeNull();
     await fireEvent.press(screen.getByTestId('replay-next'));
     expect(controller.next).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/wrong/i)).toBeNull();
   });
 
-  it('calls a wrong answer a plot twist and a missed one time’s up, and gives neither a place', async () => {
+  it('calls a wrong answer a plot twist', async () => {
     await show(replayState({ step: 'revealed', picked: 0, answer: answerOf(), squares: [false] }));
     expect(screen.getByTestId('replay-verdict')).toHaveTextContent(/^Plot twist/);
-    expect(screen.queryByTestId('replay-place')).toBeNull();
   });
 
   it('says so when nobody answered a question, rather than inventing a crowd', async () => {
@@ -179,7 +178,7 @@ describe('the replay of a finished Launch', () => {
       replayState({
         step: 'revealed',
         picked: undefined,
-        answer: answerOf({ locked: 0, right: 0, calledIt: [], quicker: undefined }),
+        answer: answerOf({ locked: 0, right: 0, calledIt: [] }),
         squares: [false],
       }),
     );

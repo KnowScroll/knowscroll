@@ -16,12 +16,14 @@ export function replayWindow(now: Date): { readonly startedBefore: Date; readonl
   };
 }
 
-/** One person's answer to one question, as a replay reads it. */
+/**
+ * One person's answer to one question, as a replay reads it: who, which question and whether it was right. Never which option was
+ * picked and never how long it took: a replay may not say when anyone answered or who was quicker (D-241).
+ */
 export interface RecordedAnswer {
   readonly accountId: string;
   readonly round: number;
   readonly correct: boolean;
-  readonly elapsedMs: number;
 }
 
 /** The answers a reader may see: those of people they have not blocked (a block is the reader's choice, D-051). */
@@ -47,27 +49,13 @@ export const replayOffered = (
 export interface RoundFigures {
   readonly locked: number;
   readonly right: number;
-  /** The accounts that got it right, quickest first, so the faces a screen draws lead with the quickest. */
+  /** The accounts that got it right, in account order: an order that says nothing about who answered first. */
   readonly calledIt: readonly string[];
-  /** For a right answer given in `ownElapsedMs`: how many of the right answers were quicker. Absent otherwise. */
-  readonly quicker: number | undefined;
 }
 
-/**
- * The figures of one round from the answers already limited to what the reader may see. `ownElapsedMs` is the replaying device's own
- * reading for a right choice and decides nothing but `quicker`: how many recorded right answers beat it, a number and not a name.
- */
-export function roundFigures(
-  answers: readonly RecordedAnswer[],
-  round: number,
-  ownElapsedMs: number | undefined,
-): RoundFigures {
+/** The figures of one round from the answers already limited to what the reader may see. No time enters them. */
+export function roundFigures(answers: readonly RecordedAnswer[], round: number): RoundFigures {
   const ofRound = answers.filter((answer) => answer.round === round);
-  const right = ofRound.filter((answer) => answer.correct).toSorted((a, b) => a.elapsedMs - b.elapsedMs);
-  return {
-    locked: ofRound.length,
-    right: right.length,
-    calledIt: right.map((answer) => answer.accountId),
-    quicker: ownElapsedMs === undefined ? undefined : right.filter((answer) => answer.elapsedMs < ownElapsedMs).length,
-  };
+  const right = ofRound.filter((answer) => answer.correct).map((answer) => answer.accountId);
+  return { locked: ofRound.length, right: right.length, calledIt: right.toSorted() };
 }

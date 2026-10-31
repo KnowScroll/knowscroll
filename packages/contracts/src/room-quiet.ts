@@ -80,25 +80,16 @@ export type RoomReplay = z.infer<typeof RoomReplaySchema>;
 
 /**
  * One question of the replay, answered. The server holds the key and keeps nothing: this reads the answers of the people who played
- * and stores nothing about the person asking. `choice` is absent when the time ran out, and then only the right option and the
- * reason come back. `elapsedMs` is the device's own steady-clock reading and decides nothing but the line "you would have been
- * quicker than N": nobody else sees it and nothing is saved, so there is nothing to cheat.
+ * and stores nothing about the person asking. What the person tapped, and how long they took, stay on their device: the answer is the
+ * same whatever was tapped, so a read carries neither. A read that took a time would let anyone sweep it from 0 to 8 seconds and learn
+ * when each recorded answer came in (D-241).
  */
-export const ReadReplayRoundSchema = z
-  .strictObject({
-    ...Read,
-    roomId: UuidSchema,
-    launchId: UuidSchema,
-    round: Round,
-    choice: Choice.optional(),
-    elapsedMs: z
-      .number()
-      .int()
-      .min(0)
-      .max(LAUNCH_ANSWER_SECONDS * 1000)
-      .optional(),
-  })
-  .refine((read) => read.elapsedMs === undefined || read.choice !== undefined);
+export const ReadReplayRoundSchema = z.strictObject({
+  ...Read,
+  roomId: UuidSchema,
+  launchId: UuidSchema,
+  round: Round,
+});
 export const ReplayRoundSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...ScopedRead, status: z.literal('unavailable') }),
   z
@@ -113,20 +104,13 @@ export const ReplayRoundSchema = z.discriminatedUnion('status', [
       /** How many people answered this question, and how many of them got it right (a person the reader blocked is left out). */
       locked: Counter,
       right: Counter,
-      /** The people who got it right. Nobody is named as wrong. */
-      calledIt: z.array(LaunchFaceSchema).max(LAUNCH_FACES_MAX),
       /**
-       * Present only for a right choice with a time: how many of the people who got it right answered quicker. A number and
-       * nothing else: not who, not how long.
+       * The people who got it right, in an order that says nothing about who was quicker (by person ID, and the cut at twelve is taken
+       * in that order). Nobody is named as wrong.
        */
-      quicker: Counter.optional(),
+      calledIt: z.array(LaunchFaceSchema).max(LAUNCH_FACES_MAX),
     })
-    .refine(
-      (view) =>
-        view.right <= view.locked &&
-        view.calledIt.length <= view.right &&
-        (view.quicker === undefined || view.quicker <= view.right),
-    ),
+    .refine((view) => view.right <= view.locked && view.calledIt.length <= view.right),
 ]);
 export type ReplayRound = z.infer<typeof ReplayRoundSchema>;
 

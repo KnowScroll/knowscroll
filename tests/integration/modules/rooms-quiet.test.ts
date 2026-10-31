@@ -123,14 +123,20 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
 
   /**
    * A room with a Launch that has been played to the end by `plays`, its play time over, plus `others` members who did not play. The
-   * clock stands at the end of the play time. Nothing is settled: the replay does not wait for it.
+   * clock stands at the end of the play time. Nothing is settled: the replay does not wait for it. `delayFor` gives the delay of the
+   * player whose person ID is the `rank`th lowest (0 is the lowest), so a test can make the lowest ID the quickest or the slowest.
    */
-  async function aftermath(plays: readonly Omit<Play, 'person'>[], others: number) {
+  async function aftermath(
+    plays: readonly Omit<Play, 'person'>[],
+    others: number,
+    delayFor?: (rank: number) => number,
+  ) {
     const t0 = begin();
     const { roomId, slug } = await seedRoom(world);
     const people = await joined(world, roomId, plays.length + others);
     const players = people.slice(0, plays.length);
     const watchers = people.slice(plays.length);
+    const byPersonId = players.toSorted((a, b) => a.person.personId.localeCompare(b.person.personId));
     for (const person of people) unwrap(await setPresence(world, person, roomId));
     await approvedDeck(roomId);
     const started = unwrap(
@@ -146,7 +152,8 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       for (const [index, play] of plays.entries()) {
         const pick = play.picks[round - 1];
         if (pick === undefined) continue;
-        at(LOBBY_MS + (round - 1) * ROUND_MS + play.delayMs, t0);
+        const delay = delayFor === undefined ? play.delayMs : delayFor(byPersonId.indexOf(players[index]!));
+        at(LOBBY_MS + (round - 1) * ROUND_MS + delay, t0);
         unwrap(
           await world.rooms.answerLaunch(players[index]!.authority, {
             version,
@@ -169,25 +176,10 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
     if (read.status !== 'ready') throw new Error('expected a ready read');
     return read;
   };
-  const round = (
-    person: Friend,
-    roomId: string,
-    launchId: string,
-    number: number,
-    pick?: { readonly choice: number; readonly elapsedMs: number },
-  ) =>
-    world.rooms.replayRound(person.authority, {
-      version,
-      readId: randomUUID(),
-      roomId,
-      launchId,
-      round: number,
-      ...(pick === undefined ? {} : pick),
-    });
-  const answered = async (person: Friend, roomId: string, launchId: string, number: number, choice?: number) => {
-    const result = unwrap(
-      await round(person, roomId, launchId, number, choice === undefined ? undefined : { choice, elapsedMs: 3_000 }),
-    );
+  const round = (person: Friend, roomId: string, launchId: string, number: number) =>
+    world.rooms.replayRound(person.authority, { version, readId: randomUUID(), roomId, launchId, round: number });
+  const shown = async (person: Friend, roomId: string, launchId: string, number: number) => {
+    const result = unwrap(await round(person, roomId, launchId, number));
     if (result.status !== 'ready') throw new Error('expected a ready answer');
     return result;
   };
@@ -260,45 +252,95 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       expect((await replay(second, roomId)).replay).toMatchObject({ launchId: started.launchId, played: 1 });
     });
 
-    it('answers a question with the key, the reason, how many got it right and who, how many were quicker, and nobody named as wrong', async () => {
+    it('shows a question with the key, the reason, how many got it right and who, and nobody named as wrong', async () => {
       const { roomId, launchId, players, watchers } = await aftermath(TWO, 1);
       const [ana, ben] = players as [Friend, Friend];
       const [cho] = watchers as [Friend];
-      // Question 3: Ana right (2 s), Ben wrong. Cho picks the right option in 3 s: slower than Ana's 2 s.
-      const third = await answered(cho, roomId, launchId, 3, KEY[2]);
-      expect(third).toMatchObject({ round: 3, correct: KEY[2], locked: 2, right: 1, quicker: 1 });
+      // Question 3: Ana right, Ben wrong.
+      const third = await shown(cho, roomId, launchId, 3);
+      expect(third).toMatchObject({ round: 3, correct: KEY[2], locked: 2, right: 1 });
       expect(third.explain).toBe('Fixture reason 3: the Scroll says so.');
       expect(third.calledIt.map((face) => face.person.personId)).toEqual([ana.person.personId]);
       expect(JSON.stringify(third)).not.toContain(ben.person.personId);
-      // Question 1: both right, Ana in 2 s and Ben in 4 s; Cho's 3 s is quicker than Ben's and slower than Ana's.
-      expect(await answered(cho, roomId, launchId, 1, KEY[0])).toMatchObject({ locked: 2, right: 2, quicker: 1 });
-      // A wrong choice has no rank, and the time running out shows the key without one.
-      const missed = await answered(cho, roomId, launchId, 1, wrong(1));
-      expect(missed).toMatchObject({ right: 2 });
-      expect(missed.quicker).toBeUndefined();
-      const timedOut = await answered(cho, roomId, launchId, 2);
-      expect(timedOut).toMatchObject({ correct: KEY[1], locked: 2, right: 2 });
-      expect(timedOut.quicker).toBeUndefined();
+      // Question 1: both right.
+      expect(await shown(cho, roomId, launchId, 1)).toMatchObject({ correct: KEY[0], locked: 2, right: 2 });
+      expect(await shown(cho, roomId, launchId, 2)).toMatchObject({ correct: KEY[1], locked: 2, right: 2 });
       // Only Ana answered rounds four and five: the figures say one, not a crowd.
-      expect(await answered(cho, roomId, launchId, 4, KEY[3])).toMatchObject({ locked: 1, right: 1, quicker: 1 });
-      expect(await answered(cho, roomId, launchId, 5, KEY[4])).toMatchObject({ locked: 1, right: 1 });
+      expect(await shown(cho, roomId, launchId, 4)).toMatchObject({ locked: 1, right: 1 });
+      expect(await shown(cho, roomId, launchId, 5)).toMatchObject({ locked: 1, right: 1 });
     });
 
-    it('refuses a Launch that is not the one to replay, an option the question does not have, and a person who is not a member', async () => {
+    it('carries nothing that comes from a time, and has no input to sweep: a read takes the question and nothing else', async () => {
+      const { roomId, launchId, watchers } = await aftermath(TWO, 1);
+      const [cho] = watchers as [Friend];
+      const answer = await shown(cho, roomId, launchId, 1);
+      expect(Object.keys(answer).toSorted()).toEqual([
+        'calledIt',
+        'correct',
+        'explain',
+        'launchId',
+        'locked',
+        'readId',
+        'right',
+        'round',
+        'scope',
+        'status',
+        'version',
+      ]);
+      // A read that offers a time or a choice is refused, so there is nothing to vary: the same read gives the same answer every time.
+      for (const extra of [{ elapsedMs: 3_000 }, { choice: 1 }, { choice: 1, elapsedMs: 3_000 }]) {
+        const refused = await world.rooms.replayRound(cho.authority, {
+          version,
+          readId: randomUUID(),
+          roomId,
+          launchId,
+          round: 1,
+          ...extra,
+        });
+        expect(refused, JSON.stringify(extra)).toEqual({ kind: 'refused', code: 'invalid_input' });
+      }
+      const again = await shown(cho, roomId, launchId, 1);
+      expect({ ...again, readId: '' }).toEqual({ ...answer, readId: '' });
+    });
+
+    it.each([
+      ['the lowest person ID is the quickest', (rank: number) => 1_000 + rank * 500],
+      ['the lowest person ID is the slowest', (rank: number) => 6_000 - rank * 500],
+    ] as const)('draws the faces by person ID, whoever was quicker: %s', async (_case, delayFor) => {
+      const { roomId, launchId, players, watchers } = await aftermath(
+        [
+          { picks: KEY, delayMs: 0 },
+          { picks: KEY, delayMs: 0 },
+          { picks: KEY, delayMs: 0 },
+        ],
+        1,
+        delayFor,
+      );
+      const [cho] = watchers as [Friend];
+      const byId = players.map((player) => player.person.personId).toSorted((a, b) => a.localeCompare(b));
+      for (let number = 1; number <= 5; number++) {
+        const answer = await shown(cho, roomId, launchId, number);
+        expect(answer.calledIt.map((face) => face.person.personId)).toEqual(byId);
+      }
+    });
+
+    it('takes the cut at twelve faces in person order, not in speed order', async () => {
+      // Fourteen people are right on every question and the lowest person ID is the slowest: a cut by speed would keep the
+      // quickest twelve, and so leave out the two lowest IDs.
+      const many = Array.from({ length: 14 }, () => ({ picks: KEY, delayMs: 0 }));
+      const { roomId, launchId, players, watchers } = await aftermath(many, 1, (rank) => 7_000 - rank * 400);
+      const [cho] = watchers as [Friend];
+      const byId = players.map((player) => player.person.personId).toSorted((a, b) => a.localeCompare(b));
+      const answer = await shown(cho, roomId, launchId, 1);
+      expect(answer).toMatchObject({ locked: 14, right: 14 });
+      expect(answer.calledIt.map((face) => face.person.personId)).toEqual(byId.slice(0, 12));
+    });
+
+    it('refuses a Launch that is not the one to replay, and a person who is not a member', async () => {
       const { roomId, launchId, watchers } = await aftermath(TWO, 1);
       const [cho] = watchers as [Friend];
       expect((await round(cho, roomId, randomUUID(), 1)).kind).toBe('refused');
-      expect(await round(cho, roomId, launchId, 1, { choice: 2, elapsedMs: 1_000 })).toMatchObject({ kind: 'ok' });
-      const bad = await world.rooms.replayRound(cho.authority, {
-        version,
-        readId: randomUUID(),
-        roomId,
-        launchId,
-        round: 1,
-        choice: 2,
-        elapsedMs: 9_000,
-      });
-      expect(bad).toEqual({ kind: 'refused', code: 'invalid_input' });
+      expect(await round(cho, roomId, launchId, 1)).toMatchObject({ kind: 'ok' });
       const [stranger] = (await joined(world, (await seedRoom(world)).roomId, 1)) as [Friend];
       expect((await round(stranger, roomId, launchId, 1)).kind).toBe('refused');
       expect((await world.rooms.replay(stranger.authority, { version, readId: randomUUID(), roomId })).kind).toBe(
@@ -356,7 +398,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       unwrap(await friendCommand(world.friends, cho, ana, 'block'));
       const seen = await replay(cho, roomId);
       expect(seen.replay?.played).toBe(1);
-      const first = await answered(cho, roomId, launchId, 1, KEY[0]);
+      const first = await shown(cho, roomId, launchId, 1);
       expect(first).toMatchObject({ locked: 1, right: 1 });
       const faces = JSON.stringify(first);
       for (const hidden of [ana.accountId, ana.person.personId, ana.person.handle])
@@ -401,7 +443,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       const aiTurns = await world.db.selectFrom('rooms.ai_turns').select('turn_id').execute();
 
       await replay(cho, roomId);
-      for (let number = 1; number <= 5; number++) await answered(cho, roomId, launchId, number, KEY[number - 1]);
+      for (let number = 1; number <= 5; number++) await shown(cho, roomId, launchId, number);
       await memberView(world, cho, roomId);
       expect(await roomRows()).toBe(rooms);
       expect(queuedWork()).toBe(work);
@@ -414,7 +456,7 @@ describe('the quiet room (real PostgreSQL, labelled CI fixtures)', () => {
       unwrap(await setPresence(world, cho, roomId));
       const settled = await world.db.selectFrom('rooms.stars').select('star_id').execute();
       expect(settled).toHaveLength(stars.length + 1);
-      for (let number = 1; number <= 5; number++) await answered(cho, roomId, launchId, number, KEY[number - 1]);
+      for (let number = 1; number <= 5; number++) await shown(cho, roomId, launchId, number);
       expect(await world.db.selectFrom('rooms.stars').select('star_id').execute()).toEqual(settled);
     });
   });

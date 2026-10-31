@@ -120,7 +120,7 @@ export interface RoomUseCases {
    * nothing about the person replaying is kept.
    */
   replay(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof RoomReplaySchema>>>;
-  /** One question of the replay answered: the key and reason, who got it right, and how many were quicker. Writes nothing. */
+  /** One question of the replay shown: the key and reason, and who got it right, in an order that says nothing of speed. Writes nothing. */
   replayRound(authority: PersonalAuthority, input: unknown): Promise<Result<z.infer<typeof ReplayRoundSchema>>>;
   /** Leaves a question for the next person: a topic, a card in General and, when asked, a resident's answer (v3 R-7, D-242). */
   leaveQuestion(

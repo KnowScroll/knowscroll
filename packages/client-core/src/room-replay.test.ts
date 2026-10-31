@@ -3,13 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { LAUNCH_HOST, problemDetails, type ReplayRound } from '@knowscroll/contracts';
 import type { AccountScope } from './account-scope';
 import {
-  REPLAY_ANSWER_MS,
   createRoomReplay,
   replayBanner,
   replayChip,
   replayCountLine,
   replayHostLine,
-  replayPlaceLine,
   replayScoreLine,
   type ReplayData,
 } from './room-replay';
@@ -94,19 +92,6 @@ describe('what a replay says', () => {
     expect(replayCountLine(answerOf({ locked: 0, right: 0, calledIt: [] }))).toBe('Nobody answered this one.');
   });
 
-  it('gives a place only to a right answer with a time, and says nothing of a wrong one', () => {
-    expect(replayPlaceLine(answerOf({ quicker: 1 }), 1)).toBe('You’d have been 2nd fastest.');
-    expect(replayPlaceLine(answerOf({ quicker: 0 }), 1)).toBe('You’d have been the fastest.');
-    expect(replayPlaceLine(answerOf({ quicker: 2 }), 1)).toBe('You’d have been 3rd fastest.');
-    expect(replayPlaceLine(answerOf({ quicker: 3 }), 1)).toBe('You’d have been 4th fastest.');
-    expect(replayPlaceLine(answerOf({ quicker: 1 }), 0)).toBeUndefined();
-    expect(replayPlaceLine(answerOf({ quicker: 1 }), undefined)).toBeUndefined();
-    expect(replayPlaceLine(answerOf(), 1)).toBeUndefined();
-    expect(replayPlaceLine(answerOf({ right: 0, locked: 0, calledIt: [], quicker: 0 }), 1)).toBe(
-      'Nobody else got this one.',
-    );
-  });
-
   it('writes the score with the squares of a share card, which hold no answer', () => {
     expect(replayScoreLine([true, true, false, true, false])).toBe('You’d have got 3 of 5 · ■■□■□');
   });
@@ -148,25 +133,27 @@ describe('playing a replay', () => {
     expect(gone.controller.getState().phase).toBe('unavailable');
   });
 
-  it('sends the choice and this device’s own steady-clock time, and shows the key it gets back', async () => {
+  it('sends nothing of what was tapped or how long it took, and shows the key it gets back', async () => {
     const { controller, scope, tick } = playing({
       replay: () => Promise.resolve(readyRead(replay)),
-      replayRound: () => Promise.resolve(answerOf({ quicker: 1 })),
+      replayRound: () => Promise.resolve(answerOf()),
     });
     await controller.load();
     controller.begin();
     expect(controller.getState()).toMatchObject({ step: 'asking', index: 0, shownAt: 1_000 });
     tick(3_400);
     await controller.pick(1);
-    expect(scope.calls.at(-1)).toMatchObject({
-      name: 'replayRound',
-      input: { version: 'rooms.v1', roomId, launchId, round: 1, choice: 1, elapsedMs: 3_400 },
-    });
+    // A read that took a time could be swept from 0 to 8 seconds to learn when the others answered (D-241): it has no field for one,
+    // and none for the choice, which changes nothing the server says.
+    const input = scope.calls.at(-1)?.input as Record<string, unknown>;
+    expect(scope.calls.at(-1)?.name).toBe('replayRound');
+    expect(Object.keys(input).toSorted()).toEqual(['launchId', 'readId', 'roomId', 'round', 'version']);
+    expect(input).toMatchObject({ version: 'rooms.v1', roomId, launchId, round: 1 });
     expect(controller.getState()).toMatchObject({ step: 'revealed', picked: 1, squares: [true] });
     expect(controller.getState().answer?.correct).toBe(1);
   });
 
-  it('counts a time over eight seconds as eight, and a second tap changes nothing', async () => {
+  it('a second tap changes nothing, however long the first took', async () => {
     const { controller, scope, tick } = playing({
       replay: () => Promise.resolve(readyRead(replay)),
       replayRound: () => Promise.resolve(answerOf()),
@@ -178,7 +165,6 @@ describe('playing a replay', () => {
     await controller.pick(1);
     const sent = scope.calls.filter((call) => call.name === 'replayRound');
     expect(sent).toHaveLength(1);
-    expect((sent[0]?.input as { elapsedMs: number }).elapsedMs).toBe(REPLAY_ANSWER_MS);
     expect(controller.getState()).toMatchObject({ picked: 0, squares: [false] });
   });
 
@@ -190,9 +176,7 @@ describe('playing a replay', () => {
     await controller.load();
     controller.begin();
     await controller.timeUp();
-    const input = scope.calls.at(-1)?.input as Record<string, unknown>;
-    expect(input).not.toHaveProperty('choice');
-    expect(input).not.toHaveProperty('elapsedMs');
+    expect(scope.calls.at(-1)?.name).toBe('replayRound');
     expect(controller.getState()).toMatchObject({ step: 'revealed', picked: undefined, squares: [false] });
   });
 

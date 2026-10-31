@@ -74,30 +74,33 @@ describe('one question of the replay (D-241)', () => {
     locked: 3,
     right: 2,
     calledIt: [{ person: person(2), you: false }],
-    quicker: 1,
   };
 
-  it('says how many answered and got it right, who got it right and how many were quicker', () => {
+  it('says how many answered and got it right, and who got it right', () => {
     expect(ReplayRoundSchema.safeParse(round).success).toBe(true);
   });
 
-  it('never says more got it right than answered, nor more faces than got it right, nor more quicker than right', () => {
+  it('never says more got it right than answered, nor more faces than got it right', () => {
     expect(ReplayRoundSchema.safeParse({ ...round, right: 4 }).success).toBe(false);
     expect(ReplayRoundSchema.safeParse({ ...round, right: 0 }).success).toBe(false);
-    expect(ReplayRoundSchema.safeParse({ ...round, quicker: 3 }).success).toBe(false);
   });
 
-  it('has no field for who was wrong, what anyone picked or how long anyone took', () => {
-    for (const extra of [{ wrong: [person(3)] }, { picks: [0, 1] }, { times: [2000] }, { elapsedMs: 3000 }])
+  it('has no field for who was wrong, what anyone picked, how long anyone took or who was quicker', () => {
+    for (const extra of [
+      { wrong: [person(3)] },
+      { picks: [0, 1] },
+      { times: [2000] },
+      { elapsedMs: 3000 },
+      { quicker: 1 },
+    ])
       expect(ReplayRoundSchema.safeParse({ ...round, ...extra }).success, JSON.stringify(extra)).toBe(false);
   });
 
-  it('is read with a choice and a time, or with neither when the time ran out, and a time needs a choice', () => {
+  it('is read with the question and nothing else: no time to sweep and no choice, which changes nothing the server says (D-241)', () => {
     const read = { version: 'rooms.v1', readId: ID(9), roomId: ID(2), launchId: ID(1), round: 3 };
     expect(ReadReplayRoundSchema.safeParse(read).success).toBe(true);
-    expect(ReadReplayRoundSchema.safeParse({ ...read, choice: 1, elapsedMs: 2_500 }).success).toBe(true);
-    expect(ReadReplayRoundSchema.safeParse({ ...read, elapsedMs: 2_500 }).success).toBe(false);
-    expect(ReadReplayRoundSchema.safeParse({ ...read, choice: 1, elapsedMs: 8_001 }).success).toBe(false);
+    for (const extra of [{ elapsedMs: 2_500 }, { choice: 1 }, { choice: 1, elapsedMs: 2_500 }])
+      expect(ReadReplayRoundSchema.safeParse({ ...read, ...extra }).success, JSON.stringify(extra)).toBe(false);
     expect(ReadReplayRoundSchema.safeParse({ ...read, round: 6 }).success).toBe(false);
   });
 });

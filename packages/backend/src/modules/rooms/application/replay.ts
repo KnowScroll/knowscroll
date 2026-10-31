@@ -50,7 +50,10 @@ async function replayableFor(
   const row = await p.launches.replayable(lock, replayWindow(now));
   const deck = row === undefined ? undefined : deckOf(row);
   if (row === undefined || deck === undefined) return undefined;
-  const answers: readonly RecordedAnswer[] = await p.launches.answers(lock, row.launchId);
+  // Only who answered which question and whether it was right leave the store: no option and no time is read past this line.
+  const answers: readonly RecordedAnswer[] = (await p.launches.answers(lock, row.launchId)).map(
+    ({ accountId, round, correct }) => ({ accountId, round, correct }),
+  );
   const others = [
     ...new Set(answers.map((answer) => answer.accountId).filter((account) => account !== owner.accountId)),
   ];
@@ -131,10 +134,11 @@ export function makeReplay(p: RoomPorts) {
     },
 
     /**
-     * One question of the replay answered (or, when the time ran out, shown): the right option and the reason, how many of the
-     * people who played answered it and got it right, the faces of those who did, and, for a right choice with a time, how many of
-     * them were quicker. Nobody is named as wrong, and nothing is kept about the person asking. A Launch that is not the one this
-     * member may replay now is `unavailable`; an option the question does not have is `invalid_input`.
+     * One question of the replay shown: the right option and the reason, how many of the people who played answered it and got it
+     * right, and the faces of those who did, in an order by person that says nothing about who was quicker. It does not depend on what
+     * the person tapped or how long they took, and carries neither: the read is stateless and unlimited, so anything it returned about
+     * speed could be swept out of it. Nobody is named as wrong, and nothing is kept about the person asking. A Launch that is not the
+     * one this member may replay now is `unavailable`.
      */
     async replayRound(
       authority: PersonalAuthority,
@@ -150,10 +154,18 @@ export function makeReplay(p: RoomPorts) {
         const question = found?.deck.questions[read.round - 1];
         if (found === undefined || found.row.launchId !== read.launchId || question === undefined)
           return refuse('unavailable');
-        if (read.choice !== undefined && read.choice >= question.options.length) return refuse('invalid_input');
-        const ownElapsedMs = read.choice === question.answer ? read.elapsedMs : undefined;
-        const figures = roundFigures(visibleTo(found.answers, found.hidden), read.round, ownElapsedMs);
-        const { faces } = await facesOf(p, scope, entered.owner.accountId, figures.calledIt, LAUNCH_FACES_MAX);
+        const figures = roundFigures(visibleTo(found.answers, found.hidden), read.round);
+        // The cut at twelve is taken after the faces are in person order, so who is drawn does not follow who was quicker.
+        const { faces: everyone } = await facesOf(
+          p,
+          scope,
+          entered.owner.accountId,
+          figures.calledIt,
+          figures.calledIt.length,
+        );
+        const faces = everyone
+          .toSorted((a, b) => a.person.personId.localeCompare(b.person.personId))
+          .slice(0, LAUNCH_FACES_MAX);
         return ok(
           ReplayRoundSchema.parse({
             ...roomEnvelope(scope),
@@ -166,7 +178,6 @@ export function makeReplay(p: RoomPorts) {
             locked: figures.locked,
             right: figures.right,
             calledIt: faces,
-            ...(figures.quicker === undefined ? {} : { quicker: figures.quicker }),
           }),
         );
       });

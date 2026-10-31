@@ -240,7 +240,6 @@ export {
   replayChip,
   replayCountLine,
   replayHostLine,
-  replayPlaceLine,
   replayScoreLine,
   type ReplayData,
   type ReplayStep,
