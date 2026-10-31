@@ -61,7 +61,7 @@ function storedInput(seed: string): ComposerSnapshot {
       evaluatedAt: '2026-10-30T12:00:00.000Z',
       watermark: 'w',
       policyVersion: 'fixture-actual-activity',
-      topics: [{ topicId: 'earth.seasons', activity: 3, formats: [{ kind: 'scroll', measured: 3, qualified: 3 }] }],
+      topics: [{ topicId: 'earth.seasons', activity: 3, formats: [] }],
       recent: [
         {
           exposureId: 'exposure-1',
