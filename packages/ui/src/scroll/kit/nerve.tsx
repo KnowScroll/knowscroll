@@ -157,8 +157,8 @@ function SpikeView({ scene }: { readonly scene: NerveScene }) {
         stroke={INK}
         strokeWidth={1.6}
       />
-      <Label at={{ x: 304, y: 140 }} text="OUTSIDE" anchor="end" />
-      <Label at={{ x: 304, y: 182 }} text="INSIDE" anchor="end" />
+      <Label at={{ x: 30, y: 140 }} text="OUTSIDE" anchor="start" />
+      <Label at={{ x: 30, y: 182 }} text="INSIDE" anchor="start" />
       {scene.pushWouldNotFire > 0.5 ? (
         <Label at={{ x: plot.right, y: plot.top + 10 }} text="A FRESH PUSH WOULD NOT FIRE IT NOW" anchor="end" bold />
       ) : null}
@@ -256,7 +256,7 @@ function AllOrNoneView({ scene }: { readonly scene: NerveScene }) {
       {legend(30, MUTED, 'WEAK PUSH')}
       {legend(44, INK, 'STRONGER')}
       {legend(58, BLUE, 'STRONGEST')}
-      <Label at={{ x: 160, y: 178 }} text="A WEAK PUSH DIES AWAY; THE OTHERS GIVE THE SAME SPIKE" bold />
+      <Label at={{ x: 160, y: 178 }} text="WEAK: NOTHING. ENOUGH OR MORE: THE SAME SPIKE" bold />
       {scene.focus === 'threshold' ? (
         <FocusBox
           x={plot.left - 2}
@@ -329,8 +329,8 @@ function AxonView({ scene }: { readonly scene: NerveScene }) {
       <Path d={path} fill="none" stroke={INK} strokeWidth={2.8} strokeLinejoin="round" />
       <Label at={{ x: xOf(Math.floor((recoveringFrom + recoveringTo) / 2)), y: 178 }} text="RECOVERING" bold />
       <Label at={{ x: TUBE.right, y: 178 }} text="READY" anchor="end" />
-      <Arrow from={{ x: 120, y: 192 }} to={{ x: 220, y: 192 }} width={2.5} colour={INK} />
-      <Label at={{ x: 226, y: 195 }} text="THE SIGNAL RUNS THIS WAY" anchor="start" />
+      <Arrow from={{ x: 60, y: 192 }} to={{ x: 140, y: 192 }} width={2.5} colour={INK} />
+      <Label at={{ x: 146, y: 195 }} text="THE SIGNAL RUNS THIS WAY" anchor="start" />
       {scene.focus === 'spike' ? <FocusRing at={peak} radius={18} /> : null}
       {scene.focus === 'recovering' ? (
         <FocusBox
@@ -347,26 +347,26 @@ function AxonView({ scene }: { readonly scene: NerveScene }) {
 // ---------------------------------------------------------------------------------------------------------------
 // A synapse.
 
-const SENDING = { left: 32, right: 118, top: 30, bottom: 112 } as const;
-const RECEIVING = { left: 172, right: 302 } as const;
+const SENDING = { left: 32, right: 118, top: 30, bottom: 104 } as const;
+const RECEIVING = { left: 172, right: 296 } as const;
 const VESICLES: readonly Point[] = [
-  { x: 58, y: 52 },
-  { x: 82, y: 66 },
-  { x: 60, y: 90 },
-  { x: 84, y: 96 },
-  { x: 104, y: 72 },
+  { x: 58, y: 48 },
+  { x: 82, y: 60 },
+  { x: 60, y: 76 },
+  { x: 84, y: 86 },
+  { x: 104, y: 64 },
 ];
-const RECEPTORS = [48, 72, 96] as const;
+const RECEPTORS = [44, 66, 88] as const;
 const GAP_DOTS: readonly { share: number; y: number }[] = [
-  { share: 0, y: 52 },
-  { share: 0.3, y: 64 },
-  { share: 0.15, y: 80 },
-  { share: 0.55, y: 92 },
-  { share: 0.4, y: 56 },
-  { share: 0.7, y: 74 },
-  { share: 0.85, y: 100 },
+  { share: 0, y: 46 },
+  { share: 0.3, y: 58 },
+  { share: 0.15, y: 70 },
+  { share: 0.55, y: 82 },
+  { share: 0.4, y: 52 },
+  { share: 0.7, y: 66 },
+  { share: 0.85, y: 90 },
 ];
-const COURSE = { left: 184, right: 304, rest: 184, pixelsPerMillivolt: 5.5, constants: 5 } as const;
+const COURSE = { left: 176, right: 268, rest: 170, pixelsPerMillivolt: 5.5, constants: 5 } as const;
 
 function SynapseView({ scene }: { readonly scene: NerveScene }) {
   const released = scene.released > 0.5;
@@ -455,7 +455,7 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
             );
           })
         : null}
-      <Label at={{ x: COURSE.left, y: 134 }} text="NEXT CELL’S VOLTAGE" anchor="start" />
+      <Label at={{ x: COURSE.left - 4, y: 122 }} text="NEXT CELL’S VOLTAGE" anchor="start" />
       <Line
         x1={COURSE.left}
         y1={courseY(0)}
@@ -513,7 +513,7 @@ function SynapseView({ scene }: { readonly scene: NerveScene }) {
 
 const SENSOR: Point = { x: 40, y: 170 };
 const CORD = { x: 142, y: 74, width: 28, height: 106 } as const;
-const MUSCLE: Point = { x: 268, y: 170 };
+const MUSCLE: Point = { x: 250, y: 158 };
 const BRAIN: Point = { x: 156, y: 30 };
 
 function Link({
@@ -612,7 +612,7 @@ function ReflexView({ scene }: { readonly scene: NerveScene }) {
         <FocusBox x={CORD.x - 6} y={CORD.y - 6} width={CORD.width + 12} height={CORD.height + 12} />
       ) : null}
       {scene.focus === 'motor-neuron' ? <FocusBox x={176} y={128} width={64} height={44} /> : null}
-      {scene.focus === 'muscle' ? <FocusRing at={MUSCLE} radius={34} /> : null}
+      {scene.focus === 'muscle' ? <FocusRing at={MUSCLE} radius={30} /> : null}
       {scene.focus === 'brain' ? <FocusRing at={BRAIN} radius={34} /> : null}
     </G>
   );

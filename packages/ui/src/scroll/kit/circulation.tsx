@@ -198,10 +198,10 @@ function HeartView({ scene }: { readonly scene: CirculationScene }) {
       ))}
       <Label at={{ x: 82, y: 198 }} text="RIGHT" bold />
       <Label at={{ x: 150, y: 198 }} text="LEFT" bold />
-      <Label at={{ x: 232, y: 120 }} text="RELATIVE PRESSURE" anchor="start" bold />
-      <PressureBar y={134} label="ATRIUM" level={scene.atriumPressure} />
-      <PressureBar y={156} label="VENTRICLE" level={scene.ventriclePressure} />
-      <PressureBar y={178} label="ARTERY" level={scene.arteryPressure} />
+      <Label at={{ x: 232, y: 106 }} text="RELATIVE PRESSURE" anchor="start" bold />
+      <PressureBar y={116} label="LEFT ATRIUM" level={scene.atriumPressure} />
+      <PressureBar y={138} label="LEFT VENTRICLE" level={scene.ventriclePressure} />
+      <PressureBar y={160} label="AORTA" level={scene.arteryPressure} />
       {focus === 'atria' ? (
         <>
           <FocusRing at={RIGHT_ATRIUM.centre} radius={37} />
@@ -253,8 +253,8 @@ function CircuitsView({ scene }: { readonly scene: CirculationScene }) {
       <Arrow from={{ x: 158, y: 44 }} to={{ x: 128, y: 78 }} width={5} colour={RICH} outlined />
       <Arrow from={{ x: 128, y: 122 }} to={{ x: 158, y: 152 }} width={5} colour={RICH} outlined />
       <Arrow from={{ x: 62, y: 152 }} to={{ x: 92, y: 122 }} width={5} colour={POOR} outlined />
-      <Label at={{ x: 200, y: 60 }} text="RIGHT SIDE: TO THE LUNGS" anchor="start" />
-      <Label at={{ x: 200, y: 74 }} text="LEFT SIDE: TO THE BODY" anchor="start" />
+      <Label at={{ x: 200, y: 60 }} text="RIGHT: TO THE LUNGS" anchor="start" />
+      <Label at={{ x: 200, y: 74 }} text="LEFT: TO THE BODY" anchor="start" />
       <Swatch y={104} colour={RICH} text="RICH IN OXYGEN" />
       <Swatch y={122} colour={POOR} text="POOR IN OXYGEN" />
       <Label at={{ x: 200, y: 142 }} text="A DRAWING CONVENTION:" anchor="start" />
@@ -347,7 +347,7 @@ function PressureView({ scene }: { readonly scene: CirculationScene }) {
         width={1.5 + 3 * scene.flow}
         colour={INK}
       />
-      {changed ? <Label at={{ x: CHART.right, y: 195 }} text="DASHED LINE: THE USUAL" anchor="end" /> : null}
+      {changed ? <Label at={{ x: 130, y: 195 }} text="DASHED LINE: THE USUAL" anchor="start" /> : null}
       {focusSection === undefined ? null : (
         <FocusBox
           x={xAtSection(focusSection) + 2}

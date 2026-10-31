@@ -29,7 +29,7 @@
           "where": "lungs",
           "focus": "none"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles."
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles."
       },
       {
         "stop": "atria",
@@ -41,7 +41,7 @@
           "where": "lungs",
           "focus": "atria"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The two atria squeeze. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles. The picture draws the eye to the atria."
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The two atria squeeze. The ventricles are relaxed. The valves between the atria and the ventricles are open, and the valves to the arteries are shut. Blood flows from the atria into the ventricles. The picture draws the eye to the atria."
       },
       {
         "stop": "tense",
@@ -53,7 +53,7 @@
           "where": "lungs",
           "focus": "valves"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles. The picture draws the eye to the valves."
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles. The picture draws the eye to the valves."
       },
       {
         "stop": "ejection",
@@ -65,7 +65,7 @@
           "where": "lungs",
           "focus": "ventricles"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are open. Blood is pushed out, from the right side to the lungs and from the left side to the body. The picture draws the eye to the ventricles."
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The two ventricles squeeze. The valves between the atria and the ventricles are shut, and the valves to the arteries are open. Blood is pushed out, from the right side to the lungs and from the left side to the body. The picture draws the eye to the ventricles."
       },
       {
         "stop": "relaxing",
@@ -77,7 +77,7 @@
           "where": "lungs",
           "focus": "none"
         },
-        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles."
+        "alt": "The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it. The atria are relaxed and filling from the veins. The ventricles are relaxed. The valves between the atria and the ventricles are shut, and the valves to the arteries are shut. No blood enters or leaves the ventricles."
       },
       {
         "stop": "circuits",
@@ -397,6 +397,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "efd64574e1dcbeb059d436368e5a08542e48c2105936b85a50372e1cb0bb69bd"
+    "sha256": "493a3672d34e67689796dc9b1911f4a8e20e4f2303a0edb0857f004f125462ad"
   }
 }

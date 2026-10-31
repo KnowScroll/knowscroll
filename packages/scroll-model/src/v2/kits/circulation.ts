@@ -106,7 +106,7 @@ export function settleCirculationState(state: CirculationState): CirculationStat
 /**
  * Relative pressures in the left atrium, the left ventricle and the aorta at each point of the beat, in units
  * of the aorta's highest. The right side runs lower and in step, with the same order of events, so the one set
- * serves both. They are the shape of the textbook (Wiggers) diagram and are never drawn as figures.
+ * serves both; the picture shows the left side's. They are the shape of the textbook (Wiggers) diagram and are never drawn as figures.
  */
 export const HEART_PRESSURES: Readonly<Record<HeartPhase, { atrium: number; ventricle: number; artery: number }>> = {
   filling: { atrium: 0.2, ventricle: 0.1, artery: 0.65 },
@@ -340,7 +340,7 @@ function heartSentences(phase: HeartPhase): string[] {
       ? 'Blood flows from the atria into the ventricles.'
       : 'No blood enters or leaves the ventricles.';
   return [
-    'The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in an atrium, a ventricle and an artery, and a valve is open when the pressure behind it is higher than ahead of it.',
+    'The four chambers of the heart and its four valves, drawn simply. Three bars compare the pressure in the left atrium, the left ventricle and the aorta, and a valve is open when the pressure behind it is higher than ahead of it.',
     chambers,
     valves,
     blood,
