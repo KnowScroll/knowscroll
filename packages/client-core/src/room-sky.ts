@@ -207,8 +207,12 @@ export interface RoomSkyController {
   readonly getState: () => RoomSkyState;
   readonly subscribe: (listener: () => void) => () => void;
   readonly load: () => Promise<void>;
-  /** Chooses one of the three names offered for the constellation being named; the member may change it until it closes. */
-  readonly name: (candidate: number) => Promise<boolean>;
+  /**
+   * Chooses one of the three names offered for `constellation` (the number the sheet shows); the member may change it until
+   * it closes. The server refuses a vote for any other constellation than the one open, so a sheet that is out of date counts
+   * for nothing and the sky is read again.
+   */
+  readonly name: (constellation: number, candidate: number) => Promise<boolean>;
 }
 
 const initialSky: RoomSkyState = { phase: 'loading', view: undefined, offline: false, working: false, refused: false };
@@ -246,11 +250,11 @@ export function createRoomSky(options: RoomTodayOptions): RoomSkyController {
       return () => void listeners.delete(listener);
     },
     load,
-    async name(candidate) {
+    async name(constellation, candidate) {
       if (state.working) return false;
       publish({ working: true, refused: false });
-      const outcome = await run(`name:${String(candidate)}`, (commandId) =>
-        scope.api.rooms.nameConstellation({ version: VERSION, commandId, roomId, candidate }),
+      const outcome = await run(`name:${String(constellation)}:${String(candidate)}`, (commandId) =>
+        scope.api.rooms.nameConstellation({ version: VERSION, commandId, roomId, constellation, candidate }),
       );
       publish({ working: false });
       if (outcome.kind === 'ended') return false;

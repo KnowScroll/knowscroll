@@ -189,7 +189,12 @@ export async function skyRoutes(page: Page, world: SkyWorld, scope: { accountId:
     if (path === '/v1/rooms/sky/name') {
       world.vote = body['candidate'] as number;
       return route.fulfill({
-        json: { ...receipt(body, scope, 'sky.name'), roomId: body['roomId'], candidate: body['candidate'] },
+        json: {
+          ...receipt(body, scope, 'sky.name'),
+          roomId: body['roomId'],
+          constellation: body['constellation'],
+          candidate: body['candidate'],
+        },
       });
     }
     return route.fulfill({ status: 404, json: { code: 'NOT_FOUND' } });

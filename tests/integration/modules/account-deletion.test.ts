@@ -530,6 +530,7 @@ describe('account deletion (real database)', () => {
             version: 'rooms.v1',
             commandId: randomUUID(),
             roomId: room.roomId,
+            constellation: 1,
             candidate: 1,
           }),
         );

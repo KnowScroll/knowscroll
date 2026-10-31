@@ -211,9 +211,11 @@ describe('the name vote on the client', () => {
     const controller = createRoomSky({ scope, roomId, newId });
     await controller.load();
     expect(controller.getState()).toMatchObject({ phase: 'ready' });
-    expect(await controller.name(1)).toBe(true);
+    expect(await controller.name(1, 1)).toBe(true);
+    // The vote names the constellation the sheet showed, as well as the place of the name in its list.
     expect(scope.calls.find((call) => call.name === 'nameConstellation')?.input).toMatchObject({
       roomId,
+      constellation: 1,
       candidate: 1,
     });
     expect(scope.calls.filter((call) => call.name === 'sky')).toHaveLength(2);
@@ -222,7 +224,9 @@ describe('the name vote on the client', () => {
   it('says a refused vote plainly (the vote closed meanwhile) and reads again', async () => {
     const scope = scopeOf({ sky: () => Promise.resolve(view), nameConstellation: () => Promise.reject(refused()) });
     const controller = createRoomSky({ scope, roomId, newId });
-    expect(await controller.name(0)).toBe(false);
+    expect(await controller.name(1, 0)).toBe(false);
     expect(controller.getState().refused).toBe(true);
+    // A refusal reads the sky again, so the sheet shows the constellation that is open now.
+    expect(scope.calls.some((call) => call.name === 'sky')).toBe(true);
   });
 });

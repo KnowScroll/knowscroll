@@ -307,7 +307,8 @@ describe('the Now strip and the room’s sky', () => {
     expect(screen.getByText('Name this constellation')).toBeOnTheScreen();
     expect(screen.queryByText(/\d votes?$/)).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('sky-name-1'));
-    expect(name).toHaveBeenCalledWith(1);
+    // The vote names the constellation the sheet showed (naming.constellation) and the name's place in its list.
+    expect(name).toHaveBeenCalledWith(1, 1);
   });
 
   it('shows the counts once the member has voted, and the name once the room chose it', async () => {

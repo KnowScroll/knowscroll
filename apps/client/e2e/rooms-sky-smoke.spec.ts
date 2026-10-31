@@ -193,7 +193,11 @@ for (const { name, size } of VIEWPORTS) {
     expect(await seriousViolations(page)).toEqual([]);
     await page.getByTestId('sky-name-1').click();
     await expect(page.getByLabel('The Kite, 1 vote')).toBeVisible();
-    expect(calls.find((call) => call.path === '/v1/rooms/sky/name')?.body).toMatchObject({ candidate: 1 });
+    // The vote names the constellation the sheet showed, so a stale sheet could never count for another one.
+    expect(calls.find((call) => call.path === '/v1/rooms/sky/name')?.body).toMatchObject({
+      constellation: 1,
+      candidate: 1,
+    });
 
     // Person C, in another browser with another account, opens their Universe: the room's station carries the same sky.
     const other = await browser.newContext();
@@ -252,4 +256,30 @@ test('phone: a quiet room, with its pill under the faces and the Now strip, stil
   await expect(page.getByTestId('quiet-pill')).toBeVisible();
   await expect(page.getByTestId('now-strip')).toBeVisible();
   await expectConversationKeepsMostOfThePhone(page);
+});
+
+test('phone: the room menu has Today and Room sky rows, the way to both once the Now strip has scrolled away', async ({
+  page,
+}) => {
+  const world = skyWorld(4);
+  const { address } = await roomFixture(page, VIEWPORTS[0].size, {
+    others: 1,
+    lastMessageMinutesAgo: 5,
+    noticeSeen: true,
+    sky: () => skyOf(world),
+    today: TODAY_STRIP,
+  });
+  await skyRoutes(page, world, scope);
+  await page.goto(address);
+  await page.getByTestId('room-menu-open').click();
+  await expect(page.getByTestId('menu-sky')).toContainText('4 of 7');
+  // The sky opens inside the menu, with its way back.
+  await page.getByTestId('menu-sky').click();
+  await expect(page.getByTestId('sky-line')).toHaveText('4 of 7 stars');
+  await page.getByRole('button', { name: 'Back to the room menu' }).click();
+  // Today opens the day's channel.
+  await page.getByTestId('menu-today').click();
+  await expect(page).toHaveURL(/\/today$/);
+  await expect(page.getByTestId('today-question')).toContainText('Why is the night sky dark?');
+  expect(await seriousViolations(page)).toEqual([]);
 });

@@ -73,11 +73,15 @@ export async function awardStar(
   });
   if (finishesConstellation(before + 1)) {
     const no = (before + 1) / 7;
-    const used = (await p.sky.constellations(lock)).flatMap((row) => (row.name === null ? [] : [row.name]));
+    const others = await p.sky.constellations(lock);
+    const used = others.flatMap((row) => (row.name === null ? [] : [row.name]));
+    // The names another constellation without a name is offered are not offered again, so naming one never takes a name from
+    // the other's list.
+    const offered = others.flatMap((row) => (row.name === null ? row.candidates : []));
     await p.sky.insertConstellation(lock, {
       no,
       completedAt: now,
-      candidates: constellationCandidates({ topicId, roomId: lock.roomId, no, used }),
+      candidates: constellationCandidates({ topicId, roomId: lock.roomId, no, used, offered }),
       voteClosesAt: namingClosesAt(now),
     });
   }
@@ -105,10 +109,15 @@ export async function settleDue(p: RoomPorts, lock: RoomLock, topicId: string, n
   for (const debate of closed)
     if (debate.voters >= DEBATE_MIN_VOTERS)
       await awardStar(p, lock, topicId, 'debate_closed', debate.discussionId, now);
-  const all = await p.sky.constellations(lock);
-  const closedVotes = all.filter((row) => row.name === null && now.getTime() >= row.voteClosesAt.getTime());
-  if (closedVotes.length === 0) return;
+  const due = (rows: readonly ConstellationRow[]) =>
+    rows.filter((row) => row.name === null && now.getTime() >= row.voteClosesAt.getTime());
+  // A look without the lock finds the common case (nothing due) cheaply; what is due is read again under the lock, so two
+  // commands that both saw it settle it once and a vote that landed meanwhile is counted.
+  if (due(await p.sky.constellations(lock)).length === 0) return;
   await p.sky.lock(lock);
+  const all = await p.sky.constellations(lock);
+  const closedVotes = due(all);
+  if (closedVotes.length === 0) return;
   // Oldest first: each takes the name its own votes chose, and one nobody voted for takes its first name. A name an
   // earlier constellation of the room holds is passed over, so no two share one.
   const used = all.flatMap((row) => (row.name === null ? [] : [row.name]));
@@ -188,8 +197,9 @@ export function makeSkyUseCases(p: RoomPorts) {
     /**
      * A member chooses one of the three names offered for the constellation being named, and may change the choice until the
      * vote closes (D-175). The vote is taken under the room's sky lock, so it either counts before the vote is settled or is
-     * refused. It goes to the earliest constellation with no name whose vote is still open. A retry replays; a vote when
-     * every vote has closed, or when no constellation is being named, is `unavailable`.
+     * refused. It goes to the constellation the command names, and only while that is the earliest one with no name whose vote is
+     * still open. A retry replays; a vote for any other constellation, or when every vote has closed or none is being
+     * named, is `unavailable`.
      */
     nameConstellation(
       authority: PersonalAuthority,
@@ -210,13 +220,16 @@ export function makeSkyUseCases(p: RoomPorts) {
           const { lock, owner } = entered;
           await p.sky.lock(lock);
           const naming = votableOf(await p.sky.constellations(lock), now);
-          if (naming === undefined) return refuse('unavailable');
+          // The vote is for the constellation the voter saw: another one open at the same moment has other names at the same
+          // places, so a tap from an out-of-date sheet is refused and the screen reads again.
+          if (naming === undefined || naming.no !== command.constellation) return refuse('unavailable');
           return ok(async () => {
             await p.sky.setVote(lock, naming.no, owner.accountId, command.candidate as 0 | 1 | 2, now);
             return ConstellationVoteAcceptanceSchema.parse({
               ...receiptBase(scope, now, command.commandId),
               operation: 'sky.name',
               roomId: command.roomId,
+              constellation: naming.no,
               candidate: command.candidate,
             });
           });

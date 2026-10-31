@@ -48,7 +48,7 @@ function NamingVote({
               text={name}
               checked={naming.yourVote === index}
               disabled={state.working}
-              onChoose={() => void controller.name(index)}
+              onChoose={() => void controller.name(naming.constellation, index)}
               {...(votes === undefined
                 ? {}
                 : {

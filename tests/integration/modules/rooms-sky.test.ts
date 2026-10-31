@@ -259,7 +259,13 @@ describe('Today and the sky (real PostgreSQL)', () => {
 
       // Votes: Ravi and Kenji choose the second name, Lena the third; Ravi may change his mind, and counts show after voting.
       const name = (person: Friend, candidate: number) =>
-        roomy.rooms.nameConstellation(person.authority, { version, commandId: randomUUID(), roomId, candidate });
+        roomy.rooms.nameConstellation(person.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          constellation: 1,
+          candidate,
+        });
       unwrap(await name(ravi, 0));
       unwrap(await name(ravi, 1));
       unwrap(await name(kenji, 1));
@@ -302,7 +308,13 @@ describe('Today and the sky (real PostgreSQL)', () => {
       const first = await skyOf(roomy, ravi, roomId);
       if (first.status !== 'ready' || first.naming === undefined) throw new Error('expected a vote');
       const name = (person: Friend, candidate: number) =>
-        roomy.rooms.nameConstellation(person.authority, { version, commandId: randomUUID(), roomId, candidate });
+        roomy.rooms.nameConstellation(person.authority, {
+          version,
+          commandId: randomUUID(),
+          roomId,
+          constellation: 1,
+          candidate,
+        });
       unwrap(await name(asha, 2));
       unwrap(await name(ravi, 1));
       at(40 + 25);
@@ -322,8 +334,21 @@ describe('Today and the sky (real PostgreSQL)', () => {
   });
 
   describe('more than one constellation without a name', () => {
-    const nameVote = (person: Friend, roomId: string, candidate: number) =>
-      roomy.rooms.nameConstellation(person.authority, { version, commandId: randomUUID(), roomId, candidate });
+    const nameVote = (person: Friend, roomId: string, candidate: number, constellation: number) =>
+      roomy.rooms.nameConstellation(person.authority, {
+        version,
+        commandId: randomUUID(),
+        roomId,
+        constellation,
+        candidate,
+      });
+    const votesOf = (roomId: string, no: number) =>
+      world.db
+        .selectFrom('rooms.constellation_votes')
+        .select(['candidate', 'account_id'])
+        .where('room_id', '=', roomId)
+        .where('no', '=', no)
+        .execute();
     const constellations = (roomId: string) =>
       world.db
         .selectFrom('rooms.constellations')
@@ -343,7 +368,7 @@ describe('Today and the sky (real PostgreSQL)', () => {
       if (both.status !== 'ready' || both.naming === undefined) throw new Error('expected a vote');
       expect(both.sky).toMatchObject({ lit: 7, state: 'naming', finished: 2 });
       expect(both.naming.constellation).toBe(1);
-      unwrap(await nameVote(ravi, roomId, 2));
+      unwrap(await nameVote(ravi, roomId, 2, 1));
       const [first, second] = await constellations(roomId);
       // The first day ends: the next member command names it by its own votes, and the second keeps its day.
       at(300 + 25);
@@ -353,7 +378,7 @@ describe('Today and the sky (real PostgreSQL)', () => {
       if (next.status !== 'ready' || next.naming === undefined) throw new Error('expected the second vote');
       expect(next.naming.constellation).toBe(2);
       expect(next.sky).toMatchObject({ state: 'naming', constellationName: first!.candidates[2] });
-      unwrap(await nameVote(asha, roomId, 1));
+      unwrap(await nameVote(asha, roomId, 1, 2));
       at(305 + 25);
       unwrap(await setPresence(roomy, ravi, roomId));
       // The vote chose the second name, unless the first constellation already holds it: then the next one is taken.
@@ -365,6 +390,73 @@ describe('Today and the sky (real PostgreSQL)', () => {
       const done = await skyOf(roomy, ravi, roomId);
       expect(done.status === 'ready' && done.sky).toMatchObject({ state: 'named', constellationName: secondName });
       expect(done.status === 'ready' && done.naming).toBeUndefined();
+    });
+
+    it('refuses a vote for a constellation that is not the one open, and counts it for no other', async () => {
+      at(500);
+      const { roomId } = await seedRoom(roomy);
+      const [asha, ravi] = (await joined(roomy, roomId, 2)) as [Friend, Friend];
+      for (let index = 0; index < 7; index++) await usefulAnswer(roomy, roomId, asha, ravi, `First ${String(index)}`);
+      at(505);
+      for (let index = 0; index < 7; index++) await usefulAnswer(roomy, roomId, asha, ravi, `Second ${String(index)}`);
+      const [first, second] = await constellations(roomId);
+      // The two lists offer six different names: naming one can never take a name from the other.
+      expect(new Set([...first!.candidates, ...second!.candidates]).size).toBe(6);
+      // While the first is open, a vote for the second is refused: votes go to the older.
+      expect((await nameVote(ravi, roomId, 1, 2)).kind).toBe('refused');
+      // The first is named; the second is now the one open. A sheet that still shows the first sends its tap for the first:
+      // it is refused and counts for no name of the second.
+      at(500 + 25);
+      unwrap(await setPresence(roomy, asha, roomId));
+      expect((await constellations(roomId)).map((row) => row.name !== null)).toEqual([true, false]);
+      expect((await nameVote(ravi, roomId, 1, 1)).kind).toBe('refused');
+      expect(await votesOf(roomId, 2)).toEqual([]);
+      // The vote for the one open is kept, for that constellation and that name.
+      expect(unwrap(await nameVote(ravi, roomId, 1, 2))).toMatchObject({ constellation: 2, candidate: 1 });
+      expect(await votesOf(roomId, 2)).toMatchObject([{ candidate: 1 }]);
+      expect(await votesOf(roomId, 1)).toEqual([]);
+    });
+
+    it('lets the plain vote decide when every offered name is already held, and offers a free name while one is left', async () => {
+      at(600);
+      const { roomId } = await seedRoom(roomy);
+      const [asha, ravi] = (await joined(roomy, roomId, 2)) as [Friend, Friend];
+      const day = 24 * HOUR;
+      const longAgo = new Date(world.clock.now.getTime() - 10 * day);
+      // A labelled fixture of a used-up list: three constellations hold the three names a fourth is offered.
+      const held = ['The Lantern', 'The Kite', 'The Loom'] as const;
+      for (const [index, name] of held.entries())
+        await world.db
+          .insertInto('rooms.constellations')
+          .values({
+            room_id: roomId,
+            no: index + 1,
+            completed_at: longAgo,
+            candidates: [name, `Spare ${String(index)}a`, `Spare ${String(index)}b`],
+            vote_closes_at: new Date(longAgo.getTime() + day),
+            name,
+            named_at: new Date(longAgo.getTime() + day),
+          })
+          .execute();
+      await world.db
+        .insertInto('rooms.constellations')
+        .values({
+          room_id: roomId,
+          no: 4,
+          completed_at: longAgo,
+          candidates: [...held],
+          vote_closes_at: new Date(longAgo.getTime() + day),
+        })
+        .execute();
+      for (const person of [asha, ravi])
+        await world.db
+          .insertInto('rooms.constellation_votes')
+          .values({ room_id: roomId, no: 4, account_id: person.accountId, candidate: 2, voted_at: longAgo })
+          .execute();
+      unwrap(await setPresence(roomy, asha, roomId));
+      const named = await constellations(roomId);
+      // No candidate was free, so the votes decided: the third name, a repeat, as the list was used up.
+      expect(named[3]!.name).toBe('The Loom');
     });
 
     it('names both in one pass when nobody looked until after both days, oldest first and never by the same name', async () => {
@@ -741,6 +833,7 @@ describe('Today and the sky (real PostgreSQL)', () => {
           version,
           commandId: randomUUID(),
           roomId,
+          constellation: 1,
           candidate: 1,
         }),
       );

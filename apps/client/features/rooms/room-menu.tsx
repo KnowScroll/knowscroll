@@ -5,7 +5,7 @@ import type { AccountScope, RoomController, RoomState } from '@knowscroll/client
 import type { RoomAiLevel, RoomView } from '@knowscroll/contracts';
 import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, Icon, Text } from '@knowscroll/ui';
-import { afterPendingBack } from '../../platform/after-pending-back';
+import { afterPendingBack, notePendingBack } from '../../platform/after-pending-back';
 import { AiHere } from './ai-here';
 import { activitiesHref, todayHref } from './room-links';
 import { ModeratorTools, RULE_WORDS, WhoIsHere } from './room-parts';
@@ -125,6 +125,8 @@ export function RoomMenu({
             <MenuRow
               label="Today"
               onPress={() => {
+                // On the web the sheet's own history entry is removed by a Back: navigate once that has landed, or the push is popped.
+                notePendingBack();
                 close();
                 afterPendingBack(() => router.push(todayHref(view.room.roomId)));
               }}

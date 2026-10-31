@@ -3,6 +3,7 @@ import { debateStartProblem, isClosedAt, resultOf } from './debate.js';
 import {
   STARS_PER_DAY_DEFAULT,
   constellationCandidates,
+  constellationNamesOf,
   constellationOfStar,
   finishesConstellation,
   namingClosesAt,
@@ -113,6 +114,58 @@ describe('a constellation (D-175)', () => {
     }
   });
 
+  it('offers no name twice at once and none a named constellation holds, while the list has three left', () => {
+    const roomId = '0199b000-0000-7000-8000-00000000abcd';
+    for (const topicId of [
+      'space',
+      'earth',
+      'human-body',
+      'machine-learning',
+      'computing',
+      'history',
+      'unknown-topic',
+    ]) {
+      const first = constellationCandidates({ topicId, roomId, no: 1, used: [], offered: [] });
+      const second = constellationCandidates({ topicId, roomId, no: 2, used: [], offered: first });
+      expect(new Set([...first, ...second]).size).toBe(6);
+      const third = constellationCandidates({ topicId, roomId, no: 3, used: [first[0]], offered: [...second] });
+      expect(third).not.toContain(first[0]);
+      for (const name of second) expect(third).not.toContain(name);
+    }
+  });
+
+  it('repeats a name only once the list has fewer than three left: unused names first, then names offered elsewhere, then held', () => {
+    const roomId = '0199b000-0000-7000-8000-00000000abcd';
+    const names = constellationNamesOf('space');
+    const used = names.slice(0, 16);
+    expect(constellationCandidates({ topicId: 'space', roomId, no: 9, used, offered: [] })).toEqual([
+      names[16],
+      names[17],
+      names[0],
+    ]);
+    expect(constellationCandidates({ topicId: 'space', roomId, no: 9, used, offered: [names[16]!] })).toEqual([
+      names[17],
+      names[16],
+      names[0],
+    ]);
+    // Everything held and offered: still three different names, held ones last.
+    expect(new Set(constellationCandidates({ topicId: 'space', roomId, no: 9, used: names, offered: [] })).size).toBe(
+      3,
+    );
+  });
+
+  it('has eighteen different public names for every system and twenty-four for the shared list', () => {
+    const lengths = new Set<number>();
+    for (const topicId of ['space', 'earth', 'human-body', 'machine-learning', 'computing', 'history', 'x'])
+      lengths.add(constellationNamesOf(topicId).length);
+    expect([...lengths].sort()).toEqual([18, 24]);
+    for (const topicId of ['space', 'earth', 'human-body', 'machine-learning', 'computing', 'history', 'x']) {
+      const names = constellationNamesOf(topicId);
+      expect(new Set(names).size).toBe(names.length);
+      for (const name of names) expect(name).toMatch(/^The [A-Z][A-Za-z ]{2,30}$/);
+    }
+  });
+
   it('names by the most votes, ties to the earlier name, and the first when nobody voted', () => {
     expect(winningCandidate([0, 0, 0])).toBe(0);
     expect(winningCandidate([1, 2, 1])).toBe(1);
@@ -126,6 +179,12 @@ describe('a constellation (D-175)', () => {
     expect(winningCandidate([0, 0, 0], [true, false, false])).toBe(1);
     expect(winningCandidate([0, 0, 3], [false, false, true])).toBe(0);
     expect(winningCandidate([1, 2, 2], [false, true, false])).toBe(2);
+  });
+
+  it('lets the plain vote decide when all three names are held, as the list is used up', () => {
+    expect(winningCandidate([0, 0, 9], [true, true, true])).toBe(2);
+    expect(winningCandidate([3, 1, 1], [true, true, true])).toBe(0);
+    expect(winningCandidate([0, 0, 0], [true, true, true])).toBe(0);
   });
 
   it('closes the name vote a day after the seventh star', () => {

@@ -331,16 +331,22 @@ export const RoomSkyViewSchema = z.discriminatedUnion('status', [
 ]);
 export type RoomSkyView = z.infer<typeof RoomSkyViewSchema>;
 
-/** A member chooses one of the three names offered for the constellation being named; they may change it until it closes. */
+/**
+ * A member chooses one of the three names offered for a constellation; they may change it until it closes. The command names
+ * the constellation the voter saw (`naming.constellation`), so a tap on a sheet that is out of date, after that constellation
+ * was named and the next one opened, is refused instead of counting for another constellation's name at the same place.
+ */
 export const NameConstellationSchema = z.strictObject({
   ...Command,
   roomId: UuidSchema,
+  constellation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   candidate: z.number().int().min(0).max(2),
 });
 export const ConstellationVoteAcceptanceSchema = z.strictObject({
   ...Receipt,
   operation: z.literal('sky.name'),
   roomId: UuidSchema,
+  constellation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   candidate: z.number().int().min(0).max(2),
 });
 
