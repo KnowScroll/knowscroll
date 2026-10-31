@@ -271,6 +271,48 @@ test('on a desktop, the keys work from the options button: R replies, E opens th
   await closeAll(asha.context);
 });
 
+/** The time under the newest run is inside the list, not under the message box, once the list has settled. */
+async function expectNewestTimeAboveTheBox(page: Page, time: Locator) {
+  await expect(time).toBeVisible();
+  await expect
+    .poll(async () => {
+      const list = (await page.getByTestId('conversation-messages').boundingBox())!;
+      const at = (await time.boundingBox())!;
+      return list.y + list.height - (at.y + at.height);
+    })
+    .toBeGreaterThanOrEqual(0);
+}
+
+test('on a phone, after sending a reply the new message and its time sit above the box, not behind it', async ({
+  browser,
+}) => {
+  const world = conversation();
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+  await swipeRight(page, bubbleOf(page, 'who is on part 2?'), 90);
+  await expect(page.getByTestId('reply-chip')).toBeVisible();
+  const box = page.getByLabel('Message Ravi fixture');
+  await box.fill('part 2 abhi start kiya');
+  await box.press('Enter');
+  await expect(page.getByTestId('reply-chip')).toHaveCount(0);
+  await expect(page.getByText('part 2 abhi start kiya')).toBeVisible();
+  await expectNewestTimeAboveTheBox(page, page.getByTestId('message-time').filter({ hasText: /Sent/i }));
+  await closeAll(asha.context);
+});
+
+test('on a phone, a reaction under the newest message does not push its time behind the box', async ({ browser }) => {
+  const world = conversation();
+  const asha = await person(browser, world, 'asha');
+  const { page } = asha;
+  const last = bubbleOf(page, 'asking again, the far side bulge?');
+  await expect(last).toBeInViewport();
+  await longPress(page, last);
+  await page.getByRole('dialog', { name: 'Message options' }).getByRole('button', { name: 'Heart' }).click();
+  await expect(page.getByRole('button', { name: 'Heart, 1 person, including you' })).toBeVisible();
+  await expectNewestTimeAboveTheBox(page, page.getByTestId('message-time').last());
+  await closeAll(asha.context);
+});
+
 test('on a desktop a right-click on a bubble opens the same menu as a long press', async ({ browser }) => {
   const world = conversation();
   const asha = await person(browser, world, 'asha', desktop);
@@ -279,9 +321,7 @@ test('on a desktop a right-click on a bubble opens the same menu as a long press
   const menu = page.getByRole('dialog', { name: 'Message options' });
   await expect(menu).toBeVisible();
   for (const name of ['Heart', 'Spark']) await expect(menu.getByRole('button', { name })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Reply' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Copy' })).toBeVisible();
-  await expect(menu.getByRole('button', { name: 'Report' })).toBeVisible();
+  for (const row of ['menu-reply', 'menu-copy', 'menu-report']) await expect(menu.getByTestId(row)).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   await closeAll(asha.context);
