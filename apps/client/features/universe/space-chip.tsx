@@ -53,9 +53,11 @@ export function SpaceChip({
           ]}
         />
       )}
-      <Text variant="uiS" color={foreground}>
-        {label}
-      </Text>
+      <View style={styles.label}>
+        <Text variant="uiS" color={foreground} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
       {trailingIcon ? <Icon name={trailingIcon} size={16} color={foreground} strokeWidth={2.4} /> : null}
     </Pressable>
   );
@@ -69,9 +71,13 @@ const styles = StyleSheet.create({
     minHeight: target.minimum,
     paddingHorizontal: spacing[4],
     borderRadius: radius.pill,
+    maxWidth: '100%',
+    flexShrink: 1,
     cursor: 'pointer' as const,
   },
   solid: { backgroundColor: space.control },
   ghost: { borderWidth: borderWidth.hairline, borderColor: overlay.onDarkEdge },
+  /** A long name shortens with an ellipsis instead of leaving the screen; the accessible name stays whole. */
+  label: { flexShrink: 1, minWidth: 0 },
   dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
 });

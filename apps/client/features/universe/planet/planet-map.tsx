@@ -7,7 +7,7 @@ import { Text } from '@knowscroll/ui';
 import { BodyTarget, SceneLayer } from '../scene-parts';
 import type { UniverseFrame } from '../universe-camera';
 import type { Size } from '../universe-layout';
-import { boxOfLoops, mapView, toScreen, type MapView } from './map-camera';
+import { boxOfFormed, boxOfLoops, mapView, toScreen, type MapView } from './map-camera';
 import { MapClouds, MapLand } from './map-ground';
 import type { PlanetPalette } from './planet-palette';
 import { loopsToPath } from './svg-paths';
@@ -140,7 +140,7 @@ function layOut(
 ): { readonly view: MapView; readonly spots: ReadonlyMap<string, { x: number; y: number }> } {
   const chosen = selectedId ? chart.charted.find((cell) => cell.objectId === selectedId) : undefined;
   const box = chosen ? boxOfLoops(chosen.loops) : undefined;
-  const view = mapView(size, frame, box);
+  const view = mapView(size, frame, box, boxOfFormed(chart.charted));
   const spots = new Map(chart.charted.map((cell) => [cell.objectId, toScreen(view, cell.label.x, cell.label.y)]));
   return { view, spots };
 }
