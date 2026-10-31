@@ -71,7 +71,8 @@ export async function writerSpikeCommand(
 ): Promise<number> {
   const topics = options.topics === undefined ? undefined : parseSpikeTopics(options.topics);
   const concurrency = options.concurrency === undefined ? 1 : Number(options.concurrency);
-  const blocks = options.blocks === undefined ? new Map() : parseSpikeBlocks(options.blocks);
+  const blocks: ReturnType<typeof parseSpikeBlocks> =
+    options.blocks === undefined ? new Map() : parseSpikeBlocks(options.blocks);
   if (
     topics === undefined ||
     blocks === undefined ||

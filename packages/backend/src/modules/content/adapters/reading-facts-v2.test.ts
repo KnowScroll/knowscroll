@@ -86,8 +86,8 @@ describe('reading facts of a Scroll with play blocks (labelled CI fixtures, D-06
         expect(facts.blocks[index]?.type).toBe('stop');
       }
       // The only interactions evidence accepts are those of calls, and only by kind.
-      const accepted = facts.blocks.flatMap((block) =>
-        block.seen.kind === 'interaction' ? block.seen.interactions : [],
+      const accepted = facts.blocks.flatMap(
+        (block) => (block.seen as { readonly interactions?: readonly string[] }).interactions ?? [],
       );
       expect(new Set(accepted)).toEqual(new Set(['locked', 'revealed']));
       expect(new Set(facts.blocks.map((block) => block.type))).toEqual(new Set(['stop', 'call_it', 'final_call']));

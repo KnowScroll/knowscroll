@@ -179,9 +179,9 @@ type Spy = { [Method in keyof StageReadingObserver]: jest.Mock<void, Parameters<
 describe('playing a block in the reader', () => {
   it('reports nothing about the play: no interaction, whatever is sorted, chosen, zoomed or revealed', async () => {
     const observer: Spy = {
-      onBlockVisibility: jest.fn(),
-      onBlockInteraction: jest.fn(),
-      onActivity: jest.fn(),
+      onBlockVisibility: jest.fn<void, Parameters<StageReadingObserver['onBlockVisibility']>>(),
+      onBlockInteraction: jest.fn<void, Parameters<StageReadingObserver['onBlockInteraction']>>(),
+      onActivity: jest.fn<void, Parameters<StageReadingObserver['onActivity']>>(),
     };
     await render(
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
