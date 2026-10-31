@@ -396,6 +396,8 @@ describe('Composer v0 pure policy (labelled CI input fixtures)', () => {
         d.selection,
       );
     },
+    // Up to 100 candidates composed three times per case: about 2.4 s alone, over the default 5 s when the suite runs busy.
+    30_000,
   );
   test.prop([fc.string({ minLength: 1, maxLength: 80 })])(
     'probability is the actual ranked plus uniform exploration mixture',

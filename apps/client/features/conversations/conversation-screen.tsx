@@ -4,13 +4,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TALK_QUERY_KEY, findConversation, type AccountScope } from '@knowscroll/client-core';
 import type { DirectConversationRef } from '@knowscroll/contracts';
-import { borderWidth, content, layout, spacing } from '@knowscroll/design-tokens';
+import { borderWidth, content, layout, spacing, universe } from '@knowscroll/design-tokens';
 import { Skeleton, StateBlock, Text, useDisplay } from '@knowscroll/ui';
 import { newCommandId } from '../../platform/command-id';
 import { useAccountScope } from '../../providers/account-scope';
 import { TalkFrame } from '../shell/talk-frame';
 import { conversationRefFromParams } from './conversation-links';
 import { PANE_LIST_WIDTH, TalkList } from './conversations-screen';
+import { useTalkListLook } from './talk-list-look';
 import { Thread } from './thread-view';
 import { ThreadHeader } from './thread-header';
 import { useConversationThread } from './use-conversation-thread';
@@ -79,6 +80,7 @@ export function ConversationScreen(params: {
   const router = useRouter();
   // From 1024 px the inbox stays beside the open conversation (D03).
   const withInbox = useDisplay().breakpoint === 'desktop' && state.status === 'signed_in';
+  const look = useTalkListLook();
   const screen = (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -125,9 +127,13 @@ export function ConversationScreen(params: {
     <TalkFrame>
       <View style={styles.panes}>
         {withInbox && state.status === 'signed_in' ? (
-          <View role="complementary" aria-label="Conversations" style={styles.inbox}>
+          <View
+            role="complementary"
+            aria-label="Conversations"
+            style={[styles.inbox, { backgroundColor: look.dark ? universe.sky : content.paper }]}
+          >
             <ScrollView contentContainerStyle={styles.inboxContent}>
-              <Text variant="title" heading={2}>
+              <Text variant="title" heading={2} color={look.text}>
                 Talk
               </Text>
               <TalkList scope={state.scope} currentId={params.conversationId} />

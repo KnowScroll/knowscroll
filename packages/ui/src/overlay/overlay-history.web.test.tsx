@@ -4,7 +4,7 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'test-renderer';
-import { useOverlayHistory } from './overlay-history';
+import { claimOverlayEntry, useOverlayHistory } from './overlay-history';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -101,5 +101,24 @@ describe('useOverlayHistory (web)', () => {
     await act(() => afterPopState(() => window.history.back()));
     expect(closeSecond).toHaveBeenCalledTimes(1);
     expect(window.history.state).toEqual({ route: 'gallery' });
+  });
+
+  it('lets a screen’s own marker take over the entry of an overlay closing as it opens, so nothing pops the marker', async () => {
+    act(() => root.render(<Probe visible onClose={() => undefined} />));
+    const lengthWithSheet = window.history.length;
+    const claimed = claimOverlayEntry(window.history.state);
+    expect(claimed.replace).toBe(true);
+    expect(claimed.state).toEqual({ route: 'gallery' });
+    window.history.replaceState({ ...claimed.state, ksMarker: 1 }, '', window.location.href);
+    act(() => root.render(<Probe visible={false} onClose={() => undefined} />));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The closing overlay did not call Back: the marker is still the current entry and no entry was added.
+    expect(window.history.state).toEqual({ route: 'gallery', ksMarker: 1 });
+    expect(window.history.length).toBe(lengthWithSheet);
+  });
+
+  it('claims nothing when no overlay entry is open', () => {
+    expect(claimOverlayEntry({ route: 'gallery' })).toEqual({ state: { route: 'gallery' }, replace: false });
+    expect(claimOverlayEntry(null)).toEqual({ state: {}, replace: false });
   });
 });
