@@ -645,6 +645,9 @@ direct conversations and threads together; a thread row shows its people, the la
   quiet note and nothing to open.
 - `thread-scroll-reader.tsx` and `scroll-open.tsx` read a Scroll in the thread; "Open as set" applies the sender's settings
   through an in-memory overlay (`overlayBlockState`), never to the reader's own saved block state.
+  A v2 Scroll opens with `stage: true` and is drawn by `ThreadStageScroll`, the same `StageReaderSurface` as `/scroll/<id>`,
+  with "I've finished this part" in its end tray and a Back to thread control (D-234); Parts and related moves are not offered
+  there. _Implemented; covered by `e2e/thread-scroll-smoke.spec.ts`; not runtime-verified on dev._
 - For the screens owned by the Explore, Reel and Scroll work: a Reel screen mounts `ShareSheetBody`, which now offers
   "Explore with friends" (`features/sharing/explore-with-friends.tsx`: pick friends, name, "Create thread · N friends").
   The Reel and Scroll encounter screens can reuse `ShareMomentSheet` and `ShareFromScrollSheet` through the hooks in

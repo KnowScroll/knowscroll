@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type ViewInstance } from 'react-native';
 import { borderWidth, content, radius, spacing } from '@knowscroll/design-tokens';
 import type { ScrollDocumentV2 } from '@knowscroll/scroll-model';
@@ -42,6 +42,8 @@ export interface EndTrayProps {
   readonly onUniverse?: (() => void) | undefined;
   /** Takes the reader back to the Final call when it is still open. */
   readonly onPlayFinal?: (() => void) | undefined;
+  /** What the screen the Scroll is read on adds at its foot, before the ways on (a thread's "I've finished this part"). */
+  readonly endSlot?: ReactNode;
 }
 
 /**
@@ -77,6 +79,7 @@ export function EndTray(props: EndTrayProps) {
         ))}
       </View>
       {payoff === undefined ? null : <PayoffBlock payoff={payoff} onPlayFinal={props.onPlayFinal} />}
+      {props.endSlot}
       {closing ? (
         <DoneForToday
           payoff={payoff}

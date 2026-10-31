@@ -2539,3 +2539,14 @@ Confirmed by: `tests/integration/modules/universe-resume.test.ts` (nothing befor
 | `black-hole-evidence` | Space | stage (`black-hole.v1`) | NASA, Black Holes | none | The Unseen Weight (`the-unseen-weight`) |
 
 Confirmed by: `library.test.ts` (the v2 recipes are the Seasons four, the 35 of D-199 and these fifteen, and nothing else; each of the fifteen is `stage` exactly where a kit draws it and `plain` for `tides-coasts` and `greenhouse-limits`, has no myth and no Final call control, and a landmark with no mastery wording; every series is wholly marked or not at all; landmarks are unique), `topics.test.ts` of the spike (the Space recipes run as the plan marks them, and `exoplanet-kinds` is the recipe left to the spike's defaults), `versions.test.ts` (`exoplanet-kinds` is the v1 example). The integration files that used a kit recipe as their v1 example now name it with `markRecipesV1`. Shown failing when a recipe of a series was left unmarked (the list, the series and the landmark tests), when a plain recipe was given the `stage` variant, when a landmark name claimed mastery and when two landmarks shared a name.
+
+## D-234 · 2026-10-31 · The thread's reader draws a v2 Scroll as the Stage + Spine reader, and its foot is the end tray (v3 dev check, #570)
+
+**Builds on** D-153 and D-133. Fixes a gap: the thread's own reader opened every Scroll as a v1 article, so a v2 Scroll, which is what a series holds now, showed "This needs an app update" and a person could not reach the finish or the reveal.
+
+- **Same reader.** `/threads/<id>/read/<assetId>` opens the Scroll with `stage: true` and draws it with `StageReaderSurface`, the surface `/scroll/<id>` and Explore use, with the same recorder, so what is read here is an ordinary encounter. The snippet viewer and a branch's reader still open v1 documents only.
+- **The finish sits in the end tray.** "I've finished this part" is drawn after the score and before the ways on, where a v1 article draws it at its foot. It is the same button and the same rule: sent while recording is paused, never while the person hides where they are.
+- **No Part or related move from here.** The reader offers Back to thread, Done for today and Your Universe. The next Part is chosen in the thread, whose player is the only thing that tells a place (D-153); a move to `/scroll/<id>` would leave the player and tell nothing.
+- **Not built.** Sharing a passage of a v2 Scroll back into the thread. A snippet names a v1 block; a stop is not one (D-135).
+
+Confirmed by: `e2e/thread-scroll-smoke.spec.ts` (two people in a thread of three v2 Scrolls: Read opens the Scroll, the finish tells the thread, a locked call reveals once both have finished; a desktop; axe at 390 × 844 and 1440 × 900) and the end tray test in `stage-reader.test.tsx`. Shown failing with the reader opened without `stage`.
