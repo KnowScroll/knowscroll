@@ -6,7 +6,7 @@ import { ENTER_SYSTEM, enterSystemFrame } from './enter-system';
 import { ENTER_WORLD, enterWorldFrame } from './enter-world';
 import { END_POSITION, FIRST_OPEN, distanceAt, firstOpenFrame, speedAt, warpAt } from './first-open-timeline';
 import { createAnimationPlayer, type AnimationEnd, type AnimationKind } from './player';
-import { createTransitionGate } from './transition-gate';
+import { createTransitionGate, withTransitionGate } from './transition-gate';
 import { cameraBasis, dot, length, sub, type Vec3 } from './vec3';
 
 /** A scheduler the test drives by hand, one frame stamp at a time (the stamps are the ones rAF would give). */
@@ -116,6 +116,15 @@ describe('the animation player', () => {
     expect(ends).toHaveLength(1);
   });
 
+  it('does not end twice when a listener asks for the end on the last frame', () => {
+    const { frames, player, ends } = play(0.2);
+    player.subscribe((run) => {
+      if (run.t >= 0.2) player.finish();
+    });
+    for (let stamp = 0; stamp < 600; stamp += 34) frames.run(stamp);
+    expect(ends).toHaveLength(1);
+  });
+
   it('plays nothing after it is disposed', () => {
     const { frames, seen, player } = play(5);
     player.dispose();
@@ -137,6 +146,53 @@ describe('the transition gate', () => {
     expect(finisher).toHaveBeenCalledTimes(1);
     gate.set(undefined);
     expect(gate.active()).toBe(false);
+  });
+});
+
+describe('a session behind the gate', () => {
+  const session = () => {
+    const calls: string[] = [];
+    const record = (name: string) => () => {
+      calls.push(name);
+      return true;
+    };
+    return {
+      calls,
+      session: withTransitionGate({
+        focus: record('focus'),
+        land: record('land'),
+        select: record('select'),
+        camera: record('camera'),
+        back: record('back'),
+        up: record('up'),
+        escape: record('escape'),
+        getState: () => 'state',
+      }),
+    };
+  };
+
+  it('passes everything through while nothing plays', () => {
+    const { calls, session: gated } = session();
+    gated.focus();
+    gated.land();
+    gated.back();
+    expect(calls).toEqual(['focus', 'land', 'back']);
+  });
+
+  it('ignores taps while one plays, and Back, Up and Escape jump it to its end first and then go back', () => {
+    const { calls, session: gated } = session();
+    const finished = jest.fn(() => gated.gate.set(undefined));
+    gated.gate.set(finished);
+    expect(gated.focus()).toBe(false);
+    expect(gated.land()).toBe(false);
+    expect(gated.select()).toBe(false);
+    expect(gated.camera()).toBe(false);
+    expect(calls).toEqual([]);
+    expect(gated.back()).toBe(true);
+    expect(finished).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(['back']);
+    // It ended, so taps work again.
+    expect(gated.focus()).toBe(true);
   });
 });
 

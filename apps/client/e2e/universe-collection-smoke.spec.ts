@@ -39,6 +39,8 @@ async function openUniverse(
   const calls: { method: string; path: string }[] = [];
   await page.emulateMedia({ reducedMotion: options.reducedMotion ? 'reduce' : 'no-preference' });
   await page.setViewportSize(size);
+  // These checks walk the map; its animations have a spec of their own (universe-animations-smoke.spec.ts).
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.route('**/auth/session', (route) =>
     route.fulfill({ json: { account: fixtureAccount, client: 'web', expiresAt: '2099-10-21T00:00:00.000Z' } }),
   );

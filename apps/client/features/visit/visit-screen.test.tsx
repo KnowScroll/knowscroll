@@ -52,6 +52,28 @@ const view = (visible: boolean) => (
   </DisplayProvider>
 );
 
+/** The subtree of a rendered tree with this testID. */
+function findByTestId(node: unknown, testID: string): unknown {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findByTestId(child, testID);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  if (node === null || typeof node !== 'object') return undefined;
+  const { props, children } = node as { props?: { testID?: string }; children?: unknown };
+  return props?.testID === testID ? node : findByTestId(children, testID);
+}
+
+/** Every string a rendered tree draws, in order. */
+function textOf(node: unknown, found: string[] = []): string {
+  if (typeof node === 'string') found.push(node);
+  else if (Array.isArray(node)) for (const child of node) textOf(child, found);
+  else if (node && typeof node === 'object') textOf((node as { children?: unknown }).children, found);
+  return found.join(' | ');
+}
+
 describe('friend visit screen (labelled in-memory server)', () => {
   it('draws the shared systems with the Universe renderer under a visitor bar, and nothing else of the owner', async () => {
     const server = visitServer();
@@ -141,6 +163,33 @@ describe('friend visit screen (labelled in-memory server)', () => {
     expect(screen.getByText(/or whether there are any/)).toBeOnTheScreen();
     await rendered.unmount();
     server.scope.end();
+  });
+
+  it('reads the same whatever is shared, so the bar cannot say whether something is hidden (U06, D-047)', async () => {
+    const bar = async (
+      systems: { publicSystemId: string; label: string; planets: { publicPlanetId: string; label: string }[] }[],
+    ) => {
+      const server = visitServer();
+      server.setWorld(systems);
+      mockScope = server.scope;
+      const rendered = await render(view(true));
+      await waitFor(() => expect(screen.getByTestId('visitor-bar')).toBeOnTheScreen());
+      const words = textOf(findByTestId(screen.toJSON(), 'visitor-bar'));
+      await rendered.unmount();
+      server.scope.end();
+      return words;
+    };
+    const planet = (n: number) => ({
+      publicPlanetId: `0199b000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+      label: `Planet ${String(n)}`,
+    });
+    const one = [{ publicSystemId: '0199b000-0000-4000-8000-000000000001', label: 'One', planets: [planet(11)] }];
+    const three = [
+      { publicSystemId: '0199b000-0000-4000-8000-000000000001', label: 'One', planets: [planet(11)] },
+      { publicSystemId: '0199b000-0000-4000-8000-000000000002', label: 'Two', planets: [planet(21), planet(22)] },
+      { publicSystemId: '0199b000-0000-4000-8000-000000000003', label: 'Three', planets: [] },
+    ];
+    expect(await bar(one)).toBe(await bar(three));
   });
 
   it('says "not shared with you" for a refusal, without a name and without claiming it was ever shared', async () => {
