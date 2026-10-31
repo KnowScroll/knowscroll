@@ -43,6 +43,7 @@ export {
   type ActivateExposureResult,
 } from './application/activate-exposure.js';
 export type { ReadExposureDocument, ReadExposureDocumentResult } from './application/read-exposure-document.js';
+export type { ReadResume, ReadResumeResult } from './application/read-resume.js';
 export { EXPOSURE_ORIGINS, type ExposureOrigin } from './domain/exposures.js';
 
 /** An action as the evidence module reads it. */

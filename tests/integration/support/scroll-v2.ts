@@ -70,6 +70,17 @@ export function markScrollV1(key: ScrollTopic): () => void {
 }
 
 /**
+ * Makes the named library recipes v1 recipes until the undo is called. The plan marks the Seasons recipes
+ * and the kit and wave recipes v2 (D-137, D-199, D-217); a file that tests the v1 path (who publishes
+ * straight to admitted, the production job) names the recipes it uses as v1 examples. Call it in the
+ * describe body and the undo in `afterAll`: a test file has a process of its own.
+ */
+export function markRecipesV1(...keys: ScrollTopic[]): () => void {
+  const undoAll = keys.map((key) => markScrollV1(key));
+  return () => undoAll.forEach((undo) => undo());
+}
+
+/**
  * The page a fixture serves for a recipe URL when the recipe is written about the invented planet Orrin:
  * the Orrin page itself, and for another URL a page of its own (a recipe with two pages gets two).
  */

@@ -34,7 +34,7 @@ import { signal } from '../support/fixture-model.js';
 import { seedPerson } from '../support/fixtures.js';
 import { answerWith, enableProductionScope, fixtureAuthored, fixtureProduction } from '../support/generated-scroll.js';
 import { scrollUseCases, textCapabilities } from '../support/scroll.js';
-import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
+import { markRecipesV1, markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
 
 /**
  * The operator review gate for library v2 Scrolls (D-138). A v2 library recipe is produced through the
@@ -42,6 +42,9 @@ import { markScrollV1, v2Capabilities } from '../support/scroll-v2.js';
  * place of any product content. Nothing here is provider output.
  */
 describe('The review gate for library v2 Scrolls (labelled CI fixtures, real PostgreSQL)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1('tides', 'greenhouse');
+  afterAll(restoreRecipes);
   let database: TestDatabase<Database>;
   const gate = () => makeReviewGate(database.db);
   const withScope = () => makeWithPersonalScope(database.db, { lockTimeoutMs: 2000 });

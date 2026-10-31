@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeWithProductionScope, type Database } from '@knowscroll/backend/infrastructure/postgres';
 import {
   guardedModelPort,
@@ -30,6 +30,7 @@ import { createTestDatabase, type TestDatabase } from '../support/database.js';
 import { FIXTURE_PROSE, FIXTURE_SOURCE, fixtureAuthored, fixtureResearchFor } from '../support/generated-scroll.js';
 import { fixtureModel, fixtureSettings, gate, signal, silent } from '../support/fixture-model.js';
 import type { FixtureScenario } from '../support/fixture-model-port.js';
+import { markRecipesV1 } from '../support/scroll-v2.js';
 
 const SOURCE = FIXTURE_SOURCE;
 const PROSE = FIXTURE_PROSE;
@@ -38,6 +39,16 @@ const authored = (overrides: { readonly drop?: string; readonly paragraph?: stri
 const answer = (value: unknown): FixtureScenario => ({ kind: 'success', text: JSON.stringify(value) });
 
 describe('Scroll production (CI fixture + real PostgreSQL; no provider network)', () => {
+  // The plan marks these recipes v2 (D-217); this file uses them as v1 examples.
+  const restoreRecipes = markRecipesV1(
+    'greenhouse',
+    'greenhouse-balance',
+    'greenhouse-limits',
+    'greenhouse-radiation',
+    'stars-fusion',
+    'tides',
+  );
+  afterAll(restoreRecipes);
   let database: TestDatabase<Database>;
   beforeEach(async () => {
     database = await createTestDatabase<Database>('scroll_production');

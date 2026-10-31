@@ -80,6 +80,11 @@ export const spaceRecipes = {
     brief:
       'How a star shines and stays steady. When a cloud of gas collapses, pressure and temperature at its core rise until hydrogen fuses into helium; the energy flowing outward creates a pressure that counters gravity and holds the star in balance. Let the reader compare a star in balance with what would happen if either gravity or pressure won. Say that more massive stars use their fuel faster and live shorter lives. Do not say the Sun burns like a fire.',
     pages: ['https://en.wikipedia.org/wiki/Main_sequence'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-steady-core', name: 'The Steady Core' },
+    },
   },
   'stars-lifecycle': {
     explanationUnitId: 'space-stars-lifecycle-v1',
@@ -95,6 +100,11 @@ export const spaceRecipes = {
     brief:
       'How stars age and end. A star’s mass sets its path: a low-mass star swells into a giant and ends as a white dwarf, while a high-mass star can end in a supernova. Lay the stages out in order, without years, for a low-mass star and for a high-mass one. Do not say the Sun will become a supernova, and give no exact lifetimes.',
     pages: ['https://science.nasa.gov/universe/stars/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-ageing-star', name: 'The Ageing Star' },
+    },
   },
   'stars-colour-brightness': {
     explanationUnitId: 'space-stars-colour-brightness-v1',
@@ -110,6 +120,11 @@ export const spaceRecipes = {
     brief:
       'What colour and brightness reveal about a star. Plotting stars by temperature or colour against luminosity sorts them into groups, such as the main sequence, giants and white dwarfs, in a chart called the Hertzsprung–Russell diagram. Explain how that chart lets astronomers read a star’s likely kind and stage. Do not claim colour alone gives a star’s age or that every main-sequence star is alike.',
     pages: ['https://en.wikipedia.org/wiki/Hertzsprung%E2%80%93Russell_diagram'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-colour-chart', name: 'The Colour Chart' },
+    },
   },
   'exoplanet-transit': {
     explanationUnitId: 'space-exoplanets-transit-v1',
@@ -125,6 +140,11 @@ export const spaceRecipes = {
     brief:
       'How planets are found by their effect on starlight. When a planet passes in front of its star the starlight dips slightly and regularly, the method used by the Kepler and TESS telescopes; a planet’s pull can also make its star wobble, which shows up as shifts in the starlight’s wavelengths. Let the reader compare the dip from a small and a large planet, in illustrative units. Say that different methods find different kinds of planets. Do not imply that most known planets were photographed directly.',
     pages: ['https://science.nasa.gov/exoplanets/how-we-find-and-characterize/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-small-dip', name: 'The Small Dip' },
+    },
   },
   'exoplanet-habitable-zone': {
     explanationUnitId: 'space-exoplanets-habitable-zone-v1',
@@ -140,6 +160,11 @@ export const spaceRecipes = {
     brief:
       'What the habitable zone is: the region around a star where a planet could have liquid water on its surface. A planet’s distance from its star sets how much starlight it receives, and stars of different brightness have zones at different distances. Let the reader move a planet outward and see how the starlight it receives falls, labelled as illustrative. Stress that being in the zone does not make a planet habitable or inhabited, and do not claim that life has been found elsewhere.',
     pages: ['https://en.wikipedia.org/wiki/Circumstellar_habitable_zone'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-temperate-band', name: 'The Temperate Band' },
+    },
   },
   'exoplanet-kinds': {
     explanationUnitId: 'space-exoplanets-kinds-v1',
@@ -169,6 +194,11 @@ export const spaceRecipes = {
     brief:
       'How black holes form. When a star with more than about eight times the Sun’s mass runs out of fuel, its core collapses and the star explodes as a supernova, and what remains can be a stellar-mass black hole. Contrast this with the supermassive black holes at the centres of large galaxies, whose origins scientists are still working out, and mention the puzzling gap in sizes between the two. Do not say the Sun will become a black hole.',
     pages: ['https://science.nasa.gov/universe/black-holes/types/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-collapsing-core', name: 'The Collapsing Core' },
+    },
   },
   'black-hole-horizon': {
     explanationUnitId: 'space-black-holes-horizon-v1',
@@ -184,6 +214,11 @@ export const spaceRecipes = {
     brief:
       'What the event horizon is. It is the black hole’s boundary, not a solid surface: inside it the speed needed to escape is greater than the speed of light, so nothing that crosses it can return. Let the reader compare the view from far away with what a spacecraft nearing the horizon would meet, including the stretching called spaghettification that strong tidal gravity causes. Do not describe the centre as understood.',
     pages: ['https://science.nasa.gov/universe/black-holes/anatomy/', 'https://spaceplace.nasa.gov/black-holes/en/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-one-way-edge', name: 'The One-Way Edge' },
+    },
   },
   'black-hole-evidence': {
     explanationUnitId: 'space-black-holes-evidence-v1',
@@ -198,5 +233,10 @@ export const spaceRecipes = {
     brief:
       'How astronomers know black holes exist when they emit no light of their own. Cover the gas and dust that glow in X-rays as they swirl in, stars whose orbits reveal an unseen heavy object at a galaxy’s centre, ripples in spacetime called gravitational waves, and the way a black hole bends light from objects behind it. Do not suggest that any one line of evidence alone settles the matter.',
     pages: ['https://science.nasa.gov/universe/black-holes/'],
+    scrollV2: {
+      variant: 'stage',
+      misconception: { kind: 'none' },
+      landmark: { key: 'the-unseen-weight', name: 'The Unseen Weight' },
+    },
   },
 } as const satisfies SystemRecipes<typeof spaceSystem>;

@@ -100,4 +100,39 @@ export const playStore: PlayStore = {
       earnedAt: row.earned_at,
     }));
   },
+
+  async readPlayDays(scope, timeZone) {
+    const db = transactionOf(scope);
+    const { universeId, privacyEpoch } = scope.authority;
+    const zone = await knownZone(db, timeZone);
+    const today = await sql<{ today: string }>`
+      select to_char((now() at time zone ${zone})::date, 'YYYY-MM-DD') as today`.execute(db);
+    // Eight days reach back past this week's Monday from any day of the week, in any zone.
+    const days = await sql<{ day: string }>`
+      select distinct to_char((locked_at at time zone ${zone})::date, 'YYYY-MM-DD') as day from play.calls
+      where universe_id = ${universeId}::uuid and privacy_epoch = ${privacyEpoch}
+        and locked_at >= now() - interval '9 days'`.execute(db);
+    return { today: today.rows[0]!.today, playedDays: days.rows.map((row) => row.day) };
+  },
 };
+
+/**
+ * What the database said about each time zone name it was asked, so a name is looked up once and not on every
+ * Orbit read inside the locked transaction. Bounded, so a stream of invented names cannot grow it; a name beyond
+ * the bound is looked up each time.
+ */
+const ZONE_ANSWERS = new Map<string, string>();
+const ZONE_ANSWER_LIMIT = 512;
+
+/** The zone the database knows by that name, or UTC: a read answers whatever the device sent. */
+async function knownZone(db: ReturnType<typeof transactionOf>, name: string | undefined): Promise<string> {
+  if (name === undefined) return 'UTC';
+  const remembered = ZONE_ANSWERS.get(name);
+  if (remembered !== undefined) return remembered;
+  const known = await sql<{ name: string }>`select name from pg_timezone_names where name = ${name} limit 1`.execute(
+    db,
+  );
+  const zone = known.rows[0]?.name ?? 'UTC';
+  if (ZONE_ANSWERS.size < ZONE_ANSWER_LIMIT) ZONE_ANSWERS.set(name, zone);
+  return zone;
+}

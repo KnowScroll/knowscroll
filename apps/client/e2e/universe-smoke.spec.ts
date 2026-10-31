@@ -1,6 +1,6 @@
 import scrollDocument from '@knowscroll/scroll-model/fixtures/spring-neap-tides.json';
 import { expect, test } from '@playwright/test';
-import { fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
+import { COLLECTION_READS, fixtureAccount, fixtureId, sceneFixture } from '../features/universe/universe.fixture';
 import { emptyInbox, isInboxPath } from './empty-inbox';
 import { tapOrbitingTarget } from './orbiting-target';
 /** Production-export consumer over authored HTTP fixtures. No established world/provider acceptance. */
@@ -17,6 +17,8 @@ test('authoritative map/outline/travel and browser Back keep camera private and 
     '/v1/universe/emerging/read',
     '/v1/experience/region/preview',
     '/v1/universe/formation/read',
+    // The person's own landmarks, Orbit and next Part: read beside the map, never written.
+    ...COLLECTION_READS,
   ]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route('**/auth/session', (route) =>
@@ -146,7 +148,7 @@ test('canonical region card opens displayed A through actual activation, then Ba
         status: 'unavailable',
         reason: 'temporarily_unavailable',
       };
-    else if (path.startsWith('/v1/universe/')) value = world.reply(path, body);
+    else if (path.startsWith('/v1/universe/') || COLLECTION_READS.includes(path)) value = world.reply(path, body);
     else if (path.endsWith('/region/preview'))
       value = {
         ...body,
@@ -398,7 +400,7 @@ test('durable formation waits for an exact current claim after a lost reply, pre
         requestedDisposition: body.disposition,
         outcome: 'recorded',
       };
-    } else if (path.startsWith('/v1/universe/')) value = world.reply(path, body);
+    } else if (path.startsWith('/v1/universe/') || COLLECTION_READS.includes(path)) value = world.reply(path, body);
     else throw new Error(`Unexpected formation fixture request: ${path}`);
     await route.fulfill({ json: value });
   });
@@ -421,7 +423,7 @@ test('durable formation waits for an exact current claim after a lost reply, pre
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(calls.filter((c) => c.path.endsWith('/formation/claim'))).toHaveLength(2);
   expect(calls.filter((c) => c.path.endsWith('/formation/acknowledge'))).toHaveLength(1);
-  expect(calls.every((c) => c.path.startsWith('/v1/universe/'))).toBe(true);
+  expect(calls.every((c) => c.path.startsWith('/v1/universe/') || COLLECTION_READS.includes(c.path))).toBe(true);
   expect(await page.evaluate(() => JSON.stringify(history.state))).not.toMatch(
     /objectId|frame|seed|0199a000|transitionId|claimId|attemptNonce/,
   );

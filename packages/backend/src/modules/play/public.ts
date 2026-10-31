@@ -11,16 +11,19 @@
  */
 import type { LockCall } from './application/lock-call.js';
 import type { ReadLandmarks } from './application/read-landmarks.js';
+import type { ReadOrbit } from './application/read-orbit.js';
 import type { ReadResults } from './application/read-results.js';
 
 export type { CallLockRefusal, CallLockResult } from './application/lock-call.js';
 export type { ReadLandmarksResult } from './application/read-landmarks.js';
+export type { ReadOrbitResult } from './application/read-orbit.js';
 export type { ReadResultsResult } from './application/read-results.js';
 
 export interface PlayUseCases {
   readonly lockCall: LockCall;
   readonly readResults: ReadResults;
   readonly readLandmarks: ReadLandmarks;
+  readonly readOrbit: ReadOrbit;
 }
 
 export const PLAY_USE_CASES = Symbol('play.useCases');

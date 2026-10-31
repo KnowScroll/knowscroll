@@ -1,6 +1,6 @@
 import { SavedPageResponseSchema } from '@knowscroll/contracts';
 import type { ReadSavedPage } from '@knowscroll/backend/modules/experience';
-import { Controller, Inject, Req } from '@nestjs/common';
+import { Controller, Header, Inject, Req } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import type { Request } from 'express';
 import { apiContract, type ProblemCode } from '@knowscroll/contracts';
@@ -8,6 +8,7 @@ import type {
   NavigateEncounter,
   ActivateOffer,
   ReadExposureContext,
+  ReadResume,
   ApplyEncounterAction,
   ActivateExposure,
   ActivateExposureResult,
@@ -22,6 +23,7 @@ import {
   NAVIGATE_ENCOUNTER,
   ACTIVATE_OFFER,
   READ_EXPOSURE_CONTEXT,
+  READ_RESUME,
   APPLY_ENCOUNTER_ACTION,
   ACTIVATE_EXPOSURE,
   APPLY_ACTION,
@@ -79,6 +81,7 @@ export class ExperienceController {
     @Inject(ACTIVATE_OFFER) private readonly activateOffer: ActivateOffer,
     @Inject(READ_EXPOSURE_CONTEXT) private readonly readContext: ReadExposureContext,
     @Inject(APPLY_ENCOUNTER_ACTION) private readonly applyEncounterAction: ApplyEncounterAction,
+    @Inject(READ_RESUME) private readonly readResume: ReadResume,
   ) {}
 
   @Implement(apiContract.experience.applyAction)
@@ -171,6 +174,17 @@ export class ExperienceController {
       const result = await this.readContext(authorityOf(admittedCaller(request)), input.exposureId);
       if (result.kind === 'refused') throw problem(result.code);
       return result.context;
+    });
+  }
+
+  /** The next Part of a series the caller started and has not opened. Their own reading only; a read. */
+  @Header('Cache-Control', 'private, no-store')
+  @Implement(apiContract.experience.resume)
+  resumeRoute(@Req() request: Request) {
+    return implement(apiContract.experience.resume).handler(async () => {
+      const result = await this.readResume(authorityOf(admittedCaller(request)));
+      if (result.kind === 'refused') throw problem(result.code);
+      return { resume: result.resume };
     });
   }
 
