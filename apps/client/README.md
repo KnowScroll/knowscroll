@@ -102,7 +102,7 @@ exclude Reels, even though this controller has a working Reel player.
 - `features/shell/`: the tab bar / rail adapter and the screen frame (safe areas, header with
   the account avatar, room for the floating tab bar).
 - `platform/api.ts`: the API origin for this build and the typed client (`@knowscroll/client-core`).
-- `platform/close-then.ts`: closes a sheet and then opens the screen the person chose, waiting on the web for the sheet's own Back so the navigation is not popped (D-238). Visit a friend's universe, Open thread and a topic picked in the room menu use it.
+- `platform/close-then.ts`: closes a sheet and then opens the screen the person chose, waiting on the web for the sheet's own Back so the navigation is not popped (D-238). Visit a friend's universe, Open thread and a topic picked in the room menu use it. `e2e/share-open-smoke.spec.ts` shows Open thread and Open chat from the Share sheet on `/scroll/<id>` reach their screens.
 - `providers/account-scope.tsx`: the AccountScope provider (#226). It reads the session once
   (nothing renders before), gives the tree the QueryClient of the signed-in scope (one per account
   and privacy epoch) or of the signed-out period, and is keyed by the scope, so sign-out, an account
@@ -682,7 +682,7 @@ direct conversations and threads together; a thread row shows its people, the la
   through an in-memory overlay (`overlayBlockState`), never to the reader's own saved block state.
   A v2 Scroll opens with `stage: true` and is drawn by `ThreadStageScroll`, the same `StageReaderSurface` as `/scroll/<id>`,
   with "I've finished this part" in its end tray and a Back to thread control (D-234); Parts and related moves are not offered
-  there. _Implemented; covered by `e2e/thread-scroll-smoke.spec.ts`; not runtime-verified on dev._
+  there. _Implemented; covered by `e2e/thread-scroll-smoke.spec.ts`, which also checks that it reports its reading to the recorder exactly as `/scroll/<id>` does, and nothing while recording is paused; not runtime-verified on dev._
 - For the screens owned by the Explore, Reel and Scroll work: a Reel screen mounts `ShareSheetBody`, which now offers
   "Explore with friends" (`features/sharing/explore-with-friends.tsx`: pick friends, name, "Create thread · N friends").
   The Reel and Scroll encounter screens can reuse `ShareMomentSheet` and `ShareFromScrollSheet` through the hooks in
