@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { StyleSheet, View } from 'react-native';
 import { content, layout, type Breakpoint } from '@knowscroll/design-tokens';
-import { NavRail, TabBar, useDisplay, type Destination } from '@knowscroll/ui';
+import { NavRail, TabBar, useDisplay, useTalkTheme, type Destination } from '@knowscroll/ui';
 import { useAccountInitial, useAccountScopeIfPresent } from '../../providers/account-scope';
 import { useTalkInbox } from '../conversations/use-talk-inbox';
 
@@ -41,6 +41,9 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
   const unread = useTalkInbox(account.status === 'signed_in' ? account.scope : undefined).unread;
   const routeName = state.routes[state.index]?.name;
   const active = asDestination(routeName);
+  // Talk's list is on the dark sky under the Talk theme (D-154), so its navigation is too.
+  const talkSky = useTalkTheme().name === 'sky';
+  const tone = routeName === 'universe' || (routeName === 'conversations' && talkSky) ? 'space' : 'paper';
   const select = (destination: Destination) => {
     const route = state.routes.find((candidate) => candidate.name === destination);
     if (route !== undefined) navigateToTab(route.key);
@@ -53,7 +56,7 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
       <PrimaryRail
         active={active}
         accountCurrent={routeName === 'account'}
-        tone={routeName === 'universe' ? 'space' : 'paper'}
+        tone={tone}
         insets={insets}
         unread={unread}
         onSelect={select}
@@ -69,7 +72,7 @@ export function AppNavigation({ state, navigateToTab, insets }: BottomTabBarProp
         active={active}
         onSelect={select}
         hrefFor={destinationHref}
-        tone={routeName === 'universe' ? 'space' : 'paper'}
+        tone={tone}
         unread={unread}
       />
     </View>

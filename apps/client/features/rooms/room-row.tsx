@@ -5,6 +5,7 @@ import { borderWidth, content, spacing } from '@knowscroll/design-tokens';
 import { Icon, RowLink, Tag, Text } from '@knowscroll/ui';
 import { RoomEmblem } from './identity/room-emblem';
 import { roomHref } from './room-links';
+import { useTalkListLook } from '../conversations/talk-list-look';
 
 /** The words under a room's name in Talk: what the room is about, or that the person was invited. No counts, no activity. */
 export function roomRowSubtitle(item: RoomListItem): string {
@@ -17,30 +18,32 @@ export function RoomRow({ item }: { readonly item: RoomListItem }) {
   const router = useRouter();
   const href = roomHref(item.room.roomId);
   const subtitle = roomRowSubtitle(item);
+  const look = useTalkListLook();
   return (
-    <View style={styles.frame}>
+    <View style={[styles.frame, { borderBottomColor: look.rule }]}>
       <RowLink
         label={`Room ${item.room.name}, ${subtitle}`}
         href={href}
         onPress={() => router.push(href)}
+        tint={look.tint}
         testID={`talk-room-${item.room.roomId}`}
       >
         <View style={styles.row}>
           {item.room.identity === undefined ? (
-            <View style={styles.tile} aria-hidden>
-              <Icon name="universe" size={20} color={content.paper} />
+            <View style={[styles.tile, { backgroundColor: look.tile }]} aria-hidden>
+              <Icon name="universe" size={20} color={look.tileGlyph} />
             </View>
           ) : (
             <RoomEmblem kit={item.room.identity.kit} size={44} testID={`talk-room-emblem-${item.room.roomId}`} />
           )}
           <View style={styles.text}>
             <View style={styles.title}>
-              <Text variant="bodyS" numberOfLines={1} style={styles.grow}>
+              <Text variant="bodyS" color={look.text} numberOfLines={1} style={styles.grow}>
                 {item.room.name}
               </Text>
               {item.standing === 'invited' ? <Tag variant="part" label="Invited" /> : null}
             </View>
-            <Text variant="meta" color={content.ink2} numberOfLines={1}>
+            <Text variant="meta" color={look.quiet} numberOfLines={1}>
               {subtitle}
             </Text>
           </View>

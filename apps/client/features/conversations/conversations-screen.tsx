@@ -9,6 +9,7 @@ import { ScreenFrame } from '../shell/screen-frame';
 import { EmptyTalk } from './empty-talk-screen';
 import { PersonAvatar } from './person-avatar';
 import { NewTalkButton, useTalkHasContent } from './new-talk';
+import { useTalkListLook } from './talk-list-look';
 import { conversationHref } from './conversation-links';
 import { useTalkInbox } from './use-talk-inbox';
 import { InvitationCard } from '../threads/invitation-card';
@@ -24,28 +25,30 @@ function InboxRow({ item, current }: { readonly item: DirectConversationSummary;
   const time = view.at === undefined ? undefined : listTime(view.at, new Date());
   const name = item.peer.displayName;
   const preview = item.ended === true ? `${view.preview} · ${name} left` : view.preview;
+  const look = useTalkListLook();
   return (
-    <View style={styles.rowFrame}>
+    <View style={[styles.rowFrame, { borderBottomColor: look.rule }]}>
       <RowLink
         label={`${name}${view.unread ? ', unread' : ''}, ${preview}${time === undefined ? '' : `, ${time}`}`}
         href={href}
         onPress={() => router.push(href)}
         current={current}
+        tint={look.tint}
         testID={`talk-row-${item.conversation.conversationId}`}
       >
         <View style={styles.row}>
           <PersonAvatar person={item.peer} />
           <View style={styles.rowText}>
-            <Text variant={view.unread ? 'ui' : 'bodyS'} numberOfLines={1}>
+            <Text variant={view.unread ? 'ui' : 'bodyS'} color={look.text} numberOfLines={1}>
               {name}
             </Text>
-            <Text variant="meta" color={content.ink2} numberOfLines={1}>
+            <Text variant="meta" color={look.quiet} numberOfLines={1}>
               {preview}
             </Text>
           </View>
           <View style={styles.rowEnd}>
             {time === undefined ? null : (
-              <Text variant="monoXs" color={content.ink2}>
+              <Text variant="monoXs" color={look.quiet}>
                 {time}
               </Text>
             )}
@@ -62,10 +65,12 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
   const inbox = useTalkInbox(scope);
   const threads = useThreadInbox(scope);
   const rooms = useRoomList(scope);
+  const look = useTalkListLook();
   if (inbox.loading || threads.loading) return <Skeleton rows={4} label="Loading conversations" />;
   if (inbox.failed && inbox.items.length === 0 && threads.items.length === 0 && rooms.items.length === 0)
     return (
       <StateBlock
+        tone={look.tone}
         title="Can't load conversations"
         body="Check your connection and try again."
         actions={[{ label: 'Try again', onPress: inbox.retry }]}
@@ -107,7 +112,7 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
       </View>
       {rooms.items.length === 0 ? null : (
         <View style={styles.rooms}>
-          <Text variant="monoXs" color={content.ink2}>
+          <Text variant="monoXs" color={look.quiet}>
             Rooms
           </Text>
           <View role="list" accessibilityLabel="Rooms">
@@ -136,9 +141,10 @@ export function TalkList({ scope, currentId }: { readonly scope: AccountScope; r
 /** A signed-in person's Talk: C01 draws New where the account avatar sits, with the list right under the title. */
 function SignedInTalk({ scope, desktop }: { readonly scope: AccountScope; readonly desktop: boolean }) {
   const listed = useTalkHasContent(scope);
+  const look = useTalkListLook();
   return (
     <ScreenFrame
-      tone="paper"
+      tone={look.tone}
       title="Talk"
       bodyOffset={listed ? spacing[3] : dimension.stateOffsetPhone.talk}
       trailing={listed ? <NewTalkButton /> : undefined}
@@ -148,11 +154,11 @@ function SignedInTalk({ scope, desktop }: { readonly scope: AccountScope; readon
           <View style={styles.listPane}>
             <TalkList scope={scope} />
           </View>
-          <View style={styles.emptyPane}>
-            <Text variant="heading" heading={2}>
+          <View style={[styles.emptyPane, { borderColor: look.text }]}>
+            <Text variant="heading" heading={2} color={look.text}>
               Pick a conversation
             </Text>
-            <Text variant="bodyS" color={content.ink2}>
+            <Text variant="bodyS" color={look.quiet}>
               It opens here, beside the list.
             </Text>
           </View>
@@ -172,11 +178,13 @@ function SignedInTalk({ scope, desktop }: { readonly scope: AccountScope; readon
 export function ConversationsScreen() {
   const { state, manager } = useAccountScopeIfPresent();
   const desktop = useDisplay().breakpoint === 'desktop';
+  const look = useTalkListLook();
   if (state.status === 'signed_in') return <SignedInTalk scope={state.scope} desktop={desktop} />;
   return (
-    <ScreenFrame tone="paper" title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
+    <ScreenFrame tone={look.tone} title="Talk" bodyOffset={dimension.stateOffsetPhone.talk}>
       {state.status === 'unavailable' && manager !== undefined ? (
         <StateBlock
+          tone={look.tone}
           title="Can't reach your account"
           body="Reconnect to see your conversations."
           actions={[

@@ -15,13 +15,15 @@ export interface RowLinkProps {
   /** The row whose destination is open beside the list (a two-pane Talk): `aria-current` and a tint. */
   readonly current?: boolean;
   readonly testID?: string;
+  /** What shows behind the open or pressed row; the highlight on paper. */
+  readonly tint?: string;
 }
 
 /**
  * A list row that is one link to a destination (Talk's conversations). It is at least 48 px
  * tall, carries the focus ring on paper, and leaves its content to the caller.
  */
-export function RowLink({ label, onPress, href, children, current = false, testID }: RowLinkProps) {
+export function RowLink({ label, onPress, href, children, current = false, testID, tint }: RowLinkProps) {
   const focus = useFocusRing('onLight');
   return (
     <Pressable
@@ -31,12 +33,14 @@ export function RowLink({ label, onPress, href, children, current = false, testI
       {...currentPageSemantics(current)}
       accessibilityLabel={label}
       testID={testID}
-      style={({ pressed }) => [styles.row, current || pressed ? styles.pressed : null, focus.style]}
+      style={({ pressed }) => [styles.row, current || pressed ? styles.pressed : null, current || pressed ? tintStyle(tint) : null, focus.style]}
     >
       {children}
     </Pressable>
   );
 }
+
+const tintStyle = (tint: string | undefined) => (tint === undefined ? null : { backgroundColor: tint });
 
 const styles = StyleSheet.create({
   row: { minHeight: target.comfortable, paddingVertical: spacing[3] },

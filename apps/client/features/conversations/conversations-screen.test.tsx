@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { AccountScopeState } from '@knowscroll/client-core';
 import { conversation, invitedThread, peer, talkServer } from '@knowscroll/client-core/talk-fixture';
-import { DisplayProvider } from '@knowscroll/ui';
+import { DisplayProvider, TalkThemeProvider } from '@knowscroll/ui';
 import { ConversationsScreen } from './conversations-screen';
 
 const mockPush = jest.fn();
@@ -24,12 +24,14 @@ jest.mock('../../platform/command-id', () => ({
   newCommandId: () => jest.requireActual<{ randomUUID: () => string }>('node:crypto').randomUUID(),
 }));
 
-async function mount(server: ReturnType<typeof talkServer>) {
+async function mount(server: ReturnType<typeof talkServer>, theme?: 'sky' | 'paper') {
   mockAccount = { status: 'signed_in', scope: server.scope };
   await render(
     <QueryClientProvider client={server.scope.queryClient}>
       <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
-        <ConversationsScreen />
+        <TalkThemeProvider {...(theme === undefined ? {} : { name: theme })}>
+          <ConversationsScreen />
+        </TalkThemeProvider>
       </DisplayProvider>
     </QueryClientProvider>,
   );
@@ -63,6 +65,20 @@ describe('Talk inbox (labelled in-memory server)', () => {
     await mount(server);
     expect(await screen.findByText('No conversations yet')).toBeOnTheScreen();
     await finish(server);
+  });
+
+  it('draws the list on the dark sky under the Talk theme (cream names), and in ink on Paper', async () => {
+    for (const [theme, colour] of [
+      ['sky', '#FFFBF0'],
+      ['paper', '#111111'],
+    ] as const) {
+      const server = talkServer();
+      server.peerSays('hello');
+      await mount(server, theme);
+      await screen.findByTestId(`talk-row-${conversation.conversationId}`);
+      expect(screen.getByText(peer.displayName)).toHaveStyle({ color: colour });
+      await finish(server);
+    }
   });
 
   it('lists a conversation as one link with an unread description, and opens it with the person’s own reference', async () => {
