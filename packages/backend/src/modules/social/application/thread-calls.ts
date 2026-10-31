@@ -242,7 +242,8 @@ export function makeThreadCalls(p: ThreadCallPorts) {
      * stored and the answer says why. The part must have an authored call and the option must be one of its options,
      * or the command is invalid. The pick is stored only while the call is open to the caller: not once they started
      * the part or the party revealed. The first lock stands, a repeat or another pick answers `stands` and changes
-     * nothing, and no receipt is kept (D-156). A new lock tells every member's open thread to read again (a disposable
+     * nothing, and no receipt is kept (D-156). A pick for a revision the call is no longer about answers `changed`
+     * and stores nothing (D-233). A new lock tells every member's open thread to read again (a disposable
      * hint that carries nothing). It is not consumption evidence for anyone.
      */
     lockCall(
@@ -255,7 +256,7 @@ export function makeThreadCalls(p: ThreadCallPorts) {
       return inThreadWithoutReceipt<z.infer<typeof ThreadCallLockAcceptanceSchema>>(authority, {
         command,
         async decide({ scope, entered, now }) {
-          const accepted = (result: 'locked' | 'stands' | 'closed') =>
+          const accepted = (result: 'locked' | 'stands' | 'closed' | 'changed') =>
             ThreadCallLockAcceptanceSchema.parse({
               ...threadEnvelope(scope),
               operation: 'thread.call-lock',
@@ -281,7 +282,13 @@ export function makeThreadCalls(p: ThreadCallPorts) {
           if (parts.length === 0) return refuse('invalid_input');
           const party = await partyOf(entered);
           const target = (await callsOfParts(scope, entered, parts, party))[0];
-          if (target === undefined || command.option >= target.call.optionCount) return refuse('invalid_input');
+          if (target === undefined) return refuse('invalid_input');
+          // The option is an index into the question the person saw. If the call has moved to another revision since (the
+          // only earlier locker left or cleared, or the revision that held it can no longer be read), it means nothing
+          // there: store nothing, and the card is read again (D-233).
+          if (command.assetRevision !== target.revision)
+            return ok({ write: () => Promise.resolve(accepted('changed')), announce: [] });
+          if (command.option >= target.call.optionCount) return refuse('invalid_input');
           // This may record that the call revealed (see `latchedReveal`) before a "stands" or "closed" outcome that
           // writes nothing else. That is acceptable: the record is a fact about the thread, the same row any read of
           // the call would write at this moment, it names no person and no pick, and it does not depend on this

@@ -637,12 +637,15 @@ export type ThreadCalls = z.infer<typeof ThreadCallsSchema>;
  * `stands` and changes nothing, so there is no command ID and no receipt (D-156). `recordingGeneration` is the
  * generation of the person's recording policy the client last read: a pick is a play result, so while recording
  * is paused nothing is stored (D-083). The command carries no correctness and no stop: the server finds the call
- * in the thread's series and judges it from the immutable revision.
+ * in the thread's series and judges it from the immutable revision. `assetRevision` is the revision of the question the
+ * person saw on the card: the option is an index into that question's options, so the server stores it only if that
+ * is still the question the thread's call is about (D-233), and otherwise answers `changed` and stores nothing.
  */
 export const LockThreadCallSchema = z.strictObject({
   version: Version,
   thread: ContentThreadRefSchema,
   part: PartNumber,
+  assetRevision: Revision,
   option: CallOption,
   recordingGeneration: RecordingGenerationSchema,
 });
@@ -659,9 +662,10 @@ export const ThreadCallLockAcceptanceSchema = z.discriminatedUnion('recorded', [
     part: PartNumber,
     /**
      * `locked`: stored now. `stands`: the caller had already locked, and that pick stands. `closed`: the call
-     * is closed to them (they started the part, or it was revealed), and nothing was stored.
+     * is closed to them (they started the part, or it was revealed), and nothing was stored. `changed`: the call is
+     * no longer about the revision the caller saw (D-233), so nothing was stored and the card is read again.
      */
-    result: z.enum(['locked', 'stands', 'closed']),
+    result: z.enum(['locked', 'stands', 'closed', 'changed']),
   }),
   z.strictObject({
     ...CallLockAcceptance,

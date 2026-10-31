@@ -34,7 +34,16 @@ function calledBy(picks: readonly ThreadCallPick[], option: number): string | un
 }
 
 /** The notice under a card that could not keep the person's pick, in the person's words. */
-function LockNotice({ reason }: { readonly reason: 'paused' | 'failed' }) {
+function LockNotice({ reason }: { readonly reason: 'paused' | 'failed' | 'changed' }) {
+  if (reason === 'changed')
+    return (
+      <Banner
+        kind="info"
+        lead="This call changed."
+        message="The question was updated while you were choosing, so nothing was locked. Read it again and choose."
+        testID="call-notice"
+      />
+    );
   return reason === 'paused' ? (
     <Banner
       kind="recordingPaused"
@@ -187,7 +196,7 @@ export function CallCard({
   onClose,
 }: {
   readonly call: ThreadCall;
-  readonly notice: 'paused' | 'failed' | undefined;
+  readonly notice: 'paused' | 'failed' | 'changed' | undefined;
   readonly locking: boolean;
   readonly onLock: (option: number) => void;
   readonly onClose: () => void;

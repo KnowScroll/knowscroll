@@ -107,6 +107,13 @@ describe('a call before a part (T3 frame 4)', () => {
     expect(onLock).not.toHaveBeenCalled();
   });
 
+  it('says the call changed while the person was choosing, and that nothing was locked', async () => {
+    const { element } = card(open, { notice: 'changed' });
+    await render(element);
+    expect(screen.getByTestId('call-notice')).toHaveTextContent(/This call changed\./);
+    expect(screen.getByTestId('call-notice')).toHaveTextContent(/nothing was locked/);
+  });
+
   it('says why a lock was not kept: recording paused, or nothing saved', async () => {
     const paused = card(open, { notice: 'paused' });
     await render(paused.element);

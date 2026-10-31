@@ -96,8 +96,16 @@ describe('Call it together (real PostgreSQL)', () => {
     return { a, b, c, scrolls, reel, refs, seriesId };
   }
 
-  const lock = (actor: Friend, thread: ContentThreadRef, part: number, option: number, generation = 1) =>
-    threads().lockCall(actor.authority, { version, thread, part, option, recordingGeneration: generation });
+  /** `revision` is the revision of the question on the card the person pressed on: 1 unless a test moves a part on. */
+  const lock = (actor: Friend, thread: ContentThreadRef, part: number, option: number, generation = 1, revision = 1) =>
+    threads().lockCall(actor.authority, {
+      version,
+      thread,
+      part,
+      assetRevision: revision,
+      option,
+      recordingGeneration: generation,
+    });
   const calls = async (actor: Friend, thread: ContentThreadRef) => {
     const answer = unwrap(await threads().calls(actor.authority, { version, readId: randomUUID(), thread }));
     if (answer.status !== 'ready') throw new Error(`CI calls are ${answer.status}`);
@@ -360,7 +368,15 @@ describe('Call it together (real PostgreSQL)', () => {
 
     it('is judged from the stored revision: the command carries no correctness', async () => {
       const { b, refs } = await party();
-      const body = { version, thread: refs.b, part: 1, option: 0, recordingGeneration: 1, correct: false };
+      const body = {
+        version,
+        thread: refs.b,
+        part: 1,
+        assetRevision: 1,
+        option: 0,
+        recordingGeneration: 1,
+        correct: false,
+      };
       expect(await threads().lockCall(b.authority, body)).toEqual({ kind: 'refused', code: 'invalid_input' });
       unwrap(await lock(b, refs.b, 1, 0));
       unwrap(await place(b, refs.b, 1, 'finished'));
@@ -1123,7 +1139,7 @@ describe('Call it together (real PostgreSQL)', () => {
       const card = await call(world.a, world.refs.a, 1);
       expect(card).toMatchObject({ stage: 'open', assetRevision: 2, prompt: SECOND_REVISION_CALL.prompt, called: 0 });
       expect(card).not.toHaveProperty('updated');
-      expect(unwrap(await lock(world.a, world.refs.a, 1, 1))).toMatchObject({ result: 'locked' });
+      expect(unwrap(await lock(world.a, world.refs.a, 1, 1, 1, 2))).toMatchObject({ result: 'locked' });
       expect(await revisionsLocked(world.a)).toEqual([2]);
     });
 
@@ -1168,8 +1184,35 @@ describe('Call it together (real PostgreSQL)', () => {
         updated: 'restarted',
       });
       // The pick on the earlier revision is not deleted, and a new one can be made on the current question.
-      expect(unwrap(await lock(world.a, world.refs.a, 1, 0))).toMatchObject({ result: 'locked' });
+      expect(unwrap(await lock(world.a, world.refs.a, 1, 0, 1, 2))).toMatchObject({ result: 'locked' });
       expect((await revisionsLocked(world.a)).toSorted()).toEqual([1, 2]);
+    });
+
+    it('stores no pick for a question that is no longer the call’s: the only earlier locker clears between the card and the lock', async () => {
+      const world = await party({ rootPart: 2 });
+      const { b, c, refs } = world;
+      unwrap(await lock(b, refs.b, 1, 1));
+      await releaseSecondRevision(world);
+      // Kenji's card shows the question the party called on, revision 1.
+      expect(await call(c, refs.c, 1)).toMatchObject({ stage: 'open', assetRevision: 1, prompt: TIDES_CALL.prompt });
+      // Ravi's Clear takes his pick away, so nobody holds revision 1 any more and the call moves to revision 2.
+      await clearExploration(b);
+      expect(await rowsOf(b)).toEqual([]);
+      // Kenji presses lock on the card he saw: option 2 was an index into revision 1's options, so nothing lands anywhere.
+      expect(unwrap(await lock(c, refs.c, 1, 2))).toMatchObject({ recorded: true, result: 'changed' });
+      expect(await rowsOf(c)).toEqual([]);
+      // The card read again is about revision 2, with no note, and a pick on it works.
+      const card = await call(c, refs.c, 1);
+      expect(card).toMatchObject({ stage: 'open', assetRevision: 2, prompt: SECOND_REVISION_CALL.prompt, called: 0 });
+      expect(card).not.toHaveProperty('updated');
+      expect(unwrap(await lock(c, refs.c, 1, 2, 1, 2))).toMatchObject({ result: 'locked' });
+      expect(await revisionsLocked(c)).toEqual([2]);
+    });
+
+    it('stores nothing for a revision the call was never about, whatever the option', async () => {
+      const { c, refs } = await party();
+      expect(unwrap(await lock(c, refs.c, 1, 0, 1, 7))).toMatchObject({ recorded: true, result: 'changed' });
+      expect(await rowsOf(c)).toEqual([]);
     });
 
     it('lets a block move nothing: a member the reader blocked cannot decide which question the reader is shown', async () => {

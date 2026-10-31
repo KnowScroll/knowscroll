@@ -314,7 +314,15 @@ export function partyWorld(options: { readonly call?: boolean; readonly scrolls?
                 },
               };
             const stage = (callOf(who) as { stage: string }).stage;
-            const result = stage === 'open' ? 'locked' : stage === 'closed' ? 'closed' : 'stands';
+            // The pick names the revision of the question on the card (D-233); the fixture's call is about revision 1.
+            const result =
+              body['assetRevision'] !== 1
+                ? 'changed'
+                : stage === 'open'
+                  ? 'locked'
+                  : stage === 'closed'
+                    ? 'closed'
+                    : 'stands';
             if (result === 'locked') locks.set(who, Number(body['option']));
             return {
               json: {

@@ -280,7 +280,8 @@ No model is called. _Implemented; not runtime-verified._
 - **Lock** (`threads/calls/lock`, `lockCall`). Authority: the caller's personal scope, the thread's lock, and
   `FENCE_PERSONAL_RECORDING` with the generation the client sends (paused or stale: nothing is stored and the answer says
   why, D-083). The part must have a call and the option must be one of its options (`invalid_input` otherwise). The first
-  lock stands; a repeat or another pick answers `stands`; a call that is revealed, or on a part the caller's own place says
+  lock stands; a pick for a revision the call is no longer about answers `changed` and stores nothing (the command carries the
+  `assetRevision` of the card, D-233); a repeat or another pick answers `stands`; a call that is revealed, or on a part the caller's own place says
   they started, answers `closed`. The command carries no correctness and no stop, and keeps no receipt: it is idempotent by
   its key and a receipt would keep the time of the lock (D-156). A new lock tells every taking-part member's inbox (a
   disposable hint carrying nothing).

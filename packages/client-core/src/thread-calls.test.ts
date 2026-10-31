@@ -24,7 +24,11 @@ const open: ThreadCall = {
  */
 function fakeServer(options: { recording?: 'collecting' | 'paused' | 'unknown' } = {}) {
   const requests: { name: string; input: Record<string, unknown> }[] = [];
-  const state: { pick?: number; stale: number; failNext: Error[] } = { stale: 0, failNext: [] };
+  const state: { pick?: number; stale: number; changed: boolean; failNext: Error[] } = {
+    stale: 0,
+    changed: false,
+    failNext: [],
+  };
   const recording = { mode: options.recording ?? 'collecting', serverPaused: false, refreshed: 0 };
   const threads = {
     calls: (input: Record<string, unknown>) => {
@@ -45,6 +49,9 @@ function fakeServer(options: { recording?: 'collecting' | 'paused' | 'unknown' }
       }
       if (recording.mode === 'paused' || recording.serverPaused)
         return Promise.resolve({ recorded: false, reason: 'recording_paused', currentGeneration: 2 });
+      // The call moved to another revision since the card was read: nothing is stored (D-233).
+      if (state.changed || input['assetRevision'] !== open.assetRevision)
+        return Promise.resolve({ recorded: true, result: 'changed' });
       state.pick ??= input['option'] as number;
       return Promise.resolve({ recorded: true, result: 'locked' });
     },
@@ -92,21 +99,46 @@ describe('a thread’s calls on the client', () => {
     expect(controller.getState()).toMatchObject({ phase: 'ready', calls: [{ stage: 'open', part: 2 }] });
   });
 
-  it('locks a pick with the part, the option and the recording generation, and nothing else', async () => {
+  it('locks a pick with the part, the revision it saw, the option and the recording generation, and nothing else', async () => {
     const server = fakeServer();
     const controller = createThreadCalls({ scope: server.scope, thread, newId });
-    await controller.lock(2, 1);
+    await controller.lock(open, 1);
     const [sent] = server.sent();
-    expect(Object.keys(sent!.input).toSorted()).toEqual(['option', 'part', 'recordingGeneration', 'thread', 'version']);
-    expect(sent!.input).toMatchObject({ part: 2, option: 1, recordingGeneration: 1 });
+    expect(Object.keys(sent!.input).toSorted()).toEqual([
+      'assetRevision',
+      'option',
+      'part',
+      'recordingGeneration',
+      'thread',
+      'version',
+    ]);
+    // The revision is the one of the card the person pressed on: the option is an index into that question (D-233).
+    expect(sent!.input).toMatchObject({
+      part: 2,
+      assetRevision: open.assetRevision,
+      option: 1,
+      recordingGeneration: 1,
+    });
     // The calls are read again after the answer, so the card shows what the server holds.
     expect(controller.getState()).toMatchObject({ locking: undefined, calls: [{ stage: 'locked', option: 1 }] });
+  });
+
+  it('says the call changed when the server found it about another revision, and reads the card again', async () => {
+    const server = fakeServer();
+    server.state.changed = true;
+    const controller = createThreadCalls({ scope: server.scope, thread, newId });
+    await controller.lock(open, 1);
+    expect(server.sent()).toHaveLength(1);
+    expect(controller.getState().notice).toEqual({ part: 2, reason: 'changed' });
+    // Nothing was kept, so the card is still open, and the calls were read again after the answer.
+    expect(controller.getState()).toMatchObject({ locking: undefined, calls: [{ stage: 'open' }] });
+    expect(server.requests.at(-1)?.name).toBe('calls');
   });
 
   it('sends nothing while recording is paused, and says so', async () => {
     const server = fakeServer({ recording: 'paused' });
     const controller = createThreadCalls({ scope: server.scope, thread, newId });
-    await controller.lock(2, 0);
+    await controller.lock(open, 0);
     expect(server.sent()).toEqual([]);
     expect(controller.getState().notice).toEqual({ part: 2, reason: 'paused' });
   });
@@ -115,7 +147,7 @@ describe('a thread’s calls on the client', () => {
     const server = fakeServer();
     const controller = createThreadCalls({ scope: server.scope, thread, newId });
     server.recording.serverPaused = true;
-    await controller.lock(2, 0);
+    await controller.lock(open, 0);
     expect(server.sent()).toHaveLength(1);
     expect(controller.getState().notice).toEqual({ part: 2, reason: 'paused' });
     expect(controller.getState().calls[0]).toMatchObject({ stage: 'open' });
@@ -125,7 +157,7 @@ describe('a thread’s calls on the client', () => {
     const server = fakeServer();
     server.state.stale = 1;
     const controller = createThreadCalls({ scope: server.scope, thread, newId });
-    await controller.lock(2, 2);
+    await controller.lock(open, 2);
     expect(server.sent().map((call) => call.input['option'])).toEqual([2, 2]);
     expect(server.recording.refreshed).toBe(1);
     expect(controller.getState()).toMatchObject({ notice: undefined, calls: [{ stage: 'locked', option: 2 }] });
@@ -135,16 +167,16 @@ describe('a thread’s calls on the client', () => {
     const server = fakeServer();
     const controller = createThreadCalls({ scope: server.scope, thread, newId });
     server.state.failNext.push(offline());
-    await controller.lock(2, 1);
+    await controller.lock(open, 1);
     expect(controller.getState()).toMatchObject({ locking: undefined, notice: { part: 2, reason: 'failed' } });
-    await controller.lock(2, 1);
+    await controller.lock(open, 1);
     expect(controller.getState()).toMatchObject({ notice: undefined, calls: [{ stage: 'locked', option: 1 }] });
   });
 
   it('ignores a second press while one lock is on its way', async () => {
     const server = fakeServer();
     const controller = createThreadCalls({ scope: server.scope, thread, newId });
-    await Promise.all([controller.lock(2, 1), controller.lock(2, 2)]);
+    await Promise.all([controller.lock(open, 1), controller.lock(open, 2)]);
     expect(server.sent()).toHaveLength(1);
   });
 
@@ -170,7 +202,7 @@ describe('a thread’s calls on the client', () => {
     server.end();
     expect(controller.getState()).toMatchObject({ phase: 'loading', calls: [] });
     await controller.load();
-    await controller.lock(2, 0);
+    await controller.lock(open, 0);
     expect(controller.getState()).toMatchObject({ phase: 'loading', calls: [] });
     expect(heard).toBe(0);
   });

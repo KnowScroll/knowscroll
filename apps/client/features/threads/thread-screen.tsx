@@ -333,7 +333,7 @@ function ReadyThread({ scope, thread, controller, state, title, onBack, onLeft }
               call={openCall}
               notice={calls.state.notice?.part === openCall.part ? calls.state.notice.reason : undefined}
               locking={calls.state.locking === openCall.part}
-              onLock={(option) => void calls.controller.lock(openCall.part, option)}
+              onLock={(option) => void calls.controller.lock(openCall, option)}
               onClose={() => setCallPart(undefined)}
             />
           )}
