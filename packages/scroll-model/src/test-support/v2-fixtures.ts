@@ -3,6 +3,8 @@ import { AuthoredScrollV2 } from '../producer/v2/authoring-schema.js';
 import type { PublicationV2, RecipeDataV2 } from '../producer/v2/assemble.js';
 import type { CompileV2Input } from '../producer/v2/compile.js';
 import type { Misconception } from '../v2/document.js';
+import { EARTH_SKY_KIT } from '../v2/kit.js';
+import type { StageKitId } from '../v2/kits/index.js';
 
 /**
  * CI FIXTURES for `scroll-document.v2`, never product content. The evidence is a few authored
@@ -41,9 +43,14 @@ export const MYTH_V2 = {
   source: { label: 'CI fixture label', reviewed: true },
 } as const satisfies Misconception;
 
-export const recipeV2 = (variant: 'stage' | 'plain', misconception: Misconception = MYTH_V2): RecipeDataV2 => ({
+export const recipeV2 = (
+  variant: 'stage' | 'plain',
+  misconception: Misconception = MYTH_V2,
+  kit: StageKitId = EARTH_SKY_KIT,
+): RecipeDataV2 => ({
   variant,
   misconception,
+  ...(kit === EARTH_SKY_KIT ? {} : { kit }),
 });
 
 const WORDS = [
@@ -112,6 +119,46 @@ export function distinct(count: number, tag: number): string {
   return Array.from({ length: count }, (_, at) => `zq${letters(tag * 100 + at)}`).join(' ');
 }
 
+/**
+ * Six stage changes for each kit but Earth & sky, each a whole state so that none depends on what carries
+ * over, and no two the same. A stop takes the one its tag points at; the first stop's is the first picture.
+ */
+export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>, readonly Record<string, string>[]>> =
+  {
+    'tides.v1': [
+      { view: 'bulges', moonAt: 'new', focus: 'near-bulge' },
+      { view: 'sun-moon', moonAt: 'new', focus: 'none' },
+      { view: 'sun-moon', moonAt: 'first-quarter', focus: 'none' },
+      { view: 'range', moonAt: 'full', focus: 'none' },
+      { view: 'pull', moonAt: 'new', focus: 'moon' },
+      { view: 'sun-moon', moonAt: 'last-quarter', focus: 'sun' },
+    ],
+    'greenhouse.v1': [
+      { view: 'sunlight', layer: 'none', change: 'settled', focus: 'none' },
+      { view: 'infrared', layer: 'thin', change: 'settled', focus: 'back-down' },
+      { view: 'infrared', layer: 'thick', change: 'settled', focus: 'none' },
+      { view: 'energy-balance', layer: 'thick', change: 'just-thickened', focus: 'none' },
+      { view: 'energy-balance', layer: 'thick', change: 'settled', focus: 'surface' },
+      { view: 'sunlight', layer: 'thin', change: 'settled', focus: 'reflected' },
+    ],
+    'star.v1': [
+      { view: 'balance', balance: 'steady', mass: 'sun-like', stage: 'main-sequence', focus: 'core' },
+      { view: 'life', balance: 'steady', mass: 'low', stage: 'cloud', focus: 'none' },
+      { view: 'life', balance: 'steady', mass: 'high', stage: 'giant', focus: 'none' },
+      { view: 'mass', balance: 'steady', mass: 'high', stage: 'main-sequence', focus: 'lifetime' },
+      { view: 'balance', balance: 'gravity-wins', mass: 'sun-like', stage: 'main-sequence', focus: 'none' },
+      { view: 'life', balance: 'steady', mass: 'high', stage: 'end', focus: 'remnant' },
+    ],
+    'transit.v1': [
+      { view: 'orbit', planet: 'small', at: 'before', focus: 'none' },
+      { view: 'crossing', planet: 'small', at: 'ingress', focus: 'planet' },
+      { view: 'crossing', planet: 'small', at: 'middle', focus: 'dip' },
+      { view: 'compare', planet: 'small', at: 'before', focus: 'none' },
+      { view: 'crossing', planet: 'large', at: 'middle', focus: 'none' },
+      { view: 'orbit', planet: 'large', at: 'egress', focus: 'star' },
+    ],
+  };
+
 const patch = (tag: number) => ({ earthAt: (['jan', 'mar', 'jun', 'sep', 'dec', 'feb', 'may'] as const)[tag % 7] });
 
 /**
@@ -120,9 +167,12 @@ const patch = (tag: number) => ({ earthAt: (['jan', 'mar', 'jun', 'sep', 'dec', 
  * `variant: 'plain'` leaves the stage out. Only stops change the picture, never a call, and the
  * first Call it's second option is the common guess (D-126).
  */
-export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScrollV2 {
-  const stageFor = (tag: number, first = false) =>
-    variant === 'stage' ? { stage: first ? { view: 'sun-earth' as const, ...patch(tag) } : patch(tag) } : {};
+export function authoredV2(variant: 'stage' | 'plain' = 'stage', kit: StageKitId = EARTH_SKY_KIT): AuthoredScrollV2 {
+  const stageFor = (tag: number, first = false) => {
+    if (variant !== 'stage') return {};
+    if (kit !== EARTH_SKY_KIT) return { stage: FIXTURE_STAGES[kit][first ? 0 : tag % 6] };
+    return { stage: first ? { view: 'sun-earth' as const, ...patch(tag) } : patch(tag) };
+  };
   const stop = (tag: number, cites: string[], first = false) => ({
     type: 'stop' as const,
     cites,
@@ -170,10 +220,11 @@ export function authoredV2(variant: 'stage' | 'plain' = 'stage'): AuthoredScroll
 export function compileInputV2(
   variant: 'stage' | 'plain' = 'stage',
   misconception: Misconception = MYTH_V2,
+  kit: StageKitId = EARTH_SKY_KIT,
 ): CompileV2Input {
   return {
     publication: PUBLICATION_V2,
-    recipe: recipeV2(variant, misconception),
+    recipe: recipeV2(variant, misconception, kit),
     evidence: EVIDENCE_V2,
     sources: PASSAGES_V2,
   };

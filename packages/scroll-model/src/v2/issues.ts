@@ -37,6 +37,7 @@ export const V2_REASON_CODES = [
   // The stage.
   'stage_missing',
   'stage_unexpected',
+  'stage_choice_invalid',
   'stage_first_state_missing',
   'stage_state_stop_unknown',
   'stage_states_unordered',

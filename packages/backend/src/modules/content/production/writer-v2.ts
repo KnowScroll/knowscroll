@@ -2,12 +2,13 @@ import {
   AuthoredScrollV2,
   authoringReferenceV2,
   compileAuthoredV2,
+  recipeKit,
   REPAIR_HINTS_V2,
   type CompileV2Outcome,
   type PublicationV2,
   type RecipeDataV2,
 } from '@knowscroll/scroll-model/producer';
-import { FIELD_LIMITS_V2, LIMITS_V2, READING_SECONDS_V2 } from '@knowscroll/scroll-model';
+import { FIELD_LIMITS_V2, kitDefinition, LIMITS_V2, READING_SECONDS_V2 } from '@knowscroll/scroll-model';
 import type { ResearchPage } from '../../../infrastructure/research/public-pages.js';
 import type { ReasoningRole } from '../../../reasoning/public.js';
 import type { AdmissionIssue } from '../application/ports.js';
@@ -21,7 +22,7 @@ import { bannedNames, copiedIn, NOTE_BLOCKS, readerStrings, type BannedName } fr
  * writer (`scroll-writer.v13`) is untouched and still publishes the library; this one only runs in
  * the writer spike until the reader and admission of `scroll-document.v2` exist (D-120).
  */
-export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v16';
+export const WRITER_V2_PROMPT_VERSION = 'scroll-writer.v17';
 
 const minutes = (seconds: number): number => seconds / 60;
 
@@ -36,16 +37,20 @@ function mythInstructions(recipe: RecipeDataV2): string[] {
   ];
 }
 
+/**
+ * The instructions about the picture: the rules every kit shares, with the kit's own guide (what it
+ * draws, its words and what code decides) between them. The kit is the recipe's (D-194).
+ */
 function stageInstructions(recipe: RecipeDataV2): string[] {
   if (recipe.variant === 'plain')
     return ['THIS SCROLL HAS NO PICTURE. Write no "stage" objects. Calls and short stops carry it.'];
+  const [intro = '', ...guide] = kitDefinition(recipeKit(recipe)).writerGuide;
   return [
-    'THIS SCROLL HAS A PINNED PICTURE. One picture stays on screen while the stops go by, and "stage" on a stop changes it. Code draws the picture from a fixed kit: the Sun, Earth with its tilted axis, its orbit, Ray the sunbeam, a pin in the north and one in the south, and the Moon. You choose only the view, the month, the Moon’s phase and the part to look at, from the listed words. Code decides everything else: Earth’s tilt is fixed, and which half of Earth leans toward the Sun, the pins and the angle of Ray all follow from the month. So the month you choose is a claim the picture makes: choose the month that matches what the stop says.',
+    `THIS SCROLL HAS A PINNED PICTURE. One picture stays on screen while the stops go by, and "stage" on a stop changes it. ${intro}`,
     '- The first stop sets the starting picture. After that, change the picture on most stops so that it shows what the stop says, and name only what changes. Over the whole Scroll the picture changes at least three times.',
-    '- The views: "sun-earth" shows the Sun and Earth side by side, with Ray and the pins; "orbit" shows Earth’s orbit from above, drawn to scale (nearly a circle); "orbit-stretched" is the same orbit stretched so that the nearest and farthest points show; "earth-close" is a close view of Earth with Ray and the pins; "moon-orbit" shows the Moon circling Earth and is the only view with a Moon phase. A focus on a part the view does not draw is ignored.',
+    ...guide,
     '- A call never changes the picture, or it would show the answer before the reader has chosen. The stop before a call sets up its question; show the answer by changing the picture on the stop right after the call. Write "stage" on stops only, never on a call_it or the final_call.',
-    '- Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support. The picture shows only Earth, the Sun and the Moon.',
-    '- Earth’s axis is tilted by a fixed angle and points the same way all year. Say that it is tilted or that it leans, and never call it sideways or say it lies on its side: those words belong to Uranus, which the picture does not draw. A text that does so is refused.',
+    '- Never write a number, a place name or a label in "stage", and never let the picture suggest something the passages do not support.',
   ];
 }
 
@@ -90,7 +95,7 @@ export function writerInstructionsV2(recipe: RecipeDataV2): string {
     ...finalCallInstructions(recipe).flatMap((line, index) => (index === 0 ? ['', line] : [line])),
     '',
     'THE SHAPE (examples are invented syntax guidance, never content to reuse):',
-    authoringReferenceV2(recipe.variant),
+    authoringReferenceV2(recipe.variant, recipeKit(recipe)),
     `Limits: ${LIMITS_V2.minStops} to ${LIMITS_V2.maxStops} stops and calls, at most ${LIMITS_V2.calls} calls including the final_call, at most ${LIMITS_V2.asides} asides, recap captions at most ${FIELD_LIMITS_V2.captionChars} characters.`,
   ].join('\n');
 }
