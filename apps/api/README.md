@@ -364,11 +364,12 @@ installed API, a typed client, a Socket.IO hint, recovery after a missed hint an
 ### Content threads (#243, D-046)
 
 `ThreadsController` mounts private POSTs under `/v1/social/threads/`: `create`, `read`, `history`, `changes`, `send`,
-`respond`, `mark-read`, `leave`, `inbox` and `snippets/open`. The session, `Origin` and `X-KS-Scope` pipeline is the one
+`respond`, `mark-read`, `leave`, `inbox`, `snippets/open` and, for party places (D-065), `places/read`, `places/set` and `places/hide`. The session, `Origin` and `X-KS-Scope` pipeline is the one
 the other Social routes use (`request-context.ts` admits the `threads/...` paths). Each handler calls `THREAD_USE_CASES` and
 maps a refusal to the closed Social problem family. Membership, friendship lineage, blocks, snippet validity and the
 one-failing-friend rule are decided in the use cases. No handler waits for a model or a network call, and no answer
-carries any member's position or seen marker. The scope gateway needs no change: a thread bumps the same `inbox_heads`
+carries any member's position or seen marker; the one exception is `places/read`, which answers a thread's members with the
+coarse places they chose to share (a part, `on` or `finished`, and a day). The scope gateway needs no change: a thread bumps the same `inbox_heads`
 and hints the same `inbox` scope. Tests: `tests/integration/release/threads-http.test.ts` runs the installed API against
 a real PostgreSQL. *Implemented. Not yet run on dev.*
 

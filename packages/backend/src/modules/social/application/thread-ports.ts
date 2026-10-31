@@ -7,6 +7,7 @@ import type {
 } from '../../content/public.js';
 import type { ReadVisitedAssets } from '../../experience/public.js';
 import type { PersonalScopeTx } from '../../identity/public.js';
+import type { PlaceRow, StoredPlace } from '../domain/places.js';
 import type { ContentRef, ConversationStore, MessageRow } from './conversation-ports.js';
 import type { SharedLock, SocialPorts } from './ports.js';
 
@@ -40,6 +41,8 @@ export interface ThreadMember {
   readonly stands: boolean;
   readonly readThroughSequence: number;
   readonly muted: boolean;
+  /** The member's own "hide where I am" for this thread (D-065): while true they have no place. */
+  readonly placeHidden: boolean;
   /** The friend whose invitation carried this member in; null for the starter and once that friend left or was deleted. */
   readonly inviterAccountId: string | null;
 }
@@ -129,9 +132,29 @@ export interface ThreadStore {
   ): Promise<readonly FriendStanding[]>;
 }
 
+/**
+ * Party places (D-065). Each method is one statement; none decides access. Writes and locked reads take
+ * the thread's `ThreadLock`, obtained by the use case after the actor's gates. A place is only ever
+ * written for the account that is acting, from that account's own command.
+ */
+export interface PlaceStore {
+  /** Every stored place of the thread. The caller filters them with the pure rule `shownPlaces`. */
+  list(lock: ThreadLock): Promise<readonly PlaceRow[]>;
+  /** The account's own stored place, if it has one. */
+  find(lock: ThreadLock, accountId: string): Promise<StoredPlace | undefined>;
+  /** Stores the account's place, replacing the one it had. */
+  save(lock: ThreadLock, accountId: string, place: StoredPlace): Promise<void>;
+  /** Deletes the account's place in this thread; nothing is left to find. */
+  remove(lock: ThreadLock, accountId: string): Promise<void>;
+  setHidden(lock: ThreadLock, accountId: string, hidden: boolean): Promise<void>;
+  /** Of these accounts, those the reader blocked or that blocked the reader. */
+  blockedWith(lock: ThreadLock, readerAccountId: string, accountIds: readonly string[]): Promise<ReadonlySet<string>>;
+}
+
 export interface ThreadPorts extends SocialPorts {
   conversations: ConversationStore;
   threads: ThreadStore;
+  places: PlaceStore;
   /** The thread a command lands on: derived from the starter and the command, so a retry finds it. */
   threadIdFor(accountId: string, commandId: string): string;
   readSequence: ReadContentSequence;

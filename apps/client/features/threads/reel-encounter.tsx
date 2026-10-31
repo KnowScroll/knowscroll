@@ -118,6 +118,9 @@ export function useReelExposure(scope: AccountScope, assetId: string) {
 /** The player's height when the screen does not say. */
 const DEFAULT_STAGE_HEIGHT = 320;
 
+/** Playing this close to the end counts as having finished the Reel. */
+const FINISHED_MARGIN_MS = 1_000;
+
 export interface ReelMoment {
   readonly startMs: number;
   readonly endMs: number;
@@ -138,6 +141,7 @@ export function ReelEncounter({
   active,
   positionRef,
   onOpened,
+  onFinished,
   stageMaxHeight,
   afterEnd,
 }: {
@@ -150,6 +154,12 @@ export function ReelEncounter({
   readonly positionRef?: Ref<ReelPositionHandle> | undefined;
   /** Called once the Reel is open, with the revision and length actually playing. */
   readonly onOpened?: ((document: ReelDocument) => void) | undefined;
+  /**
+   * Called once when playback reaches the last second of the Reel. A thread's player uses it to tell the
+   * thread its member finished the part; it reads only this player's own playback and nothing is recorded.
+   * Keep the function stable: a new one replaces the recorder handle the player holds.
+   */
+  readonly onFinished?: (() => void) | undefined;
   /** The height of the player, so a screen with more on it stays usable. The player fills what it is given. */
   readonly stageMaxHeight?: number | undefined;
   readonly afterEnd?: ReactNode;
@@ -182,17 +192,28 @@ export function ReelEncounter({
   }, [active, focused, exposure]);
 
   // The range ends where the sender chose. Setting `ended` makes the player inactive, which pauses it.
+  // The end of the Reel itself is told once, to the thread's player when it asked.
+  const [tellOnce] = useState(() => {
+    let told = false;
+    return (tell: () => void) => {
+      if (told) return;
+      told = true;
+      tell();
+    };
+  });
   const watched = useMemo(() => {
-    if (exposure === undefined || moment === undefined) return exposure?.recorder;
+    if (exposure === undefined || (moment === undefined && onFinished === undefined)) return exposure?.recorder;
     const recorder = exposure.recorder;
+    const lastSecond = exposure.document.durationMs - FINISHED_MARGIN_MS;
     return {
       ...recorder,
       sample(next: Parameters<ReelRecorder['sample']>[0]) {
         recorder.sample(next);
-        if (next.playing && next.positionMs >= moment.endMs) setEnded(true);
+        if (moment !== undefined && next.playing && next.positionMs >= moment.endMs) setEnded(true);
+        if (onFinished !== undefined && next.playing && next.positionMs >= lastSecond) tellOnce(onFinished);
       },
     } satisfies ReelRecorder;
-  }, [exposure, moment]);
+  }, [exposure, moment, onFinished, tellOnce]);
 
   if (state.status === 'unavailable')
     return <StateBlock title="This Reel isn't available" body="Check your connection, then try again." />;

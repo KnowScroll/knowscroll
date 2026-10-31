@@ -38,6 +38,7 @@ export default defineConfig({
         'talk-reply-react-smoke.spec.ts',
         'talk-seen-smoke.spec.ts',
         'thread-phone-smoke.spec.ts',
+        'thread-party-smoke.spec.ts',
         'reflow-smoke.spec.ts',
         'keyboard-smoke.spec.ts',
         'privacy-smoke.spec.ts',

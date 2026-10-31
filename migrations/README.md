@@ -234,3 +234,10 @@ shape check (a person's card for a topic they started); `rooms.message_useful` (
 the provenance columns of a model call); and the `ops.room_turns` view gains `ask_kind`. The new check requires `ask_kind` on every asked
 turn, so a process from before this migration cannot ask until it restarts, as at 0071; every other change is additive. Apply with the new
 binary; the generated database types change by the same columns and tables, and the worker registers the `rooms.summarise` queue.
+
+0080 is party places (v3 T-D, #484, D-065, D-152): `social.thread_places` (one row per member and thread: a part from 1 to 99, `on` or
+`finished`, and a `date`, so nothing finer than a day can be stored; the row follows the member's membership row through a composite
+foreign key) and `social.conversation_members.place_hidden` (the member's own "hide where I am" for that thread, false by default).
+Additive: older writers never touch the table and the column defaults. Apply with the new binary; the generated database types change by
+the same table and column. Clear deletes the places and keeps the switch; deleting the account deletes the places before the membership
+rows.

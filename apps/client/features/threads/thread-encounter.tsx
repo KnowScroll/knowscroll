@@ -41,6 +41,12 @@ export interface ThreadEncounterProps {
   /** The episode's summary line from the thread's root, when this is the root. */
   readonly summary?: string | undefined;
   /**
+   * Tells the thread where this person is, from this player only (D-065): they started the part (a Reel
+   * playing, or "Read this Scroll" pressed) or finished it (a Reel played to its last second). Absent where
+   * a thread has no places (a room, a single item). Choosing, folding or docking a part is not told.
+   */
+  readonly onPlace?: ((part: number, state: 'on' | 'finished') => void) | undefined;
+  /**
    * Folded draws a 56 px bar (T3 "docked player") instead of the small paused strip, so a phone keeps
    * the screen for the conversation. A Scroll's bar carries Read; pressing the bar opens the encounter.
    */
@@ -108,17 +114,28 @@ export function ThreadEncounter({
   positionRef,
   onOpened,
   summary,
+  onPlace,
   dock = false,
 }: ThreadEncounterProps) {
   const router = useRouter();
   const [opened, setOpened] = useState<ReelDocument>();
+  const part = series ? episode.part : undefined;
   const handleOpened = useCallback(
     (document: ReelDocument) => {
       setOpened(document);
       onOpened?.(document);
+      if (part !== undefined) onPlace?.(part, 'on');
     },
-    [onOpened],
+    [onOpened, onPlace, part],
   );
+  const handleFinished = useCallback(() => {
+    if (part !== undefined) onPlace?.(part, 'finished');
+  }, [onPlace, part]);
+  /** Pressing Read on a Scroll starts the part: the reader is the thread's own screen. */
+  const readScroll = () => {
+    if (part !== undefined) onPlace?.(part, 'on');
+    router.push(readHref(episode.assetId));
+  };
   const place =
     series && episode.part !== undefined
       ? `Part ${String(episode.part)} of ${String(total)}`
@@ -154,7 +171,7 @@ export function ThreadEncounter({
   if (episode.kind === 'scroll' && docked)
     return (
       <View style={styles.areaDocked}>
-        <Dock episode={episode} place={place} onOpen={openHere} onRead={() => router.push(readHref(episode.assetId))} />
+        <Dock episode={episode} place={place} onOpen={openHere} onRead={readScroll} />
       </View>
     );
   if (episode.kind === 'scroll')
@@ -174,7 +191,7 @@ export function ThreadEncounter({
             <Banner kind="corrected" lead="Updated." message="You will read the current version." />
           ) : null}
           <View style={styles.actions}>
-            <Button label="Read this Scroll" variant="primary" onPress={() => router.push(readHref(episode.assetId))} />
+            <Button label="Read this Scroll" variant="primary" onPress={readScroll} />
             <Button label="Full screen" variant="ghost" onPress={() => router.push(fullHref)} />
           </View>
         </View>
@@ -209,6 +226,7 @@ export function ThreadEncounter({
           active={!folded && !paused}
           positionRef={positionRef}
           onOpened={handleOpened}
+          onFinished={onPlace === undefined || part === undefined ? undefined : handleFinished}
           stageMaxHeight={PLAYER_STAGE_HEIGHT}
         />
         <View style={styles.actions}>

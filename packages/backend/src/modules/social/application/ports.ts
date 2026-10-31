@@ -44,6 +44,11 @@ export interface SocialStore {
   saveProfile(scope: PersonalScopeTx, profile: Profile): Promise<void>;
   lockPair(scope: PersonalScopeTx, actor: string, peer: string, create: boolean): Promise<PairLock | undefined>;
   savePair(lock: PairLock, pair: Pair): Promise<void>;
+  /**
+   * A friendship began or ended: whoever one of the two had invited into a thread loses their place there
+   * (their membership no longer stands), and the party place goes with it (D-065).
+   */
+  forgetPlacesBetween(lock: PairLock, accountA: string, accountB: string): Promise<void>;
   binding(lock: PairLock, actor: string, operation: Operation, command: string): Promise<Binding | undefined>;
   bind(lock: PairLock, actor: string, operation: Operation, command: string, binding: Binding): Promise<void>;
   findReceipt(

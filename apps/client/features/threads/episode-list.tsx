@@ -1,18 +1,22 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { ThreadEpisode } from '@knowscroll/contracts';
+import type { ThreadEpisode, ThreadPlace } from '@knowscroll/contracts';
 import { borderWidth, content, radius, spacing, target } from '@knowscroll/design-tokens';
 import { Icon, Tag, Text, useFocusRing } from '@knowscroll/ui';
 import { episodeKeys, episodeLabel, episodePlace } from './episode-navigator';
+import { PartFaces, partPlacesWords } from './party';
 
 function EpisodeRow({
   episode,
   selected,
   series,
+  faces,
   onSelect,
 }: {
   readonly episode: ThreadEpisode;
   readonly selected: boolean;
   readonly series: boolean;
+  /** The members who share a place on this part. */
+  readonly faces: readonly ThreadPlace[] | undefined;
   readonly onSelect: () => void;
 }) {
   const focus = useFocusRing('onLight');
@@ -21,7 +25,7 @@ function EpisodeRow({
       {...focus.props}
       role="button"
       aria-pressed={selected}
-      accessibilityLabel={episodeLabel(episode, selected, series)}
+      accessibilityLabel={[episodeLabel(episode, selected, series), partPlacesWords(faces)].filter(Boolean).join('. ')}
       onPress={onSelect}
       style={[
         styles.row,
@@ -41,6 +45,7 @@ function EpisodeRow({
         <Text variant="uiS" numberOfLines={2}>
           {episode.title}
         </Text>
+        <PartFaces faces={faces} />
       </View>
       <View style={styles.states}>
         {selected ? <Tag variant="part" label="Now" /> : null}
@@ -55,19 +60,23 @@ function EpisodeRow({
  * The thread's episodes in order, one row each (T3 "Series"): on a phone inside the Series sheet, on a
  * desktop in the thread's panel. Each row shows the caller's own state only: Now (selected on this
  * device), a check for what they opened and played, Updated for a corrected revision, dashed for one
- * that is gone. Another member's place is never drawn: there is none to draw. The arrow keys (up, down,
- * left, right) move the selection between rows while one has focus; only a press chooses a row.
+ * that is gone. With `places`, the faces of the members who say they are on a part, or finished it, sit on its
+ * row (D-065); without them nothing says where anyone else is. The arrow keys (up, down, left, right) move the
+ * selection between rows while one has focus; only a press chooses a row.
  */
 export function EpisodeList({
   episodes,
   selected,
   series,
+  places,
   onSelect,
   onStep,
 }: {
   readonly episodes: readonly ThreadEpisode[];
   readonly selected: string;
   readonly series: boolean;
+  /** The members who share where they are: their faces sit on the parts they are on (D-065). */
+  readonly places?: readonly ThreadPlace[] | undefined;
   /** A press or Enter on a row: choose it (a sheet closes). */
   readonly onSelect: (assetId: string) => void;
   /** An arrow key: move the selection to the neighbour and nothing else (a sheet stays open). */
@@ -92,12 +101,18 @@ export function EpisodeList({
           episode={episode}
           selected={episode.assetId === selected}
           series={series}
+          faces={episode.part === undefined ? undefined : facesOn(places, episode.part)}
           onSelect={() => onSelect(episode.assetId)}
         />
       ))}
     </View>
   );
 }
+
+const facesOn = (places: readonly ThreadPlace[] | undefined, part: number): readonly ThreadPlace[] | undefined => {
+  const here = (places ?? []).filter((place) => place.part === part);
+  return here.length === 0 ? undefined : here;
+};
 
 const styles = StyleSheet.create({
   list: { gap: spacing[2] },

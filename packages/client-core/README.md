@@ -417,6 +417,15 @@ Pure controllers over `scope.api.threads`, like the Talk ones above. *Implemente
   `accepted`, `unconfirmed` (the retry reuses the command ID) or `not_sent`; `respond('join' | 'decline')` keeps one command
   ID per intent; `leave`; `setActive` marks read while the thread is on screen. It never holds a position, a selected
   episode or anything of another member.
+- `createThreadPlaces({scope, thread, newId})` (`thread-places.ts`, party places, D-065, D-152, D-153): `load` reads who shares
+  where and this person's own "hide where I am"; `report(part, 'on' | 'finished')` is called only by the thread's own player.
+  It waits for the first read, sends nothing while the person hides or when the thread already has them there or further on,
+  never throws at the player, and retries a lost report at the next `load`. The furthest place reported is kept in memory only
+  and sent again when hiding is turned off. `setHidden` keeps one command ID per wanted state. A failed read leaves the thread
+  without places; it is a nicety. `party-lines.ts` holds the words: `placeWords` ("On Part 2", "Finished Part 1", "Finished
+  all 3 parts"), `placeDay` (the day as a date, "Sat 24 Oct", never a time or "today"), `partyLine` ("Ravi is on Part 2 ·
+  Asha and Kenji on Part 1", "All finished"), `facesByPart`. No line says "watching". _Implemented; exercised in browsers
+  locally, not yet on dev._
 - `createExploreWithFriends(...)`: lists friends (`friends.recentCount` of the first items are people the person already talks to), creates the thread with one command ID per intent, and reports
   `created`, `unavailable` or `unconfirmed` (retry sends the identical command, so it cannot make two threads).
 - `readThreadSummaries`, `findThread`, `threadRowView`, `describeThreadMessage`: Talk rows for threads.
