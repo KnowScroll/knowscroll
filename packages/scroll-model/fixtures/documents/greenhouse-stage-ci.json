@@ -67,7 +67,7 @@
           "change": "just-thickened",
           "focus": "to-space"
         },
-        "alt": "Above the ground lies a thick layer that absorbs most of the infrared, which has just become thicker. Two bars compare the energy the ground takes up from the Sun with the energy leaving to space, and a thermometer shows its warmth. The bar for energy leaving is shorter than the one for energy arriving: for now more arrives than leaves, so the ground warms until the two bars match. The thermometer shows the ground as warm as it was before the layer thickened. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the energy that leaves to space."
+        "alt": "Above the ground lies a thick layer that absorbs most of the infrared. The layer has just become thicker. Two bars compare the energy the ground takes up from the Sun with the energy leaving to space, and a thermometer shows its warmth. The bar for energy leaving is shorter than the one for energy arriving: for now more arrives than leaves, so the ground warms until the two bars match. The thermometer shows the ground as warm as it was before the layer thickened. This is a simple picture with one layer, not the real atmosphere. The picture draws the eye to the energy that leaves to space."
       },
       {
         "stop": "settles",
@@ -250,6 +250,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "5843c78eb82e9314c0ec7a0c56eef8fe8c3e9dbc336f3976daf95bd04dab6c94"
+    "sha256": "49874eae3d88ac1f7faa64103b2d56b4dd064ba77c4019a329d66a585fce2186"
   }
 }

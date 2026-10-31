@@ -44,7 +44,7 @@ export function Stage({ document, stopId, reducedMotion, textVersion = false, ti
   const layers =
     turning === undefined
       ? moving
-      : [{ key: entry.stop, scene: turning.kit.sceneOf(entry.state, turning.tilt), opacity: 1 }];
+      : [{ key: target.key, scene: turning.kit.sceneOf(entry.state, turning.tilt), opacity: 1 }];
   const alt = turning === undefined ? entry.alt : turning.kit.describe(entry.state, turning.tilt);
   return (
     <View

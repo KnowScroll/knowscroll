@@ -47,7 +47,7 @@
           "at": "ingress",
           "focus": "planet"
         },
-        "alt": "A star seen as a bright disc, with a small planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is just starting to cross the star’s edge, so it blocks a little of its light. The picture draws the eye to the planet."
+        "alt": "A star seen as a bright disc, and a small planet that crosses it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is just starting to cross the star’s edge, so it blocks a little of its light. The picture draws the eye to the planet."
       },
       {
         "stop": "deepest",
@@ -57,7 +57,7 @@
           "at": "middle",
           "focus": "dip"
         },
-        "alt": "A star seen as a bright disc, with a small planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. At the middle of its crossing the dip is as deep as it gets. The picture draws the eye to the dip."
+        "alt": "A star seen as a bright disc, and a small planet that crosses it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. At the middle of its crossing the dip is as deep as it gets. The picture draws the eye to the dip."
       },
       {
         "stop": "bigger",
@@ -67,7 +67,7 @@
           "at": "middle",
           "focus": "dip"
         },
-        "alt": "A star seen as a bright disc, with a large planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. At the middle of its crossing the dip is as deep as it gets. The picture draws the eye to the dip."
+        "alt": "A star seen as a bright disc, and a large planet that crosses it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet is halfway across the star, in front of it, so it blocks as much light as it ever does. At the middle of its crossing the dip is as deep as it gets. The picture draws the eye to the dip."
       },
       {
         "stop": "compare",
@@ -87,7 +87,7 @@
           "at": "after",
           "focus": "none"
         },
-        "alt": "A star seen as a bright disc, with a large planet in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet has passed the star as we see it, so it blocks none of its light. The marker sits on the level part of the graph."
+        "alt": "A star seen as a bright disc, and a large planet that crosses it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen. The planet has passed the star as we see it, so it blocks none of its light. The marker sits on the level part of the graph."
       }
     ]
   },
@@ -272,6 +272,6 @@
   },
   "integrity": {
     "method": "canonical-json-sha256.v1",
-    "sha256": "ac78605b17aa8b94fe1c2c3a110380ac193ca644cb9c8d3d6338701440425373"
+    "sha256": "d213e84e2cdc8ec39d649bcd9259e29615ce43d35967625c4ba7bb3ded966e48"
   }
 }

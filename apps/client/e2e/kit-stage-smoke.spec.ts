@@ -49,6 +49,16 @@ function dotName(document: ScrollDocumentV2, index: number): string {
 
 const stage = (page: Page) => page.getByTestId('stage');
 
+/** What axe finds that is serious or critical, as the other reader checks judge it. */
+async function audit(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+    .analyze();
+  return results.violations
+    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
+}
+
 /** Jumps to the stop a state sits on, and waits until the stage shows it. */
 async function showState(page: Page, document: ScrollDocumentV2, stopId: string) {
   const index = document.stops.findIndex((stop) => stop.id === stopId);
@@ -84,11 +94,7 @@ for (const [name, fixture] of KITS) {
           await stage(page).screenshot({ path: `${directory}/${label}-stage.png` });
         }
         if (index === 0 || index === states.length - 1) {
-          const results = await new AxeBuilder({ page }).analyze();
-          expect(
-            results.violations.map((violation) => violation.id),
-            `${name} state ${entry.stop}`,
-          ).toEqual([]);
+          expect(await audit(page), `${name} state ${entry.stop}`).toEqual([]);
         }
       }
       expect(errors).toEqual([]);

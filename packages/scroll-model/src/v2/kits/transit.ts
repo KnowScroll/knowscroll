@@ -167,7 +167,7 @@ function orbitSentences(state: TransitState): string[] {
 function crossingSentences(state: TransitState, physics: TransitPhysics): string[] {
   const place = state.at === 'middle' ? 'At the middle of its crossing the dip is as deep as it gets.' : '';
   return [
-    `A star seen as a bright disc, with ${SIZE_WORDS[state.planet]} in front of it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen.`,
+    `A star seen as a bright disc, and ${SIZE_WORDS[state.planet]} that crosses it. Below is a graph of the star’s brightness over time: level, then a dip while the planet crosses, then level again, with a marker for where the planet is now. The dip is enlarged so that it can be seen.`,
     PLACE_WORDS[state.at],
     physics.blocking ? place : 'The marker sits on the level part of the graph.',
   ];

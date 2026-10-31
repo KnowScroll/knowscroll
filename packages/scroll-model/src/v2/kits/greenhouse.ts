@@ -195,7 +195,7 @@ function balanceSentences(state: GreenhouseState, physics: GreenhousePhysics): s
   return [
     state.layer === 'none'
       ? 'There is no layer of gas above the ground.'
-      : `Above the ground lies a ${LAYER_WORDS[state.layer]}${state.change === 'just-thickened' ? ', which has just become thicker' : ''}.`,
+      : `Above the ground lies a ${LAYER_WORDS[state.layer]}.${state.change === 'just-thickened' ? ' The layer has just become thicker.' : ''}`,
     'Two bars compare the energy the ground takes up from the Sun with the energy leaving to space, and a thermometer shows its warmth.',
     bars,
     warmth,
