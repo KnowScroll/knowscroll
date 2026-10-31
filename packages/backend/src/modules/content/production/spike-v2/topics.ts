@@ -33,6 +33,10 @@ const SPIKE_MYTHS: Readonly<Partial<Record<ScrollTopic, Misconception>>> = {
   'exoplanet-transit': myth('Astronomers find planets around other stars by photographing them.'),
   greenhouse: { kind: 'none' },
   'exoplanet-habitable-zone': myth('A planet inside the habitable zone is a planet with life on it.'),
+  'stars-colour-brightness': myth('A star’s colour tells you how old it is.'),
+  'black-hole-formation': myth('The Sun will one day become a black hole.'),
+  'black-hole-horizon': myth('A black hole sucks in everything around it like a cosmic vacuum cleaner.'),
+  'black-hole-evidence': myth('Nobody has any evidence that black holes exist, because they cannot be seen.'),
   // Human body.
   'cardiac-cycle': myth('The heart squeezes all four of its chambers at once in a single beat.'),
   'blood-pressure': myth('Blood pressure is set by how fast the heart beats and nothing else.'),
@@ -107,6 +111,20 @@ export const SKY_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
   'stars-fusion',
   'stars-lifecycle',
   'exoplanet-transit',
+];
+
+/**
+ * The five Space recipes the drawing kits of D-204 give a picture, to measure with the v18 prompt before any of
+ * them is marked `scrollV2`: colour and brightness and the habitable zone with `starlight.v1`, and the formation,
+ * the horizon and the evidence of black holes with `black-hole.v1`. Each runs as the library will produce it,
+ * a stage Scroll with the recipe's own kit and the spike's own unreviewed misconception.
+ */
+export const SPACE_SPIKE_TOPICS_V2: readonly ScrollTopic[] = [
+  'stars-colour-brightness',
+  'exoplanet-habitable-zone',
+  'black-hole-formation',
+  'black-hole-horizon',
+  'black-hole-evidence',
 ];
 
 /**

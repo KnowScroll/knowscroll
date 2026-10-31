@@ -216,6 +216,14 @@ node dist/operator.js content writer-spike-v2 --topics tides,tides-spring-neap,g
 
 What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all eight, and no `stage_choice_invalid` survives the repair (the writer used a word the kit does not have). Then read each accepted document on the server: the picture must match each stop's words (the Moon's phase decides spring or neap; the layer and `change` decide the energy bars; the mass and stage decide the star; the planet and place decide the dip), and no stop may say what the picture cannot (a coast, a temperature, a year, a real planet's size).
 
+To measure the five Space recipes the starlight and black-hole kits of D-204 give a picture (`stars-colour-brightness` and `exoplanet-habitable-zone` with `starlight.v1`; `black-hole-formation`, `black-hole-horizon` and `black-hole-evidence` with `black-hole.v1`), at most ten requests, with prompt v18. As above, none is marked `scrollV2`, and each runs with the spike's own unreviewed misconception:
+
+```sh
+node dist/operator.js content writer-spike-v2 --topics stars-colour-brightness,exoplanet-habitable-zone,black-hole-formation,black-hole-horizon,black-hole-evidence --concurrency 2 --spike-id space-kits-v18 --out /var/tmp/ks-v3-spike/space-kits-v18.jsonl
+```
+
+What to read in the lines: `variant` is `stage` and `stageStates` at least 3 for all five, and no `stage_choice_invalid` survives the repair. Then read each accepted document: the picture must match each stop's words (the kind of star decides its colour, output and place on the chart; the orbit decides which zone holds the planet; the star and stage decide whether a black hole can form; the hole decides the horizon), and no stop may say what the picture cannot: that a planet in a zone has water or life, that colour alone gives a star's age, that a Sun-like star becomes a black hole, that a black hole sucks in everything, that the horizon is a surface, that the centre is understood, that the shadow is the horizon, or that one clue proves a black hole.
+
 Each run is two requests at most per topic (the writer and one repair), at most 40 for the twenty, inside the production scope's daily caps (`KS_REASONING_PRODUCTION_*`) and the MiniMax window. `--concurrency` (default 1, at most 4) runs topics side by side. `--out` appends the assembled documents of accepted topics to a file, one JSON line each; the file holds the model's own text about public sources, so read it on the server and do not paste it into an issue. A recipe key that is not one of the twenty runs as a plain Scroll with no misconception, and the line says `recipeDefaulted: true`.
 
 ### Reading the output

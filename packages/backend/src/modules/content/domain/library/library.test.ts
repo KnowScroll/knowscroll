@@ -200,7 +200,9 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
     expect(byKit('greenhouse.v1')).toEqual(['greenhouse', 'greenhouse-balance', 'greenhouse-radiation']);
     expect(byKit('star.v1')).toEqual(['stars-fusion', 'stars-lifecycle']);
     expect(byKit('transit.v1')).toEqual(['exoplanet-transit']);
-    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(11);
+    expect(byKit('starlight.v1')).toEqual(['exoplanet-habitable-zone', 'stars-colour-brightness']);
+    expect(byKit('black-hole.v1')).toEqual(['black-hole-evidence', 'black-hole-formation', 'black-hole-horizon']);
+    expect(recipes.filter((recipe) => recipe.stageKit !== undefined)).toHaveLength(16);
   });
 
   it('gives a kit only to recipes of the system whose subject it draws: Earth & sky and Space', () => {
@@ -208,17 +210,13 @@ describe('the kit that draws a recipe (stageKit, D-125, D-194)', () => {
       expect(['earth', 'space'], recipe.key).toContain(recipe.systemId);
   });
 
-  it('leaves the recipes no kit draws plain: coasts, colour and brightness, the habitable zone, kinds of planet, black holes and other worlds', () => {
+  it('leaves the recipes no kit draws plain: coasts, the blanket audit, kinds of planet and other worlds', () => {
     for (const key of [
       'tides-coasts',
       // The audit of the blanket analogy: the greenhouse kit draws the layer, not an argument about a comparison.
       'greenhouse-limits',
-      'stars-colour-brightness',
-      'exoplanet-habitable-zone',
+      // A mass ruler would be a chart of real data, and the name says nothing a picture could draw (D-204).
       'exoplanet-kinds',
-      'black-hole-formation',
-      'black-hole-horizon',
-      'black-hole-evidence',
       'seasons-elsewhere',
     ] as const)
       expect(RECIPES[key].stageKit, key).toBeUndefined();

@@ -1997,3 +1997,48 @@ Confirmed by: `v2/kits/tides.test.ts`, `greenhouse.test.ts`, `star.test.ts` and 
 - **No new reason for old kits.** An Earth & sky answer on an Earth & sky recipe is judged exactly as before. The old "unknown word" findings now arrive as `stage_choice_invalid`.
 
 Confirmed by: `producer/v2/compile.test.ts` (an invented word, key and old word are refused at the item), `kits-compile.test.ts` (the words of Earth & sky and of the other kits are refused on a recipe of another kit; a stage on a plain recipe; a bound Final call on another kit), `writer-v2.test.ts`.
+
+## D-204 · 2026-10-31 · Two more kits give five Space recipes a picture, and one recipe stays plain (S-8c, #479)
+
+**Amends** D-194 (which left these recipes without a kit). **Builds on** D-125.
+
+- **Two kits, each its own id.** `starlight.v1` draws the light of a star and what it makes possible; `black-hole.v1` draws how a black hole forms, what its edge is and how we know. `star.v1` is unchanged. Its words are what a writer chooses for fusion and a star's life; new views need new keys (a distance, an orbit), and a new key would change the shape of every stored `star.v1` state. A new id leaves those states, and the stars series, as they are (D-125: a new kit is a new id).
+- **Five recipes get a kit** (`stageKit` in the library plan, each with a note saying why):
+
+| Kit | Recipe | Why it draws the subject |
+|---|---|---|
+| `starlight.v1` | `stars-colour-brightness` | Colour from temperature, output from size and temperature together, dimming with distance and the chart of stars are the four views the brief asks for. |
+| `starlight.v1` | `exoplanet-habitable-zone` | The zones of three stars of different output, and a planet's orbit across them. The brief's "move a planet outward" is a choice of orbit. |
+| `black-hole.v1` | `black-hole-formation` | A massive star's core collapsing, beside a Sun-like star that leaves a white dwarf. Supermassive holes are told in words only. |
+| `black-hole.v1` | `black-hole-horizon` | Two holes to scale with their horizons, the light near an edge, and the same pull from far away. Spaghettification is told in words only. |
+| `black-hole.v1` | `black-hole-evidence` | Four clues: orbits round an unseen mass, a glowing disc, the ripples of a merger and the shadow. The brief's lensing is the shadow. |
+
+- **`exoplanet-kinds` stays plain, and why.** Its subject is what the name "super-Earth" does not say: composition, temperature, orbit, habitability. A kit could draw only a ruler of masses, and the masses of the Solar System's planets and of known exoplanets are real data, which is a chart block (S-8d), not a few words. A picture of a planet would teach a surface the name does not give (D-125).
+- **Not marked `scrollV2`.** Naming a kit is not marking the recipe (D-194). Series stay wholly marked or not at all, since none of these recipes is marked: the stars series (`stars-fusion`, `stars-lifecycle`) keeps `star.v1` and the black-hole recipes are in no series.
+- **Writer prompt `scroll-writer.v18`.** The runbook prints the spike line for the five recipes (`SPACE_SPIKE_TOPICS_V2`, `--spike-id space-kits-v18`, at most ten requests). The habitable-zone recipe now runs as a stage Scroll in the first spike's twenty.
+
+Confirmed by: `library.test.ts` (which recipe has which kit; `exoplanet-kinds` and `seasons-elsewhere` stay plain), `spike-v2/topics.test.ts` (the five, with the runbook line), `run.test.ts` and `writer-v2.test.ts` (a recorded answer drawn with each new kit is accepted), `kits-fixtures.test.ts` (the CI fixtures show every view), `kit-stage-smoke.spec.ts` (each kit's stage in the reader, axe at 390 × 844 and 1440 × 900).
+
+## D-205 · 2026-10-31 · The physics of the two Space kits is derived by code, and each picture says what it exaggerates (S-8c, #479)
+
+**Builds on** D-195.
+
+- **Starlight.** A star's colour is its glow's colour: Planck's spectrum weighed by the eye (CIE 1931, an analytic fit) and turned to sRGB. Where the glow is strongest is Wien's law. Output is the radius squared times the temperature (against the Sun's) to the fourth. The three main-sequence stars take size and output from the same mass power laws as `star.v1` (radius as mass to 0.8, output as mass to 3.5), and their temperature follows from them. The red giant and the white dwarf are typical values. Dimming is one over the distance squared. The zone's distances are the square root of the output over the limiting starlight (0.356 and 1.107 of Earth's, the conservative limits of Kopparapu and others, 2013, applied to every star as an illustration).
+- **Black holes.** The horizon is 2GM over c squared, so it goes as the mass (about 3 km for each Sun); the speed to escape reaches the speed of light there. Orbits are Kepler's: the period goes as the radius to 3/2, and every orbit round one mass gives the same mass. The disc's temperature goes as the radius to minus 3/4, from a million-degree inner edge at three horizon radii. The shadow is three root three over two horizon radii. The merger's chirp is Peters's: separation as the time to merger to the 1/4, frequency to minus 3/8, strength as the frequency to 2/3.
+- **Tests that do not use the same formula.** The luminosity and the zone edges are recomputed in SI units from the Stefan-Boltzmann constant and the Sun's radius (the solar constant comes out at 1361 W/m²). Planck's curve is searched for its tallest point and compared with Wien. A surface at 6504 K must look white. The horizon is checked against Newton's escape speed, the orbits against periods and speeds in SI, the shadow against the photon sphere, and the chirp's frequency against Kepler's. The picture's pixels are checked against the same numbers: a planet lies inside a zone's band exactly where the verdict says so.
+- **Exaggerations and simplifications, labelled in the picture and in the text version.** Colours are strengthened (the real colours are paler). Sizes and the bars of output are on stretched scales. Orbits are drawn as circles and the merger's graph is "not to scale". The disc's glow is false colour, because X-rays cannot be seen. The black hole and the star of the pull picture are not to scale. The zone's edges are illustrative.
+- **What is never drawn or said.** A Sun-like star never becomes a black hole. A black hole is not said to suck in everything. The horizon is a boundary, never a surface. Nothing is drawn at the centre, and the centre is not said to be understood. The shadow is never the horizon. Each of the four clues says it is one clue and does not prove a black hole alone. A zone is never said to hold water or life. Colour alone never gives a star's age.
+- **Words and picture agree.** A new test (`kit-claims.test.tsx`) renders every state of both kits and checks that each claim of the text version has its label in the picture and each such label has its claim. It found one disagreement while it was written (the merger graph was "not to scale" in the picture only).
+
+Confirmed by: `v2/kits/spectrum.test.ts`, `starlight.test.ts` and `black-hole.test.ts`; `kits.test.ts` (every state of both kits is settled, described within 600 characters and accepted by the schema); `packages/ui` `starlight-scene.test.ts`, `black-hole-scene.test.ts`, `kit-focus.test.tsx` (a ring for every focus of every state) and `kit-claims.test.tsx`.
+
+## D-206 · 2026-10-31 · The writer's guide for the two Space kits names what to say and what never to (S-8c, #479)
+
+**Builds on** D-196.
+
+- **The same shape as every kit.** Each kit has a `writerGuide`: what the picture draws, the views and their words, and what code decides. The prompt takes it as the kit's own lines, so prompt and words cannot drift. The words of `starlight.v1` are `view`, `star`, `distance`, `orbit` and `focus`; those of `black-hole.v1` are `view`, `star`, `stage`, `hole`, `merger` and `focus`. A key a view does not use is ignored. In `zone` a giant or a white dwarf is shown as a star like the Sun, because only three stars have a zone.
+- **What the writer is told never to say.** Starlight: that a planet in the zone has water, an atmosphere or life ("could have liquid water" is the claim); that colour alone gives a star's age; that every main-sequence star is alike. Black holes: that a Sun-like star will become one; that one sucks in everything; that the horizon is a surface; anything about the centre but that it is not understood; that the shadow is the horizon; that one clue proves a black hole. The picture draws no named star, no real planet and no year.
+- **What the picture leaves to words.** Supermassive black holes and how they grew, spaghettification, lensing apart from the shadow, the wobble method (as before) and kinds of planet.
+- **Prompt `scroll-writer.v18`.** Only the kit guides are new. The shared rules and the other kits' text are unchanged, and a test keeps each kit's guide out of another kit's prompt.
+
+Confirmed by: `writer-v2.test.ts` (each recipe's instructions hold its kit's guide and no other kit's, and list its keys and words), `kits-compile.test.ts` (the words of another kit are refused), `spike-v2/run.test.ts`.

@@ -551,7 +551,7 @@ Status: **implemented**, unit-tested.
 
 ### The kit
 
-A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194). Five kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
+A stage names one drawing kit (`stage.kit`), and every state of it holds that kit's words and no others (D-194, D-204). Seven kits exist, each its own id with its own words and its own derived physics; `kitDefinition(id)` gives the generic view of one (its words, first state, `settle`, `describe` and the guide the writer's prompt reads), and `STAGE_KIT_IDS` lists them. Adding a kit is a new id, its words and physics, and a new decision.
 
 | Kit | Draws | The writer chooses | Code derives (D-195) |
 |---|---|---|---|
@@ -560,8 +560,10 @@ A stage names one drawing kit (`stage.kit`), and every state of it holds that ki
 | `greenhouse.v1` | sunlight, reflected sunlight, the ground, one layer of gas, infrared, two energy bars, a thermometer | view, layer (none, thin, thick), settled or just thickened, focus | every flow of energy, the balance or the imbalance, the ground's warmth |
 | `star.v1` | a star cut open with gravity and pressure, three stars by mass with lifetime bars, one star through its life | view, balance, mass class, stage, focus | shrink, hold or swell, colour, size, lifetime, and the end that fits the mass |
 | `transit.v1` | a star, a planet crossing it, its orbit from above, the graph of the light | view, planet (small or large), place along the crossing, focus | how much of the star is covered, the depth of the dip, the whole curve, whether the planet blocks light |
+| `starlight.v1` (D-204) | five kinds of star over the spectrum, one star beside a star like the Sun by size, heat and output, light thinning with distance, the chart of temperature against output, the habitable zones of three stars and a planet's orbit | view, kind of star, distance, orbit, focus | colour and where the glow is strongest (Wien and Planck), output from size and temperature (R squared times T to the fourth), one over distance squared, the place on the chart, the zone's distances (square root of the output) and which zone holds the planet |
+| `black-hole.v1` (D-204) | a massive star's end beside a Sun-like star's, two black holes to scale with the light near the horizon, a star and a black hole of equal mass pulling alike, stars orbiting a hidden mass, a glowing disc, a merger's ripples, a shadow | view, star and stage, hole, merger, focus | the horizon from the mass (2GM over c squared), how the star ends, Kepler orbits, the heat of the disc by radius, the shadow's size against the horizon, the chirp of a merger |
 
-Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`). Status: **implemented** (unit tests, and the stage reader draws each in the web export); none has run on real MiniMax yet. The Final call's `binding: tilt` is Earth & sky's alone.
+Each kit's tests check its numbers against a computation it does not use (`v2/kits/*.test.ts`). Status: **implemented** (unit tests, and the stage reader draws each in the web export); none has run on real MiniMax yet (the D-204 kits are measured by `space-kits-v18`). The Final call's `binding: tilt` is Earth & sky's alone.
 
 #### Earth & sky
 

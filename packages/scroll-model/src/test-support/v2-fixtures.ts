@@ -157,6 +157,22 @@ export const FIXTURE_STAGES: Readonly<Record<Exclude<StageKitId, 'earth-sky.v1'>
       { view: 'crossing', planet: 'large', at: 'middle', focus: 'none' },
       { view: 'orbit', planet: 'large', at: 'egress', focus: 'star' },
     ],
+    'starlight.v1': [
+      { view: 'colour', star: 'sun-like', distance: 'near', orbit: 'none', focus: 'spectrum' },
+      { view: 'output', star: 'giant', distance: 'near', orbit: 'none', focus: 'none' },
+      { view: 'dimming', star: 'sun-like', distance: 'middle', orbit: 'none', focus: 'looks' },
+      { view: 'diagram', star: 'white-dwarf', distance: 'near', orbit: 'none', focus: 'none' },
+      { view: 'zone', star: 'sun-like', distance: 'near', orbit: 'earth', focus: 'planet' },
+      { view: 'colour', star: 'bright', distance: 'near', orbit: 'none', focus: 'none' },
+    ],
+    'black-hole.v1': [
+      { view: 'formation', star: 'massive', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
+      { view: 'horizon', star: 'massive', stage: 'fusing', hole: 'large', merger: 'apart', focus: 'horizon' },
+      { view: 'pull', star: 'massive', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'none' },
+      { view: 'waves', star: 'massive', stage: 'fusing', hole: 'small', merger: 'close', focus: 'signal' },
+      { view: 'formation', star: 'massive', stage: 'end', hole: 'small', merger: 'apart', focus: 'remnant' },
+      { view: 'shadow', star: 'massive', stage: 'fusing', hole: 'small', merger: 'apart', focus: 'shadow' },
+    ],
   };
 
 const patch = (tag: number) => ({ earthAt: (['jan', 'mar', 'jun', 'sep', 'dec', 'feb', 'may'] as const)[tag % 7] });
