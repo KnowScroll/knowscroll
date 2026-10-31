@@ -448,6 +448,11 @@ test('the topics list is a forum: tags, replies and who spoke last, sorted Hot, 
   await expect(menu.getByTestId(`discussion-${topicIds(3)}`)).toBeVisible();
   await expect(menu.getByTestId(`discussion-${topicIds(2)}`)).toHaveCount(0);
   await expect(menu.getByTestId('new-topic')).toBeVisible();
+
+  // Picking a topic closes the menu and opens the topic: the sheet is never left over it.
+  await menu.getByTestId(`discussion-${topicIds(3)}`).click();
+  await expect(page).toHaveURL(new RegExp(`/rooms/${room.roomId}/t/${topicIds(3)}`));
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('the room menu shows the limits to everyone, and says asked turns have their own', async ({ page }) => {

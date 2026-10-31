@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import type { AvailabilityWord, FriendsPair } from '@knowscroll/client-core';
 import { borderWidth, content, elevation, radius, spacing } from '@knowscroll/design-tokens';
 import { BottomSheet, Button, IconButton, Tag, Text } from '@knowscroll/ui';
+import { closeThen } from '../../platform/close-then';
 import { PersonAvatar } from '../conversations/person-avatar';
 
 export type PairOperation = 'accept' | 'decline' | 'cancel' | 'remove' | 'block' | 'unblock';
@@ -59,6 +60,8 @@ function RowMenu({
     setOpen(false);
     action();
   };
+  // A visit opens another screen, so the sheet is closed first and the screen opens once its history entry is gone.
+  const visit = (action: () => void) => () => closeThen(() => setOpen(false), action);
   return (
     <>
       <IconButton icon="more" label={`Options for ${name}`} variant="plain" onPress={() => setOpen(true)} />
@@ -70,7 +73,7 @@ function RowMenu({
               variant="primary"
               fullWidth
               disabled={disabled}
-              onPress={choose(onVisit)}
+              onPress={visit(onVisit)}
             />
           ) : null}
           {pair.state === 'friends' ? (

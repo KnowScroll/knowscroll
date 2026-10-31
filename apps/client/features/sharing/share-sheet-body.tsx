@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import type { ConversationContentRef } from '@knowscroll/contracts';
 import { Text } from '@knowscroll/ui';
-import { afterPendingBack } from '../../platform/after-pending-back';
+import { closeThen } from '../../platform/close-then';
 import { appApiOrigin } from '../../platform/api';
 import { useAccountScope } from '../../providers/account-scope';
 import { conversationHref } from '../conversations/conversation-links';
@@ -39,14 +39,8 @@ export function ShareSheetBody({ target, title, kind, onClose }: ShareSheetBodyP
       kind={kind}
       origin={origin.baseUrl}
       onClose={onClose}
-      onOpenConversation={(conversation) => {
-        onClose();
-        afterPendingBack(() => router.navigate(conversationHref(conversation)));
-      }}
-      onOpenThread={(thread) => {
-        onClose();
-        afterPendingBack(() => router.navigate(threadHref(thread)));
-      }}
+      onOpenConversation={(conversation) => closeThen(onClose, () => router.navigate(conversationHref(conversation)))}
+      onOpenThread={(thread) => closeThen(onClose, () => router.navigate(threadHref(thread)))}
     />
   );
 }
