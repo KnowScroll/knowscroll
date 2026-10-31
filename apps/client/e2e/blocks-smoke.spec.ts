@@ -52,6 +52,32 @@ async function shot(page: Page, size: string, label: string) {
   if (directory !== undefined && directory !== '') await page.screenshot({ path: `${directory}/${size}-${label}.png` });
 }
 
+/**
+ * Every request that is not a GET while a block is being played. Playing sends nothing (D-209), so the list
+ * stays empty: the window is the play only, so the recorder's own reading reports, which follow the stop
+ * on screen, are not mistaken for play.
+ */
+function watchPlay(page: Page) {
+  const sent: string[] = [];
+  let playing = false;
+  page.on('request', (request) => {
+    if (playing && request.method() !== 'GET') sent.push(`${request.method()} ${request.url()}`);
+  });
+  return {
+    sent,
+    async during(play: () => Promise<void>) {
+      playing = true;
+      try {
+        await play();
+        // A request caused by the play would be sent within moments of it.
+        await page.waitForTimeout(400);
+      } finally {
+        playing = false;
+      }
+    },
+  };
+}
+
 const sorted = sortFork as unknown as ScrollDocumentV2;
 const scaled = scaleChart as unknown as ScrollDocumentV2;
 
@@ -63,12 +89,8 @@ for (const [size, viewport] of sizes) {
       page,
     }) => {
       const errors: string[] = [];
-      const sent: string[] = [];
+      const watch = watchPlay(page);
       page.on('pageerror', (error) => errors.push(error.message));
-      page.on('request', (request) => {
-        if (request.method() === 'POST' && /observation|interaction|lock/u.test(request.url()))
-          sent.push(request.url());
-      });
       if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
       await open(page, sortFork, viewport);
 
@@ -76,14 +98,33 @@ for (const [size, viewport] of sizes) {
       await expect(page.getByTestId('play-sort')).toBeVisible();
       await shot(page, mode, 'sort');
       expect(await audit(page), 'sort').toEqual([]);
-      await page.getByRole('button', { name: 'Check order' }).click();
-      await expect(page.getByTestId('sort-close')).toBeVisible();
-      await page.getByRole('button', { name: 'Show the order' }).click();
-      await expect(page.getByTestId('sort-answer').first()).toBeVisible();
-      await expect(page.getByTestId('sort-explain')).toBeVisible();
-      await shot(page, mode, 'sort-shown');
-      await page.getByRole('button', { name: 'Text version of the sort' }).click();
-      await expect(page.getByTestId('sort-answer').first()).toBeVisible();
+      await watch.during(async () => {
+        // By keyboard: a card moved to either end keeps the focus on an arrow of the same card.
+        const arrow = page.getByRole('button', { name: /^Move ".*" (up|down)$/u });
+        const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
+        const lastDown = page.getByRole('button', { name: /^Move ".*" down$/u }).nth(2);
+        await lastDown.focus();
+        await page.keyboard.press('Enter');
+        const atBottom = await focused();
+        expect(atBottom, 'focus stays on an arrow after a card reaches the bottom').toMatch(/^Move ".*" (up|down)$/u);
+        await page.keyboard.press('Enter');
+        expect(await focused(), 'a press at the end does nothing and keeps focus').toBe(atBottom);
+        const firstUp = page.getByRole('button', { name: /^Move ".*" up$/u }).nth(1);
+        await firstUp.focus();
+        await page.keyboard.press('Enter');
+        expect(await focused(), 'focus stays on an arrow after a card reaches the top').toMatch(
+          /^Move ".*" (up|down)$/u,
+        );
+        expect(await arrow.count()).toBe(8);
+        await page.getByRole('button', { name: 'Check order' }).click();
+        await expect(page.getByTestId('sort-close')).toBeVisible();
+        await page.getByRole('button', { name: 'Show the order' }).click();
+        await expect(page.getByTestId('sort-answer').first()).toBeVisible();
+        await expect(page.getByTestId('sort-explain')).toBeVisible();
+        await shot(page, mode, 'sort-shown');
+        await page.getByRole('button', { name: 'Text version of the sort' }).click();
+        await expect(page.getByTestId('sort-answer').first()).toBeVisible();
+      });
 
       await goTo(page, sorted, 'ray');
       await expect(page.getByTestId('guide').first()).toBeVisible();
@@ -93,14 +134,18 @@ for (const [size, viewport] of sizes) {
       await goTo(page, sorted, 'paths');
       await expect(page.getByTestId('play-fork')).toBeVisible();
       await shot(page, mode, 'fork');
-      await page.getByRole('button', { name: 'Path: The north' }).click();
-      await expect(page.getByTestId('fork-branch')).toContainText('The north warms');
-      await shot(page, mode, 'fork-chosen');
+      await watch.during(async () => {
+        await page.getByRole('button', { name: 'Path: The north' }).click();
+        await expect(page.getByTestId('fork-branch')).toContainText('The north warms');
+        await shot(page, mode, 'fork-chosen');
+      });
       expect(await audit(page), 'fork').toEqual([]);
-      await page.getByRole('button', { name: 'Text version of the fork' }).click();
-      await expect(page.getByTestId('fork-text')).toContainText('The south cools');
+      await watch.during(async () => {
+        await page.getByRole('button', { name: 'Text version of the fork' }).click();
+        await expect(page.getByTestId('fork-text')).toContainText('The south cools');
+      });
 
-      expect(sent).toEqual([]);
+      expect(watch.sent).toEqual([]);
       expect(errors).toEqual([]);
     });
 
@@ -108,6 +153,7 @@ for (const [size, viewport] of sizes) {
       page,
     }) => {
       const errors: string[] = [];
+      const watch = watchPlay(page);
       page.on('pageerror', (error) => errors.push(error.message));
       if (reduced) await page.emulateMedia({ reducedMotion: 'reduce' });
       await open(page, scaleChart, viewport);
@@ -116,12 +162,14 @@ for (const [size, viewport] of sizes) {
       await expect(page.getByTestId('play-scale')).toBeVisible();
       await shot(page, mode, 'scale');
       expect(await audit(page), 'scale').toEqual([]);
-      await page.getByRole('button', { name: 'Zoom out to Sarn' }).click();
-      await expect(page.getByRole('button', { name: 'Zoom out to Sarn' })).toHaveAttribute('aria-pressed', 'true');
-      await shot(page, mode, 'scale-zoomed');
-      await page.getByRole('button', { name: 'Text version of the scale' }).click();
-      await expect(page.getByTestId('scale-text')).toContainText('Orrin: 120 million km');
-      await page.getByRole('button', { name: 'Text version of the scale' }).click();
+      await watch.during(async () => {
+        await page.getByRole('button', { name: 'Zoom out to Sarn' }).click();
+        await expect(page.getByRole('button', { name: 'Zoom out to Sarn' })).toHaveAttribute('aria-pressed', 'true');
+        await shot(page, mode, 'scale-zoomed');
+        await page.getByRole('button', { name: 'Text version of the scale' }).click();
+        await expect(page.getByTestId('scale-text')).toContainText('Orrin: 120 million km');
+        await page.getByRole('button', { name: 'Text version of the scale' }).click();
+      });
 
       await goTo(page, scaled, 'ray');
       await shot(page, mode, 'guide-point');
@@ -129,14 +177,19 @@ for (const [size, viewport] of sizes) {
       await goTo(page, scaled, 'count');
       await expect(page.getByTestId('play-chart')).toBeVisible();
       await shot(page, mode, 'chart');
-      await page.getByRole('button', { name: 'Show the next point' }).click();
-      await expect(page.getByTestId('chart-readout')).toContainText('100 crates: 10,000 trips');
-      await page.getByRole('button', { name: 'Show the next point' }).click();
-      await shot(page, mode, 'chart-grown');
+      await watch.during(async () => {
+        await page.getByRole('button', { name: 'Show the next point' }).click();
+        await expect(page.getByTestId('chart-readout')).toContainText('100 crates: 10,000 trips');
+        await page.getByRole('button', { name: 'Show the next point' }).click();
+        await shot(page, mode, 'chart-grown');
+      });
       expect(await audit(page), 'chart').toEqual([]);
-      await page.getByRole('button', { name: 'Text version of the chart' }).click();
-      await expect(page.getByTestId('chart-text')).toContainText('1,000 crates: 1,000,000 trips');
+      await watch.during(async () => {
+        await page.getByRole('button', { name: 'Text version of the chart' }).click();
+        await expect(page.getByTestId('chart-text')).toContainText('1,000 crates: 1,000,000 trips');
+      });
 
+      expect(watch.sent).toEqual([]);
       expect(errors).toEqual([]);
     });
   }

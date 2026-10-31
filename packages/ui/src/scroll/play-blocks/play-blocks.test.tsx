@@ -74,6 +74,19 @@ describe('a sort', () => {
     expect(screen.getAllByTestId('sort-answer')).toHaveLength(4);
   });
 
+  it('keeps the arrows at the ends focusable and does nothing when one is pressed, so keyboard focus is never lost', async () => {
+    await show(sort);
+    const first = screen.getByRole('button', { name: /^Move "The northern half warms" up/ });
+    // Not `disabled`: a disabled button drops focus to the page. It says so to assistive technology and does nothing.
+    expect(first).toBeDisabled();
+    await fireEvent.press(first);
+    expect(screen.getByText('The northern half warms is already first.')).toBeOnTheScreen();
+    expect(screen.queryByText(/is now number/)).not.toBeOnTheScreen();
+    // The order is as it was: the first card is still the first.
+    expect(screen.getAllByTestId('sort-row')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: /^Move "The northern half warms" up/ })).toBeDisabled();
+  });
+
   it('moves nothing past either end', () => {
     expect(moved(shownOrder(3), 0, -1)).toEqual([0, 1, 2]);
     expect(moved(shownOrder(3), 2, 1)).toEqual([0, 1, 2]);
@@ -177,6 +190,31 @@ describe('the text version', () => {
 type Spy = { [Method in keyof StageReadingObserver]: jest.Mock<void, Parameters<StageReadingObserver[Method]>> };
 
 describe('playing a block in the reader', () => {
+  const observerSpy = (): Spy => ({
+    onBlockVisibility: jest.fn<void, Parameters<StageReadingObserver['onBlockVisibility']>>(),
+    onBlockInteraction: jest.fn<void, Parameters<StageReadingObserver['onBlockInteraction']>>(),
+    onActivity: jest.fn<void, Parameters<StageReadingObserver['onActivity']>>(),
+  });
+
+  it('reports nothing about a scale zoom, a chart step or a text version either', async () => {
+    const observer = observerSpy();
+    await render(
+      <DisplayProvider value={{ width: 390, textScale: 1, reducedMotion: true }}>
+        <StageReader document={scaleChart as unknown as ScrollDocumentV2} observer={observer} commands={{}} />
+      </DisplayProvider>,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Zoom out to Sarn' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Show every point' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Start again' }));
+    await fireEvent.press(screen.getByRole('togglebutton', { name: 'Text version of the scale' }));
+    expect(screen.getByTestId('scale-text')).toBeOnTheScreen();
+    expect(observer.onBlockInteraction).not.toHaveBeenCalled();
+    // Only the stop on screen is ever reported, and only as visible.
+    expect(
+      observer.onBlockVisibility.mock.calls.every(([event]) => event.blockId === 'hook' || event.visibleFraction >= 0),
+    ).toBe(true);
+  });
+
   it('reports nothing about the play: no interaction, whatever is sorted, chosen, zoomed or revealed', async () => {
     const observer: Spy = {
       onBlockVisibility: jest.fn<void, Parameters<StageReadingObserver['onBlockVisibility']>>(),
