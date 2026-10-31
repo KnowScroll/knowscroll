@@ -15,6 +15,8 @@ import { compileAuthoredV2, type CompileV2Input } from './compile.js';
 import { authoringReferenceV2 } from './reference.js';
 
 /** CI fixtures: an invented planet, and two more passages that state figures a scale and a chart may use. */
+/** Every way a passage writes 1.5 times a power of ten (D-208). The figure alone would read as 1.5. */
+const POWER_FORMS = ['×10−7', ' × 10^7', 'x10⁷', '·10-7', '*10^7', 'e-7', 'E+30', ' × 10⁻⁷', ' x 10^-7'];
 const FIGURE_PASSAGES = [
   ...PASSAGES_V2,
   'Orrin circles Vael at 150 million kilometres, its moon Pell at 228 million, and the ice giant Sarn at 779 million kilometres.',
@@ -25,6 +27,7 @@ const FIGURE_PASSAGES = [
   'Pell holds 8.3m moons of dust, 4.1bn grains of sand and 7.5 crore stones.',
   'The crowd of 8.3-million cheered, and the harbour holds 9-million barrels.',
   'Between 8 to 10 million pilgrims come each year, and 20\u201330 million visit in all.',
+  ...POWER_FORMS.map((form) => `One grain of Orrin dust weighs 1.5${form} grams.`),
 ];
 const evidence = (): CompileV2Input['evidence'] => ({
   claimIdOf: new Map([
@@ -409,6 +412,19 @@ describe('figures a passage writes in other ways (D-208)', () => {
     expect(refused(chartOf('e8', 'trips', 1.5e-7))).toBe(true);
     expect(refused(chartOf('e8', 'trips', '1.5e-7'))).toBe(true);
     expect(refused(chartOf('e8', 'trips', 1e21))).toBe(true);
+  });
+
+  it.each(POWER_FORMS)('refuses 1.5 when the passage writes it as 1.5%s', (form) => {
+    const handle = `e${String(FIGURE_PASSAGES.findIndex((text) => text.endsWith(`1.5${form} grams.`)) + 1)}`;
+    expect(refused(chartOf(handle, 'grams', '1.5')), form).toBe(true);
+    // No magnitude word can state a power of ten, so a word does not rescue it.
+    expect(refused(chartOf(handle, 'grams', '1.5', 'million')), form).toBe(true);
+  });
+
+  it('refuses the 10 and the exponent of a power of ten as figures of their own', () => {
+    const handle = `e${String(FIGURE_PASSAGES.findIndex((text) => text.endsWith('1.5×10−7 grams.')) + 1)}`;
+    expect(refused(chartOf(handle, 'grams', '10'))).toBe(true);
+    expect(refused(chartOf(handle, 'grams', '7'))).toBe(true);
   });
 
   it('refuses a unit whose words no cited passage uses, and accepts one it does', () => {

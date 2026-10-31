@@ -38,8 +38,24 @@ const RANGE_BEFORE = new RegExp(String.raw`(${FIGURE})\s*(?:to|–|—|-|−)\s*
 /** The figure as a number text: no thousands separators. */
 export const plainFigure = (text: string): string => text.replaceAll(',', '');
 
-/** What follows a figure: nothing that scales it, a magnitude word (after a space or a hyphen, or attached), or a scaler the document cannot hold. */
+/** A times sign, as a passage writes one before a power of ten (a letter x only when it stands alone). */
+const TIMES = String.raw`(?:[×*·⋅]|(?<!\p{L})[xX](?!\p{L}))`;
+/** What makes a figure a power of ten's coefficient: "×10−7", "× 10^7", "x10⁷", "·10-7", "e-7", "E+30". */
+const SCIENTIFIC_AFTER = new RegExp(
+  String.raw`^\s*(?:${TIMES}\s*10\s*(?:\^\s*[-−+]?\s*\d|[-−+]?\d|[⁰¹²³⁴-⁹⁺⁻])|[eE][-+−]?\d)`,
+  'u',
+);
+/** The "10" of a power of ten, and its exponent, which are numbers in their own right to the tokeniser. */
+const POWER_BEFORE = new RegExp(String.raw`${TIMES}\s*10\s*\^?\s*[-−+]?\s*$`, 'u');
+const TEN_BEFORE = new RegExp(String.raw`${TIMES}\s*$`, 'u');
+const EXPONENT_AFTER = /^\s*(?:\^|[-−+]?\d|[⁰¹²³⁴-⁹⁺⁻])/u;
+
+/**
+ * What follows a figure: nothing that scales it, a magnitude word (after a space or a hyphen, or attached),
+ * or a scaler the document cannot hold, which a power of ten is ("1.5×10−7 m" is not 1.5).
+ */
 function readingAfter(text: string, end: number): Reading {
+  if (SCIENTIFIC_AFTER.test(text.slice(end))) return 'unknown';
   const word = /^[\s\u00a0-]*(\p{L}+)/u.exec(text.slice(end))?.[1]?.toLowerCase();
   if (word === undefined) return 'bare';
   if (Object.hasOwn(MAGNITUDES, word)) return word as Magnitude;
@@ -59,6 +75,15 @@ export function readingsOf(figure: string, quotes: readonly string[]): readonly 
     for (const match of quote.matchAll(NUMBER)) {
       if (plainFigure(match[0]) !== figure) continue;
       const end = match.index + match[0].length;
+      // The "10" and the exponent of a power of ten are part of the scaled figure, never a figure of their own.
+      const lead = quote.slice(0, match.index);
+      if (
+        POWER_BEFORE.test(lead) ||
+        (figure === '10' && TEN_BEFORE.test(lead) && EXPONENT_AFTER.test(quote.slice(end)))
+      ) {
+        found.push({ reading: 'unknown' });
+        continue;
+      }
       const next = RANGE_AFTER.exec(quote.slice(end));
       const before = RANGE_BEFORE.exec(quote.slice(0, match.index));
       if (next?.[1] !== undefined)
