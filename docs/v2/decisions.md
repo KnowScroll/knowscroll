@@ -2573,3 +2573,13 @@ Confirmed by: `thread-encounter.test.tsx` (Read, in the dock and in the open pla
 - **Nothing else changes.** No migration: the key already holds the revision. The export names a pick under the question it was made on.
 
 Confirmed by: `social-calls.test.ts` ("a part whose Scroll gets a new revision": the question, picks, count and reveal stay with revision 1 while revision 2 has a different question and answer; a member who had not called is asked the old question and locks on it; a thread with no picks gets the new question with no note; the export names the question the pick was made on; a rejected earlier revision restarts the call and says so; a block moves nothing), `calls.test.ts` (the pure choice of revision), `threads.test.ts` in `contracts`, `call-words.test.ts` and `call-together.test.tsx` (the words). Shown failing with the choice of revision reduced to the current one.
+
+## D-236 · 2026-10-31 · The Useful mark that earns a star may come from the person who asked (clarifies D-174, #570)
+
+**Clarifies** D-174 and D-168. No code changes. A dev check read D-174 as "the Useful mark must come from someone other than the question's asker" and found that the asker marking someone else's answer to their own question earned a star. That is the rule as written.
+
+- **Two different people, each from the author.** In a question topic the star's words must be by someone other than the person who asked the question (`startedByAccountId` is not the author), and the mark must come from someone other than the words' author (D-168: nobody marks their own). Neither says anything about the giver and the asker. The asker is the person the answer was for, and the one most able to say it helped, so their mark is the main case. D-168 says the same for an AI's answer ("the asker has no other way to say it helped"), where the mark is allowed and earns no star.
+- **What still earns nothing.** The asker's own later words in their question, marked by anyone. A mark on one's own message (refused). A resident's words. General chat, a debate and a share.
+- **Collusion.** Two accounts can still ask, answer and mark each other. The daily cap of three and one star per act and source are what bound that; a rule about the asker would not (the answerer could just as well mark a third account's words). R3 says "a different person gives Useful", meaning different from the author.
+
+Confirmed by: `rooms-sky.test.ts` ("counts the asker's own Useful on someone else's answer, and nobody's Useful on the asker's own words"). Shown failing when a mark by the asker was refused.
