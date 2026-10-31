@@ -230,6 +230,30 @@ test('closing ••• on a Part you moved on to stays on that Part', async ({ 
   await expect(heading).toHaveText(part2);
 });
 
+test('browser Back after ••• then Share closes the Share sheet with one pop and stays on the Scroll', async ({
+  page,
+}) => {
+  await openFromExplore(page);
+  const heading = page.getByRole('heading', { level: 1 });
+  const title = await heading.innerText();
+  await page.evaluate(() => {
+    const seen = { pops: 0 };
+    (window as unknown as { __pops: typeof seen }).__pops = seen;
+    window.addEventListener('popstate', () => {
+      seen.pops += 1;
+    });
+  });
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Send to a conversation' })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'Send to a conversation' })).toHaveCount(0);
+  await page.waitForTimeout(500);
+  await expect(heading).toHaveText(title);
+  await expect(page).toHaveURL(new RegExp('/explore'));
+  expect(await page.evaluate(() => (window as unknown as { __pops: { pops: number } }).__pops.pops)).toBe(1);
+});
+
 for (const [name, viewport] of [
   ['phone', phone],
   ['desktop', desktop],
