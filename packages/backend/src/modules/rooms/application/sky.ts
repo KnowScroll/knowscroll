@@ -117,7 +117,7 @@ export async function skyOfRoom(p: RoomPorts, lock: RoomLock): Promise<RoomSky> 
   const named = constellations.filter((row) => row.name !== null);
   return skyOf({
     stars,
-    latestIsNamed: constellations.at(-1)?.name != null,
+    latestIsNamed: (constellations.at(-1)?.name ?? null) !== null,
     latestName: named.at(-1)?.name ?? undefined,
   });
 }

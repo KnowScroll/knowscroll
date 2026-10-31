@@ -346,8 +346,8 @@ export function makeDiscussionCommands(p: RoomPorts) {
         async decide({ scope, entered, now }) {
           const found = await discussionOf(entered.lock, command.discussionId);
           if (found.kind === 'refused') return found;
-          // General is where everyone lands; a pin would only hide it behind itself.
-          if (found.value.kind === 'general') return refuse('unavailable');
+          // General is where everyone lands and Today is the daily channel; a pin would only hide them behind themselves.
+          if (found.value.kind !== 'topic') return refuse('unavailable');
           return ok(async () => {
             await p.discussions.setPinned(entered.lock, command.discussionId, command.pinned ? now : null);
             return DiscussionPinAcceptanceSchema.parse({
