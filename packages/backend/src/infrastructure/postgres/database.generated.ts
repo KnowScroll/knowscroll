@@ -910,7 +910,6 @@ export interface OpsJobs {
   waiting_seconds: Int8 | null;
 }
 
-
 export interface OpsJourneyEvents {
   asset_id: string | null;
   attempt_id: string | null;
@@ -1007,7 +1006,6 @@ export interface OpsQueueBacklog {
   scheduled: Int8 | null;
 }
 
-
 export interface OpsRecentErrors {
   code: string | null;
   label: string | null;
@@ -1016,7 +1014,6 @@ export interface OpsRecentErrors {
   source: string | null;
   state: string | null;
 }
-
 
 export interface OpsReelAttempts {
   attempt_id: string | null;
