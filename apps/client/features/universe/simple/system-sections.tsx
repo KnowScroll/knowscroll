@@ -116,8 +116,8 @@ export function SystemSections({
                 key={room.id}
                 testID={`simple-room-${room.id}`}
                 title={room.name}
-                accessibilityLabel={`${room.name}, a room station`}
-                meta={`In ${room.systemName}`}
+                accessibilityLabel={`${room.name}, a room station${room.caption === undefined ? '' : `, ${room.caption}`}`}
+                meta={room.caption === undefined ? `In ${room.systemName}` : `In ${room.systemName} · ${room.caption}`}
                 onPress={() => onStation?.(room.id)}
               />
             ))}

@@ -18,24 +18,25 @@ type SkyReady = Extract<RoomSkyView, { status: 'ready' }>;
 // --- Words and shape (pure) -----------------------------------------------------------------
 
 /**
- * The seven points of a constellation, in the order the stars are earned, in a unit box (x right, y down). One fixed shape
- * for every room, so a star keeps its place as the sky fills; the sheet and the station draw the same points.
+ * The seven points of a constellation, in the order the stars are earned, in a unit box (x right, y down). An arch, so on a
+ * station it rises over the emblem. One fixed shape for every room, so a star keeps its place as the sky fills; the sheet and the station draw the same points.
  */
 export const CONSTELLATION_POINTS: readonly (readonly [number, number])[] = [
-  [0.08, 0.74],
-  [0.24, 0.46],
-  [0.42, 0.6],
-  [0.56, 0.3],
-  [0.72, 0.42],
-  [0.86, 0.16],
-  [0.94, 0.56],
+  [0.06, 0.78],
+  [0.14, 0.5],
+  [0.3, 0.34],
+  [0.5, 0.14],
+  [0.7, 0.3],
+  [0.86, 0.44],
+  [0.94, 0.74],
 ];
 
 /** The stars of the constellation being made, in words: "3 of 7". A room never says how many people did anything. */
-export const skyLine = (sky: RoomSky): string => `${String(sky.lit)} of ${String(sky.of)}`;
+export const skyLine = (sky: Pick<RoomSky, 'lit'>): string =>
+  `${String(sky.lit)} of ${String(ROOM_STARS_PER_CONSTELLATION)}`;
 
 /** A station's line under its name: the count, and the name once a constellation has one. */
-export function stationSkyLine(sky: RoomSky): string {
+export function stationSkyLine(sky: Pick<RoomSky, 'lit' | 'state' | 'constellationName'>): string {
   const base = skyLine(sky);
   if (sky.state === 'named' && sky.constellationName !== undefined) return `${base} · ${sky.constellationName}`;
   return sky.state === 'naming' ? `${base} · Lit` : base;

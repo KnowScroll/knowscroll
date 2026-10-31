@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { ROOM_SWATCHES } from '@knowscroll/contracts';
 import { hexToUnit } from '../paint';
 import { additive, hazeUniforms, type Built, type SceneContext } from './context';
-import type { StationEmblem } from '../space-definition';
+import type { StationEmblem, StationSky } from '../space-definition';
+import { constellationImage } from './constellation-sprite';
 import { emblemImage } from './emblem-sprite';
 import { PLANET_FRAGMENT, WORLD_VERTEX } from './shaders';
 
@@ -32,11 +33,21 @@ function solidMaterial(hex: string, context: SceneContext, sun: THREE.Vector3): 
  * and a blinking light, in the Universe's painted style. `context.calm` dims it under Lately. A room with a face
  * (D-170) wears its accent on the ring and its emblem over the hub, so the station is the room's own.
  */
-export function makeStation(context: SceneContext, sun: THREE.Vector3, emblem?: StationEmblem): Built {
+export function makeStation(
+  context: SceneContext,
+  sun: THREE.Vector3,
+  emblem?: StationEmblem,
+  sky?: StationSky,
+): Built {
+  // A room that has finished a constellation is lit: a heavier ring and a light that stays on instead of blinking.
+  const lit = sky !== undefined && sky.finished >= 1;
   const group = new THREE.Group();
   group.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 12), solidMaterial('#EDE6D6', context, sun)));
   const ringColour = emblem === undefined ? '#FFB347' : ROOM_SWATCHES[emblem.palette.accent];
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.04, 8, 32), solidMaterial(ringColour, context, sun));
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.32, lit ? 0.06 : 0.04, 8, 32),
+    solidMaterial(ringColour, context, sun),
+  );
   ring.rotation.x = Math.PI / 2;
   group.add(ring);
   for (const side of [-1, 1]) {
@@ -79,9 +90,22 @@ export function makeStation(context: SceneContext, sun: THREE.Vector3, emblem?: 
     plate.name = 'room-emblem';
     group.add(plate);
   }
+  // The constellation rises over the emblem as one flat plate that faces the camera: the lit stars joined by lines, the rest hollow.
+  if (sky !== undefined) {
+    const map = context.trackTexture(constellationImage(sky.lit, emblem?.palette.accent));
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.needsUpdate = true;
+    const plate = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map, transparent: true, opacity: context.calm ? 0.45 : 1, depthWrite: false }),
+    );
+    plate.position.y = 1.2;
+    plate.scale.setScalar(2.4);
+    plate.name = 'room-constellation';
+    group.add(plate);
+  }
   const tick = (t: number): void => {
     group.rotation.y = t * 0.15;
-    light.material.opacity = context.calm ? 0.1 : Math.sin(t * 2.6) > 0.4 ? 1 : 0.12;
+    light.material.opacity = context.calm ? 0.1 : lit || Math.sin(t * 2.6) > 0.4 ? 1 : 0.12;
   };
   tick(0);
   return { object: group, tick };
